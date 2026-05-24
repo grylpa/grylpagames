@@ -1,0 +1,30 @@
+[gd_scene format=3 uid="uid://226v0vjn5nw"]
+
+[ext_resource type="Script" uid="uid://bhd5l4eonsstc" path="res://guidem/scripts/main.gd" id="1_8d5ph"]
+[ext_resource type="PackedScene" uid="uid://2k6p8efoljhw" path="res://guidem/scenes/level.tscn" id="1_km1fv"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_jpcjs"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="5_jpcjs"]
+
+[node name="Main" type="Node" unique_id=2053355910]
+script = ExtResource("1_8d5ph")
+
+[node name="Level" parent="." unique_id=1031518958 instance=ExtResource("1_km1fv")]
+
+[node name="HUD" parent="." unique_id=177752940 instance=ExtResource("3_jpcjs")]
+
+[node name="ScoreTimer" type="Timer" parent="." unique_id=1239708324]
+
+[node name="GameTick" type="Timer" parent="." unique_id=1953150]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." unique_id=1114589721 instance=ExtResource("5_jpcjs")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="collision" from="Level" to="." method="_on_level_collision"]
+[connection signal="delivered_one" from="Level" to="." method="_on_level_delivered_one"]
+[connection signal="sig_level_is_done" from="Level" to="." method="_on_level_sig_level_is_done"]
+[connection signal="started_playing" from="Level" to="." method="_on_level_started_playing"]
+[connection signal="timeout" from="ScoreTimer" to="." method="_on_score_timer_timeout"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]

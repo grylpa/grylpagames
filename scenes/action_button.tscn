@@ -1,0 +1,89 @@
+[gd_scene format=3 uid="uid://dti23r41ensf"]
+
+[ext_resource type="StyleBox" uid="uid://cbb3k2psnqj8b" path="res://scenes/action_button_style.tres" id="1_js6u8"]
+[ext_resource type="Texture2D" uid="uid://ckcwejijxddvi" path="res://art/diag_160_dark_red_semi_transparent.png" id="2_u7r83"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_js6u8"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.41, 0.41, 0.41, 0.72549)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.13, 0.0455, 1)
+border_blend = true
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_u7r83"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.388235, 0.388235, 0.388235, 0.501961)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.13, 0.0455, 1)
+border_blend = true
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="ActionButton" type="Button" unique_id=1491114336]
+custom_minimum_size = Vector2(24, 24)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -12.0
+offset_top = -12.0
+offset_right = 12.0
+offset_bottom = 12.0
+grow_horizontal = 2
+grow_vertical = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_disabled_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_disabled_color = Color(1, 1, 1, 1)
+theme_override_styles/normal = ExtResource("1_js6u8")
+theme_override_styles/normal_mirrored = ExtResource("1_js6u8")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_js6u8")
+theme_override_styles/pressed_mirrored = ExtResource("1_js6u8")
+theme_override_styles/hover = ExtResource("1_js6u8")
+theme_override_styles/hover_mirrored = ExtResource("1_js6u8")
+theme_override_styles/hover_pressed = ExtResource("1_js6u8")
+theme_override_styles/hover_pressed_mirrored = ExtResource("1_js6u8")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_u7r83")
+theme_override_styles/disabled_mirrored = ExtResource("1_js6u8")
+theme_override_styles/focus = ExtResource("1_js6u8")
+icon_alignment = 1
+
+[node name="DisabledTexture" type="TextureRect" parent="." unique_id=1161256969]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_u7r83")
+expand_mode = 3

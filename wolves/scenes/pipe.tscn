@@ -1,0 +1,110 @@
+[gd_scene format=3 uid="uid://dot6j2cck1bfs"]
+
+[ext_resource type="Script" uid="uid://csh8jtpbmx6gk" path="res://wolves/scripts/pipe.gd" id="1_iylac"]
+[ext_resource type="Texture2D" uid="uid://bqafbw3r4568n" path="res://art/pipe.png" id="2_fmkq5"]
+[ext_resource type="Texture2D" uid="uid://bqp1gollo1fpv" path="res://art/pipe_no_dir.png" id="3_hncj2"]
+[ext_resource type="Texture2D" uid="uid://lckplir8j0kw" path="res://art/pipe_4_exits.png" id="3_tsvfp"]
+[ext_resource type="Texture2D" uid="uid://k0ibdlsllkac" path="res://art/pipe_urd.png" id="4_hncj2"]
+[ext_resource type="Texture2D" uid="uid://cyl5dv7dhprn4" path="res://wolves/art/floor1.png" id="4_tsvfp"]
+[ext_resource type="Texture2D" uid="uid://jo24j3dl7p07" path="res://wolves/art/floor2.png" id="5_hncj2"]
+[ext_resource type="Texture2D" uid="uid://nju6bsg17j3j" path="res://art/pipe_rd.png" id="5_mib7d"]
+[ext_resource type="Texture2D" uid="uid://dnu7v71l3v8o5" path="res://art/bricks1.png" id="7_bi5gq"]
+[ext_resource type="Texture2D" uid="uid://dvaicsad2km00" path="res://art/bricks2.png" id="8_b8vu4"]
+[ext_resource type="Texture2D" uid="uid://diqsuilxa2q8v" path="res://art/bricks3.png" id="9_h5b8t"]
+[ext_resource type="Texture2D" uid="uid://ctofu7hkm3elr" path="res://wolves/art/grass.png" id="9_t5sgl"]
+[ext_resource type="Texture2D" uid="uid://dj67tig0uutie" path="res://art/coin.png" id="12_b8vu4"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8423h"]
+size = Vector2(40, 40)
+
+[node name="Pipe" type="Area2D" unique_id=664536033]
+script = ExtResource("1_iylac")
+metadata/_edit_group_ = true
+
+[node name="PipeImageLR" type="Sprite2D" parent="." unique_id=977956599]
+visible = false
+texture = ExtResource("2_fmkq5")
+
+[node name="PipeImageNoDir" type="Sprite2D" parent="." unique_id=2124634472]
+visible = false
+texture = ExtResource("3_hncj2")
+
+[node name="PipeImage4" type="Sprite2D" parent="." unique_id=1682448844]
+visible = false
+texture = ExtResource("3_tsvfp")
+
+[node name="PipeImageURD" type="Sprite2D" parent="." unique_id=1558694610]
+visible = false
+texture = ExtResource("4_hncj2")
+
+[node name="PipeImageRD" type="Sprite2D" parent="." unique_id=1261647694]
+visible = false
+texture = ExtResource("5_mib7d")
+
+[node name="PipeFloor1" type="Sprite2D" parent="." unique_id=532146773]
+visible = false
+texture = ExtResource("4_tsvfp")
+
+[node name="PipeFloor2" type="Sprite2D" parent="." unique_id=1182982060]
+texture = ExtResource("5_hncj2")
+
+[node name="PipeGrass" type="Sprite2D" parent="." unique_id=477438401]
+unique_name_in_owner = true
+visible = false
+texture = ExtResource("9_t5sgl")
+
+[node name="PipeBrick1" type="Sprite2D" parent="." unique_id=2116563893]
+visible = false
+texture = ExtResource("7_bi5gq")
+
+[node name="PipeBrick2" type="Sprite2D" parent="." unique_id=1510133056]
+visible = false
+texture = ExtResource("8_b8vu4")
+
+[node name="PipeBrick3" type="Sprite2D" parent="." unique_id=208096346]
+visible = false
+texture = ExtResource("9_h5b8t")
+
+[node name="PipeCoin1" type="Sprite2D" parent="." unique_id=1678075266]
+visible = false
+scale = Vector2(0.06, 0.06)
+texture = ExtResource("12_b8vu4")
+
+[node name="CoinLabelShadow" type="Label" parent="PipeCoin1" unique_id=186763695]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -126.0
+offset_top = -138.0
+offset_right = -126.0
+offset_bottom = -138.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.25, 0.18, 0.05, 1)
+theme_override_font_sizes/font_size = 128
+text = "2"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CoinLabelText" type="Label" parent="PipeCoin1" unique_id=760738676]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -128.0
+offset_top = -140.0
+offset_right = -128.0
+offset_bottom = -140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.6, 0.37, 0, 1)
+theme_override_font_sizes/font_size = 128
+text = "2"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PipeShape" type="CollisionShape2D" parent="." unique_id=2097299003]
+shape = SubResource("RectangleShape2D_8423h")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

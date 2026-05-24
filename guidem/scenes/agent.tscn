@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://b8n5x7dfs73gn"]
+
+[ext_resource type="Script" uid="uid://d34fk3jy7nad3" path="res://guidem/scripts/agent.gd" id="1_fvitjx"]
+[ext_resource type="Texture2D" uid="uid://bexoqxkwkx83i" path="res://art/agent_tail1.png" id="3_irieu"]
+[ext_resource type="Texture2D" uid="uid://bhtqci78f0gsr" path="res://art/agent_tail2.png" id="4_loyt7"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="5_lmcyn"]
+[ext_resource type="Texture2D" uid="uid://ctgepapex5c5i" path="res://scenes/agent_tail3.png" id="5_puvmx"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tu7kf"]
+size = Vector2(40, 40)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_x1rqp6"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3_irieu")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_loyt7")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_puvmx")
+}],
+"loop": true,
+"name": &"TailWheels",
+"speed": 5.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_yhq6h"]
+size = Vector2(40, 40)
+
+[node name="Agent" type="Area2D" unique_id=1491599204 groups=["agents"]]
+z_index = 3
+position = Vector2(344, 230)
+collision_layer = 2
+collision_mask = 2
+script = ExtResource("1_fvitjx")
+metadata/_edit_group_ = true
+
+[node name="AgentShape" type="CollisionShape2D" parent="." unique_id=1611931402]
+shape = SubResource("RectangleShape2D_tu7kf")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=1912486490]
+width = 5.0
+
+[node name="Head" parent="." unique_id=284907783 instance=ExtResource("5_lmcyn")]
+z_index = 1
+animation = &"HeadEyes"
+frame_progress = 0.0
+
+[node name="TailArea" type="Area2D" parent="." unique_id=1777623031 groups=["agent_parts"]]
+collision_layer = 2
+collision_mask = 2
+
+[node name="Tail" type="AnimatedSprite2D" parent="TailArea" unique_id=272614237]
+unique_name_in_owner = true
+visible = false
+z_index = 1
+scale = Vector2(0.25, 0.25)
+sprite_frames = SubResource("SpriteFrames_x1rqp6")
+animation = &"TailWheels"
+
+[node name="TailShape" type="CollisionShape2D" parent="TailArea" unique_id=1081863642]
+shape = SubResource("RectangleShape2D_yhq6h")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="area_entered" from="TailArea" to="." method="_on_tail_area_area_entered"]

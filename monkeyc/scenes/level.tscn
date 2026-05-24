@@ -1,0 +1,130 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://monkeyc/scripts/level.gd" id="1"]
+[ext_resource type="Texture2D" path="res://art/grass.png" id="2"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stripe"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0.06, 0, 0.6)
+
+[node name="Level" type="CanvasLayer"]
+script = ExtResource("1")
+
+[node name="Background" type="TextureRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2")
+stretch_mode = 1
+
+[node name="MainLayout" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 0
+
+[node name="VBox" type="VBoxContainer" parent="MainLayout"]
+layout_mode = 2
+
+[node name="TopSpacer" type="Control" parent="MainLayout/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentVBox" type="VBoxContainer" parent="MainLayout/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="AvgTimeLabel" type="Label" parent="MainLayout/VBox/ContentVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.3, 0.85)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 24
+text = "Average time : —"
+horizontal_alignment = 1
+
+[node name="BoxesRow" type="HBoxContainer" parent="MainLayout/VBox/ContentVBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 24
+
+[node name="LeftSide" type="VBoxContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow"]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 4
+
+[node name="LeftRuleLabel" type="Label" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.3, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 22
+text = "Rule 1"
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 2
+
+[node name="LeftBox" type="PanelContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide"]
+custom_minimum_size = Vector2(140, 420)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+
+[node name="LeftItemsContainer" type="Control" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RightSide" type="VBoxContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow"]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 4
+
+[node name="RightRuleLabel" type="Label" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.3, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 22
+text = "Rule 2"
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 2
+
+[node name="RightBox" type="PanelContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide"]
+custom_minimum_size = Vector2(140, 420)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+
+[node name="RightItemsContainer" type="Control" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="FeedbackLabel" type="Label" parent="MainLayout/VBox/ContentVBox"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 60
+text = "✓"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BottomSpacer" type="Control" parent="MainLayout/VBox"]
+layout_mode = 2
+size_flags_vertical = 3

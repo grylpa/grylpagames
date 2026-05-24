@@ -1,0 +1,20 @@
+shader_type canvas_item;
+
+uniform sampler2D button_tex : source_color;
+uniform float radius : hint_range(0.0, 64.0) = 16.0;
+uniform vec4 modulate_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+
+void fragment() {
+    vec4 tex = texture(button_tex, UV);
+
+    // Rounded mask
+    vec2 corner = abs(UV * 2.0 - 1.0);
+    vec2 q = max(corner - (1.0 - radius / 100.0), 0.0);
+    float dist = length(q);
+    float r_norm = radius / 100.0;
+
+    float inside = smoothstep(r_norm, r_norm - fwidth(dist), dist);
+
+    COLOR = tex * modulate_color;
+    COLOR.a *= inside;
+}

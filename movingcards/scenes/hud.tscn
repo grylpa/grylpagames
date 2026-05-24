@@ -1,0 +1,158 @@
+[gd_scene format=3 uid="uid://b2dku5gxxa7vr"]
+
+[ext_resource type="Script" uid="uid://b62c770qbhosd" path="res://movingcards/scripts/hud.gd" id="1_l5gs2"]
+[ext_resource type="Theme" uid="uid://b8pj351k8cb73" path="res://scenes/orange_rounded_button.tres" id="2_m5amj"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dybq4"]
+content_margin_left = 12.0
+content_margin_right = 12.0
+bg_color = Color(0.254902, 0.254902, 0.254902, 1)
+border_width_bottom = 4
+border_color = Color(0, 0, 0, 1)
+border_blend = true
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_76ivy"]
+content_margin_left = 20.0
+content_margin_top = 5.0
+content_margin_right = 20.0
+content_margin_bottom = 5.0
+bg_color = Color(0, 0.952941, 0.956863, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+corner_detail = 20
+expand_margin_left = 20.0
+expand_margin_top = 5.0
+expand_margin_right = 20.0
+expand_margin_bottom = 5.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_5n1xd"]
+content_margin_left = 12.0
+content_margin_right = 12.0
+bg_color = Color(0, 0.941176, 0.886275, 0.12549)
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6rksb"]
+content_margin_left = 12.0
+content_margin_right = 12.0
+bg_color = Color(0, 0.941176, 0.666667, 0.12549)
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="HUD" type="CanvasLayer" unique_id=966764632]
+script = ExtResource("1_l5gs2")
+
+[node name="Score" type="Label" parent="." unique_id=1875147663]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 60.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0, 0.992157, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 40
+theme_override_styles/normal = SubResource("StyleBoxFlat_dybq4")
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="TimeLeftLabel" type="Label" parent="." unique_id=662303488]
+offset_right = 47.0
+offset_bottom = 60.0
+theme_override_colors/font_color = Color(0.99, 0.9075, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("StyleBoxFlat_dybq4")
+text = "0"
+vertical_alignment = 1
+
+[node name="Message" type="Label" parent="." unique_id=873266343]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -123.5
+offset_top = 60.0
+offset_right = 123.5
+offset_bottom = 134.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 46
+theme_override_styles/normal = SubResource("StyleBoxFlat_76ivy")
+text = "Memory"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MessageTimer" type="Timer" parent="." unique_id=754982337]
+wait_time = 2.0
+one_shot = true
+
+[node name="StartButton" type="MarginContainer" parent="." unique_id=985523989]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -140.0
+offset_top = -77.0
+offset_right = 140.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/margin_bottom = 10
+
+[node name="StartButtonCtrl" type="Button" parent="StartButton" unique_id=917432962]
+layout_mode = 2
+theme = ExtResource("2_m5amj")
+theme_override_font_sizes/font_size = 50
+text = "Restart"
+
+[node name="Reminder" type="Label" parent="." unique_id=1729514069]
+offset_left = 3.0
+offset_top = 3.0
+offset_right = 50.0
+offset_bottom = 53.0
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_font_sizes/font_size = 36
+theme_override_styles/normal = SubResource("StyleBoxFlat_5n1xd")
+text = "R"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Dispatch" type="Label" parent="." unique_id=1181012981]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -84.0
+offset_top = 3.0
+offset_right = 84.0
+offset_bottom = 53.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_font_sizes/font_size = 36
+theme_override_styles/normal = SubResource("StyleBoxFlat_6rksb")
+text = "Dispatch"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ReminderTimer" type="Timer" parent="." unique_id=1548763075]
+wait_time = 3.0
+
+[node name="DispatchTimer" type="Timer" parent="." unique_id=1656122492]
+wait_time = 3.0
+
+[connection signal="timeout" from="MessageTimer" to="." method="_on_message_timer_timeout"]
+[connection signal="pressed" from="StartButton/StartButtonCtrl" to="." method="_on_start_button_pressed"]
+[connection signal="timeout" from="ReminderTimer" to="." method="_on_reminder_timer_timeout"]
+[connection signal="timeout" from="DispatchTimer" to="." method="_on_dispatch_timer_timeout"]

@@ -1,0 +1,49 @@
+[gd_scene format=3 uid="uid://772yxtndm3vr"]
+
+[ext_resource type="Script" uid="uid://bf6yv8teiyslp" path="res://taxi/scripts/target.gd" id="1_sb6fa"]
+[ext_resource type="Texture2D" uid="uid://qd75q64smwan" path="res://art/target-4x.png" id="2_sb6fa"]
+[ext_resource type="Texture2D" uid="uid://bajp7ehxmhrci" path="res://art/receiver-w-grad-4x.png" id="3_r2ysg"]
+[ext_resource type="Texture2D" uid="uid://c41cdgu0quhhh" path="res://art/gas_station.png" id="4_r2ysg"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_l468q"]
+size = Vector2(56, 56)
+
+[node name="Target" type="Area2D" unique_id=367534820]
+z_index = 1
+script = ExtResource("1_sb6fa")
+metadata/_edit_group_ = true
+
+[node name="TargetImage" type="Sprite2D" parent="." unique_id=1912138257]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_sb6fa")
+
+[node name="ReceiverImage" type="Sprite2D" parent="." unique_id=622542186]
+visible = false
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_r2ysg")
+
+[node name="SenderImage" type="Sprite2D" parent="." unique_id=882741911]
+visible = false
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_r2ysg")
+
+[node name="TargetShape" type="CollisionShape2D" parent="." unique_id=1412250823]
+shape = SubResource("RectangleShape2D_l468q")
+
+[node name="TargetText" type="Label" parent="." unique_id=669990242]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="GasStation" type="Sprite2D" parent="." unique_id=838946455]
+visible = false
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("4_r2ysg")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

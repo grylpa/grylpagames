@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://c5y8pjw7op6d0"]
+
+[ext_resource type="Script" uid="uid://qkhb4m31qj6p" path="res://taxi/scripts/pipe.gd" id="1_iva1o"]
+[ext_resource type="Texture2D" uid="uid://6m0fa68se6x" path="res://taxi/art/pipe.png" id="2_f3pwk"]
+[ext_resource type="Texture2D" uid="uid://bgw0xh627ckxx" path="res://taxi/art/pipe_4_exits.png" id="3_esy4p"]
+[ext_resource type="Texture2D" uid="uid://dxn6rs3xgxlax" path="res://taxi/art/pipe_urd.png" id="4_mw4rm"]
+[ext_resource type="Texture2D" uid="uid://cw1bbhfvcb7s3" path="res://taxi/art/pipe_rd.png" id="5_1kyf8"]
+[ext_resource type="Texture2D" uid="uid://ciaw0kq2ltihd" path="res://taxi/art/pipe_path.png" id="6_bmdu0"]
+[ext_resource type="Texture2D" uid="uid://c5aymwdwpntfp" path="res://taxi/art/pipe_lobby.png" id="7_f3pwk"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8423h"]
+size = Vector2(40, 40)
+
+[node name="Pipe" type="Area2D" unique_id=1464849106]
+script = ExtResource("1_iva1o")
+metadata/_edit_group_ = true
+
+[node name="PipeImageLR" type="Sprite2D" parent="." unique_id=1990083319]
+texture = ExtResource("2_f3pwk")
+
+[node name="PipeImage4" type="Sprite2D" parent="." unique_id=965860048]
+visible = false
+texture = ExtResource("3_esy4p")
+
+[node name="PipeImageURD" type="Sprite2D" parent="." unique_id=853295631]
+visible = false
+texture = ExtResource("4_mw4rm")
+
+[node name="PipeImageRD" type="Sprite2D" parent="." unique_id=2144825582]
+visible = false
+texture = ExtResource("5_1kyf8")
+
+[node name="PipePathImage" type="Sprite2D" parent="." unique_id=1639401333]
+visible = false
+texture = ExtResource("6_bmdu0")
+
+[node name="LobbyImage" type="Sprite2D" parent="." unique_id=206509053]
+visible = false
+texture = ExtResource("7_f3pwk")
+
+[node name="PipeShape" type="CollisionShape2D" parent="." unique_id=92351307]
+shape = SubResource("RectangleShape2D_8423h")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

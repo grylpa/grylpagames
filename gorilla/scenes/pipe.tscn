@@ -1,0 +1,109 @@
+[gd_scene format=3 uid="uid://gyxbt8t00f6b"]
+
+[ext_resource type="Script" uid="uid://ddw8tj6pahy51" path="res://gorilla/scripts/pipe.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://bqp1gollo1fpv" path="res://art/pipe_no_dir.png" id="3"]
+[ext_resource type="Texture2D" uid="uid://dopamn358saku" path="res://gorilla/art/floor3.png" id="4_pyvkr"]
+[ext_resource type="Texture2D" uid="uid://dpnknyivxtpbw" path="res://art/path_lr.png" id="5_cws5w"]
+[ext_resource type="Texture2D" uid="uid://c8exag4tut5v4" path="res://gorilla/art/floor1.png" id="6"]
+[ext_resource type="Texture2D" uid="uid://ddd8bhgkmaad3" path="res://art/path_4_exits.png" id="6_pyvkr"]
+[ext_resource type="Texture2D" uid="uid://cklxagqw4y4od" path="res://gorilla/art/floor2.png" id="7"]
+[ext_resource type="Texture2D" uid="uid://dedbvhdhex2pw" path="res://art/path_urd.png" id="7_pdjgj"]
+[ext_resource type="Texture2D" uid="uid://b0psvlotad5bk" path="res://art/path_rd.png" id="8_00rip"]
+[ext_resource type="Texture2D" uid="uid://dnu7v71l3v8o5" path="res://art/bricks1.png" id="9"]
+[ext_resource type="Texture2D" uid="uid://dvaicsad2km00" path="res://art/bricks2.png" id="10"]
+[ext_resource type="Texture2D" uid="uid://diqsuilxa2q8v" path="res://art/bricks3.png" id="11"]
+[ext_resource type="Texture2D" uid="uid://dj67tig0uutie" path="res://art/coin.png" id="12"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(40, 40)
+
+[node name="Pipe" type="Area2D" unique_id=412118806]
+script = ExtResource("1")
+metadata/_edit_group_ = true
+
+[node name="PipeFloor1" type="Sprite2D" parent="." unique_id=780204197]
+visible = false
+texture = ExtResource("6")
+
+[node name="PipeFloor2" type="Sprite2D" parent="." unique_id=403052328]
+visible = false
+texture = ExtResource("7")
+
+[node name="PipeFloor3" type="Sprite2D" parent="." unique_id=689335442]
+texture = ExtResource("4_pyvkr")
+
+[node name="PipeImageNoDir" type="Sprite2D" parent="." unique_id=2112819250]
+visible = false
+texture = ExtResource("3")
+
+[node name="PipeImageLR" type="Sprite2D" parent="." unique_id=543219403]
+visible = false
+texture = ExtResource("5_cws5w")
+
+[node name="PipeImage4" type="Sprite2D" parent="." unique_id=253261972]
+visible = false
+texture = ExtResource("6_pyvkr")
+
+[node name="PipeImageURD" type="Sprite2D" parent="." unique_id=445363505]
+visible = false
+texture = ExtResource("7_pdjgj")
+
+[node name="PipeImageRD" type="Sprite2D" parent="." unique_id=1869023521]
+visible = false
+texture = ExtResource("8_00rip")
+
+[node name="PipeBrick1" type="Sprite2D" parent="." unique_id=1730608417]
+visible = false
+texture = ExtResource("9")
+
+[node name="PipeBrick2" type="Sprite2D" parent="." unique_id=716055170]
+visible = false
+texture = ExtResource("10")
+
+[node name="PipeBrick3" type="Sprite2D" parent="." unique_id=2025811843]
+visible = false
+texture = ExtResource("11")
+
+[node name="PipeCoin1" type="Sprite2D" parent="." unique_id=1548531803]
+visible = false
+scale = Vector2(0.06, 0.06)
+texture = ExtResource("12")
+
+[node name="CoinLabelShadow" type="Label" parent="PipeCoin1" unique_id=1027843540]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -126.0
+offset_top = -138.0
+offset_right = -126.0
+offset_bottom = -138.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.25, 0.18, 0.05, 1)
+theme_override_font_sizes/font_size = 128
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CoinLabelText" type="Label" parent="PipeCoin1" unique_id=1821573997]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -128.0
+offset_top = -140.0
+offset_right = -128.0
+offset_bottom = -140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.6, 0.37, 0, 1)
+theme_override_font_sizes/font_size = 128
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PipeShape" type="CollisionShape2D" parent="." unique_id=651980101]
+shape = SubResource("RectangleShape2D_1")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

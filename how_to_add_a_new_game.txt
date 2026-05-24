@@ -1,0 +1,75 @@
+1. in the game's globals.gd add
+var game := GenericGameUtil.new(presentable_game_name, short_game_namme, hours,minutes,seconds)
+
+	short_game_name will be used for filenames etc
+	hours,minutes,seconds are for initial timeout till game over
+
+
+in init_globals() add:
+	game.init_sizes()
+	game.reset(true)
+
+2. in main.gd add:
+var game:GenericGameUtil
+
+in _ready add:
+game = DelemfpG.game
+hud.set_game(game)
+game.sig_game_is_done.connect(on_game_is_done)
+
+3. add
+func get_game_score(_didwin, _wasaborted):
+	return [_didwin, _wasaborted, $Level.difficulty]
+
+for each game, add whatever you want to save after _wasaborted
+
+4. add
+func on_game_is_done(_didwin:bool, _wasaborted:bool):
+	game.save_score(get_game_score(_didwin, _wasaborted))
+
+func _save_ongoing_score():
+	game.save_ongoing_score(get_game_score(false, false))
+
+
+5. in your periodic tick function in main add:
+func _on_game_tick_timeout() -> void:
+	...
+	if game.time_since_saved_ongoing_score_sec() >= 60:
+		_save_ongoing_score()
+
+6. in func show_main_menu(): add "scores" like this:
+	$MainMenu.show()
+	$Level.hide()
+	MainGlobals.update_bottom_bar(["help","mute","scores"])
+
+7. in func _on_level_show_main_menu() add:
+	_save_ongoing_score()
+
+8. in main_menu.gd add:
+func _input(event):
+	game.test_open_scores_screen(event,self)
+
+9. to support lives, 
+in main.gd add:
+	in _ready:
+	game.sig_add_life.connect(on_add_life)
+
+	add func:
+	func on_add_life():
+		hud.add_life()
+
+in globals.gd add param to game constructor with number of lives
+
+in level.gd, add something like this to increase_difficulty(...):
+	var oldlevel = int(difficulty / times_per_difficulty)
+	if increase:
+		difficulty += 1
+	var level = int(difficulty / times_per_difficulty)
+	if level > oldlevel:
+		game.add_life()
+
+in level.gd, if you want to know when lives are depleted, add:
+game.sig_lives_depleted.connect(on_lives_depleted)
+
+and implement on_lives_depleted
+

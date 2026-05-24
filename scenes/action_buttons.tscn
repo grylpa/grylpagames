@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://dw0riccks4did"]
+
+[ext_resource type="Script" uid="uid://b27e71j55upnk" path="res://scripts/action_buttons.gd" id="1_7awm8"]
+
+[node name="ActionButtons" type="HBoxContainer" unique_id=1258376293]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+alignment = 1
+script = ExtResource("1_7awm8")

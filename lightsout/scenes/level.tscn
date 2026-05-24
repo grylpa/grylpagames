@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://b6b7q4s0cwo0j"]
+
+[ext_resource type="Script" uid="uid://cc3s7h23vw331" path="res://lightsout/scripts/level.gd" id="1_3h1un"]
+[ext_resource type="PackedScene" uid="uid://c42eiru1lqc70" path="res://lightsout/scenes/pipe.tscn" id="2_554b8"]
+[ext_resource type="PackedScene" uid="uid://bcrfn28sjxajd" path="res://lightsout/scenes/door.tscn" id="3_col7x"]
+[ext_resource type="Texture2D" uid="uid://0xpf600qov76" path="res://lightsout/art/grass.png" id="4_kj03m"]
+
+[node name="Level" type="CanvasLayer" unique_id=1519085017]
+follow_viewport_enabled = true
+script = ExtResource("1_3h1un")
+pipe_scene = ExtResource("2_554b8")
+door_scene = ExtResource("3_col7x")
+
+[node name="AgentDispatchTimer" type="Timer" parent="." unique_id=1756336772]
+wait_time = 0.5
+autostart = true
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1437505540]
+custom_minimum_size = Vector2(1200, 2000)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -540.0
+offset_top = -806.0
+offset_right = 660.0
+offset_bottom = 1194.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 6
+size_flags_vertical = 6
+texture = ExtResource("4_kj03m")
+stretch_mode = 1
+
+[node name="ExplosionAudio" type="AudioStreamPlayer2D" parent="." unique_id=394473695]
+
+[node name="MotorAudio" type="AudioStreamPlayer2D" parent="." unique_id=218986961]
+
+[node name="FeetAudio" type="AudioStreamPlayer2D" parent="." unique_id=1562492678]
+
+[node name="DeliveredAudio" type="AudioStreamPlayer2D" parent="." unique_id=946015407]
+
+[node name="StartAudio" type="AudioStreamPlayer2D" parent="." unique_id=258811754]
+
+[connection signal="timeout" from="AgentDispatchTimer" to="." method="_on_agent_dispatch_timer_timeout"]

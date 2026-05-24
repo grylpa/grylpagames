@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://bgknwjs7g2hn8"]
+
+[ext_resource type="Script" uid="uid://bdril17c4p6xs" path="res://delemfp/scripts/main.gd" id="1_8d5ph"]
+[ext_resource type="PackedScene" uid="uid://b0dcq5rk0n5e6" path="res://delemfp/scenes/level.tscn" id="1_km1fv"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_gfasm"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="5_gfasm"]
+
+[node name="Main" type="Node" unique_id=1720694976]
+script = ExtResource("1_8d5ph")
+
+[node name="Level" parent="." unique_id=238055519 instance=ExtResource("1_km1fv")]
+
+[node name="HUD" parent="." unique_id=370093448 instance=ExtResource("3_gfasm")]
+
+[node name="GameTick" type="Timer" parent="." unique_id=486866246]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." unique_id=365097477 instance=ExtResource("5_gfasm")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="new_packet_message" from="Level" to="." method="_on_level_new_packet_message"]
+[connection signal="show_reminder" from="Level" to="." method="_on_level_show_reminder"]
+[connection signal="sig_level_is_done" from="Level" to="." method="_on_level_sig_level_is_done"]
+[connection signal="started_playing" from="Level" to="." method="_on_level_started_playing"]
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]

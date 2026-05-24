@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ci33k28u5tw2f"
+path="res://.godot/imported/Retro Blop 18.ogg-f454c2445c8fe78fec12c06e1d24fe02.oggvorbisstr"
+
+[deps]
+
+source_file="res://art/sounds/FreeSFX/GameSFX/Blops/Retro Blop 18.ogg"
+dest_files=["res://.godot/imported/Retro Blop 18.ogg-f454c2445c8fe78fec12c06e1d24fe02.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,55 @@
+[gd_scene format=3 uid="uid://c38jubcfptdif"]
+
+[ext_resource type="Script" uid="uid://uhu4h8hwr4ch" path="res://delemfp/scripts/agent.gd" id="1_aatnaxia"]
+[ext_resource type="Texture2D" uid="uid://bexoqxkwkx83i" path="res://art/agent_tail1.png" id="3_yr61f"]
+[ext_resource type="Texture2D" uid="uid://bhtqci78f0gsr" path="res://art/agent_tail2.png" id="4_2dfpd"]
+[ext_resource type="Texture2D" uid="uid://ctgepapex5c5i" path="res://scenes/agent_tail3.png" id="5_46tbp"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="5_okhvd"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tu7kf"]
+size = Vector2(40, 40)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_uut6n"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3_yr61f")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_2dfpd")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_46tbp")
+}],
+"loop": true,
+"name": &"TailWheelsFP",
+"speed": 5.0
+}]
+
+[node name="Agent" type="Area2D" unique_id=1436298796]
+z_index = 3
+position = Vector2(344, 230)
+script = ExtResource("1_aatnaxia")
+metadata/_edit_group_ = true
+
+[node name="AgentShape" type="CollisionShape2D" parent="." unique_id=528397807]
+shape = SubResource("RectangleShape2D_tu7kf")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=1860061549]
+width = 5.0
+
+[node name="Head" parent="." unique_id=1940202276 instance=ExtResource("5_okhvd")]
+z_index = 1
+animation = &"HeadEyes"
+frame_progress = 0.0
+
+[node name="Tail" type="AnimatedSprite2D" parent="." unique_id=2118284027]
+visible = false
+z_index = 1
+scale = Vector2(0.25, 0.25)
+sprite_frames = SubResource("SpriteFrames_uut6n")
+animation = &"TailWheelsFP"
+frame = 1
+frame_progress = 0.54411364
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

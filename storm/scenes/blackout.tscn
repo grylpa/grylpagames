@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://btp3apfaw4fcj"]
+
+[ext_resource type="Script" uid="uid://dicunr8084fin" path="res://storm/scripts/level.gd" id="1_xn0gk"]
+[ext_resource type="PackedScene" uid="uid://b1g50upd2ty2r" path="res://storm/scenes/pipe.tscn" id="2_vaaxm"]
+[ext_resource type="PackedScene" uid="uid://cg55koteuna80" path="res://storm/scenes/door.tscn" id="3_2lnxl"]
+
+[node name="Blackout" type="CanvasLayer" unique_id=1519085017]
+script = ExtResource("1_xn0gk")
+pipe_scene = ExtResource("2_vaaxm")
+door_scene = ExtResource("3_2lnxl")
+
+[node name="BlackoutRect" type="ColorRect" parent="." unique_id=1805432565]
+z_index = 200
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+color = Color(0, 0, 0, 0.6509804)

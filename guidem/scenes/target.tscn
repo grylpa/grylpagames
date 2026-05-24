@@ -1,0 +1,36 @@
+[gd_scene format=3 uid="uid://d0ti5xwgiuwt2"]
+
+[ext_resource type="Script" uid="uid://bid0un2qmp0b4" path="res://guidem/scripts/target.gd" id="1_ergnt"]
+[ext_resource type="Texture2D" uid="uid://qd75q64smwan" path="res://art/target-4x.png" id="2_ppmvq"]
+[ext_resource type="Texture2D" uid="uid://bh2hweyg8diec" path="res://art/receiver_torquise-4x.png" id="3_ppmvq"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_l468q"]
+size = Vector2(56, 56)
+
+[node name="Target" type="Area2D" unique_id=1140356977]
+z_index = 1
+script = ExtResource("1_ergnt")
+metadata/_edit_group_ = true
+
+[node name="TargetImage" type="Sprite2D" parent="." unique_id=1170229698]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_ppmvq")
+
+[node name="DestinationImage" type="Sprite2D" parent="." unique_id=286028559]
+visible = false
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_ppmvq")
+
+[node name="TargetShape" type="CollisionShape2D" parent="." unique_id=934840456]
+shape = SubResource("RectangleShape2D_l468q")
+
+[node name="TargetText" type="Label" parent="." unique_id=1305294765]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 30
+horizontal_alignment = 1
+vertical_alignment = 1

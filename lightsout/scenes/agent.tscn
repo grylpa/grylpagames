@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://duw1cp061kwn1"]
+
+[ext_resource type="Script" uid="uid://dhdx2crbr35l2" path="res://lightsout/scripts/agent.gd" id="1_qk60u"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="8_upwq7"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tu7kf"]
+size = Vector2(40, 40)
+
+[node name="Agent" type="Area2D" unique_id=233149071 groups=["agents"]]
+z_index = 3
+collision_layer = 2
+collision_mask = 2
+script = ExtResource("1_qk60u")
+metadata/_edit_group_ = true
+
+[node name="AgentShape" type="CollisionShape2D" parent="." unique_id=657828774]
+shape = SubResource("RectangleShape2D_tu7kf")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=38592080]
+width = 5.0
+
+[node name="Head" parent="." unique_id=501414797 instance=ExtResource("8_upwq7")]
+z_index = 1
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="input_event" from="." to="." method="_on_input_event"]

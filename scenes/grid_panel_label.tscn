@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://je2c7wl16tu1"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_do3f3"]
+content_margin_left = 0.0
+content_margin_right = 0.0
+
+[sub_resource type="SystemFont" id="SystemFont_do3f3"]
+font_names = PackedStringArray("Open Sans SemiBold", "Open Sans", "sans-serif")
+font_weight = 600
+subpixel_positioning = 0
+
+[node name="Panel" type="PanelContainer" unique_id=552912894]
+offset_right = 33.0
+offset_bottom = 25.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_do3f3")
+
+[node name="Label" type="Label" parent="." unique_id=714622825]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_vertical = 1
+theme_override_fonts/font = SubResource("SystemFont_do3f3")
+theme_override_font_sizes/font_size = 40
+text = "123"
+autowrap_mode = 3

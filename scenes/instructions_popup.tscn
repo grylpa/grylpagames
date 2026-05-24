@@ -1,0 +1,119 @@
+[gd_scene format=3 uid="uid://bbjo2mf2tokfv"]
+
+[ext_resource type="Script" uid="uid://dc5dcufdlnfdb" path="res://scripts/instructions_popup.gd" id="1_aarcl"]
+[ext_resource type="Texture2D" uid="uid://dyuktoyvbrtmg" path="res://art/grass_dark.png" id="2_2xqvj"]
+[ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="4_d3yh6"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_moruy"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0, 0, 0, 1)
+border_color = Color(0.12549, 0.12549, 0.12549, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_2xqvj"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2xqvj"]
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.168627, 0.380392, 0.172549, 1)
+border_blend = true
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[node name="Instructions" type="CanvasLayer" unique_id=1629358834]
+layer = 128
+script = ExtResource("1_aarcl")
+metadata/_edit_group_ = true
+
+[node name="BackgroundPanel" type="PanelContainer" parent="." unique_id=794996302]
+clip_children = 1
+z_index = 1
+clip_contents = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_styles/panel = SubResource("StyleBoxFlat_moruy")
+
+[node name="TextureRect" type="TextureRect" parent="BackgroundPanel" unique_id=129195259]
+clip_contents = true
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("2_2xqvj")
+stretch_mode = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BackgroundPanel" unique_id=1041171022]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TitleMargin" type="MarginContainer" parent="BackgroundPanel/VBoxContainer" unique_id=528832634]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
+
+[node name="Title" type="Label" parent="BackgroundPanel/VBoxContainer/TitleMargin" unique_id=1381818464]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.937255, 0.768627, 0.0980392, 1)
+theme_override_font_sizes/font_size = 40
+theme_override_styles/normal = SubResource("StyleBoxEmpty_2xqvj")
+text = "Instructions"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TitleMargin2" type="MarginContainer" parent="BackgroundPanel/VBoxContainer" unique_id=875066401]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="PanelContainer" type="PanelContainer" parent="BackgroundPanel/VBoxContainer/TitleMargin2" unique_id=1563642359]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_2xqvj")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="BackgroundPanel/VBoxContainer/TitleMargin2/PanelContainer" unique_id=1528248469]
+layout_mode = 2
+
+[node name="Text" type="Label" parent="BackgroundPanel/VBoxContainer/TitleMargin2/PanelContainer/ScrollContainer" unique_id=1445165979]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.94, 0.94, 0.5734, 1)
+theme_override_font_sizes/font_size = 36
+text = "instructions for the game"
+autowrap_mode = 3
+
+[node name="XCloseScene" parent="BackgroundPanel" unique_id=1831503332 instance=ExtResource("4_d3yh6")]
+layout_mode = 2
+size_flags_horizontal = 8
+icon_color = Color(1, 1, 0, 1)
+disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
+text_color = Color(0.835294, 0.862745, 0, 1)
+font_size = 40
+
+[connection signal="gui_input" from="BackgroundPanel" to="." method="_on_background_panel_gui_input"]
+[connection signal="button_pressed" from="BackgroundPanel/XCloseScene" to="." method="_on_x_close_scene_button_pressed"]

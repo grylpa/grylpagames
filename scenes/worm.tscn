@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://dr72vh6530bd1"]
+
+[ext_resource type="Texture2D" uid="uid://vwtkhmvm881v" path="res://art/worm_0.png" id="1_0arrn"]
+[ext_resource type="Texture2D" uid="uid://bqavn14cxq03k" path="res://art/worm_1.png" id="2_vryhq"]
+[ext_resource type="Texture2D" uid="uid://dfr3pa0ciijjd" path="res://art/worm_2.png" id="3_6ebml"]
+[ext_resource type="Texture2D" uid="uid://b36ecpo6yqay4" path="res://art/worm_3.png" id="4_gk8p6"]
+[ext_resource type="Texture2D" uid="uid://dfs4gtp8ic03p" path="res://art/worm_4.png" id="5_mpo4e"]
+[ext_resource type="Texture2D" uid="uid://cufcpy5qo86o2" path="res://art/worm_0_shifted_00.png" id="6_0sx28"]
+[ext_resource type="Texture2D" uid="uid://mh85vgbhht0w" path="res://art/worm_1_shifted_01.png" id="7_fnyh2"]
+[ext_resource type="Texture2D" uid="uid://diwtaw25sptxd" path="res://art/worm_2_shifted_02.png" id="8_qtrkm"]
+[ext_resource type="Texture2D" uid="uid://djgcev4xvo0fg" path="res://art/worm_3_shifted_03.png" id="9_x6pul"]
+[ext_resource type="Texture2D" uid="uid://br222m6uj1c4h" path="res://art/worm_4_shifted_04.png" id="10_jyln6"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_8kbej"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_0arrn")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_vryhq")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_6ebml")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_gk8p6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_mpo4e")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("6_0sx28")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_fnyh2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_qtrkm")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_x6pul")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_jyln6")
+}],
+"loop": true,
+"name": &"r2l",
+"speed": 5.0
+}]
+
+[node name="Worm" type="AnimatedSprite2D" unique_id=569590296]
+sprite_frames = SubResource("SpriteFrames_8kbej")
+animation = &"r2l"
+frame_progress = 0.39011198

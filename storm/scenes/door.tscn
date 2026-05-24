@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://cg55koteuna80"]
+
+[ext_resource type="Script" uid="uid://ctpua3wa28j8w" path="res://storm/scripts/door.gd" id="1_dv70d"]
+[ext_resource type="Texture2D" uid="uid://drude5cng848x" path="res://art/door_open.png" id="2_bnutq"]
+[ext_resource type="Texture2D" uid="uid://bvctd3bjnh3pv" path="res://art/door_diag.png" id="3_auw47"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mvdh3"]
+size = Vector2(48, 48)
+
+[node name="Door" type="Area2D" unique_id=269405764]
+z_index = 10
+script = ExtResource("1_dv70d")
+metadata/_edit_group_ = true
+
+[node name="DoorOpen" type="Sprite2D" parent="." unique_id=1659794808]
+texture = ExtResource("2_bnutq")
+
+[node name="DoorDiag" type="Sprite2D" parent="." unique_id=138518685]
+texture = ExtResource("3_auw47")
+
+[node name="DoorShape" type="CollisionShape2D" parent="." unique_id=87829713]
+shape = SubResource("RectangleShape2D_mvdh3")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

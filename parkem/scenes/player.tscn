@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://bim4q736hxcod"]
+
+[ext_resource type="Script" uid="uid://7qntup4k80ph" path="res://parkem/scripts/player.gd" id="1_sg6au"]
+[ext_resource type="Texture2D" uid="uid://ify1vfxtk8v3" path="res://art/receiver_torquise-no-arrow-4x.png" id="2_sg6au"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ytrxx"]
+size = Vector2(56, 56)
+
+[node name="Player" type="Area2D" unique_id=1005346166]
+z_index = 100
+script = ExtResource("1_sg6au")
+metadata/_edit_group_ = true
+
+[node name="PlayerImage" type="Sprite2D" parent="." unique_id=1767440630]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_sg6au")
+
+[node name="PlayerShape" type="CollisionShape2D" parent="." unique_id=1397815773]
+shape = SubResource("RectangleShape2D_ytrxx")

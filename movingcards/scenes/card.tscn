@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://c25cw0hcpf42t"]
+
+[ext_resource type="Texture2D" uid="uid://cyf2po3q1eegg" path="res://movingcards/art/CardBack4.png" id="1_45xct"]
+[ext_resource type="Script" uid="uid://lrbm5t6cysr" path="res://movingcards/scripts/card.gd" id="1_lh2w0"]
+[ext_resource type="Texture2D" uid="uid://botx2vigxf4ig" path="res://movingcards/art/CardFront1.png" id="3_yw081"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pmpko"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 7
+border_width_top = 7
+border_width_right = 7
+border_width_bottom = 7
+border_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_llsy2"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0, 0, 1)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rsgfc"]
+size = Vector2(80, 80)
+
+[node name="Card" type="Area2D" unique_id=737477355]
+script = ExtResource("1_lh2w0")
+metadata/_edit_group_ = true
+
+[node name="CardBack" type="Sprite2D" parent="." unique_id=321578399]
+texture = ExtResource("1_45xct")
+
+[node name="CardFront" type="Sprite2D" parent="." unique_id=1239865201]
+texture = ExtResource("3_yw081")
+
+[node name="CardFrontFrame" type="Panel" parent="CardFront" unique_id=1311425715]
+custom_minimum_size = Vector2(80, 80)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = -40.0
+offset_right = -40.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_pmpko")
+
+[node name="CardLabel" type="Label" parent="." unique_id=1569060777]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -0.5
+offset_top = -11.5
+offset_right = 0.5
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 40
+text = "33"
+
+[node name="CardBorder" type="Panel" parent="." unique_id=1534335308]
+custom_minimum_size = Vector2(80, 80)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_llsy2")
+
+[node name="CardShape" type="CollisionShape2D" parent="." unique_id=15251082]
+shape = SubResource("RectangleShape2D_rsgfc")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

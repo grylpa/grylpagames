@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://btr47rbawpygc"]
+
+[ext_resource type="Script" path="res://movingcards/scripts/main.gd" id="1_8d5ph"]
+[ext_resource type="PackedScene" path="res://movingcards/scenes/level.tscn" id="1_km1fv"]
+[ext_resource type="PackedScene" path="res://movingcards/scenes/hud.tscn" id="3_iedmf"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="5_xic2l"]
+
+[node name="Main" type="Node" unique_id=179633622]
+script = ExtResource("1_8d5ph")
+
+[node name="Level" parent="." unique_id=1413203762 instance=ExtResource("1_km1fv")]
+visible = false
+
+[node name="HUD" parent="." unique_id=1988013352 instance=ExtResource("3_iedmf")]
+
+[node name="Help" parent="." unique_id=985089289 instance=ExtResource("5_xic2l")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="sig_can_start_clicking" from="Level" to="." method="_on_level_sig_can_start_clicking"]
+[connection signal="sig_level_is_done" from="Level" to="." method="_on_level_sig_level_is_done"]
+[connection signal="sig_message" from="Level" to="." method="_on_level_sig_message"]
+[connection signal="update_score" from="Level" to="." method="_on_level_update_score"]
+[connection signal="help_button_pressed" from="HUD" to="." method="_on_hud_help_button_pressed"]

@@ -1,0 +1,32 @@
+[gd_resource type="Theme" format=3 uid="uid://bogqmrsb44l6a"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1hqig"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.168627, 0.168627, 0.168627, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0eydo"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.168627, 0.168627, 0.168627, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_io5mk"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.17, 0.17, 0.17, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_5lw4e"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.33, 0.33, 0.33, 1)
+
+[resource]
+OptionButton/colors/font_color = Color(0.93, 0.93, 0.93, 1)
+OptionButton/colors/font_focus_color = Color(0.929412, 0.929412, 0.929412, 1)
+OptionButton/colors/font_hover_color = Color(0.929412, 0.929412, 0.929412, 1)
+OptionButton/colors/font_hover_pressed_color = Color(0.929412, 0.929412, 0.929412, 1)
+OptionButton/colors/font_pressed_color = Color(0.929412, 0.929412, 0.929412, 1)
+OptionButton/styles/focus = SubResource("StyleBoxFlat_1hqig")
+OptionButton/styles/hover = SubResource("StyleBoxFlat_0eydo")
+OptionButton/styles/normal = SubResource("StyleBoxFlat_io5mk")
+OptionButton/styles/pressed = SubResource("StyleBoxFlat_5lw4e")

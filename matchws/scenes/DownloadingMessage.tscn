@@ -1,0 +1,155 @@
+[gd_scene format=3 uid="uid://dd517sogabfv4"]
+
+[ext_resource type="Script" uid="uid://bspewqxxmx434" path="res://matchws/scripts/downloading_message.gd" id="1_k7m37"]
+[ext_resource type="Theme" uid="uid://bi6ars80i4cxs" path="res://scenes/message_label.tres" id="2_oyrmi"]
+[ext_resource type="Texture2D" uid="uid://dn35d7k5tbmrc" path="res://art/zig2.png" id="3_oyrmi"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_f00yj"]
+bg_color = Color(0, 0, 0, 0)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plleh"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4y76p"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_oyrmi"]
+bg_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_at4yv"]
+bg_color = Color(0.4032, 0.84, 0.59248, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="DownloadingMessage" type="CanvasLayer" unique_id=633397347]
+script = ExtResource("1_k7m37")
+
+[node name="Background" type="ColorRect" parent="." unique_id=555054409]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.313726)
+
+[node name="MessageLabel" type="Label" parent="." unique_id=1029582657]
+visible = false
+custom_minimum_size = Vector2(600, 0)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -0.5
+offset_top = -11.5
+offset_right = 0.5
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_oyrmi")
+text = "Downloading words..."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="MessageTimer" type="Timer" parent="." unique_id=1390099305]
+wait_time = 2.0
+one_shot = true
+
+[node name="MessagePanel" type="PanelContainer" parent="." unique_id=1192292279]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -304.0
+offset_top = -38.5
+offset_right = 304.0
+offset_bottom = 38.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_f00yj")
+
+[node name="NinePatchRect" type="NinePatchRect" parent="MessagePanel" unique_id=1291381146]
+layout_mode = 2
+texture = ExtResource("3_oyrmi")
+draw_center = false
+patch_margin_left = 8
+patch_margin_top = 8
+patch_margin_right = 8
+patch_margin_bottom = 8
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="MessagePanel" unique_id=1787633690]
+layout_mode = 2
+mouse_filter = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="MessagePanel" unique_id=1662903293]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MessagePanel/MarginContainer" unique_id=1941698093]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Message" type="Label" parent="MessagePanel/MarginContainer/VBoxContainer" unique_id=261905640]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 120)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/normal = SubResource("StyleBoxFlat_plleh")
+text = "Memory"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ProgressMarginContainer" type="MarginContainer" parent="MessagePanel/MarginContainer/VBoxContainer" unique_id=185188130]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_right = 0
+
+[node name="ProgressPanelContainer" type="PanelContainer" parent="MessagePanel/MarginContainer/VBoxContainer/ProgressMarginContainer" unique_id=2081690379]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_4y76p")
+
+[node name="ProgressBar" type="ProgressBar" parent="MessagePanel/MarginContainer/VBoxContainer/ProgressMarginContainer/ProgressPanelContainer" unique_id=1130647328]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+mouse_filter = 1
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/background = SubResource("StyleBoxFlat_oyrmi")
+theme_override_styles/fill = SubResource("StyleBoxFlat_at4yv")
+rounded = true
+show_percentage = false
+
+[connection signal="timeout" from="MessageTimer" to="." method="_on_message_timer_timeout"]

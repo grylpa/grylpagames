@@ -1,0 +1,193 @@
+[gd_scene format=3 uid="uid://ytshvxq0ba2h"]
+
+[ext_resource type="Script" uid="uid://bupyurlu0yvb3" path="res://scripts/scores_list.gd" id="1_tssfn"]
+[ext_resource type="Texture2D" uid="uid://ce5gp3yijxknc" path="res://matchws/art/grass_light.png" id="2_ykb6w"]
+[ext_resource type="Texture2D" uid="uid://cgs37y8vig8ea" path="res://art/bars-48.png" id="3_07022"]
+[ext_resource type="PackedScene" uid="uid://bpd8ss75cu877" path="res://scenes/scores_list_header.tscn" id="4_0ijpw"]
+[ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="4_7vbyi"]
+[ext_resource type="PackedScene" uid="uid://cvgjmhh1nk5k2" path="res://scenes/OverlayMessage.tscn" id="4_tssfn"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6pfw3"]
+bg_color = Color(0.254902, 0.254902, 0.254902, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_w6c2s"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_8w0ty"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_xkl2w"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_xy4sf"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_1bmri"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_ywh5l"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_vggwj"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_rhhpe"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_s0ilx"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_0ijpw"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_07022"]
+
+[node name="ScoresList" type="CanvasLayer" unique_id=1707276646]
+script = ExtResource("1_tssfn")
+metadata/_edit_group_ = true
+
+[node name="ScoresWindow" type="Window" parent="." unique_id=1584426838]
+oversampling_override = 1.0
+mode = 4
+size = Vector2i(680, 780)
+exclusive = true
+unresizable = true
+borderless = true
+always_on_top = true
+
+[node name="ColorRect" type="TextureRect" parent="ScoresWindow" unique_id=923219018]
+z_index = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 6
+mouse_filter = 2
+texture = ExtResource("2_ykb6w")
+stretch_mode = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScoresWindow/ColorRect" unique_id=1450053777]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="TitleMargin" type="MarginContainer" parent="ScoresWindow/ColorRect/VBoxContainer" unique_id=1583011681]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="ScoresWindow/ColorRect/VBoxContainer/TitleMargin" unique_id=563134548]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_font_sizes/font_size = 46
+theme_override_styles/normal = SubResource("StyleBoxFlat_6pfw3")
+text = "Stats"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MonotonicCheckButton" type="CheckButton" parent="ScoresWindow/ColorRect/VBoxContainer/TitleMargin" unique_id=526601503]
+unique_name_in_owner = true
+modulate = Color(1, 1, 0, 1)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_w6c2s")
+theme_override_styles/normal_mirrored = SubResource("StyleBoxEmpty_8w0ty")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_xkl2w")
+theme_override_styles/pressed_mirrored = SubResource("StyleBoxEmpty_xy4sf")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_1bmri")
+theme_override_styles/hover_mirrored = SubResource("StyleBoxEmpty_ywh5l")
+theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_vggwj")
+theme_override_styles/hover_pressed_mirrored = SubResource("StyleBoxEmpty_rhhpe")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_s0ilx")
+theme_override_styles/disabled_mirrored = SubResource("StyleBoxEmpty_0ijpw")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_07022")
+icon = ExtResource("3_07022")
+
+[node name="TabSpacer" type="Control" parent="ScoresWindow/ColorRect/VBoxContainer" unique_id=100200299]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 8)
+mouse_filter = 2
+
+[node name="TabMargin" type="MarginContainer" parent="ScoresWindow/ColorRect/VBoxContainer" unique_id=100200298]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/margin_left = 38
+theme_override_constants/margin_right = 38
+
+[node name="TabBar" type="HBoxContainer" parent="ScoresWindow/ColorRect/VBoxContainer/TabMargin" unique_id=100200300]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/separation = 0
+
+[node name="ScoresTabButton" type="Button" parent="ScoresWindow/ColorRect/VBoxContainer/TabMargin/TabBar" unique_id=100200301]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 26
+text = "Scores"
+
+[node name="SpeedTabButton" type="Button" parent="ScoresWindow/ColorRect/VBoxContainer/TabMargin/TabBar" unique_id=100200302]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 26
+text = "Speed"
+visible = false
+
+[node name="MarginContainer2" type="MarginContainer" parent="ScoresWindow/ColorRect/VBoxContainer" unique_id=741624583]
+layout_mode = 2
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_bottom = 4
+
+[node name="Header" parent="ScoresWindow/ColorRect/VBoxContainer/MarginContainer2" unique_id=470744841 instance=ExtResource("4_0ijpw")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ScoresWindow/ColorRect/VBoxContainer" unique_id=555251521]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ScoresWindow/ColorRect/VBoxContainer/MarginContainer" unique_id=510918782]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="GridContainer" type="VBoxContainer" parent="ScoresWindow/ColorRect/VBoxContainer/MarginContainer/ScrollContainer" unique_id=1184361621]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="XCloseScene" parent="ScoresWindow/ColorRect" unique_id=1213787156 instance=ExtResource("4_7vbyi")]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+grow_horizontal = 0
+icon_color = Color(1, 1, 0, 1)
+disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
+text_color = Color(1, 1, 0.0196078, 1)
+font_size = 40
+
+[node name="OverlayMessage" parent="ScoresWindow" unique_id=1176046877 instance=ExtResource("4_tssfn")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="pressed" from="ScoresWindow/ColorRect/VBoxContainer/TabMargin/TabBar/ScoresTabButton" to="." method="_on_scores_tab_pressed"]
+[connection signal="pressed" from="ScoresWindow/ColorRect/VBoxContainer/TabMargin/TabBar/SpeedTabButton" to="." method="_on_speed_tab_pressed"]
+[connection signal="window_input" from="ScoresWindow" to="." method="_on_scores_window_window_input"]
+[connection signal="toggled" from="ScoresWindow/ColorRect/VBoxContainer/TitleMargin/MonotonicCheckButton" to="." method="_on_check_button_toggled"]
+[connection signal="button_pressed" from="ScoresWindow/ColorRect/XCloseScene" to="." method="_on_x_close_scene_button_pressed"]

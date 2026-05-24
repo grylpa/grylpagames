@@ -1,0 +1,525 @@
+extends CanvasLayer
+
+enum Dirs {right=0,down=1,left=2,up=3}
+enum DoorTypes {open=0, backslash=1, slash=2}
+const DirArray = [Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0), Vector2i(0,-1)]
+
+var game: GenericGameUtil
+
+class OneCell:
+	var ispipe := false
+	var door_type := -1
+	var has_agent := false
+	var istarget := false
+	
+var times_to_answer := []
+var _round_start_ms := 0
+
+var start_dispatch := false
+var time_between_dispatches_ms = 5000
+var board: Array
+var ntargets := 7
+var agents = []
+var targets = []
+var target_positions = []
+var target_lobbies = []
+var pipes = []
+var empties = []
+var doors = []
+var agent_positions = []
+var time_started_level = 0
+var num_more_packets = 0
+var num_more_agents = 0
+var level: int = 1
+
+@export var player_scene: PackedScene = load("res://deliverem/scenes/player.tscn")
+@export var pipe_scene: PackedScene = load("res://deliverem/scenes/pipe.tscn")
+@export var empty_scene: PackedScene = load("res://deliverem/scenes/empty_space.tscn")
+@export var agent_scene: PackedScene = load("res://deliverem/scenes/agent.tscn")
+@export var door_scene: PackedScene = load("res://deliverem/scenes/door.tscn")
+@export var target_scene: PackedScene = load("res://deliverem/scenes/target.tscn")
+
+var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var door_audio := preload("res://art/sounds/door-opening-353874.mp3")
+var motor_audio := preload("res://art/sounds/back-hoe-tractor-20083.mp3")
+
+var player
+
+signal game_over(didwin:bool)
+signal started_playing
+signal new_packet_message(text, isdispatch)
+signal show_reminder(text)
+signal sig_level_is_done(didwin:bool)
+# signal update_score_time(add_score, add_time)
+
+func _ready() -> void:
+	game = DeliveremG.game
+	game.sig_time_over.connect(on_time_over)
+	level = DeliveremG.starting_level
+	increase_difficulty(false)
+	player = player_scene.instantiate()
+	add_child(player)
+
+	$DoorAudio.stream = door_audio
+	$MotorAudio.stream = motor_audio
+	motor_audio.loop = true
+
+	$DispatchAudio.stream = dispatch_audio
+	$DeliveryAudio.stream = delivery_audio
+
+	# new_game()
+	
+func new_game(from_scratch=true):
+	if from_scratch:
+		level = DeliveremG.starting_level
+	increase_difficulty(false)
+	time_last_dispatch = -10000
+	player.reset()
+	create_board()
+	time_started_level = MainGlobals.timems()
+	started_playing.emit()
+	BE.upsert_game_state("Deliverem", 
+		{"state":"new","level": level, "num_agents": DeliveremG.num_agents, "num_packets": DeliveremG.num_packets})
+
+func _input(event) -> void:
+	if MainGlobals.ignore_keyboard_actions:
+		return
+	if event.is_action_pressed("reminder") or event.is_action_pressed("clue"):
+		display_reminder()
+	elif event.is_action_pressed("mainmenu"):
+		$MotorAudio.stop()
+	
+func add_pipe(p):
+	board[p.y][p.x].ispipe = true
+	var pipe = pipe_scene.instantiate()
+	pipe.board_pos = p
+	pipe.position = game.board_to_px(p)
+	add_child(pipe)
+	pipes.append(pipe)
+
+func add_empty(p):
+	var e = empty_scene.instantiate()
+	e.board_pos = p
+	e.position = game.board_to_px(p)
+	add_child(e)
+	empties.append(e)
+	
+func add_target(p, id):
+	board[p.y][p.x].istarget = true
+	var target = target_scene.instantiate()
+	target.position = game.board_to_px(p)
+	target.set_id(id)
+	add_child(target)
+	targets.append(target)
+	target_positions.append(p)
+	var q = p
+	if p.x == 0: q.x += 1
+	if p.x == game.board_size.x - 1: 
+		q.x -= 1
+		target.set_img_rot(PI)
+	if p.y == 0: 
+		q.y += 1
+		target.set_img_rot(PI/2.0)
+	if p.y == game.board_size.y - 1: 
+		q.y -= 1
+		target.set_img_rot(-PI/2.0)
+	target_lobbies.append(q)
+	add_pipe(q)
+	return q
+
+func dist_from_array(p, arr):
+	var mind = 1e6
+	for a in arr:
+		var d = (p - a).length()
+		if d < mind:
+			mind = d
+	return mind
+	
+func show_hide_walls():
+	for e in empties:
+		e.show_hide_walls(board)
+			
+func create_board() -> void:
+	start_dispatch = false
+	board.clear()
+	for row_index in game.board_size.y:
+		var row: Array[OneCell]
+		row.resize(game.board_size.x)
+		for col_index in game.board_size.x:
+			row[col_index] = OneCell.new()
+		board.append(row)
+	for c in pipes:
+		c.queue_free()
+	for c in agents:
+		c.queue_free()
+	for c in doors:
+		c.queue_free()
+	for c in targets:
+		c.queue_free()
+	for c in empties:
+		c.queue_free()
+	pipes.clear()
+	empties.clear()
+	agents.clear()
+	doors.clear()
+	targets.clear()
+	target_positions.clear()
+	target_lobbies.clear()
+	agent_positions.clear()
+	add_pipe(player.board_pos)
+	var rng = RandomNumberGenerator.new()
+	var wall = rng.randi_range(0,3)
+	for i in ntargets:
+		var target_pos = Vector2i.ZERO
+		var added_target = false
+		while not added_target:
+			if wall == 0 or wall == 2:
+				for _i in 20:
+					target_pos = Vector2i(int(wall / 2)*(game.board_size.x-1), \
+						rng.randi_range(2, game.board_size.y-3) & ~1)
+					if dist_from_array(target_pos, target_positions) > 1 and \
+						!game.is_corner(target_pos):
+						added_target = true
+						break
+			elif wall == 1:
+				for _i in 20:
+					target_pos = Vector2i(rng.randi_range(2, game.board_size.x-3) & ~1, \
+						game.board_size.y-1)
+					if dist_from_array(target_pos, target_positions) > 1 and \
+						!game.is_corner(target_pos):
+						added_target = true
+						break
+			else:
+				for _i in 20:
+					target_pos = Vector2i(rng.randi_range(2, game.board_size.x-3) & ~1, 0)
+					if dist_from_array(target_pos, target_positions) > 1 and \
+						(target_pos - player.board_pos).length() > 3 and \
+						!game.is_corner(target_pos):
+						added_target = true
+						break
+			wall = (wall + 1) % 4
+		var lobby_pos = add_target(target_pos, i+1)
+				
+		var from = player.board_pos		
+		var to = lobby_pos
+		var done = false
+		var count = 0
+		var q
+		var p
+		from += Vector2i(0,1)
+		add_pipe(from)
+		from += Vector2i(0,1)
+		add_pipe(from)
+		var stack = [from]
+		p = from
+		while not done and count < 50000:
+			count += 1
+			var add_idx = rng.randi_range(0,3)
+			var add_v = DirArray[add_idx]
+			q = p + add_v
+			var qidx = stack.find(q)
+			if qidx >= 0:
+				while stack.size() > qidx+1:	# remove loop
+					stack.pop_back()
+				p = q
+			elif game.in_board(q, 2) and \
+				(q.x % 2 == 0 or q.y % 2 == 0):# and \
+				#(not game.on_border(q, 2) or q == to):
+				stack.push_back(q)
+				p = q
+				if abs((q-to).length() - 1) < 1e-03:
+					done = true
+		if done:
+			for ppos in stack:
+				if !board[ppos.y][ppos.x].ispipe:
+					add_pipe(ppos)				
+	
+	for row in game.board_size.y:
+		for col in game.board_size.x:
+			if !board[row][col].ispipe:
+				add_empty(Vector2i(col,row))
+	show_hide_walls()
+				
+	for pipe in pipes:
+		pipe.set_rot(board)
+		
+	# add doors			
+	var door
+	for row in game.board_size.y:
+		for col in game.board_size.x:
+			var p = Vector2i(col,row)
+			if board[p.y][p.x].ispipe and p != player.board_pos:
+				var nbranches = 0
+				for d in DirArray:
+					var q = p+d
+					var inside = q.x >= 0 and q.y >= 0 and q.x < game.board_size.x and \
+						q.y < game.board_size.y
+					if inside and board[q.y][q.x].ispipe:
+						nbranches += 1
+				if nbranches > 2:
+					var door_type
+					#if p == player.board_pos + Vector2i(0,2):
+					if (p - player.board_pos).length() < 5:
+						door_type = 0
+					else:
+						door_type = rng.randi_range(0,2)
+						
+					if door_type == 0 and p.x == player.board_pos.x and \
+						p.y - player.board_pos.y < 5:
+							if !board[p.y+1][p.x].ispipe:
+								door_type = rng.randi_range(1,2)
+
+					board[p.y][p.x].door_type = door_type
+					door = door_scene.instantiate()
+					door.position = game.board_to_px(p)
+					door.set_board_pos(p)
+					#door.rotate(door_type * PI/4.0)
+					add_child(door)
+					door.set_rot(door_type)
+					door.door_pressed.connect(on_clicked_door)
+					doors.append(door)					
+					
+	for _i in DeliveremG.num_agents + num_more_agents:
+		# var p = game.get_agent_start_pos()
+		var p = Vector2i(game.board_size.x / 2, 1)
+		agent_positions.append(p)
+
+	game.create_fill_screen_camera(self)
+	start_dispatch = true
+		
+func _record_answer_time():
+	var t := MainGlobals.timems() - _round_start_ms
+	if t > 0 and t < 60000:
+		times_to_answer.append(t)
+		while times_to_answer.size() > 20:
+			times_to_answer.remove_at(0)
+
+func mean_time_to_answer_ms() -> int:
+	if times_to_answer.is_empty(): return 9999
+	var s := 0
+	for t in times_to_answer: s += t
+	return roundi(float(s) / times_to_answer.size())
+
+func add_agent_at(p: Vector2i, direction: int):
+	_round_start_ms = MainGlobals.timems()
+	var agent = agent_scene.instantiate()
+	agent.direction = direction
+	agent.board_pos = p
+	var possibles = range(1, ntargets+1)
+	possibles.shuffle()
+	agent.body_ids = possibles.slice(0, DeliveremG.num_packets+num_more_packets)
+	var text = "Deliver to " + ",".join(agent.body_ids)
+	new_packet_message.emit(text, true)
+	add_child(agent)
+	agents.append(agent)
+	agent.set_pos(game.board_to_px(p), direction)
+	if not $DispatchAudio.playing:
+		$DispatchAudio.play()
+	if not $MotorAudio.playing:
+		MainGlobals.do_after(0.5, func(): $MotorAudio.play())
+	
+func display_reminder():
+	var text = []
+	for agent in agents:
+		text.append([",".join(agent.body_ids), agent.color])
+	# var text = ""
+	# for agent in agents:
+	# 	text += ",".join(agent.body_ids) + "\n"
+	# text = text.strip_edges()
+	show_reminder.emit(text)
+		
+func on_clicked_door(pos: Vector2i):
+	#if board[pos.y][pos.x].has_agent:
+		#return
+	var any_changed := false
+	for i in doors.size():
+		var door = doors[i]
+		if door.board_pos == pos:
+			var current = door.rot_idx
+			var newdir = (current + 1) % 3
+			door.set_rot(newdir)
+			#door.rotate(PI/4.0)
+			board[pos.y][pos.x].door_type = newdir
+			any_changed = true
+			break
+	if any_changed:
+		$DoorAudio.play()
+
+func can_go_to(p):
+	var cond = game.in_board(p) and board[p.y][p.x].ispipe
+	cond = cond and !board[p.y][p.x].istarget
+	#cond = cond and !board[p.y][p.x].has_agent
+	cond = cond and p != player.board_pos
+	return cond
+	
+func all_agents_done():
+	if !game.playing:
+		return false
+	if agents.size() == 0:
+		return false
+	for agent in agents:
+		if agent.body_ids.size() > 0:
+			return false
+	$MotorAudio.stop()
+	return true
+	
+var last_major_tick_ms = -10000.0
+func tick():
+	if game.level_is_done:
+		return
+	var t = MainGlobals.timems()
+	if t - last_major_tick_ms < game.major_tick_time_ms * game.time_scale:
+		return
+	last_major_tick_ms = t
+	if all_agents_done():
+		level_is_done(true)
+		return
+	for agent in agents:
+		if MainGlobals.timems() - agent.time_created < 2000:
+			continue
+		var p = agent.board_pos
+		var adj_tar_id = get_adjacent_target_id(p)
+		var _removed_body_part = false
+		if adj_tar_id >= 0:
+			_removed_body_part = agent.remove_body_if_first(adj_tar_id)
+			if _removed_body_part:
+				$DeliveryAudio.play()
+				game.delivered_one()
+				if agent.body_ids.is_empty():
+					_record_answer_time()
+		if game.in_board(p):
+			var dir = agent.direction
+			var origdir = dir
+			var vdir = DirArray[dir]
+			var door_type = board[p.y][p.x].door_type
+			var q = p + vdir
+			if door_type >= 0:
+				if door_type == 1:
+					if dir == 0 or dir == 2:
+						dir += 1
+					elif dir == 1 or dir == 3:
+						dir = (dir + 3) % 4
+				elif door_type == 2:
+					if dir == 0 or dir == 2:
+						dir = (dir + 3) % 4						
+					elif dir == 1 or dir == 3:
+						dir = (dir + 1) % 4
+			else:		# if not a door
+				if !can_go_to(q):
+					for diradd in [1,3]:
+						var nextdir = (dir + diradd) % 4
+						var nextvdir = DirArray[nextdir]
+						q = p + nextvdir
+						if can_go_to(q):
+							dir = nextdir
+							break
+			vdir = DirArray[dir]
+			q = p + vdir
+			if !can_go_to(q):
+				dir = (origdir + 2) % 4
+				vdir = DirArray[dir]
+				q = p + vdir
+			agent.direction = dir
+			var new_agent_pos = game.board_to_px(q)
+			var cell = board[q.y][q.x]
+			var d = int(game.tile_size/4.0)
+			if cell.door_type == 1:
+				if dir == 0 or dir == 3:
+					new_agent_pos += Vector2(-d,d)
+				elif dir == 2 or dir == 1:
+					new_agent_pos += Vector2(d,-d)
+			elif cell.door_type == 2:
+				if dir == 0 or dir == 1:
+					new_agent_pos += Vector2(-d,-d)
+				elif dir == 2 or dir == 3:
+					new_agent_pos += Vector2(d,d)
+			agent.set_target_pos(new_agent_pos)
+			agent.board_pos = q
+			board[q.y][q.x].has_agent = true
+			board[p.y][p.x].has_agent = false			
+
+	if all_agents_done():
+		level_is_done(true)
+
+func get_adjacent_target_id(q):
+	for i in target_positions.size():
+		var p = target_positions[i]
+		var d = (p-q).length()
+		if abs(d-1) < 1e-3:
+			var target = targets[i]
+			var target_id = target.id
+			return target_id
+	return -1
+
+func _on_level_done_popup_closed():
+	sig_level_is_done.emit(true)
+
+func level_is_done(didwin: bool):
+	game.level_is_done = true
+	$MotorAudio.stop()
+	BE.send_event("level_done", "Deliverem", {
+		"level": level,
+		"didwin": int(didwin),
+		"num_agents": DeliveremG.num_agents,
+		"num_packets": DeliveremG.num_packets
+	})
+	start_dispatch = false
+	if didwin:
+		MainGlobals.global_level_is_done(true)
+		if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
+			MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
+		game.show_level_done_popup(self, "","", level)
+		increase_difficulty()
+		# MainGlobals.sleep(1.0)
+		# sig_level_is_done.emit(didwin)
+	else:
+		game_over.emit(false)
+
+func increase_difficulty(increase=true):
+	if increase:
+		level += 1
+	var s = 17
+	game.max_board_size = Vector2i(s,s)
+	if level == 1:
+		num_more_packets = 0
+		num_more_agents = 0
+	elif level == 2:
+		num_more_packets = 1
+	elif level == 3:
+		num_more_packets = 2
+	elif level == 4:
+		num_more_packets = 3
+	elif level == 5:
+		num_more_packets = 3
+	elif level == 6:
+		num_more_packets = 0
+		num_more_agents = 1
+	elif level == 7:
+		num_more_packets = 1
+		num_more_agents = 1
+	elif level == 8:
+		num_more_packets = 2
+		num_more_agents = 2
+	elif level >= 9:
+		num_more_packets = 3
+		num_more_agents = 3
+	if MainGlobals.is_mobile():
+		var bsh = 4
+		var bsv = 0
+		game.max_board_size -= Vector2i(bsh,bsv)
+	game.init_sizes()
+
+var time_last_dispatch = -10000
+func _on_agent_dispatch_timer_timeout() -> void:
+	if start_dispatch and !game.paused():
+		var tm = MainGlobals.timems()
+		if tm - time_last_dispatch >= time_between_dispatches_ms and agents.size() < agent_positions.size():
+			time_last_dispatch = tm
+			var p = agent_positions[agents.size()]
+			add_agent_at(p, 1)
+			if agents.size() == agent_positions.size():
+				start_dispatch = false
+		
+func on_time_over():
+	$MotorAudio.stop()

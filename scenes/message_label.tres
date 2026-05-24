@@ -1,0 +1,33 @@
+[gd_resource type="Theme" format=3 uid="uid://bi6ars80i4cxs"]
+
+[ext_resource type="FontFile" uid="uid://cxl6w8f8euf0b" path="res://art/fonts/Stormfaze.otf" id="1_i1r24"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xh451"]
+content_margin_left = 24.0
+content_margin_top = 36.0
+content_margin_right = 24.0
+content_margin_bottom = 36.0
+bg_color = Color(0.864736, 0.748798, 0, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 40
+corner_radius_top_right = 40
+corner_radius_bottom_right = 40
+corner_radius_bottom_left = 40
+shadow_size = 400
+
+[resource]
+Label/colors/font_color = Color(0, 0, 0, 1)
+Label/colors/font_outline_color = Color(1, 1, 1, 1)
+Label/colors/font_shadow_color = Color(0, 0, 0, 0)
+Label/constants/line_spacing = 3
+Label/constants/outline_size = 1
+Label/constants/shadow_offset_x = 1
+Label/constants/shadow_offset_y = 1
+Label/constants/shadow_outline_size = 1
+Label/font_sizes/font_size = 30
+Label/fonts/font = ExtResource("1_i1r24")
+Label/styles/normal = SubResource("StyleBoxFlat_xh451")

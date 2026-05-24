@@ -1,0 +1,57 @@
+[gd_scene format=3 uid="uid://cmml7ob1sup0b"]
+
+[ext_resource type="Script" uid="uid://s5m6bayq44uq" path="res://pneumo/scripts/empty_space.gd" id="1_wm7ux"]
+[ext_resource type="Texture2D" uid="uid://br48s6ayv3y3d" path="res://pneumo/art/grass.png" id="2_6iq3f"]
+[ext_resource type="Texture2D" uid="uid://dp6uwcbcv4ccn" path="res://art/empty_corner.png" id="3_iir64"]
+[ext_resource type="Texture2D" uid="uid://cum2j088nct2g" path="res://art/pipe_wall.png" id="3_yk2tg"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8423h"]
+size = Vector2(40, 40)
+
+[node name="EmptySpace" type="Area2D" unique_id=589808547]
+script = ExtResource("1_wm7ux")
+metadata/_edit_group_ = true
+
+[node name="EmptyShape" type="CollisionShape2D" parent="." unique_id=1828539485]
+shape = SubResource("RectangleShape2D_8423h")
+
+[node name="Grass" type="Sprite2D" parent="." unique_id=1790302724]
+texture = ExtResource("2_6iq3f")
+
+[node name="Wall0" type="Sprite2D" parent="." unique_id=596284284]
+visible = false
+texture = ExtResource("3_yk2tg")
+
+[node name="Wall1" type="Sprite2D" parent="." unique_id=1180053237]
+visible = false
+rotation = 1.5708
+texture = ExtResource("3_yk2tg")
+
+[node name="Wall2" type="Sprite2D" parent="." unique_id=1068046825]
+visible = false
+rotation = 3.14159
+texture = ExtResource("3_yk2tg")
+
+[node name="Wall3" type="Sprite2D" parent="." unique_id=375283799]
+visible = false
+rotation = -1.5708
+texture = ExtResource("3_yk2tg")
+
+[node name="Wall4" type="Sprite2D" parent="." unique_id=377138369]
+visible = false
+texture = ExtResource("3_iir64")
+
+[node name="Wall5" type="Sprite2D" parent="." unique_id=33404890]
+visible = false
+rotation = 1.5708
+texture = ExtResource("3_iir64")
+
+[node name="Wall6" type="Sprite2D" parent="." unique_id=1571111900]
+visible = false
+rotation = 3.14159
+texture = ExtResource("3_iir64")
+
+[node name="Wall7" type="Sprite2D" parent="." unique_id=830625337]
+visible = false
+rotation = -1.5708
+texture = ExtResource("3_iir64")

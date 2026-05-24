@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://didi/scripts/main.gd" id="1_dimain"]
+[ext_resource type="PackedScene" path="res://didi/scenes/level.tscn" id="2_dimain"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_dimain"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="4_dimain"]
+
+[node name="Main" type="Node" unique_id=80001]
+script = ExtResource("1_dimain")
+
+[node name="Level" parent="." unique_id=80002 instance=ExtResource("2_dimain")]
+
+[node name="HUD" parent="." unique_id=80003 instance=ExtResource("3_dimain")]
+
+[node name="GameTick" type="Timer" parent="." unique_id=80004]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." unique_id=80005 instance=ExtResource("4_dimain")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]

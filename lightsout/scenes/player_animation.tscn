@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://bsxx7hog3wudq"]
+
+[ext_resource type="Script" uid="uid://btubxxpg22s3s" path="res://lightsout/scripts/tube_animation.gd" id="1_q7pg5"]
+[ext_resource type="Texture2D" uid="uid://cgyghj2hsgib" path="res://lightsout/art/player_body1.png" id="2_q7pg5"]
+[ext_resource type="Texture2D" uid="uid://da4h5nqshlg6f" path="res://lightsout/art/player_body2.png" id="3_xcwda"]
+[ext_resource type="Texture2D" uid="uid://bf6fnpg7olvdm" path="res://lightsout/art/player_body3.png" id="4_tx417"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_hg2el"]
+radius = 13.0
+height = 34.0
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_axptd"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_q7pg5")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_xcwda")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_tx417")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_xcwda")
+}],
+"loop": true,
+"name": &"player_body",
+"speed": 5.0
+}]
+
+[node name="PlayerAnimation" type="Area2D" unique_id=1549589491]
+script = ExtResource("1_q7pg5")
+
+[node name="shape" type="CollisionShape2D" parent="." unique_id=721419113]
+rotation = 1.5708
+shape = SubResource("CapsuleShape2D_hg2el")
+
+[node name="animation" type="AnimatedSprite2D" parent="." unique_id=640321929]
+sprite_frames = SubResource("SpriteFrames_axptd")
+animation = &"player_body"
+frame_progress = 0.819824
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

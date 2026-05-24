@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://1krh6w53e13b"]
+
+[ext_resource type="Script" uid="uid://cn52e6b6e6dm4" path="res://pneumo/scripts/level.gd" id="1_5agtr"]
+[ext_resource type="PackedScene" uid="uid://bcmagjqw07r3u" path="res://pneumo/scenes/pipe.tscn" id="3_8txly"]
+[ext_resource type="Texture2D" uid="uid://br48s6ayv3y3d" path="res://pneumo/art/grass.png" id="4_y2ugr"]
+[ext_resource type="PackedScene" uid="uid://j20hc47tc1nl" path="res://pneumo/scenes/door.tscn" id="5_11118"]
+
+[node name="Level" type="CanvasLayer" unique_id=285501211]
+script = ExtResource("1_5agtr")
+pipe_scene = ExtResource("3_8txly")
+door_scene = ExtResource("5_11118")
+
+[node name="AgentDispatchTimer" type="Timer" parent="." unique_id=540131498]
+wait_time = 0.5
+autostart = true
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1387342270]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_y2ugr")
+stretch_mode = 1
+
+[node name="DispatchAudio" type="AudioStreamPlayer2D" parent="." unique_id=375413247]
+
+[node name="DeliveryAudio" type="AudioStreamPlayer2D" parent="." unique_id=867917284]
+
+[node name="DoorAudio" type="AudioStreamPlayer2D" parent="." unique_id=573449123]
+
+[node name="ExplosionAudio" type="AudioStreamPlayer2D" parent="." unique_id=853131800]
+
+[node name="MotorAudio" type="AudioStreamPlayer2D" parent="." unique_id=460047010]
+
+[node name="SwooshAudio" type="AudioStreamPlayer2D" parent="." unique_id=16233607]
+
+[connection signal="timeout" from="AgentDispatchTimer" to="." method="_on_agent_dispatch_timer_timeout"]

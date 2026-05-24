@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://bfak8jlbdwloh"]
+
+[ext_resource type="Script" uid="uid://4i06qcyeqlry" path="res://scripts/main.gd" id="1_w4vi3"]
+[ext_resource type="PackedScene" uid="uid://bs4qwxphm4l4s" path="res://scenes/game_chooser.tscn" id="2_c4ptq"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="2_lquwl"]
+[ext_resource type="PackedScene" uid="uid://bjarl1hpdc7bj" path="res://scenes/login.tscn" id="3_h2yge"]
+[ext_resource type="PackedScene" uid="uid://enipmjy7v7ju" path="res://scenes/bottom_option_buttons.tscn" id="5_lquwl"]
+
+[node name="Main" type="Node2D" unique_id=1371560575]
+script = ExtResource("1_w4vi3")
+
+[node name="GenericGameHUD" parent="." unique_id=1293640669 instance=ExtResource("2_lquwl")]
+visible = false
+
+[node name="GameChooser" parent="." unique_id=2087797027 instance=ExtResource("2_c4ptq")]
+layer = 127
+
+[node name="LoginScreen" parent="." unique_id=2076808795 instance=ExtResource("3_h2yge")]
+unique_name_in_owner = true
+visible = false
+
+[node name="BottomOptionButtons" parent="." unique_id=1115989848 instance=ExtResource("5_lquwl")]
+layer = 128
+text_color = Color(1, 1, 0, 1)
+
+[node name="GlobalLevelIsDoneAudio" type="AudioStreamPlayer2D" parent="." unique_id=1337897698]
+
+[node name="PathOverlay" type="CanvasLayer" parent="." unique_id=1067027195]
+layer = 50
+
+[node name="PathLine" type="Line2D" parent="PathOverlay" unique_id=142020675]
+width = 3.0
+default_color = Color(0.9, 0.6, 0.05, 1)
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+
+[connection signal="selected_game" from="GameChooser" to="." method="_on_game_chooser_selected_game"]
+[connection signal="sig_stop_active_game" from="GameChooser" to="." method="_on_game_chooser_stop_active_game"]

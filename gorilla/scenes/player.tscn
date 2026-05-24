@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://busgnov1qy0y8"]
+
+[ext_resource type="Script" uid="uid://b5m0qdrgi6cf7" path="res://gorilla/scripts/player.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="2"]
+[ext_resource type="Texture2D" uid="uid://k1t0hd4vd2bh" path="res://art/head_hand-4x.png" id="3_7wfpm"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(40, 40)
+
+[node name="Player" type="Area2D" unique_id=1776687434 groups=["agents"]]
+z_index = 3
+collision_layer = 2
+collision_mask = 2
+script = ExtResource("1")
+metadata/_edit_group_ = true
+
+[node name="PlayerShape" type="CollisionShape2D" parent="." unique_id=1716621273]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=133362911]
+width = 5.0
+
+[node name="Head" parent="." unique_id=812901069 instance=ExtResource("2")]
+animation = &"circular"
+
+[node name="Hand" type="Sprite2D" parent="." unique_id=1558133413]
+visible = false
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_7wfpm")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

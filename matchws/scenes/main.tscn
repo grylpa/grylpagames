@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://c6ll5f867rgt7"]
+
+[ext_resource type="Script" uid="uid://c3a5axu0itewu" path="res://matchws/scripts/main.gd" id="1_dkiwn"]
+[ext_resource type="PackedScene" uid="uid://diawjuwocnmu5" path="res://matchws/scenes/level.tscn" id="2_a8cs3"]
+[ext_resource type="PackedScene" uid="uid://bqruq75bwd3li" path="res://matchws/scenes/hud.tscn" id="3_ni5ia"]
+[ext_resource type="PackedScene" uid="uid://dsj8oefr061rr" path="res://matchws/scenes/main_menu.tscn" id="4_l8j3t"]
+[ext_resource type="PackedScene" uid="uid://ct2ogkod6bdrr" path="res://scenes/FullScreenMessage.tscn" id="6_a8cs3"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="7_l8j3t"]
+[ext_resource type="PackedScene" uid="uid://blm2206iuoibb" path="res://matchws/scenes/Statistics.tscn" id="7_ni5ia"]
+[ext_resource type="PackedScene" uid="uid://2laxv4am47rv" path="res://matchws/scenes/enter_words.tscn" id="9_l1ocg"]
+
+[node name="Main" type="Node2D" unique_id=490908659]
+script = ExtResource("1_dkiwn")
+
+[node name="Level" parent="." unique_id=1790160696 instance=ExtResource("2_a8cs3")]
+visible = false
+
+[node name="HUD" parent="." unique_id=768823753 instance=ExtResource("3_ni5ia")]
+
+[node name="MainMenu" parent="." unique_id=1257208370 instance=ExtResource("4_l8j3t")]
+visible = false
+
+[node name="Help" parent="." unique_id=1969350551 instance=ExtResource("7_l8j3t")]
+unique_name_in_owner = true
+visible = false
+
+[node name="RequestsCheckTimer" type="Timer" parent="." unique_id=193664094]
+wait_time = 0.1
+autostart = true
+
+[node name="FullScreenMessage" parent="." unique_id=1553485263 instance=ExtResource("6_a8cs3")]
+visible = false
+
+[node name="StatisticsScene" parent="." unique_id=818999678 instance=ExtResource("7_ni5ia")]
+visible = false
+
+[node name="EnterWords" parent="." unique_id=821763350 instance=ExtResource("9_l1ocg")]
+visible = false
+
+[connection signal="pressed_esc" from="Level" to="." method="_on_level_pressed_esc"]
+[connection signal="pressed_new_game" from="Level" to="." method="_on_level_pressed_new_game"]
+[connection signal="show_help" from="Level" to="." method="_on_level_show_help"]
+[connection signal="show_main_menu" from="Level" to="." method="_on_level_show_main_menu"]
+[connection signal="sig_level_is_done" from="Level" to="." method="_on_level_sig_level_is_done"]
+[connection signal="update_time" from="Level" to="." method="_on_level_update_time"]
+[connection signal="help_button_pressed" from="HUD" to="." method="_on_hud_help_button_pressed"]
+[connection signal="menu_start_game" from="MainMenu" to="." method="_on_main_menu_menu_start_game"]
+[connection signal="timeout" from="RequestsCheckTimer" to="." method="_on_requests_check_timer_timeout"]

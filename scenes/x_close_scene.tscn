@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://cqeplswuxbtii"]
+
+[ext_resource type="Script" uid="uid://h4w6j5mh7x8o" path="res://scripts/x_close_scene.gd" id="1_actg4"]
+[ext_resource type="Theme" uid="uid://du7b78tbp77ru" path="res://scenes/no_bk_no_hover_button.tres" id="2_bd7np"]
+[ext_resource type="Texture2D" uid="uid://dsb6puloaamgy" path="res://art/x32.png" id="3_bd7np"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_xclose"]
+
+[node name="XCloseScene" type="Control" unique_id=1861377190]
+z_index = 1
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_actg4")
+metadata/_edit_group_ = true
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=982999506]
+z_index = 2
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -56.0
+offset_bottom = 60.0
+grow_horizontal = 0
+mouse_filter = 1
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="ButtonX" type="Button" parent="MarginContainer" unique_id=63828141]
+unique_name_in_owner = true
+z_index = 3
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 0
+theme = ExtResource("2_bd7np")
+theme_override_styles/normal = SubResource("StyleBoxEmpty_xclose")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_xclose")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_xclose")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_xclose")
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.43137255, 0.43137255, 0.43137255, 1)
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.36862746, 0.36862746, 0.36862746, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_disabled_color = Color(0.74509805, 0.74509805, 0.74509805, 1)
+theme_override_font_sizes/font_size = 32
+keep_pressed_outside = true
+icon = ExtResource("3_bd7np")
+alignment = 2
+icon_alignment = 2
+vertical_icon_alignment = 0
+
+[connection signal="pressed" from="MarginContainer/ButtonX" to="." method="_on_button_x_pressed"]

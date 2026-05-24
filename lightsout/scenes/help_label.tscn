@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://7da586cc2d38"]
+
+[node name="HelpLabel" type="Label" unique_id=1538471722]
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_colors/font_color = Color(1, 1, 0.439216, 1)
+theme_override_font_sizes/font_size = 29

@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://bm30jcs38aafj"]
+
+[ext_resource type="PackedScene" uid="uid://belym6owv5i2j" path="res://scenes/grid_date_label.tscn" id="1_4bed6"]
+[ext_resource type="PackedScene" uid="uid://d0qfxdg3phnwm" path="res://scenes/grid_score_label.tscn" id="2_7v560"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6gxqn"]
+content_margin_left = 0.0
+content_margin_top = 8.0
+content_margin_right = 0.0
+content_margin_bottom = 8.0
+bg_color = Color(0, 0, 0, 0.376471)
+corner_radius_top_left = 99
+corner_radius_top_right = 99
+corner_radius_bottom_right = 99
+corner_radius_bottom_left = 99
+
+[node name="ScoresListRow" type="PanelContainer" unique_id=1211257983]
+custom_minimum_size = Vector2(600, 0)
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -432.0
+offset_right = 432.0
+offset_bottom = 62.0
+grow_horizontal = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_6gxqn")
+
+[node name="HBox" type="HBoxContainer" parent="." unique_id=1606543877]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="TextureIcon" type="TextureRect" parent="HBox" unique_id=1854154247]
+visible = false
+custom_minimum_size = Vector2(16, 18)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+size_flags_stretch_ratio = 0.0
+
+[node name="DatePanel" parent="HBox" unique_id=2142472934 instance=ExtResource("1_4bed6")]
+layout_mode = 2
+size_flags_horizontal = 1
+
+[node name="ScorePanel" parent="HBox" unique_id=323351697 instance=ExtResource("2_7v560")]
+layout_mode = 2
+size_flags_horizontal = 1
+
+[node name="LevelPanel" parent="HBox" unique_id=545698329 instance=ExtResource("1_4bed6")]
+layout_mode = 2
+size_flags_horizontal = 1
+
+[node name="TimePanel" parent="HBox" unique_id=694289245 instance=ExtResource("1_4bed6")]
+layout_mode = 2
+size_flags_horizontal = 1

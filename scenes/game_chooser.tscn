@@ -1,0 +1,115 @@
+[gd_scene format=3 uid="uid://bs4qwxphm4l4s"]
+
+[ext_resource type="Script" uid="uid://dysihcqyw5pjf" path="res://scripts/game_chooser.gd" id="1_7yq0y"]
+[ext_resource type="Texture2D" uid="uid://lckplir8j0kw" path="res://art/pipe_4_exits.png" id="2_r5boa"]
+[ext_resource type="Texture2D" uid="uid://bu1j5wuha1dxk" path="res://art/grid-48.png" id="3_b16iy"]
+[ext_resource type="PackedScene" uid="uid://ct2ogkod6bdrr" path="res://scenes/FullScreenMessage.tscn" id="6_8ndda"]
+
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0dnva"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 4.0
+content_margin_bottom = 8.0
+bg_color = Color(0, 0, 0, 0.501961)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cny3x"]
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+bg_color = Color(0, 0, 0, 0.5647059)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="GameChooser" type="CanvasLayer" unique_id=1106624497]
+script = ExtResource("1_7yq0y")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=210435528]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_r5boa")
+stretch_mode = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TextureRect" unique_id=1411496681]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="TitleMargin" type="MarginContainer" parent="TextureRect/VBoxContainer" unique_id=378005601]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="TextureRect/VBoxContainer/TitleMargin" unique_id=1206167366]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.16, 0.16, 0.16, 0.890196)
+theme_override_constants/outline_size = 26
+theme_override_font_sizes/font_size = 40
+text = "The Grylpa Games"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ListCheckButton" type="Button" parent="TextureRect/VBoxContainer/TitleMargin" unique_id=763189156]
+unique_name_in_owner = true
+modulate = Color(1, 0.898039, 0.00784314, 1)
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 4
+flat = true
+icon = ExtResource("3_b16iy")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="TextureRect/VBoxContainer" unique_id=394155322]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_0dnva")
+horizontal_scroll_mode = 0
+scroll_deadzone = 12
+
+[node name="GamesGrid" type="GridContainer" parent="TextureRect/VBoxContainer/ScrollContainer" unique_id=680624016]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 6
+size_flags_vertical = 6
+mouse_filter = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+columns = 3
+
+[node name="VersionLabel" type="Label" parent="TextureRect" unique_id=12196163]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.9843137, 0.85490197, 0.1882353, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("StyleBoxFlat_cny3x")
+text = "1.0.0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FullScreenMessage" parent="." unique_id=1032282753 instance=ExtResource("6_8ndda")]
+layer = 127
+
+[connection signal="pressed" from="TextureRect/VBoxContainer/TitleMargin/ListCheckButton" to="." method="_on_view_mode_button_pressed"]

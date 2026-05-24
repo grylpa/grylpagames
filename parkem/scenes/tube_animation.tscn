@@ -1,0 +1,80 @@
+[gd_scene format=3 uid="uid://bed27d7a56ab4"]
+
+[ext_resource type="Script" uid="uid://b4lm0j6go3d2y" path="res://parkem/scripts/tube_animation.gd" id="1_4huha"]
+[ext_resource type="Texture2D" uid="uid://lga7hhhu6dpm" path="res://art/enemy-body2.png" id="2_s1wj8"]
+[ext_resource type="Texture2D" uid="uid://bdqhhd2eh8lrs" path="res://parkem/art/agent_body1.png" id="2_yvaj2"]
+[ext_resource type="Texture2D" uid="uid://qb353hoqdff6" path="res://art/enemy-body3.png" id="3_2lata"]
+[ext_resource type="Texture2D" uid="uid://dhj4p43lc506h" path="res://parkem/art/agent_body3.png" id="3_180dr"]
+[ext_resource type="Texture2D" uid="uid://cf2hqruegwstb" path="res://art/enemy-body4.png" id="4_3uk1x"]
+[ext_resource type="Texture2D" uid="uid://df4v1rtp3aj5g" path="res://parkem/art/agent_body2.png" id="4_s1wj8"]
+[ext_resource type="Texture2D" uid="uid://baunnk0uxylp5" path="res://art/enemy-body2-short.png" id="5_0swwm"]
+[ext_resource type="Texture2D" uid="uid://de3x62wncyrx3" path="res://art/enemy-body4-short.png" id="6_7s5em"]
+[ext_resource type="Texture2D" uid="uid://cksfak06n4ygl" path="res://art/enemy-body3-short.png" id="7_02wts"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_hg2el"]
+radius = 13.0
+height = 34.0
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_axptd"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_s1wj8")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_3uk1x")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_2lata")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_3uk1x")
+}],
+"loop": true,
+"name": &"EnemyBody",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("5_0swwm")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_7s5em")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_02wts")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_7s5em")
+}],
+"loop": true,
+"name": &"EnemyBodyShort",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_yvaj2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_180dr")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_s1wj8")
+}],
+"loop": true,
+"name": &"main",
+"speed": 5.0
+}]
+
+[node name="TubeAnimation" type="Area2D" unique_id=1733713732]
+script = ExtResource("1_4huha")
+
+[node name="shape" type="CollisionShape2D" parent="." unique_id=171491582]
+rotation = 1.5708
+shape = SubResource("CapsuleShape2D_hg2el")
+
+[node name="animation" type="AnimatedSprite2D" parent="." unique_id=2078860195]
+sprite_frames = SubResource("SpriteFrames_axptd")
+animation = &"EnemyBody"
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

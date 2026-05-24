@@ -1,0 +1,128 @@
+# Polka Dots — Game Design & Implementation Document
+
+## Overview
+
+**Game name:** Polka Dots
+**Folder:** `polkadots/`
+**Singleton:** `PolkadotsG`
+**Save key (short name):** `polkadots`
+**Initial time:** 5 minutes
+**Background color:** `0x3C5D3EFF` (dark green)
+
+Polka Dots is a letter/number recognition game. Each round shows a pattern of dots arranged so they outline a letter or digit. The player must identify which character the dots form by tapping one of the displayed options.
+
+---
+
+## File Structure
+
+```
+polkadots/
+├── docs/
+│   └── design.md           ← this file
+├── scripts/
+│   ├── globals.gd            (PolkadotsG autoload)
+│   ├── level_config.gd       (PolkadotsLevelConfig — per-level params array)
+│   ├── main.gd
+│   ├── level.gd
+│   └── dots_display.gd       (Control subclass, renders dot pattern + letter reveal)
+└── scenes/
+    ├── main.tscn
+    ├── level.tscn
+    └── hud.tscn
+```
+
+---
+
+## Level Config (`PolkadotsLevelConfig.LEVELS`)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `num_options` | int | Number of letter choices shown (3–5) |
+| `dot_density` | float | Fraction of eligible letter pixels turned into dots |
+| `dot_radius` | float | Radius of each dot in screen pixels |
+| `timeout_sec` | float | Auto-advance as wrong after this many seconds |
+| `rounds_per_level` | int | Correct rounds required before level-done signal |
+| `option_display_sec` | float | 0 = always visible; >0 = hide option labels after N sec |
+| `letter_size` | int | Font size of the option buttons |
+
+| Level | Options | Density | Radius | Timeout | Rounds | Hide options |
+|-------|---------|---------|--------|---------|--------|--------------|
+| 1 | 3 | 1.5 | 16 | 4s | 5 | never |
+| 2 | 3 | 0.9 | 16 | 4s | 5 | never |
+| 3 | 4 | 0.5 | 12 | 4s | 5 | never |
+| 4 | 4 | 0.5 | 12 | 3s | 5 | 5s |
+| 5 | 5 | 0.4 | 10 | 2s | 5 | 4s |
+| 6 | 5 | 0.5 | 9 | 2s | 6 | 3.5s |
+| 7 | 5 | 0.5 | 8 | 2s | 6 | 3s |
+| 8 | 5 | 0.5 | 8 | 2s | 6 | 2.5s |
+
+---
+
+## Globals (`PolkadotsG`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `starting_difficulty` | 1 | Level index to start at (1-based) |
+
+Settings saved as `[starting_difficulty]`.
+
+---
+
+## Gameplay Flow
+
+1. **Dot display**: A `SubViewport` renders the current letter at the configured font size. Eligible pixels (inside the letter, after erosion by `dot_radius`) are sampled using a stratified 6×6 grid + jitter. Dots are placed within the `DotsDisplay` control using `set_dots()`.
+2. **Option buttons**: `num_options` letter choices are created dynamically in a VBoxContainer. The correct letter is always included; wrong options avoid confusable character groups.
+3. **Uniqueness check**: Each wrong option is rendered in the SubViewport and its overlap fraction with the current dot positions is measured. If >50% of dots fall inside a wrong option's shape, that option is replaced from a pool of unused CHARSET characters. This ensures dots can only plausibly fit one option.
+4. **Player taps**: Option button pressed → reveal animation (`DotsDisplay.reveal_letter()`) → feedback popup → `_next_or_finish()`.
+5. **Timeout**: If no tap within `timeout_sec`, the round counts as wrong.
+6. **Option hide**: If `option_display_sec > 0`, option labels are hidden after that time (the player must have already noted them).
+
+**Last-level loop (level 8):** At max difficulty, `sig_level_is_done` is emitted directly (silent save) and the game loops at level 8 — no popup, no difficulty increase. Running stats (`rounds_done`, `rounds_correct`, `total_response_time_ms`) persist across loops via `keep_stats=true` in `new_game()`.
+
+---
+
+## Dot Generation Algorithm
+
+1. Render current character in `$CharViewport` (SubViewport, fixed 256×256).
+2. Erode inward by `dot_radius` pixels (circular kernel) — only pixels entirely inside the letter remain. If full erosion leaves no pixels (thin strokes), halve the radius and retry until pixels are found.
+3. Stratified 6×6 grid: distribute eligible pixels into 36 cells, sample one dot per cell until 70% of non-empty cells are covered, then fill remaining count from leftover pixels.
+4. Uniqueness: render each wrong option → measure overlap fraction → replace >50%-overlap options.
+
+---
+
+## Sound Effects
+
+- Correct answer: `res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg`
+- Wrong answer / timeout: `res://art/sounds/swoosh.mp3`
+
+---
+
+## Scoring
+
+- Correct tap: `+10` points
+- Wrong tap or timeout: `+0` (no deduction)
+- `update_score.emit(delta)` → `main.gd` calls `game.add_score_and_time(delta, 0)` + updates HUD
+
+---
+
+## Stats Screen
+
+Score row format: `[unixtime, score, corrects, mistakes, didwin, wasaborted, level_id, avg_time_ms, pct_correct]`
+
+- `progress_level_pos = 6` → level column in Scores tab
+- `progress_time_pos = 7` → avg response time (ms) in Speed tab
+- `progress_pct_pos = 8` → % correct in Speed tab
+
+---
+
+## Implementation Pitfalls
+
+- **`same_size_as_options` was permanently removed** from `level_config.gd` and all supporting code. The dots panel always uses `size_flags_stretch_ratio = 2.0`. Do not re-add this flag — it caused "no dots visible" bugs because viewport scaling made the erosion radius exceed the letter stroke width, leaving no interior pixels.
+- **Erosion fallback**: `erode_px = max(1, ceil(dot_radius * iw / display_size.x))`. If full erosion yields zero pixels (thin strokes), halve `try_erode` and retry until pixels are found or `try_erode == 0`. Always verify this path is preserved when changing dot generation.
+
+## Key Signals
+
+| Signal | Direction | Purpose |
+|--------|-----------|---------|
+| `Level.sig_level_is_done(level_id, avg_time_ms, pct_correct)` | level → main | level complete → save + popup or loop |
+| `Level.update_score(delta)` | level → main | add points to running score |

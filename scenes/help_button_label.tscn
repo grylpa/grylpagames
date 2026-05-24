@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://cmrjq5vpe1e25"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_x5k26"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_uk3mg"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_uxkhs"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_spwtb"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_bk3i1"]
+
+[node name="HelpButton" type="Button" unique_id=1852042329]
+offset_left = 256.0
+offset_top = 252.0
+offset_right = 308.0
+offset_bottom = 298.0
+theme_override_colors/font_color = Color(0.984314, 0.858824, 0.176471, 1)
+theme_override_colors/font_focus_color = Color(0.984314, 0.858824, 0.176471, 1)
+theme_override_colors/font_pressed_color = Color(0.984314, 0.858824, 0.176471, 1)
+theme_override_colors/font_hover_color = Color(0.984314, 0.858824, 0.176471, 1)
+theme_override_colors/font_hover_pressed_color = Color(0.984314, 0.858824, 0.176471, 1)
+theme_override_font_sizes/font_size = 40
+theme_override_styles/normal = SubResource("StyleBoxEmpty_x5k26")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_uk3mg")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_uxkhs")
+theme_override_styles/hover_pressed_mirrored = SubResource("StyleBoxEmpty_spwtb")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_bk3i1")
+alignment = 0

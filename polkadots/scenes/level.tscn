@@ -1,0 +1,144 @@
+[gd_scene format=3 uid="uid://dfpeyliluya3g"]
+
+[ext_resource type="Script" uid="uid://cfqlmm3lkm55e" path="res://polkadots/scripts/level.gd" id="1_level"]
+[ext_resource type="Script" uid="uid://db8pkjicm7rwl" path="res://polkadots/scripts/dots_display.gd" id="2_dots"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_awiot"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.95, 0.97, 1, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.3, 0.35, 0.6, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wiej2"]
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.34901962, 0.34901962, 0.34901962, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="SF_panel"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.95, 0.97, 1, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.3, 0.35, 0.6, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[node name="Level" type="CanvasLayer" unique_id=1448882981]
+script = ExtResource("1_level")
+
+[node name="Root" type="Control" parent="." unique_id=1799797227]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 100.0
+offset_right = -10.0
+offset_bottom = -55.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GameArea" type="MarginContainer" parent="Root" unique_id=1988620525]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HBox" type="HBoxContainer" parent="Root/GameArea" unique_id=1863707390]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="DotsPanel" type="PanelContainer" parent="Root/GameArea/HBox" unique_id=1943462284]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_awiot")
+
+[node name="DotsMargin" type="MarginContainer" parent="Root/GameArea/HBox/DotsPanel" unique_id=1267262464]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="DotsInnerPanel" type="PanelContainer" parent="Root/GameArea/HBox/DotsPanel/DotsMargin" unique_id=147600080]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_wiej2")
+
+[node name="DotsDisplay" type="Control" parent="Root/GameArea/HBox/DotsPanel/DotsMargin/DotsInnerPanel" unique_id=1494796228]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("2_dots")
+
+[node name="OptionsPanel" type="PanelContainer" parent="Root/GameArea/HBox" unique_id=626339976]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("SF_panel")
+
+[node name="OptionsMargin" type="MarginContainer" parent="Root/GameArea/HBox/OptionsPanel" unique_id=1767828959]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="OptionsVBox" type="VBoxContainer" parent="Root/GameArea/HBox/OptionsPanel/OptionsMargin" unique_id=873131144]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="CharViewport" type="SubViewport" parent="." unique_id=156502724]
+transparent_bg = true
+size = Vector2i(256, 256)
+render_target_update_mode = 4
+
+[node name="CharLabel" type="Label" parent="CharViewport" unique_id=1977596880]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+text = " "
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HideOptionsTimer" type="Timer" parent="." unique_id=62695433]
+one_shot = true
+
+[node name="TimeoutTimer" type="Timer" parent="." unique_id=563313494]
+one_shot = true
+
+[connection signal="timeout" from="HideOptionsTimer" to="." method="_on_hide_options_timer_timeout"]
+[connection signal="timeout" from="TimeoutTimer" to="." method="_on_timeout_timer_timeout"]

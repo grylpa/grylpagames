@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://b0dcq5rk0n5e6"]
+
+[ext_resource type="Script" uid="uid://bglylcujv61wo" path="res://delemfp/scripts/level.gd" id="1_5agtr"]
+[ext_resource type="PackedScene" uid="uid://byktsjwn62wjr" path="res://delemfp/scenes/player.tscn" id="1_re2nr"]
+[ext_resource type="PackedScene" uid="uid://dm7kko4nw16ia" path="res://delemfp/scenes/pipe.tscn" id="3_8txly"]
+[ext_resource type="Texture2D" uid="uid://dl6rc484yuv1g" path="res://delemfp/art/grass.png" id="4_l1lck"]
+
+[node name="Level" type="CanvasLayer" unique_id=1340773866]
+follow_viewport_enabled = true
+script = ExtResource("1_5agtr")
+player_scene = ExtResource("1_re2nr")
+pipe_scene = ExtResource("3_8txly")
+
+[node name="AgentDispatchTimer" type="Timer" parent="." unique_id=453019045]
+wait_time = 0.5
+autostart = true
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=165557321]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_l1lck")
+stretch_mode = 1
+
+[node name="DispatchAudio" type="AudioStreamPlayer2D" parent="." unique_id=624783473]
+
+[node name="DeliveryAudio" type="AudioStreamPlayer2D" parent="." unique_id=1910606516]
+
+[node name="MotorAudio" type="AudioStreamPlayer2D" parent="." unique_id=357972562]
+
+[connection signal="timeout" from="AgentDispatchTimer" to="." method="_on_agent_dispatch_timer_timeout"]

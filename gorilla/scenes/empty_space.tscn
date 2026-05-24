@@ -1,0 +1,57 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gorilla/scripts/empty_space.gd" id="1"]
+[ext_resource type="Texture2D" path="res://gorilla/art/grass.png" id="2"]
+[ext_resource type="Texture2D" path="res://art/pipe_wall.png" id="3"]
+[ext_resource type="Texture2D" path="res://art/empty_corner.png" id="4"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
+size = Vector2(40, 40)
+
+[node name="EmptySpace" type="Area2D"]
+script = ExtResource("1")
+metadata/_edit_group_ = true
+
+[node name="EmptyShape" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="Grass" type="Sprite2D" parent="."]
+texture = ExtResource("2")
+
+[node name="Wall0" type="Sprite2D" parent="."]
+visible = false
+texture = ExtResource("3")
+
+[node name="Wall1" type="Sprite2D" parent="."]
+visible = false
+rotation = 1.5708
+texture = ExtResource("3")
+
+[node name="Wall2" type="Sprite2D" parent="."]
+visible = false
+rotation = 3.14159
+texture = ExtResource("3")
+
+[node name="Wall3" type="Sprite2D" parent="."]
+visible = false
+rotation = -1.5708
+texture = ExtResource("3")
+
+[node name="Wall4" type="Sprite2D" parent="."]
+visible = false
+texture = ExtResource("4")
+
+[node name="Wall5" type="Sprite2D" parent="."]
+visible = false
+rotation = 1.5708
+texture = ExtResource("4")
+
+[node name="Wall6" type="Sprite2D" parent="."]
+visible = false
+rotation = 3.14159
+texture = ExtResource("4")
+
+[node name="Wall7" type="Sprite2D" parent="."]
+visible = false
+rotation = -1.5708
+texture = ExtResource("4")

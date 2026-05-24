@@ -1,0 +1,107 @@
+[gd_scene format=3 uid="uid://bd7cmn6y3r1nf"]
+
+[ext_resource type="Script" uid="uid://dsu11ob0tnfae" path="res://matchws/scripts/words_list.gd" id="1_s3q1f"]
+[ext_resource type="Texture2D" uid="uid://ce5gp3yijxknc" path="res://matchws/art/grass_light.png" id="2_s3q1f"]
+[ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="4_m0ohp"]
+[ext_resource type="PackedScene" uid="uid://dd517sogabfv4" path="res://matchws/scenes/DownloadingMessage.tscn" id="7_xhsil"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6pfw3"]
+bg_color = Color(0.254902, 0.254902, 0.254902, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="WordsList" type="CanvasLayer" unique_id=476643276]
+script = ExtResource("1_s3q1f")
+metadata/_edit_group_ = true
+
+[node name="Window" type="Window" parent="." unique_id=1663416718]
+oversampling_override = 1.0
+mode = 4
+size = Vector2i(680, 780)
+exclusive = true
+unresizable = true
+borderless = true
+always_on_top = true
+
+[node name="ColorRect" type="TextureRect" parent="Window" unique_id=1862997763]
+z_index = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("2_s3q1f")
+stretch_mode = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Window/ColorRect" unique_id=424734166]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="TitleMargin" type="MarginContainer" parent="Window/ColorRect/VBoxContainer" unique_id=266429422]
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="Title" type="Label" parent="Window/ColorRect/VBoxContainer/TitleMargin" unique_id=1775182139]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_font_sizes/font_size = 46
+theme_override_styles/normal = SubResource("StyleBoxFlat_6pfw3")
+text = "words list"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="Window/ColorRect/VBoxContainer" unique_id=363441851]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Window/ColorRect/VBoxContainer/MarginContainer" unique_id=801377015]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="GridContainer" type="VBoxContainer" parent="Window/ColorRect/VBoxContainer/MarginContainer/ScrollContainer" unique_id=1695474810]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 2
+
+[node name="XCloseScene" parent="Window/ColorRect" unique_id=1367510918 instance=ExtResource("4_m0ohp")]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+grow_horizontal = 0
+icon_color = Color(1, 1, 0, 1)
+disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
+text_color = Color(1, 1, 0.0196078, 1)
+font_size = 40
+
+[node name="PreparingMessage" parent="Window" unique_id=1144817168 instance=ExtResource("7_xhsil")]
+unique_name_in_owner = true
+layer = 2
+
+[connection signal="button_pressed" from="Window/ColorRect/XCloseScene" to="." method="_on_x_close_scene_button_pressed"]

@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://d0rtkvrr02xhj"]
+
+[ext_resource type="Script" uid="uid://m5xanorrabbn" path="res://taxi/scripts/door.gd" id="1_buq65"]
+[ext_resource type="Texture2D" uid="uid://b486joddan21n" path="res://taxi/art/door_open.png" id="2_1pve0"]
+[ext_resource type="Texture2D" uid="uid://et2cf4f2ko2o" path="res://taxi/art/door_diag.png" id="3_ynb3m"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_flddt"]
+radius = 18.0
+
+[node name="Door" type="Area2D" unique_id=1073512753]
+z_index = 10
+script = ExtResource("1_buq65")
+metadata/_edit_group_ = true
+
+[node name="DoorOpen" type="Sprite2D" parent="." unique_id=653346533]
+texture = ExtResource("2_1pve0")
+
+[node name="DoorDiag" type="Sprite2D" parent="." unique_id=1431668259]
+texture = ExtResource("3_ynb3m")
+
+[node name="DoorShape" type="CollisionShape2D" parent="." unique_id=1950302864]
+shape = SubResource("CircleShape2D_flddt")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

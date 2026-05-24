@@ -1,0 +1,57 @@
+[gd_scene format=3 uid="uid://cad080f1ae0d"]
+
+[ext_resource type="Script" uid="uid://dicunr8084fin" path="res://storm/scripts/level.gd" id="1_rrd3d"]
+[ext_resource type="PackedScene" uid="uid://b1g50upd2ty2r" path="res://storm/scenes/pipe.tscn" id="2_b31s3"]
+[ext_resource type="PackedScene" uid="uid://cg55koteuna80" path="res://storm/scenes/door.tscn" id="3_ekc2d"]
+[ext_resource type="Texture2D" uid="uid://b40ucyudrggyv" path="res://storm/art/grass.png" id="4_u2yqg"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_yah8g"]
+content_margin_left = 20.0
+content_margin_top = 20.0
+content_margin_right = 20.0
+content_margin_bottom = 20.0
+bg_color = Color(0.9843137, 0.85490197, 0.1882353, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="Level" type="CanvasLayer" unique_id=1519085017]
+follow_viewport_enabled = true
+script = ExtResource("1_rrd3d")
+pipe_scene = ExtResource("2_b31s3")
+door_scene = ExtResource("3_ekc2d")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1437505540]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_u2yqg")
+stretch_mode = 1
+
+[node name="BuildingLabel" type="Label" parent="." unique_id=909886458]
+z_index = 100
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -36.5
+offset_top = -21.5
+offset_right = 36.5
+offset_bottom = 21.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0.24705882, 0, 1)
+theme_override_font_sizes/font_size = 36
+theme_override_styles/normal = SubResource("StyleBoxFlat_yah8g")
+text = "Building
+board"
+horizontal_alignment = 1
+vertical_alignment = 1

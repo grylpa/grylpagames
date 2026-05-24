@@ -1,0 +1,165 @@
+[gd_scene format=3 uid="uid://blm2206iuoibb"]
+
+[ext_resource type="Script" uid="uid://dowmmqvtk7oad" path="res://matchws/scripts/statistics_scene.gd" id="1_qj042"]
+[ext_resource type="Script" path="res://scripts/chart_control.gd" id="2_3x0k6"]
+[ext_resource type="Theme" uid="uid://ewa02qxc7l0p" path="res://scenes/radio_btn_theme.tres" id="2_xonxs"]
+[ext_resource type="Theme" uid="uid://5q741noneelr" path="res://matchws/scenes/BottomTabButton.tres" id="3_3x0k6"]
+[ext_resource type="ButtonGroup" uid="uid://3i0pf3mccno4" path="res://scenes/stat_resolution_group.tres" id="3_g6h4n"]
+[ext_resource type="Theme" uid="uid://den1yk5xbcx5m" path="res://scenes/no_bk_button.tres" id="4_fjn0s"]
+[ext_resource type="ButtonGroup" uid="uid://pplj11fbp6hb" path="res://scenes/statistics_button_group.tres" id="4_nlgdc"]
+[ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="8_e4x2o"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qj042"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(1, 0.4885, 0.00999999, 1)
+border_color = Color(0, 0, 0, 1)
+border_blend = true
+
+[node name="StatisticsScene" type="CanvasLayer" unique_id=1846930883]
+script = ExtResource("1_qj042")
+
+[node name="Background" type="ColorRect" parent="." unique_id=732007629]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1161836391]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="VBoxContainer" unique_id=1317041139]
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.12, 0.12, 0, 1)
+theme_override_font_sizes/font_size = 40
+theme_override_styles/normal = SubResource("StyleBoxFlat_qj042")
+text = "Statistics"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Resolution" type="HBoxContainer" parent="VBoxContainer" unique_id=1791110954]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 4
+alignment = 2
+
+[node name="Info" type="Label" parent="VBoxContainer/Resolution" unique_id=949926787]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+
+[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/Resolution" unique_id=461728842]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="M" type="Button" parent="VBoxContainer/Resolution" unique_id=540419901]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+size_flags_vertical = 8
+theme = ExtResource("2_xonxs")
+toggle_mode = true
+action_mode = 0
+keep_pressed_outside = true
+button_group = ExtResource("3_g6h4n")
+text = "M"
+
+[node name="H" type="Button" parent="VBoxContainer/Resolution" unique_id=2109595096]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+size_flags_vertical = 8
+theme = ExtResource("2_xonxs")
+toggle_mode = true
+action_mode = 0
+keep_pressed_outside = true
+button_group = ExtResource("3_g6h4n")
+text = "H"
+
+[node name="D" type="Button" parent="VBoxContainer/Resolution" unique_id=773514729]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+size_flags_vertical = 8
+theme = ExtResource("2_xonxs")
+toggle_mode = true
+action_mode = 0
+keep_pressed_outside = true
+button_group = ExtResource("3_g6h4n")
+text = "D"
+
+[node name="ChartControl" type="Control" parent="VBoxContainer" unique_id=982338435]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("2_3x0k6")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=980399887]
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Spacer2" type="MarginContainer" parent="VBoxContainer/HBoxContainer" unique_id=668161759]
+layout_mode = 2
+
+[node name="StatTimeButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=1778520623]
+unique_name_in_owner = true
+layout_mode = 2
+theme = ExtResource("3_3x0k6")
+toggle_mode = true
+action_mode = 0
+keep_pressed_outside = true
+button_group = ExtResource("4_nlgdc")
+text = "Time"
+
+[node name="StatMistakesButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=1788219781]
+unique_name_in_owner = true
+layout_mode = 2
+theme = ExtResource("3_3x0k6")
+toggle_mode = true
+action_mode = 0
+keep_pressed_outside = true
+button_group = ExtResource("4_nlgdc")
+text = "Mistakes"
+
+[node name="Spacer" type="MarginContainer" parent="VBoxContainer/HBoxContainer" unique_id=1141675974]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CloseButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=1292462138]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 8
+theme = ExtResource("4_fjn0s")
+theme_override_font_sizes/font_size = 30
+text = "Close"
+
+[node name="Spacer3" type="MarginContainer" parent="VBoxContainer/HBoxContainer" unique_id=353577506]
+visible = false
+layout_mode = 2
+theme_override_constants/margin_right = 20
+
+[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer" unique_id=1408612685]
+layout_mode = 2
+theme_override_constants/margin_top = 2
+
+[node name="XCloseScene" parent="." unique_id=1570294987 instance=ExtResource("8_e4x2o")]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+grow_horizontal = 0
+icon_color = Color(0, 0, 0, 1)
+disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
+
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/StatTimeButton" to="." method="_on_stat_time_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/StatMistakesButton" to="." method="_on_stat_mistakes_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/CloseButton" to="." method="_on_close_button_pressed"]
+[connection signal="button_pressed" from="XCloseScene" to="." method="_on_x_close_scene_button_pressed"]

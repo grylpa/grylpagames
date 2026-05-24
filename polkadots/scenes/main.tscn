@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://polkadots_main"]
+
+[ext_resource type="Script" path="res://polkadots/scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://polkadots/scenes/level.tscn" id="2_level"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_hud"]
+[ext_resource type="PackedScene" path="res://scenes/help.tscn" id="4_help"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Level" parent="." instance=ExtResource("2_level")]
+
+[node name="HUD" parent="." instance=ExtResource("3_hud")]
+
+[node name="Help" parent="." instance=ExtResource("4_help")]
+visible = false
+
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="close_help" from="Help" to="." method="_on_help_close_help"]

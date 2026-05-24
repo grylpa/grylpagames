@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://dtv5onv421v6r"]
+
+[ext_resource type="Script" uid="uid://c8c7oiuxrldt2" path="res://scripts/menu_slider_scene.gd" id="1_8r8jg"]
+[ext_resource type="Texture2D" uid="uid://4m1k3cofrsp7" path="res://art/slider-grabber-32.png" id="2_3tinl"]
+[ext_resource type="StyleBox" uid="uid://c7j2vnd4purnw" path="res://scenes/menu_slider_slider_style.tres" id="2_bl2sg"]
+
+[node name="MenuSliderScene" type="HBoxContainer" unique_id=2023343484]
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_top = -20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+script = ExtResource("1_8r8jg")
+
+[node name="HSlider" type="HSlider" parent="." unique_id=1922518713]
+custom_minimum_size = Vector2(200, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_icons/grabber = ExtResource("2_3tinl")
+theme_override_icons/grabber_highlight = ExtResource("2_3tinl")
+theme_override_icons/grabber_disabled = ExtResource("2_3tinl")
+theme_override_styles/slider = ExtResource("2_bl2sg")
+theme_override_styles/grabber_area = ExtResource("2_bl2sg")
+theme_override_styles/grabber_area_highlight = ExtResource("2_bl2sg")
+
+[node name="Label" type="Label" parent="." unique_id=2010056590]
+custom_minimum_size = Vector2(56, 40)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.937255, 0.768627, 0.0980392, 1)
+theme_override_font_sizes/font_size = 30
+text = "0"
+vertical_alignment = 1
+
+[connection signal="drag_ended" from="HSlider" to="." method="_on_h_slider_drag_ended"]
+[connection signal="value_changed" from="HSlider" to="." method="_on_h_slider_value_changed"]

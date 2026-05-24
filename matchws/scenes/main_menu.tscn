@@ -1,0 +1,257 @@
+[gd_scene format=3 uid="uid://dsj8oefr061rr"]
+
+[ext_resource type="Script" uid="uid://6q0j6npoke7q" path="res://matchws/scripts/main_menu.gd" id="1_otglp"]
+[ext_resource type="Texture2D" uid="uid://dyuktoyvbrtmg" path="res://art/grass_dark.png" id="2_kixyu"]
+[ext_resource type="Theme" uid="uid://dlegqplwdi6a5" path="res://scenes/option_list_theme.tres" id="3_kixyu"]
+[ext_resource type="PackedScene" uid="uid://dd517sogabfv4" path="res://matchws/scenes/DownloadingMessage.tscn" id="5_bx0tr"]
+[ext_resource type="Theme" uid="uid://jmyy33bjn73p" path="res://scenes/start_button.tres" id="5_kixyu"]
+[ext_resource type="Texture2D" uid="uid://b1u1eaas1ipph" path="res://art/refresh-lined_2_wide.svg" id="6_kixyu"]
+[ext_resource type="Theme" uid="uid://caoh3gar3f76g" path="res://scenes/button_semi_transparent.tres" id="7_lpq7r"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_kixyu"]
+
+[node name="MainMenu" type="CanvasLayer" unique_id=467698731]
+script = ExtResource("1_otglp")
+metadata/_edit_group_ = true
+
+[node name="ColorRect" type="TextureRect" parent="." unique_id=1268688676]
+z_index = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("2_kixyu")
+stretch_mode = 1
+
+[node name="OptionsContainer" type="VBoxContainer" parent="ColorRect" unique_id=1334819911]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 88.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="TitleMargin" type="MarginContainer" parent="ColorRect/OptionsContainer" unique_id=1039400349]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+
+[node name="Title" type="Label" parent="ColorRect/OptionsContainer/TitleMargin" unique_id=364913553]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9372549, 0.76862746, 0.09803922, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/normal = SubResource("StyleBoxEmpty_kixyu")
+text = "matchws"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="ColorRect/OptionsContainer" unique_id=1966205353]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="GridContainer" type="GridContainer" parent="ColorRect/OptionsContainer/MarginContainer" unique_id=310960803]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 30
+theme_override_constants/v_separation = 12
+columns = 2
+
+[node name="NewLangLabel" type="Label" parent="ColorRect/OptionsContainer/MarginContainer/GridContainer" unique_id=1297119273]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.9372549, 0.76862746, 0.09803922, 1)
+theme_override_font_sizes/font_size = 36
+text = "NEW"
+vertical_alignment = 1
+
+[node name="NewLangList" type="OptionButton" parent="ColorRect/OptionsContainer/MarginContainer/GridContainer" unique_id=365735611]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("3_kixyu")
+theme_override_font_sizes/font_size = 30
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="OldLangLabel" type="Label" parent="ColorRect/OptionsContainer/MarginContainer/GridContainer" unique_id=590164720]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.9372549, 0.76862746, 0.09803922, 1)
+theme_override_font_sizes/font_size = 36
+text = "KNOWN"
+vertical_alignment = 1
+
+[node name="OldLangList" type="OptionButton" parent="ColorRect/OptionsContainer/MarginContainer/GridContainer" unique_id=611547341]
+unique_name_in_owner = true
+layout_mode = 2
+theme = ExtResource("3_kixyu")
+theme_override_font_sizes/font_size = 30
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="CollectionLabel" type="Label" parent="ColorRect/OptionsContainer/MarginContainer/GridContainer" unique_id=53139465]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.9372549, 0.76862746, 0.09803922, 1)
+theme_override_font_sizes/font_size = 36
+text = "COLLECTION"
+vertical_alignment = 1
+
+[node name="CollectionList" type="OptionButton" parent="ColorRect/OptionsContainer/MarginContainer/GridContainer" unique_id=1040709972]
+unique_name_in_owner = true
+layout_mode = 2
+theme = ExtResource("3_kixyu")
+theme_override_font_sizes/font_size = 30
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ColorRect/OptionsContainer" unique_id=561604980]
+layout_mode = 2
+
+[node name="MarginContainer2" type="MarginContainer" parent="ColorRect/OptionsContainer/HBoxContainer" unique_id=852895084]
+layout_mode = 2
+theme_override_constants/margin_left = 70
+
+[node name="MarginContainer4" type="MarginContainer" parent="ColorRect/OptionsContainer/HBoxContainer" unique_id=1950424004]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StartGameButton" type="Button" parent="ColorRect/OptionsContainer/HBoxContainer" unique_id=996617164]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme = ExtResource("5_kixyu")
+text = "START"
+
+[node name="MarginContainer3" type="MarginContainer" parent="ColorRect/OptionsContainer/HBoxContainer" unique_id=1928746590]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ReloadWordsButton" type="Button" parent="ColorRect/OptionsContainer/HBoxContainer" unique_id=168342953]
+self_modulate = Color(0.9372549, 0.76862746, 0.09803922, 1)
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 4
+mouse_filter = 1
+theme = ExtResource("7_lpq7r")
+theme_override_font_sizes/font_size = 30
+icon = ExtResource("6_kixyu")
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="MarginContainer5" type="MarginContainer" parent="ColorRect/OptionsContainer/HBoxContainer" unique_id=1550072029]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+
+[node name="BottomContainer" type="MarginContainer" parent="ColorRect" unique_id=157383497]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -280.5
+offset_top = -37.0
+offset_right = 280.5
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/margin_bottom = 4
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ColorRect/BottomContainer" unique_id=156444226]
+layout_mode = 2
+size_flags_horizontal = 4
+alignment = 2
+
+[node name="MarginContainer4" type="MarginContainer" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=1575371165]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_right = 40
+
+[node name="AddNewWordsButton" type="Button" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=665592151]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 8
+mouse_filter = 1
+theme = ExtResource("7_lpq7r")
+theme_override_font_sizes/font_size = 30
+text = "Add New"
+
+[node name="MarginContainer3" type="MarginContainer" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=2071537380]
+layout_mode = 2
+theme_override_constants/margin_right = 30
+
+[node name="WordsListButton" type="Button" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=1927836825]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 8
+mouse_filter = 1
+theme = ExtResource("7_lpq7r")
+theme_override_font_sizes/font_size = 30
+text = "WORDS"
+
+[node name="MarginContainer2" type="MarginContainer" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=1508458765]
+layout_mode = 2
+theme_override_constants/margin_right = 30
+
+[node name="StatsButton" type="Button" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=1299622397]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 8
+mouse_filter = 1
+theme = ExtResource("7_lpq7r")
+theme_override_font_sizes/font_size = 30
+text = "STATS"
+
+[node name="MarginContainer" type="MarginContainer" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=898508477]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_right = 40
+
+[node name="HelpButton" type="Button" parent="ColorRect/BottomContainer/HBoxContainer" unique_id=50632733]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 8
+mouse_filter = 1
+theme = ExtResource("7_lpq7r")
+theme_override_font_sizes/font_size = 30
+text = "☰"
+
+[node name="DownloadingMessage" parent="." unique_id=2009703820 instance=ExtResource("5_bx0tr")]
+layer = 2
+visible = false
+
+[connection signal="visibility_changed" from="." to="." method="_on_visibility_changed"]
+[connection signal="item_selected" from="ColorRect/OptionsContainer/MarginContainer/GridContainer/NewLangList" to="." method="_on_new_lang_list_item_selected"]
+[connection signal="item_selected" from="ColorRect/OptionsContainer/MarginContainer/GridContainer/OldLangList" to="." method="_on_old_lang_list_item_selected"]
+[connection signal="item_selected" from="ColorRect/OptionsContainer/MarginContainer/GridContainer/CollectionList" to="." method="_on_collection_list_item_selected"]
+[connection signal="pressed" from="ColorRect/OptionsContainer/HBoxContainer/StartGameButton" to="." method="_on_start_game_button_pressed"]
+[connection signal="pressed" from="ColorRect/OptionsContainer/HBoxContainer/ReloadWordsButton" to="." method="_on_reload_words_button_pressed"]
+[connection signal="pressed" from="ColorRect/BottomContainer/HBoxContainer/AddNewWordsButton" to="." method="_on_add_new_words_button_pressed"]
+[connection signal="pressed" from="ColorRect/BottomContainer/HBoxContainer/WordsListButton" to="." method="_on_words_list_button_pressed"]
+[connection signal="pressed" from="ColorRect/BottomContainer/HBoxContainer/StatsButton" to="." method="_on_stats_button_pressed"]
+[connection signal="pressed" from="ColorRect/BottomContainer/HBoxContainer/HelpButton" to="." method="_on_help_button_pressed"]

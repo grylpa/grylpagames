@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://tkw1p3l4tmhj"]
+
+[node name="DifficultyLabel" type="Label" unique_id=754932611]
+custom_minimum_size = Vector2(0, 60)
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.937255, 0.768627, 0.0980392, 1)
+theme_override_font_sizes/font_size = 36
+text = "DIFFICULTY"
+vertical_alignment = 1

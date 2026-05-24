@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://bpd8ss75cu877"]
+
+[ext_resource type="PackedScene" uid="uid://bgp4iri8bapgc" path="res://scenes/grid_header_label.tscn" id="2_q50ju"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6gxqn"]
+content_margin_left = 0.0
+content_margin_right = 0.0
+bg_color = Color(0, 0, 0, 0)
+
+[node name="ScoresListHeader" type="PanelContainer" unique_id=1514925675]
+custom_minimum_size = Vector2(600, 0)
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 28.0
+grow_horizontal = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_6gxqn")
+
+[node name="HBox" type="HBoxContainer" parent="." unique_id=1399528669]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="TextureIcon" type="TextureRect" parent="HBox" unique_id=62706108]
+visible = false
+custom_minimum_size = Vector2(16, 18)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+size_flags_stretch_ratio = 0.0
+
+[node name="DatePanel" parent="HBox" unique_id=1632059297 instance=ExtResource("2_q50ju")]
+layout_mode = 2
+size_flags_horizontal = 1
+
+[node name="ScorePanel" parent="HBox" unique_id=793164109 instance=ExtResource("2_q50ju")]
+layout_mode = 2
+size_flags_horizontal = 1
+
+[node name="LevelPanel" parent="HBox" unique_id=1679441894 instance=ExtResource("2_q50ju")]
+layout_mode = 2
+size_flags_horizontal = 1
+
+[node name="TimePanel" parent="HBox" unique_id=1602827280 instance=ExtResource("2_q50ju")]
+layout_mode = 2
+size_flags_horizontal = 1

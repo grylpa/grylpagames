@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://ccn7o322s0cjd"]
+
+[ext_resource type="Script" uid="uid://b1dx3j5lo5sls" path="res://storm/scripts/main.gd" id="1_rksgm"]
+[ext_resource type="PackedScene" uid="uid://cad080f1ae0d" path="res://storm/scenes/level.tscn" id="2_k0niy"]
+[ext_resource type="PackedScene" uid="uid://btp3apfaw4fcj" path="res://storm/scenes/blackout.tscn" id="3_k0niy"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_ksdlw"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="4_x3et1"]
+
+[node name="Main" type="Node" unique_id=1284743682]
+script = ExtResource("1_rksgm")
+
+[node name="Level" parent="." unique_id=711085346 instance=ExtResource("2_k0niy")]
+
+[node name="Blackout" parent="." unique_id=1519085017 instance=ExtResource("3_k0niy")]
+visible = false
+
+[node name="HUD" parent="." unique_id=517755859 instance=ExtResource("3_ksdlw")]
+
+[node name="GameTick" type="Timer" parent="." unique_id=839475720]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." unique_id=718598658 instance=ExtResource("4_x3et1")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="sig_level_is_done" from="Level" to="." method="_on_level_sig_level_is_done"]
+[connection signal="started_playing" from="Level" to="." method="_on_level_started_playing"]
+[connection signal="update_score" from="Level" to="." method="_on_level_update_score"]
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]

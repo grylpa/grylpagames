@@ -1,0 +1,137 @@
+[gd_scene format=3 uid="uid://daae71c3e02b4"]
+
+[ext_resource type="Script" uid="uid://db7aiyvutvrbo" path="res://friends/scripts/level.gd" id="1_ufpus"]
+[ext_resource type="Theme" uid="uid://jmyy33bjn73p" path="res://scenes/start_button.tres" id="3_3204t"]
+[ext_resource type="Texture2D" uid="uid://byk0fyp0kxs63" path="res://friends/art/grass.png" id="4_asnw5"]
+[ext_resource type="Theme" uid="uid://c33for04p63fj" path="res://scenes/in_game_yellow_button.tres" id="4_cpuoa"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glcgs"]
+bg_color = Color(0.0627451, 0.87058824, 0.2627451, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.92941177, 0.8039216, 0.1764706, 1)
+corner_radius_top_left = 99
+corner_radius_top_right = 99
+corner_radius_bottom_right = 99
+corner_radius_bottom_left = 99
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cpuoa"]
+bg_color = Color(1, 0, 0, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.92941177, 0.8039216, 0.1764706, 1)
+border_blend = true
+corner_radius_top_left = 99
+corner_radius_top_right = 99
+corner_radius_bottom_right = 99
+corner_radius_bottom_left = 99
+
+[node name="Level" type="CanvasLayer" unique_id=1996654832]
+script = ExtResource("1_ufpus")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=720256025]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_asnw5")
+stretch_mode = 1
+
+[node name="ReadyButton" type="Button" parent="." unique_id=124473016]
+visible = false
+offset_right = 198.0
+offset_bottom = 37.0
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme = ExtResource("3_3204t")
+text = "I am ready"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=231446099]
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 77.0
+grow_horizontal = 2
+theme_override_constants/separation = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="HBoxContainer" unique_id=58306695]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+
+[node name="SayHiButton" type="Button" parent="HBoxContainer" unique_id=1024585201]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme = ExtResource("4_cpuoa")
+text = "Say Hi"
+
+[node name="MarginContainer3" type="MarginContainer" parent="HBoxContainer" unique_id=826187584]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+
+[node name="IgnoreButton" type="Button" parent="HBoxContainer" unique_id=466577500]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme = ExtResource("4_cpuoa")
+text = "Ignore"
+
+[node name="MarginContainer2" type="MarginContainer" parent="HBoxContainer" unique_id=1269502005]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+
+[node name="Instructions" type="Label" parent="." unique_id=1544165721]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 120.0
+offset_bottom = 207.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.92941177, 0.8039216, 0.1764706, 1)
+theme_override_font_sizes/font_size = 34
+text = "These are your friends
+Remember them"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CorrectText" type="Label" parent="." unique_id=958005499]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 120.0
+offset_bottom = 207.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_glcgs")
+text = "Hi"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="WrongText" type="Label" parent="." unique_id=784600791]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 119.0
+offset_bottom = 206.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.92941177, 0.8039216, 0.1764706, 1)
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_cpuoa")
+text = "Oh No"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[connection signal="pressed" from="ReadyButton" to="." method="_on_ready_button_pressed"]
+[connection signal="pressed" from="HBoxContainer/SayHiButton" to="." method="_on_say_hi_button_pressed"]
+[connection signal="pressed" from="HBoxContainer/IgnoreButton" to="." method="_on_ignore_button_pressed"]

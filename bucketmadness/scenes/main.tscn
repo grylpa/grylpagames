@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://bucketmadness/scripts/main.gd" id="1"]
+[ext_resource type="PackedScene" path="res://bucketmadness/scenes/level.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/generic_game_hud.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/help.tscn" id="4"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1")
+
+[node name="Level" parent="." instance=ExtResource("2")]
+
+[node name="HUD" parent="." instance=ExtResource("3")]
+
+[node name="GameTick" type="Timer" parent="."]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." instance=ExtResource("4")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]

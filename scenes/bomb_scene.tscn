@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://b3i24vw1u5ppy"]
+
+[ext_resource type="Texture2D" uid="uid://bu25r5aync2nj" path="res://art/bomb1.png" id="1_4kuly"]
+[ext_resource type="Script" uid="uid://8hkf7omkokqh" path="res://scripts/bomb_scene.gd" id="1_jphrv"]
+[ext_resource type="Texture2D" uid="uid://bpbl7lnx2ve41" path="res://art/bomb2.png" id="2_0rcco"]
+[ext_resource type="Texture2D" uid="uid://c113gnop2sc88" path="res://art/bomb3.png" id="3_irvdg"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="4_qaweh"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_d73pu"]
+size = Vector2(32, 32)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_n0x4x"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_4kuly")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_0rcco")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_irvdg")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_0rcco")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
+[node name="BombScene" type="Area2D" unique_id=706641991]
+script = ExtResource("1_jphrv")
+metadata/_edit_group_ = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=136510684]
+shape = SubResource("RectangleShape2D_d73pu")
+
+[node name="AnimatedSprite2DOld" type="AnimatedSprite2D" parent="." unique_id=713632248]
+visible = false
+sprite_frames = SubResource("SpriteFrames_n0x4x")
+
+[node name="AnimatedSprite2D" parent="." unique_id=539237363 instance=ExtResource("4_qaweh")]

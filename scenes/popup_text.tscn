@@ -1,0 +1,62 @@
+[gd_scene format=3 uid="uid://bb3vavfjmtt72"]
+
+[ext_resource type="Script" uid="uid://bhsdp3phgkgb8" path="res://scripts/popup_text.gd" id="1_4m4vl"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4m4vl"]
+content_margin_left = 20.0
+content_margin_top = 20.0
+content_margin_right = 20.0
+content_margin_bottom = 20.0
+bg_color = Color(0.9843137, 0.85490197, 0.1882353, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.18039216, 0, 1)
+border_blend = true
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="PopupText" type="PopupPanel" unique_id=229263554]
+oversampling_override = 1.0
+size = Vector2i(542, 238)
+visible = true
+theme_override_styles/panel = SubResource("StyleBoxFlat_4m4vl")
+script = ExtResource("1_4m4vl")
+margin_px = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1489492907]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 40
+
+[node name="Text" type="Label" parent="VBoxContainer" unique_id=438620297]
+unique_name_in_owner = true
+z_index = 100
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.24705882, 0, 1)
+theme_override_font_sizes/font_size = 36
+text = "There is a storm outside
+It will last
+2 minutes"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TapText" type="Label" parent="VBoxContainer" unique_id=1983640462]
+unique_name_in_owner = true
+z_index = 100
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.24705882, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "Tap anywhere to start"
+horizontal_alignment = 1
+vertical_alignment = 1

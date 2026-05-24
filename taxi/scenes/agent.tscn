@@ -1,0 +1,69 @@
+[gd_scene format=3 uid="uid://7e88pwe1ya4r"]
+
+[ext_resource type="Script" uid="uid://dwt5gkokfv0w" path="res://taxi/scripts/agent.gd" id="1_ascn6"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="12_cav22"]
+[ext_resource type="Texture2D" uid="uid://ctwx3qajr3aij" path="res://art/taxi-clean-bk.png" id="13_706hg"]
+[ext_resource type="Texture2D" uid="uid://cpfox8pqktwg3" path="res://art/head-bk-4x.png" id="13_b0vcx"]
+[ext_resource type="Texture2D" uid="uid://btwn8pietlh3h" path="res://art/taxi-clean-gas_0_more_red.png" id="18_vq5m7"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tu7kf"]
+size = Vector2(40, 40)
+
+[node name="Agent" type="Area2D" unique_id=396012317 groups=["agents"]]
+z_index = 3
+collision_layer = 2
+collision_mask = 2
+script = ExtResource("1_ascn6")
+metadata/_edit_group_ = true
+
+[node name="AgentShape" type="CollisionShape2D" parent="." unique_id=939005448]
+shape = SubResource("RectangleShape2D_tu7kf")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=434009846]
+width = 5.0
+
+[node name="Head" parent="." unique_id=1053699071 instance=ExtResource("12_cav22")]
+z_index = 1
+frame_progress = 0.0
+
+[node name="Selected" type="Sprite2D" parent="Head" unique_id=167351809]
+unique_name_in_owner = true
+visible = false
+z_index = -1
+scale = Vector2(1.2, 1.2)
+texture = ExtResource("13_706hg")
+
+[node name="Blocked" type="Sprite2D" parent="Head" unique_id=14010366]
+unique_name_in_owner = true
+visible = false
+self_modulate = Color(1, 0, 0, 1)
+z_index = -1
+scale = Vector2(1.2, 1.2)
+texture = ExtResource("13_706hg")
+
+[node name="Assigned" type="Sprite2D" parent="Head" unique_id=1178929004]
+unique_name_in_owner = true
+visible = false
+modulate = Color(0, 0.807843, 0.00392157, 1)
+z_index = -2
+scale = Vector2(1.2, 1.2)
+texture = ExtResource("13_706hg")
+
+[node name="GasSprite" type="Sprite2D" parent="Head" unique_id=1366499042]
+unique_name_in_owner = true
+position = Vector2(-80, -62.5)
+texture = ExtResource("18_vq5m7")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 100, 125)
+
+[node name="PassengerAssigned" type="Sprite2D" parent="Head" unique_id=366193963]
+unique_name_in_owner = true
+visible = false
+modulate = Color(0, 0.807843, 0.00392157, 1)
+z_index = -4
+scale = Vector2(1.4, 1.4)
+texture = ExtResource("13_b0vcx")
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="input_event" from="." to="." method="_on_input_event"]

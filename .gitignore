@@ -1,0 +1,12 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+/export/*
+!/export/*.sh
+#exports/
+faces/people/opt
+
+# Sensitive local-only artifacts
+dbbackup/
+*.keystore
+.vscode/

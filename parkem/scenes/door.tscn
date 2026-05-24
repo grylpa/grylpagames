@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://58e4b5f6cad5"]
+
+[ext_resource type="Script" uid="uid://drkh6yi71xecg" path="res://parkem/scripts/door.gd" id="1_flddt"]
+[ext_resource type="Texture2D" uid="uid://nualnxjv4dee" path="res://parkem/art/door_open.png" id="2_ugr4d"]
+[ext_resource type="Texture2D" uid="uid://c3icrgx34xn4w" path="res://parkem/art/door_diag.png" id="3_o88e4"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_flddt"]
+size = Vector2(40, 40)
+
+[node name="Door" type="Area2D" unique_id=1704233754]
+z_index = 10
+script = ExtResource("1_flddt")
+metadata/_edit_group_ = true
+
+[node name="DoorOpen" type="Sprite2D" parent="." unique_id=233532229]
+texture = ExtResource("2_ugr4d")
+
+[node name="DoorDiag" type="Sprite2D" parent="." unique_id=1347936837]
+texture = ExtResource("3_o88e4")
+
+[node name="DoorShape" type="CollisionShape2D" parent="." unique_id=1173097944]
+shape = SubResource("RectangleShape2D_flddt")
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

@@ -1,0 +1,144 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gorilla/scripts/level.gd" id="1"]
+[ext_resource type="PackedScene" path="res://gorilla/scenes/pipe.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://gorilla/scenes/agent.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://gorilla/scenes/player.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://gorilla/scenes/peripheral_gorilla.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://gorilla/scenes/empty_space.tscn" id="6"]
+[ext_resource type="Texture2D" path="res://gorilla/art/grass.png" id="7"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
+content_margin_left = 20.0
+content_margin_top = 20.0
+content_margin_right = 20.0
+content_margin_bottom = 20.0
+bg_color = Color(0.12, 0.12, 0.2, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6, 0.6, 1.0, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[node name="Level" type="CanvasLayer"]
+follow_viewport_enabled = true
+script = ExtResource("1")
+pipe_scene = ExtResource("2")
+agent_scene = ExtResource("3")
+player_scene = ExtResource("4")
+peripheral_gorilla_scene = ExtResource("5")
+empty_space_scene = ExtResource("6")
+
+[node name="BackgroundRect" type="TextureRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("7")
+stretch_mode = 1
+
+[node name="BuildingLabel" type="Label" parent="."]
+z_index = 100
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -60.0
+offset_top = -21.5
+offset_right = 60.0
+offset_bottom = 21.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "Building..."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="AnswerOverlay" type="Panel" parent="UILayer"]
+visible = false
+z_index = 200
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -140.0
+offset_right = 220.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_1")
+
+[node name="Panel" type="Panel" parent="UILayer/AnswerOverlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+self_modulate = Color(0, 0, 0, 0)
+
+[node name="VBox" type="VBoxContainer" parent="UILayer/AnswerOverlay/Panel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="QuestionLabel" type="Label" parent="UILayer/AnswerOverlay/Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "How many gorillas passed by?"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ButtonsBox" type="HBoxContainer" parent="UILayer/AnswerOverlay/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Btn0" type="Button" parent="UILayer/AnswerOverlay/Panel/VBox/ButtonsBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 60)
+theme_override_font_sizes/font_size = 26
+text = "0"
+
+[node name="Btn1" type="Button" parent="UILayer/AnswerOverlay/Panel/VBox/ButtonsBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 60)
+theme_override_font_sizes/font_size = 26
+text = "1"
+
+[node name="Btn2" type="Button" parent="UILayer/AnswerOverlay/Panel/VBox/ButtonsBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 60)
+theme_override_font_sizes/font_size = 26
+text = "2"
+
+[node name="Btn3" type="Button" parent="UILayer/AnswerOverlay/Panel/VBox/ButtonsBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 60)
+theme_override_font_sizes/font_size = 26
+text = "3"
+
+[node name="Btn4" type="Button" parent="UILayer/AnswerOverlay/Panel/VBox/ButtonsBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 60)
+theme_override_font_sizes/font_size = 26
+text = "4"

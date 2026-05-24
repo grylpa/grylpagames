@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://ci7uitr8ka7ir"]
+
+[ext_resource type="Script" uid="uid://b3qkwaiu1fq3i" path="res://guidem/scripts/player.gd" id="1_hm56n"]
+[ext_resource type="Texture2D" uid="uid://ify1vfxtk8v3" path="res://art/receiver_torquise-no-arrow-4x.png" id="2_hhidf"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ytrxx"]
+size = Vector2(56, 56)
+
+[node name="Player" type="Area2D" unique_id=1786085475]
+z_index = 100
+script = ExtResource("1_hm56n")
+metadata/_edit_group_ = true
+
+[node name="PlayerImage" type="Sprite2D" parent="." unique_id=1154550092]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_hhidf")
+
+[node name="PlayerShape" type="CollisionShape2D" parent="." unique_id=45241474]
+shape = SubResource("RectangleShape2D_ytrxx")

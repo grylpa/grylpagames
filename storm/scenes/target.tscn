@@ -1,0 +1,113 @@
+[gd_scene format=3 uid="uid://427pkw7sn430"]
+
+[ext_resource type="Script" uid="uid://pguqf7nk37hx" path="res://storm/scripts/target.gd" id="1_ffcs1"]
+[ext_resource type="Texture2D" uid="uid://da6a0vdyhuvnb" path="res://art/target-no-arrow-4x.png" id="2_2y4lh"]
+[ext_resource type="Texture2D" uid="uid://deot5gp4v6vl5" path="res://art/receiver-w-circle-4x.png" id="3_l846i"]
+[ext_resource type="Texture2D" uid="uid://dun1g8w2yejkc" path="res://storm/art/bomb1.png" id="4_mfl3t"]
+[ext_resource type="Texture2D" uid="uid://ctrmda362m72i" path="res://storm/art/bomb2.png" id="5_djw3r"]
+[ext_resource type="Texture2D" uid="uid://cbafd1yx05sco" path="res://storm/art/bomb3.png" id="6_6uo8u"]
+[ext_resource type="Texture2D" uid="uid://bxxyeklbkvmu3" path="res://storm/art/agent_head1.png" id="7_rhtnl"]
+[ext_resource type="Texture2D" uid="uid://o826whpfg5w5" path="res://storm/art/agent_head2.png" id="8_omgw0"]
+[ext_resource type="Texture2D" uid="uid://dfh2txp57ds7a" path="res://storm/art/agent_head3.png" id="9_pw7if"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="10_kcd1t"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_l468q"]
+size = Vector2(56, 56)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_waosc"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("4_mfl3t")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_djw3r")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_6uo8u")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_djw3r")
+}],
+"loop": true,
+"name": &"Bomb",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("7_rhtnl")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_omgw0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_pw7if")
+}],
+"loop": true,
+"name": &"HeadEyes",
+"speed": 5.0
+}]
+
+[node name="Target" type="Area2D" unique_id=1386177866]
+z_index = 1
+script = ExtResource("1_ffcs1")
+metadata/_edit_group_ = true
+
+[node name="TargetImage" type="Sprite2D" parent="." unique_id=1974959068]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_2y4lh")
+
+[node name="ReceiverImage" type="Sprite2D" parent="." unique_id=547440989]
+visible = false
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_l846i")
+
+[node name="SenderImage" type="Sprite2D" parent="." unique_id=43902860]
+visible = false
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_l846i")
+
+[node name="TargetShape" type="CollisionShape2D" parent="." unique_id=924601949]
+shape = SubResource("RectangleShape2D_l468q")
+
+[node name="TargetText" type="Label" parent="." unique_id=1714602408]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TargetIcon" type="TextureRect" parent="." unique_id=2126560707]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("4_mfl3t")
+expand_mode = 1
+
+[node name="TargetBombOld" type="AnimatedSprite2D" parent="." unique_id=526165177]
+visible = false
+z_index = 1
+scale = Vector2(0.6, 0.6)
+sprite_frames = SubResource("SpriteFrames_waosc")
+animation = &"Bomb"
+
+[node name="TargetBomb" parent="." unique_id=1581395013 instance=ExtResource("10_kcd1t")]
+visible = false
+z_index = 1
+
+[connection signal="input_event" from="." to="." method="_on_input_event"]

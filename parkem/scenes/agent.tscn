@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://e08aa333e864"]
+
+[ext_resource type="Script" uid="uid://bxjp062eg0da4" path="res://parkem/scripts/agent.gd" id="1_rbrxq"]
+[ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="8_358f3"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_tu7kf"]
+size = Vector2(40, 40)
+
+[node name="Agent" type="Area2D" unique_id=1248791661 groups=["agents"]]
+z_index = 20
+collision_layer = 2
+collision_mask = 2
+script = ExtResource("1_rbrxq")
+metadata/_edit_group_ = true
+
+[node name="AgentShape" type="CollisionShape2D" parent="." unique_id=2051395311]
+shape = SubResource("RectangleShape2D_tu7kf")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=2020295497]
+width = 5.0
+
+[node name="Head" parent="." unique_id=1893999121 instance=ExtResource("8_358f3")]
+animation = &"HeadEyes"
+frame_progress = 0.0
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="input_event" from="." to="." method="_on_input_event"]

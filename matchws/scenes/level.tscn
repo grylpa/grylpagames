@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://diawjuwocnmu5"]
+
+[ext_resource type="Script" uid="uid://ck8ndrj352grj" path="res://matchws/scripts/level.gd" id="1_vecp2"]
+[ext_resource type="Texture2D" uid="uid://uqakm5hdnpla" path="res://matchws/art/bk3.jpg" id="2_21glc"]
+
+[node name="Level" type="CanvasLayer" unique_id=1985526244]
+script = ExtResource("1_vecp2")
+
+[node name="CountupTimer" type="Timer" parent="." unique_id=1276522035]
+wait_time = 0.25
+autostart = true
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1654814485]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+texture = ExtResource("2_21glc")
+stretch_mode = 1
+
+[node name="BottomRect" type="ColorRect" parent="TextureRect" unique_id=1371338304]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 1
+color = Color(0, 0, 0, 0.25098)
+
+[node name="AmbientAudio" type="AudioStreamPlayer2D" parent="." unique_id=1178584226]
+
+[connection signal="timeout" from="CountupTimer" to="." method="_on_countup_timer_timeout"]

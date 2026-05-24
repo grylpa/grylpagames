@@ -1,0 +1,108 @@
+[gd_scene format=3 uid="uid://d1dcxn0rncy0"]
+
+[ext_resource type="Script" path="res://template_for_card_games/scripts/resizeable_card.gd" id="1_4o0n8"]
+[ext_resource type="Texture2D" path="res://template_for_card_games/art/zig1.png" id="2_o3h70"]
+[ext_resource type="Texture2D" path="res://template_for_card_games/art/CardFront2.png" id="3_rdeut"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_7tljm"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(1, 0.8039216, 0, 1)
+
+[sub_resource type="SystemFont" id="SystemFont_rdeut"]
+font_names = PackedStringArray("Open Sans SemiBold", "Open Sans", "sans-serif")
+font_weight = 600
+
+[sub_resource type="LabelSettings" id="LabelSettings_7tljm"]
+font = SubResource("SystemFont_rdeut")
+font_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rdeut"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(1, 0.8039216, 0, 0.89411765)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="ResizableCard" type="Control" unique_id=2060435964]
+layout_mode = 3
+anchors_preset = 0
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("1_4o0n8")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1945904398]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -48.0
+offset_top = -48.0
+offset_right = 48.0
+offset_bottom = 48.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="NinePatchRect" type="NinePatchRect" parent="MarginContainer" unique_id=1917629361]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+texture = ExtResource("2_o3h70")
+patch_margin_left = 4
+patch_margin_top = 4
+patch_margin_right = 4
+patch_margin_bottom = 4
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer" unique_id=1559395646]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Texture" type="TextureRect" parent="MarginContainer/MarginContainer" unique_id=1626624321]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("3_rdeut")
+expand_mode = 1
+
+[node name="MarginContainer2" type="MarginContainer" parent="MarginContainer" unique_id=970862821]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Label" type="Label" parent="MarginContainer/MarginContainer2" unique_id=40945846]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_styles/normal = SubResource("StyleBoxFlat_7tljm")
+text = "abcdef"
+label_settings = SubResource("LabelSettings_7tljm")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LabelTransparent" type="Label" parent="MarginContainer/MarginContainer2" unique_id=2068086963]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_styles/normal = SubResource("StyleBoxFlat_rdeut")
+text = "abcdef"
+label_settings = SubResource("LabelSettings_7tljm")
+horizontal_alignment = 1
+vertical_alignment = 1

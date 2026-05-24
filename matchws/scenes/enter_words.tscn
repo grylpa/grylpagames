@@ -1,0 +1,333 @@
+[gd_scene format=3 uid="uid://2laxv4am47rv"]
+
+[ext_resource type="Script" uid="uid://dtyt6rvf32gei" path="res://matchws/scripts/enter_words.gd" id="1_e0oik"]
+[ext_resource type="Texture2D" uid="uid://br3j13g6yx5d1" path="res://art/opaque_bk_lively_orange.jpg" id="2_e0oik"]
+[ext_resource type="Theme" uid="uid://bogqmrsb44l6a" path="res://scenes/option_button_dark_theme.tres" id="3_dclv5"]
+[ext_resource type="Theme" uid="uid://den1yk5xbcx5m" path="res://scenes/no_bk_button.tres" id="4_ugc3e"]
+[ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="5_a018n"]
+[ext_resource type="PackedScene" uid="uid://ct2ogkod6bdrr" path="res://scenes/FullScreenMessage.tscn" id="6_o8jeq"]
+[ext_resource type="Texture2D" uid="uid://oj4tgi1e637v" path="res://art/x16.png" id="6_xxlx5"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bvvwm"]
+bg_color = Color(1, 1, 1, 1)
+border_color = Color(0.12549, 0.12549, 0.12549, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="Theme" id="Theme_6hqeh"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_edd8a"]
+bg_color = Color(0.847059, 0.65098, 0.588235, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_eqty5"]
+content_margin_left = 0.0
+content_margin_top = 3.0
+content_margin_right = 0.0
+content_margin_bottom = 3.0
+bg_color = Color(0, 0, 0, 0.160784)
+border_color = Color(0, 0, 0, 1)
+border_blend = true
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3n56f"]
+content_margin_left = 4.0
+bg_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xlo4h"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0, 0, 1)
+
+[node name="EnterWords" type="CanvasLayer" unique_id=1981446479]
+script = ExtResource("1_e0oik")
+
+[node name="BackgroundPanel" type="PanelContainer" parent="." unique_id=1479957833]
+clip_children = 1
+z_index = 1
+clip_contents = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 6
+size_flags_vertical = 6
+theme_override_styles/panel = SubResource("StyleBoxFlat_bvvwm")
+
+[node name="TextureRect" type="TextureRect" parent="BackgroundPanel" unique_id=1763717382]
+visible = false
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("2_e0oik")
+
+[node name="BorderPanel" type="Panel" parent="BackgroundPanel" unique_id=237181541]
+clip_children = 1
+layout_mode = 2
+theme = SubResource("Theme_6hqeh")
+theme_override_styles/panel = SubResource("StyleBoxFlat_edd8a")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BackgroundPanel" unique_id=1240839940]
+z_index = 1
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TitleMargin" type="MarginContainer" parent="BackgroundPanel/VBoxContainer" unique_id=1428618784]
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/margin_bottom = 8
+
+[node name="Title" type="Label" parent="BackgroundPanel/VBoxContainer/TitleMargin" unique_id=134039520]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 23
+theme_override_styles/normal = SubResource("StyleBoxFlat_eqty5")
+text = "Enter New Words"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InsideMargin" type="MarginContainer" parent="BackgroundPanel/VBoxContainer" unique_id=312928514]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_right = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin" unique_id=1968003863]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=1060800829]
+visible = false
+layout_mode = 2
+
+[node name="CollectionLabel" type="Label" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer" unique_id=429972748]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "Collection"
+vertical_alignment = 2
+
+[node name="CollectionList" type="OptionButton" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer" unique_id=1154187599]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 4.0
+theme = ExtResource("3_dclv5")
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="CollectionLineEdit" type="LineEdit" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer" unique_id=2091450899]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 4.0
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_3n56f")
+
+[node name="MarginContainer" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=1365907867]
+visible = false
+layout_mode = 2
+theme_override_constants/margin_bottom = 6
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=2012159932]
+layout_mode = 2
+
+[node name="GroupLabel" type="Label" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer2" unique_id=657384046]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "Category"
+vertical_alignment = 2
+
+[node name="GroupList" type="OptionButton" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer2" unique_id=1066119738]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme = ExtResource("3_dclv5")
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="GroupLineEdit" type="LineEdit" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer2" unique_id=784642876]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_3n56f")
+
+[node name="MarginContainer3" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=218012569]
+layout_mode = 2
+theme_override_constants/margin_bottom = 6
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=1952447158]
+layout_mode = 2
+
+[node name="Lang1Label" type="Label" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer3" unique_id=2061805261]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "Lang 1"
+vertical_alignment = 2
+
+[node name="Lang1List" type="OptionButton" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer3" unique_id=120028821]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme = ExtResource("3_dclv5")
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="Lang1LineEdit" type="LineEdit" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer3" unique_id=2042172226]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_3n56f")
+
+[node name="MarginContainer4" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=11133374]
+layout_mode = 2
+theme_override_constants/margin_bottom = 6
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=1902807255]
+layout_mode = 2
+
+[node name="Lang2Label" type="Label" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer4" unique_id=538580495]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "Lang 2"
+vertical_alignment = 2
+
+[node name="Lang2List" type="OptionButton" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer4" unique_id=1613362433]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme = ExtResource("3_dclv5")
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+fit_to_longest_item = false
+
+[node name="Lang2LineEdit" type="LineEdit" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/HBoxContainer4" unique_id=1732068515]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_3n56f")
+
+[node name="MarginContainer2" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=928030187]
+layout_mode = 2
+theme_override_constants/margin_bottom = 6
+
+[node name="NewWordsLabel" type="Label" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=776555886]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "New Words (comma separated, two values per row)"
+vertical_alignment = 2
+
+[node name="NewWords" type="TextEdit" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=1357578056]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_xlo4h")
+
+[node name="ButtonMargin2" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer" unique_id=2088336063]
+layout_mode = 2
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2" unique_id=1856016890]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2/HBoxContainer" unique_id=1928512845]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SaveWordsButton" type="Button" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2/HBoxContainer" unique_id=589680035]
+layout_mode = 2
+size_flags_horizontal = 6
+size_flags_vertical = 8
+theme = ExtResource("4_ugc3e")
+theme_override_colors/font_color = Color(0, 0.0901961, 0.101961, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_color = Color(0, 0.0916667, 0.1, 1)
+theme_override_colors/font_hover_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_disabled_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 24
+text = "Save
+"
+
+[node name="CancelButton" type="Button" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2/HBoxContainer" unique_id=1232452470]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 10
+size_flags_vertical = 8
+theme = ExtResource("4_ugc3e")
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_disabled_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 24
+text = "Close"
+
+[node name="MarginContainer2" type="MarginContainer" parent="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2/HBoxContainer" unique_id=165457771]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_right = 40
+
+[node name="XCloseScene" parent="BackgroundPanel" unique_id=306339081 instance=ExtResource("5_a018n")]
+layout_mode = 2
+size_flags_horizontal = 8
+close_icon = ExtResource("6_xxlx5")
+icon_color = Color(0, 0, 0, 1)
+disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
+font_size = 26
+
+[node name="EnterWordsMessageTimer" type="Timer" parent="." unique_id=161589849]
+wait_time = 5.0
+one_shot = true
+
+[node name="FullScreenMessage" parent="." unique_id=100485717 instance=ExtResource("6_o8jeq")]
+layer = 2
+visible = false
+
+[connection signal="visibility_changed" from="." to="." method="_on_visibility_changed"]
+[connection signal="focus_entered" from="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/NewWords" to="." method="_on_new_words_focus_entered"]
+[connection signal="pressed" from="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2/HBoxContainer/SaveWordsButton" to="." method="_on_save_words_button_pressed"]
+[connection signal="pressed" from="BackgroundPanel/VBoxContainer/InsideMargin/VBoxContainer/ButtonMargin2/HBoxContainer/CancelButton" to="." method="_on_cancel_button_pressed"]
+[connection signal="button_pressed" from="BackgroundPanel/XCloseScene" to="." method="_on_x_close_scene_button_pressed"]

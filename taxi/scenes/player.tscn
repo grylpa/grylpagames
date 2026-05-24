@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://b6d3742a2250"]
+
+[ext_resource type="Script" uid="uid://bwgigwyag3h6j" path="res://taxi/scripts/player.gd" id="1_u4lim"]
+[ext_resource type="Texture2D" uid="uid://ify1vfxtk8v3" path="res://art/receiver_torquise-no-arrow-4x.png" id="2_u4lim"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ytrxx"]
+size = Vector2(56, 56)
+
+[node name="Player" type="Area2D" unique_id=1684523340]
+z_index = 100
+script = ExtResource("1_u4lim")
+metadata/_edit_group_ = true
+
+[node name="PlayerImage" type="Sprite2D" parent="." unique_id=1758742200]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_u4lim")
+
+[node name="PlayerShape" type="CollisionShape2D" parent="." unique_id=97268818]
+shape = SubResource("RectangleShape2D_ytrxx")

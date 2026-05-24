@@ -1,0 +1,335 @@
+[gd_scene format=3 uid="uid://bjarl1hpdc7bj"]
+
+[ext_resource type="Script" uid="uid://dmqkwe2sudiam" path="res://scripts/login.gd" id="1_xlo4h"]
+[ext_resource type="Theme" uid="uid://b8pj351k8cb73" path="res://scenes/orange_rounded_button.tres" id="2_xlo4h"]
+[ext_resource type="Texture2D" uid="uid://c0kwfgdcf0fgc" path="res://pneumo/art/grass_dark.png" id="3_xlo4h"]
+[ext_resource type="Theme" uid="uid://den1yk5xbcx5m" path="res://scenes/no_bk_button.tres" id="4_bvvwm"]
+[ext_resource type="Theme" uid="uid://bi6ars80i4cxs" path="res://scenes/message_label.tres" id="5_6hqeh"]
+[ext_resource type="PackedScene" uid="uid://ct2ogkod6bdrr" path="res://scenes/FullScreenMessage.tscn" id="6_edd8a"]
+[ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="7_close"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bvvwm"]
+bg_color = Color(0, 0, 0, 1)
+border_color = Color(0, 0, 0, 1)
+border_blend = true
+
+[sub_resource type="Theme" id="Theme_6hqeh"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_edd8a"]
+bg_color = Color(0, 0, 0, 0.25098)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_form_border"]
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+draw_center = false
+border_width_left = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.79, 0.79, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3n56f"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.0235294, 0.141176, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xlo4h"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.0233333, 0.14, 0, 1)
+
+[node name="Login" type="CanvasLayer" unique_id=1416665693]
+layer = 128
+script = ExtResource("1_xlo4h")
+
+[node name="BackgroundPanel" type="PanelContainer" parent="." unique_id=430744635]
+clip_children = 1
+z_index = 1
+clip_contents = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_styles/panel = SubResource("StyleBoxFlat_bvvwm")
+
+[node name="TextureRect" type="TextureRect" parent="BackgroundPanel" unique_id=169948274]
+clip_contents = true
+layout_mode = 2
+texture = ExtResource("3_xlo4h")
+stretch_mode = 1
+
+[node name="BorderPanel" type="Panel" parent="BackgroundPanel" unique_id=1363156890]
+clip_children = 1
+layout_mode = 2
+theme = SubResource("Theme_6hqeh")
+theme_override_styles/panel = SubResource("StyleBoxFlat_edd8a")
+
+[node name="MarginContainer" type="MarginContainer" parent="BackgroundPanel" unique_id=510957972]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 60
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BackgroundPanel/MarginContainer" unique_id=191109610]
+unique_name_in_owner = true
+z_index = 1
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TabHBox" type="HBoxContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer" unique_id=111111001]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="LoginTabBtn" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/TabHBox" unique_id=111111002]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 34
+text = "Log In"
+
+[node name="SignupTabBtn" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/TabHBox" unique_id=111111003]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 34
+text = "Sign Up"
+
+[node name="GuestTabBtn" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/TabHBox" unique_id=111111004]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 34
+text = "Guest"
+
+[node name="FormBorderPanel" type="PanelContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer" unique_id=111111010]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_form_border")
+
+[node name="FormVBox" type="VBoxContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel" unique_id=111111011]
+layout_mode = 2
+
+[node name="TabSpacerMargin" type="MarginContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=510340350]
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/margin_bottom = 20
+
+[node name="UsernameLabel" type="Label" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=59709498]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "Username"
+
+[node name="Username" type="LineEdit" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=1541586794]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_3n56f")
+
+[node name="MarginContainer" type="MarginContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=746967832]
+layout_mode = 2
+theme_override_constants/margin_bottom = 12
+
+[node name="EmailLabel" type="Label" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=1173702159]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "Email"
+
+[node name="Email" type="LineEdit" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=1022499088]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_3n56f")
+
+[node name="MarginContainer2" type="MarginContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=123982769]
+layout_mode = 2
+theme_override_constants/margin_bottom = 12
+
+[node name="PasswordLabel" type="Label" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=1961365067]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "Password"
+
+[node name="PasswordRow" type="HBoxContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=933847561]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Password" type="LineEdit" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/PasswordRow" unique_id=1205816629]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_xlo4h")
+secret = true
+
+[node name="ShowPasswordBtn" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/PasswordRow" unique_id=933847562]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+size_flags_vertical = 4
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="ButtonMargin" type="MarginContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=892968927]
+layout_mode = 2
+theme_override_constants/margin_left = 60
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 60
+theme_override_constants/margin_bottom = 8
+
+[node name="ActionButton" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/ButtonMargin" unique_id=907237768]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+theme = ExtResource("2_xlo4h")
+theme_override_font_sizes/font_size = 40
+text = "Log In"
+
+[node name="ForgotPasswordBtn" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=923847561]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme = ExtResource("4_bvvwm")
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_colors/font_hover_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 28
+text = "Forgot password?"
+
+[node name="GuestMargin" type="MarginContainer" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox" unique_id=1781663251]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="GuestButton" type="Button" parent="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/GuestMargin" unique_id=159311561]
+layout_mode = 2
+size_flags_vertical = 8
+theme = ExtResource("4_bvvwm")
+theme_override_colors/font_color = Color(0, 0.917647, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.24, 0.480667, 1, 1)
+theme_override_colors/font_hover_color = Color(0, 0.678333, 0.74, 1)
+theme_override_font_sizes/font_size = 34
+text = "Continue as Guest"
+
+[node name="GuestNamePanel" type="VBoxContainer" parent="BackgroundPanel/MarginContainer" unique_id=823456789]
+unique_name_in_owner = true
+visible = false
+z_index = 1
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="GuestTopSpacer" type="Control" parent="BackgroundPanel/MarginContainer/GuestNamePanel" unique_id=823456797]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="GuestTitleLabel" type="Label" parent="BackgroundPanel/MarginContainer/GuestNamePanel" unique_id=823456796]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.79, 0.79, 0, 1)
+theme_override_font_sizes/font_size = 48
+text = "Play as Guest"
+horizontal_alignment = 1
+
+[node name="GuestPromptLabel" type="Label" parent="BackgroundPanel/MarginContainer/GuestNamePanel" unique_id=823456790]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "Choose a name:"
+
+[node name="GuestName" type="LineEdit" parent="BackgroundPanel/MarginContainer/GuestNamePanel" unique_id=823456791]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+theme_override_styles/normal = SubResource("StyleBoxFlat_xlo4h")
+placeholder_text = "Your name"
+max_length = 20
+
+[node name="GuestNameMessage" type="Label" parent="BackgroundPanel/MarginContainer/GuestNamePanel" unique_id=823456792]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 28
+autowrap_mode = 3
+
+[node name="GuestButtonHBox" type="HBoxContainer" parent="BackgroundPanel/MarginContainer/GuestNamePanel" unique_id=823456793]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="GuestBackBtn" type="Button" parent="BackgroundPanel/MarginContainer/GuestNamePanel/GuestButtonHBox" unique_id=823456794]
+unique_name_in_owner = true
+layout_mode = 2
+theme = ExtResource("4_bvvwm")
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_colors/font_hover_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 34
+text = "Back"
+
+[node name="GuestPlayBtn" type="Button" parent="BackgroundPanel/MarginContainer/GuestNamePanel/GuestButtonHBox" unique_id=823456795]
+unique_name_in_owner = true
+layout_mode = 2
+theme = ExtResource("2_xlo4h")
+theme_override_font_sizes/font_size = 34
+text = "Play"
+
+[node name="LoginMessage" type="Label" parent="BackgroundPanel/MarginContainer" unique_id=2114767878]
+unique_name_in_owner = true
+visible = false
+z_index = 1
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+theme = ExtResource("5_6hqeh")
+text = "Message"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="LoginCloseBtn" parent="BackgroundPanel" unique_id=933847564 instance=ExtResource("7_close")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 8
+icon_color = Color(1, 1, 0, 1)
+disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
+text_color = Color(0.835294, 0.862745, 0, 1)
+font_size = 40
+
+[node name="LoginMessageTimer" type="Timer" parent="." unique_id=711056928]
+wait_time = 5.0
+one_shot = true
+
+[node name="FullScreenMessage" parent="." unique_id=701248928 instance=ExtResource("6_edd8a")]
+layer = 130
+
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/TabHBox/LoginTabBtn" to="." method="_on_login_tab_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/TabHBox/SignupTabBtn" to="." method="_on_signup_tab_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/TabHBox/GuestTabBtn" to="." method="_on_guest_tab_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/PasswordRow/ShowPasswordBtn" to="." method="_on_show_password_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/ButtonMargin/ActionButton" to="." method="_on_action_button_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/ForgotPasswordBtn" to="." method="_on_forgot_password_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/VBoxContainer/FormBorderPanel/FormVBox/GuestMargin/GuestButton" to="." method="_on_guest_button_pressed"]
+[connection signal="text_changed" from="BackgroundPanel/MarginContainer/GuestNamePanel/GuestName" to="." method="_on_guest_name_changed"]
+[connection signal="text_submitted" from="BackgroundPanel/MarginContainer/GuestNamePanel/GuestName" to="." method="_on_guest_name_submitted"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/GuestNamePanel/GuestButtonHBox/GuestBackBtn" to="." method="_on_guest_back_pressed"]
+[connection signal="pressed" from="BackgroundPanel/MarginContainer/GuestNamePanel/GuestButtonHBox/GuestPlayBtn" to="." method="_on_guest_play_pressed"]
+[connection signal="button_pressed" from="BackgroundPanel/LoginCloseBtn" to="." method="_on_close_btn_pressed"]
+[connection signal="timeout" from="LoginMessageTimer" to="." method="_on_login_message_timer_timeout"]

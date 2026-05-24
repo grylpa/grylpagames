@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://ddo1a2b3c4d5e"]
+
+[ext_resource type="Script" uid="uid://ddo2a3b4c5d6f" path="res://ddooo/scripts/main.gd" id="1_ddmain"]
+[ext_resource type="PackedScene" uid="uid://ddo3a4b5c6d7g" path="res://ddooo/scenes/level.tscn" id="2_ddmain"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_ddmain"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="5_ddmain"]
+
+[node name="Main" type="Node" unique_id=20001]
+script = ExtResource("1_ddmain")
+
+[node name="Level" parent="." unique_id=20002 instance=ExtResource("2_ddmain")]
+
+[node name="HUD" parent="." unique_id=20003 instance=ExtResource("3_ddmain")]
+
+[node name="GameTick" type="Timer" parent="." unique_id=20004]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." unique_id=20005 instance=ExtResource("5_ddmain")]
+unique_name_in_owner = true
+visible = false
+
+[node name="PeriQLayer" type="CanvasLayer" parent="." unique_id=20006]
+layer = 5
+
+[node name="PeriQLabel" type="Label" parent="PeriQLayer" unique_id=20007]
+unique_name_in_owner = true
+offset_left = 40.0
+offset_top = 360.0
+offset_right = 640.0
+offset_bottom = 420.0
+theme_override_font_sizes/font_size = 22
+text = ""
+horizontal_alignment = 1
+visible = false
+
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]
+[connection signal="sig_periph_active" from="Level" to="." method="_on_level_sig_periph_active"]

@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://c42eiru1lqc70"]
+
+[ext_resource type="Script" uid="uid://cxkxvxu021jx7" path="res://lightsout/scripts/pipe.gd" id="1_a1utj"]
+[ext_resource type="Texture2D" uid="uid://bqafbw3r4568n" path="res://art/pipe.png" id="2_hb6v8"]
+[ext_resource type="Texture2D" uid="uid://lckplir8j0kw" path="res://art/pipe_4_exits.png" id="3_1dqpq"]
+[ext_resource type="Texture2D" uid="uid://k0ibdlsllkac" path="res://art/pipe_urd.png" id="4_bve0c"]
+[ext_resource type="Texture2D" uid="uid://nju6bsg17j3j" path="res://art/pipe_rd.png" id="5_pwby7"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8423h"]
+size = Vector2(40, 40)
+
+[node name="Pipe" type="Area2D" unique_id=664536033]
+script = ExtResource("1_a1utj")
+metadata/_edit_group_ = true
+
+[node name="PipeImageLR" type="Sprite2D" parent="." unique_id=977956599]
+visible = false
+texture = ExtResource("2_hb6v8")
+
+[node name="PipeImage4" type="Sprite2D" parent="." unique_id=1682448844]
+visible = false
+texture = ExtResource("3_1dqpq")
+
+[node name="PipeImageURD" type="Sprite2D" parent="." unique_id=1558694610]
+visible = false
+texture = ExtResource("4_bve0c")
+
+[node name="PipeImageRD" type="Sprite2D" parent="." unique_id=1261647694]
+visible = false
+texture = ExtResource("5_pwby7")
+
+[node name="PipeShape" type="CollisionShape2D" parent="." unique_id=2097299003]
+shape = SubResource("RectangleShape2D_8423h")

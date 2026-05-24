@@ -1,0 +1,123 @@
+[gd_scene format=3 uid="uid://ct2ogkod6bdrr"]
+
+[ext_resource type="Script" uid="uid://dhomol6geau1m" path="res://scripts/full_screen_message.gd" id="1_fg5v3"]
+[ext_resource type="Texture2D" uid="uid://de74qnj8f010l" path="res://art/opaque_bk_orange.jpg" id="2_bbrrr"]
+[ext_resource type="Texture2D" uid="uid://dn35d7k5tbmrc" path="res://art/zig2.png" id="3_r1f5v"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tllwk"]
+bg_color = Color(0, 0, 0, 0)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bbrrr"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_76ptg"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 0.89, 0.89, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xtavq"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(0.97, 0.97, 0.97, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_j3sub"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 0.83, 0.83, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_kullb"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 0.84, 0.84, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_r1f5v"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(0.95, 0.95, 0.95, 1)
+
+[node name="FullScreenMessage" type="CanvasLayer" unique_id=443281379]
+layer = 90
+script = ExtResource("1_fg5v3")
+
+[node name="Background" type="ColorRect" parent="." unique_id=337744076]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+color = Color(0, 0, 0, 0.313726)
+
+[node name="OpaqueBackground" type="TextureRect" parent="." unique_id=1530112985]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+texture = ExtResource("2_bbrrr")
+
+[node name="MessagePanel" type="PanelContainer" parent="." unique_id=714723060]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -304.0
+offset_top = -38.5
+offset_right = 304.0
+offset_bottom = 38.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_tllwk")
+
+[node name="NinePatchRect" type="NinePatchRect" parent="MessagePanel" unique_id=122894379]
+layout_mode = 2
+texture = ExtResource("3_r1f5v")
+draw_center = false
+patch_margin_left = 8
+patch_margin_top = 8
+patch_margin_right = 8
+patch_margin_bottom = 8
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MessagePanel" unique_id=1869987707]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Message" type="Button" parent="MessagePanel/MarginContainer" unique_id=391973257]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_pressed_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/normal = SubResource("StyleBoxFlat_bbrrr")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_76ptg")
+theme_override_styles/hover = SubResource("StyleBoxFlat_xtavq")
+theme_override_styles/hover_pressed = SubResource("StyleBoxFlat_j3sub")
+theme_override_styles/hover_pressed_mirrored = SubResource("StyleBoxFlat_kullb")
+theme_override_styles/focus = SubResource("StyleBoxFlat_r1f5v")
+text = "Memory"
+autowrap_mode = 3
+
+[node name="MessageTimer" type="Timer" parent="." unique_id=1271685698]
+unique_name_in_owner = true
+wait_time = 2.0
+one_shot = true
+
+[connection signal="pressed" from="MessagePanel/MarginContainer/Message" to="." method="_on_message_pressed"]
+[connection signal="timeout" from="MessageTimer" to="." method="_on_message_timer_timeout"]

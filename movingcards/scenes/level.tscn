@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://bkce07p0xx532"]
+
+[ext_resource type="Script" path="res://movingcards/scripts/level.gd" id="1_5agtr"]
+[ext_resource type="Texture2D" path="res://movingcards/art/bk3.jpg" id="2_trw0c"]
+
+[node name="Level" type="CanvasLayer" unique_id=1758012430]
+script = ExtResource("1_5agtr")
+
+[node name="ShowCardsTimer" type="Timer" parent="." unique_id=1241563694]
+wait_time = 5.0
+one_shot = true
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=2108556629]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+texture = ExtResource("2_trw0c")
+
+[node name="AmbientAudio" type="AudioStreamPlayer2D" parent="." unique_id=973116371]
+
+[connection signal="timeout" from="ShowCardsTimer" to="." method="_on_show_cards_timer_timeout"]

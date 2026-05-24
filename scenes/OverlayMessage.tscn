@@ -1,0 +1,136 @@
+[gd_scene format=3 uid="uid://cvgjmhh1nk5k2"]
+
+[ext_resource type="Script" uid="uid://dwt3fc70xvdd1" path="res://scripts/overlay_message.gd" id="1_nwoge"]
+[ext_resource type="Texture2D" uid="uid://dn35d7k5tbmrc" path="res://art/zig2.png" id="3_n1jqx"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_f00yj"]
+bg_color = Color(0, 0, 0, 0)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plleh"]
+content_margin_top = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4y76p"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_oyrmi"]
+bg_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_at4yv"]
+bg_color = Color(0.4032, 0.84, 0.59248, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="OverlayMessage" type="CanvasLayer" unique_id=582135271]
+script = ExtResource("1_nwoge")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1477862448]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.313726)
+
+[node name="MessageTimer" type="Timer" parent="." unique_id=682867070]
+wait_time = 2.0
+one_shot = true
+
+[node name="MessagePanel" type="PanelContainer" parent="." unique_id=787545548]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -304.0
+offset_top = -38.5
+offset_right = 304.0
+offset_bottom = 38.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_f00yj")
+
+[node name="NinePatchRect" type="NinePatchRect" parent="MessagePanel" unique_id=1733127777]
+layout_mode = 2
+texture = ExtResource("3_n1jqx")
+draw_center = false
+patch_margin_left = 8
+patch_margin_top = 8
+patch_margin_right = 8
+patch_margin_bottom = 8
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="MessagePanel" unique_id=844979076]
+layout_mode = 2
+mouse_filter = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="MessagePanel" unique_id=1455838360]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MessagePanel/MarginContainer" unique_id=985573994]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Message" type="Label" parent="MessagePanel/MarginContainer/VBoxContainer" unique_id=607872371]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(600, 120)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/normal = SubResource("StyleBoxFlat_plleh")
+text = "Memory"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ProgressMarginContainer" type="MarginContainer" parent="MessagePanel/MarginContainer/VBoxContainer" unique_id=615705947]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_right = 0
+
+[node name="ProgressPanelContainer" type="PanelContainer" parent="MessagePanel/MarginContainer/VBoxContainer/ProgressMarginContainer" unique_id=782704669]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_4y76p")
+
+[node name="ProgressBar" type="ProgressBar" parent="MessagePanel/MarginContainer/VBoxContainer/ProgressMarginContainer/ProgressPanelContainer" unique_id=663205383]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+mouse_filter = 1
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 30
+theme_override_styles/background = SubResource("StyleBoxFlat_oyrmi")
+theme_override_styles/fill = SubResource("StyleBoxFlat_at4yv")
+rounded = true
+show_percentage = false
+
+[connection signal="timeout" from="MessageTimer" to="." method="_on_message_timer_timeout"]

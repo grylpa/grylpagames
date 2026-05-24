@@ -1,0 +1,147 @@
+[gd_scene format=3 uid="uid://capdjgyg0qeqt"]
+
+[ext_resource type="Script" uid="uid://cdplsdk701505" path="res://scripts/main_menu.gd" id="1_wu84c"]
+[ext_resource type="Texture2D" uid="uid://dyuktoyvbrtmg" path="res://art/grass_dark.png" id="2_bqqt6"]
+[ext_resource type="Theme" uid="uid://jmyy33bjn73p" path="res://scenes/start_button.tres" id="4_oa1go"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_wu84c"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bqqt6"]
+content_margin_left = 20.0
+content_margin_top = 10.0
+content_margin_right = 20.0
+content_margin_bottom = 10.0
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.168627, 0.380392, 0.172549, 1)
+border_blend = true
+corner_radius_top_left = 40
+corner_radius_top_right = 40
+corner_radius_bottom_right = 40
+corner_radius_bottom_left = 40
+
+[node name="MainMenu" type="CanvasLayer" unique_id=1917067061]
+script = ExtResource("1_wu84c")
+metadata/_edit_group_ = true
+
+[node name="ColorRect" type="TextureRect" parent="." unique_id=519275416]
+z_index = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("2_bqqt6")
+stretch_mode = 1
+
+[node name="TitleMargin" type="MarginContainer" parent="ColorRect" unique_id=1717797275]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 107.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+
+[node name="Title" type="Label" parent="ColorRect/TitleMargin" unique_id=72169904]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.937255, 0.768627, 0.0980392, 1)
+theme_override_font_sizes/font_size = 60
+theme_override_styles/normal = SubResource("StyleBoxEmpty_wu84c")
+text = "Pneumo"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CenterContainer" type="CenterContainer" parent="ColorRect" unique_id=1860035563]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 20.0
+offset_top = -103.0
+offset_right = -20.0
+offset_bottom = 103.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ColorRect/CenterContainer" unique_id=406217302]
+z_index = 1
+layout_mode = 2
+mouse_filter = 2
+
+[node name="OptionsFrame" type="PanelContainer" parent="ColorRect/CenterContainer/VBoxContainer" unique_id=1193861202]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bqqt6")
+
+[node name="OptionsInner" type="VBoxContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="GridContainer" type="GridContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame/OptionsInner" unique_id=1205865826]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 30
+columns = 2
+
+[node name="OptionRowsVBox" type="VBoxContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame/OptionsInner"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MarginContinue" type="MarginContainer" parent="ColorRect/CenterContainer/VBoxContainer" unique_id=1913934409]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_top = 40
+
+[node name="ContinueGameButton" type="Button" parent="ColorRect/CenterContainer/VBoxContainer/MarginContinue" unique_id=1327622796]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("4_oa1go")
+theme_override_font_sizes/font_size = 60
+text = "Continue"
+
+[node name="MarginStartNewGame" type="MarginContainer" parent="ColorRect/CenterContainer/VBoxContainer" unique_id=2076043937]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 0
+
+[node name="StartNewGameButton" type="Button" parent="ColorRect/CenterContainer/VBoxContainer/MarginStartNewGame" unique_id=1102674471]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme = ExtResource("4_oa1go")
+theme_override_font_sizes/font_size = 60
+text = "START"
+
+[connection signal="visibility_changed" from="." to="." method="_on_visibility_changed"]
+[connection signal="visibility_changed" from="ColorRect" to="." method="_on_color_rect_visibility_changed"]
+[connection signal="visibility_changed" from="ColorRect/TitleMargin" to="." method="_on_title_margin_visibility_changed"]
+[connection signal="visibility_changed" from="ColorRect/TitleMargin/Title" to="." method="_on_title_visibility_changed"]
+[connection signal="pressed" from="ColorRect/CenterContainer/VBoxContainer/MarginContinue/ContinueGameButton" to="." method="_on_continue_game_button_pressed"]
+[connection signal="pressed" from="ColorRect/CenterContainer/VBoxContainer/MarginStartNewGame/StartNewGameButton" to="." method="_on_start_new_game_button_pressed"]
