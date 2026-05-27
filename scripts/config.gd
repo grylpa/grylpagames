@@ -41,7 +41,7 @@ var games = [
 	["lightsout",     "Lights Out",     "Remember your path, goal, and obstacles",                "Memory & Navigation"],
 	["delemfp",       "Delem FP",       "Deliver packets in order while zoomed in",               "Memory & Navigation"],
 
-	["matchws",       "Matchws",        "Learn new words",                                        "Language", true],
+	# ["matchws",       "Matchws",        "Learn new words",                                        "Language", true],
 
 ]
 
