@@ -29,11 +29,11 @@ Art assets are shared with rlmadness (copied at game creation time); sounds come
 
 ### Endless conveyor mechanic
 
-Both belts **always scroll** simultaneously, items entering from the top and exiting through the bottom. A yellow **window** (highlight rectangle) randomly slides in from the right edge of one belt, stays for `window_duration` seconds, then slides back out. Only one window exists at a time.
+Both belts **always scroll** simultaneously, items entering from the top and exiting through the bottom. A yellow **window** (highlight rectangle) randomly slides in from the right edge of one belt and tracks its assigned item all the way down. Input is accepted the **entire time the item is visible** — the window stays open until the player answers or the item exits the bottom (timeout). (Difficulty comes from belt speed, not a fixed answer timer; `window_duration`/`window_dur` is no longer used to gate input.)
 
 The window tracks the specific item it was assigned to as that item scrolls down. If the item exits the bottom before the player answers, it counts as a timeout (wrong).
 
-- **`_process(delta)`**: scrolls both belts, advances window timer, opens next window when `next_window_timer` expires.
+- **`_process(delta)`**: scrolls both belts, keeps the open window tracking its item and times out only when it exits the bottom, opens the next window when `next_window_timer` expires.
 - **`_open_window()`**: picks a random belt; finds the item closest to 30% from the top (excluding items past 60%); slides a Panel in from the right with a 0.25s tween; records that item's truth value for the active belt.
 - **`_close_window()`**: kills the slide-in tween if running; slides panel back out to the right in 0.2s then frees it.
 - **`next_window_timer`**: randomised 1.2–2.5s between windows after each judgment.
@@ -112,5 +112,6 @@ Level (CanvasLayer, script=level.gd)
 - `_showing_feedback: bool` prevents new windows opening or double-scoring during the 0.4s feedback flash.
 - `_window_slide_tween` is killed in `_close_window()` before starting the slide-out tween to avoid conflicts.
 - Belts are narrow (140px min width, fixed — `size_flags_horizontal = 0`) and tall (420px min height). BoxesRow uses `alignment = 1` (CENTER) to keep them centered on wider screens.
-- Rule labels use `vertical_alignment = 2` (bottom) plus a `custom_minimum_size.y` set in `level.gd` to a 2-line height computed from the active font (`f.get_height(rule_fs) * 2 + 12`, where `rule_fs` is 22 desktop / 32 mobile). This makes a 1-line rule and a 2-line rule occupy the same height so the two belts stay vertically aligned. Don't hardcode a pixel height — the system font's line height varies, and an under-sized value lets a 2-line rule overflow and push its belt down.
+- Rule labels use `vertical_alignment = 2` (bottom) plus a `custom_minimum_size.y` set in `level.gd` to a 2-line height computed from the active font (`f.get_height(rule_fs) * 2 + 12`, where `rule_fs` is 22 desktop / 32 mobile). This makes a 1-line rule and a 2-line rule occupy the same height so the two belts stay vertically aligned. Don't hardcode a pixel height — the system font's line height varies, and an under-sized value lets a 2-line rule overflow and push its belt down. The labels also set `line_spacing = -8` so two-line rules aren't spaced too far apart.
 - `set_process(false)` in `_level_done()` stops belt scrolling after the level ends.
+- Each belt has a `belt_edge.gd` overlay Control (added as a child of `LeftBox`/`RightBox` in `_add_belt_edges()`). The PanelContainer fits it to the belt rect, but it draws **outside** that rect — short (`STRIP_H = 5`) smooth gradient strips (`draw_polygon` with per-vertex colours) just above the top edge and just below the bottom edge, belt-coloured where they meet the belt and fading to transparent into the background, so the belt reads as rolling over a roller at each end. `_add_belt_edges()` zeroes the panel's `content_margin_*` so the overlay spans the **full belt width** and meets the belt with **no overlap** (overlap would alpha-stack and look darker than the belt). The belt keeps its solid panel bg; the strips must not be clipped (no ancestor sets `clip_contents`). `mouse_filter = IGNORE` so it never eats input.

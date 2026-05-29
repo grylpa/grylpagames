@@ -85,9 +85,32 @@ func _ready() -> void:
 	var two_line_h: float = f.get_height(rule_fs) * 2.0 + 12.0
 	%LeftRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
 	%RightRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
+	%LeftRuleLabel.add_theme_constant_override("line_spacing", -8)
+	%RightRuleLabel.add_theme_constant_override("line_spacing", -8)
 	%LeftItemsContainer.clip_contents = true
 	%RightItemsContainer.clip_contents = true
+	_add_belt_edges()
 	set_process(false)
+
+func _add_belt_edges() -> void:
+	var edge_script: Script = load("res://sortingrobots/scripts/belt_edge.gd")
+	var boxes: Array = [
+		$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox,
+		$MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox,
+	]
+	for box in boxes:
+		# Zero the panel's content margins so children fill the full belt rect — the
+		# edge strips then span the full belt width and meet the belt with no overlap.
+		var sb: StyleBox = box.get_theme_stylebox("panel")
+		if sb is StyleBoxFlat:
+			var sbf: StyleBoxFlat = sb as StyleBoxFlat
+			sbf.content_margin_left = 0.0
+			sbf.content_margin_top = 0.0
+			sbf.content_margin_right = 0.0
+			sbf.content_margin_bottom = 0.0
+		var edge: Control = Control.new()
+		edge.set_script(edge_script)
+		box.add_child(edge)
 
 # --- Modality building ---
 
@@ -247,11 +270,6 @@ func _process(delta: float) -> void:
 			else:
 				if window_panel != null and is_instance_valid(window_panel):
 					window_panel.position.y = item_y - 4.0
-				window_timer -= delta
-				if window_timer <= 0.0:
-					# Time's up — let window keep scrolling; score only when it exits
-					window_open = false
-					window_rolling_out = true
 	elif window_rolling_out:
 		_update_rolling_window()
 	elif not window_open and not _showing_feedback and not window_rolling_out:
