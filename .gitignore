@@ -10,3 +10,4 @@ faces/people/opt
 dbbackup/
 *.keystore
 .vscode/
+export_presets.cfg
