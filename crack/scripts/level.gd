@@ -93,13 +93,14 @@ func _ready() -> void:
 	var door_h_r: float = _screen_h * 0.80
 	var door_y_r: float = (_screen_h - door_h_r) * 0.5 + _screen_h * 0.02
 	var mobile_r: bool = MainGlobals.is_mobile()
-	var fs_phase: int = 42 if mobile_r else 22
-	_phase_label.offset_bottom = door_y_r - 8.0
+	var fs_phase: int = 36 if mobile_r else 19
+	var phase_gap: float = 24.0 if mobile_r else 8.0
+	_phase_label.offset_bottom = door_y_r - phase_gap
 	_phase_label.offset_top = _phase_label.offset_bottom - float(fs_phase) - 8.0
 	if mobile_r:
 		_timer_label.add_theme_font_size_override("font_size", 46)
 		_timer_label.offset_bottom = 62.0
-		_phase_label.add_theme_font_size_override("font_size", 42)
+		_phase_label.add_theme_font_size_override("font_size", 36)
 		$ResultsPanel/Margin/VBox/TitleLabel.add_theme_font_size_override("font_size", 34)
 		_result_label.add_theme_font_size_override("font_size", 28)
 		$ResultsPanel/Margin/VBox/DoneButton.add_theme_font_size_override("font_size", 36)
@@ -337,18 +338,18 @@ func _try_score() -> void:
 
 func _current_phase_label() -> String:
 	if active_mode:
-		return ""
+		return "Set your breathing pattern"
 	var d: Array = CrackG.get_guided_durations()
 	var t: float = fmod(_elapsed_ms, d[0] + d[1] + d[2] + d[3])
 	if t < d[0]:
-		return "Inhale  ↑"
+		return "Inhale  ▲"
 	t -= d[0]
 	if t < d[1]:
-		return "Hold  —"
+		return "Hold  ■"
 	t -= d[1]
 	if t < d[2]:
-		return "Exhale  ↓"
-	return "Hold  —"
+		return "Exhale  ▼"
+	return "Hold  ■"
 
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
@@ -510,7 +511,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 			dur_str, HORIZONTAL_ALIGNMENT_CENTER, text_w, fs_dur,
 			Color(0.96, 0.88, 0.62, 0.95))
 	var live_s: float = _gesture_timer_ms / 1000.0
-	var gesture_name: String = "hold" if _gesture == 0 else ("↑" if _gesture == 1 else "↓")
+	var gesture_name: String = "■" if _gesture == 0 else ("▲" if _gesture == 1 else "▼")
 	canvas.draw_string(score_font, Vector2(text_x, y_now),
 		"Now: %.1fs %s" % [live_s, gesture_name], HORIZONTAL_ALIGNMENT_CENTER, text_w, fs_now,
 		Color(0.62, 0.82, 1.00, 0.90))

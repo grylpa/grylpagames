@@ -25,9 +25,9 @@ func _draw() -> void:
 
 	var font: Font = MainGlobals.get_system_sans_font()
 	var fs: int = 32 if mobile else 16
-	var grid_col: Color = Color(0.4, 0.5, 0.65, 0.22)
-	var label_col: Color = Color(0.5, 0.62, 0.78, 0.65)
-	var tap_col: Color = Color(0.5, 0.9, 1.0, 0.85)
+	var grid_col: Color = Color(0.45, 0.56, 0.72, 0.42) if mobile else Color(0.4, 0.5, 0.65, 0.22)
+	var label_col: Color = Color(0.72, 0.82, 0.96, 1.0) if mobile else Color(0.5, 0.62, 0.78, 0.65)
+	var tap_col: Color = Color(0.55, 0.92, 1.0, 1.0) if mobile else Color(0.5, 0.9, 1.0, 0.85)
 	const BORDER_COLOR: Color = Color(1.0, 0.898, 0.0078, 1.0)
 
 	var chart_x: float = left_pad
@@ -61,7 +61,7 @@ func _draw() -> void:
 	# Tap vertical lines — drawn before border so border sits on top
 	for t in tap_times_ms:
 		var tx: float = chart_x + (float(t) / dur_ms) * chart_w
-		draw_line(Vector2(tx, tap_bot_y), Vector2(tx, tap_top_y), tap_col, 2.0)
+		draw_line(Vector2(tx, tap_bot_y), Vector2(tx, tap_top_y), tap_col, 3.0 if mobile else 2.0)
 
 	# Border LAST so it covers line edges
 	draw_rect(Rect2(chart_x, chart_y, chart_w, chart_h), BORDER_COLOR, false, 2.0)

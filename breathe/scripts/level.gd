@@ -62,6 +62,9 @@ func _ready() -> void:
 	_done_button.add_theme_stylebox_override("pressed", btn_pressed_style)
 	var mobile_b: bool = MainGlobals.is_mobile()
 	if mobile_b:
+		_breath_label.add_theme_color_override("font_color", Color(0.6, 0.92, 1.0, 1.0))
+		_breaths_word_label.add_theme_color_override("font_color", Color(0.6, 0.92, 1.0, 0.95))
+		_hint_label.add_theme_color_override("font_color", Color(0.78, 0.86, 1.0, 0.95))
 		_breaths_word_label.add_theme_font_size_override("font_size", 26)
 		_hint_label.add_theme_font_size_override("font_size", 28)
 		_hint_label.offset_top -= 80.0

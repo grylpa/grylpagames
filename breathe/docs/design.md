@@ -170,6 +170,10 @@ Thin bar along the top edge: tracks `_elapsed_ms / _duration_ms`.
 
 On each tap: expanding ring centred on the breathing circle (not tap position). Age 0→1 over ~0.56s (`_ring_age += delta * 1.8`). Outer radius expands 50→220px (mobile) or 30→130px (desktop).
 
+### Mobile Contrast
+
+On mobile the foreground elements are drawn with markedly higher alpha and thicker strokes than desktop (the desktop values are tuned faint for a calm look but wash out on a bright phone screen). This affects the breathing circle fill/arcs (`tap_area.gd`), the tap ripple, the progress bar, the overlay labels (color overrides in `level.gd`'s `mobile_b` block), and the results graph grid/labels/tap lines (`graph.gd`). Desktop values are unchanged — all boosts are gated on `MainGlobals.is_mobile()`.
+
 ---
 
 ## Analysis Algorithm

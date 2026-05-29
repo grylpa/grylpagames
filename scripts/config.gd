@@ -65,5 +65,3 @@ var use_BE_logging: bool = false
 var is_anonymous_user: bool = false
 
 var show_reset_scores: bool = false
-
-

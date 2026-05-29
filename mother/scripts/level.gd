@@ -130,8 +130,8 @@ func _ready() -> void:
 		_goal_label.offset_top = 66.0
 		_goal_label.offset_bottom = 114.0
 		_phase_label.add_theme_font_size_override("font_size", 42)
-		_phase_label.offset_top = -74.0
-		_phase_label.offset_bottom = -16.0
+		_phase_label.offset_top = 118.0
+		_phase_label.offset_bottom = 166.0
 		$ResultsPanel/Margin/VBox/TitleLabel.add_theme_font_size_override("font_size", 34)
 		_result_label.add_theme_font_size_override("font_size", 28)
 		$ResultsPanel/Margin/VBox/DoneButton.add_theme_font_size_override("font_size", 36)
@@ -442,14 +442,14 @@ func _current_phase_label() -> String:
 	if t < 0.0:
 		t += cycle_ms
 	if t < d[0]:
-		return "Inhale  ↑"
+		return "Inhale  ▲"
 	t -= d[0]
 	if t < d[1]:
-		return "Hold"
+		return "Hold  ■"
 	t -= d[1]
 	if t < d[2]:
-		return "Exhale  ↓"
-	return "Hold"
+		return "Exhale  ▼"
+	return "Hold  ■"
 
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
@@ -509,11 +509,15 @@ func _do_draw(canvas: CanvasItem) -> void:
 			var n_ma: int = int(reliable_px_a / step) + 2
 			if n_ma >= 2:
 				var mother_pts_a: PackedVector2Array = PackedVector2Array()
-				for i in range(n_ma):
-					var x: float = _head_x - float(i) * step
+				mother_pts_a.append(Vector2(_head_x, _child_y))
+				# Snap sample times to a fixed grid so sharp trail vertices don't alias/jitter while scrolling
+				var dt_step_a: float = step / _scroll_px_per_ms
+				var t_base_a: float = floor(_elapsed_ms / dt_step_a) * dt_step_a
+				for i in range(n_ma + 1):
+					var t_at_x: float = t_base_a - float(i) * dt_step_a
+					var x: float = _head_x - (_elapsed_ms - t_at_x) * _scroll_px_per_ms
 					if x < -MOTHER_W:
 						break
-					var t_at_x: float = _elapsed_ms - (_head_x - x) / _scroll_px_per_ms
 					mother_pts_a.append(Vector2(x, _child_y_at_time(t_at_x)))
 				if mother_pts_a.size() >= 2:
 					canvas.draw_polyline(mother_pts_a, Color(0.18, 0.82, 0.22, 0.92), MOTHER_W, true)
@@ -541,11 +545,15 @@ func _do_draw(canvas: CanvasItem) -> void:
 			var n_child: int = int(reliable_px / step) + 2
 			if n_child >= 2:
 				var child_pts: PackedVector2Array = PackedVector2Array()
-				for i in range(n_child):
-					var x: float = _head_x - float(i) * step
+				child_pts.append(Vector2(_head_x, _child_y))
+				# Snap sample times to a fixed grid so sharp trail vertices don't alias/jitter while scrolling
+				var dt_step: float = step / _scroll_px_per_ms
+				var t_base: float = floor(_elapsed_ms / dt_step) * dt_step
+				for i in range(n_child + 1):
+					var t_at_x: float = t_base - float(i) * dt_step
+					var x: float = _head_x - (_elapsed_ms - t_at_x) * _scroll_px_per_ms
 					if x < -CHILD_W:
 						break
-					var t_at_x: float = _elapsed_ms - (_head_x - x) / _scroll_px_per_ms
 					child_pts.append(Vector2(x, _child_y_at_time(t_at_x)))
 				if child_pts.size() >= 2:
 					canvas.draw_polyline(child_pts, Color(0.30, 0.25, 0.90, 0.92), CHILD_W, true)

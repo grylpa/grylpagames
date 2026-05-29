@@ -415,14 +415,14 @@ func _current_phase_name() -> String:
 	var exhale_ms: float = d[2]
 	var t: float = fmod(_elapsed_ms, d[0] + d[1] + d[2] + d[3])
 	if t < inhale_ms:
-		return "Inhale  ↑"
+		return "Inhale  ▲"
 	t -= inhale_ms
 	if t < hold_top_ms:
-		return "Hold"
+		return "Hold  ■"
 	t -= hold_top_ms
 	if t < exhale_ms:
-		return "Exhale  ↓"
-	return "Hold"
+		return "Exhale  ▼"
+	return "Hold  ■"
 
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x

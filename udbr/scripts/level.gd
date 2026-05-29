@@ -307,13 +307,13 @@ func _update_counts_label() -> void:
 func _update_guided_label() -> void:
 	match _guided_phase:
 		Phase.INHALING:
-			_inhale_label.text = "Inhale"
+			_inhale_label.text = "Inhale  ▲"
 		Phase.HOLDING_TOP:
-			_inhale_label.text = "Hold"
+			_inhale_label.text = "Hold  ■"
 		Phase.EXHALING:
-			_inhale_label.text = "Exhale"
+			_inhale_label.text = "Exhale  ▼"
 		Phase.HOLDING_BOTTOM:
-			_inhale_label.text = "Hold"
+			_inhale_label.text = "Hold  ■"
 
 func _on_session_complete() -> void:
 	_session_complete = true
@@ -447,7 +447,6 @@ func _process_kbd(delta: float) -> void:
 		return
 	var up: bool = Input.is_action_pressed("up") or MainGlobals.is_in_digitized_swipe_up
 	var dn: bool = Input.is_action_pressed("down") or MainGlobals.is_in_digitized_swipe_dn
-	print("kbd up=", up, " dn=", dn, " swipe_up=", MainGlobals.is_in_digitized_swipe_up, " kbd_used=", _kbd_used, " paused=", game.paused())
 	if not _kbd_used and not up and not dn:
 		return
 	if not _kbd_used and (up or dn):

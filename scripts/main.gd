@@ -177,11 +177,9 @@ var _raw_swipe_pts: PackedVector2Array = PackedVector2Array()
 @onready var _path_line: Line2D = $PathOverlay/PathLine
 
 func _process(_delta:float) -> void:
-	var touching := Input.is_action_pressed("touch")
-	if !touching:
+	if not MainGlobals.swipe_active or MainGlobals.popup_open:
 		MainGlobals.is_in_digitized_swipe_up = false
 		MainGlobals.is_in_digitized_swipe_dn = false
-	# print(MainGlobals.is_in_digitized_swipe_up, ",", MainGlobals.is_in_digitized_swipe_dn)
 
 func _input(event: InputEvent) -> void:
 	if MainGlobals.popup_open:
@@ -284,8 +282,16 @@ func _input(event: InputEvent) -> void:
 				swipe_accum.x *= cross_damp
 
 		if swipe_axis == 2:
-			MainGlobals.is_in_digitized_swipe_up = swipe_accum.y < 0
-			MainGlobals.is_in_digitized_swipe_dn = !MainGlobals.is_in_digitized_swipe_up
+			var th:float = 30
+			if MainGlobals.is_in_digitized_swipe_up:
+				MainGlobals.is_in_digitized_swipe_up = swipe_accum.y < th
+				MainGlobals.is_in_digitized_swipe_dn = !MainGlobals.is_in_digitized_swipe_up
+			elif MainGlobals.is_in_digitized_swipe_dn:
+				MainGlobals.is_in_digitized_swipe_dn = swipe_accum.y > -th
+				MainGlobals.is_in_digitized_swipe_up = !MainGlobals.is_in_digitized_swipe_dn
+			else:
+				MainGlobals.is_in_digitized_swipe_up = swipe_accum.y < 0
+				MainGlobals.is_in_digitized_swipe_dn = !MainGlobals.is_in_digitized_swipe_up
 
 	elif event.is_action_pressed("mute"):
 		MainGlobals.mute = !MainGlobals.mute

@@ -87,9 +87,9 @@ Index 1: `selected_preset` (index into GUIDED_PRESETS)
 
 **HUD overlay** (drawn on door at all times):
 - Recent gesture durations (last 4, in seconds)
-- Live current gesture duration + direction indicator
+- Live current gesture duration + direction indicator: `"Now: Xs <dir>"`, where `<dir>` is the player's *current* gesture, drawn as filled glyphs — `▲` inhaling (up), `▼` exhaling (down), `■` holding. Filled shapes (not the word "hold" or thin arrows) so they read as a live state and stay uniform in weight/size.
 - Goal durations line (from preset)
-- Phase label in `_phase_label` Label node
+- Phase label in `_phase_label` Label node (visible when `show_instructions` is on) — live guide-phase cue (`Inhale ▲` / `Hold ■` / `Exhale ▼`, filled glyphs matching the "Now:" indicator) driven by the cycle clock in guided modes; in active/free mode it shows the static hint `Set your breathing pattern`
 
 **Flash**: green overlay + "OPEN!" or "LOCKED!" text for 0.8s on each score event.
 
