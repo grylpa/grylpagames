@@ -30,32 +30,32 @@ for PLATFORM in android linux win; do
 	fi
 
 	if [ "$PLATFORM" = "android" ]; then
-		ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name 'grylpa_brain*.apk' | head -n 1)"
+		ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name 'nomizo*.apk' | head -n 1)"
 
 		if [ -z "$ARTIFACT" ]; then
-			echo "No grylpa_brain*.apk found in $SRC_DIR"
+			echo "No nomizo*.apk found in $SRC_DIR"
 			exit 1
 		fi
 
-		OUT_FILE="$BASE_DIR/grylpa_brain-v${VERSION}-android.apk"
+		OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-android.apk"
 		OUT_SHA="$OUT_FILE.sha256"
 
 		rm -f "$OUT_FILE" "$OUT_SHA"
 		cp "$ARTIFACT" "$OUT_FILE"
 
 	else
-		ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name 'grylpa_brain.*' ! -name '*.idsig' | head -n 1)"
+		ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name 'nomizo.*' ! -name '*.idsig' | head -n 1)"
 
 		if [ -z "$ARTIFACT" ]; then
-			echo "No grylpa_brain.* artifact found in $SRC_DIR"
+			echo "No nomizo.* artifact found in $SRC_DIR"
 			exit 1
 		fi
 
 		if [ "$PLATFORM" = "linux" ]; then
 			chmod +x "$ARTIFACT"
-			OUT_FILE="$BASE_DIR/grylpa_brain-v${VERSION}-linux-x86_64.zip"
+			OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-linux-x86_64.zip"
 		else
-			OUT_FILE="$BASE_DIR/grylpa_brain-v${VERSION}-windows-x86_64.zip"
+			OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-windows-x86_64.zip"
 		fi
 
 		OUT_SHA="$OUT_FILE.sha256"

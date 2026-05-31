@@ -155,6 +155,8 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed("esc"):
 		if $Help.is_visible():
 			_on_help_close_help()
+	else:
+		game.handle_event(event, self)
 
 func refresh_menu() -> void:
 	main_menu.update_option(1, BucketMadnessLevelDefs.id_to_index(BucketMadnessG.starting_level_id))

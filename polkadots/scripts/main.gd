@@ -156,3 +156,5 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed("esc"):
 		if $Help.is_visible():
 			close_help_window()
+	else:
+		game.handle_event(event, self)

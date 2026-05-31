@@ -1,6 +1,6 @@
 extends Node
 
-# const settings_name := "user://grylpa_brain_settings.tres"
+# const settings_name := "user://nomizo_settings.tres"
 
 var screen_size: Vector2i
 var full_screen_size: Vector2i

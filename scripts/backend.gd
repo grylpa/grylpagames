@@ -9,7 +9,7 @@ signal sig_show_login_screen
 signal sig_session_expired
 signal sig_password_reset_sent(success: bool)
 
-const settings_name := "user://grylpa_brain_settings.tres"
+const settings_name := "user://nomizo_settings.tres"
 
 # ---------- Session State ----------
 

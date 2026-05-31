@@ -4,11 +4,11 @@ set -e
 set -x
 
 WEB_DIR="web"
-ZIP_NAME="grylpa_brain_web.zip"
+ZIP_NAME="nomizo_web.zip"
 
 cd "$WEB_DIR"
 
-cp -f grylpa_brain.html index.html
+cp -f nomizo.html index.html
 
 rm -f "../$ZIP_NAME"
 

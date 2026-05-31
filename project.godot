@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="grylpa_brain"
-config/version="1.0.77"
+config/name="nomizo"
+config/version="1.0.78"
 run/main_scene="uid://bfak8jlbdwloh"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/bg_color=Color(0.14117648, 0.14117648, 0.14117648, 0)
