@@ -75,3 +75,11 @@ It is not medical advice, cognitive training, therapy, diagnosis, or a proven me
 The software is provided as-is, with no warranty or guarantee of correctness, reliability, safety, availability, or fitness for any particular purpose. Use it at your own discretion.
 
 The games are intended for entertainment and personal challenge only. They are not designed or validated to measure, diagnose, improve, or preserve cognitive ability.
+
+## License
+
+MIT
+
+## Attribution
+
+Created by grylpa.
