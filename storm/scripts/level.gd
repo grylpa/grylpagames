@@ -87,15 +87,15 @@ var round_items_lost: int = 0
 
 var action_scene: PackedScene = load("res://storm/scenes/action_panel.tscn")
 
-var explosion_audio := preload("res://art/sounds/car-crash-sound-376882.mp3")
-# var motor_audio := preload("res://art/sounds/car-driving-ambience-6365.ogg")
+var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
+# var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
 var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
 var delivered_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var start_audio := preload("res://art/sounds/click-2.mp3")
 var tap_audio := preload("res://art/sounds/tap-1.mp3")
 var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
 var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var gaveup_audio := preload("res://art/sounds/bump-7-92964.mp3")
+var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
 var water_pour_audio := preload("res://art/sounds/water_pour_3.ogg")
 var water_drop_audio := [ 
 	preload("res://art/sounds/FreeSFX/GameSFX/Blops/Retro Blop 18.ogg"),

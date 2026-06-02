@@ -49,7 +49,7 @@ var _flash_alpha: float = 0.0
 var _flash_pos: Vector2 = Vector2.ZERO
 
 var _hit_sound: AudioStream = preload("res://art/sounds/tap-1.mp3")
-var _miss_sound: AudioStream = preload("res://art/sounds/bump-7-92964.mp3")
+var _miss_sound: AudioStream = preload("res://art/sounds/bump-sound-7.mp3")
 var _appear_sound: AudioStream = preload("res://art/sounds/click-2.mp3")
 
 @onready var _draw_area: Control = $DrawArea

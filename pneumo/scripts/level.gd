@@ -40,9 +40,9 @@ var max_speed_scale = 1.0
 
 var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
 var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio := preload("res://art/sounds/door-opening-353874.mp3")
-var motor_audio := preload("res://art/sounds/car-driving-ambience-6365.ogg")
-var explosion_audio := preload("res://art/sounds/car-crash-sound-376882.mp3")
+var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
+var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
+var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
 var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
 
 signal started_playing

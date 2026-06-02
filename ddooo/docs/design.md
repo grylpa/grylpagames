@@ -175,7 +175,7 @@ Helper functions: `get_level(id)`, `level_names()`, `id_to_index(id)`, `level_he
 - Dispatch (model appears): `res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg`
 - Delivery (main or periph correct): `res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg`
 - Swoosh (wrong answer — main miss, periph wrong, model timed-out-as-correct): `res://art/sounds/swoosh.mp3`
-- Ambient ocean: `res://art/sounds/gentle-ocean-waves-mix-2018-19693.mp3` (looping background)
+- Ambient ocean: `res://art/sounds/ocean-waves-1.mp3` (looping background)
 
 ---
 

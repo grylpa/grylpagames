@@ -51,11 +51,11 @@ var dict_tran_id_to_target = {}
 @export var bomb_scene: PackedScene = load("res://scenes/bomb_scene.tscn")
 
 var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var parked_audio := preload("res://art/sounds/bump-7-92964.mp3")
+var parked_audio := preload("res://art/sounds/bump-sound-7.mp3")
 var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio := preload("res://art/sounds/door-opening-353874.mp3")
-var motor_audio := preload("res://art/sounds/car-driving-ambience-6365.ogg")
-var explosion_audio := preload("res://art/sounds/car-crash-sound-376882.mp3")
+var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
+var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
+var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
 var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
 
 signal started_playing
