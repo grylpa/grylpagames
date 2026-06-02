@@ -1,7 +1,7 @@
 extends Node2D
 
 # var login_scene = load("res://scenes/login.tscn").instantiate()
-var level_is_done_audio := preload("res://art/sounds/game-level-complete-143022.mp3")
+var level_is_done_audio := preload("res://art/sounds/game-level-done.mp3")
 
 func _ready() -> void:
 	var ev := InputEventScreenTouch.new()

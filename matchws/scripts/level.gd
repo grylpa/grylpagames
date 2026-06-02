@@ -19,9 +19,9 @@ var board_iteration := 0
 @export var card_scene: PackedScene = load("res://matchws/scenes/card.tscn")
 
 var ambient_audios := [ 
-	preload("res://art/sounds/ocean-waves-250310.mp3"), 
-	preload("res://art/sounds/relaxing-ocean-waves-high-quality-recorded-177004.mp3"), 
-	preload("res://art/sounds/small-ocean-lapping-waves-220314.mp3")
+	preload("res://art/sounds/ocean-waves-2.mp3"), 
+	preload("res://art/sounds/ocean-waves-3.mp3"), 
+	preload("res://art/sounds/ocean-waves-4.mp3")
 ]
 
 signal sig_can_start_clicking

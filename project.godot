@@ -80,7 +80,7 @@ enabled=PackedStringArray("res://addons/ver_tools/plugin.cfg")
 
 [gui]
 
-theme/custom_font="uid://cxl6w8f8euf0b"
+theme/custom_font="uid://bgmv6k842mxxs"
 
 [importer_defaults]
 

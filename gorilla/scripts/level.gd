@@ -69,7 +69,7 @@ var last_level_was_a_win: bool = false
 @export var peripheral_gorilla_scene: PackedScene
 @export var empty_space_scene: PackedScene
 
-var explosion_audio: AudioStream = preload("res://art/sounds/car-crash-sound-376882.mp3")
+var explosion_audio: AudioStream = preload("res://art/sounds/car-crash-1.mp3")
 var feet_audio: AudioStream = preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
 var delivered_audio: AudioStream = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var start_audio: AudioStream = preload("res://art/sounds/click-2.mp3")

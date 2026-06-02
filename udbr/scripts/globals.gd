@@ -5,9 +5,9 @@ const LANE_BOT_FRAC: float = 0.76
 
 const AMBIENT_SOUNDS: Array = [
 	["No sound", ""],
-	["Waves 1", "res://art/sounds/relaxing-ocean-waves-high-quality-recorded-177004.mp3"],
-	["Waves 2", "res://art/sounds/small-ocean-lapping-waves-220314.mp3"],
-	["Waves 3", "res://art/sounds/ocean-waves-250310.mp3"],
+	["Waves 1", "res://art/sounds/ocean-waves-3.mp3"],
+	["Waves 2", "res://art/sounds/ocean-waves-4.mp3"],
+	["Waves 3", "res://art/sounds/ocean-waves-2.mp3"],
 ]
 
 # Each row: [inhale_s, hold_top_s, exhale_s, hold_bottom_s]

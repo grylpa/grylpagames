@@ -61,8 +61,8 @@ var num_bomb_agents_to_add := 3
 @export var target_scene: PackedScene = load("res://lightsout/scenes/target.tscn")
 @export var player_scene: PackedScene = load("res://lightsout/scenes/player.tscn")
 
-var explosion_audio := preload("res://art/sounds/car-crash-sound-376882.mp3")
-var motor_audio := preload("res://art/sounds/car-driving-ambience-6365.ogg")
+var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
+var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
 var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
 var delivered_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var start_audio := preload("res://art/sounds/click-2.mp3")

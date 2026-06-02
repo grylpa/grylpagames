@@ -65,13 +65,13 @@ var dict_tran_id_to_target = {}
 
 var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
 var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var motor_audio := preload("res://art/sounds/car-driving-ambience-6365.ogg")
+var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
 var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
 var honk_audio := preload("res://art/sounds/honk-4.mp3")
-var gaveup_audio := preload("res://art/sounds/bump-7-92964.mp3")
-var breakdown_audio := preload("res://art/sounds/metal-hit-50-193312.mp3")
-# var door_audio := preload("res://art/sounds/door-opening-353874.mp3")
-# var explosion_audio := preload("res://art/sounds/car-crash-sound-376882.mp3")
+var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
+var breakdown_audio := preload("res://art/sounds/clash-1.mp3")
+# var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
+# var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)

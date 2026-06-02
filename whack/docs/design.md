@@ -110,7 +110,7 @@ Defined in `scripts/level_config.gd` (`WhackLevelConfig.LEVELS` array). Number o
 **Sound effects:**
 - Appear: `res://art/sounds/click-2.mp3`
 - Hit: `res://art/sounds/tap-1.mp3`
-- Miss (out-of-area tap): `res://art/sounds/bump-7-92964.mp3` (no sound played — penalty only, sound suppressed to avoid spam on rapid tapping)
+- Miss (out-of-area tap): `res://art/sounds/bump-sound-7.mp3` (no sound played — penalty only, sound suppressed to avoid spam on rapid tapping)
 - Wrong (decoy hit / target timeout): `res://art/sounds/swoosh.mp3` (once per mistake event)
 
 **Visual feedback:**

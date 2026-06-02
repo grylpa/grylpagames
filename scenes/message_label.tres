@@ -1,6 +1,6 @@
 [gd_resource type="Theme" format=3 uid="uid://bi6ars80i4cxs"]
 
-[ext_resource type="FontFile" uid="uid://cxl6w8f8euf0b" path="res://art/fonts/Stormfaze.otf" id="1_i1r24"]
+[ext_resource type="FontFile" uid="uid://bgmv6k842mxxs" path="res://art/fonts/Stormfaze.otf" id="1_i1r24"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xh451"]
 content_margin_left = 24.0

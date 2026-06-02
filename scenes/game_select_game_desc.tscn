@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c3xdotm4qhy74"]
 
 [ext_resource type="Script" uid="uid://c8gpc18xoftum" path="res://scripts/game_select_game_desc.gd" id="1_aflm4"]
-[ext_resource type="FontFile" uid="uid://cgdalf3gk2qro" path="res://art/fonts/OpenSans-SemiBold.ttf" id="2_opensans"]
+[ext_resource type="FontFile" uid="uid://daumtw8abobjk" path="res://art/fonts/OpenSans-SemiBold.ttf" id="2_opensans"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_do3f3"]
 content_margin_left = 0.0

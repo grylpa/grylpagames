@@ -35,7 +35,7 @@ var player
 
 var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
 var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var motor_audio := preload("res://art/sounds/back-hoe-tractor-20083.mp3")
+var motor_audio := preload("res://art/sounds/engine-pulling-something.mp3")
 
 signal game_over(didwin:bool)
 signal started_playing
