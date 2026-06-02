@@ -78,7 +78,7 @@ The games are intended for entertainment and personal challenge only. They are n
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
 
 ## Attribution
 
