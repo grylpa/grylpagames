@@ -27,6 +27,9 @@ func level_index(level: int) -> int:
 func text_case(level: int) -> String:
 	return TypitLevelConfig.LEVELS[level_index(level)].get("case", "lower")
 
+func max_len(level: int) -> int:
+	return int(TypitLevelConfig.LEVELS[level_index(level)].get("max_len", 0))
+
 func init_globals() -> void:
 	game.init_sizes()
 	game.reset(true)
