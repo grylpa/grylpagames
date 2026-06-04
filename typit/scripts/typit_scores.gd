@@ -339,7 +339,7 @@ func _spacer(parent: Node, w: float) -> void:
 	parent.add_child(sp)
 
 func _cell(parent: Node, text: String, width: float, fs: int, color: Color,
-		align: int = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+		align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	var lbl: Label = Label.new()
 	lbl.text = text
 	if _typit_font:

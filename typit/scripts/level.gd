@@ -13,32 +13,6 @@ const OUTLIER_IQR_FACTOR: float = 3.0
 const MIN_INTER_KEY_MS: float = 40.0
 const BIAS_THRESHOLD: float = 0.22
 
-# Temporary dev limit — set to 0 to use full passages
-const DEV_MAX_PASSAGE_LEN: int = 10
-
-const PASSAGES: Array = [
-	"the quick brown fox jumps over the lazy dog",
-	"sphinx of black quartz judge my vow",
-	"pack my box with five dozen liquor jugs",
-	"how vexingly quick daft zebras jump",
-	"the five boxing wizards jump quickly",
-	"jackdaws love my big sphinx of quartz",
-	"we promptly judged antique ivory buckles for the next prize",
-	"a quart jar of oil mixed with zinc oxide makes a bright paint",
-	"brown jars prevented the mixture from freezing too quickly",
-	"six big juicy steaks sizzled in a pan as five workmen left the quarry",
-	"amazingly few discotheques provide jukeboxes",
-	"crazy frederica bought many very exquisite opal jewels",
-	"sixty zippers were quickly picked from the woven jute bag",
-	"fix problem quickly with galvanized jets",
-	"my girl wove six dozen plaid jackets before she quit",
-	"the job requires extra pluck and zeal from every young wage earner",
-	"a mad boxer shot a quick gloved jab to the jaw of his dizzy opponent",
-	"big july earthquakes confound zany experimental vows",
-	"when zombies arrive quickly fax judge pat",
-	"how quickly daft jumping zebras vex",
-]
-
 # ---- Session state ----
 var game: GenericGameUtil
 var _elapsed_ms: float = 0.0
@@ -115,7 +89,7 @@ func _ready() -> void:
 	_results_panel.theme = t
 
 	var panel_style: StyleBoxFlat = StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.07, 0.09, 0.13, 0.97)
+	panel_style.bg_color = Color(0.07, 0.09, 0.13, 1.0)
 	_results_panel.add_theme_stylebox_override("panel", panel_style)
 	_results_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 
@@ -164,7 +138,7 @@ func new_game() -> void:
 	_keys_num = _build_num_keyboard()
 
 	_passage_order = []
-	for i in range(PASSAGES.size()):
+	for i in range(TypitLevelConfig.PASSAGES.size()):
 		_passage_order.append(i)
 	_passage_order.shuffle()
 	_passage_idx = 0
@@ -295,29 +269,28 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 
 	# Record position data for every tap, measured against the EXPECTED key's spine
 	# (capsule model — tapping anywhere along the central band = ~0 error).
-	# Cap the error magnitude at 150% of the capsule radius so a far wrong key (e.g.
-	# x instead of p) contributes a bounded value instead of a huge bogus one, while
-	# still counting taps on adjacent keys — all without checking the layout.
 	var expected_lower: String = expected_char.to_lower()
 	var exp_key: Dictionary = _find_key_by_char(expected_lower, _keys_alpha)
 	if not exp_key.is_empty():
 		var spine: Vector2 = _spine_nearest(touch_pos, exp_key)
 		var dx: float = touch_pos.x - spine.x
 		var dy: float = touch_pos.y - spine.y
-		var mag: float = sqrt(dx * dx + dy * dy)
+		var raw_mag: float = sqrt(dx * dx + dy * dy)
+		# For the spine-error components (colour/bias) cap the magnitude at 150% of the
+		# capsule radius so a far wrong key stays bounded. The distance metric instead
+		# stores the RAW magnitude and rejects anything over 150% (see _compute_stats).
 		var cap: float = 1.5 * (exp_key.h * 0.5)
-		if mag > cap and mag > 0.0:
-			var s: float = cap / mag
+		if raw_mag > cap and raw_mag > 0.0:
+			var s: float = cap / raw_mag
 			dx *= s
 			dy *= s
-			mag = cap
 		# Key by lowercase so upper/title-case targets don't split a key's data
 		if not _key_hits.has(expected_lower):
 			_key_hits[expected_lower] = []
 			_key_hit_dists[expected_lower] = []
 			_key_taps[expected_lower] = []
 		_key_hits[expected_lower].append(Vector2(dx, dy))
-		_key_hit_dists[expected_lower].append(mag)
+		_key_hit_dists[expected_lower].append(raw_mag)
 		# Actual offset from the key center — for showing WHERE the tap landed
 		_key_taps[expected_lower].append(Vector2(touch_pos.x - exp_key.cx, touch_pos.y - exp_key.cy))
 
@@ -344,18 +317,25 @@ func _load_passage() -> void:
 	if _passage_order.is_empty():
 		return
 	var idx: int = _passage_order[_passage_idx % _passage_order.size()]
-	_target = PASSAGES[idx].to_lower().strip_edges()
-	if DEV_MAX_PASSAGE_LEN > 0 and _target.length() > DEV_MAX_PASSAGE_LEN:
-		var cut: int = _target.rfind(" ", DEV_MAX_PASSAGE_LEN)
-		if cut > 3:
-			_target = _target.left(cut)
-		else:
-			_target = _target.left(DEV_MAX_PASSAGE_LEN)
+	_target = TypitLevelConfig.PASSAGES[idx].to_lower().strip_edges()
+	_target = _truncate_to_words(_target, TypitG.max_len(TypitG.selected_level))
 	_target = _apply_case(_target, TypitG.text_case(TypitG.selected_level))
 	_target_pos = 0
 	_char_correctness = []
 	_char_pressed = []
 	_passage_idx += 1
+
+# Cut a passage to at most max_len characters, only at a whitespace boundary
+# (never mid-word) and never ending on a space. max_len <= 0 means no limit.
+func _truncate_to_words(s: String, max_len: int) -> String:
+	if max_len <= 0 or s.length() <= max_len:
+		return s.strip_edges()
+	# Last space at or before the limit → cut there (drops the space, no mid-word cut)
+	var cut: int = s.rfind(" ", max_len)
+	if cut > 0:
+		return s.substr(0, cut).strip_edges()
+	# First word is longer than the limit — unavoidable hard cut
+	return s.substr(0, max_len).strip_edges()
 
 func _apply_case(s: String, mode: String) -> String:
 	match mode:
@@ -513,12 +493,16 @@ func _compute_stats() -> Dictionary:
 	if effective_ms > 100.0:
 		speed_cpm = float(_correct_chars + _mistakes) / (effective_ms / 60000.0)
 
-	var all_dists: Array = []
+	# Reject any tap whose error exceeds 150% of the capsule radius (a wrong/far key),
+	# then RMS the rest. A simple fixed threshold is more suitable than IQR for the
+	# few samples in a short sentence. All keys share the same height, so one threshold.
+	var dist_reject: float = _key_h * 0.5 * 1.5
+	var kept_dists: Array = []
 	for ch in _key_hit_dists.keys():
 		for d in _key_hit_dists[ch]:
-			all_dists.append(d)
-	var filtered_dists: Array = _filter_outliers(all_dists)
-	var rms: float = _compute_rms(filtered_dists)
+			if float(d) <= dist_reject:
+				kept_dists.append(d)
+	var rms: float = _compute_rms(kept_dists)
 
 	# Final text state. _char_correctness reflects corrections (backspace pops entries).
 	var final_len: int = _char_correctness.size()
@@ -647,6 +631,10 @@ func _build_results_panel(stats: Dictionary) -> void:
 	_results_vbox.add_child(heatmap)
 	heatmap.queue_redraw()
 
+	# If errors remain, show the correct vs typed sentences (wrong letters in red)
+	if stats.wrong > 0:
+		_add_comparison_sentences(fs_small)
+
 	var gap2: Control = Control.new()
 	gap2.custom_minimum_size = Vector2(0.0, 8.0)
 	gap2.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -673,6 +661,56 @@ func _add_label(parent: Node, text: String, font_size: int, color: Color) -> voi
 	lbl.add_theme_color_override("font_color", color)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(lbl)
+
+# Show the expected and typed sentences (wrong letters red), char-aligned & centered.
+func _add_comparison_sentences(_fs_small: int) -> void:
+	var base_cfs: int = 16 if MainGlobals.is_mobile() else 12
+	var ctrl: Control = Control.new()
+	ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ctrl.custom_minimum_size = Vector2(0.0, float(base_cfs + 6) * 2.0 + 10.0)
+	ctrl.draw.connect(_draw_comparison.bind(ctrl, base_cfs))
+	_results_vbox.add_child(ctrl)
+	ctrl.queue_redraw()
+
+func _draw_comparison(canvas: Control, base_cfs: int) -> void:
+	if _mono_font == null:
+		return
+	var w: float = canvas.size.x
+	var n: int = _target.length()
+	if n == 0:
+		return
+
+	# Shrink font until the whole sentence fits the width on one line.
+	var cfs: int = base_cfs
+	var adv: float = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, cfs).x
+	var max_w: float = w - 8.0
+	while float(n) * adv > max_w and cfs > 8:
+		cfs -= 1
+		adv = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, cfs).x
+
+	var block_w: float = adv * float(n)
+	var start_x: float = maxf(2.0, (w - block_w) * 0.5)
+	var line_h: float = float(cfs) + 6.0
+	var want_y: float = float(cfs)
+	var got_y: float = want_y + line_h + 4.0
+	var light: Color = Color(0.88, 0.92, 1.0, 1.0)
+	var red: Color = Color(1.0, 0.33, 0.27, 1.0)
+
+	# Expected sentence
+	for i in range(n):
+		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, want_y),
+			_target[i], HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, light)
+
+	# Typed sentence (case-matched; wrong letters red, wrong space → red middle dot)
+	for i in range(_char_pressed.size()):
+		var dispc: String = _char_pressed[i]
+		if i < n and _target[i] != _target[i].to_lower():
+			dispc = dispc.to_upper()
+		var wrong: bool = i < _char_correctness.size() and not _char_correctness[i]
+		if wrong and dispc == " ":
+			dispc = "·"
+		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, got_y),
+			dispc, HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, red if wrong else light)
 
 func _make_button(text: String, font_size: int) -> Button:
 	var btn: Button = Button.new()
@@ -767,42 +805,64 @@ func _draw_text_area(canvas: CanvasItem, w: float) -> void:
 	var header_h: float = float(MainGlobals.header_height)
 	var kb_top: float = _kb_top_y()
 	var avail_h: float = kb_top - header_h - 8.0
-	var line_gap: float = 28.0   # extra space so the typed line clears the cursor underline
-
-	# Center the two-line block in available space
-	var block_h: float = float(fs) * 2.0 + line_gap
-	var block_top: float = header_h + (avail_h - block_h) * 0.5
-	var ref_y: float = block_top + float(fs)          # reference text baseline
-	var typed_y: float = ref_y + float(fs) + line_gap  # typed text baseline
-
-	# Monospace → every glyph is the same width, so the typed line aligns exactly
-	# under the reference line. Use a single fixed advance for all positions.
-	var adv: float = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var total_w: float = adv * float(_target.length())
-	var start_x: float = maxf(pad, (w - total_w) * 0.5)
-
 	var white: Color = Color(1.0, 1.0, 1.0, 1.0)
 
-	# ---- Reference text line (all white; only cue is the cursor underline) ----
-	for i in range(_target.length()):
-		var cx_i: float = start_x + float(i) * adv
-		canvas.draw_string(_mono_font, Vector2(cx_i, ref_y), _target[i],
-			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
-		if i == _target_pos:
-			# Underline caret under the current char — the only position cue
-			canvas.draw_rect(Rect2(cx_i, ref_y + 4.0, adv, 3.0), Color(1.0, 0.85, 0.20, 0.95))
+	# Monospace → fixed advance, so the typed line aligns under the reference line.
+	var adv: float = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var n: int = _target.length()
+	var cols: int = maxi(1, int((w - pad * 2.0) / adv))   # chars that fit per line
 
-	# ---- Typed text line (all white, shown in the target's case so it aligns) ----
-	for i in range(_char_pressed.size()):
-		var disp: String = _char_pressed[i]
-		if i < _target.length() and _target[i] != _target[i].to_lower():
-			disp = disp.to_upper()
-		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, typed_y),
-			disp, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
+	# Word-wrap into char-index ranges [start, end). Break after the last space that
+	# fits; only hard-break if a single word is longer than a line.
+	var lines: Array = []
+	var i: int = 0
+	while i < n:
+		var line_end: int = mini(i + cols, n)
+		if line_end < n:
+			var brk: int = _target.rfind(" ", line_end - 1)
+			if brk >= i:
+				line_end = brk + 1
+		lines.append(Vector2i(i, line_end))
+		i = line_end
+	if lines.is_empty():
+		return
+
+	var gap_ref_typed: float = 12.0   # ref line → its typed line (clears the caret)
+	var gap_rows: float = float(fs) + 18.0   # between wrapped rows (clear of typed letters)
+	var row_h: float = float(fs) * 2.0 + gap_ref_typed
+	var block_h: float = float(lines.size()) * row_h + float(lines.size() - 1) * gap_rows
+	var block_top: float = maxf(header_h + 4.0, header_h + (avail_h - block_h) * 0.5)
+
+	for li in range(lines.size()):
+		var rng: Vector2i = lines[li]
+		var lstart: int = rng.x
+		var count: int = rng.y - lstart
+		var row_top: float = block_top + float(li) * (row_h + gap_rows)
+		var ref_y: float = row_top + float(fs)
+		var typed_y: float = ref_y + gap_ref_typed + float(fs)
+		# Single line is centered; wrapped lines are left-aligned for readability.
+		var start_x: float = pad
+		if lines.size() == 1:
+			start_x = maxf(pad, (w - adv * float(count)) * 0.5)
+
+		for c in range(count):
+			var gi: int = lstart + c
+			var cx_i: float = start_x + float(c) * adv
+			canvas.draw_string(_mono_font, Vector2(cx_i, ref_y), _target[gi],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
+			if gi == _target_pos:
+				canvas.draw_rect(Rect2(cx_i, ref_y + 4.0, adv, 3.0), Color(1.0, 0.85, 0.20, 0.95))
+			if gi < _char_pressed.size():
+				var disp: String = _char_pressed[gi]
+				if _target[gi] != _target[gi].to_lower():
+					disp = disp.to_upper()
+				canvas.draw_string(_mono_font, Vector2(cx_i, typed_y), disp,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
 
 	# Passage-complete prompt
-	if _target_pos >= _target.length():
-		canvas.draw_string(_font, Vector2(0.0, typed_y + float(fs) + 10.0),
+	if _target_pos >= n:
+		var prompt_y: float = minf(block_top + block_h + float(fs), kb_top - 6.0)
+		canvas.draw_string(_font, Vector2(0.0, prompt_y),
 			"✓  Press Done",
 			HORIZONTAL_ALIGNMENT_CENTER, w, fs - 10,
 			Color(0.55, 0.88, 0.65, 0.80))
