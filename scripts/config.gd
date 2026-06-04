@@ -33,6 +33,7 @@ var games = [
 	["parkem",        "Parkem",         "Don't allow the monsters to reach their goals",          "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
+	["typit",         "Typit",          "Tap precisely — every touch position is measured",        "Reflexes"],
 
 	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
 
