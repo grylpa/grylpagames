@@ -60,6 +60,7 @@ UdbrG="*res://udbr/scripts/globals.gd"
 RiverG="*res://river/scripts/globals.gd"
 CrackG="*res://crack/scripts/globals.gd"
 MotherG="*res://mother/scripts/globals.gd"
+TypitG="*res://typit/scripts/globals.gd"
 
 [debug]
 
