@@ -505,18 +505,22 @@ func _compute_stats() -> Dictionary:
 	var rms: float = _compute_rms(kept_dists)
 
 	# Final text state. _char_correctness reflects corrections (backspace pops entries).
-	var final_len: int = _char_correctness.size()
-	var uncorrected: int = 0
+	var typed_len: int = _char_correctness.size()
+	var uncorrected_typed: int = 0
 	for ok in _char_correctness:
 		if not ok:
-			uncorrected += 1
-	var final_correct: int = final_len - uncorrected
+			uncorrected_typed += 1
+	# Letters never typed (Done pressed early) count as errors too.
+	var untyped: int = maxi(0, _target.length() - typed_len)
+	var final_correct: int = typed_len - uncorrected_typed
+	var total: int = _target.length()
+	var wrong_total: int = uncorrected_typed + untyped
 	# Fixed = wrong keypresses that are no longer wrong in the final text
-	var fixed: int = maxi(0, _mistakes - uncorrected)
-	# Accuracy = final correct / total positions in the answer
+	var fixed: int = maxi(0, _mistakes - uncorrected_typed)
+	# Accuracy = final correct / total positions in the full passage
 	var acc: float = 100.0
-	if final_len > 0:
-		acc = float(final_correct) / float(final_len) * 100.0
+	if total > 0:
+		acc = float(final_correct) / float(total) * 100.0
 
 	var dist_pct: float = 0.0
 	if _key_h > 0.0:
@@ -528,7 +532,7 @@ func _compute_stats() -> Dictionary:
 		"dist_pct": dist_pct,
 		"accuracy": acc,
 		"correct": final_correct,
-		"wrong": uncorrected,
+		"wrong": wrong_total,
 		"fixed": fixed,
 		"backspaces": _backspaces,
 	}
@@ -625,7 +629,7 @@ func _build_results_panel(stats: Dictionary) -> void:
 		Color(0.55, 0.65, 0.80, 0.55))
 
 	var heatmap: Control = Control.new()
-	heatmap.custom_minimum_size = Vector2(0.0, 72.0)
+	heatmap.custom_minimum_size = Vector2(0.0, 120.0)
 	heatmap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heatmap.draw.connect(_draw_heatmap.bind(heatmap))
 	_results_vbox.add_child(heatmap)
@@ -701,12 +705,20 @@ func _draw_comparison(canvas: Control, base_cfs: int) -> void:
 		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, want_y),
 			_target[i], HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, light)
 
-	# Typed sentence (case-matched; wrong letters red, wrong space → red middle dot)
-	for i in range(_char_pressed.size()):
-		var dispc: String = _char_pressed[i]
-		if i < n and _target[i] != _target[i].to_lower():
-			dispc = dispc.to_upper()
-		var wrong: bool = i < _char_correctness.size() and not _char_correctness[i]
+	# Typed sentence (case-matched; wrong letters red, wrong/untyped → red middle dot).
+	# Loop over the FULL passage so letters never typed (Done pressed early) show as errors.
+	for i in range(n):
+		var dispc: String
+		var wrong: bool
+		if i < _char_pressed.size():
+			dispc = _char_pressed[i]
+			if _target[i] != _target[i].to_lower():
+				dispc = dispc.to_upper()
+			wrong = i < _char_correctness.size() and not _char_correctness[i]
+		else:
+			# Never typed → error
+			dispc = "·"
+			wrong = true
 		if wrong and dispc == " ":
 			dispc = "·"
 		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, got_y),
@@ -740,8 +752,13 @@ func _draw_heatmap(canvas: Control) -> void:
 		return
 	canvas.draw_rect(Rect2(0.0, 0.0, cw, ch), Color(0.06, 0.08, 0.12, 1.0))
 
-	var draw_scale: float = cw / _sw
-	var kb_top_local: float = _kb_top_y() * draw_scale
+	# Fit the whole keyboard inside this control (width AND height), centered,
+	# so it never overflows onto the elements below it.
+	var kb_top: float = _kb_top_y()
+	var kb_h_screen: float = 4.0 * _key_h + 3.0 * KEY_GAP
+	var draw_scale: float = minf(cw / _sw, ch / kb_h_screen)
+	var off_x: float = (cw - _sw * draw_scale) * 0.5
+	var off_y: float = (ch - kb_h_screen * draw_scale) * 0.5
 
 	for k in _keys_alpha:
 		if k.key_type not in ["char", "space"]:
@@ -752,8 +769,8 @@ func _draw_heatmap(canvas: Control) -> void:
 
 		var kw: float = k.w * draw_scale
 		var kh: float = k.h * draw_scale
-		var cx: float = k.cx * draw_scale
-		var cy_local: float = k.cy * draw_scale - kb_top_local + 4.0
+		var cx: float = k.cx * draw_scale + off_x
+		var cy_local: float = (k.cy - kb_top) * draw_scale + off_y
 		var r: float = k.h * 0.5   # capsule radius (unscaled), for colour normalisation
 
 		# Neutral key background so the dots stand out
