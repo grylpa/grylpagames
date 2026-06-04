@@ -750,7 +750,6 @@ func _draw_heatmap(canvas: Control) -> void:
 	var ch: float = canvas.size.y
 	if cw <= 0.0 or ch <= 0.0:
 		return
-	canvas.draw_rect(Rect2(0.0, 0.0, cw, ch), Color(0.06, 0.08, 0.12, 1.0))
 
 	# Fit the whole keyboard inside this control (width AND height), centered,
 	# so it never overflows onto the elements below it.
