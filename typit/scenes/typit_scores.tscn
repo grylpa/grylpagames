@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ytshvxq0ba2h" path="res://scenes/scores_list.tscn" id="1"]
+[ext_resource type="Script" uid="uid://fr1arny35qsh" path="res://typit/scripts/typit_scores.gd" id="2"]
+
+[node name="ScoresList" instance=ExtResource("1")]
+script = ExtResource("2")
