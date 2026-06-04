@@ -30,6 +30,9 @@ func text_case(level: int) -> String:
 func max_len(level: int) -> int:
 	return int(TypitLevelConfig.LEVELS[level_index(level)].get("max_len", 0))
 
+func case_sensitive(level: int) -> bool:
+	return bool(TypitLevelConfig.LEVELS[level_index(level)].get("case_sensitive", false))
+
 func init_globals() -> void:
 	game.init_sizes()
 	game.reset(true)
