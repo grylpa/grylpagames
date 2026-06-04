@@ -49,6 +49,10 @@ var _show_num_layer: bool = false
 var _key_w: float = 62.0
 var _key_h: float = 58.0
 
+# Case handling
+var _case_sensitive: bool = false   # if true, Shift is shown and input must match casing
+var _shift_on: bool = false         # one-shot Shift state (next letter capitalised)
+
 # Visual feedback
 var _wrong_key_label: String = ""
 var _error_flash_ms: float = 0.0
@@ -130,6 +134,8 @@ func new_game() -> void:
 	_key_press_anim_ms = 0.0
 	_show_num_layer = false
 	_last_tap_wall_ms = -100
+	_case_sensitive = TypitG.case_sensitive(TypitG.selected_level)
+	_shift_on = false
 
 	var lvl_idx: int = TypitG.level_index(TypitG.selected_level)
 	_key_w = TypitG.LEVEL_KEY_W[lvl_idx]
@@ -247,6 +253,10 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 		return
 
 	if key_type == "shift":
+		# Only meaningful on case-sensitive levels (where the key is shown)
+		if _case_sensitive:
+			_shift_on = not _shift_on
+			_canvas.queue_redraw()
 		return
 
 	if key_type not in ["char", "space"]:
@@ -256,6 +266,10 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 		return
 
 	var pressed_char: String = key.action
+	# Apply one-shot Shift (case-sensitive levels only) → capitalise this letter
+	if _case_sensitive and _shift_on:
+		pressed_char = pressed_char.to_upper()
+	_shift_on = false
 	var expected_char: String = _target[_target_pos]
 
 	if _last_press_elapsed_ms >= 0.0:
@@ -264,8 +278,12 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 			_inter_key_times.append(ikt)
 	_last_press_elapsed_ms = _elapsed_ms
 
-	# Case-insensitive: keyboard always produces lowercase, text may be upper/title
-	var is_correct: bool = pressed_char.to_lower() == expected_char.to_lower()
+	# Case-sensitive levels require exact case; otherwise compare case-insensitively
+	var is_correct: bool
+	if _case_sensitive:
+		is_correct = pressed_char == expected_char
+	else:
+		is_correct = pressed_char.to_lower() == expected_char.to_lower()
 
 	# Record position data for every tap, measured against the EXPECTED key's spine
 	# (capsule model — tapping anywhere along the central band = ~0 error).
@@ -712,7 +730,7 @@ func _draw_comparison(canvas: Control, base_cfs: int) -> void:
 		var wrong: bool
 		if i < _char_pressed.size():
 			dispc = _char_pressed[i]
-			if _target[i] != _target[i].to_lower():
+			if not _case_sensitive and _target[i] != _target[i].to_lower():
 				dispc = dispc.to_upper()
 			wrong = i < _char_correctness.size() and not _char_correctness[i]
 		else:
@@ -870,7 +888,9 @@ func _draw_text_area(canvas: CanvasItem, w: float) -> void:
 				canvas.draw_rect(Rect2(cx_i, ref_y + 4.0, adv, 3.0), Color(1.0, 0.85, 0.20, 0.95))
 			if gi < _char_pressed.size():
 				var disp: String = _char_pressed[gi]
-				if _target[gi] != _target[gi].to_lower():
+				# Case-insensitive: show in target case so it reads right. Case-sensitive:
+				# show exactly what was produced (so wrong casing is visible).
+				if not _case_sensitive and _target[gi] != _target[gi].to_lower():
 					disp = disp.to_upper()
 				canvas.draw_string(_mono_font, Vector2(cx_i, typed_y), disp,
 					HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
@@ -902,17 +922,25 @@ func _draw_key(canvas: CanvasItem, k: Dictionary, is_pressed: bool) -> void:
 	var kw: float = k.w
 	var kh: float = k.h
 	var bg: Color = k.color
-	if is_pressed:
-		bg = Color(minf(bg.r * 1.5, 1.0), minf(bg.g * 1.5, 1.0), minf(bg.b * 1.5, 1.0), bg.a)
+	# Active one-shot Shift is highlighted
+	var shift_active: bool = k.key_type == "shift" and _shift_on
+	if is_pressed or shift_active:
+		bg = Color(minf(bg.r * 1.6, 1.0), minf(bg.g * 1.6, 1.0), minf(bg.b * 1.9, 1.0), bg.a)
 	var rect: Rect2 = Rect2(cx - kw * 0.5, cy - kh * 0.5, kw, kh)
 	canvas.draw_rect(rect, bg, true, -1.0)
+	if shift_active:
+		canvas.draw_rect(rect, Color(0.55, 0.80, 1.0, 0.9), false, 2.0)
 	if _error_flash_ms > 0.0 and k.label == _wrong_key_label:
 		canvas.draw_rect(rect, Color(1.0, 0.12, 0.08, (_error_flash_ms / ERROR_FLASH_DUR) * 0.60))
 	canvas.draw_rect(rect, Color(0.28, 0.36, 0.52, 0.55), false, 1.0)
 	if _font == null:
 		return
+	# On case-sensitive levels, letter keys show the case that will actually be typed.
+	var label_text: String = k.label
+	if k.key_type == "char" and _case_sensitive:
+		label_text = k.label.to_upper() if _shift_on else k.label.to_lower()
 	canvas.draw_string(_font, Vector2(cx - kw * 0.5 + 2.0, cy + float(k.font_size) * 0.42),
-		k.label, HORIZONTAL_ALIGNMENT_CENTER, kw - 4.0, k.font_size, k.label_color)
+		label_text, HORIZONTAL_ALIGNMENT_CENTER, kw - 4.0, k.font_size, k.label_color)
 
 # ---- Keyboard layout builders ----
 
@@ -943,19 +971,24 @@ func _build_alpha_keyboard() -> Array:
 		keys.append(_make_char_key(ch.to_lower(), ch.to_upper(),
 			r1_left + float(i) * unit + kw * 0.5, row_ys[1], kw, kh, gap))
 
-	# Row 2: shift + 7 letters + backspace, within total_w
-	var shift_w: float = kw * 1.5
+	# Row 2: [shift] + 7 letters (key-width) + backspace, the whole row centered.
+	# Shift only shown on case-sensitive levels.
 	var bs_w: float = kw * 1.5
-	var lw: float = (total_w - shift_w - bs_w - 8.0 * gap) / 7.0
-	var r2x: float = left
-	keys.append(_make_special_key("⬆", "shift", "shift",
-		r2x + shift_w * 0.5, row_ys[2], shift_w, kh, Color(0.18, 0.22, 0.32, 1.0)))
-	r2x += shift_w + gap
+	var shift_w: float = kw * 1.5
+	# Total row width depends on whether shift is present (7 letters + 7 gaps + bs [+ shift+gap])
+	var row2_w: float = 7.0 * kw + 7.0 * gap + bs_w
+	if _case_sensitive:
+		row2_w += shift_w + gap
+	var r2x: float = (_sw - row2_w) * 0.5
+	if _case_sensitive:
+		keys.append(_make_special_key("⬆", "shift", "shift",
+			r2x + shift_w * 0.5, row_ys[2], shift_w, kh, Color(0.18, 0.22, 0.32, 1.0)))
+		r2x += shift_w + gap
 	for i in range(7):
 		var ch: String = ROW2[i]
 		keys.append(_make_char_key(ch.to_lower(), ch.to_upper(),
-			r2x + lw * 0.5, row_ys[2], lw, kh, 0.0))
-		r2x += lw + gap
+			r2x + kw * 0.5, row_ys[2], kw, kh, gap))
+		r2x += kw + gap
 	keys.append(_make_special_key("⌫", "backspace", "backspace",
 		r2x + bs_w * 0.5, row_ys[2], bs_w, kh, Color(0.22, 0.26, 0.36, 1.0)))
 
@@ -999,19 +1032,15 @@ func _build_num_keyboard() -> Array:
 		keys.append(_make_char_key(row1_chars[i], row1_chars[i],
 			left + float(i) * unit + kw * 0.5, row_ys[1], kw, kh, gap))
 
-	# Row 2: #+= + 5 symbols + backspace, within total_w
-	var sym_w: float = kw * 1.5
+	# Row 2: symbol keys (key-width) + backspace, centered. No dead "#+=" toggle.
 	var bs_w: float = kw * 1.5
-	var lw: float = (total_w - sym_w - bs_w - 6.0 * gap) / 5.0
-	var r2x: float = left
-	keys.append(_make_special_key("#+=", "sym", "sym_toggle",
-		r2x + sym_w * 0.5, row_ys[2], sym_w, kh, Color(0.22, 0.26, 0.36, 1.0)))
-	r2x += sym_w + gap
-	var row2_chars: Array = [".", ",", "?", "!", "'"]
+	var row2_chars: Array = [".", ",", "?", "!", "'", "+", "=", "%", "*"]
+	var row2_w: float = float(row2_chars.size()) * kw + float(row2_chars.size()) * gap + bs_w
+	var r2x: float = (_sw - row2_w) * 0.5
 	for i in range(row2_chars.size()):
 		keys.append(_make_char_key(row2_chars[i], row2_chars[i],
-			r2x + lw * 0.5, row_ys[2], lw, kh, 0.0))
-		r2x += lw + gap
+			r2x + kw * 0.5, row_ys[2], kw, kh, gap))
+		r2x += kw + gap
 	keys.append(_make_special_key("⌫", "backspace", "backspace",
 		r2x + bs_w * 0.5, row_ys[2], bs_w, kh, Color(0.22, 0.26, 0.36, 1.0)))
 
