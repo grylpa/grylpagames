@@ -48,6 +48,7 @@ var _keys_num: Array = []
 var _show_num_layer: bool = false
 var _key_w: float = 62.0
 var _key_h: float = 58.0
+var _row_gap: float = 4.0   # vertical gap between keyboard rows (larger on mobile)
 
 # Case handling
 var _case_sensitive: bool = false   # if true, Shift is shown and input must match casing
@@ -78,12 +79,15 @@ var _last_tap_wall_ms: int = -100
 
 func _ready() -> void:
 	game = TypitG.game
-	_sw = float(MainGlobals.screen_size.x)
-	_sh = float(MainGlobals.screen_size.y)
+	_refresh_screen_size()
 	_font = MainGlobals.get_system_sans_font()
-	var mf: SystemFont = SystemFont.new()
-	mf.font_names = PackedStringArray(["Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Courier New", "monospace"])
-	_mono_font = mf
+	# Bundled monospace font (JetBrains Mono, SIL OFL 1.1 — best disambiguation of
+	# look-alike glyphs I/l/1, O/0). Fall back to a system mono if not imported yet.
+	_mono_font = ResourceLoader.load("res://art/fonts/JetBrainsMono.ttf") as Font
+	if _mono_font == null:
+		var mf: SystemFont = SystemFont.new()
+		mf.font_names = PackedStringArray(["JetBrains Mono", "DejaVu Sans Mono", "Liberation Mono", "Courier New", "monospace"])
+		_mono_font = mf
 
 	var f: Font = _font
 	var t: Theme = Theme.new()
@@ -97,11 +101,12 @@ func _ready() -> void:
 	_results_panel.add_theme_stylebox_override("panel", panel_style)
 	_results_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 
+	# Reserve the bottom bar exactly like the working games (crack): footer + extra.
 	var margin: MarginContainer = $ResultsPanel/Margin as MarginContainer
 	margin.add_theme_constant_override("margin_left", 20)
 	margin.add_theme_constant_override("margin_right", 20)
 	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_bottom", MainGlobals.footer_height + 12)
+	margin.add_theme_constant_override("margin_bottom", MainGlobals.footer_height + int(_bottom_reserve()))
 
 	_results_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_results_vbox.add_theme_constant_override("separation", 3)
@@ -137,9 +142,19 @@ func new_game() -> void:
 	_case_sensitive = TypitG.case_sensitive(TypitG.selected_level)
 	_shift_on = false
 
-	var lvl_idx: int = TypitG.level_index(TypitG.selected_level)
-	_key_w = TypitG.LEVEL_KEY_W[lvl_idx]
-	_key_h = TypitG.LEVEL_KEY_H[lvl_idx]
+	_refresh_screen_size()
+	var lvl: int = TypitG.selected_level
+	var lvl_idx: int = TypitG.level_index(lvl)
+	if MainGlobals.is_mobile():
+		# Mobile: keyboard spans 100%→80% of width by level; key height from config.
+		var kb_w: float = TypitG.mobile_width_frac(lvl) * _sw
+		_key_w = (kb_w - 9.0 * KEY_GAP) / 10.0
+		_key_h = TypitG.mobile_key_h(lvl)
+		_row_gap = 12.0   # extra vertical padding between rows on mobile
+	else:
+		_key_w = TypitG.LEVEL_KEY_W[lvl_idx]
+		_key_h = TypitG.LEVEL_KEY_H[lvl_idx]
+		_row_gap = KEY_GAP
 	_keys_alpha = _build_alpha_keyboard()
 	_keys_num = _build_num_keyboard()
 
@@ -157,6 +172,7 @@ func new_game() -> void:
 	$SessionOverlay.show()
 	_results_panel.hide()
 	_canvas.queue_redraw()
+
 
 # ---- Process ----
 
@@ -199,18 +215,20 @@ func _input(event: InputEvent) -> void:
 	if not got_touch:
 		return
 
-	# Debounce: both emulated events arrive within <5ms; 30ms clears them safely
+	# Only act on (and consume) touches that actually land on a key — otherwise let the
+	# event through so the bottom bar buttons (menu/mute) still work.
+	var active_keys: Array = _keys_num if _show_num_layer else _keys_alpha
+	var hit_key: Dictionary = _find_key(touch_pos, active_keys)
+	if hit_key.is_empty():
+		return
+
+	# Debounce: emulate_touch_from_mouse fires both touch+mouse; 30ms clears the dup.
 	var now: int = Time.get_ticks_msec()
 	if now - _last_tap_wall_ms < 30:
 		get_viewport().set_input_as_handled()
 		return
 	_last_tap_wall_ms = now
 	get_viewport().set_input_as_handled()
-
-	var active_keys: Array = _keys_num if _show_num_layer else _keys_alpha
-	var hit_key: Dictionary = _find_key(touch_pos, active_keys)
-	if hit_key.is_empty():
-		return
 
 	_handle_keypress(hit_key, touch_pos)
 
@@ -399,6 +417,7 @@ func _capsule_dist(touch: Vector2, key: Dictionary) -> float:
 func _finish_session() -> void:
 	if _session_complete:
 		return
+	_refresh_screen_size()
 	_session_complete = true
 	game.playing = false
 	game.level_is_ready = false
@@ -617,9 +636,9 @@ func _build_results_panel(stats: Dictionary) -> void:
 	_results_vbox.add_theme_constant_override("separation", 3)
 
 	var mobile: bool = MainGlobals.is_mobile()
-	var fs_title: int = 28 if mobile else 20
-	var fs_stat: int = 22 if mobile else 16
-	var fs_small: int = 18 if mobile else 13
+	var fs_title: int = 48 if mobile else 20
+	var fs_stat: int = 36 if mobile else 16
+	var fs_small: int = 28 if mobile else 13
 
 	_add_label(_results_vbox, "Done!", fs_title, Color(0.92, 0.96, 1.0, 1.0))
 
@@ -646,8 +665,15 @@ func _build_results_panel(stats: Dictionary) -> void:
 	_add_label(_results_vbox, "tap accuracy  (green = center  ·  red = outside key)", fs_small,
 		Color(0.55, 0.65, 0.80, 0.55))
 
+	# Size the heatmap so the keyboard fills the panel width (any level) keeping aspect.
+	# Cap its height so the panel content (incl. the buttons) always fits the screen.
+	var kb_w_screen: float = 10.0 * _key_w + 9.0 * KEY_GAP
+	var kb_h_screen: float = 4.0 * _key_h + 3.0 * _row_gap
+	var avail_w: float = _sw - 40.0
+	var heatmap_h: float = kb_h_screen * (avail_w / kb_w_screen)
+	heatmap_h = minf(heatmap_h, _sh * 0.30)
 	var heatmap: Control = Control.new()
-	heatmap.custom_minimum_size = Vector2(0.0, 120.0)
+	heatmap.custom_minimum_size = Vector2(0.0, heatmap_h)
 	heatmap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heatmap.draw.connect(_draw_heatmap.bind(heatmap))
 	_results_vbox.add_child(heatmap)
@@ -685,62 +711,79 @@ func _add_label(parent: Node, text: String, font_size: int, color: Color) -> voi
 	parent.add_child(lbl)
 
 # Show the expected and typed sentences (wrong letters red), char-aligned & centered.
+# Wraps to multiple want/got line-pairs at a readable font instead of shrinking to fit.
+var _cmp_cfs: int = 14
+var _cmp_lines: Array = []   # Array of Vector2i char ranges [start, end)
+
 func _add_comparison_sentences(_fs_small: int) -> void:
-	var base_cfs: int = 16 if MainGlobals.is_mobile() else 12
+	if _mono_font == null:
+		return
+	_cmp_cfs = 26 if MainGlobals.is_mobile() else 14
+	var avail_w: float = _sw - 48.0
+	var adv: float = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, _cmp_cfs).x
+	var cols: int = maxi(1, int(avail_w / adv))
+
+	# Word-wrap into char-index ranges (break after the last space that fits).
+	_cmp_lines = []
+	var n: int = _target.length()
+	var i: int = 0
+	while i < n:
+		var line_end: int = mini(i + cols, n)
+		if line_end < n:
+			var brk: int = _target.rfind(" ", line_end - 1)
+			if brk >= i:
+				line_end = brk + 1
+		_cmp_lines.append(Vector2i(i, line_end))
+		i = line_end
+	if _cmp_lines.is_empty():
+		return
+
+	# Each wrapped segment = want line + got line, with gaps.
+	var seg_h: float = float(_cmp_cfs) * 2.0 + 6.0 + 10.0
 	var ctrl: Control = Control.new()
 	ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctrl.custom_minimum_size = Vector2(0.0, float(base_cfs + 6) * 2.0 + 10.0)
-	ctrl.draw.connect(_draw_comparison.bind(ctrl, base_cfs))
+	ctrl.custom_minimum_size = Vector2(0.0, seg_h * float(_cmp_lines.size()) + 6.0)
+	ctrl.draw.connect(_draw_comparison.bind(ctrl))
 	_results_vbox.add_child(ctrl)
 	ctrl.queue_redraw()
 
-func _draw_comparison(canvas: Control, base_cfs: int) -> void:
-	if _mono_font == null:
+func _draw_comparison(canvas: Control) -> void:
+	if _mono_font == null or _cmp_lines.is_empty():
 		return
 	var w: float = canvas.size.x
-	var n: int = _target.length()
-	if n == 0:
-		return
-
-	# Shrink font until the whole sentence fits the width on one line.
-	var cfs: int = base_cfs
+	var cfs: int = _cmp_cfs
 	var adv: float = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, cfs).x
-	var max_w: float = w - 8.0
-	while float(n) * adv > max_w and cfs > 8:
-		cfs -= 1
-		adv = _mono_font.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, cfs).x
-
-	var block_w: float = adv * float(n)
-	var start_x: float = maxf(2.0, (w - block_w) * 0.5)
-	var line_h: float = float(cfs) + 6.0
-	var want_y: float = float(cfs)
-	var got_y: float = want_y + line_h + 4.0
+	var seg_h: float = float(cfs) * 2.0 + 6.0 + 10.0
 	var light: Color = Color(0.88, 0.92, 1.0, 1.0)
 	var red: Color = Color(1.0, 0.33, 0.27, 1.0)
 
-	# Expected sentence
-	for i in range(n):
-		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, want_y),
-			_target[i], HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, light)
-
-	# Typed sentence (case-matched; wrong letters red, wrong/untyped → red middle dot).
-	# Loop over the FULL passage so letters never typed (Done pressed early) show as errors.
-	for i in range(n):
-		var dispc: String
-		var wrong: bool
-		if i < _char_pressed.size():
-			dispc = _char_pressed[i]
-			if not _case_sensitive and _target[i] != _target[i].to_lower():
-				dispc = dispc.to_upper()
-			wrong = i < _char_correctness.size() and not _char_correctness[i]
-		else:
-			# Never typed → error
-			dispc = "·"
-			wrong = true
-		if wrong and dispc == " ":
-			dispc = "·"
-		canvas.draw_string(_mono_font, Vector2(start_x + float(i) * adv, got_y),
-			dispc, HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, red if wrong else light)
+	for li in range(_cmp_lines.size()):
+		var rng: Vector2i = _cmp_lines[li]
+		var count: int = rng.y - rng.x
+		var start_x: float = maxf(2.0, (w - adv * float(count)) * 0.5)
+		var want_y: float = seg_h * float(li) + float(cfs)
+		var got_y: float = want_y + float(cfs) + 6.0
+		for c in range(count):
+			var gi: int = rng.x + c
+			var cx_i: float = start_x + float(c) * adv
+			# Expected
+			canvas.draw_string(_mono_font, Vector2(cx_i, want_y), _target[gi],
+				HORIZONTAL_ALIGNMENT_CENTER, adv, cfs, light)
+			# Typed (case-matched; wrong letters red, wrong/untyped → red middle dot)
+			var dispc: String
+			var wrong: bool
+			if gi < _char_pressed.size():
+				dispc = _char_pressed[gi]
+				if not _case_sensitive and _target[gi] != _target[gi].to_lower():
+					dispc = dispc.to_upper()
+				wrong = gi < _char_correctness.size() and not _char_correctness[gi]
+			else:
+				dispc = "·"
+				wrong = true
+			if wrong and dispc == " ":
+				dispc = "·"
+			canvas.draw_string(_mono_font, Vector2(cx_i, got_y), dispc,
+				HORIZONTAL_ALIGNMENT_CENTER, adv, cfs, red if wrong else light)
 
 func _make_button(text: String, font_size: int) -> Button:
 	var btn: Button = Button.new()
@@ -769,12 +812,14 @@ func _draw_heatmap(canvas: Control) -> void:
 	if cw <= 0.0 or ch <= 0.0:
 		return
 
-	# Fit the whole keyboard inside this control (width AND height), centered,
-	# so it never overflows onto the elements below it.
+	# Scale the keyboard to fill the control WIDTH (any level), keeping aspect ratio.
+	# The control's height was sized to match, so it fits vertically too.
 	var kb_top: float = _kb_top_y()
-	var kb_h_screen: float = 4.0 * _key_h + 3.0 * KEY_GAP
-	var draw_scale: float = minf(cw / _sw, ch / kb_h_screen)
-	var off_x: float = (cw - _sw * draw_scale) * 0.5
+	var kb_w_screen: float = 10.0 * _key_w + 9.0 * KEY_GAP
+	var kb_h_screen: float = 4.0 * _key_h + 3.0 * _row_gap
+	var kb_left: float = (_sw - kb_w_screen) * 0.5
+	var draw_scale: float = minf(cw / kb_w_screen, ch / kb_h_screen)
+	var off_x: float = (cw - kb_w_screen * draw_scale) * 0.5
 	var off_y: float = (ch - kb_h_screen * draw_scale) * 0.5
 
 	for k in _keys_alpha:
@@ -786,14 +831,14 @@ func _draw_heatmap(canvas: Control) -> void:
 
 		var kw: float = k.w * draw_scale
 		var kh: float = k.h * draw_scale
-		var cx: float = k.cx * draw_scale + off_x
+		var cx: float = (k.cx - kb_left) * draw_scale + off_x
 		var cy_local: float = (k.cy - kb_top) * draw_scale + off_y
 		var r: float = k.h * 0.5   # capsule radius (unscaled), for colour normalisation
 
-		# Neutral key background so the dots stand out
+		# Neutral key background (slightly lighter, for contrast against the panel)
 		var rect: Rect2 = Rect2(cx - kw * 0.5, cy_local - kh * 0.5, kw, kh)
-		canvas.draw_rect(rect, Color(0.13, 0.16, 0.24, 1.0))
-		canvas.draw_rect(rect, Color(0.0, 0.0, 0.0, 0.40), false, 1.0)
+		canvas.draw_rect(rect, Color(0.24, 0.28, 0.38, 1.0))
+		canvas.draw_rect(rect, Color(0.45, 0.52, 0.66, 0.55), false, 1.0)
 
 		if _font != null and kw >= 10.0:
 			var lbl: String = k.label.to_upper()
@@ -882,8 +927,9 @@ func _draw_text_area(canvas: CanvasItem, w: float) -> void:
 		for c in range(count):
 			var gi: int = lstart + c
 			var cx_i: float = start_x + float(c) * adv
+			# Center each glyph in its fixed cell so narrow glyphs (I, l, .) line up
 			canvas.draw_string(_mono_font, Vector2(cx_i, ref_y), _target[gi],
-				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
+				HORIZONTAL_ALIGNMENT_CENTER, adv, fs, white)
 			if gi == _target_pos:
 				canvas.draw_rect(Rect2(cx_i, ref_y + 4.0, adv, 3.0), Color(1.0, 0.85, 0.20, 0.95))
 			if gi < _char_pressed.size():
@@ -893,7 +939,7 @@ func _draw_text_area(canvas: CanvasItem, w: float) -> void:
 				if not _case_sensitive and _target[gi] != _target[gi].to_lower():
 					disp = disp.to_upper()
 				canvas.draw_string(_mono_font, Vector2(cx_i, typed_y), disp,
-					HORIZONTAL_ALIGNMENT_LEFT, -1, fs, white)
+					HORIZONTAL_ALIGNMENT_CENTER, adv, fs, white)
 
 	# Passage-complete prompt
 	if _target_pos >= n:
@@ -903,11 +949,21 @@ func _draw_text_area(canvas: CanvasItem, w: float) -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, w, fs - 10,
 			Color(0.55, 0.88, 0.65, 0.80))
 
+# Use the harness's content area, exactly like the other games:
+#   width  = MainGlobals.screen_size.x
+#   height = MainGlobals.screen_size.y  (already excludes the footer)
+func _refresh_screen_size() -> void:
+	_sw = float(MainGlobals.screen_size.x)
+	_sh = float(MainGlobals.screen_size.y)
+
+# Extra bottom clearance beyond screen_size: clears the bottom bar AND leaves a
+# visible gap between it and the keyboard / Again-Done buttons.
+func _bottom_reserve() -> float:
+	return 78.0 if MainGlobals.is_mobile() else 30.0
+
 func _kb_top_y() -> float:
-	# Read live screen_size (already has footer subtracted) and add extra pad
-	var sh: float = float(MainGlobals.screen_size.y)
-	var kb_h: float = 4.0 * _key_h + 3.0 * KEY_GAP
-	return sh - kb_h - 14.0
+	var kb_h: float = 4.0 * _key_h + 3.0 * _row_gap
+	return _sh - _bottom_reserve() - kb_h
 
 # ---- Keyboard drawing ----
 
@@ -953,9 +1009,9 @@ func _build_alpha_keyboard() -> Array:
 	var kb_top: float = _kb_top_y()
 	var row_ys: Array = [
 		kb_top + kh * 0.5,
-		kb_top + (kh + gap) + kh * 0.5,
-		kb_top + (kh + gap) * 2.0 + kh * 0.5,
-		kb_top + (kh + gap) * 3.0 + kh * 0.5,
+		kb_top + (kh + _row_gap) + kh * 0.5,
+		kb_top + (kh + _row_gap) * 2.0 + kh * 0.5,
+		kb_top + (kh + _row_gap) * 3.0 + kh * 0.5,
 	]
 	# All rows share the same total width as row 0 and are centered → scales with level
 	var total_w: float = 10.0 * kw + 9.0 * gap
@@ -1016,9 +1072,9 @@ func _build_num_keyboard() -> Array:
 	var kb_top: float = _kb_top_y()
 	var row_ys: Array = [
 		kb_top + kh * 0.5,
-		kb_top + (kh + gap) + kh * 0.5,
-		kb_top + (kh + gap) * 2.0 + kh * 0.5,
-		kb_top + (kh + gap) * 3.0 + kh * 0.5,
+		kb_top + (kh + _row_gap) + kh * 0.5,
+		kb_top + (kh + _row_gap) * 2.0 + kh * 0.5,
+		kb_top + (kh + _row_gap) * 3.0 + kh * 0.5,
 	]
 	var total_w: float = 10.0 * kw + 9.0 * gap
 	var left: float = (_sw - total_w) * 0.5
