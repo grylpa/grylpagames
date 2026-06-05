@@ -13,6 +13,16 @@ var _keys_area: Control = null   # whole keys page (info + fixed header + scroll
 var _keys_btn: Button = null
 var _view_level: int = 1         # which level's key data is shown
 
+# Relabel only the GRID column header (not the tab buttons, which are set elsewhere):
+# "Speed" → "Speed (cpm)", "Distance" → "Distance %".
+func _set_header(field_name, text, widthidx, _is_panel_visible = false):
+	if field_name == "Score":
+		if text == "Speed":
+			text = "Speed (cpm)"
+		elif text == "Distance":
+			text = "Distance %"
+	super._set_header(field_name, text, widthidx, _is_panel_visible)
+
 # Column widths (logical px). Fixed so header and data rows align perfectly.
 const COL_KEY: float = 56.0
 const COL_GFX: float = 70.0

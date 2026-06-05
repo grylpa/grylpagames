@@ -33,6 +33,18 @@ func max_len(level: int) -> int:
 func case_sensitive(level: int) -> bool:
 	return bool(TypitLevelConfig.LEVELS[level_index(level)].get("case_sensitive", false))
 
+func mobile_key_h(level: int) -> float:
+	var lv: Dictionary = TypitLevelConfig.LEVELS[level_index(level)]
+	return float(lv.get("mobile_key_h", lv.get("key_h", 48.0)))
+
+# Fraction of screen width the keyboard spans on mobile: 1.0 at level 1 → 0.8 at last.
+func mobile_width_frac(level: int) -> float:
+	var n: int = num_levels()
+	if n <= 1:
+		return 1.0
+	var t: float = float(level_index(level)) / float(n - 1)
+	return lerpf(1.0, 0.8, t)
+
 func init_globals() -> void:
 	game.init_sizes()
 	game.reset(true)

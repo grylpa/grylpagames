@@ -1,0 +1,9 @@
+Stormfaze (Stormfaze.otf)
+
+Per the font's embedded metadata (name table):
+"Version 1.000. Released in 2024 under CC0 license. No rights reserved."
+
+CC0 1.0 Universal (Public Domain Dedication):
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No attribution is required. Verify the original source if redistributing.

@@ -3,7 +3,10 @@ class_name TypitLevelConfig
 # Per-level configuration for Typit. The size of this array determines the number
 # of levels shown in the main-menu Level slider and the stats Keys-tab selector.
 #
-# key_w, key_h   : on-screen key width/height in px (smaller = harder)
+# key_w, key_h   : DESKTOP key width/height in px (smaller = harder)
+# mobile_key_h   : key height in px on mobile. On mobile the key WIDTH is derived from
+#                  the screen so the keyboard spans 100% of the width at level 1 down to
+#                  80% at the last level (keys stay mostly square); this is the height.
 # case           : how the text to type is displayed —
 #                  "lower" (all lowercase), "upper" (ALL CAPS),
 #                  "title" (Capitalise The First Letter Of Each Word),
@@ -16,11 +19,11 @@ class_name TypitLevelConfig
 #                  this length, and never ending on a space. 0 = no limit (full passage).
 
 const LEVELS: Array = [
-	{"level": 1, "key_w": 62.0, "key_h": 58.0, "case": "upper",    "case_sensitive": false, "max_len": 18},
-	{"level": 2, "key_w": 52.0, "key_h": 48.0, "case": "title",    "case_sensitive": true,  "max_len": 24},
-	{"level": 3, "key_w": 44.0, "key_h": 40.0, "case": "sentence", "case_sensitive": true,  "max_len": 30},
-	{"level": 4, "key_w": 36.0, "key_h": 32.0, "case": "lower",    "case_sensitive": false, "max_len": 40},
-	{"level": 5, "key_w": 28.0, "key_h": 24.0, "case": "lower",    "case_sensitive": false, "max_len": 0},
+	{"level": 1, "key_w": 62.0, "key_h": 58.0, "mobile_key_h": 60.0, "case": "upper",    "case_sensitive": false, "max_len": 18},
+	{"level": 2, "key_w": 52.0, "key_h": 48.0, "mobile_key_h": 56.0, "case": "title",    "case_sensitive": true,  "max_len": 24},
+	{"level": 3, "key_w": 44.0, "key_h": 40.0, "mobile_key_h": 52.0, "case": "sentence", "case_sensitive": true,  "max_len": 30},
+	{"level": 4, "key_w": 36.0, "key_h": 32.0, "mobile_key_h": 48.0, "case": "lower",    "case_sensitive": false, "max_len": 40},
+	{"level": 5, "key_w": 28.0, "key_h": 24.0, "mobile_key_h": 44.0, "case": "lower",    "case_sensitive": false, "max_len": 0},
 ]
 
 # Sentences to type. Lowercase here; displayed in the level's chosen case.
