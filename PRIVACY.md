@@ -12,9 +12,9 @@ source code is open source and available at
 
 **Nomizo does not collect, transmit, or share any personal data.**
 
-- The app has **no user accounts** and **no backend server**.
+- The app has **no user accounts** and **does not collect any personal data**.
 - Your game scores, progress, and settings are saved **only on your device**.
-- Nothing you do in the app is sent anywhere.
+- We do **not** send your personal information to any server.
 - We show **no ads** and use **no third-party advertising, analytics, or
   tracking SDKs**.
 
@@ -31,8 +31,9 @@ photos, device identifiers, or any other personal or device information.
 
 ## Network Access
 
-Nomizo does not require an internet connection to play, and does not transmit
-any of your data over the network.
+The app may include the standard network permissions (INTERNET and network
+state) on Android. We do **not** use them to collect, transmit, or sell any of
+your personal information — no personal data is sent off your device.
 
 ## Sharing
 
