@@ -176,10 +176,9 @@ func _start_round() -> void:
 	for btn in _option_buttons:
 		btn.text = ""
 		btn.modulate = Color.WHITE
-		btn.add_theme_color_override("font_color", _letters_color)
-		btn.add_theme_color_override("font_hover_color", _letters_color)
-		btn.add_theme_color_override("font_pressed_color", _letters_color)
-		btn.add_theme_color_override("font_focus_color", _letters_color)
+		var glyph: Label = btn.get_meta("glyph")
+		glyph.text = ""
+		glyph.add_theme_color_override("font_color", _letters_color)
 	# Show GameArea before awaiting so Godot computes layout (DotsDisplay.size)
 	$"Root/GameArea".show()
 
@@ -431,15 +430,31 @@ func _ensure_option_buttons_count(n: int) -> void:
 		btn.clip_contents = true
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_override("font", MainGlobals.get_system_sans_font())
-		btn.add_theme_color_override("font_color", _letters_color)
-		btn.add_theme_color_override("font_hover_color", _letters_color)
-		btn.add_theme_color_override("font_pressed_color", _letters_color)
-		btn.add_theme_color_override("font_focus_color", _letters_color)
 		btn.add_theme_stylebox_override("normal", _style_normal)
 		btn.add_theme_stylebox_override("hover", _style_hover)
 		btn.add_theme_stylebox_override("pressed", _style_pressed)
 		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		# The letter is drawn by a child Label rather than the Button's own text.
+		# A Button's minimum height is driven by its text, which would push the
+		# size-to-content container chain (VBox → Panel → HBox) past the screen for
+		# large fonts. The Label is anchored to the Button centre and sized to its
+		# own content (grow both ways from the centre), so it is always centred,
+		# auto-recentres when the letter/font changes, and does NOT contribute to the
+		# Button's minimum size. The Button's clip_contents trims any overflow.
+		var glyph: Label = Label.new()
+		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glyph.anchor_left = 0.5
+		glyph.anchor_top = 0.5
+		glyph.anchor_right = 0.5
+		glyph.anchor_bottom = 0.5
+		glyph.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		glyph.grow_vertical = Control.GROW_DIRECTION_BOTH
+		glyph.add_theme_font_override("font", MainGlobals.get_system_sans_font())
+		glyph.add_theme_color_override("font_color", _letters_color)
+		btn.add_child(glyph)
+		btn.set_meta("glyph", glyph)
 		%OptionsVBox.add_child(btn)
 		_option_buttons.append(btn)
 
@@ -454,8 +469,10 @@ func _configure_option_buttons() -> void:
 	var letter_size: int = min(int(_cfg["letter_size"]), int(max_btn_h / 1.4))
 	for i in range(n):
 		var btn: Button = _option_buttons[i]
-		btn.text = _option_chars[i]
-		btn.add_theme_font_size_override("font_size", letter_size)
+		var glyph: Label = btn.get_meta("glyph")
+		glyph.text = _option_chars[i]
+		glyph.add_theme_font_size_override("font_size", letter_size)
+		glyph.add_theme_color_override("font_color", _letters_color)
 		for conn in btn.pressed.get_connections():
 			btn.pressed.disconnect(conn["callable"])
 		var idx: int = i
@@ -524,10 +541,8 @@ func _on_timeout_timer_timeout() -> void:
 func _on_hide_options_timer_timeout() -> void:
 	_options_hidden = true
 	for btn in _option_buttons:
-		btn.add_theme_color_override("font_color", Color(0, 0, 0, 0))
-		btn.add_theme_color_override("font_hover_color", Color(0, 0, 0, 0))
-		btn.add_theme_color_override("font_pressed_color", Color(0, 0, 0, 0))
-		btn.add_theme_color_override("font_focus_color", Color(0, 0, 0, 0))
+		var glyph: Label = btn.get_meta("glyph")
+		glyph.add_theme_color_override("font_color", Color(0, 0, 0, 0))
 
 func _show_feedback_popup(screen_pos: Vector2, text: String, is_correct: bool) -> void:
 	var font_size: int = 44 if is_correct else 60
