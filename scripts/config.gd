@@ -15,6 +15,8 @@ var games = [
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
 	["monkeyc",       "Monkey C",       "Watch the robot and figure out the rule",                "Brain twisters"],
 
+	["ptbits",        "Ptbits",         "Push each ball into its matching-colour basket",         "Attention & Speed"],
+
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["ddooo",         "DDOOO",          "Find the center shape and pay attention to the corner",  "Attention & Speed"],
