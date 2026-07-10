@@ -72,7 +72,7 @@ var tool_radius: float = 27.0
 var grab_offset: float = 44.0
 var loop_radius: float = 14.0
 var tool_bottom_gap: float = 24.0  # clearance kept between the tool loops and play_bottom
-                                   # (bigger on mobile so the loops clear the bottom button bar)
+								   # (bigger on mobile so the loops clear the bottom button bar)
 
 var _spawn_accum: float = 0.0
 var spawned_count: int = 0
@@ -314,7 +314,7 @@ func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: fl
 	var color_bit: int = _color_bit(color_id)
 	var wall_t: float = 24.0
 	var tl: Vector2 = Vector2(cx - top_w * 0.5, top_y)
-	var tr: Vector2 = Vector2(cx + top_w * 0.5, top_y)
+	var _tr: Vector2 = Vector2(cx + top_w * 0.5, top_y)
 	var bl: Vector2 = Vector2(cx - bot_w * 0.5, top_y + height)
 	var br: Vector2 = Vector2(cx + bot_w * 0.5, top_y + height)
 
@@ -326,8 +326,8 @@ func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: fl
 	var lseg: Vector2 = bl - tl
 	_add_wall_shape(body, (tl + bl) * 0.5, Vector2(lseg.length(), wall_t), lseg.angle())
 	# right slanted wall
-	var rseg: Vector2 = br - tr
-	_add_wall_shape(body, (tr + br) * 0.5, Vector2(rseg.length(), wall_t), rseg.angle())
+	var rseg: Vector2 = br - _tr
+	_add_wall_shape(body, (_tr + br) * 0.5, Vector2(rseg.length(), wall_t), rseg.angle())
 	add_child(body)
 	_walls.append(body)
 
@@ -336,7 +336,7 @@ func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: fl
 	# and resting scores.
 	var iw: float = bot_w * 0.60
 	_basket_rects[color_id] = Rect2(cx - iw * 0.5, top_y + height * 0.50, iw, height * 0.44)
-	_basket_polys[color_id] = PackedVector2Array([tl, tr, br, bl])
+	_basket_polys[color_id] = PackedVector2Array([tl, _tr, br, bl])
 
 func _add_wall_shape(body: StaticBody2D, center: Vector2, size: Vector2, rot: float) -> void:
 	var shape: CollisionShape2D = CollisionShape2D.new()
@@ -710,7 +710,7 @@ func _draw() -> void:
 func _draw_basket(color_id: int) -> void:
 	var p: PackedVector2Array = _basket_polys[color_id]
 	var tl: Vector2 = p[0]
-	var tr: Vector2 = p[1]
+	var _tr: Vector2 = p[1]
 	var br: Vector2 = p[2]
 	var bl: Vector2 = p[3]
 	var col: Color = COLORS[color_id]
@@ -720,19 +720,19 @@ func _draw_basket(color_id: int) -> void:
 	# One clean bucket = an OUTER solid trapezoid with the INNER cavity carved out (and
 	# opened at the top). Both halves are simple convex quads, so it draws cleanly and
 	# the slanted sides join the bottom with no gaps. Visible ≈ collision (walls are
-	# centerd on tl/tr/bl/br, ±hw), so the ball still rests flush.
+	# centered on tl/tr/bl/br, ±hw), so the ball still rests flush.
 	var outer: PackedVector2Array = PackedVector2Array([
-		Vector2(tl.x - hw, tl.y), Vector2(tr.x + hw, tr.y),
+		Vector2(tl.x - hw, tl.y), Vector2(_tr.x + hw, _tr.y),
 		Vector2(br.x + hw, br.y + 2.0 * hw), Vector2(bl.x - hw, bl.y + 2.0 * hw)])
 	draw_colored_polygon(outer, col)
 	# carve the cavity (raised above the mouth so the top is open)
 	var inner: PackedVector2Array = PackedVector2Array([
-		Vector2(tl.x + hw, tl.y - 30.0), Vector2(tr.x - hw, tr.y - 30.0),
+		Vector2(tl.x + hw, tl.y - 30.0), Vector2(_tr.x - hw, _tr.y - 30.0),
 		Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)])
 	draw_colored_polygon(inner, bd)
 	# faint color tint inside the cavity (from the mouth down)
 	var tint: PackedVector2Array = PackedVector2Array([
-		Vector2(tl.x + hw, tl.y), Vector2(tr.x - hw, tr.y),
+		Vector2(tl.x + hw, tl.y), Vector2(_tr.x - hw, _tr.y),
 		Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)])
 	draw_colored_polygon(tint, Color(col.r, col.g, col.b, 0.14))
 
