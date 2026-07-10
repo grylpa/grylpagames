@@ -35,6 +35,7 @@ var spawn_interval: float = 3.4
 var max_active: int = 1
 var rounds: int = 6
 var ball_radius: float = 27.0
+var level_time_sec: int = 60
 
 # play rectangle (global/screen coords; Node2D sits at origin)
 var play_left: float = 0.0
@@ -63,11 +64,6 @@ const TOOL_MAX_SPEED: float = 1150.0
 # solver and misses the pinch impulse. Normal fall is 80-140 px/s.
 const MAX_BALL_SPEED: float = 420.0
 const BALL_SCRIPT: GDScript = preload("res://ptbits/scripts/ball.gd")
-# A ball that comes to rest (speed < REST_SPEED) anywhere OUTSIDE a basket for
-# REST_TIMEOUT_MS is counted as a miss — otherwise a ball stuck on a tool/bumper
-# would never resolve and (with the current ball gating spawns) softlock the level.
-const REST_SPEED: float = 26.0
-const REST_TIMEOUT_MS: float = 5000.0
 # tool_radius doubles on mobile (set in _ready) so a fingertip doesn't hide it.
 var tool_radius: float = 27.0
 # The tool has a pusher disc on top and a stem + loop handle below. The player
@@ -123,26 +119,43 @@ func _recompute_play_rect() -> void:
 
 func new_game(_from_scratch: bool = true) -> void:
 	game.level_is_done = false
+	game.level_is_ready = false  # play starts only when the pre-level popup is closed
 	_recompute_play_rect()
 	# monotonic level counter (didi pattern): start at the chosen level, then bump
 	# by one each time a level is completed (capped at the last level).
 	if _from_scratch:
-		total_rounds = 0
-		total_corrects = 0
 		current_level_id = PtbitsG.starting_level_id
 	elif game.need_to_increase_level:
 		current_level_id = mini(current_level_id + 1, PtbitsLevelConfig.max_level())
 	game.need_to_increase_level = false
+	# per-level stats reset EVERY level (each level scores separately): the HUD
+	# hits/misses and the level-done accuracy are for this level only. main.gd's
+	# hud.update_all() after this refreshes the display.
+	total_rounds = 0
+	total_corrects = 0
+	game.corrects = 0
+	game.mistakes = 0
+	times_to_answer.clear()
 	_load_level(current_level_id)
 	_build_world()
 	spawned_count = 0
 	resolved_count = 0
 	_spawn_accum = spawn_interval * 0.4  # first ball drops fairly soon
-	times_to_answer.clear()
 	_phys_frozen = false
-	game.level_is_ready = true
 	queue_redraw()
-	started_playing.emit()
+	# Pre-level popup: tell the player what to expect. Play (and the countdown) only
+	# start once it's closed, via _on_game_popup_closed (didi/storm pattern).
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	var t: int = level_time_sec
+	var timestr: String = ("%d:%02d min" % [t / 60, t % 60]) if t >= 60 else ("%d sec" % t)
+	game.show_game_popup(self, "Level %d" % current_level_id,
+		"Sort %d balls into their\nmatching-color baskets.\n\nColors: %d\nTime: %s" % [rounds, num_colors, timestr])
+
+func _on_game_popup_closed() -> void:
+	if not game.level_is_done and not game.level_is_ready:
+		game.level_is_ready = true
+		started_playing.emit()
 
 func _load_level(id: int) -> void:
 	var def: Dictionary = PtbitsLevelConfig.get_level(id)
@@ -154,6 +167,11 @@ func _load_level(id: int) -> void:
 	ball_radius = float(def.get("ball_radius", 25))
 	if MainGlobals.is_mobile():
 		ball_radius += 6.0  # a bit bigger so it's visible under a fingertip
+	# (re)set the clock to this level's own budget — each level gets fresh time sized
+	# to bucket all its balls. Runs after game.reset(), so it takes precedence.
+	level_time_sec = int(def.get("time_sec", 60))
+	game.set_reset_time_left(level_time_sec)
+	game.set_time_left(0, 0, level_time_sec)
 	game.level_label_changed("Level " + str(def.get("name", id)))
 
 func _color_bit(color_id: int) -> int:
@@ -473,6 +491,10 @@ func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
 	MainGlobals.global_update_hud()
 	ball.queue_free()
 
+	# check level completion immediately on every resolve (hit OR miss)
+	if resolved_count >= rounds and not game.level_is_done:
+		_level_done(true)
+
 func _flash_miss(pos: Vector2) -> void:
 	# a fading red ✗ so a vanished ball reads clearly as a miss
 	var lbl: Label = Label.new()
@@ -490,9 +512,6 @@ func _flash_miss(pos: Vector2) -> void:
 	tw.tween_property(lbl, "modulate:a", 0.0, 0.75)
 	tw.tween_property(lbl, "position:y", lbl.position.y - 44.0, 0.75)
 	tw.chain().tween_callback(lbl.queue_free)
-
-	if resolved_count >= rounds and not game.level_is_done:
-		_level_done()
 
 # --- Frame updates ----------------------------------------------------------
 
@@ -575,16 +594,9 @@ func _process(delta: float) -> void:
 		var speed: float = ball.linear_velocity.length()
 		var in_basket: bool = cid < _basket_rects.size() and (_basket_rects[cid] is Rect2) \
 			and (_basket_rects[cid] as Rect2).has_point(pos)
-		# rest-timeout: a ball stuck at rest outside a basket is eventually a miss, so
-		# a stuck ball can never softlock the spawner.
-		if speed < REST_SPEED and not in_basket:
-			var rest: float = float(ball.get_meta("rest_ms", 0.0)) + delta * 1000.0
-			ball.set_meta("rest_ms", rest)
-			if rest >= REST_TIMEOUT_MS:
-				to_miss.append(ball)
-				continue
-		else:
-			ball.set_meta("rest_ms", 0.0)
+		# A ball only resolves by being bucketed or by falling out the bottom — there is
+		# NO rest timeout. A ball left stuck on a dropped tool is intentional: the player
+		# must move the tool to free it (dropped tools are part of the game).
 		if cid >= _basket_polys.size() or not (_basket_polys[cid] is PackedVector2Array):
 			continue
 		var poly: PackedVector2Array = _basket_polys[cid]
@@ -720,18 +732,25 @@ func _draw_basket(color_id: int) -> void:
 
 # --- Level completion -------------------------------------------------------
 
-func _level_done() -> void:
+func _level_done(didwin: bool) -> void:
 	game.level_is_done = true
-	game.need_to_increase_level = true  # next new_game(false) advances to the next level
-	game.sig_level_is_done.emit(true)
+	game.sig_level_is_done.emit(didwin)  # save the level score with the win flag
+	if not didwin:
+		sig_level_is_done.emit(false)
+		return
 	MainGlobals.global_level_is_done(true)
+	if current_level_id >= PtbitsLevelConfig.max_level():
+		# already at the top level — loop it (no increase, no popup)
+		sig_level_is_done.emit(true)
+		return
+	game.need_to_increase_level = true  # next new_game(false) advances to the next level
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
 	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
 		pct_correct(),
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
-	game.show_level_done_popup(self, "", extra, 0, "")
+	game.show_level_done_popup(self, "", "", current_level_id, extra)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

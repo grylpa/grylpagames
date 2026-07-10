@@ -15,8 +15,7 @@ var games = [
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
 	["monkeyc",       "Monkey C",       "Watch the robot and figure out the rule",                "Brain twisters"],
 
-	["ptbits",        "Ptbits",         "Push each ball into its matching-color basket",         "Attention & Speed"],
-
+	["ptbits",        "Ptbits",         "Push each ball into its matching-color basket",          "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["ddooo",         "DDOOO",          "Find the center shape and pay attention to the corner",  "Attention & Speed"],
@@ -35,7 +34,7 @@ var games = [
 	["parkem",        "Parkem",         "Don't allow the monsters to reach their goals",          "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
-	["typit",         "Typit",          "Tap precisely — every touch position is measured",        "Reflexes"],
+	["typit",         "Typit",          "Tap precisely — every touch position is measured",       "Reflexes"],
 
 	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
 

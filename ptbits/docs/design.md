@@ -6,7 +6,7 @@
 **Folder:** `ptbits/`
 **Singletons:** `PtbitsG`, `PtbitsLevelConfig`
 **Save key (short name):** `ptbits`
-**Initial time:** 1 minute (game over on time out)
+**Time:** per-level `time_sec` budget, reset each level (game over on time out)
 **Category:** Attention & Speed
 **Clear color:** `0x161d2bff` (dark slate)
 
@@ -184,15 +184,25 @@ via `set_collision_layer_value` / `set_collision_mask_value` (1-based bit indice
 
 ## Gameplay Flow
 
-1. `new_game()` pops the next level id, `_load_level()` sets difficulty, `_build_world()`
-   rebuilds outer walls + baskets + tools (color count can change between levels).
+1. `new_game()` sets `current_level_id` (start level, or +1 on advance), `_load_level()` sets
+   difficulty, `_build_world()` rebuilds outer walls + baskets + tools (color count can change).
+1b. **Pre-level popup** (didi/storm pattern): `new_game()` sets `level_is_ready = false` and calls
+   `game.show_game_popup("Level N", "Sort R balls … Colors: C … Time: T")` to tell the player how
+   many balls, how many colors, and how much time to expect. It does **not** emit `started_playing` yet — so play and the
+   countdown are paused. On close, `_on_game_popup_closed()` sets `level_is_ready = true` and emits
+   `started_playing`, which flips `game.playing` on and starts the clock.
 2. `_process()` spawns a ball every `spawn_interval`s while `spawned_count < rounds` and
-   fewer than `max_active` balls are on screen.
+   fewer than `max_active` balls are on screen (so exactly `rounds` balls ever spawn).
 3. Player drags tools to push balls into matching baskets.
-4. `_process()` resolves balls: inside matching basket → **scored**; below the bottom →
-   **miss**. Each counts toward `resolved_count`.
-5. When `resolved_count >= rounds`, `_level_done()` fires: records result, shows the level-
-   done popup, emits `sig_level_is_done`. `main.gd` then advances to the next level.
+4. `_process()` resolves balls: settled in matching basket → **scored**; out the bottom **or**
+   out the bottom → **miss**. Each increments `resolved_count`.
+5. **`_resolve_ball()` checks completion on every resolve** (hit or miss): when
+   `resolved_count >= rounds` it calls `_level_done(true)`. That emits `game.sig_level_is_done(didwin)`
+   (saves the level score with the win flag) and — if not at the top level — shows the level-done
+   popup and sets `need_to_increase_level`; on popup close it emits `Level.sig_level_is_done`, and
+   `main.gd` advances via `new_game(false)`. **At the top level it loops with no popup.** (The
+   completion check must live in `_resolve_ball`, not `_flash_miss` — that only runs on a miss, so a
+   level ending on a *scored* final ball would never complete and balls would stop dropping.)
 6. **Time out** (1 min) → `game.game_over_on_time_out` ends the game via the HUD.
 
 ## Pause handling
@@ -205,24 +215,34 @@ restored on resume. Tool dragging and spawning also early-return while paused.
 
 ## Level Config (`PtbitsLevelConfig.LEVELS`)
 
-| ID/Name | Colors | gravity_scale | spawn | max_active | rounds | radius |
-|---------|--------|---------------|-------|-----------|--------|--------|
-| 1 | 2 | 0.26 | 3.1s | 10000 | 6  | 27 |
-| 2 | 2 | 0.30 | 2.8s | 10000 | 8  | 25 |
-| 3 | 3 | 0.34 | 2.6s | 10000 | 10 | 25 |
-| 4 | 3 | 0.40 | 2.2s | 10000 | 12 | 23 |
-| 5 | 4 | 0.46 | 2.0s | 10000 | 14 | 23 |
+| ID/Name | Colors | gravity_scale | spawn | max_active | rounds | radius | time_sec |
+|---------|--------|---------------|-------|-----------|--------|--------|----------|
+| 1 | 2 | 0.26 | 4.8s | 10000 | 6  | 27 | 40 |
+| 2 | 2 | 0.30 | 3.8s | 10000 | 8  | 25 | 50 |
+| 3 | 3 | 0.34 | 3.6s | 10000 | 10 | 25 | 60 |
+| 4 | 3 | 0.40 | 3.2s | 10000 | 12 | 23 | 70 |
+| 5 | 4 | 0.46 | 3.0s | 10000 | 14 | 23 | 80 |
 
 `max_active` (cap on concurrent balls) is set to **10000 = effectively unlimited** for now — balls
 just spawn on the `spawn_interval` timer up to `rounds`. The mechanism is kept in the code in case
 a concurrency cap is wanted later. (`gravity_scale` is tuned against `linear_damp = 3.2`; see
 Balls → Fall speed.)
 
+**`time_sec` (per-level time budget):** the clock is **(re)set to this level's budget at each
+level start** (`_load_level` → `set_reset_time_left` + `set_time_left`, which run after
+`game.reset()` so they win) — every level gets fresh time, not a shared game-wide budget. It's
+sized so a player can bucket **every** ball: they maneuver balls one at a time (one tool drag) at
+~5s each, and all `rounds` balls have appeared by `rounds·spawn_interval` (spawn_interval ≤ 5, so
+handling dominates), giving `time_sec ≈ rounds·5 + 10`. Note L4/L5 exceed 60s because 12–14 balls
+genuinely need it.
+
 **Progression (didi pattern):** `current_level_id` is a monotonic counter — it starts at
 `PtbitsG.starting_level_id`, and each completed level sets `game.need_to_increase_level = true`
 so the next `new_game(false)` bumps it by one, capped at `PtbitsLevelConfig.max_level()` (stays
-at the top level after that). Time and score/counts carry across levels within a game (only a
-from-scratch `new_game` resets them) — the whole game is one time budget. Settings array:
+at the top level after that). **Time is (re)set to the new level's `time_sec` at each level**, and
+the **hits/misses counters + per-level accuracy stats (`game.corrects`/`mistakes`,
+`total_corrects`/`total_rounds`, `times_to_answer`) reset every level** (each level scores
+separately). The running **score carries** across levels. Settings array:
 `[starting_level_id]`. (An earlier pop-queue had an ordering bug that replayed level 1.)
 
 Color palette (`level.gd COLORS`, up to 6): red, blue, green, yellow, purple, orange.
@@ -232,12 +252,11 @@ Color palette (`level.gd COLORS`, up to 6): red, blue, green, yellow, purple, or
 ## Scoring
 
 - Correct drop: `+15` + speed bonus (`max(0, 10 - elapsed_sec)`, i.e. up to +10 for a fast drop).
-- Miss (ball falls out the bottom, **or** rests outside a basket for `REST_TIMEOUT_MS` = 5s at
-  speed `< REST_SPEED`): `-min(5, score)`, plus `_flash_miss()` fades a red ✗ at the spot.
-  The rest-timeout is essential: a new ball only spawns once the current one resolves, so a ball
-  stuck at rest (on a dropped tool or a bumper) would otherwise **softlock the level** (no more
-  balls drop, you just wait out the clock). Per-ball `rest_ms` accumulates while slow + outside a
-  basket, and resets the moment it moves or enters a basket.
+- Miss (ball falls out the bottom): `-min(5, score)`, plus `_flash_miss()` fades a red ✗ at the spot.
+- **No rest timeout.** A ball resolves only by being bucketed or falling out the bottom. A ball you
+  ignore drops out on its own (gravity, no floor). A ball left **stuck on a tool you dropped** is
+  intentional — the level waits, and the player must move the tool to free it (dropped tools staying
+  put is part of the game). If a level's clock runs out with a ball still stuck, that's a fair loss.
 - Score row: `[didwin, wasaborted, level_id, mean_response_time_ms, pct_correct]`
   with `progress_level_pos = 6`, `progress_time_pos = 7`, `progress_pct_pos = 8`
   (shown as level name + avg time, like bucketmadness).
