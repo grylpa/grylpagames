@@ -49,7 +49,7 @@ func _draw() -> void:
 		draw_arc(Vector2(cx, cy), r, 0.0, TAU, 80, Color(0.4, 0.82, 0.92, alpha_outer), w_outer)
 		draw_arc(Vector2(cx, cy), r * 0.55, 0.0, TAU, 60, Color(0.4, 0.82, 0.92, alpha_inner), w_inner)
 
-	# Expanding ring feedback on each tap — always centred on the circle
+	# Expanding ring feedback on each tap — always centerd on the circle
 	if not state.get("ring_active", false):
 		return
 	var pos: Vector2 = Vector2(size.x * 0.5, size.y * 0.5)

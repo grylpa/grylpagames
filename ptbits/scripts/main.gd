@@ -20,7 +20,7 @@ func _ready() -> void:
 
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
-	main_menu.add_option_entry(1, "Starting level", PtbitsLevelDefs.level_names())
+	main_menu.add_option_entry(1, "Starting level", PtbitsLevelConfig.level_names())
 	refresh_menu()
 	show_main_menu()
 
@@ -37,12 +37,12 @@ func _ready() -> void:
 	$Help.close_help.connect(_on_help_close_help)
 
 	game.set_instructions("Ptbits",
-		"Coloured balls fall from the top.\n" +
+		"Colored balls fall from the top.\n" +
 		"Drag a tool with your finger.\n" +
-		"A tool only pushes balls of its own colour —\n" +
-		"other colours pass right through it.\n" +
+		"A tool only pushes balls of its own color —\n" +
+		"other colors pass right through it.\n" +
 		"Push each ball up and over into the\n" +
-		"matching-colour basket on the side.\n" +
+		"matching-color basket on the side.\n" +
 		"Drop it in from the top. Don't let balls fall out.", 26)
 	if not game.shown_instructions:
 		game.show_instructions(self)
@@ -55,7 +55,7 @@ func _ready() -> void:
 	game.progress_level_pos = POS_SCORE_LEVEL_ID
 	game.progress_time_pos = POS_SCORE_MEAN_TIME_MS
 	game.progress_pct_pos = POS_SCORE_PCT_CORRECT
-	for lvl in PtbitsLevelDefs.LEVELS:
+	for lvl in PtbitsLevelConfig.LEVELS:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
@@ -106,7 +106,7 @@ func _on_main_menu_start_game(_start_new: bool) -> void:
 
 func _on_menu_option_changed(id: int, idx: int) -> void:
 	if id == 1:
-		PtbitsG.starting_level_id = PtbitsLevelDefs.LEVELS[idx]["id"]
+		PtbitsG.starting_level_id = PtbitsLevelConfig.LEVELS[idx]["id"]
 		PtbitsG.save_settings()
 
 func _on_level_show_main_menu() -> void:
@@ -128,7 +128,7 @@ func on_game_is_done(_didwin: bool, _wasaborted: bool) -> void:
 func add_score_line_vals(score_row: Array) -> Array:
 	var res: Array = []
 	if score_row.size() > POS_SCORE_LEVEL_ID:
-		var lvl: Dictionary = PtbitsLevelDefs.get_level(score_row[POS_SCORE_LEVEL_ID])
+		var lvl: Dictionary = PtbitsLevelConfig.get_level(score_row[POS_SCORE_LEVEL_ID])
 		res.append(lvl.get("name", "?"))
 	if score_row.size() > POS_SCORE_MEAN_TIME_MS:
 		res.append(str(int(score_row[POS_SCORE_MEAN_TIME_MS])))
@@ -160,4 +160,4 @@ func _input(event: InputEvent) -> void:
 		game.handle_event(event, self)
 
 func refresh_menu() -> void:
-	main_menu.update_option(1, PtbitsLevelDefs.id_to_index(PtbitsG.starting_level_id))
+	main_menu.update_option(1, PtbitsLevelConfig.id_to_index(PtbitsG.starting_level_id))

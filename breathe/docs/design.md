@@ -85,7 +85,7 @@ Root `Level` (CanvasLayer, `level.gd`). Children:
 
 Settings saved as `[duration_min]`.
 
-The `game` GenericGameUtil is initialised with `(16, 0, 0)` — 16 hours — so its built-in timer never expires. Session timing is managed entirely within `level.gd`.
+The `game` GenericGameUtil is initialized with `(16, 0, 0)` — 16 hours — so its built-in timer never expires. Session timing is managed entirely within `level.gd`.
 
 ---
 
@@ -96,7 +96,7 @@ The `game` GenericGameUtil is initialised with `(16, 0, 0)` — 16 hours — so 
 3. Session begins — countdown shows remaining time, breath count shows 0; breathing circle is static (no animation yet)
 4. Player taps anywhere on screen once per breath; each tap:
    - Records timestamp (`_elapsed_ms` at tap time)
-   - Triggers expanding ring animation centred on the circle
+   - Triggers expanding ring animation centerd on the circle
    - Increments displayed breath count
    - First tap sets `game.score_was_changed = true`
    - From tap 4 onwards: rhythm animation activates; amplitude ramps from 1/3 to full over taps 4–8
@@ -168,7 +168,7 @@ Thin bar along the top edge: tracks `_elapsed_ms / _duration_ms`.
 
 ### Ring Feedback
 
-On each tap: expanding ring centred on the breathing circle (not tap position). Age 0→1 over ~0.56s (`_ring_age += delta * 1.8`). Outer radius expands 50→220px (mobile) or 30→130px (desktop).
+On each tap: expanding ring centerd on the breathing circle (not tap position). Age 0→1 over ~0.56s (`_ring_age += delta * 1.8`). Outer radius expands 50→220px (mobile) or 30→130px (desktop).
 
 ### Mobile Contrast
 

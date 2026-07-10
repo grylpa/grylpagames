@@ -32,7 +32,7 @@ func _make_ball_texture(d: int) -> Texture2D:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 			else:
 				# radial shading: bright center, slightly darker edge -> 3D ball look.
-				# White base so per-ball modulate tints it to any colour cleanly.
+				# White base so per-ball modulate tints it to any color cleanly.
 				var shade: float = clampf(1.0 - (dist / rad) * 0.30, 0.62, 1.0)
 				img.set_pixel(x, y, Color(shade, shade, shade, a))
 	return ImageTexture.create_from_image(img)
@@ -44,7 +44,7 @@ func init_globals() -> void:
 	game.reset(true)
 
 func reset_queue_from(start_id: int) -> void:
-	var base: Array = PtbitsLevelDefs.LEVEL_PROGRESSION_ORDER.duplicate()
+	var base: Array = PtbitsLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
 	var idx: int = base.find(start_id)
 	if idx > 0:
 		level_queue = base.slice(idx) + base.slice(0, idx)
@@ -53,7 +53,7 @@ func reset_queue_from(start_id: int) -> void:
 
 func pop_next_level_id() -> int:
 	if level_queue.is_empty():
-		level_queue = PtbitsLevelDefs.LEVEL_PROGRESSION_ORDER.duplicate()
+		level_queue = PtbitsLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
 	return level_queue.pop_front()
 
 func record_level_result(level_id: int, pct: int) -> void:

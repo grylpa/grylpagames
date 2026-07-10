@@ -2,18 +2,18 @@ extends Node2D
 
 # Ptbits gameplay.
 #
-# Coloured balls (RigidBody2D) fall slowly from the top. The player drags
-# colour-matching "tools" (AnimatableBody2D paddles) to physically push a ball
-# up and over into the matching-colour basket on the side. A tool only collides
-# with balls of its own colour — other colours pass straight through it.
+# Colored balls (RigidBody2D) fall slowly from the top. The player drags
+# color-matching "tools" (AnimatableBody2D paddles) to physically push a ball
+# up and over into the matching-color basket on the side. A tool only collides
+# with balls of its own color — other colors pass straight through it.
 #
-# Colour = physics layer. Bit 1 = OUTER (side walls / ceiling). Colour i uses
-# bit (2 + i), shared by that colour's balls, tool and basket walls:
+# Color = physics layer. Bit 1 = OUTER (side walls / ceiling). Color i uses
+# bit (2 + i), shared by that color's balls, tool and basket walls:
 #   ball_i : layer bit(2+i); mask = OUTER | bit(2+i)
 #   tool_i : layer bit(2+i); mask = 0   (detected/pushed by ball_i, ignores everything else)
 #   basket_i walls / outer walls : layer only, mask = 0 (static)
 # Result: ball_i collides with outer walls, its own tool and its own basket, and
-# with same-colour balls; it ignores every other colour's tool and basket.
+# with same-color balls; it ignores every other color's tool and basket.
 
 const COLORS: Array = [
 	Color(0.93, 0.30, 0.32),  # 0 red
@@ -43,13 +43,14 @@ var play_top: float = 60.0
 var play_bottom: float = 748.0
 
 var _walls: Array = []            # static bodies (outer + basket walls)
-var _tools: Array = []            # AnimatableBody2D paddles, index == colour id
+var _tools: Array = []            # AnimatableBody2D paddles, index == color id
 var _tools_layer: Node2D = null   # holds the tools so the grabbed one can be raised above the others
-var _wall_material: PhysicsMaterial = null  # bouncy outer walls (helps un-stick side-pinned balls)
 var _balls: Array = []            # active RigidBody2D balls
-var _basket_rects: Array = []     # index == colour id -> global interior Rect2 (scoring)
-var _basket_polys: Array = []     # index == colour id -> PackedVector2Array [TL,TR,BR,BL] (draw)
-var _deflectors: Array = []       # [p1, p2] chamfer segments at the top corners (draw)
+var _basket_rects: Array = []     # index == color id -> global interior Rect2 (scoring)
+var _basket_polys: Array = []     # index == color id -> PackedVector2Array [TL,TR,BR,BL] (draw)
+var _bumpers: Array = []          # PackedVector2Array triangles: solid mid-side deflectors (draw)
+var _spawn_min_x: float = 0.0     # ball spawn x band (between the bucket columns, so no ball
+var _spawn_max_x: float = 0.0     # falls straight into a bucket)
 
 var _dragging_tool: AnimatableBody2D = null
 var _drag_target: Vector2 = Vector2.ZERO
@@ -62,8 +63,18 @@ const TOOL_MAX_SPEED: float = 1150.0
 # solver and misses the pinch impulse. Normal fall is 80-140 px/s.
 const MAX_BALL_SPEED: float = 420.0
 const BALL_SCRIPT: GDScript = preload("res://ptbits/scripts/ball.gd")
+# A ball that comes to rest (speed < REST_SPEED) anywhere OUTSIDE a basket for
+# REST_TIMEOUT_MS is counted as a miss — otherwise a ball stuck on a tool/bumper
+# would never resolve and (with the current ball gating spawns) softlock the level.
+const REST_SPEED: float = 26.0
+const REST_TIMEOUT_MS: float = 5000.0
 # tool_radius doubles on mobile (set in _ready) so a fingertip doesn't hide it.
 var tool_radius: float = 27.0
+# The tool has a pusher disc on top and a stem + loop handle below. The player
+# grabs the LOOP, so the disc (and the ball it pushes) sits above the finger and
+# stays visible. grab_offset = distance from disc center down to the loop center.
+var grab_offset: float = 44.0
+var loop_radius: float = 14.0
 
 var _spawn_accum: float = 0.0
 var spawned_count: int = 0
@@ -88,16 +99,12 @@ func _ready() -> void:
 	game.add_sound(self, "wrong", wrong_audio)
 	if MainGlobals.is_mobile():
 		tool_radius = 54.0  # twice as big so a fingertip doesn't hide it
+	grab_offset = tool_radius * 2.4
+	loop_radius = tool_radius * 0.46
 	# tools live in their own layer (added before any balls, so balls still draw on
 	# top) so the grabbed tool can be raised above the OTHER tools and stay there.
 	_tools_layer = Node2D.new()
 	add_child(_tools_layer)
-	# springy outer walls: a ball jammed into a wall rebounds toward centre, which
-	# frees a side-pinned ball. Restitution combines as max, so tool/bucket contacts
-	# (no material) keep the ball's own low 0.4 bounce.
-	_wall_material = PhysicsMaterial.new()
-	_wall_material.bounce = 0.9
-	_wall_material.friction = 0.4
 	_recompute_play_rect()
 	set_process(true)
 	set_physics_process(true)
@@ -136,7 +143,7 @@ func new_game(_from_scratch: bool = true) -> void:
 	started_playing.emit()
 
 func _load_level(id: int) -> void:
-	var def: Dictionary = PtbitsLevelDefs.get_level(id)
+	var def: Dictionary = PtbitsLevelConfig.get_level(id)
 	num_colors = int(def.get("num_colors", 2))
 	gravity_scale = float(def.get("gravity_scale", 0.16))
 	spawn_interval = float(def.get("spawn_interval", 3.0))
@@ -191,8 +198,6 @@ func _add_static_box(rect: Rect2, layer_bit: int) -> void:
 	shape.shape = rs
 	body.add_child(shape)
 	_set_layers(body, [layer_bit], [])
-	if layer_bit == LAYER_OUTER and _wall_material != null:
-		body.physics_material_override = _wall_material
 	add_child(body)
 	_walls.append(body)
 
@@ -202,24 +207,35 @@ func _build_outer_walls() -> void:
 	_add_static_box(Rect2(play_left - t, play_top - t, t, (play_bottom - play_top) + t * 2.0), LAYER_OUTER)
 	_add_static_box(Rect2(play_right, play_top - t, t, (play_bottom - play_top) + t * 2.0), LAYER_OUTER)
 	_add_static_box(Rect2(play_left - t, play_top - t, (play_right - play_left) + t * 2.0, t), LAYER_OUTER)
-	# Chamfer the top corners: a ball pinned against a side wall can be pushed UP
-	# and the diagonal deflects it back toward the centre — an escape route so a
-	# ball is never permanently stuck where you can only push it up or drop it.
-	_deflectors.clear()
-	var d: float = 96.0
-	_add_deflector(Vector2(play_left, play_top + d), Vector2(play_left + d, play_top))
-	_add_deflector(Vector2(play_right, play_top + d), Vector2(play_right - d, play_top))
+	# Solid triangular bumpers, high up (25% from the top): long (vertical) side on
+	# the screen wall, a 45° face top and bottom meeting at an inward apex. A ball
+	# falling from above slides down-and-inward off the top face; a ball pushed up
+	# from below slides up-and-inward off the bottom face — either way toward center.
+	# Being a solid rigid shape the whole ball radius is handled (no squeeze) and it
+	# can't be forced through. These are now the main way to work a ball inward.
+	_bumpers.clear()
+	var cy: float = play_top + (play_bottom - play_top) * 0.25
+	_add_side_bumper(true, cy, 52.0)
+	_add_side_bumper(false, cy, 52.0)
 
-func _add_deflector(p1: Vector2, p2: Vector2) -> void:
+func _add_side_bumper(on_left: bool, cy: float, size: float) -> void:
+	var wall_x: float = play_left if on_left else play_right
+	var apex_x: float = (play_left + size) if on_left else (play_right - size)
+	var tri: PackedVector2Array = PackedVector2Array([
+		Vector2(wall_x, cy - size),   # top, on the wall
+		Vector2(apex_x, cy),          # inward apex
+		Vector2(wall_x, cy + size),   # bottom, on the wall
+	])
 	var body: StaticBody2D = StaticBody2D.new()
 	_set_layers(body, [LAYER_OUTER], [])
-	if _wall_material != null:
-		body.physics_material_override = _wall_material
-	var seg: Vector2 = p2 - p1
-	_add_wall_shape(body, (p1 + p2) * 0.5, Vector2(seg.length(), 22.0), seg.angle())
+	var shape: CollisionShape2D = CollisionShape2D.new()
+	var poly: ConvexPolygonShape2D = ConvexPolygonShape2D.new()
+	poly.points = tri
+	shape.shape = poly
+	body.add_child(shape)
 	add_child(body)
 	_walls.append(body)
-	_deflectors.append([p1, p2])
+	_bumpers.append(tri)
 
 func _build_baskets() -> void:
 	_basket_rects.clear()
@@ -227,18 +243,21 @@ func _build_baskets() -> void:
 	_basket_rects.resize(num_colors)
 	_basket_polys.resize(num_colors)
 
-	# free-standing trapezoidal buckets: wide open top, narrower bottom.
-	var top_w: float = 120.0
-	var bot_w: float = 82.0
-	var height: float = 94.0
+	# free-standing trapezoidal buckets: wide open top, narrower bottom. Sized so the
+	# interior still fits a ball AFTER the thick (24px) walls (which stop the tool
+	# from force-pushing a ball through the wall into the bucket).
+	var top_w: float = 134.0
+	var bot_w: float = 104.0
+	var height: float = 96.0
 
-	# distribute colours: even ids on left, odd ids on right, stacked downward
+	# distribute colors: even ids on left, odd ids on right, stacked downward
 	var left_count: int = 0
 	var right_count: int = 0
 	var play_h: float = play_bottom - play_top
 	var base_y: float = play_top + play_h * 0.36
-	# more gap between stacked buckets on mobile (taller screen, was too cramped)
-	var step: float = height + (92.0 if MainGlobals.is_mobile() else 30.0)
+	# gap between stacked buckets: account for the 24px bottom wall (the visible bucket
+	# is height + 24 tall) plus a clear gap, so top/bottom buckets never touch.
+	var step: float = height + 24.0 + (92.0 if MainGlobals.is_mobile() else 44.0)
 	# Buckets are free-standing ISLANDS held well off the walls: the outer clearance
 	# is wider than a ball, so there is no wall-adjacent ledge to trap/jitter a ball
 	# pushed up along the wall (it rides the ceiling deflector back to open space
@@ -246,6 +265,10 @@ func _build_baskets() -> void:
 	var clearance: float = ball_radius * 2.0 + 26.0
 	var cx_left: float = play_left + clearance + top_w * 0.5
 	var cx_right: float = play_right - clearance - top_w * 0.5
+	# spawn balls only in the central band between the bucket columns, so a ball
+	# never falls straight into (its own or any) bucket without being maneuvered.
+	_spawn_min_x = cx_left + top_w * 0.5 + ball_radius + 14.0
+	_spawn_max_x = cx_right - top_w * 0.5 - ball_radius - 14.0
 
 	for i in num_colors:
 		var on_left: bool = (i % 2) == 0
@@ -266,7 +289,7 @@ func _build_baskets() -> void:
 # two slanted sides + a bottom. Sits as an island away from the screen walls.
 func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: float, height: float) -> void:
 	var color_bit: int = _color_bit(color_id)
-	var wall_t: float = 12.0
+	var wall_t: float = 24.0
 	var tl: Vector2 = Vector2(cx - top_w * 0.5, top_y)
 	var tr: Vector2 = Vector2(cx + top_w * 0.5, top_y)
 	var bl: Vector2 = Vector2(cx - bot_w * 0.5, top_y + height)
@@ -285,7 +308,7 @@ func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: fl
 	add_child(body)
 	_walls.append(body)
 
-	# Scoring zone: lower-CENTRE of the bucket, inset from every wall. Combined with
+	# Scoring zone: lower-CENTER of the bucket, inset from every wall. Combined with
 	# the drop-in arming + settle checks in _process, only a ball actually dropped in
 	# and resting scores.
 	var iw: float = bot_w * 0.60
@@ -303,10 +326,8 @@ func _add_wall_shape(body: StaticBody2D, center: Vector2, size: Vector2, rot: fl
 
 func _build_tools() -> void:
 	_tools.resize(num_colors)
-	# raise the tray on mobile so tools don't overlap the bottom button bar
-	var tray_y: float = play_bottom - 64.0
-	if MainGlobals.is_mobile():
-		tray_y -= 40.0
+	# rest the discs high enough that the loop below them clears the bottom bar
+	var tray_y: float = play_bottom - grab_offset - loop_radius - 24.0
 	var span_left: float = play_right * 0.24
 	var span_right: float = play_right * 0.76
 	for i in num_colors:
@@ -325,15 +346,34 @@ func _make_tool(color_id: int) -> AnimatableBody2D:
 	_set_layers(tool, [_color_bit(color_id)], [])
 	tool.set_meta("color_id", color_id)
 
+	# Collision is ONLY the disc (origin) — the stem/loop are a visual grab handle
+	# and don't push balls. The disc is round so a ball can't rest on it.
 	var shape: CollisionShape2D = CollisionShape2D.new()
 	var cs: CircleShape2D = CircleShape2D.new()
 	cs.radius = tool_radius
 	shape.shape = cs
 	tool.add_child(shape)
 
-	# visual round tool: filled disc + darker rim + a small hub. Round on purpose
-	# so a ball can never rest on top of it — you must keep nudging.
 	var col: Color = COLORS[color_id]
+	# handle: a thick rounded bar between the disc (big "head") and the loop —
+	# roughly an ant: big head, body, then the loop at the tail.
+	var handle: Line2D = Line2D.new()
+	handle.add_point(Vector2(0.0, tool_radius * 0.45))
+	handle.add_point(Vector2(0.0, grab_offset - loop_radius))
+	handle.width = maxf(9.0, tool_radius * 0.42)
+	handle.default_color = col.darkened(0.22)
+	handle.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	handle.end_cap_mode = Line2D.LINE_CAP_ROUND
+	tool.add_child(handle)
+	# loop handle (an open ring the player grabs)
+	var loop: Line2D = Line2D.new()
+	loop.points = _circle_points(loop_radius, 22)
+	loop.closed = true
+	loop.width = maxf(5.0, tool_radius * 0.22)
+	loop.default_color = col.darkened(0.18)
+	loop.position = Vector2(0.0, grab_offset)
+	tool.add_child(loop)
+	# pusher disc on top
 	var body_poly: Polygon2D = Polygon2D.new()
 	body_poly.polygon = _circle_points(tool_radius, 28)
 	body_poly.color = col
@@ -345,10 +385,6 @@ func _make_tool(color_id: int) -> AnimatableBody2D:
 	rim.default_color = col.darkened(0.4)
 	rim.joint_mode = Line2D.LINE_JOINT_ROUND
 	tool.add_child(rim)
-	var hub: Polygon2D = Polygon2D.new()
-	hub.polygon = _circle_points(tool_radius * 0.34, 16)
-	hub.color = col.darkened(0.28)
-	tool.add_child(hub)
 	return tool
 
 func _circle_points(r: float, n: int) -> PackedVector2Array:
@@ -371,7 +407,7 @@ func _spawn_ball() -> void:
 	ball.angular_damp = 4.0
 	ball.mass = 2.0
 	ball.can_sleep = false
-	# cast_shape sweeps the whole circle (not just the centre ray), so a fast ball
+	# cast_shape sweeps the whole circle (not just the center ray), so a fast ball
 	# can't clip through a wall corner during a pinch.
 	ball.continuous_cd = RigidBody2D.CCD_MODE_CAST_SHAPE
 	ball.set_meta("color_id", color_id)
@@ -398,12 +434,11 @@ func _spawn_ball() -> void:
 
 	_set_layers(ball, [_color_bit(color_id)], [LAYER_OUTER, _color_bit(color_id)])
 
-	var margin: float = 130.0
-	var min_x: float = play_left + margin
-	var max_x: float = play_right - margin
-	if max_x <= min_x:
-		min_x = play_left + 60.0
-		max_x = play_right - 60.0
+	var min_x: float = _spawn_min_x
+	var max_x: float = _spawn_max_x
+	if max_x - min_x < 50.0:
+		min_x = play_left + 130.0
+		max_x = play_right - 130.0
 	var sx: float = randf_range(min_x, max_x)
 	ball.global_position = Vector2(sx, play_top + ball_radius + 4.0)
 
@@ -467,7 +502,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if game.paused() or not game.playing:
 		return
-	var target: Vector2 = _clamp_tool_pos(_drag_target)
+	# the finger holds the loop; the disc (tool origin) sits grab_offset above it
+	var target: Vector2 = _clamp_tool_pos(_drag_target - Vector2(0.0, grab_offset))
 	var to_target: Vector2 = target - _dragging_tool.global_position
 	var maxstep: float = TOOL_MAX_SPEED * delta
 	if to_target.length() <= maxstep:
@@ -534,6 +570,19 @@ func _process(delta: float) -> void:
 		if pos.y > play_bottom + ball_radius * 2.0:
 			to_miss.append(ball)
 			continue
+		var speed: float = ball.linear_velocity.length()
+		var in_basket: bool = cid < _basket_rects.size() and (_basket_rects[cid] is Rect2) \
+			and (_basket_rects[cid] as Rect2).has_point(pos)
+		# rest-timeout: a ball stuck at rest outside a basket is eventually a miss, so
+		# a stuck ball can never softlock the spawner.
+		if speed < REST_SPEED and not in_basket:
+			var rest: float = float(ball.get_meta("rest_ms", 0.0)) + delta * 1000.0
+			ball.set_meta("rest_ms", rest)
+			if rest >= REST_TIMEOUT_MS:
+				to_miss.append(ball)
+				continue
+		else:
+			ball.set_meta("rest_ms", 0.0)
 		if cid >= _basket_polys.size() or not (_basket_polys[cid] is PackedVector2Array):
 			continue
 		var poly: PackedVector2Array = _basket_polys[cid]
@@ -546,11 +595,11 @@ func _process(delta: float) -> void:
 			ball.set_meta("armed", true)
 		if not bool(ball.get_meta("armed", false)):
 			continue
-		if not (_basket_rects[cid] is Rect2) or not (_basket_rects[cid] as Rect2).has_point(pos):
+		if not in_basket:
 			continue
-		# and it must be dropping in / settled, not being shoved upward
-		var v: Vector2 = ball.linear_velocity
-		if v.y > 5.0 or v.length() < 30.0:
+		# it must have come to REST at the bottom (not still falling / bouncing), so
+		# the ball visibly settles in the bucket rather than vanishing mid-drop.
+		if speed < 40.0:
 			to_score.append(ball)
 	for ball in to_score:
 		_resolve_ball(ball, true)
@@ -558,10 +607,11 @@ func _process(delta: float) -> void:
 		_resolve_ball(ball, false)
 
 func _clamp_tool_pos(p: Vector2) -> Vector2:
+	# p is the disc center: keep the disc top and the loop bottom inside the field
 	var m: float = tool_radius + 4.0
 	return Vector2(
 		clampf(p.x, play_left + m, play_right - m),
-		clampf(p.y, play_top + m, play_bottom - m)
+		clampf(p.y, play_top + tool_radius + 4.0, play_bottom - grab_offset - loop_radius - 4.0)
 	)
 
 # --- Input (drag a tool) ----------------------------------------------------
@@ -572,10 +622,10 @@ func _grab_at(pos: Vector2) -> AnimatableBody2D:
 	for t in _tools:
 		if not is_instance_valid(t):
 			continue
-		var d: Vector2 = pos - t.global_position
-		var dist: float = d.length()
-		# generous circular grab radius around the round tool
-		if dist <= tool_radius + 34.0 and dist < best_d:
+		# grab by the loop handle below the disc (so the finger stays off the disc/ball)
+		var loop_c: Vector2 = t.global_position + Vector2(0.0, grab_offset)
+		var dist: float = (pos - loop_c).length()
+		if dist <= loop_radius + 34.0 and dist < best_d:
 			best_d = dist
 			best = t
 	return best
@@ -624,9 +674,11 @@ func _draw() -> void:
 	var area: Rect2 = Rect2(play_left, play_top, play_right - play_left, play_bottom - play_top)
 	draw_rect(area, Color(0.11, 0.14, 0.20, 1.0), true)
 
-	# top-corner deflectors
-	for seg in _deflectors:
-		draw_line(seg[0], seg[1], Color(0.32, 0.38, 0.48, 1.0), 4.0)
+	# solid mid-side triangular bumpers
+	for tri in _bumpers:
+		draw_colored_polygon(tri, Color(0.20, 0.25, 0.33, 1.0))
+		draw_line(tri[0], tri[1], Color(0.40, 0.46, 0.56, 1.0), 3.0)
+		draw_line(tri[1], tri[2], Color(0.40, 0.46, 0.56, 1.0), 3.0)
 
 	for i in num_colors:
 		if i >= _basket_polys.size() or not (_basket_polys[i] is PackedVector2Array):
@@ -642,25 +694,27 @@ func _draw_basket(color_id: int) -> void:
 	var br: Vector2 = p[2]
 	var bl: Vector2 = p[3]
 	var col: Color = COLORS[color_id]
+	var hw: float = 12.0  # half of wall_t (24) — sides pushed out hw, bottom slab 2·hw tall
+	var bd: Color = Color(0.11, 0.14, 0.20, 1.0)  # backdrop color, to carve the cavity
 
-	# translucent trapezoid body
-	draw_colored_polygon(PackedVector2Array([tl, tr, br, bl]),
-		Color(col.r, col.g, col.b, 0.18))
-	# woven look: horizontal slats spanning the trapezoid at each height
-	var slats: int = 4
-	for s in range(1, slats):
-		var f: float = float(s) / float(slats)
-		var lp: Vector2 = tl.lerp(bl, f)
-		var rp: Vector2 = tr.lerp(br, f)
-		draw_line(lp + Vector2(2.0, 0.0), rp - Vector2(2.0, 0.0),
-			Color(col.r, col.g, col.b, 0.33), 2.0)
-	# rim outline — two sides + bottom, open at the top (one side is on the wall)
-	draw_line(tl, bl, col, 5.0)   # left side
-	draw_line(tr, br, col, 5.0)   # right side
-	draw_line(bl, br, col, 5.0)   # bottom
-	# thicker rim caps at the mouth so the open top reads as a bucket lip
-	draw_circle(tl, 4.0, col)
-	draw_circle(tr, 4.0, col)
+	# One clean bucket = an OUTER solid trapezoid with the INNER cavity carved out (and
+	# opened at the top). Both halves are simple convex quads, so it draws cleanly and
+	# the slanted sides join the bottom with no gaps. Visible ≈ collision (walls are
+	# centerd on tl/tr/bl/br, ±hw), so the ball still rests flush.
+	var outer: PackedVector2Array = PackedVector2Array([
+		Vector2(tl.x - hw, tl.y), Vector2(tr.x + hw, tr.y),
+		Vector2(br.x + hw, br.y + 2.0 * hw), Vector2(bl.x - hw, bl.y + 2.0 * hw)])
+	draw_colored_polygon(outer, col)
+	# carve the cavity (raised above the mouth so the top is open)
+	var inner: PackedVector2Array = PackedVector2Array([
+		Vector2(tl.x + hw, tl.y - 30.0), Vector2(tr.x - hw, tr.y - 30.0),
+		Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)])
+	draw_colored_polygon(inner, bd)
+	# faint color tint inside the cavity (from the mouth down)
+	var tint: PackedVector2Array = PackedVector2Array([
+		Vector2(tl.x + hw, tl.y), Vector2(tr.x - hw, tr.y),
+		Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)])
+	draw_colored_polygon(tint, Color(col.r, col.g, col.b, 0.14))
 
 # --- Level completion -------------------------------------------------------
 

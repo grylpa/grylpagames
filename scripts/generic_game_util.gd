@@ -137,7 +137,7 @@ var PALETTE_PAUL_TOL: Array[Color] = [
 	Color("#44BB99"), # Pear Green
 	Color("#BBCC33"), # Olive
 	Color("#AAAA00"), # Ochre
-	Color("#DDDDDD"), # Light Grey
+	Color("#DDDDDD"), # Light Gray
 	Color("#0077BB"), # Blue
 	Color("#332288"), # Indigo
 	Color("#882255")  # Wine
@@ -172,7 +172,7 @@ var colors: Array[Color] = [
 	Color("#004d33"), # Deep Yellowish Green
 	Color("#996633"), # High Saturation Brown
 	Color("#ffffff"), # White
-	# Color("#8D8D8D"), # Light Grey
+	# Color("#8D8D8D"), # Light Gray
 	
 ]
 func generate_contrast_colors(count: int) -> Array:
