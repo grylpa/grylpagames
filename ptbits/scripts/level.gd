@@ -71,6 +71,8 @@ var tool_radius: float = 27.0
 # stays visible. grab_offset = distance from disc center down to the loop center.
 var grab_offset: float = 44.0
 var loop_radius: float = 14.0
+var tool_bottom_gap: float = 24.0  # clearance kept between the tool loops and play_bottom
+                                   # (bigger on mobile so the loops clear the bottom button bar)
 
 var _spawn_accum: float = 0.0
 var spawned_count: int = 0
@@ -95,6 +97,7 @@ func _ready() -> void:
 	game.add_sound(self, "wrong", wrong_audio)
 	if MainGlobals.is_mobile():
 		tool_radius = 54.0  # twice as big so a fingertip doesn't hide it
+		tool_bottom_gap = 90.0  # keep the loops clear of the (taller) mobile button bar
 	grab_offset = tool_radius * 2.4
 	loop_radius = tool_radius * 0.46
 	# tools live in their own layer (added before any balls, so balls still draw on
@@ -347,7 +350,7 @@ func _add_wall_shape(body: StaticBody2D, center: Vector2, size: Vector2, rot: fl
 func _build_tools() -> void:
 	_tools.resize(num_colors)
 	# rest the discs high enough that the loop below them clears the bottom bar
-	var tray_y: float = play_bottom - grab_offset - loop_radius - 24.0
+	var tray_y: float = play_bottom - grab_offset - loop_radius - tool_bottom_gap
 	var span_left: float = play_right * 0.24
 	var span_right: float = play_right * 0.76
 	for i in num_colors:
@@ -625,7 +628,7 @@ func _clamp_tool_pos(p: Vector2) -> Vector2:
 	var m: float = tool_radius + 4.0
 	return Vector2(
 		clampf(p.x, play_left + m, play_right - m),
-		clampf(p.y, play_top + tool_radius + 4.0, play_bottom - grab_offset - loop_radius - 4.0)
+		clampf(p.y, play_top + tool_radius + 4.0, play_bottom - grab_offset - loop_radius - tool_bottom_gap)
 	)
 
 # --- Input (drag a tool) ----------------------------------------------------
@@ -685,7 +688,10 @@ func _input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	# play-area backdrop
-	var area: Rect2 = Rect2(play_left, play_top, play_right - play_left, play_bottom - play_top)
+	# extend the backdrop all the way to the screen bottom (behind the button bar) so
+	# there's no colour band between play_bottom and the bar
+	var bg_bottom: float = maxf(play_bottom, float(MainGlobals.full_screen_size.y))
+	var area: Rect2 = Rect2(play_left, play_top, play_right - play_left, bg_bottom - play_top)
 	draw_rect(area, Color(0.11, 0.14, 0.20, 1.0), true)
 
 	# solid mid-side triangular bumpers

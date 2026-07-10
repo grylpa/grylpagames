@@ -20,6 +20,11 @@ func _ready() -> void:
 	$PacketsContainer.hide()
 	$CountdownLabel.hide()
 	$CorrectsMistakesContainer.hide()
+	# On mobile the bottom button bar is taller, so lift the "Restart Game" button
+	# higher (its margin_bottom = 60 in the scene overlaps the bar). grow_vertical is
+	# BEGIN, so the container just grows upward to fit — no other offsets needed.
+	if MainGlobals.is_mobile():
+		$StartButton.add_theme_constant_override("margin_bottom", 115)
 	# $TimeLeftLabel.hide()
 	update_all()
 	$Panel.hide()

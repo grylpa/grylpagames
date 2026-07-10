@@ -279,9 +279,14 @@ are bumped for touch:
   set in `_ready`).
 - **Bucket vertical gap `height + 92`** (vs `+30` desktop) — the stacked top/bottom buckets
   were too close on the taller screen (`_build_baskets`).
-- **Tool tray raised 40px** so the tools don't overlap the bottom button bar (`_build_tools`);
-  the bucket bottom-clamp margin is correspondingly larger (190 vs 90) to stay clear of the
-  raised, larger tools.
+- **Tool tray/drag clamp: `tool_bottom_gap` 24 → 90** so the tool **loops** (which hang
+  `grab_offset+loop_radius` below the disc) clear the taller mobile button bar. The gap is the
+  clearance kept between a loop's bottom and `play_bottom`, used by both the tray position and
+  `_clamp_tool_pos` (so a dragged tool also can't dip a loop into the bar). The bucket bottom-clamp
+  margin is likewise larger (190 vs 90) to stay clear of the raised, larger tools.
+
+The **backdrop** (`_draw`) fills from `play_top` down to `full_screen_size.y` (the screen bottom),
+not just `play_bottom` — so there's no colour band between the play area and the bottom button bar.
 
 ## Coordinate space
 
