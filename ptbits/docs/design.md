@@ -19,7 +19,7 @@ it is a miss if it falls out the bottom.
 
 This is unlike the tween-based `bucketmadness` it borrows its scaffolding from —
 here balls are real `RigidBody2D` bodies and tools are real `AnimatableBody2D`
-pushers. The `main.gd` orchestrator, menu/instructions/scores wiring, level queue
+pushers. The `main.gd` orchestrator, menu/instructions/scores wiring, level progression
 and settings all follow the standard platform pattern (copied from bucketmadness).
 
 ---
@@ -218,8 +218,12 @@ just spawn on the `spawn_interval` timer up to `rounds`. The mechanism is kept i
 a concurrency cap is wanted later. (`gravity_scale` is tuned against `linear_damp = 3.2`; see
 Balls → Fall speed.)
 
-`LEVEL_PROGRESSION_ORDER = [1,2,3,4,5]` (cycles). A level with `< 60%` accuracy is
-re-queued (`PtbitsG.record_level_result`). Settings array: `[starting_level_id]`.
+**Progression (didi pattern):** `current_level_id` is a monotonic counter — it starts at
+`PtbitsG.starting_level_id`, and each completed level sets `game.need_to_increase_level = true`
+so the next `new_game(false)` bumps it by one, capped at `PtbitsLevelConfig.max_level()` (stays
+at the top level after that). Time and score/counts carry across levels within a game (only a
+from-scratch `new_game` resets them) — the whole game is one time budget. Settings array:
+`[starting_level_id]`. (An earlier pop-queue had an ordering bug that replayed level 1.)
 
 Color palette (`level.gd COLORS`, up to 6): red, blue, green, yellow, purple, orange.
 
