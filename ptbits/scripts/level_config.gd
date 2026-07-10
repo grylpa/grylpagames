@@ -23,7 +23,7 @@ var LEVELS: Array = [
 	{"id": 3, "name": "3", "num_colors": 3, "gravity_scale": 0.34, "spawn_interval": 3.6, "max_active": 10000, "rounds": 10, "ball_radius": 25, "time_sec": 60},
 	{"id": 4, "name": "4", "num_colors": 3, "gravity_scale": 0.40, "spawn_interval": 3.2, "max_active": 10000, "rounds": 12, "ball_radius": 23, "time_sec": 70},
 	{"id": 5, "name": "5", "num_colors": 4, "gravity_scale": 0.46, "spawn_interval": 3.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80},
-	{"id": 5, "name": "5", "num_colors": 4, "gravity_scale": 0.48, "spawn_interval": 2.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80},
+	{"id": 5, "name": "6", "num_colors": 4, "gravity_scale": 0.48, "spawn_interval": 2.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80},
 ]
 
 func max_level() -> int:
