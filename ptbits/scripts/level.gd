@@ -124,12 +124,14 @@ func _recompute_play_rect() -> void:
 func new_game(_from_scratch: bool = true) -> void:
 	game.level_is_done = false
 	_recompute_play_rect()
-	current_level_id = PtbitsG.pop_next_level_id()
+	# monotonic level counter (didi pattern): start at the chosen level, then bump
+	# by one each time a level is completed (capped at the last level).
 	if _from_scratch:
 		total_rounds = 0
 		total_corrects = 0
-		PtbitsG.reset_queue_from(PtbitsG.starting_level_id)
 		current_level_id = PtbitsG.starting_level_id
+	elif game.need_to_increase_level:
+		current_level_id = mini(current_level_id + 1, PtbitsLevelConfig.max_level())
 	game.need_to_increase_level = false
 	_load_level(current_level_id)
 	_build_world()
@@ -720,7 +722,7 @@ func _draw_basket(color_id: int) -> void:
 
 func _level_done() -> void:
 	game.level_is_done = true
-	PtbitsG.record_level_result(current_level_id, pct_correct())
+	game.need_to_increase_level = true  # next new_game(false) advances to the next level
 	game.sig_level_is_done.emit(true)
 	MainGlobals.global_level_is_done(true)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):

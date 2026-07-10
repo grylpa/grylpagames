@@ -1,12 +1,10 @@
 extends Node
 
-# PtbitsG autoload. Owns the GenericGameUtil instance, level queue, settings,
-# and the (swappable) ball texture used by the physics balls.
+# PtbitsG autoload. Owns the GenericGameUtil instance, settings, and the
+# (swappable) ball texture used by the physics balls.
 
 var starting_level_id: int = 1
 var game: GenericGameUtil = GenericGameUtil.new("Ptbits", "ptbits", 0, 1, 0)
-
-var level_queue: Array = []
 
 # --- Ball texture -----------------------------------------------------------
 # The ball is drawn with a texture so an artist can swap it later. A texture is
@@ -42,26 +40,6 @@ func _make_ball_texture(d: int) -> Texture2D:
 func init_globals() -> void:
 	game.init_sizes()
 	game.reset(true)
-
-func reset_queue_from(start_id: int) -> void:
-	var base: Array = PtbitsLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
-	var idx: int = base.find(start_id)
-	if idx > 0:
-		level_queue = base.slice(idx) + base.slice(0, idx)
-	else:
-		level_queue = base
-
-func pop_next_level_id() -> int:
-	if level_queue.is_empty():
-		level_queue = PtbitsLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
-	return level_queue.pop_front()
-
-func record_level_result(level_id: int, pct: int) -> void:
-	if pct < 60:
-		if level_queue.size() >= 1:
-			level_queue.insert(1, level_id)
-		else:
-			level_queue.append(level_id)
 
 func save_settings() -> void:
 	game.save_settings([starting_level_id])
