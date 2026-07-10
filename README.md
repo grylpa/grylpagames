@@ -14,7 +14,7 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 **Attention / Reflexes**
 - **Sorting Robots** — two conveyor belts, two hidden rules; swipe to keep or discard each item
 - **Whack** — classic timing and reaction game
-- **Weris** — colour-word Stroop variant; pick the ink colour, not the word
+- **Weris** — color-word Stroop variant; pick the ink color, not the word
 - **OOO** — one of these things is not like the others
 - **RL Madness** — left/right split-attention task
 - **Pop** — tap the right bubbles before they drift off screen
@@ -29,7 +29,7 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 - **DIDI** — shape-selection puzzle with a fixed number of correct picks
 - **DDOOO** — extended shape variant of DIDI
 - **Wolves** — logic deduction over a grid of hidden wolves and sheep
-- **Lights Out** — classic toggle-neighbour lights puzzle
+- **Lights Out** — classic toggle-neighbor lights puzzle
 - **Gorilla** — brick-clearing physics puzzle with a gorilla and coins
 
 **Other**
@@ -63,7 +63,7 @@ braingames/
 │   │       └── design.md
 │   └── addons/
 │       └── ver_tools/  # Version-bump plugin
-└── export/             # Built export artefacts (git-ignored)
+└── export/             # Built export artifacts (git-ignored)
 ```
 
 ## Disclaimer

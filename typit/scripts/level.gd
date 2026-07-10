@@ -34,7 +34,7 @@ var _last_press_elapsed_ms: float = -1.0
 
 # Per expected-key hit data
 var _key_hits: Dictionary = {}       # char -> Array[Vector2] (spine-error dx,dy; for stats)
-var _key_hit_dists: Dictionary = {}  # char -> Array[float] (capsule distance; for colour)
+var _key_hit_dists: Dictionary = {}  # char -> Array[float] (capsule distance; for color)
 var _key_taps: Dictionary = {}       # char -> Array[Vector2] (actual offset from center; for dot position)
 
 # Counts
@@ -312,7 +312,7 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 		var dx: float = touch_pos.x - spine.x
 		var dy: float = touch_pos.y - spine.y
 		var raw_mag: float = sqrt(dx * dx + dy * dy)
-		# For the spine-error components (colour/bias) cap the magnitude at 150% of the
+		# For the spine-error components (color/bias) cap the magnitude at 150% of the
 		# capsule radius so a far wrong key stays bounded. The distance metric instead
 		# stores the RAW magnitude and rejects anything over 150% (see _compute_stats).
 		var cap: float = 1.5 * (exp_key.h * 0.5)
@@ -482,7 +482,7 @@ func _save_key_data() -> void:
 			sum_ay += v.y
 			sum_ax2 += v.x * v.x
 			sum_ay2 += v.y * v.y
-		# Store the key's actual width/height so the stats screen can normalise correctly
+		# Store the key's actual width/height so the stats screen can normalize correctly
 		var kd: Dictionary = _find_key_by_char(ch, _keys_alpha)
 		var kwid: float = kd.get("w", _key_w)
 		var khgt: float = kd.get("h", _key_h)
@@ -833,7 +833,7 @@ func _draw_heatmap(canvas: Control) -> void:
 		var kh: float = k.h * draw_scale
 		var cx: float = (k.cx - kb_left) * draw_scale + off_x
 		var cy_local: float = (k.cy - kb_top) * draw_scale + off_y
-		var r: float = k.h * 0.5   # capsule radius (unscaled), for colour normalisation
+		var r: float = k.h * 0.5   # capsule radius (unscaled), for color normalization
 
 		# Neutral key background (slightly lighter, for contrast against the panel)
 		var rect: Rect2 = Rect2(cx - kw * 0.5, cy_local - kh * 0.5, kw, kh)
@@ -848,7 +848,7 @@ func _draw_heatmap(canvas: Control) -> void:
 				Color(1.0, 1.0, 1.0, 0.70 if not taps.is_empty() else 0.25))
 
 		# One dot per tap, drawn at the ACTUAL tap position (offset from center, scaled),
-		# coloured green→red by that tap's spine distance. Position is clamped to the key
+		# colored green→red by that tap's spine distance. Position is clamped to the key
 		# so a stray far tap pins to the edge instead of flying off.
 		var dot_r: float = maxf(1.5, kh * 0.10)
 		var lim_x: float = maxf(0.0, kw * 0.5 - dot_r)

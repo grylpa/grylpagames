@@ -437,9 +437,9 @@ func _ensure_option_buttons_count(n: int) -> void:
 		# The letter is drawn by a child Label rather than the Button's own text.
 		# A Button's minimum height is driven by its text, which would push the
 		# size-to-content container chain (VBox → Panel → HBox) past the screen for
-		# large fonts. The Label is anchored to the Button centre and sized to its
-		# own content (grow both ways from the centre), so it is always centred,
-		# auto-recentres when the letter/font changes, and does NOT contribute to the
+		# large fonts. The Label is anchored to the Button center and sized to its
+		# own content (grow both ways from the center), so it is always centerd,
+		# auto-recenters when the letter/font changes, and does NOT contribute to the
 		# Button's minimum size. The Button's clip_contents trims any overflow.
 		var glyph: Label = Label.new()
 		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

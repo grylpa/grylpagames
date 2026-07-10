@@ -158,6 +158,12 @@ func add_score_and_time(add_score: int, add_time: int, is_actual_score:bool = tr
 	check_time_run_out()
 
 func restart_time_left_timer():
+	# Re-baseline the countdown to the freshly-reset game clock. game.reset() sets
+	# game_time back to ~0 each level, but _last_time_left_timer_tick otherwise keeps
+	# a stale (larger) value from the menu / previous level, which freezes the
+	# countdown until game_time climbs back up to it.
+	if game:
+		_last_time_left_timer_tick = game.game_time
 	$TimeLeftTimer.autostart = true
 	$TimeLeftTimer.start()
 

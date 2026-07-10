@@ -33,7 +33,7 @@ func _draw() -> void:
 	var label_col: Color = Color(0.5, 0.62, 0.78, 0.65)
 	var grid_col: Color = Color(0.4, 0.5, 0.65, 0.20)
 
-	# Row centres: inhale=top, hold=middle, exhale=bottom
+	# Row centers: inhale=top, hold=middle, exhale=bottom
 	var row_y: Array = [h_draw * 0.18, h_draw * 0.50, h_draw * 0.82]
 	var row_labels: Array = ["Inhale", "Hold", "Exhale"]
 
@@ -66,7 +66,7 @@ func _draw() -> void:
 			break
 		xi_sec = minf(xi_sec + x_step_sec, dur_sec)
 
-	# Child dots at row centre
+	# Child dots at row center
 	for i: int in n:
 		var k: int = _child_poll[i]
 		var row_idx: int = 0 if k == 1 else (2 if k == 2 else 1)

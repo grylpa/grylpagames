@@ -4,7 +4,7 @@ extends "res://scripts/scores_list.gd"
 # Because it IS a scores_list, closing (X button) works exactly like every other game.
 
 const ORANGE: Color = Color(0.85, 0.65, 0.0, 1.0)   # selected tab background
-const HDR_YELLOW: Color = Color(1.0, 1.0, 0.0, 1.0)  # standard table header colour
+const HDR_YELLOW: Color = Color(1.0, 1.0, 0.0, 1.0)  # standard table header color
 const DIST_Y_MAX: float = 150.0                      # distance chart capped at 150%
 
 var _typit_font: Font = null
@@ -328,7 +328,7 @@ func _build_key_row(parent: Node, ch: String, ks: Dictionary,
 	var graphic: Control = Control.new()
 	graphic.custom_minimum_size = Vector2(gw, gh)
 	graphic.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	# Graphic: position/spread from ACTUAL tap offsets; colour from spine error.
+	# Graphic: position/spread from ACTUAL tap offsets; color from spine error.
 	graphic.draw.connect(_draw_key_graphic.bind(graphic,
 		ks.mean_ax, ks.mean_ay, ks.std_ax, ks.std_ay, ks.mean_dx, ks.mean_dy, kw, kh))
 	row.add_child(graphic)
@@ -375,7 +375,7 @@ func _info_label(parent: Node, text: String, fs: int) -> void:
 	parent.add_child(lbl)
 
 # ax,ay = mean ACTUAL offset from center (where you tap); sax,say = its std (spread).
-# err_dx,err_dy = mean SPINE error (for colour only).
+# err_dx,err_dy = mean SPINE error (for color only).
 func _draw_key_graphic(canvas: Control, ax: float, ay: float,
 		sax: float, say: float, err_dx: float, err_dy: float, kw: float, kh: float) -> void:
 	var inset: float = 8.0
@@ -395,7 +395,7 @@ func _draw_key_graphic(canvas: Control, ax: float, ay: float,
 	var cy: float = oy + dh * 0.5 + clampf(ay * key_scale, -lim_y, lim_y)
 	var std_mag: float = sqrt(sax * sax + say * say) * key_scale
 	std_mag = clampf(std_mag, 2.0, maxf(dw, dh) * 0.42)
-	# Colour by the spine error magnitude (1.0 = at the key edge = radius r)
+	# Color by the spine error magnitude (1.0 = at the key edge = radius r)
 	var r_px: float = kh * 0.5
 	var t: float = clampf(sqrt(err_dx * err_dx + err_dy * err_dy) / r_px, 0.0, 1.0)
 	var blob_col: Color = Color.from_hsv(0.33 * (1.0 - t), 0.85, 0.90, 1.0)

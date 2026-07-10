@@ -99,7 +99,7 @@ Head + body sprites from `wolves/art/player_head{1-3}.png` and `wolves/art/playe
 - **River ripples**: 28 procedural seeds (fixed RNG, seed=7331) with world-space x positions; scroll by subtracting `elapsed_ms * scroll_px_per_ms`. Only drawn if within channel bounds.
 - **Bank tufts**: 40 seeds alternating upper/lower banks; two overlapping circles per tuft give a bush/grass look.
 - **Depth strips**: A darker inner polygon strip (`land_dark`) hugs each bank edge, giving visual depth to the land.
-- **Background**: Sky gradient (blue-grey top half) bleeds in behind the land polygons before they are drawn.
+- **Background**: Sky gradient (blue-gray top half) bleeds in behind the land polygons before they are drawn.
 
 ## Key Constants (level.gd)
 

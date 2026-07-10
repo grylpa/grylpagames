@@ -4,16 +4,16 @@
 
 **Game name:** Ptbits
 **Folder:** `ptbits/`
-**Singletons:** `PtbitsG`, `PtbitsLevelDefs`
+**Singletons:** `PtbitsG`, `PtbitsLevelConfig`
 **Save key (short name):** `ptbits`
 **Initial time:** 1 minute (game over on time out)
 **Category:** Attention & Speed
 **Clear color:** `0x161d2bff` (dark slate)
 
-Ptbits is a **physics** game. Coloured balls fall slowly from the top under
-gravity. The player drags colour-matching **tools** (paddles) to physically push
-each ball up and sideways into the matching-colour **basket** on the side. A tool
-only interacts with balls of its own colour — mismatched colours pass straight
+Ptbits is a **physics** game. Colored balls fall slowly from the top under
+gravity. The player drags color-matching **tools** (paddles) to physically push
+each ball up and sideways into the matching-color **basket** on the side. A tool
+only interacts with balls of its own color — mismatched colors pass straight
 through it. A ball is scored when it drops into its matching basket from the top;
 it is a miss if it falls out the bottom.
 
@@ -32,7 +32,7 @@ ptbits/
 │   └── design.md          ← this file
 ├── scripts/
 │   ├── globals.gd          (PtbitsG autoload; owns GenericGameUtil + ball texture)
-│   ├── level_defs.gd       (PtbitsLevelDefs autoload; per-level difficulty)
+│   ├── level_config.gd     (PtbitsLevelConfig autoload; per-level difficulty)
 │   ├── main.gd             (orchestrator — standard platform pattern)
 │   └── level.gd            (all physics gameplay)
 └── scenes/
@@ -45,22 +45,25 @@ generated white circle texture (see below). Sounds come from `res://art/sounds/`
 
 ---
 
-## The colour = physics-layer trick (core mechanic)
+## The color = physics-layer trick (core mechanic)
 
-Collision behaviour is driven entirely by Godot physics layers:
+Collision behavior is driven entirely by Godot physics layers:
 
-- **Bit 1 = OUTER** — side walls + ceiling + **top-corner deflectors** (no floor, so misses
-  fall out the bottom). All OUTER bodies get a **bouncy `_wall_material` (bounce 0.9)** so a
-  ball jammed into a wall rebounds toward centre — this frees a side-pinned ball. Restitution
-  combines as the max, so tool and bucket contacts (no material) keep the ball's own low 0.4
-  bounce; only wall hits are springy. The two corners are chamfered by a 45° `StaticBody2D` segment
-  (`_add_deflector`, drawn from `_deflectors`). This is the **escape route** for the
-  pusher-can't-pull limitation: a ball pinned flush against a side wall (where there's no
-  room to get the tool on its far side to push it back toward centre) can instead be pushed
-  straight **up**; at the top the diagonal deflects it back inward, giving room to work it
-  toward its basket. Bouncy walls (ball bounce 0.4) add finesse — you can also bank a ball
-  off a wall.
-- **Colour `i` = bit `2 + i`** — shared by that colour's balls, its tool and its basket walls.
+- **Bit 1 = OUTER** — side walls + ceiling + the **triangular bumpers** (no floor, so misses
+  fall out the bottom). Walls carry no physics material, so every surface uses the ball's own
+  low 0.4 bounce and feels solid. (An earlier springy `_wall_material` bounce 0.9 was removed —
+  the triangular bumpers now do the un-sticking, and the springiness made balls hop off walls.)
+- **Solid triangular bumpers** (`_add_side_bumper`, drawn from `_bumpers`): a rigid
+  `ConvexPolygonShape2D` triangle at **25% from the top** of each side — long (vertical) side on
+  the screen wall, a 45° face on top and bottom meeting at an inward apex. A ball **falling** from
+  above slides down-and-inward off the top face; a ball **pushed up** from below slides up-and-inward
+  off the bottom face — either way toward center. They're the **main way to work a ball inward**
+  toward a bucket. Being a real solid shape, the physics handles the **whole ball radius** (no
+  squeeze) and it **can't be forced through**. Earlier tries that were dropped: a physical
+  `one_way_collision` ramp (kinematic tool forced balls through it) and a scripted center-only
+  deflector (a ball could be squeezed past because only its center was tested). Top-corner
+  chamfer deflectors were also removed once the raised bumpers took over the inward-deflection job.
+- **Color `i` = bit `2 + i`** — shared by that color's balls, its tool and its basket walls.
 
 | Body | `collision_layer` | `collision_mask` |
 |------|-------------------|------------------|
@@ -71,8 +74,8 @@ Collision behaviour is driven entirely by Godot physics layers:
 
 Because two bodies collide iff `A.layer & B.mask` **or** `B.layer & A.mask`:
 
-- Ball `i` collides with outer walls, **its own** tool, **its own** basket, and same-colour balls.
-- Ball `i` ignores every **other** colour's tool and basket → they pass through (the requirement).
+- Ball `i` collides with outer walls, **its own** tool, **its own** basket, and same-color balls.
+- Ball `i` ignores every **other** color's tool and basket → they pass through (the requirement).
 - Tool `i` (mask 0) is *detected/pushed by* ball `i` but never collides with basket/wall
   bodies → no tangling. It is kept inside the play area by code clamping, not walls.
 
@@ -87,14 +90,14 @@ via `set_collision_layer_value` / `set_collision_mask_value` (1-based bit indice
 - **Texture:** `PtbitsG.ball_texture()` returns a generated 96×96 white circle
   (`ImageTexture`) whose **alpha masks the square texture into a circle**, while the
   physics uses the `CircleShape2D`. This directly satisfies "use a texture so it can be
-  changed later, but mask it for the physics." The sprite is `modulate`d per colour, so
-  one texture tints to any colour. **To swap in real art:** drop a square PNG at
+  changed later, but mask it for the physics." The sprite is `modulate`d per color, so
+  one texture tints to any color. **To swap in real art:** drop a square PNG at
   `res://ptbits/art/ball.png` and return `preload(...)` from `PtbitsG.ball_texture()`.
 - **Soft, non-jumpy motion:** `linear_damp = 3.2`, `angular_damp = 4.0`, `mass = 2.0`,
   **bounce 0.4** (rebounds off walls when thrown at them), friction 0.9. High damping means
   a tool contact only *nudges* the ball and it settles fast instead of being flung.
   `can_sleep = false` (a resting ball still responds to a push), `continuous_cd = CCD_MODE_CAST_SHAPE`
-  (sweeps the whole circle, not just the centre ray, so a fast ball can't clip through a wall corner).
+  (sweeps the whole circle, not just the center ray, so a fast ball can't clip through a wall corner).
 - **Speed cap (`MAX_BALL_SPEED = 420`)** — enforced authoritatively **inside the ball's own
   `_integrate_forces`** (`ball.gd`, instanced via `BALL_SCRIPT`). This matters: clamping in the
   level's `_physics_process` runs *before* the solver, so it misses the pinch impulse and the
@@ -108,67 +111,81 @@ via `set_collision_layer_value` / `set_collision_mask_value` (1-based bit indice
   the per-level `gravity_scale` (0.26–0.46) is tuned to give a gentle ~80 px/s (L1) up to
   ~140 px/s (L5) fall. If you change `linear_damp`, re-tune `gravity_scale` to match.
 - Metadata: `color_id`, `spawn_ms` (for response-time scoring).
-- Spawn x is a random point in the **central band** (`play_left+130 … play_right-130`)
-  so balls never spawn on top of the side baskets.
+- Spawn x is a random point in the **central band between the bucket columns**
+  (`_spawn_min_x … _spawn_max_x`, computed in `_build_baskets` from the bucket mouths + ball
+  radius). So a ball never spawns above a bucket and can't fall straight into one — it must be
+  maneuvered there.
 
 ## Tools
 
 - `AnimatableBody2D` with `sync_to_physics = true` (kinematic body that pushes rigid
-  bodies as it moves). One per colour, **round** `CircleShape2D` (radius `TOOL_RADIUS = 27`),
-  drawn as a filled `Polygon2D` disc + `Line2D` rim + a small hub, in the colour.
-- **Round on purpose:** a ball can never rest on top of a disc (round-on-round contact is
-  unstable), so the player must keep nudging — the requested behaviour.
-- Start in a tray row near the bottom centre; they float in place (kinematic, no gravity)
-  until grabbed. All tools live in a dedicated `_tools_layer` (a `Node2D` added before any
-  balls, so balls still draw on top). On grab, `_bring_tool_to_front()` `move_child`s the tool
-  to the end of that layer, so the tool you're moving renders **in front of the other tools
-  and stays there** after you drop it.
-- **Dragging:** on touch/mouse press, `_grab_at()` picks the nearest tool within a circular
-  grab radius. `_drag_target` follows the pointer; in `_physics_process` the tool moves
-  toward the target capped at `TOOL_MAX_SPEED` (**1450 px/s** — deliberately low so a
-  contact nudges rather than flings) instead of tunnelling. Single active drag at a time
-  (`_drag_index` tracks the touch index; `-1` = mouse). Position clamped to the play rect.
+  bodies as it moves). One per color. **Only the pusher disc collides** — a `CircleShape2D`
+  (radius `tool_radius`, 27 desktop / 54 mobile) at the tool origin. Round on purpose: a ball
+  can't rest on a disc, so the player must keep nudging.
+- **Shape = disc + handle + loop** (roughly an ant: big head, body, tail loop). Below the disc
+  is a **thick rounded handle bar** (`Line2D`, round caps) then an **open loop** (a `Line2D` ring
+  at local `(0, grab_offset)`, `grab_offset = tool_radius·1.7`, `loop_radius = tool_radius·0.52`).
+  The player **grabs the loop**, so the disc — and the ball it's pushing — sits `grab_offset`
+  **above the finger** and stays visible. The stem/loop are visual only (no collision).
+- **Grab & drag:** `_grab_at()` matches a press near a tool's **loop center** (`origin +
+  (0, grab_offset)`). During drag the disc target is `finger − (0, grab_offset)` (loop stays
+  under the finger), moved toward at `TOOL_MAX_SPEED` (1150 px/s). `_clamp_tool_pos` keeps the
+  disc top and the loop bottom inside the field. Single active drag (`_drag_index`; `-1` = mouse).
+- All tools live in a dedicated `_tools_layer` (`Node2D` added before any balls, so balls draw
+  on top). On grab, `_bring_tool_to_front()` `move_child`s the tool to the end of that layer, so
+  the tool you're moving renders **in front of the other tools and stays there** after drop.
 
 ## Baskets
 
-- **Free-standing island trapezoids** (symmetric: wide open top ~120px, narrower bottom
-  ~82px, ~94px tall), distributed **even ids → left, odd ids → right**, stacked downward
+- **Free-standing island trapezoids** (symmetric: wide open top ~134px, narrower bottom
+  ~104px, ~96px tall), distributed **even ids → left, odd ids → right**, stacked downward
   from ~36% of the play height. Critically, they are held **well off the screen walls** —
   `clearance = 2·ball_radius + 26` (wider than a ball) on the outer side (`cx = play_left +
   clearance + top_w/2`, mirrored on the right).
   - **Why islands, not wall-hugging:** a bucket near/against a wall creates a wall-adjacent
-    ledge. Pushing a same-colour ball *up along the wall* jams it in the wall+bucket corner
+    ledge. Pushing a same-color ball *up along the wall* jams it in the wall+bucket corner
     (the tool can't reach the wall side of the ball) → solver over-constrained → jitter,
     and the jitter briefly flings the ball above the mouth, arming it, so it drops in and
-    false-scores. As islands, a ball herded to the wall instead rides the **ceiling
-    deflector back to open space**, and the tool can approach a bucket from any side.
-- Each is one `StaticBody2D` (on that colour's bit) with **three** `CollisionShape2D`
+    false-scores. As islands the tool can approach a bucket from any side, and a ball herded
+    to the wall rides a triangular bumper back toward center.
+- Each is one `StaticBody2D` (on that color's bit) with **three** `CollisionShape2D`
   children: a horizontal bottom wall + two **rotated** rectangle walls for the slanted sides
   (`_add_wall_shape(body, center, size, rotation)`; rotation = the side segment's `.angle()`).
-  Open at the top.
+  Open at the top. Walls are **24px thick** (and the bucket widened to suit) so the kinematic
+  tool can't force-push a same-color ball *through* a wall into the interior — a hollow-backed
+  thin (12px) wall let a ~19px/frame push tunnel across; 24px > the per-frame push distance.
 - **Scoring requires an actual drop-in from above**, not mere presence in a zone. In
   `_process`, for a ball whose `color_id == i`, three conditions must all hold:
   1. **Armed** — the ball has, at some point, been **above the bucket mouth** (center
      `y ≤ poly.TL.y` and `x` within the opening span `[TL.x, TR.x]`); a per-ball `armed`
      meta flag latches this. Being pushed *up* through the zone from below never arms it.
-  2. **In the interior zone** — center inside `_basket_rects[i]`, the lower-**centre** of the
+  2. **In the interior zone** — center inside `_basket_rects[i]`, the lower-**center** of the
      bucket (`bot_w·0.56` wide, lower ~42% tall, inset from every wall so a ball merely
      pressed against a wall at the bucket's height doesn't count).
-  3. **Dropping or settled** — `linear_velocity.y > 5` (falling in) **or** speed `< 30`
-     (come to rest); it never scores while being shoved upward.
+  3. **Settled at the bottom** — `linear_velocity.length() < 40` (come to rest). It does *not*
+     score while still falling/bouncing, so the ball visibly settles in the bucket rather than
+     vanishing mid-drop, and it never scores while being shoved upward.
   Safe because a ball can only physically enter its own bucket over the top rim (bottom/side
-  walls block all else; wrong-colour balls pass through and are never tested). The mouth
+  walls block all else; wrong-color balls pass through and are never tested). The mouth
   span / interior come from `_basket_polys[i]` (`[TL,TR,BR,BL]`) and `_basket_rects[i]`.
-- Drawn procedurally in `_draw()` from `_basket_polys[i]` (the 4 corners `[TL,TR,BR,BL]`):
-  translucent trapezoid fill + horizontal "weave" slats + rim on the two slants and bottom
-  (open top with small lip flares), so bucket colour/shape is fully controllable.
+- **Bucket is drawn as one clean silhouette** (`_draw_basket`): a filled **outer trapezoid**
+  (`col`) with the **inner cavity carved out** (filled with the backdrop color, raised above
+  the mouth so the top is open), plus a faint color tint in the cavity. Both halves are simple
+  convex quads (sides pushed out `hw = 12` = `wall_t/2`, bottom slab `2·hw` tall), so the slanted
+  sides join the bottom with **no gaps**, and visible ≈ collision (walls centerd on the
+  `tl/tr/bl/br` edges ±`hw`) so the ball still rests flush. (Earlier tries — thin outlines put
+  the collision ~12px outside the line; three separate thick quads left a square-slab bottom that
+  didn't meet the slanted sides.)
+- **Stacked-bucket spacing:** `step = height + 24 + gap` (gap 44 desktop / 92 mobile). The `+24`
+  accounts for the bottom wall (visible bucket is `height + 24` tall), so top/bottom buckets on
+  a side never touch when a level has 3–4 colors.
 
 ---
 
 ## Gameplay Flow
 
 1. `new_game()` pops the next level id, `_load_level()` sets difficulty, `_build_world()`
-   rebuilds outer walls + baskets + tools (colour count can change between levels).
+   rebuilds outer walls + baskets + tools (color count can change between levels).
 2. `_process()` spawns a ball every `spawn_interval`s while `spawned_count < rounds` and
    fewer than `max_active` balls are on screen.
 3. Player drags tools to push balls into matching baskets.
@@ -186,30 +203,37 @@ restored on resume. Tool dragging and spawning also early-return while paused.
 
 ---
 
-## Level Config (`PtbitsLevelDefs.LEVELS`)
+## Level Config (`PtbitsLevelConfig.LEVELS`)
 
-| ID | Name   | Colours | gravity_scale | spawn | max_active | rounds | radius |
-|----|--------|---------|---------------|-------|-----------|--------|--------|
-| 1  | Green  | 2 | 0.26 | 3.4s | 1 | 6  | 27 |
-| 2  | Blue   | 2 | 0.30 | 2.9s | 2 | 8  | 25 |
-| 3  | Red    | 3 | 0.34 | 2.6s | 2 | 10 | 25 |
-| 4  | Cyan   | 3 | 0.40 | 2.2s | 3 | 12 | 23 |
-| 5  | Orange | 4 | 0.46 | 2.0s | 3 | 14 | 23 |
+| ID/Name | Colors | gravity_scale | spawn | max_active | rounds | radius |
+|---------|--------|---------------|-------|-----------|--------|--------|
+| 1 | 2 | 0.26 | 3.1s | 10000 | 6  | 27 |
+| 2 | 2 | 0.30 | 2.8s | 10000 | 8  | 25 |
+| 3 | 3 | 0.34 | 2.6s | 10000 | 10 | 25 |
+| 4 | 3 | 0.40 | 2.2s | 10000 | 12 | 23 |
+| 5 | 4 | 0.46 | 2.0s | 10000 | 14 | 23 |
 
-(`gravity_scale` is tuned against `linear_damp = 3.2`; see Balls → Fall speed.)
+`max_active` (cap on concurrent balls) is set to **10000 = effectively unlimited** for now — balls
+just spawn on the `spawn_interval` timer up to `rounds`. The mechanism is kept in the code in case
+a concurrency cap is wanted later. (`gravity_scale` is tuned against `linear_damp = 3.2`; see
+Balls → Fall speed.)
 
 `LEVEL_PROGRESSION_ORDER = [1,2,3,4,5]` (cycles). A level with `< 60%` accuracy is
 re-queued (`PtbitsG.record_level_result`). Settings array: `[starting_level_id]`.
 
-Colour palette (`level.gd COLORS`, up to 6): red, blue, green, yellow, purple, orange.
+Color palette (`level.gd COLORS`, up to 6): red, blue, green, yellow, purple, orange.
 
 ---
 
 ## Scoring
 
 - Correct drop: `+15` + speed bonus (`max(0, 10 - elapsed_sec)`, i.e. up to +10 for a fast drop).
-- Miss (ball falls out): `-min(5, score)`, plus `_flash_miss()` fades a red ✗ at the spot so
-  a vanished ball reads clearly as a miss.
+- Miss (ball falls out the bottom, **or** rests outside a basket for `REST_TIMEOUT_MS` = 5s at
+  speed `< REST_SPEED`): `-min(5, score)`, plus `_flash_miss()` fades a red ✗ at the spot.
+  The rest-timeout is essential: a new ball only spawns once the current one resolves, so a ball
+  stuck at rest (on a dropped tool or a bumper) would otherwise **softlock the level** (no more
+  balls drop, you just wait out the clock). Per-ball `rest_ms` accumulates while slow + outside a
+  basket, and resets the moment it moves or enters a basket.
 - Score row: `[didwin, wasaborted, level_id, mean_response_time_ms, pct_correct]`
   with `progress_level_pos = 6`, `progress_time_pos = 7`, `progress_pct_pos = 8`
   (shown as level name + avg time, like bucketmadness).
@@ -248,7 +272,7 @@ stretch, 680-wide portrait). The play rect is computed from `MainGlobals`:
 ## Key Pitfalls / Notes
 
 - **Do not give the tool a non-zero mask.** Tool mask must be 0 so it is only ever *detected*
-  by its own-colour balls and never collides with basket/outer walls (which would tangle the
+  by its own-color balls and never collides with basket/outer walls (which would tangle the
   kinematic body). It is confined by `_clamp_tool_pos()`, not by physics.
 - **Tool speed is capped** (`TOOL_MAX_SPEED`) and balls use CCD so a fast drag pushes rather
   than tunnels through a ball. If tunnelling shows up, lower the cap or raise ball radius.
