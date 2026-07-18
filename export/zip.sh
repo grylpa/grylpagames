@@ -30,18 +30,38 @@ for PLATFORM in android linux win; do
 	fi
 
 	if [ "$PLATFORM" = "android" ]; then
-		ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name 'nomizo*.apk' | head -n 1)"
+		FOUND_ANDROID=0
 
-		if [ -z "$ARTIFACT" ]; then
-			echo "No nomizo*.apk found in $SRC_DIR"
+		for EXT in apk aab; do
+			ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name "nomizo*.${EXT}" | head -n 1)"
+
+			if [ -z "$ARTIFACT" ]; then
+				continue
+			fi
+
+			FOUND_ANDROID=1
+
+			OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-android.${EXT}"
+			OUT_SHA="$OUT_FILE.sha256"
+
+			rm -f "$OUT_FILE" "$OUT_SHA"
+			cp "$ARTIFACT" "$OUT_FILE"
+
+			(
+				cd "$BASE_DIR"
+				sha256sum "$(basename "$OUT_FILE")" > "$(basename "$OUT_SHA")"
+			)
+
+			echo "Created: $OUT_FILE"
+			echo "Created: $OUT_SHA"
+		done
+
+		if [ "$FOUND_ANDROID" -eq 0 ]; then
+			echo "No nomizo*.apk or nomizo*.aab found in $SRC_DIR"
 			exit 1
 		fi
 
-		OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-android.apk"
-		OUT_SHA="$OUT_FILE.sha256"
-
-		rm -f "$OUT_FILE" "$OUT_SHA"
-		cp "$ARTIFACT" "$OUT_FILE"
+		continue
 
 	else
 		ARTIFACT="$(find "$SRC_DIR" -maxdepth 1 -type f -name 'nomizo.*' ! -name '*.idsig' | head -n 1)"
