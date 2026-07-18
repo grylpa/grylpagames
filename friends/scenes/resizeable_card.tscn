@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c31djwdhebuyy" path="res://friends/scripts/resizeable_card.gd" id="1_4o0n8"]
 [ext_resource type="Texture2D" uid="uid://7qdnskwludj1" path="res://friends/art/zig1.png" id="2_o3h70"]
-[ext_resource type="Texture2D" uid="uid://bb8l2xtafh4gh" path="res://friends/art/people/Alina Vetrova.jpg" id="3_rdeut"]
+[ext_resource type="Texture2D" uid="uid://bb8l2xtafh4gh" path="res://art/people/Alina Vetrova.jpg" id="3_rdeut"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rdeut"]
 content_margin_left = 4.0
