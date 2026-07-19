@@ -1,0 +1,20 @@
+Kronbits "FreeSFX" — sound source & usage rights
+================================================
+
+Source : https://kronbits.itch.io/freesfx
+Author : Kronbits
+
+Files in this folder:
+  GameSFX/PickUp/Retro PickUp Coin 07.ogg
+  GameSFX/Blops/Retro Blop 18.ogg
+  GameSFX/Blops/Retro Blop 22.ogg
+
+License (per the itch.io page):
+  Free to use in personal and commercial projects. NO CREDIT REQUIRED.
+  (Standard itch.io audio-pack terms also forbid reselling or
+  redistributing the raw sound files on their own.)
+
+TODO: paste the exact license text from the itch.io "FreeSFX" page here,
+and, if the downloaded pack ships its own license/readme file, keep a copy
+in this folder too. This note exists so the provenance and usage rights
+stay documented with the assets and are never lost again.
