@@ -17,6 +17,11 @@ var _list_desc_size: int = 20
 
 var _account_btn: Button = null
 var _account_status_dot: Panel = null
+var _about_btn: Button = null
+var _about_icon: Label = null
+var _about_icon_d: float = 0.0
+var _about_pill_h: float = 0.0
+var _about_screen: CanvasLayer = null
 
 var _icon_grid: Texture2D = preload("res://art/grid-48.png")
 var _icon_list: Texture2D = preload("res://art/list-48.png")
@@ -33,6 +38,7 @@ func _ready() -> void:
 	BE.sig_logged_in.connect(_on_BE_sig_logged_in)
 	$FullScreenMessage.hide()
 	_create_account_button()
+	_create_about_button()
 
 func _create_account_button() -> void:
 	_account_btn = Button.new()
@@ -121,6 +127,94 @@ func _on_account_button_pressed() -> void:
 			Callable(self, "_on_confirmed_logout"), Callable())
 	else:
 		BE.sig_show_login_screen.emit()
+
+func _create_about_button() -> void:
+	# Bottom-right "About" entry point: one pill-shaped button showing a round (i)
+	# icon next to the version string, so the icon + text read as a single control.
+	_about_screen = load("res://scripts/about_screen.gd").new()
+	add_child(_about_screen)
+
+	# The scene's plain version label is superseded by this pill.
+	var vlabel: Label = %VersionLabel
+	vlabel.hide()
+
+	var is_mob: bool = MainGlobals.is_mobile()
+	_about_pill_h = 56.0 if is_mob else 40.0
+	_about_icon_d = _about_pill_h - 14.0
+	var font_size: int = 32 if is_mob else 24
+
+	_about_btn = Button.new()
+	_about_btn.name = "AboutButton"
+	_about_btn.text = "V " + MainGlobals.version
+	_about_btn.add_theme_font_size_override("font_size", font_size)
+	_about_btn.add_theme_color_override("font_color", _ICON_COLOR)
+	_about_btn.add_theme_color_override("font_hover_color", _ICON_COLOR)
+	_about_btn.add_theme_color_override("font_pressed_color", _ICON_COLOR)
+	_about_btn.add_theme_color_override("font_focus_color", _ICON_COLOR)
+	_about_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_about_btn.pressed.connect(_open_about)
+
+	# One pill background; the left content margin reserves space for the icon.
+	var pill: StyleBoxFlat = StyleBoxFlat.new()
+	pill.bg_color = Color(0.0, 0.0, 0.0, 0.35)
+	pill.set_corner_radius_all(int(_about_pill_h / 2.0))
+	pill.set_border_width_all(2)
+	pill.border_color = _ICON_COLOR
+	pill.content_margin_left = _about_icon_d + 18.0
+	pill.content_margin_right = 18.0
+	pill.content_margin_top = 4.0
+	pill.content_margin_bottom = 4.0
+	var pill_hover: StyleBoxFlat = pill.duplicate() as StyleBoxFlat
+	pill_hover.bg_color = Color(0.16, 0.16, 0.16, 0.65)
+	_about_btn.add_theme_stylebox_override("normal", pill)
+	_about_btn.add_theme_stylebox_override("hover", pill_hover)
+	_about_btn.add_theme_stylebox_override("pressed", pill_hover)
+	_about_btn.add_theme_stylebox_override("focus", pill)
+	_about_btn.custom_minimum_size = Vector2(0, _about_pill_h)
+
+	# Round (i) icon as a child of the button so it travels with it.
+	_about_icon = Label.new()
+	_about_icon.text = "i"
+	_about_icon.add_theme_font_size_override("font_size", int(_about_icon_d * 0.72))
+	_about_icon.add_theme_color_override("font_color", Color(0.08, 0.08, 0.08, 1.0))
+	_about_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_about_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_about_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_about_icon.custom_minimum_size = Vector2(_about_icon_d, _about_icon_d)
+	_about_icon.size = Vector2(_about_icon_d, _about_icon_d)
+	var icon_style: StyleBoxFlat = StyleBoxFlat.new()
+	icon_style.bg_color = _ICON_COLOR
+	icon_style.set_corner_radius_all(int(_about_icon_d / 2.0))
+	_about_icon.add_theme_stylebox_override("normal", icon_style)
+	_about_btn.add_child(_about_icon)
+
+	vlabel.get_parent().add_child(_about_btn)
+	call_deferred("_position_about_button")
+
+func _position_about_button() -> void:
+	if _about_btn == null:
+		return
+	var sz: Vector2 = _about_btn.get_combined_minimum_size()
+	sz.y = max(sz.y, _about_pill_h)
+	_about_btn.size = sz
+	# Anchor to the bottom-right corner with small insets so the pill sits close
+	# to the corner (nudged right and down vs. the earlier larger margin).
+	var margin_right: float = 2.0
+	var margin_bottom: float = 2.0
+	_about_btn.anchor_left = 1.0
+	_about_btn.anchor_top = 1.0
+	_about_btn.anchor_right = 1.0
+	_about_btn.anchor_bottom = 1.0
+	_about_btn.offset_right = -margin_right
+	_about_btn.offset_bottom = -margin_bottom
+	_about_btn.offset_left = _about_btn.offset_right - sz.x
+	_about_btn.offset_top = _about_btn.offset_bottom - sz.y
+	if _about_icon != null:
+		_about_icon.position = Vector2(10.0, (sz.y - _about_icon_d) / 2.0)
+
+func _open_about() -> void:
+	if _about_screen != null:
+		_about_screen.call("open")
 
 func create_grid():
 	await get_tree().process_frame
