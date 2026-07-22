@@ -18,6 +18,9 @@ func popup_text(text: String, vcenter:bool, top_px := 80.0) -> void:
 	_hidden_temporarily = true
 	hide()
 	_label.text = text
+	# The scene's 36px font makes the popup too big on desktop; shrink it there (mobile is
+	# fine as-is). The popup sizes to the label, so this shrinks the whole panel.
+	_label.add_theme_font_size_override("font_size", 36 if MainGlobals.is_mobile() else 26)
 	_ensure_blocker()
 	await get_tree().process_frame
 	await get_tree().process_frame
