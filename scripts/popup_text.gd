@@ -9,6 +9,7 @@ signal closed
 @onready var _label: Label = %Text
 
 var _blocker: Control = null
+var _blocker_layer: CanvasLayer = null
 var _emitted := false
 
 var _hidden_temporarily := false
@@ -45,13 +46,24 @@ func popup_text(text: String, vcenter:bool, top_px := 80.0) -> void:
 func _ready() -> void:
 	# Fires for any reason the popup hides (ESC, outside click, hide(), etc).
 	popup_hide.connect(_on_popup_hide)
+	_add_inside_catcher()
 
 
-func _gui_input(event: InputEvent) -> void:
-	# Close when tapping/clicking on the popup itself.
-	if event is InputEventMouseButton and event.pressed:
-		hide()
-	elif event is InputEventScreenTouch and event.pressed:
+func _add_inside_catcher() -> void:
+	# A tap ON the popup must close it too (matches "Tap anywhere to start"). _gui_input
+	# does NOT fire on a PopupPanel (it's a Window, not a Control), so we put a transparent
+	# full-rect Control on top of the content that closes on a press. Taps OUTSIDE the
+	# popup are handled by the root dim blocker.
+	var catcher: Control = Control.new()
+	catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
+	catcher.mouse_filter = Control.MOUSE_FILTER_STOP
+	catcher.gui_input.connect(_on_catcher_gui_input)
+	add_child(catcher)
+	catcher.move_to_front()
+
+
+func _on_catcher_gui_input(event: InputEvent) -> void:
+	if (event is InputEventMouseButton and event.pressed) or (event is InputEventScreenTouch and event.pressed):
 		hide()
 
 
@@ -59,25 +71,35 @@ func _ensure_blocker() -> void:
 	if _blocker != null and is_instance_valid(_blocker):
 		return
 
-	_blocker = Control.new()
-	_blocker.name = "TextPopupBlocker"
-	_blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_blocker.offset_left = 0
-	_blocker.offset_top = 0
-	_blocker.offset_right = 0
-	_blocker.offset_bottom = 0
+	# Host the blocker on a HIGH CanvasLayer so it covers game content that lives on its own
+	# CanvasLayers. A plain window-level blocker sits on the base canvas (layer 0), BELOW
+	# those layers, so buttons behind the popup stay clickable (not modal). The popup itself
+	# is a subwindow and still renders above this layer.
+	_blocker_layer = CanvasLayer.new()
+	_blocker_layer.layer = 128
 
-	# Crucial: STOP means this Control consumes input so it won't reach gameplay _input.
-	_blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	# A visible dark translucent full-screen ColorRect: dims everything behind the popup AND
+	# (mouse_filter STOP) consumes ALL input under it — clicks, drags and hover — so buttons
+	# below can't be clicked or even flash on hover. Sized way oversized because a
+	# CanvasLayer-hosted Control's full-rect anchors don't always resolve to the viewport
+	# (leaving it zero-sized, which is why a transparent Control let hover through).
+	var dim: ColorRect = ColorRect.new()
+	dim.name = "TextPopupBlocker"
+	dim.color = Color(0.0, 0.0, 0.0, 0.45)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.position = Vector2(-2000, -2000)
+	dim.size = Vector2(8000, 8000)
+	dim.gui_input.connect(_on_blocker_gui_input)
+	_blocker = dim
+	_blocker_layer.add_child(_blocker)
 
-	_blocker.gui_input.connect(_on_blocker_gui_input)
+	# Add to the MAIN window (root viewport), NOT get_window(): this node is itself a
+	# Window (PopupPanel), so get_window() returns the popup — adding there would dim the
+	# popup and leave the screen behind it untouched. On the root the popup subwindow
+	# renders above this layer, so the popup stays bright while everything else is dimmed
+	# and input-blocked.
+	get_tree().root.add_child(_blocker_layer)
 
-	# Add blocker to the same window canvas as the popup, then place popup above it.
-	var win := get_window()
-	win.add_child(_blocker)
-
-	# Ensure blocker is behind popup.
-	_blocker.move_to_front() # move blocker to top...
 	MainGlobals.bring_to_front()
 
 func _on_blocker_gui_input(event: InputEvent) -> void:
@@ -107,6 +129,9 @@ func _cleanup_and_emit() -> void:
 	if _blocker != null and is_instance_valid(_blocker):
 		_blocker.queue_free()
 	_blocker = null
+	if _blocker_layer != null and is_instance_valid(_blocker_layer):
+		_blocker_layer.queue_free()
+	_blocker_layer = null
 
 	emit_signal("closed")
 

@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://dino/scripts/main.gd" id="1_dinomain"]
+[ext_resource type="PackedScene" path="res://dino/scenes/level.tscn" id="2_dinomain"]
+[ext_resource type="PackedScene" uid="uid://b5nopeehswp1m" path="res://scenes/generic_game_hud.tscn" id="3_dinomain"]
+[ext_resource type="PackedScene" uid="uid://dq01irsowd2xu" path="res://scenes/help.tscn" id="5_dinomain"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_dinomain")
+
+[node name="Level" parent="." instance=ExtResource("2_dinomain")]
+
+[node name="HUD" parent="." instance=ExtResource("3_dinomain")]
+
+[node name="GameTick" type="Timer" parent="."]
+wait_time = 0.05
+autostart = true
+
+[node name="Help" parent="." instance=ExtResource("5_dinomain")]
+unique_name_in_owner = true
+visible = false
+
+[connection signal="start_game" from="HUD" to="." method="_on_hud_start_game"]
+[connection signal="timeout" from="GameTick" to="." method="_on_game_tick_timeout"]

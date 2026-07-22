@@ -431,8 +431,8 @@ func _notification(what: int) -> void:
 		Engine.max_fps = 0
 		# get_tree().paused = false
 
-func _on_sig_update_bottom_bar(buttons_str_or_arr, _text_color: Color):
-	$BottomOptionButtons.set_buttons(buttons_str_or_arr, _text_color)
+func _on_sig_update_bottom_bar(buttons_str_or_arr, _text_color: Color, reversed: bool = false):
+	$BottomOptionButtons.set_buttons(buttons_str_or_arr, _text_color, reversed)
 	
 func on_sig_generic_game_hud_show(_show: bool):
 	$GenericGameHUD.visible = _show
