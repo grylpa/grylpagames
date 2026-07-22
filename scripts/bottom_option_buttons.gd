@@ -34,9 +34,9 @@ var button_audio := preload("res://art/sounds/tap-1.mp3")
 
 # reversed-mode colors (easy to tune)
 const _REV_CONTENT: Color = Color(0.05, 0.04, 0.0, 1.0)   # near-black dark yellow
-const _REV_BG_NORMAL: Color = Color(0.22, 0.22, 0.22, 0.26)  # lighter + less opaque
-const _REV_BG_HOVER: Color = Color(0.22, 0.22, 0.22, 0.36)
-const _REV_BG_PRESSED: Color = Color(0.22, 0.22, 0.22, 0.42)
+const _REV_BG_NORMAL: Color = Color(0.9843137, 0.85490197, 0.1882353, 0.8)  # exact popup yellow
+const _REV_BG_HOVER: Color = Color(1.0, 0.92, 0.36, 1.0)                     # slightly lighter
+const _REV_BG_PRESSED: Color = Color(0.85, 0.73, 0.13, 1.0)                  # slightly darker
 
 @export var scores_visible: bool = true:
 	set(value):
