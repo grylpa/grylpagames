@@ -1073,6 +1073,17 @@ func show_game_popup(parent, title, text, text_add=""):
 	ldp.set_title(title)
 	ldp.set_text(text)
 
+# Storm-style intro/info popup: a centered yellow panel with dark-green, \n-formatted text
+# (it sizes to the text, so use short lines and \n, not auto-wrap) and a "Tap anywhere to
+# start" prompt. A full-screen blocker dismisses it on a tap anywhere (inside or outside);
+# it emits `closed` once and frees itself. Returns the PopupText so the caller can
+# `.closed.connect(...)`. Reusable by any game.
+func show_text_popup(parent, text: String, vcenter: bool = true, top_px: float = 120.0) -> PopupText:
+	var ppp: PopupText = MainGlobals.generic_text_popup()
+	parent.add_child(ppp)
+	ppp.popup_text(text, vcenter, top_px)
+	return ppp
+
 func time_left_str():
 	var h:int = time_left_sec / 3600
 	var m:int = (time_left_sec - h * 3600) / 60

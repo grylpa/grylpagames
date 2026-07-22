@@ -49,7 +49,7 @@ signal sig_path_clear
 signal sig_need_to_close_info_popups
 signal sig_stop_active_game
 signal sig_global_help_button_pressed
-signal sig_update_bottom_bar(buttonsstr_or_arr, color)
+signal sig_update_bottom_bar(buttonsstr_or_arr, color, reversed)
 
 signal sig_generic_game_hud_add_score(add_val)
 signal sig_generic_game_hud_add_time(add_val)
@@ -290,8 +290,11 @@ func find_id_in_option_button(lst: OptionButton, id: int) -> int:
 			return i
 	return -1
 
-func update_bottom_bar(buttons_str_or_arr, _text_color: Color = Color.YELLOW):
-	sig_update_bottom_bar.emit(buttons_str_or_arr, _text_color)
+func update_bottom_bar(buttons_str_or_arr, _text_color: Color = Color.YELLOW, reversed: bool = false):
+	# reversed = draw a dark backing strip behind the bar so the light icons stay visible
+	# on light/busy game backgrounds (e.g. dino). Passed explicitly on every call, so it
+	# auto-resets to normal whenever another game/menu configures the bar.
+	sig_update_bottom_bar.emit(buttons_str_or_arr, _text_color, reversed)
 
 var _action_buttons_scene = null
 

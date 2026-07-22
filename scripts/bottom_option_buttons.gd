@@ -23,6 +23,21 @@ var button_audio := preload("res://art/sounds/tap-1.mp3")
 		if is_inside_tree():
 			_update_theme()
 
+# When true, the individual buttons flip to a dark theme (very dark, near-black content
+# over a darker translucent button background) so they stay readable on light/busy game
+# backgrounds (e.g. dino). The bar itself stays fully transparent either way.
+@export var reversed_theme: bool = false:
+	set(value):
+		reversed_theme = value
+		if is_inside_tree():
+			_update_theme()
+
+# reversed-mode colors (easy to tune)
+const _REV_CONTENT: Color = Color(0.05, 0.04, 0.0, 1.0)   # near-black dark yellow
+const _REV_BG_NORMAL: Color = Color(0.22, 0.22, 0.22, 0.26)  # lighter + less opaque
+const _REV_BG_HOVER: Color = Color(0.22, 0.22, 0.22, 0.36)
+const _REV_BG_PRESSED: Color = Color(0.22, 0.22, 0.22, 0.42)
+
 @export var scores_visible: bool = true:
 	set(value):
 		scores_visible = value
@@ -148,11 +163,14 @@ func _update_theme():
 	var prop_names := [
 		"icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color", "icon_disabled_color",
 		"font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color"]
+	# reversed: dark near-black content instead of the game's (usually light) text_color
+	var content_col: Color = _REV_CONTENT if reversed_theme else text_color
 	for child in buttons_node.get_children():
 		if child is Button:
 			# child.size_flags_vertical = Control.SIZE_EXPAND
 			for prop_name in prop_names:
-				child.add_theme_color_override(prop_name, text_color)
+				child.add_theme_color_override(prop_name, content_col)
+			_apply_button_bg(child, reversed_theme)
 				
 	if MainGlobals.is_mobile():
 		set_button_font_size(70)
@@ -160,6 +178,26 @@ func _update_theme():
 	else:
 		set_button_font_size(40)
 		buttons_node.add_theme_constant_override("separation", 8)
+
+func _apply_button_bg(btn: Button, reversed: bool) -> void:
+	# reversed -> darker translucent button backgrounds; otherwise restore the theme's.
+	if reversed:
+		btn.add_theme_stylebox_override("normal", _make_rev_stylebox(_REV_BG_NORMAL))
+		btn.add_theme_stylebox_override("hover", _make_rev_stylebox(_REV_BG_HOVER))
+		btn.add_theme_stylebox_override("pressed", _make_rev_stylebox(_REV_BG_PRESSED))
+		btn.add_theme_stylebox_override("hover_pressed", _make_rev_stylebox(_REV_BG_PRESSED))
+		btn.add_theme_stylebox_override("focus", _make_rev_stylebox(Color(0, 0, 0, 0)))
+	else:
+		for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			btn.remove_theme_stylebox_override(s)
+
+func _make_rev_stylebox(col: Color) -> StyleBoxFlat:
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 4.0
+	sb.content_margin_right = 4.0
+	return sb
 
 func set_button_font_size(size: int) -> void:
 	for child in buttons_node.get_children():
@@ -214,7 +252,8 @@ func _on_zoom_button_pressed() -> void:
 	sig_zoom_pressed.emit()
 	MainGlobals.sim_action("zoom")
 
-func set_buttons(buttons_str_or_arr, _text_color: Color = Color.YELLOW):
+func set_buttons(buttons_str_or_arr, _text_color: Color = Color.YELLOW, reversed: bool = false):
+	reversed_theme = reversed
 	if buttons_str_or_arr is String:
 		var buttons = buttons_str_or_arr
 		var lbuttons = buttons.to_lower()
