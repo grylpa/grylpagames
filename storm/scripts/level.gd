@@ -681,7 +681,7 @@ func create_board() -> void:
 
 	var timestr = MainGlobals.round_duration_str(storm_duration_s)
 	var roomsstr = "one room" if rooms.size() == 1 else "%d rooms" % rooms.size()
-	ppp.popup_text("You have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [roomsstr, timestr], true, 120)
+	ppp.popup_text("Level %d\n\nYou have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [level, roomsstr, timestr], true, 120)
 
 	game.play_sound("rain")
 	started_sounds = true

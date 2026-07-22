@@ -60,12 +60,9 @@ func default_color(folder: String) -> Color:
 		return PEOPLE_YELLOW
 	return WHITE  # dinos and any other folder default to white
 
-func background_for(folders: Array) -> String:
-	# any dino folder -> the dino background; otherwise the weris grass background
-	for f in folders:
-		if str(f).strip_edges() == "dinos":
-			return "res://art/dinos/bk1.jpg"
-	return "res://art/grass.png"
+func background_for(_folders: Array) -> String:
+	# always the dino background, even for people-only levels
+	return "res://art/dinos/bk1.jpg"
 
 func save_settings() -> void:
 	game.save_settings([starting_level_id])

@@ -90,9 +90,9 @@ on the game chooser. Implemented in `scripts/bottom_option_buttons.gd` (`reverse
 `_apply_button_bg`, `_REV_*` colors).
 
 ## Backgrounds
-- `people` (or any non-dino source) → weris's `res://art/grass.png` with **`STRETCH_TILE`**
-  (weris tiles it; do NOT cover-stretch a tile), over the green clear color `0x3C5D3E`.
-- any `dinos` source → `res://art/dinos/bk1.jpg` with `STRETCH_KEEP_ASPECT_COVERED`.
+- **Always** `res://art/dinos/bk1.jpg` (`STRETCH_KEEP_ASPECT_COVERED`), for every source
+  including people-only levels (`DinoG.background_for` ignores the folders). The `_load_level`
+  code still picks `STRETCH_TILE` for a grass background, but grass is no longer selected.
 
 ## Scoring & progression
 - Correct: `+10 + speed bonus`, `add_correct_or_mistake(1,0)`, "correct" sound.
