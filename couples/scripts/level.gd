@@ -2,7 +2,7 @@ extends CanvasLayer
 
 # Couples gameplay: each board shows an NC x NR grid of dino cards. Exactly ONE image
 # appears TWICE (the two copies are placed non-adjacent unless the grid is too small).
-# The player finds the pair and taps both cards. Modelled on the Dino game — same dino
+# The player finds the pair and taps both cards. Modeled on the Dino game — same dino
 # pictures, white zigzag card frame, dino background, phase machine, scoring and level
 # flow (per-level time budget that advances the level when it elapses).
 
@@ -138,10 +138,14 @@ func _layout() -> void:
 	var text_top: float = hh + (96.0 if mob else 84.0)
 	_place(_instruction, 0.0, text_top, sw, instr_line)
 
-	# grid area: from below the instruction down to near the screen bottom (no buttons)
+	# grid area: from below the instruction down to just above the app bottom button bar.
+	# That bar is anchored to the full-canvas bottom and is taller than the footer reserve on
+	# mobile (~70px vs ~44px desktop), so screen_size (sh) doesn't fully exclude it — subtract
+	# its intrusion so the grid never runs under the bar on any platform.
 	_grid_top = text_top + instr_line + (14.0 if mob else 10.0)
-	var bottom_margin: float = 30.0 if mob else 20.0
-	_grid_h = maxf(50.0, (sh - bottom_margin) - _grid_top)
+	var bar_h: float = 70.0 if mob else 44.0
+	var bottom_reserve: float = maxf(20.0, bar_h - float(MainGlobals.footer_height) + 10.0)
+	_grid_h = maxf(50.0, (sh - bottom_reserve) - _grid_top)
 	var side: float = 16.0
 	_grid_left = side
 	_grid_w = sw - side * 2.0
@@ -280,26 +284,32 @@ func _build_board() -> void:
 	_position_cards()
 
 func _position_cards() -> void:
-	var col_gap: float = 10.0
-	var cell_w: float = (_grid_w - (nc - 1) * col_gap) / float(nc)
+	# Card size is derived purely from the available grid area (`_grid_*`), so it adapts to any
+	# platform/screen — no mobile/desktop-specific sizes. Between cards AND at the outer edges
+	# we reserve exactly enough room for the enlarge pop: a selected card scales to 1.12, i.e.
+	# grows ENLARGE/2 = 0.06 of its size on each side. So two adjacent cards need ENLARGE*size
+	# of clear space between them, and an edge card needs ENLARGE/2*size to the area boundary.
+	# Small absolute minimums (MIN_GAP/MIN_EDGE) keep un-enlarged cards from visually touching.
+	var enlarge: float = 0.12
+	var min_gap: float = 4.0
+	var min_edge: float = 4.0
 
-	# Rows get an extra gap so an enlarged pair never overlaps: selecting a card scales it to
-	# 1.12 (grows ~6% of its height on each side), so two vertically-stacked cards would eat
-	# ~0.12*card_h into the space between them. card_w is limited horizontally by the cell
-	# width and vertically by the grid height (with room reserved for those row gaps). Any
-	# leftover vertical space becomes margin above/below the block ("spare above the cards").
-	var enlarge_frac: float = 0.12
-	var row_margin: float = 6.0
-	# largest card_w whose nr rows + enlarge row-gaps still fit the grid height
-	var vfit_w: float = (_grid_h - float(nr - 1) * row_margin) / (CARD_ASPECT * (float(nr) + float(nr - 1) * enlarge_frac))
-	var card_w: float = maxf(20.0, minf(cell_w, vfit_w))
-	var nominal_h: float = card_w * CARD_ASPECT  # upper-bound row height (see CARD_ASPECT)
-	var row_gap: float = 0.0
-	if nr > 1:
-		row_gap = maxf(col_gap, nominal_h * enlarge_frac + row_margin)
+	# Largest card that fits each axis once those gaps/edges are reserved. Solving
+	#   n*size + (n-1)*(enlarge*size + min_gap) + 2*(enlarge/2*size + min_edge) <= avail
+	# gives  size <= (avail - (n-1)*min_gap - 2*min_edge) / (n*(1+enlarge)).
+	var wfit: float = (_grid_w - float(nc - 1) * min_gap - 2.0 * min_edge) / (float(nc) * (1.0 + enlarge))
+	var hfit: float = (_grid_h - float(nr - 1) * min_gap - 2.0 * min_edge) / (float(nr) * (1.0 + enlarge))
+	var card_w: float = maxf(20.0, minf(wfit, hfit / CARD_ASPECT))
+	var ch: float = card_w * CARD_ASPECT  # exact: couples cards use FILL fit at CARD_ASPECT
 
-	# vertically centre the block of rows in the grid area (uses the spare above/below)
-	var block_h: float = float(nr) * nominal_h + float(nr - 1) * row_gap
+	var gap_x: float = enlarge * card_w + min_gap
+	var gap_y: float = enlarge * ch + min_gap
+
+	# Center the block (cards + inter-card gaps) in the grid area; leftover space becomes outer
+	# margin, always >= the enlarge/2 edge room the fit reserved (more on the unconstrained axis).
+	var block_w: float = float(nc) * card_w + float(nc - 1) * gap_x
+	var block_h: float = float(nr) * ch + float(nr - 1) * gap_y
+	var left0: float = _grid_left + maxf(0.0, (_grid_w - block_w) * 0.5)
 	var top0: float = _grid_top + maxf(0.0, (_grid_h - block_h) * 0.5)
 
 	for entry in _cards:
@@ -310,9 +320,8 @@ func _position_cards() -> void:
 		if not is_instance_valid(card):
 			continue
 		card.set_width(card_w)
-		var ch: float = card.card_height()
-		var cx: float = _grid_left + c * (cell_w + col_gap) + cell_w * 0.5
-		var cy: float = top0 + float(r) * (nominal_h + row_gap)
+		var cx: float = left0 + float(c) * (card_w + gap_x) + card_w * 0.5
+		var cy: float = top0 + float(r) * (ch + gap_y)
 		var pos: Vector2 = Vector2(cx, cy)
 		card.position = pos
 		card.scale = Vector2(1, 1)
@@ -326,11 +335,11 @@ func _position_cards() -> void:
 			hit.size = Vector2(card_w, ch)
 
 func _pick_target_cells(cols: int, rows: int) -> Array:
-	# two cells with Chebyshev distance >= 2 (not 8-neighbours); fall back to any two
+	# two cells with Chebyshev distance >= 2 (not 8-neighbors); fall back to any two
 	# distinct cells when that's impossible (e.g. a 2x2 grid).
 	var cells: int = cols * rows
 	# Only HALF the time require the pair to be non-adjacent (Chebyshev distance >= 2).
-	# Always requiring it has odd side effects -- e.g. in a 3x3 the centre cell (a neighbour
+	# Always requiring it has odd side effects -- e.g. in a 3x3 the center cell (a neighbor
 	# of every other cell) could never be part of the couple. The other half allows any two
 	# distinct cells, so the pair is sometimes adjacent.
 	if game.rng.randf() < 0.5:

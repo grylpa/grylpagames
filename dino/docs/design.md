@@ -119,7 +119,7 @@ on the game chooser. Implemented in `scripts/bottom_option_buttons.gd` (`reverse
 - **Full image, no crop**: the frame is sized to each image's own aspect ratio
   (`card.setup` reads `tex.get_size()`), and the image uses `STRETCH_SCALE` — so the whole
   image fills the frame with no cropping. `level._show_next_card` fits the card into the
-  available area using that aspect and the level's size fraction (small/med/big = fractions
+  available area using that aspect and the level's size fraction (small/med/big = 0.56/0.78/0.98
   of the largest fittable card, so they differ clearly). Frame = 8px zig nine-patch.
 - Image sources must be probed with `ResourceLoader.exists` (export-safe), never DirAccess.
 - **No ghost answers across rounds**: a swipe must BEGIN during the current card, so press

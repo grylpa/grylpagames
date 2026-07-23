@@ -14,6 +14,7 @@ var games = [
 	["sortingrobots", "Sorting Robots", "Sort items by hidden rules",                             "Brain twisters"],
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
 	["monkeyc",       "Monkey C",       "Watch the robot and figure out the rule",                "Brain twisters"],
+	["change",        "Change",         "Drag coins to pay the exact amount",                     "Brain twisters"],
 
 	["ptbits",        "Ptbits",         "Push each ball into its matching-color basket",          "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],

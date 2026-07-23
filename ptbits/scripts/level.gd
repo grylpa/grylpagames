@@ -689,7 +689,7 @@ func _input(event: InputEvent) -> void:
 func _draw() -> void:
 	# play-area backdrop
 	# extend the backdrop all the way to the screen bottom (behind the button bar) so
-	# there's no colour band between play_bottom and the bar
+	# there's no color band between play_bottom and the bar
 	var bg_bottom: float = maxf(play_bottom, float(MainGlobals.full_screen_size.y))
 	var area: Rect2 = Rect2(play_left, play_top, play_right - play_left, bg_bottom - play_top)
 	draw_rect(area, Color(0.11, 0.14, 0.20, 1.0), true)

@@ -32,7 +32,7 @@ var study_card = null
 var find_cards := []
 
 const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")
-const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # weris card border colour
+const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # weris card border color
 
 signal started_playing
 signal sig_level_is_done(didwin: bool)
