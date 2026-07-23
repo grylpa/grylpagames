@@ -590,6 +590,15 @@ func _on_seen_pressed() -> void:
 func _input(event: InputEvent) -> void:
 	if not _can_play() or phase != Phase.SHOW or _answered:
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		# keyboard: Left = new, Right = seen (matches swipe/buttons)
+		if event.keycode == KEY_LEFT:
+			_register_answer(false)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_RIGHT:
+			_register_answer(true)
+			get_viewport().set_input_as_handled()
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_pressing = true

@@ -29,12 +29,13 @@ const WHITE: Color = Color(1, 1, 1, 1)
 const PEOPLE_YELLOW: Color = Color(1, 0.8039216, 0, 1)  # exact weris card-border yellow
 
 var LEVELS: Array = [
-	{"id": 1, "name": "1", "card_size": "big",   "card_time_sec": 6.0, "gap_sec": 0.8, "start_cards": 3, "new_after": 2, "duration_sec": 60,  "source": "dinos"},
-	{"id": 2, "name": "2", "card_size": "big",   "card_time_sec": 5.0, "gap_sec": 0.7, "start_cards": 3, "new_after": 2, "duration_sec": 70,  "source": "dinos"},
-	{"id": 3, "name": "3", "card_size": "med",   "card_time_sec": 4.5, "gap_sec": 0.6, "start_cards": 4, "new_after": 2, "duration_sec": 80,  "source": "dinos"},
-	{"id": 4, "name": "4", "card_size": "med",   "card_time_sec": 5.0, "gap_sec": 0.7, "start_cards": 4, "new_after": 2, "duration_sec": 70,  "source": "people"},
-	{"id": 5, "name": "5", "card_size": "med",   "card_time_sec": 4.5, "gap_sec": 0.6, "start_cards": 5, "new_after": 2, "duration_sec": 90,  "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW]},
-	{"id": 6, "name": "6", "card_size": "small", "card_time_sec": 4.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 100, "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW]},
+	{"id": 1, "name": "1 D",  "card_size": "big",   "card_time_sec": 6.0, "gap_sec": 0.8, "start_cards": 3, "new_after": 2, "duration_sec": 40,  "source": "dinos"},
+	{"id": 2, "name": "2 D",  "card_size": "big",   "card_time_sec": 5.0, "gap_sec": 0.7, "start_cards": 3, "new_after": 2, "duration_sec": 70,  "source": "dinos"},
+	{"id": 3, "name": "3 D",  "card_size": "med",   "card_time_sec": 4.0, "gap_sec": 0.6, "start_cards": 4, "new_after": 2, "duration_sec": 80,  "source": "dinos"},
+	{"id": 4, "name": "4 P",  "card_size": "med",   "card_time_sec": 5.0, "gap_sec": 0.7, "start_cards": 4, "new_after": 2, "duration_sec": 80,  "source": "people"},
+	{"id": 5, "name": "5 DP", "card_size": "med",   "card_time_sec": 4.5, "gap_sec": 0.6, "start_cards": 5, "new_after": 2, "duration_sec": 90,  "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW]},
+	{"id": 6, "name": "6 D",  "card_size": "small", "card_time_sec": 2.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 120, "source": "dinos"},
+	{"id": 7, "name": "7 DP", "card_size": "small", "card_time_sec": 2.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 30*60, "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW]},
 ]
 
 func max_level() -> int:
