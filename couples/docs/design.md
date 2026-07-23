@@ -11,7 +11,6 @@ white zigzag card frame, dino background (`bk1.jpg`), phase machine, scoring and
 couples/
 ├── scripts/
 │   ├── globals.gd       # CouplesG autoload: game util + own dino-image loader (res://art/dinos)
-│   ├── card.gd          # own card: thin white zig NinePatch frame + image (no .tscn)
 │   ├── level_config.gd  # CouplesLevelConfig autoload: LEVELS array
 │   ├── level.gd         # gameplay: grid build, selection, phases, scoring
 │   └── main.gd          # orchestrator: menu, HUD, help, scores (mirrors dino/main.gd)
@@ -21,8 +20,14 @@ couples/
 └── art/
     └── game_screen_200.png   # chooser tile: 3x3 mosaic of dino images
 ```
-Couples is **self-contained** (no cross-game script references): its own `card.gd` (thin
-weris-style white zig NinePatch frame) and its own dino-image loader in `CouplesG`. Images
+Couples uses the **shared** `res://shared/scripts/card.gd` (zig NinePatch frame + image, thin
+frame by default) in **FILL fit**: every card frame has a single uniform aspect
+(`CARD_ASPECT = 566/374`, the max dino image height / max width) and the image is stretched to
+fill it. The dino JPGs vary in aspect (~1.47–1.59), so ASPECT fit gave visibly different card
+heights; FILL makes a tidy uniform grid with the whole image shown and no crop (the tiny
+stretch is identical on both copies of the duplicate, so it's invisible for matching). It has
+its own dino-image loader in `CouplesG` (no cross-*game* refs; the shared card is framework
+code, not another game). Images
 come from `CouplesG.dino_texture(idx)`, loaded from the **shared** `res://art/dinos` set
 (dino1..N). Background is always the shared `res://art/dinos/bk1.jpg`. The zig frame texture
 `res://art/zig1.png` is shared art too.
@@ -45,9 +50,17 @@ come from `CouplesG.dino_texture(idx)`, loaded from the **shared** `res://art/di
 - **Pre-level popup** (`game.show_text_popup`, Storm-style): level, grid size, board time,
   total time. Play starts when it closes (`closed` → `_on_game_popup_closed`).
 - **Board build** (`_build_board`): pick `NC*NR-1` distinct dino images; one of them is the
-  duplicate (`target_img`). Its two cells are chosen **non-adjacent** — Chebyshev distance
-  ≥ 2 (not 8-neighbours) — falling back to any two distinct cells when impossible (e.g. 2×2).
+  duplicate (`target_img`). Its two cells are placed by a **coin flip**: half the time
+  non-adjacent (Chebyshev distance ≥ 2, not 8-neighbours; falls back to any two distinct cells
+  when impossible, e.g. 2×2), the other half any two distinct cells (so the pair is sometimes
+  adjacent). Always requiring distance ≥ 2 had odd effects — e.g. the centre of a 3×3
+  (a neighbour of every cell) could never be part of the couple.
   Cards are laid out in a grid sized to fit `NC×NR` in the area below the level label.
+  **Row spacing reserves the enlarge pop:** a selected/matched card scales to 1.12 (grows
+  ~6% of its height per side), so `_position_cards` widens the gap between rows to
+  ≥ `0.12*card_h` (shrinking cards only if needed) and vertically centres the block, keeping
+  the spare space above/below. This stops a vertically-stacked duplicate pair overlapping
+  when both are enlarged (the visible symptom on the 2-row levels).
 - **Phases** (`_process`, driven by `game.game_time`): IDLE → SHOW (grid up, timeout bar
   counts down `show_time`) → FEEDBACK → GAP → next board.
 - **Selection**: tap a card to select it (pops up via scale + z-index); tap it again to

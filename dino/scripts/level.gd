@@ -69,7 +69,7 @@ var _card_avail_w: float = 200.0
 var _card_avail_h: float = 200.0
 var _card_area_top: float = 0.0
 var _card_center_x: float = 340.0
-const CARD_SCRIPT: GDScript = preload("res://dino/scripts/card.gd")
+const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")
 
 # --- swipe input ---
 var _pressing: bool = false
@@ -468,6 +468,7 @@ func _show_next_card() -> void:
 	var w: float = maxf(maxw * _card_frac, 60.0)
 	_card = CARD_SCRIPT.new()
 	add_child(_card)
+	_card.set_frame(8, 8)  # dino uses a thicker frame than the shared default
 	_card.setup(tex, entry["color"])
 	_card.set_width(w)
 	# centered in the card area (its center is a fixed point, so the layout is stable and

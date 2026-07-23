@@ -49,8 +49,9 @@ var _bar_fill: ColorRect = null
 var _bar_full_w: float = 200.0
 var _bar_h: float = 14.0
 
-const CARD_SCRIPT: GDScript = preload("res://couples/scripts/card.gd")  # own card (thin white zig frame)
-const CARD_ASPECT: float = 1.6   # dino images are ~1.52-1.59 tall/wide; upper bound for grid fitting
+const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")  # shared card (default thin frame)
+const CARD_ASPECT: float = 566.0 / 374.0  # uniform card frame aspect: max dino img height / max width
+                                          # (cards use FILL fit, so every card is exactly this aspect)
 const WHITE: Color = Color(1, 1, 1, 1)
 const FEEDBACK_MS: float = 950.0
 
@@ -266,6 +267,8 @@ func _build_board() -> void:
 	for cell in cells:
 		var img_idx: int = int(content[cell])
 		var card = CARD_SCRIPT.new()
+		card.fit = CARD_SCRIPT.Fit.FILL        # uniform frame; image stretched to fill it
+		card.fixed_aspect = CARD_ASPECT
 		add_child(card)
 		card.setup(CouplesG.dino_texture(img_idx), WHITE)
 		var idx: int = _cards.size()
@@ -277,23 +280,39 @@ func _build_board() -> void:
 	_position_cards()
 
 func _position_cards() -> void:
-	var gap: float = 10.0
-	var cell_w: float = (_grid_w - (nc - 1) * gap) / float(nc)
-	var cell_h: float = (_grid_h - (nr - 1) * gap) / float(nr)
-	var card_w: float = maxf(20.0, minf(cell_w, cell_h / CARD_ASPECT))
+	var col_gap: float = 10.0
+	var cell_w: float = (_grid_w - (nc - 1) * col_gap) / float(nc)
+
+	# Rows get an extra gap so an enlarged pair never overlaps: selecting a card scales it to
+	# 1.12 (grows ~6% of its height on each side), so two vertically-stacked cards would eat
+	# ~0.12*card_h into the space between them. card_w is limited horizontally by the cell
+	# width and vertically by the grid height (with room reserved for those row gaps). Any
+	# leftover vertical space becomes margin above/below the block ("spare above the cards").
+	var enlarge_frac: float = 0.12
+	var row_margin: float = 6.0
+	# largest card_w whose nr rows + enlarge row-gaps still fit the grid height
+	var vfit_w: float = (_grid_h - float(nr - 1) * row_margin) / (CARD_ASPECT * (float(nr) + float(nr - 1) * enlarge_frac))
+	var card_w: float = maxf(20.0, minf(cell_w, vfit_w))
+	var nominal_h: float = card_w * CARD_ASPECT  # upper-bound row height (see CARD_ASPECT)
+	var row_gap: float = 0.0
+	if nr > 1:
+		row_gap = maxf(col_gap, nominal_h * enlarge_frac + row_margin)
+
+	# vertically centre the block of rows in the grid area (uses the spare above/below)
+	var block_h: float = float(nr) * nominal_h + float(nr - 1) * row_gap
+	var top0: float = _grid_top + maxf(0.0, (_grid_h - block_h) * 0.5)
+
 	for entry in _cards:
 		var cell: int = entry["cell"]
 		var r: int = cell / nc
 		var c: int = cell % nc
-		var cell_left: float = _grid_left + c * (cell_w + gap)
-		var cell_top: float = _grid_top + r * (cell_h + gap)
 		var card = entry["node"]
 		if not is_instance_valid(card):
 			continue
 		card.set_width(card_w)
 		var ch: float = card.card_height()
-		var cx: float = cell_left + cell_w * 0.5
-		var cy: float = cell_top + maxf(0.0, (cell_h - ch) * 0.5)
+		var cx: float = _grid_left + c * (cell_w + col_gap) + cell_w * 0.5
+		var cy: float = top0 + float(r) * (nominal_h + row_gap)
 		var pos: Vector2 = Vector2(cx, cy)
 		card.position = pos
 		card.scale = Vector2(1, 1)
@@ -310,11 +329,16 @@ func _pick_target_cells(cols: int, rows: int) -> Array:
 	# two cells with Chebyshev distance >= 2 (not 8-neighbours); fall back to any two
 	# distinct cells when that's impossible (e.g. a 2x2 grid).
 	var cells: int = cols * rows
-	for _attempt in 300:
-		var a: int = game.rng.randi_range(0, cells - 1)
-		var b: int = game.rng.randi_range(0, cells - 1)
-		if a != b and _cheby(a, b, cols) >= 2:
-			return [a, b]
+	# Only HALF the time require the pair to be non-adjacent (Chebyshev distance >= 2).
+	# Always requiring it has odd side effects -- e.g. in a 3x3 the centre cell (a neighbour
+	# of every other cell) could never be part of the couple. The other half allows any two
+	# distinct cells, so the pair is sometimes adjacent.
+	if game.rng.randf() < 0.5:
+		for _attempt in 300:
+			var a: int = game.rng.randi_range(0, cells - 1)
+			var b: int = game.rng.randi_range(0, cells - 1)
+			if a != b and _cheby(a, b, cols) >= 2:
+				return [a, b]
 	var x: int = game.rng.randi_range(0, cells - 1)
 	var y: int = game.rng.randi_range(0, cells - 1)
 	while y == x:
@@ -367,7 +391,11 @@ func _on_card_tapped(idx: int) -> void:
 		_selected = -1
 	else:
 		var is_match: bool = int(_cards[_selected]["img_idx"]) == int(_cards[idx]["img_idx"])
-		_highlight(_selected, false)
+		if is_match:
+			# correct: enlarge the 2nd card too and leave BOTH enlarged until the board clears
+			_highlight(idx, true)
+		else:
+			_highlight(_selected, false)
 		_selected = -1
 		_resolve(is_match, false)
 
