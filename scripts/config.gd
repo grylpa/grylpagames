@@ -28,6 +28,7 @@ var games = [
 	["weris",         "Weris",          "Find people in a crowd",                                 "Memory & Speed"],
 	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Memory & Speed"],
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
+	["couples",       "Couples",        "Find and tap the two identical cards",                   "Memory & Speed"],
 
 	["storm",         "Storm",          "Save your house from the storm with tools and drains",   "Planning"],
 	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],
