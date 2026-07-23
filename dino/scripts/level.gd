@@ -268,10 +268,19 @@ func new_game(_from_scratch: bool = true) -> void:
 
 	# Storm-style intro popup (centered panel, tap anywhere to start). Play starts when
 	# it's closed. Sizes to its text, so keep short \n lines (no auto-wrap here).
-	var intro: PopupText = game.show_text_popup(self,
-		"Level %d\n\nSwipe RIGHT if you've\nseen the card before,\nLEFT if it's new.\n\nCards: %d\nImages: %s\nCard time: %s\nDuration: %s" % [
-			current_level_id, start_cards, ", ".join(_folders),
-			_fmt_secs(card_time_ms / 1000.0), _fmt_secs(float(duration_sec))])
+	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
+		# NOTE: parentheses around the whole concatenation are required — `%` binds tighter
+		# than `+`, so without them the format applies only to the last "Duration: %s".
+		("Swipe RIGHT if you've\n" +
+		"seen the card before,\n" +
+		"LEFT if it's new.\n\n" +
+		"Images: %s\n" +
+		"Card time: %s\n" +
+		"Duration: %s") % [
+			", ".join(_folders),
+			_fmt_secs(card_time_ms / 1000.0),
+			_fmt_secs(float(duration_sec))
+		])
 	intro.closed.connect(_on_game_popup_closed)
 
 func _on_game_popup_closed() -> void:
