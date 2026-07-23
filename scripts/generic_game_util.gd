@@ -1078,10 +1078,10 @@ func show_game_popup(parent, title, text, text_add=""):
 # start" prompt. A full-screen blocker dismisses it on a tap anywhere (inside or outside);
 # it emits `closed` once and frees itself. Returns the PopupText so the caller can
 # `.closed.connect(...)`. Reusable by any game.
-func show_text_popup(parent, text: String, vcenter: bool = true, top_px: float = 120.0) -> PopupText:
+func show_text_popup(parent, title: String, text: String, vcenter: bool = true, top_px: float = 120.0) -> PopupText:
 	var ppp: PopupText = MainGlobals.generic_text_popup()
 	parent.add_child(ppp)
-	ppp.popup_text(text, vcenter, top_px)
+	ppp.popup_text(title, text, vcenter, top_px)
 	return ppp
 
 func time_left_str():

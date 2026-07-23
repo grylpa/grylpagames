@@ -7,6 +7,8 @@ signal closed
 @export var clamp_margin_px := 8
 
 @onready var _label: Label = %Text
+@onready var _title: Label = %Title
+@onready var _tap: Label = %TapText
 
 var _blocker: Control = null
 var _blocker_layer: CanvasLayer = null
@@ -14,18 +16,31 @@ var _emitted := false
 
 var _hidden_temporarily := false
 
-func popup_text(text: String, vcenter:bool, top_px := 80.0) -> void:
+func popup_text(text_title: String, text: String, vcenter:bool, top_px := 80.0) -> void:
 	_hidden_temporarily = true
 	hide()
-	_label.text = text
 	# The scene's 36px font makes the popup too big on desktop; shrink it there (mobile is
-	# fine as-is). The popup sizes to the label, so this shrinks the whole panel.
-	_label.add_theme_font_size_override("font_size", 36 if MainGlobals.is_mobile() else 26)
+	# fine as-is). The popup sizes to the content, so this shrinks the whole panel.
+	var fs: int = 36 if MainGlobals.is_mobile() else 26
+	_label.text = text
+	_label.add_theme_font_size_override("font_size", fs)
+	# "Tap anywhere to start" — a bit larger on mobile
+	_tap.add_theme_font_size_override("font_size", 24 if MainGlobals.is_mobile() else 16)
+	# Title: same font/colour as the text but +2 in size. If empty, hide it so it takes no
+	# vertical space (a hidden child is skipped by the VBox, along with its separation).
+	if text_title.is_empty():
+		_title.text = ""
+		_title.visible = false
+	else:
+		_title.text = text_title
+		_title.visible = true
+		_title.add_theme_font_size_override("font_size", fs + 8)
 	_ensure_blocker()
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var content_size := _label.get_combined_minimum_size()
+	# size to the whole content column (title + text + tap prompt), not just the text label
+	var content_size := ($VBoxContainer as Control).get_combined_minimum_size()
 	var desired := content_size + 2 * Vector2(margin_px, margin_px)
 	size = Vector2i(ceili(desired.x), ceili(desired.y))
 

@@ -672,16 +672,10 @@ func create_board() -> void:
 	# zoom_camera(false)
 	$BuildingLabel.hide()
 
-	var ppp = MainGlobals.generic_text_popup()
-	add_child(ppp)
-	# get_window().add_child(ppp)
-	# var win := get_tree().root.get_window()
-	# win.add_child(ppp)
-	ppp.closed.connect(_on_closed_intro_popup)
-
 	var timestr = MainGlobals.round_duration_str(storm_duration_s)
 	var roomsstr = "one room" if rooms.size() == 1 else "%d rooms" % rooms.size()
-	ppp.popup_text("Level %d\n\nYou have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [level, roomsstr, timestr], true, 120)
+	var ppp = game.show_text_popup(self, "Level %d" % level, "You have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [roomsstr, timestr], true, 120)
+	ppp.closed.connect(_on_closed_intro_popup)
 
 	game.play_sound("rain")
 	started_sounds = true
