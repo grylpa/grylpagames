@@ -30,7 +30,7 @@ var time_shown_new_person_ms = 0
 var max_id_used := 1
 
 const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")
-const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # friends card border colour
+const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # friends card border color
 
 var ambient_audios := [ 
 	preload("res://art/sounds/ocean-waves-2.mp3"), 

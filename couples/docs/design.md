@@ -3,7 +3,7 @@
 ## Overview
 Couples is a **spot-the-pair** game. Each board is an **NC × NR grid** of dino cards.
 Exactly **one image appears twice**; every other cell is a unique image. The player finds
-the matching pair and **taps both cards**. Modelled on the Dino game — same dino pictures,
+the matching pair and **taps both cards**. Modeled on the Dino game — same dino pictures,
 white zigzag card frame, dino background (`bk1.jpg`), phase machine, scoring and level flow.
 
 ## File structure
@@ -51,16 +51,22 @@ come from `CouplesG.dino_texture(idx)`, loaded from the **shared** `res://art/di
   total time. Play starts when it closes (`closed` → `_on_game_popup_closed`).
 - **Board build** (`_build_board`): pick `NC*NR-1` distinct dino images; one of them is the
   duplicate (`target_img`). Its two cells are placed by a **coin flip**: half the time
-  non-adjacent (Chebyshev distance ≥ 2, not 8-neighbours; falls back to any two distinct cells
+  non-adjacent (Chebyshev distance ≥ 2, not 8-neighbors; falls back to any two distinct cells
   when impossible, e.g. 2×2), the other half any two distinct cells (so the pair is sometimes
-  adjacent). Always requiring distance ≥ 2 had odd effects — e.g. the centre of a 3×3
-  (a neighbour of every cell) could never be part of the couple.
-  Cards are laid out in a grid sized to fit `NC×NR` in the area below the level label.
-  **Row spacing reserves the enlarge pop:** a selected/matched card scales to 1.12 (grows
-  ~6% of its height per side), so `_position_cards` widens the gap between rows to
-  ≥ `0.12*card_h` (shrinking cards only if needed) and vertically centres the block, keeping
-  the spare space above/below. This stops a vertically-stacked duplicate pair overlapping
-  when both are enlarged (the visible symptom on the 2-row levels).
+  adjacent). Always requiring distance ≥ 2 had odd effects — e.g. the center of a 3×3
+  (a neighbor of every cell) could never be part of the couple.
+- **Layout is derived from available space, all platforms** (`_layout` + `_position_cards`):
+  the grid area runs from below the instruction (`_grid_top`) down to just above the app
+  bottom button bar. That bar is anchored to the full-canvas bottom and, on mobile, is taller
+  (~70px) than the footer reserve (`MainGlobals.footer_height`, 40px), so `_layout` subtracts
+  `bottom_reserve = max(20, bar_h − footer + 10)` (bar_h 70 mobile / 44 desktop) — otherwise the
+  bottom row runs under the bar. There are **no mobile/desktop-specific card sizes**; card_w is
+  solved from the area: for each axis `n*size + (n-1)*(E*size+min_gap) + 2*(E/2*size+min_edge) ≤
+  avail` with **E = 0.12** the enlarge allowance (a selected/matched card scales to 1.12, i.e.
+  grows 0.06 per side). So inter-card gaps are the *minimum* that still lets two adjacent
+  enlarged cards clear (horizontal **and** vertical), and outer margins reserve the edge cards'
+  enlargement. `card_w = min(width-fit, height-fit)`; the block is centered so leftover space
+  becomes extra margin. The level-config `nc/nr` drive the grid; card size is whatever fits.
 - **Phases** (`_process`, driven by `game.game_time`): IDLE → SHOW (grid up, timeout bar
   counts down `show_time`) → FEEDBACK → GAP → next board.
 - **Selection**: tap a card to select it (pops up via scale + z-index); tap it again to

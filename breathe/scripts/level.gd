@@ -288,7 +288,7 @@ func _show_results() -> void:
 	_results_panel.show()
 
 	if _tap_times_ms.size() < 2:
-		_metrics_label.text = "Too few taps to analyse.\nStart a new session and tap each breath."
+		_metrics_label.text = "Too few taps to analyze.\nStart a new session and tap each breath."
 		return
 
 	var mean_sec: float = _mean_ms / 1000.0

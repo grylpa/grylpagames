@@ -511,7 +511,7 @@ func _show_results(analysis: Dictionary) -> void:
 			_populate_phase_grid_u([])
 	else:
 		if _reversal_times_ms.size() < 2:
-			_metrics_label.text = "Too few direction changes to analyse.\nSwipe up while inhaling and down while exhaling."
+			_metrics_label.text = "Too few direction changes to analyze.\nSwipe up while inhaling and down while exhaling."
 			_populate_phase_grid_u([])
 			return
 		text += "Consistency: %d / 100   (%.1f bpm)\n" % [_consistency_score(), _bpm]

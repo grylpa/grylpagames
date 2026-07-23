@@ -286,7 +286,7 @@ are bumped for touch:
   margin is likewise larger (190 vs 90) to stay clear of the raised, larger tools.
 
 The **backdrop** (`_draw`) fills from `play_top` down to `full_screen_size.y` (the screen bottom),
-not just `play_bottom` — so there's no colour band between the play area and the bottom button bar.
+not just `play_bottom` — so there's no color band between the play area and the bottom button bar.
 
 ## Coordinate space
 
