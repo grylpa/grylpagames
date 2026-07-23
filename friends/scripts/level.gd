@@ -29,7 +29,8 @@ var time_to_next_mode_ms = 0
 var time_shown_new_person_ms = 0
 var max_id_used := 1
 
-@export var card_scene: PackedScene = load("res://friends/scenes/resizeable_card.tscn")
+const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")
+const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # friends card border colour
 
 var ambient_audios := [ 
 	preload("res://art/sounds/ocean-waves-2.mp3"), 
@@ -83,8 +84,9 @@ func create_board() -> void:
 	while !cards.is_empty():
 		cards.pop_back().queue_free()
 
-	var tmp_c = card_scene.instantiate()
+	var tmp_c = CARD_SCRIPT.new()
 	add_child(tmp_c)
+	tmp_c.fit = CARD_SCRIPT.Fit.COVER
 	tmp_c.show_label(true)
 
 	var card_w = MainGlobals.screen_size.x / 6
@@ -158,40 +160,32 @@ var new_person_card = null
 
 func set_new_person_id(card_id: int):
 	if new_person_card == null:
-		new_person_card = card_scene.instantiate()
-		new_person_card.board_pos = new_person_card_pos
+		new_person_card = CARD_SCRIPT.new()
 		add_child(new_person_card)
-		new_person_card.show_label(false)
+		new_person_card.fit = CARD_SCRIPT.Fit.COVER
 		new_person_card.set_width(new_person_size.x)
 		new_person_card.set_card_position(FriendsG.board_to_px(new_person_card_pos))
-		new_person_card.card_pressed.connect(_on_new_person_pressed)
-	new_person_card.set_id(card_id)
+	new_person_card.meta = card_id  # the guessed person shows no name
+	new_person_card.setup(FriendsG.get_person_image(card_id), YELLOW)
 	return new_person_card
 
 func add_card_at(p: Vector2, card_id: int):
-	var card = card_scene.instantiate()
-	card.board_pos = p
-	card.set_id(card_id)
+	var card = CARD_SCRIPT.new()
 	add_child(card)
+	card.fit = CARD_SCRIPT.Fit.COVER
+	card.meta = card_id
+	card.setup(FriendsG.get_person_image(card_id), YELLOW)
+	card.set_label(FriendsG.first_name(FriendsG.get_person_name(card_id)))
 	card.set_width(card_size.x)
 	card.set_card_position(FriendsG.board_to_px(p))
 	cards.append(card)
-	card.card_pressed.connect(_on_card_pressed)
 	return card
 
 func find_card(card_id):
 	for c in cards:
-		if c.id == card_id:
+		if c.meta == card_id:
 			return c
 	return null
-
-func _on_card_pressed(_p, _card_id):
-	var c = find_card(_card_id)
-	if c != null:
-		pass
-
-func _on_new_person_pressed(_p, _card_id):
-	pass
 
 var last_major_tick := 0.0
 var last_one_sec_tick := 0.0
@@ -269,7 +263,7 @@ func _process(_delta: float) -> void:
 			else:
 				var dt = now - time_shown_new_person_ms
 				var pct = float(dt) / float(dtime_to_ignore_when_no_answer_ms)
-				new_person_card.scale = Vector2(pct, pct) * new_person_card.scale_factor
+				new_person_card.scale = Vector2(pct, pct)  # shared card is pixel-sized (scale 1 = full)
 			
 func on_time_over():
 	game.stop_sound("ambient")
@@ -353,19 +347,19 @@ func display_new_person():
 	$HBoxContainer.show()
 	time_shown_new_person_ms = game.game_time
 	var new_idx = get_rand_person_id()
-	while new_idx == new_person_card.id:
+	while new_idx == new_person_card.meta:
 		new_idx = get_rand_person_id()
 	set_new_person_id(new_idx)
 	new_person_card.show()
 
 func _is_person_friend():
 	for c in cards:
-		if c.id == new_person_card.id:
+		if c.meta == new_person_card.meta:
 			return true
 	return false
 
 func _on_say_hi_button_pressed() -> void:
-	var id = new_person_card.id
+	var id = new_person_card.meta
 	var pname = FriendsG.first_name(FriendsG.get_person_name(id))
 	if _is_person_friend():
 		%CorrectText.text = pname + "\nalso says Hi"
@@ -379,7 +373,7 @@ func _on_say_hi_button_pressed() -> void:
 	answered(_is_person_friend())
 
 func _on_ignore_button_pressed() -> void:
-	var id = new_person_card.id
+	var id = new_person_card.meta
 	var pname = FriendsG.first_name(FriendsG.get_person_name(id))
 	if !_is_person_friend():
 		%CorrectText.text = pname + "\nalso ignores you"

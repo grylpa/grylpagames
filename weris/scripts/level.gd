@@ -31,7 +31,8 @@ const CARD_H_UNSCALED = 334.0
 var study_card = null
 var find_cards := []
 
-@export var card_scene: PackedScene = load("res://weris/scenes/card.tscn")
+const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")
+const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # weris card border colour
 
 signal started_playing
 signal sig_level_is_done(didwin: bool)
@@ -89,11 +90,12 @@ func _start_study_phase():
 	var card_w = int(min(screen_w * 0.45, avail_h * CARD_W_UNSCALED / CARD_H_UNSCALED))
 	var card_h = int(card_w * CARD_H_UNSCALED / CARD_W_UNSCALED)
 
-	study_card = card_scene.instantiate()
+	study_card = CARD_SCRIPT.new()
 	add_child(study_card)
+	study_card.fit = CARD_SCRIPT.Fit.COVER
+	study_card.setup(WerisG.get_person_image(target_idx), YELLOW)
 	study_card.set_width(float(card_w))
 	study_card.position = Vector2(screen_w / 2.0, LABEL_BOTTOM + 4)
-	study_card.setup(target_idx, false)
 
 	# Position countdown below the card
 	var countdown_y = LABEL_BOTTOM + 4 + card_h + 28
@@ -152,11 +154,14 @@ func _start_find_phase():
 	for i in grid_size:
 		var row = i / grid_cols
 		var col = i % grid_cols
-		var card = card_scene.instantiate()
+		var card = CARD_SCRIPT.new()
 		add_child(card)
+		card.fit = CARD_SCRIPT.Fit.COVER
+		card.tappable = true
+		card.meta = people_in_grid[i]
+		card.setup(WerisG.get_person_image(people_in_grid[i]), YELLOW)
 		card.set_width(float(card_w))
 		card.position = Vector2(start_x + col * (card_w + CARD_GAP), start_y + row * (card_h + CARD_GAP))
-		card.setup(people_in_grid[i], false)
 		card.card_pressed.connect(_on_find_card_pressed)
 		find_cards.append(card)
 
