@@ -24,7 +24,8 @@ const FEEDBACK_DURATION_MS = 1500
 const CARD_GAP = 6
 const LABEL_BOTTOM = 162  # bottom y of InstructionsLabel/FindLabel in scene (below HUD level label)
 
-# Unscaled card dimensions (from card.tscn GlobalMarginContainer)
+# Card aspect ratio used for sizing (width:height = 236:334; matches the shared
+# card's ASPECT_H_OVER_W = 334/236 in res://shared/scripts/card.gd)
 const CARD_W_UNSCALED = 236.0
 const CARD_H_UNSCALED = 334.0
 

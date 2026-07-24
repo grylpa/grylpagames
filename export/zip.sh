@@ -96,3 +96,54 @@ for PLATFORM in android linux win; do
 	echo "Created: $OUT_FILE"
 	echo "Created: $OUT_SHA"
 done
+
+# --- web ---
+WEB_SRC="$BASE_DIR/web"
+
+if [ ! -d "$WEB_SRC" ]; then
+	echo "Missing folder: $WEB_SRC"
+	exit 1
+fi
+
+if [ ! -f "$WEB_SRC/nomizo.html" ]; then
+	echo "No nomizo.html found in $WEB_SRC"
+	exit 1
+fi
+
+# copy the exported main html to index.html and inject the GoatCounter analytics
+# snippet just before the (first) </head>. index.html is rewritten from the pristine
+# nomizo.html every run, so the snippet is never injected twice.
+cp -f "$WEB_SRC/nomizo.html" "$WEB_SRC/index.html"
+
+awk '!injected && /<\/head>/ {
+	print "<script data-goatcounter=\"https://grylpa.goatcounter.com/count\""
+	print "        async src=\"//gc.zgo.at/count.js\"></script>"
+	injected = 1
+}
+{ print }' "$WEB_SRC/index.html" > "$WEB_SRC/index.html.tmp"
+mv "$WEB_SRC/index.html.tmp" "$WEB_SRC/index.html"
+
+if ! grep -q "goatcounter" "$WEB_SRC/index.html"; then
+	echo "Warning: could not find </head> in nomizo.html; GoatCounter snippet not injected"
+fi
+
+echo "Created: $WEB_SRC/index.html (GoatCounter injected)"
+
+# package the whole web folder (versioned), like the other platforms
+OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-web.zip"
+OUT_SHA="$OUT_FILE.sha256"
+
+rm -f "$OUT_FILE" "$OUT_SHA"
+
+(
+	cd "$WEB_SRC"
+	zip -9 -r "$OUT_FILE" ./*
+)
+
+(
+	cd "$BASE_DIR"
+	sha256sum "$(basename "$OUT_FILE")" > "$(basename "$OUT_SHA")"
+)
+
+echo "Created: $OUT_FILE"
+echo "Created: $OUT_SHA"
