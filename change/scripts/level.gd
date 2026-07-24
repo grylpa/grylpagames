@@ -482,17 +482,17 @@ func _snap_into_tray(entry) -> void:
 	if not is_instance_valid(node):
 		return
 	var r: float = float(entry["radius"])
-	var tr: Rect2 = _basket_rect
+	var tray: Rect2 = _basket_rect
 	var x: float
-	if tr.size.x >= 2.0 * r:
-		x = clampf(node.position.x, tr.position.x + r, tr.position.x + tr.size.x - r)
+	if tray.size.x >= 2.0 * r:
+		x = clampf(node.position.x, tray.position.x + r, tray.position.x + tray.size.x - r)
 	else:
-		x = tr.position.x + tr.size.x * 0.5  # tray narrower than the coin: center it
+		x = tray.position.x + tray.size.x * 0.5  # tray narrower than the coin: center it
 	var y: float
-	if tr.size.y >= 2.0 * r:
-		y = clampf(node.position.y, tr.position.y + r, tr.position.y + tr.size.y - r)
+	if tray.size.y >= 2.0 * r:
+		y = clampf(node.position.y, tray.position.y + r, tray.position.y + tray.size.y - r)
 	else:
-		y = tr.position.y + tr.size.y * 0.5  # tray shorter than the coin: center it
+		y = tray.position.y + tray.size.y * 0.5  # tray shorter than the coin: center it
 	node.position = Vector2(x, y)
 
 func _topmost_coin_at(p: Vector2):
