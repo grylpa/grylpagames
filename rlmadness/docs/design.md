@@ -44,11 +44,11 @@ Each level has: id, name, left modality key, right modality key, rounds_before_h
 | Key | Label | Notes |
 |-----|-------|-------|
 | `digit` | "Is it a digit?" | Single digits 0–9 vs letters |
-| `square` | "Is it a square?" | ■ vs ●▲★◆ |
+| `square` | "Is it a square?" | ■ vs ●▲★ |
 | `even_odd` | "Is it even?" or "Is it odd?" | Randomly chosen per level; gen inverts ok flag for odd |
 | `vowel` | "Is it a vowel?" | AEIOU vs consonants |
 | `prime` | "Is it prime?" | Primes ≤ 23 only |
-| `convex` | "Is it convex?" | ■●▲◆⬡ vs ★✦✿ |
+| `convex` | "Is it convex?" | ■●▲⬡ vs ★✦✿ |
 | `stroop` | "Color = text color?" | Word + color; font size 38; full-width anchor; outer_corner meta |
 | `color_shape` | "Shape is blue or red?" | Shape shown in various colors |
 | `lines` | "Letter is only straight lines?" | A E F H I K L M N T V W X Y Z |

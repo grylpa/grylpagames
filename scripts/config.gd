@@ -19,6 +19,7 @@ var games = [
 	["ptbits",        "Ptbits",         "Push each ball into its matching-color basket",          "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
+	["couples",       "Couples",        "Find and tap the two identical cards",                   "Attention & Speed"],
 	["ddooo",         "DDOOO",          "Find the center shape and pay attention to the corner",  "Attention & Speed"],
 	["didi",          "DIDI",           "Find the center shape and remember where you saw it",    "Attention & Speed"],
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Attention & Speed"],
@@ -29,7 +30,6 @@ var games = [
 	["weris",         "Weris",          "Find people in a crowd",                                 "Memory & Speed"],
 	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Memory & Speed"],
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
-	["couples",       "Couples",        "Find and tap the two identical cards",                   "Memory & Speed"],
 
 	["storm",         "Storm",          "Save your house from the storm with tools and drains",   "Planning"],
 	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],

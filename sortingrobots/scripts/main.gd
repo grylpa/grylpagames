@@ -40,7 +40,7 @@ func _ready() -> void:
 		"Two conveyor belts, each with a rule.\n" +
 		"Items fill both belts. One item gets boxed.\n" +
 		"Does the boxed item match that belt's rule?\n" +
-		"Swipe left = PICK UP (yes). Swipe right = LEAVE (no).\n" +
+		"Swipe right = PICK UP (yes). Swipe left = LEAVE (no).\n" +
 		"After a few rounds, the rules disappear.", 28)
 	if not game.shown_instructions:
 		game.show_instructions(self)
