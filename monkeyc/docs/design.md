@@ -18,7 +18,7 @@ monkeyc/
     └── level.tscn
 ```
 
-Art assets shared with rlmadness. Sounds from `res://art/sounds/`.
+Independent game: it has its own `monkeyc/art/` folder (just the chooser thumbnail) and uses only shared root assets from `res://art/` (e.g. `grass.png` background); the shape/digit/letter objects are drawn as **font glyphs** (Labels), not images. No files reference or depend on rlmadness. Sounds from `res://art/sounds/`.
 
 ## Autoloads
 
@@ -74,14 +74,14 @@ Each belt item is a **pair** (two objects side by side), identical to sorting ro
 | 1  | Simple | digit     | square     | 1     | 55       | 1.8s       | 4      | 3      | 3       |
 | 2  | Even   | even_odd  | vowel      | 1     | 60       | 1.5s       | 4      | 3      | 3       |
 | 3  | Two    | digit     | vowel      | 2     | 60       | 1.5s       | 4      | 3      | 4       |
-| 4  | Tricky | prime     | convex     | 1     | 65       | 1.3s       | 5      | 4      | 4       |
-| 5  | Expert | lines     | even_odd   | 2     | 70       | 1.2s       | 5      | 4      | 5       |
+| 4  | Tricky | prime     | filled     | 1     | 65       | 1.3s       | 5      | 4      | 4       |
+| 5  | Expert | lines     | hollow   | 2     | 70       | 1.2s       | 5      | 4      | 5       |
 
 If accuracy < 70%, level is replayed.
 
 ## Modalities
 
-Same 9 modalities as other games: `digit`, `square`, `even_odd`, `vowel`, `prime`, `convex`, `stroop`, `color_shape`, `lines`.
+Same 9 modalities as other games: `digit`, `square`, `even_odd`, `vowel`, `prime`, `filled`, `hollow`, `stroop`, `color_shape`, `lines`.
 
 ## Key Pitfalls
 

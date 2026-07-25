@@ -137,9 +137,13 @@ func _build_modality(key: String) -> Dictionary:
 			return {"key": key, "label": "Is it prime?",
 				"gen": func(ok): return _gen_prime_or_not(ok),
 				"make": func(item): return _make_text(item)}
-		"convex":
-			return {"key": key, "label": "Is it convex?",
-				"gen": func(ok): return _gen_shape(ok, ["■","●","▲","⬡"], ["★","✦","✿"]),
+		"filled":
+			return {"key": key, "label": "Is it a filled shape?",
+				"gen": func(ok): return _gen_shape(ok, ["■","●","▲","★"], ["□","○","△","☆"]),
+				"make": func(item): return _make_text(item)}
+		"hollow":
+			return {"key": key, "label": "Is it a hollow shape?",
+				"gen": func(ok): return _gen_shape(ok, ["□","○","△","☆"], ["■","●","▲","★"]),
 				"make": func(item): return _make_text(item)}
 		"stroop":
 			return {"key": key, "label": "Color = text color?",

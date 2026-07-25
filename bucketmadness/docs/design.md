@@ -18,7 +18,7 @@ bucketmadness/
     └── level.tscn
 ```
 
-Art assets shared with rlmadness (copied at game creation). Sounds from `res://art/sounds/`.
+Independent game: it has its own `bucketmadness/art/` folder (chooser thumbnail + its own `bucket_*.png` / `dumpster_*.png` graphics) and otherwise uses only shared root assets from `res://art/` (e.g. `grass.png` background); the shape/digit/letter objects are drawn as **font glyphs** (Labels), not images. No files reference or depend on rlmadness. Sounds from `res://art/sounds/`.
 
 ## Autoloads
 
@@ -82,15 +82,15 @@ After `rounds_before_hide` rounds, both rule labels fade to alpha=0.
 |----|--------|-----------|-------------|-----------|--------|--------------|
 | 1  | Green  | digit     | square      | 6         | 10     | 2.5s         |
 | 2  | Blue   | even_odd  | vowel       | 5         | 12     | 2.2s         |
-| 3  | Red    | prime     | convex      | 4         | 12     | 2.0s         |
+| 3  | Red    | prime     | filled      | 4         | 12     | 2.0s         |
 | 4  | Cyan   | stroop    | color_shape | 3         | 15     | 1.8s         |
-| 5  | Orange | lines     | even_odd    | 2         | 15     | 1.5s         |
+| 5  | Orange | lines     | hollow    | 2         | 15     | 1.5s         |
 
 If accuracy < 70%, level is replayed.
 
 ## Modalities
 
-Same 9 modalities as rlmadness/sorting robots: `digit`, `square`, `even_odd`, `vowel`, `prime`, `convex`, `stroop`, `color_shape`, `lines`. Item font size is 90 (larger than sorting robots' 65).
+Same 9 modalities as rlmadness/sorting robots: `digit`, `square`, `even_odd`, `vowel`, `prime`, `filled`, `hollow`, `stroop`, `color_shape`, `lines`. Item font size is 90 (larger than sorting robots' 65).
 
 ## Bucket/Dumpster Visuals
 

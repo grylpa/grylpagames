@@ -58,7 +58,7 @@ var _color_values: Dictionary = {
 	"RED": Color.RED, "BLUE": Color.BLUE, "GREEN": Color(0.0, 0.75, 0.0),
 	"YELLOW": Color.YELLOW, "PURPLE": Color(0.6, 0.0, 0.9),
 }
-var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime", "convex", "stroop", "color_shape", "lines"]
+var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime", "filled", "hollow", "stroop", "color_shape", "lines"]
 
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var wrong_audio = preload("res://art/sounds/swoosh.mp3")
@@ -118,9 +118,13 @@ func _build_modality(key: String) -> Dictionary:
 			return {"key": key, "label": "Is it prime?",
 				"gen": func(ok): return _gen_prime_or_not(ok),
 				"make": func(item): return _make_text(item)}
-		"convex":
-			return {"key": key, "label": "Is it convex?",
-				"gen": func(ok): return _gen_shape(ok, ["■","●","▲","⬡"], ["★","✦","✿"]),
+		"filled":
+			return {"key": key, "label": "Is it a filled shape?",
+				"gen": func(ok): return _gen_shape(ok, ["■","●","▲","★"], ["□","○","△","☆"]),
+				"make": func(item): return _make_text(item)}
+		"hollow":
+			return {"key": key, "label": "Is it a hollow shape?",
+				"gen": func(ok): return _gen_shape(ok, ["□","○","△","☆"], ["■","●","▲","★"]),
 				"make": func(item): return _make_text(item)}
 		"stroop":
 			return {"key": key, "label": "Color = text color?",
@@ -252,8 +256,8 @@ func _init_belts() -> void:
 		var bw: float = container.size.x
 		if h <= 0.0 or bw <= 0.0:
 			return
-		var offset: float = 0.0 if si == 0 else rng.randf_range(40.0, 75.0)
-		var y: float = -item_h - offset
+		var y_offset: float = 0.0 if si == 0 else rng.randf_range(40.0, 75.0)
+		var y: float = -item_h - y_offset
 		while y < h + item_h:
 			belt_items[si].append(_spawn_belt_item(si, y, bw))
 			y += rng.randf_range(80.0, 130.0)
