@@ -76,7 +76,7 @@ func _build_modality(key: String) -> Dictionary:
 		"square":
 			return {
 				"label": "Is it a square?",
-				"gen": func(ok): return _gen_shape(ok, ["■"], ["●", "▲", "★", "◆"]),
+				"gen": func(ok): return _gen_shape(ok, ["■"], ["●", "▲", "★"]),
 				"make": func(item): return _make_text(item)
 			}
 		"even_odd":
@@ -101,7 +101,7 @@ func _build_modality(key: String) -> Dictionary:
 		"convex":
 			return {
 				"label": "Is it convex?",
-				"gen": func(ok): return _gen_shape(ok, ["■", "●", "▲", "◆", "⬡"], ["★", "✦", "✿"]),
+				"gen": func(ok): return _gen_shape(ok, ["■", "●", "▲", "⬡"], ["★", "✦", "✿"]),
 				"make": func(item): return _make_text(item)
 			}
 		"stroop":
@@ -163,7 +163,7 @@ func _gen_stroop(is_correct: bool) -> Dictionary:
 	return {"text": word, "color": _color_values[other]}
 
 func _gen_colored_shape(is_correct: bool) -> Dictionary:
-	var shapes: Array = ["■", "●", "▲", "◆"]
+	var shapes: Array = ["■", "●", "▲", "★"]
 	var shape: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
 		return {"shape": shape, "color": [Color.BLUE, Color.RED][rng.randi_range(0, 1)]}

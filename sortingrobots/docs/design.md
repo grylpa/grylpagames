@@ -2,7 +2,7 @@
 
 ## Overview
 
-Two vertical conveyor belts side-by-side, each governed by a hidden rule. Items fill both belts simultaneously. One item per belt is highlighted. The player swipes left (pick up) or right (leave) to judge whether the highlighted item matches that belt's rule. Rules are shown as text labels at first, then hidden after `rounds_before_hide` rounds.
+Two vertical conveyor belts side-by-side, each governed by a hidden rule. Items fill both belts simultaneously. One item per belt is highlighted. The player swipes right (pick up) or left (leave) to judge whether the highlighted item matches that belt's rule. Rules are shown as text labels at first, then hidden after `rounds_before_hide` rounds.
 
 ## File Structure
 
