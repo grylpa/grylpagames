@@ -18,7 +18,7 @@ sortingrobots/
     └── level.tscn
 ```
 
-Art assets are shared with rlmadness (copied at game creation time); sounds come from `res://art/sounds/`.
+Independent game: it has its own `sortingrobots/art/` folder (just the chooser thumbnail) and uses only shared root assets from `res://art/` (e.g. `grass.png` background); the shape/digit/letter objects are drawn as **font glyphs** (Labels), not images. No files reference or depend on rlmadness. Sounds come from `res://art/sounds/`.
 
 ## Autoloads
 
@@ -69,16 +69,16 @@ After `rounds_before_hide` windows judged, both rule labels fade to alpha=0.
 |----|--------|-----------|-------------|-----------|--------|------------|------------|
 | 1  | Green  | digit     | square      | 6         | 10     | 3.0s       | 65 px/s    |
 | 2  | Blue   | even_odd  | vowel       | 5         | 12     | 2.6s       | 70 px/s    |
-| 3  | Red    | prime     | convex      | 4         | 12     | 2.3s       | 75 px/s    |
+| 3  | Red    | prime     | filled      | 4         | 12     | 2.3s       | 75 px/s    |
 | 4  | Cyan   | stroop    | color_shape | 3         | 15     | 2.0s       | 80 px/s    |
-| 5  | Orange | lines     | even_odd    | 2         | 15     | 1.7s       | 85 px/s    |
+| 5  | Orange | lines     | hollow    | 2         | 15     | 1.7s       | 85 px/s    |
 
 If accuracy < 70%, level is replayed (inserted at position 1 in queue).
 
 ## Modalities
 
 All modalities from rlmadness, plus each returns `"key"` in its dictionary (needed by MonkeyC):
-`digit`, `square`, `even_odd`, `vowel`, `prime`, `convex`, `stroop`, `color_shape`, `lines`
+`digit`, `square`, `even_odd`, `vowel`, `prime`, `filled`, `hollow`, `stroop`, `color_shape`, `lines`
 
 ## Scene Layout (`level.tscn`)
 

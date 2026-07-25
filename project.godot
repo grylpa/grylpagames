@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Nomizo"
-config/version="1.0.89"
+config/version="1.0.90"
 run/main_scene="uid://bfak8jlbdwloh"
 config/features=PackedStringArray("4.7", "Forward Plus")
 boot_splash/bg_color=Color(0.14117648, 0.14117648, 0.14117648, 0)

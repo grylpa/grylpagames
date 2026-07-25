@@ -35,9 +35,9 @@ Each level has: id, name, left modality key, right modality key, rounds_before_h
 |----|------|------|-------|------------|--------|
 | 1 | Green  | digit    | square      | 6 | 10 |
 | 2 | Blue   | even_odd | vowel       | 5 | 12 |
-| 3 | Red    | prime    | convex      | 4 | 12 |
+| 3 | Red    | prime    | filled      | 4 | 12 |
 | 4 | Cyan   | stroop   | color_shape | 3 | 15 |
-| 5 | Orange | lines    | even_odd    | 2 | 15 |
+| 5 | Orange | lines    | hollow    | 2 | 15 |
 
 ## Modality Keys
 
@@ -48,7 +48,8 @@ Each level has: id, name, left modality key, right modality key, rounds_before_h
 | `even_odd` | "Is it even?" or "Is it odd?" | Randomly chosen per level; gen inverts ok flag for odd |
 | `vowel` | "Is it a vowel?" | AEIOU vs consonants |
 | `prime` | "Is it prime?" | Primes ≤ 23 only |
-| `convex` | "Is it convex?" | ■●▲⬡ vs ★✦✿ |
+| `filled` | "Is it a filled shape?" | ■●▲★ (solid) vs □○△☆ (outline) |
+| `hollow` | "Is it a hollow shape?" | □○△☆ (outline) vs ■●▲★ (solid) |
 | `stroop` | "Color = text color?" | Word + color; font size 38; full-width anchor; outer_corner meta |
 | `color_shape` | "Shape is blue or red?" | Shape shown in various colors |
 | `lines` | "Letter is only straight lines?" | A E F H I K L M N T V W X Y Z |
