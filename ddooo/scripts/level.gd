@@ -143,7 +143,7 @@ var model_pos := Vector2i(3, 3)
 
 func create_board() -> void:
 	board.clear()
-	for row_index in game.board_size.y:
+	for _row_index in game.board_size.y:
 		var row: Array[OneCell]
 		row.resize(game.board_size.x)
 		for col_index in game.board_size.x:
@@ -390,7 +390,7 @@ func _process(_delta: float) -> void:
 		if need_to_show_alternatives and game.game_time > time_to_show_alternatives_ms:
 			need_to_show_alternatives = false
 			_dispatch_new_main_agent(false, true)
-			for i in range(num_alternatives - 1):
+			for _i in range(num_alternatives - 1):
 				_dispatch_new_main_agent(false, false)
 			time_shown_alternatives_ms = game.game_time
 		if need_to_show_model and game.game_time > time_to_show_model_ms:

@@ -448,7 +448,6 @@ func _spawn_belt_item(si: int, y: float, bw: float) -> Dictionary:
 func _open_window() -> void:
 	var si: int = rng.randi_range(0, 1)
 	var container: Control = _containers()[si]
-	var h: float = container.size.y
 	var bw: float = container.size.x
 	# Only pick items that are still ABOVE the viewport (position.y < 0).
 	# This ensures the window always enters from the top with its item.
