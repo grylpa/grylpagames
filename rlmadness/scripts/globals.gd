@@ -13,7 +13,7 @@ func init_globals() -> void:
 
 # Build the queue starting from start_id's first occurrence in LEVEL_PROGRESSION_ORDER.
 func reset_queue_from(start_id: int) -> void:
-	var base: Array = RlmLevelDefs.LEVEL_PROGRESSION_ORDER.duplicate()
+	var base: Array = RlmLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
 	var idx: int = base.find(start_id)
 	if idx > 0:
 		level_queue = base.slice(idx) + base.slice(0, idx)
@@ -23,7 +23,7 @@ func reset_queue_from(start_id: int) -> void:
 # Return and remove the next level ID, refilling from LEVEL_PROGRESSION_ORDER if empty.
 func pop_next_level_id() -> int:
 	if level_queue.is_empty():
-		level_queue = RlmLevelDefs.LEVEL_PROGRESSION_ORDER.duplicate()
+		level_queue = RlmLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
 	return level_queue.pop_front()
 
 # After completing a level, optionally schedule a repeat if accuracy was poor.

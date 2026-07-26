@@ -20,7 +20,7 @@ func _ready() -> void:
 
 	main_menu.sig_start_game.connect(_on_main_menu_menu_start_game)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
-	main_menu.add_option_entry(1, "Starting level", DdoooLevelDefs.level_names())
+	main_menu.add_option_entry(1, "Starting level", DdoooLevelConfig.level_names())
 	refresh_menu()
 	show_main_menu()
 	$Help.set_texts({
@@ -54,8 +54,8 @@ func _ready() -> void:
 	game.progress_level_pos = POS_SCORE_DIFFICULTY
 	game.progress_time_pos = POS_SCORE_MEAN_TIME_MS
 	game.progress_pct_pos = POS_SCORE_PCT_CORRECT
-	for lvl in DdoooLevelDefs.LEVELS:
-		game.progress_level_names[lvl["id"]] = DdoooLevelDefs.level_header(lvl["id"])
+	for lvl in DdoooLevelConfig.LEVELS:
+		game.progress_level_names[lvl["id"]] = DdoooLevelConfig.level_header(lvl["id"])
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
@@ -116,7 +116,7 @@ func _on_main_menu_menu_start_game(_start_new: bool) -> void:
 
 func _on_menu_option_changed(id: int, idx: int) -> void:
 	if id == 1:
-		DdoooG.starting_level = DdoooLevelDefs.LEVELS[idx]["id"]
+		DdoooG.starting_level = DdoooLevelConfig.LEVELS[idx]["id"]
 		DdoooG.save_settings()
 
 func _on_level_show_main_menu() -> void:
@@ -200,7 +200,7 @@ func _input(event) -> void:
 		game.handle_event(event, self)
 
 func refresh_menu():
-	main_menu.update_option(1, DdoooLevelDefs.id_to_index(DdoooG.starting_level))
+	main_menu.update_option(1, DdoooLevelConfig.id_to_index(DdoooG.starting_level))
 
 func _on_changed_focus(_gained_focus: bool):
 	game.in_focus = _gained_focus

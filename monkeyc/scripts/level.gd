@@ -8,7 +8,9 @@ var num_rounds_per_level: int = 3
 var num_options: int = 3
 var num_belts: int = 1
 var min_examples: int = 4
-var robot_answer_time: float = 1.5
+var robot_answer_time: float = 1.5  # seconds the ✓/✗ answer is shown BEFORE the robot takes the
+                                    # item; the take itself always lands within the h/2..3h/4 band
+                                    # (per-level difficulty knob — longer = answer shown sooner/longer)
 var scroll_speed: float = 55.0
 
 # Scoring
@@ -24,6 +26,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # Endless conveyor — same dimensions as sorting robots
 var pair_font_size: int = 32
 var item_h: float = 72.0
+const CLAW_SCRIPT: GDScript = preload("res://monkeyc/scripts/claw.gd")
 
 var belt_items: Array = [[], []]
 var belt_initialized: bool = false
@@ -36,11 +39,16 @@ var window_target_item: Control = null
 var window_target_truth: bool = false
 var window_timer: float = 0.0
 var next_window_timer: float = 1.5
+var _take_top: float = 0.0     # item-top y at which the robot takes/leaves it (within h/2..3h/4)
+var _mark_top: float = 0.0     # item-top y at which the ✓/✗ answer first appears
+var _window_marked: bool = false
 
 # Phase state
 var _demo_phase: bool = false
 var _showing_demo_action: bool = false
 var examples_per_belt: Array = [0, 0]
+var _yes_per_belt: Array = [0, 0]  # picked-up (matched) demos per belt; need >=3 before asking
+var _no_per_belt: Array = [0, 0]   # left (unmatched) demos per belt; need >=2 before asking
 
 # Question phase
 var _question_phase: bool = false
@@ -60,6 +68,22 @@ var _color_values: Dictionary = {
 }
 var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime", "filled", "hollow", "stroop", "color_shape", "lines"]
 
+# The pool of rule keys allowed for the CURRENT level (from level_config "rules"). Each round the
+# pair of shown attributes AND the multiple-choice options are drawn from this pool, so the rules
+# vary from round to round instead of being fixed.
+var _level_rules_pool: Array = []
+
+# Rules whose demonstrations can ALSO be explained by another rule — never offer that other
+# rule as a wrong-answer option (it would be a valid guess yet get marked wrong). E.g. a ■ is
+# both a square and a filled shape, so "filled"/"hollow" must not be offered when the rule is
+# "square", and "square" must not be offered when the rule is "filled"/"hollow". Extend as
+# other overlaps are found.
+const _CONFUSABLE_WITH: Dictionary = {
+	"square": ["filled", "hollow"],
+	"filled": ["square"],
+	"hollow": ["square"],
+}
+
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var wrong_audio = preload("res://art/sounds/swoosh.mp3")
 
@@ -72,7 +96,7 @@ func _ready() -> void:
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
 	var layout: MarginContainer = $MainLayout
-	layout.offset_top = 100.0 if MainGlobals.is_mobile() else 150.0
+	layout.offset_top = 148.0 if MainGlobals.is_mobile() else 192.0
 	layout.offset_bottom = -(MainGlobals.footer_height + 15.0)
 	if MainGlobals.is_mobile():
 		pair_font_size = 48
@@ -87,6 +111,14 @@ func _ready() -> void:
 	%FeedbackLabel.add_theme_font_override("font", f)
 	%LeftRuleLabel.add_theme_font_override("font", f)
 	%RightRuleLabel.add_theme_font_override("font", f)
+	# Reserve a 2-line height on both rule labels so a 1-line and a 2-line rule occupy the
+	# same space, keeping the two belts vertically aligned (see sortingrobots).
+	var rule_fs: int = 32 if MainGlobals.is_mobile() else 22
+	var two_line_h: float = f.get_height(rule_fs) * 2.0 + 12.0
+	%LeftRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
+	%RightRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
+	%LeftRuleLabel.add_theme_constant_override("line_spacing", -8)
+	%RightRuleLabel.add_theme_constant_override("line_spacing", -8)
 	%LeftRuleLabel.modulate.a = 0.0
 	%RightRuleLabel.modulate.a = 0.0
 	%LeftItemsContainer.clip_contents = true
@@ -135,7 +167,7 @@ func _build_modality(key: String) -> Dictionary:
 				"gen": func(ok): return _gen_colored_shape(ok),
 				"make": func(item): return _make_colored_shape(item)}
 		"lines":
-			return {"key": key, "label": "Letter is only straight lines?",
+			return {"key": key, "label": "Letter is straight lines?",
 				"gen": func(ok): return _gen_straight_letter(ok),
 				"make": func(item): return _make_text(item)}
 	return {}
@@ -321,11 +353,12 @@ func _process(delta: float) -> void:
 				_discard_window()
 				next_window_timer = 0.3
 			else:
-				window_timer -= delta
-				if window_timer <= 0.0:
-					window_open = false
-					_showing_demo_action = true
-					_robot_answer()
+				# show the ✓/✗ answer at _mark_top, then take/leave the item at _take_top (always
+				# within h/2..3h/4). robot_answer_time sets how far apart those two points are.
+				if not _window_marked and item_y >= _mark_top:
+					_mark_item()
+				if _window_marked and item_y >= _take_top:
+					_take_item()
 	elif not window_open and not _showing_demo_action:
 		next_window_timer -= delta
 		if next_window_timer <= 0.0:
@@ -334,7 +367,9 @@ func _process(delta: float) -> void:
 func _open_demo_window() -> void:
 	var candidates: Array = []
 	for bi in num_belts:
-		if examples_per_belt[bi] < min_examples:
+		# keep opening windows until the belt has enough demos AND enough of BOTH answers
+		# (>=3 picked-up, >=2 left) — otherwise the demo could stall and the belt runs forever
+		if examples_per_belt[bi] < min_examples or _yes_per_belt[bi] < 3 or _no_per_belt[bi] < 2:
 			candidates.append(bi)
 	if candidates.is_empty():
 		return
@@ -342,19 +377,35 @@ func _open_demo_window() -> void:
 	var container: Control = _containers()[si]
 	var h: float = container.size.y
 	var bw: float = container.size.x
+	# prefer an item whose outcome is the one we still need (>=3 yes first, then >=2 no) so the
+	# demo reliably reaches both answers instead of possibly stalling on random truths
+	var need_truth: int = -1
+	if _yes_per_belt[si] < 3:
+		need_truth = 1
+	elif _no_per_belt[si] < 2:
+		need_truth = 0
+	# open the window on an item still ENTERING from the top so the highlight slides in gradually
+	# with it (clip_contents hides it while above the belt); the robot then reacts once the item
+	# reaches the belt centre (see _process), never mid-entry
+	var target_y: float = -item_h * 0.5
 	var best_entry: Variant = null
 	var best_dist: float = INF
-	var target_y: float = -item_h * 0.5
+	var any_entry: Variant = null
+	var any_dist: float = INF
 	for entry in belt_items[si]:
 		var item_y: float = entry["ctrl"].position.y
-		if item_y >= 0.0:
-			continue
-		if item_y < -item_h * 4.0:
+		if item_y >= 0.0 or item_y < -item_h * 4.0:
 			continue
 		var dist: float = abs(item_y - target_y)
-		if dist < best_dist:
+		if dist < any_dist:
+			any_dist = dist
+			any_entry = entry
+		var t: bool = entry["truth_l"] if si == 0 else entry["truth_r"]
+		if (need_truth == -1 or int(t) == need_truth) and dist < best_dist:
 			best_dist = dist
 			best_entry = entry
+	if best_entry == null:
+		best_entry = any_entry
 	if best_entry == null:
 		next_window_timer = 0.3
 		return
@@ -375,11 +426,23 @@ func _open_demo_window() -> void:
 	container.add_child(panel)
 	window_panel = panel
 	window_open = true
-	window_timer = robot_answer_time
+	# the robot TAKES the item when it's between h/2 and 3h/4; the ✓/✗ answer appears
+	# robot_answer_time earlier (clamped so it never shows before the item is fully inside)
+	var take_center: float = rng.randf_range(h * 0.5, h * 0.75)
+	_take_top = take_center - item_h * 0.5
+	_mark_top = maxf(0.0, _take_top - robot_answer_time * scroll_speed)
+	_window_marked = false
 
-func _robot_answer() -> void:
+# Show the ✓/✗ answer on the highlighted item (when it reaches _mark_top). No pull yet.
+func _mark_item() -> void:
+	_window_marked = true
 	var picks_up: bool = window_target_truth
 	examples_per_belt[window_belt] += 1
+	if picks_up:
+		_yes_per_belt[window_belt] += 1
+	else:
+		_no_per_belt[window_belt] += 1
+	# (gating: the question waits until every belt has shown >=3 picked-up and >=2 left demos)
 	if window_panel != null and is_instance_valid(window_panel):
 		var sb: StyleBoxFlat = window_panel.get_theme_stylebox("panel") as StyleBoxFlat
 		var indicator: Label = Label.new()
@@ -402,28 +465,34 @@ func _robot_answer() -> void:
 				sb.border_color = Color(1.0, 0.35, 0.0)
 				sb.bg_color = Color(1.0, 0.15, 0.0, 0.2)
 		window_panel.add_child(indicator)
-	await get_tree().create_timer(0.45).timeout
-	if game.level_is_done:
-		_discard_window()
-		_showing_demo_action = false
-		return
+
+# Take (pull) or leave the item once it reaches _take_top (within the h/2..3h/4 band).
+func _take_item() -> void:
+	_showing_demo_action = true
+	var picks_up: bool = window_target_truth
 	if picks_up and window_target_item != null and is_instance_valid(window_target_item):
 		var target_ctrl: Control = window_target_item
 		var bi: int = window_belt
+		# remove from belt tracking, then the claw reparents & pulls the real item off the
+		# nearest side (single belt → right). _discard_window then frees the highlight panel.
 		var idx: int = belt_items[bi].size() - 1
 		while idx >= 0:
 			if belt_items[bi][idx]["ctrl"] == target_ctrl:
 				belt_items[bi].remove_at(idx)
 				break
 			idx -= 1
-		target_ctrl.queue_free()
+		var to_right: bool = true if num_belts < 2 else (window_belt == 1)
+		_claw_pull(to_right)
 	_discard_window()
 	_showing_demo_action = false
+	if game.level_is_done:
+		return
 	var all_done: bool = true
 	for bi in num_belts:
-		if examples_per_belt[bi] < min_examples:
+		# need enough of BOTH answers so the rule is inferable: >=3 picked-up, >=2 left
+		if examples_per_belt[bi] < min_examples or _yes_per_belt[bi] < 3 or _no_per_belt[bi] < 2:
 			all_done = false
-	if all_done and not game.level_is_done:
+	if all_done:
 		_demo_phase = false
 		_question_phase = true
 		await get_tree().create_timer(0.5).timeout
@@ -438,6 +507,43 @@ func _discard_window() -> void:
 		window_panel = null
 	window_belt = -1
 	window_target_item = null
+
+func _claw_pull(to_right: bool) -> void:
+	# Reparent the ACTUAL item (unchanged — looks exactly as on the belt) into a flyer, keep the
+	# highlight RECTANGLE around it (border only, transparent fill, no ✓ overlay), and let a claw
+	# grip its edge and yank it off the nearest side. It never freezes — it moves as it's pulled.
+	var item: Control = window_target_item
+	if item == null or not is_instance_valid(item):
+		return
+	var item_gpos: Vector2 = item.global_position
+	var item_size: Vector2 = item.size
+	if item_size.x < 1.0 or item_size.y < 1.0:
+		item_size = Vector2(item_h, item_h)
+	var flyer: Node2D = Node2D.new()
+	flyer.z_index = 80
+	add_child(flyer)
+	var panel: Panel = window_panel
+	if panel != null and is_instance_valid(panel):
+		for ch in panel.get_children():
+			if ch is Label:
+				ch.queue_free()  # drop the ✓/✗ so nothing covers the item
+		var psb: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		if psb != null:
+			psb.border_color = Color(0.2, 0.9, 0.3)  # correct pick-up → green frame
+			psb.bg_color = Color(psb.bg_color.r, psb.bg_color.g, psb.bg_color.b, 0.0)
+		panel.reparent(flyer, true)  # keep the (green) border rectangle around the item
+		window_panel = null
+	item.reparent(flyer, true)  # keep global transform so the item doesn't jump/change
+	var claw: Node2D = CLAW_SCRIPT.new()
+	claw.side = 1 if to_right else -1
+	claw.box_size = item_size
+	claw.position = item_gpos
+	flyer.add_child(claw)
+	var sw: float = float(MainGlobals.screen_size.x)
+	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
+	var tw: Tween = flyer.create_tween()
+	tw.tween_property(flyer, "position:x", dx, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(flyer.queue_free)
 
 # --- Question phase ---
 
@@ -454,6 +560,8 @@ func _ask_all_rules() -> void:
 	else:
 		_refresh_rules()
 		examples_per_belt = [0, 0]
+		_yes_per_belt = [0, 0]
+		_no_per_belt = [0, 0]
 		_clear_belts()
 		belt_initialized = false
 		_demo_phase = true
@@ -543,14 +651,31 @@ func _on_option_pressed(chosen_key: String, correct_key: String, vbox: VBoxConta
 					btn.modulate = Color.GREEN
 				elif key == chosen_key and not is_right:
 					btn.modulate = Color.RED
-				btn.disabled = true
+				# don't disable (that dims the buttons) — keep every option clearly readable;
+				# only the green/red marks show the result. Interaction is already blocked by
+				# waiting_for_input, so no need to disable.
+				btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	await get_tree().create_timer(1.0).timeout
 	_question_answered = true
 
 func _build_options(correct_key: String) -> Array:
 	var correct_mod: Dictionary = _build_modality(correct_key)
-	var wrong_keys: Array = _all_modality_keys.filter(func(k): return k != correct_key)
-	wrong_keys.shuffle()
+	var banned: Array = _CONFUSABLE_WITH.get(correct_key, [])
+	# Distractors are drawn from THIS LEVEL'S rule pool (the "rules we allow as options"), not from
+	# every modality. The other visible attribute(s) are forced in first — they are the tempting
+	# wrong guess, so the player must actually reason rather than pick the only shown alternative.
+	var wrong_keys: Array = []
+	for m in current_pair:
+		var dk: String = m["key"]
+		if dk != correct_key and not banned.has(dk) and not wrong_keys.has(dk):
+			wrong_keys.append(dk)
+	var pool_extra: Array = _level_rules_pool.filter(
+		func(k): return k != correct_key and not banned.has(k) and not wrong_keys.has(k))
+	pool_extra.shuffle()
+	for k in pool_extra:
+		if wrong_keys.size() >= num_options - 1:
+			break
+		wrong_keys.append(k)
 	wrong_keys = wrong_keys.slice(0, num_options - 1)
 	var options: Array = [{"key": correct_key, "label": correct_mod.get("label", correct_key)}]
 	for k in wrong_keys:
@@ -576,6 +701,8 @@ func new_game(from_scratch: bool = true) -> void:
 	_question_phase = false
 	_showing_demo_action = false
 	examples_per_belt = [0, 0]
+	_yes_per_belt = [0, 0]
+	_no_per_belt = [0, 0]
 	waiting_for_input = false
 	_question_answered = false
 	belt_initialized = false
@@ -599,28 +726,42 @@ func new_game(from_scratch: bool = true) -> void:
 	_demo_phase = true
 
 func _load_level(id: int) -> void:
-	var def: Dictionary = MonkeyCLevelDefs.get_level(id)
+	var def: Dictionary = MonkeyCLevelConfig.get_level(id)
 	num_rounds_per_level = def.get("rounds", 3)
 	num_options = def.get("num_options", 3)
 	num_belts = def.get("num_belts", 1)
 	min_examples = def.get("min_examples", 4)
 	robot_answer_time = float(def.get("robot_answer_time", 1.5))
 	scroll_speed = float(def.get("belt_spd", 55.0))
-	current_pair = [
-		_build_modality(def.get("left", "digit")),
-		_build_modality(def.get("right", "square"))
-	]
-	question_correct_keys = [current_pair[0]["key"]]
-	if num_belts == 2:
-		question_correct_keys.append(current_pair[1]["key"])
+	_level_rules_pool = def.get("rules", ["digit", "square"]).duplicate()
+	_pick_pair_from_pool()
 	game.level_label_changed("Level " + str(def.get("name", id)))
 
 func _refresh_rules() -> void:
-	var def: Dictionary = MonkeyCLevelDefs.get_level(current_level_id)
-	current_pair = [
-		_build_modality(def.get("left", "digit")),
-		_build_modality(def.get("right", "square"))
-	]
+	_pick_pair_from_pool()
+
+# True if the two rule keys can be confused (one's demos could also be explained by the other),
+# so they must never be the two shown attributes at once.
+func _are_confusable(a: String, b: String) -> bool:
+	return _CONFUSABLE_WITH.get(a, []).has(b) or _CONFUSABLE_WITH.get(b, []).has(a)
+
+# Pick this round's shown pair from the level's rule pool: two DISTINCT, non-confusable rules.
+# For 1 belt the first is the hidden rule and the second is a decoy attribute; for 2 belts both
+# are hidden rules (one per belt). Because it re-picks every round, the rules vary within a level.
+func _pick_pair_from_pool() -> void:
+	var pool: Array = _level_rules_pool.duplicate()
+	if pool.size() < 2:
+		pool = ["digit", "square"]
+	pool.shuffle()
+	var chosen: Array = [pool[0]]
+	for k in pool.slice(1):
+		if not _are_confusable(chosen[0], k):
+			chosen.append(k)
+			break
+	if chosen.size() < 2:
+		# pool too confusable to find a clean partner — fall back to the first two keys
+		chosen = [pool[0], pool[1]]
+	current_pair = [_build_modality(chosen[0]), _build_modality(chosen[1])]
 	question_correct_keys = [current_pair[0]["key"]]
 	if num_belts == 2:
 		question_correct_keys.append(current_pair[1]["key"])

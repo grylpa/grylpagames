@@ -62,7 +62,7 @@ theme_override_constants/separation = 24
 
 [node name="LeftSide" type="VBoxContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow"]
 layout_mode = 2
-size_flags_horizontal = 0
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
 [node name="LeftRuleLabel" type="Label" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide"]
@@ -82,6 +82,7 @@ autowrap_mode = 2
 [node name="LeftBox" type="PanelContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide"]
 custom_minimum_size = Vector2(140, 420)
 layout_mode = 2
+size_flags_horizontal = 4
 theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
 
 [node name="LeftItemsContainer" type="Control" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox"]
@@ -90,7 +91,7 @@ layout_mode = 2
 
 [node name="RightSide" type="VBoxContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow"]
 layout_mode = 2
-size_flags_horizontal = 0
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
 [node name="RightRuleLabel" type="Label" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide"]
@@ -110,6 +111,7 @@ autowrap_mode = 2
 [node name="RightBox" type="PanelContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide"]
 custom_minimum_size = Vector2(140, 420)
 layout_mode = 2
+size_flags_horizontal = 4
 theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
 
 [node name="RightItemsContainer" type="Control" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox"]

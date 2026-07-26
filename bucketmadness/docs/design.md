@@ -12,7 +12,7 @@ bucketmadness/
 │   ├── globals.gd        # Autoloaded as BucketMadnessG
 │   ├── main.gd           # Orchestrator
 │   ├── level.gd          # Core gameplay
-│   └── level_defs.gd     # Autoloaded as BucketMadnessLevelDefs
+│   └── level_config.gd     # Autoloaded as BucketMadnessLevelConfig
 └── scenes/
     ├── main.tscn
     └── level.tscn
@@ -23,7 +23,7 @@ Independent game: it has its own `bucketmadness/art/` folder (chooser thumbnail 
 ## Autoloads
 
 - `BucketMadnessG` — `globals.gd`; owns `GenericGameUtil.new("Bucket Madness", "bucketmadness", 0, 10, 0, 0)`; manages level queue, settings (`starting_level_id`, `use_uppercase`)
-- `BucketMadnessLevelDefs` — `level_defs.gd`; provides `LEVELS`, `LEVEL_PROGRESSION_ORDER`, `get_level(id)`, `level_names()`, `id_to_index(id)`
+- `BucketMadnessLevelConfig` — `level_config.gd`; provides `LEVELS`, `LEVEL_PROGRESSION_ORDER`, `get_level(id)`, `level_names()`, `id_to_index(id)`
 
 ## Gameplay Design
 
@@ -78,13 +78,15 @@ After `rounds_before_hide` rounds, both rule labels fade to alpha=0.
 
 5 levels, cycling via `LEVEL_PROGRESSION_ORDER = [1,2,1,2,3,4,5,3,4,5]`:
 
-| ID | Name   | Left       | Right       | Hide after | Rounds | Fall duration |
-|----|--------|-----------|-------------|-----------|--------|--------------|
-| 1  | Green  | digit     | square      | 6         | 10     | 2.5s         |
-| 2  | Blue   | even_odd  | vowel       | 5         | 12     | 2.2s         |
-| 3  | Red    | prime     | filled      | 4         | 12     | 2.0s         |
-| 4  | Cyan   | stroop    | color_shape | 3         | 15     | 1.8s         |
-| 5  | Orange | lines     | hollow    | 2         | 15     | 1.5s         |
+Each level defines a **`rules` pool**, not a fixed left/right pair. On every level load, `_pick_pair_from_pool()` shuffles the pool and takes the first two **distinct, non-confusable** keys, so which rules appear — and which bucket each one lands on — varies from play to play. `_are_confusable()` (via `_CONFUSABLE_WITH`) keeps overlapping rules apart: a ■ is both a square AND a filled shape, so "square" is never shown opposite "filled"/"hollow" (an item would belong in both buckets). A pool may therefore safely list all of them.
+
+| ID | Name   | Rules pool | Hide after | Rounds | Fall duration |
+|----|--------|-----------|-----------|--------|--------------|
+| 1  | Green  | digit, square | 6 | 10 | 2.5s |
+| 2  | Blue   | even_odd, vowel, digit | 5 | 12 | 2.2s |
+| 3  | Red    | prime, filled, vowel, digit | 4 | 12 | 2.0s |
+| 4  | Cyan   | stroop, color_shape, prime, lines | 3 | 15 | 1.8s |
+| 5  | Orange | lines, hollow, stroop, color_shape, prime, vowel | 2 | 15 | 1.5s |
 
 If accuracy < 70%, level is replayed.
 

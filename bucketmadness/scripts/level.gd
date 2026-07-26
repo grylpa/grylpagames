@@ -27,6 +27,21 @@ var total_rounds: int = 0
 var total_corrects: int = 0
 
 var current_pair: Array = []
+
+# The pool of rule keys allowed for the CURRENT level (from level_config "rules"). The two shown
+# rules are drawn from it at random each time the level loads, so which rules appear — and which
+# bucket each one lands on — varies from play to play instead of always being the same two.
+var _level_rules_pool: Array = []
+
+# Rules whose items can ALSO be explained by another rule — never show both at once (e.g. a ■ is
+# both a square AND a filled shape, so one item would belong in both buckets). Extend as other
+# overlaps are found.
+const _CONFUSABLE_WITH: Dictionary = {
+	"square": ["filled", "hollow"],
+	"filled": ["square"],
+	"hollow": ["square"],
+}
+
 var _bucket_tex: Texture2D = preload("res://bucketmadness/art/bucket_open_2.png")
 var _dumpster_tex: Texture2D = preload("res://bucketmadness/art/dumpster_half_open.png")
 
@@ -173,7 +188,7 @@ func _build_modality(key: String) -> Dictionary:
 				"gen": func(ok): return _gen_colored_shape(ok),
 				"make": func(item): return _make_colored_shape(item)}
 		"lines":
-			return {"key": key, "label": "Letter is\nonly straight lines?",
+			return {"key": key, "label": "Letter is\nstraight lines?",
 				"gen": func(ok): return _gen_straight_letter(ok),
 				"make": func(item): return _make_text(item)}
 	return {}
@@ -301,16 +316,36 @@ func _run_preview() -> void:
 	%AvgTimeLabel.text = "Average time : —"
 
 func _load_level(id: int) -> void:
-	var def: Dictionary = BucketMadnessLevelDefs.get_level(id)
+	var def: Dictionary = BucketMadnessLevelConfig.get_level(id)
 	rounds_before_hide = def.get("hide_after", 5)
 	num_rounds_per_level = def.get("rounds", 10)
 	fall_duration = def.get("fall_duration", 2.5)
 	preview_time = float(def.get("preview", 4))
-	current_pair = [
-		_build_modality(def.get("left", "digit")),
-		_build_modality(def.get("right", "square"))
-	]
+	_level_rules_pool = def.get("rules", ["digit", "square"]).duplicate()
+	_pick_pair_from_pool()
 	game.level_label_changed("Level " + str(def.get("name", id)))
+
+# True if the two rule keys can be confused (an item could satisfy both), so they must never be
+# the two shown rules at once.
+func _are_confusable(a: String, b: String) -> bool:
+	return _CONFUSABLE_WITH.get(a, []).has(b) or _CONFUSABLE_WITH.get(b, []).has(a)
+
+# Pick this level's two shown rules from its pool: two DISTINCT, non-confusable rules in RANDOM
+# order, so a given rule shows up on the left bucket sometimes and on the right bucket other times.
+func _pick_pair_from_pool() -> void:
+	var pool: Array = _level_rules_pool.duplicate()
+	if pool.size() < 2:
+		pool = ["digit", "square"]
+	pool.shuffle()
+	var chosen: Array = [pool[0]]
+	for k in pool.slice(1):
+		if not _are_confusable(chosen[0], k):
+			chosen.append(k)
+			break
+	if chosen.size() < 2:
+		# pool too confusable to find a clean partner — fall back to the first two keys
+		chosen = [pool[0], pool[1]]
+	current_pair = [_build_modality(chosen[0]), _build_modality(chosen[1])]
 
 func _clear_fall_area() -> void:
 	for child in %FallArea.get_children():

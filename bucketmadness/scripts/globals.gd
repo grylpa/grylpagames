@@ -11,7 +11,7 @@ func init_globals() -> void:
 	game.reset(true)
 
 func reset_queue_from(start_id: int) -> void:
-	var base: Array = BucketMadnessLevelDefs.LEVEL_PROGRESSION_ORDER.duplicate()
+	var base: Array = BucketMadnessLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
 	var idx: int = base.find(start_id)
 	if idx > 0:
 		level_queue = base.slice(idx) + base.slice(0, idx)
@@ -20,7 +20,7 @@ func reset_queue_from(start_id: int) -> void:
 
 func pop_next_level_id() -> int:
 	if level_queue.is_empty():
-		level_queue = BucketMadnessLevelDefs.LEVEL_PROGRESSION_ORDER.duplicate()
+		level_queue = BucketMadnessLevelConfig.LEVEL_PROGRESSION_ORDER.duplicate()
 	return level_queue.pop_front()
 
 func record_level_result(level_id: int, pct: int) -> void:
