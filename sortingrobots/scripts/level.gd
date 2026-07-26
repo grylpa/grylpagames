@@ -14,6 +14,8 @@ var labels_hidden: bool = false
 var rounds_done: int = 0
 var total_rounds: int = 0
 var total_corrects: int = 0
+var _shown_yes: int = 0  # windowed items judged so far, by truth — used to balance yes/no spread
+var _shown_no: int = 0
 var times_to_answer: Array = []
 var round_start_ms: float = 0.0
 var _showing_feedback: bool = false
@@ -21,10 +23,25 @@ var _showing_feedback: bool = false
 var current_pair: Array = []
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+# The pool of rule keys allowed for the CURRENT level (from level_config "rules"). The two shown
+# rules are drawn from it at random each time the level loads, so which rules appear — and which
+# side each one lands on — varies from play to play instead of always being the same two.
+var _level_rules_pool: Array = []
+
+# Rules whose items can ALSO be explained by another rule — never show both at once (e.g. a ■ is
+# both a square AND a filled shape, so one item would belong on both sides). Extend as other
+# overlaps are found.
+const _CONFUSABLE_WITH: Dictionary = {
+	"square": ["filled", "hollow"],
+	"filled": ["square"],
+	"hollow": ["square"],
+}
+
 # Endless conveyor
 var pair_font_size: int = 32
 var item_h: float = 72.0
 const ITEM_SPACING: float = 95.0
+const CLAW_SCRIPT: GDScript = preload("res://sortingrobots/scripts/claw.gd")
 
 var belt_items: Array = [[], []]  # each entry: {ctrl, truth_l, truth_r}
 var belt_initialized: bool = false
@@ -154,7 +171,7 @@ func _build_modality(key: String) -> Dictionary:
 				"gen": func(ok): return _gen_colored_shape(ok),
 				"make": func(item): return _make_colored_shape(item)}
 		"lines":
-			return {"key": key, "label": "Letter is\nonly straight lines?",
+			return {"key": key, "label": "Letter is\nstraight lines?",
 				"gen": func(ok): return _gen_straight_letter(ok),
 				"make": func(item): return _make_text(item)}
 	return {}
@@ -344,25 +361,42 @@ func _open_window() -> void:
 	var bw: float = container.size.x
 	# Only pick items that are still ABOVE the viewport (position.y < 0).
 	# This ensures the window always enters from the top with its item.
+	# balance the yes/no items the player actually judges: prefer an entering item whose truth
+	# (for this belt) is the under-represented one so far, so it isn't "almost all no"
+	var need_truth: int = -1
+	if _shown_yes < _shown_no:
+		need_truth = 1
+	elif _shown_no < _shown_yes:
+		need_truth = 0
 	var target_y: float = -item_h * 0.5
 	var best_entry: Variant = null
 	var best_dist: float = INF
+	var any_entry: Variant = null
+	var any_dist: float = INF
 	for entry in belt_items[si]:
 		var item_y: float = entry["ctrl"].position.y
-		if item_y >= 0.0:
-			continue  # already visible — skip, would just appear without entering
-		if item_y < -item_h * 4.0:
-			continue  # too far above, would wait too long
+		if item_y >= 0.0 or item_y < -item_h * 4.0:
+			continue  # only items still entering from the top, not too far up
 		var dist: float = abs(item_y - target_y)
-		if dist < best_dist:
+		if dist < any_dist:
+			any_dist = dist
+			any_entry = entry
+		var t: bool = entry["truth_l"] if si == 0 else entry["truth_r"]
+		if (need_truth == -1 or int(t) == need_truth) and dist < best_dist:
 			best_dist = dist
 			best_entry = entry
+	if best_entry == null:
+		best_entry = any_entry
 	if best_entry == null:
 		next_window_timer = 0.3
 		return
 	window_belt = si
 	window_target_item = best_entry["ctrl"]
 	window_target_truth = best_entry["truth_l"] if si == 0 else best_entry["truth_r"]
+	if window_target_truth:
+		_shown_yes += 1
+	else:
+		_shown_no += 1
 	var pad: float = 4.0
 	var panel: Panel = Panel.new()
 	panel.z_index = 2
@@ -453,23 +487,91 @@ func new_game(from_scratch: bool = true) -> void:
 	set_process(true)
 
 func _load_level(id: int) -> void:
-	var def: Dictionary = SortingRobotsLevelDefs.get_level(id)
+	var def: Dictionary = SortingRobotsLevelConfig.get_level(id)
 	rounds_before_hide = def.get("hide_after", 5)
 	num_rounds_per_level = def.get("rounds", 12)
 	window_duration = float(def.get("window_dur", 2.5))
 	scroll_speed = float(def.get("belt_spd", 75))
-	current_pair = [
-		_build_modality(def.get("left", "digit")),
-		_build_modality(def.get("right", "square"))
-	]
+	_level_rules_pool = def.get("rules", ["digit", "square"]).duplicate()
+	_pick_pair_from_pool()
 	game.level_label_changed("Level " + str(def.get("name", id)))
+
+# True if the two rule keys can be confused (an item could satisfy both), so they must never be
+# the two shown rules at once.
+func _are_confusable(a: String, b: String) -> bool:
+	return _CONFUSABLE_WITH.get(a, []).has(b) or _CONFUSABLE_WITH.get(b, []).has(a)
+
+# Pick this level's two shown rules from its pool: two DISTINCT, non-confusable rules in RANDOM
+# order, so a given rule shows up on the left belt sometimes and on the right belt other times.
+func _pick_pair_from_pool() -> void:
+	var pool: Array = _level_rules_pool.duplicate()
+	if pool.size() < 2:
+		pool = ["digit", "square"]
+	pool.shuffle()
+	var chosen: Array = [pool[0]]
+	for k in pool.slice(1):
+		if not _are_confusable(chosen[0], k):
+			chosen.append(k)
+			break
+	if chosen.size() < 2:
+		# pool too confusable to find a clean partner — fall back to the first two keys
+		chosen = [pool[0], pool[1]]
+	current_pair = [_build_modality(chosen[0]), _build_modality(chosen[1])]
 
 func _evaluate_answer(user_picks_up: bool) -> void:
 	if not window_open or _showing_feedback or game.paused() or game.level_is_done:
 		return
 	window_open = false
+	# correct pick-up → a robot claw yanks the item off the nearest side (left belt→left, right→right)
+	if user_picks_up and user_picks_up == window_target_truth \
+			and window_target_item != null and is_instance_valid(window_target_item):
+		# remove from belt tracking, then the claw reparents & pulls the real item off its side
+		var tgt: Control = window_target_item
+		var bi: int = window_belt
+		for i in range(belt_items[bi].size() - 1, -1, -1):
+			if belt_items[bi][i]["ctrl"] == tgt:
+				belt_items[bi].remove_at(i)
+				break
+		_claw_pull(window_belt == 1)
 	_discard_window()  # remove immediately when player answers
 	_score_answer(user_picks_up, false)
+
+func _claw_pull(to_right: bool) -> void:
+	# Reparent the ACTUAL item (unchanged — looks exactly as on the belt) into a flyer, keep the
+	# highlight RECTANGLE around it (border only, transparent fill), and let a claw grip its edge
+	# and yank it off the nearest side. It never freezes — it moves as it's pulled.
+	var item: Control = window_target_item
+	if item == null or not is_instance_valid(item):
+		return
+	var item_gpos: Vector2 = item.global_position
+	var item_size: Vector2 = item.size
+	if item_size.x < 1.0 or item_size.y < 1.0:
+		item_size = Vector2(item_h, item_h)
+	var flyer: Node2D = Node2D.new()
+	flyer.z_index = 80
+	add_child(flyer)
+	var panel: Panel = window_panel
+	if panel != null and is_instance_valid(panel):
+		for ch in panel.get_children():
+			if ch is Label:
+				ch.queue_free()
+		var psb: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		if psb != null:
+			psb.border_color = Color(0.2, 0.9, 0.3)  # correct pick-up → green frame
+			psb.bg_color = Color(psb.bg_color.r, psb.bg_color.g, psb.bg_color.b, 0.0)
+		panel.reparent(flyer, true)  # keep the (green) border rectangle around the item
+		window_panel = null
+	item.reparent(flyer, true)  # keep global transform so the item doesn't jump/change
+	var claw: Node2D = CLAW_SCRIPT.new()
+	claw.side = 1 if to_right else -1
+	claw.box_size = item_size
+	claw.position = item_gpos
+	flyer.add_child(claw)
+	var sw: float = float(MainGlobals.screen_size.x)
+	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
+	var tw: Tween = flyer.create_tween()
+	tw.tween_property(flyer, "position:x", dx, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(flyer.queue_free)
 
 func _score_answer(user_picks_up: bool, is_timeout: bool) -> void:
 	if _showing_feedback or game.level_is_done:

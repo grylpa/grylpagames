@@ -20,7 +20,7 @@ func _ready() -> void:
 
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
-	main_menu.add_option_entry(1, "Starting level", SortingRobotsLevelDefs.level_names())
+	main_menu.add_option_entry(1, "Starting level", SortingRobotsLevelConfig.level_names())
 	refresh_menu()
 	show_main_menu()
 
@@ -53,7 +53,7 @@ func _ready() -> void:
 	game.progress_level_pos = POS_SCORE_LEVEL_ID
 	game.progress_time_pos = POS_SCORE_MEAN_TIME_MS
 	game.progress_pct_pos = POS_SCORE_PCT_CORRECT
-	for lvl in SortingRobotsLevelDefs.LEVELS:
+	for lvl in SortingRobotsLevelConfig.LEVELS:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
@@ -104,7 +104,7 @@ func _on_main_menu_start_game(_start_new: bool) -> void:
 
 func _on_menu_option_changed(id: int, idx: int) -> void:
 	if id == 1:
-		SortingRobotsG.starting_level_id = SortingRobotsLevelDefs.LEVELS[idx]["id"]
+		SortingRobotsG.starting_level_id = SortingRobotsLevelConfig.LEVELS[idx]["id"]
 		SortingRobotsG.save_settings()
 
 func _on_level_show_main_menu() -> void:
@@ -126,7 +126,7 @@ func on_game_is_done(_didwin: bool, _wasaborted: bool) -> void:
 func add_score_line_vals(score_row: Array) -> Array:
 	var res: Array = []
 	if score_row.size() > POS_SCORE_LEVEL_ID:
-		var lvl: Dictionary = SortingRobotsLevelDefs.get_level(score_row[POS_SCORE_LEVEL_ID])
+		var lvl: Dictionary = SortingRobotsLevelConfig.get_level(score_row[POS_SCORE_LEVEL_ID])
 		res.append(lvl.get("name", "?"))
 	if score_row.size() > POS_SCORE_MEAN_TIME_MS:
 		res.append(str(int(score_row[POS_SCORE_MEAN_TIME_MS])))
@@ -158,4 +158,4 @@ func _input(event: InputEvent) -> void:
 		game.handle_event(event, self)
 
 func refresh_menu() -> void:
-	main_menu.update_option(1, SortingRobotsLevelDefs.id_to_index(SortingRobotsG.starting_level_id))
+	main_menu.update_option(1, SortingRobotsLevelConfig.id_to_index(SortingRobotsG.starting_level_id))

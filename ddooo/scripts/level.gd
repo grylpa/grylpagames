@@ -105,7 +105,7 @@ func new_game(from_scratch = true):
 	game.add_sound(self, "ambient", ambient_audios[0], true)
 	game.play_sound("ambient")
 	# Show level-start info popup; game begins when user dismisses it
-	var lvl: Dictionary = DdoooLevelDefs.get_level(level)
+	var lvl: Dictionary = DdoooLevelConfig.get_level(level)
 	game.show_game_popup(self, "Level %d" % level,
 		"Center visible: %d ms\nPeriphery flash: %d ms" % [lvl["center_ms"], lvl["periph_ms"]])
 
@@ -541,8 +541,8 @@ func increase_difficulty(increase = true):
 		return
 	if increase:
 		level += 1
-	level = clamp(level, 1, DdoooLevelDefs.MAX_LEVEL)
-	var lvl: Dictionary = DdoooLevelDefs.get_level(level)
+	level = clamp(level, 1, DdoooLevelConfig.MAX_LEVEL)
+	var lvl: Dictionary = DdoooLevelConfig.get_level(level)
 	var s: int = 7
 	game.max_board_size = Vector2i(s, s)
 	game.forced_board_size = Vector2i(s, s)

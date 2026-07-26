@@ -5,7 +5,7 @@
 **Game name:** DDOOO
 **Folder:** `ddooo/`
 **Singleton:** `DdoooG` (autoload)
-**Level defs singleton:** `DdoooLevelDefs` (autoload)
+**Level defs singleton:** `DdoooLevelConfig` (autoload)
 **Save key (short name):** `ddooo`
 **Initial time:** 2 minutes
 **Background color:** `0x3C5D3EFF` (dark green)
@@ -34,7 +34,7 @@ ddooo/
 │   └── shape-circle-w-5-dots.png
 ├── scripts/
 │   ├── globals.gd
-│   ├── level_defs.gd
+│   ├── level_config.gd
 │   ├── main.gd
 │   ├── level.gd
 │   ├── agent.gd
@@ -54,7 +54,7 @@ ddooo/
 ### `project.godot` autoloads
 ```
 DdoooG="*res://ddooo/scripts/globals.gd"
-DdoooLevelDefs="*res://ddooo/scripts/level_defs.gd"
+DdoooLevelConfig="*res://ddooo/scripts/level_config.gd"
 ```
 
 ### `scripts/config.gd`
@@ -142,9 +142,9 @@ Controlled per level by `same_color_alts`:
 
 ---
 
-## Level Definitions (`DdoooLevelDefs`)
+## Level Definitions (`DdoooLevelConfig`)
 
-Defined in `ddooo/scripts/level_defs.gd`, autoloaded as `DdoooLevelDefs`.
+Defined in `ddooo/scripts/level_config.gd`, autoloaded as `DdoooLevelConfig`.
 
 | id | center_ms | periph_ms | num_alts | two_colors | same_color_alts | rounds |
 |----|-----------|-----------|----------|------------|-----------------|--------|
@@ -228,7 +228,7 @@ Game begins only when the player dismisses the popup (`sig_game_popup_closed` �
 ## Main Menu
 
 - **Starting level** dropdown (option id=1): lets player choose which level to begin on.
-- Populated via `DdoooLevelDefs.level_names()`.
+- Populated via `DdoooLevelConfig.level_names()`.
 - Persisted via `DdoooG.starting_difficulty` in settings.
 
 ---

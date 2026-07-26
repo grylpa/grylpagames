@@ -1,18 +1,35 @@
 extends Node
 
 # Each level definition:
-# id, name, left modality key, right modality key, rounds_before_hide, num_rounds
-# possible modalities: digit, square, even_odd, vowel, prime, filled, hollow, stroop, color_shape, lines
+# id, name, rules pool, hide_after (rounds before the rule labels are hidden), rounds
+#
+# rules: the pool of rule keys allowed for this level. The two shown rules are picked from this
+#   pool at RANDOM each time the level loads, so which rules appear — and which side each one
+#   lands on — varies from play to play (bigger pool = less predictable). Need at least 2.
+#
+# Available rule keys (choose any for a level's "rules" pool):
+#   "digit"        — Is it a digit?               (digits vs letters)
+#   "square"       — Is it a square?              (■ vs other shapes)
+#   "even_odd"     — Is it even? / Is it odd?     (random each pick)
+#   "vowel"        — Is it a vowel?               (vowels vs consonants)
+#   "prime"        — Is it prime?                 (prime vs non-prime numbers)
+#   "filled"       — Is it a filled shape?        (■●▲★ vs □○△☆)
+#   "hollow"       — Is it a hollow shape?        (□○△☆ vs ■●▲★)
+#   "stroop"       — Color = text color?          (word/ink match)
+#   "color_shape"  — Shape is blue or red?        (colored shapes)
+#   "lines"        — Letter is straight lines?    (AEFHIKLMNTVWXYZ vs curved)
+# NOTE: "square" overlaps with "filled"/"hollow" (a ■ is both square AND filled) — they are never
+#   shown together as the two rules, so a pool may safely contain all of them.
 const LEVELS: Array = [
-	{"id": 1, "name": "Green",  "left": "digit",    "right": "square",      "hide_after": 6, "rounds": 10},
-	{"id": 2, "name": "Blue",    "left": "even_odd", "right": "vowel",        "hide_after": 5, "rounds": 12},
-	{"id": 3, "name": "Red",  "left": "prime",    "right": "filled",       "hide_after": 4, "rounds": 12},
-	{"id": 4, "name": "Cyan",  "left": "stroop",   "right": "color_shape",  "hide_after": 3, "rounds": 15},
-	{"id": 5, "name": "Orange",  "left": "lines",    "right": "hollow",     "hide_after": 2, "rounds": 15},
+	{"id": 1, "name": "Green",  "rules": ["digit", "square"],                                            "hide_after": 6, "rounds": 10},
+	{"id": 2, "name": "Blue",   "rules": ["even_odd", "vowel", "hollow"],                                "hide_after": 5, "rounds": 12},
+	{"id": 3, "name": "Red",    "rules": ["hollow", "even_odd", "vowel", "square"],                      "hide_after": 4, "rounds": 12},
+	{"id": 4, "name": "Cyan",   "rules": ["prime", "filled", "vowel", "lines", "color_shape"],      	 "hide_after": 3, "rounds": 15},
+	{"id": 5, "name": "Orange", "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "hide_after": 2, "rounds": 15},
 ]
 
 # Default level play order — may repeat levels; driver code inserts repeats for poorly-done levels
-const LEVEL_PROGRESSION_ORDER: Array = [1, 2, 1, 2, 3, 4, 5, 3, 4, 5]
+const LEVEL_PROGRESSION_ORDER: Array = [1, 2, 3, 4, 5, 3, 4, 5]
 
 func get_level(id: int) -> Dictionary:
 	for lvl in LEVELS:

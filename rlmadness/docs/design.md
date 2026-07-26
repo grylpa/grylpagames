@@ -27,17 +27,19 @@ Each round:
 
 After `rounds_before_hide` rounds, the rule labels fade out and the player must remember both rules.
 
-## Level Definitions (`level_defs.gd` — autoload `RlmLevelDefs`)
+## Level Definitions (`level_config.gd` — autoload `RlmLevelConfig`)
 
-Each level has: id, name, left modality key, right modality key, rounds_before_hide, num_rounds.
+Each level has: id, name, a **`rules` pool**, rounds_before_hide, num_rounds.
 
-| ID | Name | Left | Right | Hide after | Rounds |
-|----|------|------|-------|------------|--------|
-| 1 | Green  | digit    | square      | 6 | 10 |
-| 2 | Blue   | even_odd | vowel       | 5 | 12 |
-| 3 | Red    | prime    | filled      | 4 | 12 |
-| 4 | Cyan   | stroop   | color_shape | 3 | 15 |
-| 5 | Orange | lines    | hollow    | 2 | 15 |
+The pool replaces the old fixed left/right pair. On every level load, `_pick_pair_from_pool()` shuffles the pool and takes the first two **distinct, non-confusable** keys, so which rules appear — and which side each one lands on — varies from play to play. `_are_confusable()` (via `_CONFUSABLE_WITH`) keeps overlapping rules apart: a ■ is both a square AND a filled shape, so "square" is never shown opposite "filled"/"hollow" (an item would satisfy both rules). A pool may therefore safely list all of them.
+
+| ID | Name | Rules pool | Hide after | Rounds |
+|----|------|------------|------------|--------|
+| 1 | Green  | digit, square | 6 | 10 |
+| 2 | Blue   | even_odd, vowel, digit | 5 | 12 |
+| 3 | Red    | prime, filled, vowel, digit | 4 | 12 |
+| 4 | Cyan   | stroop, color_shape, prime, lines | 3 | 15 |
+| 5 | Orange | lines, hollow, stroop, color_shape, prime, vowel | 2 | 15 |
 
 ## Modality Keys
 
@@ -109,7 +111,7 @@ rlmadness/
 ├── docs/design.md
 ├── scripts/
 │   ├── globals.gd      (RlmadnressG autoload; 10-min timer; level queue; use_uppercase flag)
-│   ├── level_defs.gd   (RlmLevelDefs autoload; LEVELS const, LEVEL_PROGRESSION_ORDER, helper funcs)
+│   ├── level_config.gd   (RlmLevelConfig autoload; LEVELS const, LEVEL_PROGRESSION_ORDER, helper funcs)
 │   ├── main.gd         (orchestrator, corrects/mistakes HUD, dropdown starting level)
 │   └── level.gd        (modality building, round loop, diagonal placement, scoring)
 └── scenes/
