@@ -26,6 +26,12 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # Endless conveyor — same dimensions as sorting robots
 var pair_font_size: int = 32
 var item_h: float = 72.0
+# Claw pick-up timing: the item is first popped slightly larger (the claw closing and lifting it
+# off the belt), and only then yanked off the side.
+const _GRAB_SCALE: float = 1.18
+const _GRAB_TIME: float = 0.14
+const _PULL_TIME: float = 0.55
+
 const CLAW_SCRIPT: GDScript = preload("res://monkeyc/scripts/claw.gd")
 
 var belt_items: Array = [[], []]
@@ -39,6 +45,8 @@ var window_target_item: Control = null
 var window_target_truth: bool = false
 var window_timer: float = 0.0
 var next_window_timer: float = 1.5
+var _window_item_l: Variant = null   # raw objects of the windowed item, logged when it is marked
+var _window_item_r: Variant = null
 var _take_top: float = 0.0     # item-top y at which the robot takes/leaves it (within h/2..3h/4)
 var _mark_top: float = 0.0     # item-top y at which the ✓/✗ answer first appears
 var _window_marked: bool = false
@@ -49,6 +57,10 @@ var _showing_demo_action: bool = false
 var examples_per_belt: Array = [0, 0]
 var _yes_per_belt: Array = [0, 0]  # picked-up (matched) demos per belt; need >=3 before asking
 var _no_per_belt: Array = [0, 0]   # left (unmatched) demos per belt; need >=2 before asking
+# Every demo the player was shown this round, per belt: {item_l, item_r, verdict}. Cleared with the
+# rules each round. _build_options tests candidate rules against this to guarantee every offered
+# wrong answer was actually ruled out by the demos.
+var _demo_log: Array = [[], []]
 
 # Question phase
 var _question_phase: bool = false
@@ -73,15 +85,25 @@ var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime"
 # vary from round to round instead of being fixed.
 var _level_rules_pool: Array = []
 
-# Rules whose demonstrations can ALSO be explained by another rule — never offer that other
-# rule as a wrong-answer option (it would be a valid guess yet get marked wrong). E.g. a ■ is
-# both a square and a filled shape, so "filled"/"hollow" must not be offered when the rule is
-# "square", and "square" must not be offered when the rule is "filled"/"hollow". Extend as
-# other overlaps are found.
+# The rule pair used last time, so the next pick can avoid repeating it.
+var _last_pair_keys: Array = []
+
+# Two rules may only be shown together if NO single object can satisfy both — otherwise an item
+# would legitimately belong to both sides and the "correct" answer is arbitrary. The pairs below
+# genuinely overlap:
+#   digit/even_odd/prime — "4" is a digit AND even; "3" is a digit AND prime AND odd
+#   vowel/lines          — A, E, I are vowels AND straight-line letters
+#   square/filled/color_shape — a ■ is a square AND filled; colored shapes are all filled glyphs
+# (hollow is absent on purpose: hollow glyphs are disjoint from square, filled and color_shape.)
 const _CONFUSABLE_WITH: Dictionary = {
-	"square": ["filled", "hollow"],
-	"filled": ["square"],
-	"hollow": ["square"],
+	"digit": ["even_odd", "prime"],
+	"even_odd": ["digit", "prime"],
+	"prime": ["digit", "even_odd"],
+	"vowel": ["lines"],
+	"lines": ["vowel"],
+	"square": ["filled", "color_shape"],
+	"filled": ["square", "color_shape"],
+	"color_shape": ["square", "filled"],
 }
 
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
@@ -127,50 +149,156 @@ func _ready() -> void:
 
 # --- Modality building ---
 
+# Every modality carries a "test" callable alongside its generator: given ONE displayed object it
+# returns 1 (satisfies the rule), 0 (does not), or -1 (rule doesn't apply to this kind of object).
+# The test is what lets _build_options prove a candidate option was actually ruled out by the demos
+# (see _is_distinguishable) instead of trusting a hardcoded overlap table. It must stay in sync with
+# the matching "gen" — including per-instance randomness like even_odd's even/odd choice, which is
+# why the test is baked into the same dictionary as the label the player is offered.
 func _build_modality(key: String) -> Dictionary:
 	match key:
 		"digit":
 			return {"key": key, "label": "Is it a digit?",
 				"gen": func(ok): return _gen_digit_or_letter(ok),
+				"test": func(item): return _test_digit(item),
 				"make": func(item): return _make_text(item)}
 		"square":
 			return {"key": key, "label": "Is it a square?",
 				"gen": func(ok): return _gen_shape(ok, ["■"], ["●", "▲", "★"]),
+				"test": func(item): return _test_glyph_in(item, ["■"]),
 				"make": func(item): return _make_text(item)}
 		"even_odd":
 			var use_even: bool = rng.randi_range(0, 1) == 0
 			return {"key": key, "label": "Is it even?" if use_even else "Is it odd?",
 				"gen": func(ok): return _gen_even_odd(ok if use_even else !ok),
+				"test": func(item): return _test_even_odd(item, use_even),
 				"make": func(item): return _make_text(item)}
 		"vowel":
 			return {"key": key, "label": "Is it a vowel?",
 				"gen": func(ok): return _gen_vowel_consonant(ok),
+				"test": func(item): return _test_letter_in(item, ["A","E","I","O","U"]),
 				"make": func(item): return _make_text(item)}
 		"prime":
 			return {"key": key, "label": "Is it prime?",
 				"gen": func(ok): return _gen_prime_or_not(ok),
+				"test": func(item): return _test_prime(item),
 				"make": func(item): return _make_text(item)}
 		"filled":
 			return {"key": key, "label": "Is it a filled shape?",
 				"gen": func(ok): return _gen_shape(ok, ["■","●","▲","★"], ["□","○","△","☆"]),
+				"test": func(item): return _test_glyph_in(item, ["■","●","▲","★"]),
 				"make": func(item): return _make_text(item)}
 		"hollow":
 			return {"key": key, "label": "Is it a hollow shape?",
 				"gen": func(ok): return _gen_shape(ok, ["□","○","△","☆"], ["■","●","▲","★"]),
+				"test": func(item): return _test_glyph_in(item, ["□","○","△","☆"]),
 				"make": func(item): return _make_text(item)}
 		"stroop":
 			return {"key": key, "label": "Color = text color?",
 				"gen": func(ok): return _gen_stroop(ok),
+				"test": func(item): return _test_stroop(item),
 				"make": func(item): return _make_stroop(item)}
 		"color_shape":
 			return {"key": key, "label": "Shape is blue or red?",
 				"gen": func(ok): return _gen_colored_shape(ok),
+				"test": func(item): return _test_colored_shape(item),
 				"make": func(item): return _make_colored_shape(item)}
 		"lines":
 			return {"key": key, "label": "Letter is straight lines?",
 				"gen": func(ok): return _gen_straight_letter(ok),
+				"test": func(item): return _test_letter_in(item, _straight_letters),
 				"make": func(item): return _make_text(item)}
 	return {}
+
+# --- Rule tests: 1 = satisfies, 0 = does not, -1 = rule does not apply to this object ---
+# -1 matters: an object the rule can't even be applied to is NOT evidence either way, so it must
+# never be counted as agreement or disagreement when judging whether an option was ruled out.
+
+const _SHAPE_GLYPHS: Array = ["■", "●", "▲", "★", "□", "○", "△", "☆"]
+
+# The glyph a plain-text object shows, or "" when the object isn't a single glyph/letter/digit.
+func _glyph_of(item: Variant) -> String:
+	if typeof(item) == TYPE_DICTIONARY:
+		return str(item.get("shape", ""))   # colored shapes are still shapes
+	var s: String = str(item)
+	return s if s.length() == 1 else ""
+
+func _test_digit(item: Variant) -> int:
+	if typeof(item) == TYPE_DICTIONARY:
+		return -1
+	var s: String = str(item)
+	if s.length() != 1:
+		return -1                      # multi-digit numbers read as numbers, not "a digit"
+	if s >= "0" and s <= "9":
+		return 1
+	if s >= "A" and s <= "Z":
+		return 0
+	return -1
+
+func _test_glyph_in(item: Variant, wanted: Array) -> int:
+	var g: String = _glyph_of(item)
+	if g == "" or not _SHAPE_GLYPHS.has(g):
+		return -1
+	return 1 if wanted.has(g) else 0
+
+func _test_letter_in(item: Variant, wanted: Array) -> int:
+	if typeof(item) == TYPE_DICTIONARY:
+		return -1
+	var s: String = str(item)
+	if s.length() != 1 or s < "A" or s > "Z":
+		return -1
+	return 1 if wanted.has(s) else 0
+
+func _test_even_odd(item: Variant, use_even: bool) -> int:
+	if typeof(item) == TYPE_DICTIONARY:
+		return -1
+	var s: String = str(item)
+	if not s.is_valid_int():
+		return -1
+	var n: int = int(s)
+	return 1 if ((n % 2 == 0) == use_even) else 0
+
+func _test_prime(item: Variant) -> int:
+	if typeof(item) == TYPE_DICTIONARY:
+		return -1
+	var s: String = str(item)
+	if not s.is_valid_int():
+		return -1
+	return 1 if _primes.has(int(s)) else 0
+
+func _test_stroop(item: Variant) -> int:
+	if typeof(item) != TYPE_DICTIONARY or not item.has("text"):
+		return -1
+	return 1 if item["color"] == _color_values.get(item["text"], null) else 0
+
+func _test_colored_shape(item: Variant) -> int:
+	if typeof(item) != TYPE_DICTIONARY or not item.has("shape"):
+		return -1
+	var c: Color = item["color"]
+	return 1 if (c == Color.BLUE or c == Color.RED) else 0
+
+# Verdict a rule gives for a whole belt item (a PAIR of objects): true when EITHER object satisfies
+# it, which is how the player reads it — they scan both glyphs for one the rule accepts.
+# A rule that applies to neither object yields false, not "unknown": an item with no letters on it
+# simply is not a vowel. That matters, because the demo gating guarantees at least one pick-up, so
+# an inapplicable rule genuinely contradicts that pick-up and is fair to offer (if obviously weak).
+func _rule_verdict(mod: Dictionary, entry: Dictionary) -> bool:
+	for obj in [entry.get("item_l"), entry.get("item_r")]:
+		if mod["test"].call(obj) == 1:
+			return true
+	return false
+
+# A candidate option is only FAIR if the player could have ruled it out: on at least one item the
+# robot demonstrated, this rule disagrees with the verdict the robot showed. A rule that agrees
+# with every demo explains everything the player saw just as well as the real rule, so offering it
+# would mark a perfectly sound answer wrong. This is what makes num_options safe to raise: it
+# catches structural overlaps (■ is square AND filled) and accidental ones (the demoed digits all
+# happened to be prime) alike, with no hardcoded table to maintain.
+func _is_distinguishable(mod: Dictionary, belt_idx: int) -> bool:
+	for entry in _demo_log[belt_idx]:
+		if _rule_verdict(mod, entry) != bool(entry["verdict"]):
+			return true
+	return false
 
 func _u(text: String) -> String:
 	return text.to_upper() if MonkeyCG.use_uppercase else text
@@ -247,18 +375,55 @@ func _make_colored_shape(item: Dictionary) -> Label:
 
 func _make_pair_control(item_l: Variant, mod_l: Dictionary, item_r: Variant, mod_r: Dictionary, bw: float) -> Control:
 	var c: Control = Control.new()
-	var half_w: float = bw * 0.5
 	var lbl_l: Label = mod_l["make"].call(item_l)
-	lbl_l.add_theme_font_size_override("font_size", pair_font_size)
-	lbl_l.size = Vector2(half_w, item_h)
-	lbl_l.position = Vector2(0.0, 0.0)
 	var lbl_r: Label = mod_r["make"].call(item_r)
-	lbl_r.add_theme_font_size_override("font_size", pair_font_size)
-	lbl_r.size = Vector2(half_w, item_h)
-	lbl_r.position = Vector2(half_w, 0.0)
+	var shares: Array = _share_pair_widths(lbl_l, lbl_r, bw, pair_font_size)
+	lbl_l.size = Vector2(shares[0], item_h)
+	lbl_l.position = Vector2(0.0, 0.0)
+	lbl_r.size = Vector2(shares[1], item_h)
+	lbl_r.position = Vector2(shares[0] + _PAIR_GAP, 0.0)
 	c.add_child(lbl_l)
 	c.add_child(lbl_r)
 	return c
+
+# --- Pair layout ---
+# Objects are sized to FIT. A stroop word ("YELLOW") is many times wider than a glyph, so splitting
+# the item width 50/50 made the word spill over its half and collide with the other object. Instead
+# the two objects share the width in proportion to how wide they actually are, and each font is
+# shrunk until its text fits the share it got.
+
+const _PAIR_GAP: float = 8.0
+const _MIN_PAIR_FONT: int = 12
+
+func _text_width(lbl: Label, font_size: int) -> float:
+	var f: Font = lbl.get_theme_font("font")
+	if f == null:
+		f = MainGlobals.get_system_sans_font()
+	return f.get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+
+# Shrink the label's font until its text fits max_w. Returns the size actually used.
+func _fit_label_width(lbl: Label, max_w: float, start_size: int) -> int:
+	var fs: int = start_size
+	while fs > _MIN_PAIR_FONT and _text_width(lbl, fs) > max_w:
+		fs -= 1
+	lbl.add_theme_font_size_override("font_size", fs)
+	return fs
+
+# Give each label a share of `total_w` proportional to its natural width, then fit its font to that
+# share. Returns [width_l, width_r] — laid out with _PAIR_GAP between them.
+func _share_pair_widths(lbl_l: Label, lbl_r: Label, total_w: float, base_size: int) -> Array:
+	var avail: float = maxf(total_w - _PAIR_GAP, 20.0)
+	var wl: float = _text_width(lbl_l, base_size)
+	var wr: float = _text_width(lbl_r, base_size)
+	var alloc_l: float = avail * 0.5
+	var alloc_r: float = avail * 0.5
+	if wl + wr > 0.0:
+		# proportional share, but never starve one side below a readable sliver
+		alloc_l = clampf(avail * (wl / (wl + wr)), avail * 0.18, avail * 0.82)
+		alloc_r = avail - alloc_l
+	_fit_label_width(lbl_l, alloc_l, base_size)
+	_fit_label_width(lbl_r, alloc_r, base_size)
+	return [alloc_l, alloc_r]
 
 # --- Belt helpers ---
 
@@ -279,7 +444,9 @@ func _spawn_belt_item(si: int, y: float, bw: float) -> Dictionary:
 	ctrl.size = Vector2(bw, item_h)
 	ctrl.position = Vector2(0.0, y)
 	_containers()[si].add_child(ctrl)
-	return {"ctrl": ctrl, "truth_l": truth_l, "truth_r": truth_r}
+	# item_l/item_r keep the RAW generated objects (not just the truth flags) so a demonstrated
+	# item can later be re-tested against candidate rules — see _is_distinguishable.
+	return {"ctrl": ctrl, "truth_l": truth_l, "truth_r": truth_r, "item_l": item_l, "item_r": item_r}
 
 func _init_belts() -> void:
 	for si in num_belts:
@@ -412,6 +579,9 @@ func _open_demo_window() -> void:
 	window_belt = si
 	window_target_item = best_entry["ctrl"]
 	window_target_truth = best_entry["truth_l"] if si == 0 else best_entry["truth_r"]
+	# keep the raw objects so _mark_item can log exactly what the player was shown
+	_window_item_l = best_entry["item_l"]
+	_window_item_r = best_entry["item_r"]
 	var pad: float = 4.0
 	var panel: Panel = Panel.new()
 	panel.z_index = 2
@@ -442,6 +612,10 @@ func _mark_item() -> void:
 		_yes_per_belt[window_belt] += 1
 	else:
 		_no_per_belt[window_belt] += 1
+	# Log what the player just saw demonstrated — this is the evidence _build_options uses to
+	# prove an offered option was genuinely ruled out.
+	_demo_log[window_belt].append(
+		{"item_l": _window_item_l, "item_r": _window_item_r, "verdict": picks_up})
 	# (gating: the question waits until every belt has shown >=3 picked-up and >=2 left demos)
 	if window_panel != null and is_instance_valid(window_panel):
 		var sb: StyleBoxFlat = window_panel.get_theme_stylebox("panel") as StyleBoxFlat
@@ -495,7 +669,7 @@ func _take_item() -> void:
 	if all_done:
 		_demo_phase = false
 		_question_phase = true
-		await get_tree().create_timer(0.5).timeout
+		await get_tree().create_timer(_GRAB_TIME + _PULL_TIME).timeout
 		await _ask_all_rules()
 	else:
 		next_window_timer = rng.randf_range(0.8, 1.5)
@@ -511,7 +685,8 @@ func _discard_window() -> void:
 func _claw_pull(to_right: bool) -> void:
 	# Reparent the ACTUAL item (unchanged — looks exactly as on the belt) into a flyer, keep the
 	# highlight RECTANGLE around it (border only, transparent fill, no ✓ overlay), and let a claw
-	# grip its edge and yank it off the nearest side. It never freezes — it moves as it's pulled.
+	# grip its edge. The claw first POPS the item a little larger so the pick-up reads as physical,
+	# and only then yanks it off the nearest side. It never freezes — the grab is a brief beat.
 	var item: Control = window_target_item
 	if item == null or not is_instance_valid(item):
 		return
@@ -519,8 +694,12 @@ func _claw_pull(to_right: bool) -> void:
 	var item_size: Vector2 = item.size
 	if item_size.x < 1.0 or item_size.y < 1.0:
 		item_size = Vector2(item_h, item_h)
+	# The flyer's ORIGIN sits at the item's centre so scaling it grows the item in place; with the
+	# origin at (0,0) the scale-up would drag the item toward the canvas corner instead.
+	var item_center: Vector2 = item_gpos + item_size * 0.5
 	var flyer: Node2D = Node2D.new()
 	flyer.z_index = 80
+	flyer.position = item_center
 	add_child(flyer)
 	var panel: Panel = window_panel
 	if panel != null and is_instance_valid(panel):
@@ -537,12 +716,17 @@ func _claw_pull(to_right: bool) -> void:
 	var claw: Node2D = CLAW_SCRIPT.new()
 	claw.side = 1 if to_right else -1
 	claw.box_size = item_size
-	claw.position = item_gpos
+	claw.position = item_gpos - item_center  # claw origin = box top-left, in flyer-local space
 	flyer.add_child(claw)
 	var sw: float = float(MainGlobals.screen_size.x)
 	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
 	var tw: Tween = flyer.create_tween()
-	tw.tween_property(flyer, "position:x", dx, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	# 1) grip and lift — a quick pop, slightly overshooting, so it reads as being picked up
+	tw.tween_property(flyer, "scale", Vector2(_GRAB_SCALE, _GRAB_SCALE), _GRAB_TIME) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# 2) then yank it off the side, still held at the lifted size
+	tw.tween_property(flyer, "position:x", flyer.position.x + dx, _PULL_TIME) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_callback(flyer.queue_free)
 
 # --- Question phase ---
@@ -561,6 +745,7 @@ func _ask_all_rules() -> void:
 		_refresh_rules()
 		examples_per_belt = [0, 0]
 		_yes_per_belt = [0, 0]
+		_demo_log = [[], []]
 		_no_per_belt = [0, 0]
 		_clear_belts()
 		belt_initialized = false
@@ -572,7 +757,7 @@ func _ask_for_rule(belt_idx: int) -> void:
 	var question_text: String = "What was the rule?" if num_belts == 1 \
 		else "What was the %s belt rule?" % belt_name
 	var correct_key: String = question_correct_keys[belt_idx]
-	var options: Array = _build_options(correct_key)
+	var options: Array = _build_options(correct_key, belt_idx)
 	question_panel = Control.new()
 	question_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	question_panel.z_index = 10
@@ -658,28 +843,40 @@ func _on_option_pressed(chosen_key: String, correct_key: String, vbox: VBoxConta
 	await get_tree().create_timer(1.0).timeout
 	_question_answered = true
 
-func _build_options(correct_key: String) -> Array:
+# Build the multiple-choice options for a belt. EVERY wrong answer offered must be one the demos
+# actually ruled out (_is_distinguishable) — otherwise the player could pick a rule that explains
+# everything they saw and still be marked wrong. Candidates are tried in preference order:
+#   1. the other visible attribute — the tempting guess, so the player must reason, not eliminate
+#   2. the rest of this level's rules pool
+#   3. any remaining modality, so num_options can exceed the pool size and still be safe
+# If too few candidates survive, FEWER options are shown. That is deliberate: a smaller honest
+# question beats a full-size one containing an unanswerable option.
+func _build_options(correct_key: String, belt_idx: int) -> Array:
 	var correct_mod: Dictionary = _build_modality(correct_key)
-	var banned: Array = _CONFUSABLE_WITH.get(correct_key, [])
-	# Distractors are drawn from THIS LEVEL'S rule pool (the "rules we allow as options"), not from
-	# every modality. The other visible attribute(s) are forced in first — they are the tempting
-	# wrong guess, so the player must actually reason rather than pick the only shown alternative.
-	var wrong_keys: Array = []
+	var tried: Array = [correct_key]
+	var candidates: Array = []
 	for m in current_pair:
-		var dk: String = m["key"]
-		if dk != correct_key and not banned.has(dk) and not wrong_keys.has(dk):
-			wrong_keys.append(dk)
-	var pool_extra: Array = _level_rules_pool.filter(
-		func(k): return k != correct_key and not banned.has(k) and not wrong_keys.has(k))
+		if not tried.has(m["key"]):
+			tried.append(m["key"])
+			candidates.append(m["key"])
+	var pool_extra: Array = _level_rules_pool.filter(func(k): return not tried.has(k))
 	pool_extra.shuffle()
 	for k in pool_extra:
-		if wrong_keys.size() >= num_options - 1:
-			break
-		wrong_keys.append(k)
-	wrong_keys = wrong_keys.slice(0, num_options - 1)
+		tried.append(k)
+		candidates.append(k)
+	var others: Array = _all_modality_keys.filter(func(k): return not tried.has(k))
+	others.shuffle()
+	candidates.append_array(others)
+
 	var options: Array = [{"key": correct_key, "label": correct_mod.get("label", correct_key)}]
-	for k in wrong_keys:
+	for k in candidates:
+		if options.size() >= num_options:
+			break
+		# build the modality ONCE and validate that exact instance: even_odd picks even-vs-odd per
+		# build, so the label offered must be the one that was tested.
 		var mod: Dictionary = _build_modality(k)
+		if mod.is_empty() or not _is_distinguishable(mod, belt_idx):
+			continue
 		options.append({"key": k, "label": mod.get("label", k)})
 	options.shuffle()
 	return options
@@ -702,6 +899,7 @@ func new_game(from_scratch: bool = true) -> void:
 	_showing_demo_action = false
 	examples_per_belt = [0, 0]
 	_yes_per_belt = [0, 0]
+	_demo_log = [[], []]
 	_no_per_belt = [0, 0]
 	waiting_for_input = false
 	_question_answered = false
@@ -750,27 +948,45 @@ func _are_confusable(a: String, b: String) -> bool:
 # are hidden rules (one per belt). Because it re-picks every round, the rules vary within a level.
 func _pick_pair_from_pool() -> void:
 	var pool: Array = _level_rules_pool.duplicate()
+	if pool.is_empty():
+		pool = _all_modality_keys.duplicate()   # empty "rules" in level_config = use every rule
 	if pool.size() < 2:
 		pool = ["digit", "square"]
 	pool.shuffle()
-	var chosen: Array = [pool[0]]
-	for k in pool.slice(1):
-		if not _are_confusable(chosen[0], k):
-			chosen.append(k)
-			break
-	if chosen.size() < 2:
-		# pool too confusable to find a clean partner — fall back to the first two keys
+	# Prefer a pair different from last time so replaying a level (or wrapping around the
+	# progression order) doesn't serve up the same two rules again; fall back to repeating only
+	# when the pool offers no alternative.
+	var chosen: Array = _find_rule_pair(pool, true)
+	if chosen.is_empty():
+		chosen = _find_rule_pair(pool, false)
+	if chosen.is_empty():
+		# every rule in the pool overlaps every other — author error; fall back rather than hang
+		push_warning("level rule pool has no non-overlapping pair: %s" % str(pool))
 		chosen = [pool[0], pool[1]]
+	_last_pair_keys = [chosen[0], chosen[1]]
 	current_pair = [_build_modality(chosen[0]), _build_modality(chosen[1])]
 	question_correct_keys = [current_pair[0]["key"]]
 	if num_belts == 2:
 		question_correct_keys.append(current_pair[1]["key"])
 
+# Search the shuffled pool for a legal pair (no single object may satisfy both rules). When
+# `avoid_last` is set, the pair used last time is skipped regardless of order.
+func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
+	for i in pool.size():
+		for j in pool.size():
+			if i == j or _are_confusable(pool[i], pool[j]):
+				continue
+			if avoid_last and _last_pair_keys.has(pool[i]) and _last_pair_keys.has(pool[j]):
+				continue
+			return [pool[i], pool[j]]
+	return []
+
+# The status line only ever tells the player what to do. The mean option-selection time is NOT
+# shown here — it measures how fast the player names the rule, which has nothing to do with the
+# belt they're watching and just reads as noise mid-level. It is still tracked in
+# `times_to_answer` for the score row (POS_SCORE_MEAN_TIME_MS) and the level-end popup.
 func _update_avg_label() -> void:
-	if times_to_answer.is_empty():
-		%AvgTimeLabel.text = "Watch the robot..."
-	else:
-		%AvgTimeLabel.text = "Average time : %d ms" % mean_response_time_ms()
+	%AvgTimeLabel.text = "Watch the robot..."
 
 func _level_done() -> void:
 	set_process(false)

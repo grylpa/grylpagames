@@ -20,18 +20,32 @@ var total_corrects: int = 0
 # Built per level: [left_modality_dict, right_modality_dict]
 var current_pair: Array = []
 
+var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime", "filled", "hollow", "stroop", "color_shape", "lines"]
+
 # The pool of rule keys allowed for the CURRENT level (from level_config "rules"). The two shown
 # rules are drawn from it at random each time the level loads, so which rules appear — and which
 # side each one lands on — varies from play to play instead of always being the same two.
 var _level_rules_pool: Array = []
 
-# Rules whose items can ALSO be explained by another rule — never show both at once (e.g. a ■ is
-# both a square AND a filled shape, so one item would belong on both sides). Extend as other
-# overlaps are found.
+# The rule pair used last time, so the next pick can avoid repeating it.
+var _last_pair_keys: Array = []
+
+# Two rules may only be shown together if NO single object can satisfy both — otherwise an item
+# would legitimately belong to both sides and the "correct" answer is arbitrary. The pairs below
+# genuinely overlap:
+#   digit/even_odd/prime — "4" is a digit AND even; "3" is a digit AND prime AND odd
+#   vowel/lines          — A, E, I are vowels AND straight-line letters
+#   square/filled/color_shape — a ■ is a square AND filled; colored shapes are all filled glyphs
+# (hollow is absent on purpose: hollow glyphs are disjoint from square, filled and color_shape.)
 const _CONFUSABLE_WITH: Dictionary = {
-	"square": ["filled", "hollow"],
-	"filled": ["square"],
-	"hollow": ["square"],
+	"digit": ["even_odd", "prime"],
+	"even_odd": ["digit", "prime"],
+	"prime": ["digit", "even_odd"],
+	"vowel": ["lines"],
+	"lines": ["vowel"],
+	"square": ["filled", "color_shape"],
+	"filled": ["square", "color_shape"],
+	"color_shape": ["square", "filled"],
 }
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -249,7 +263,24 @@ func _apply_quad(container: Control, lbl: Label, q: Array) -> void:
 	lbl.offset_bottom = 0.0
 	lbl.horizontal_alignment = q[6] if outer else q[4]
 	lbl.vertical_alignment   = q[7] if outer else q[5]
+	# Shrink the font until the text fits the width this quadrant actually gets. A stroop word
+	# ("YELLOW") is far wider than a glyph, and without this it spills past its rect and collides
+	# with the other object instead of staying in its own corner.
+	var frac: float = (1.0 if outer else q[2]) - (0.0 if outer else q[0])
+	var avail: float = container.size.x * frac - 6.0
+	if avail > 20.0:
+		_fit_label_width(lbl, avail)
 	container.add_child(lbl)
+
+# Shrink a label's font until its text fits max_w, so long words never overflow their rect.
+func _fit_label_width(lbl: Label, max_w: float) -> void:
+	var f: Font = lbl.get_theme_font("font")
+	if f == null:
+		f = MainGlobals.get_system_sans_font()
+	var fs: int = lbl.get_theme_font_size("font_size")
+	while fs > 12 and f.get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > max_w:
+		fs -= 1
+	lbl.add_theme_font_size_override("font_size", fs)
 
 # --- Game flow ---
 
@@ -291,18 +322,36 @@ func _are_confusable(a: String, b: String) -> bool:
 # order, so a given rule shows up on the left side sometimes and on the right side other times.
 func _pick_pair_from_pool() -> void:
 	var pool: Array = _level_rules_pool.duplicate()
+	if pool.is_empty():
+		pool = _all_modality_keys.duplicate()   # empty "rules" in level_config = use every rule
 	if pool.size() < 2:
 		pool = ["digit", "square"]
 	pool.shuffle()
-	var chosen: Array = [pool[0]]
-	for k in pool.slice(1):
-		if not _are_confusable(chosen[0], k):
-			chosen.append(k)
-			break
-	if chosen.size() < 2:
-		# pool too confusable to find a clean partner — fall back to the first two keys
+	# Prefer a pair different from last time so replaying a level (or wrapping around the
+	# progression order) doesn't serve up the same two rules again; fall back to repeating only
+	# when the pool offers no alternative.
+	var chosen: Array = _find_rule_pair(pool, true)
+	if chosen.is_empty():
+		chosen = _find_rule_pair(pool, false)
+	if chosen.is_empty():
+		# every rule in the pool overlaps every other — author error; fall back rather than hang
+		push_warning("level rule pool has no non-overlapping pair: %s" % str(pool))
 		chosen = [pool[0], pool[1]]
+	_last_pair_keys = [chosen[0], chosen[1]]
 	current_pair = [_build_modality(chosen[0]), _build_modality(chosen[1])]
+
+
+# Search the shuffled pool for a legal pair (no single object may satisfy both rules). When
+# `avoid_last` is set, the pair used last time is skipped regardless of order.
+func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
+	for i in pool.size():
+		for j in pool.size():
+			if i == j or _are_confusable(pool[i], pool[j]):
+				continue
+			if avoid_last and _last_pair_keys.has(pool[i]) and _last_pair_keys.has(pool[j]):
+				continue
+			return [pool[i], pool[j]]
+	return []
 
 func _next_round() -> void:
 	_clear_boxes()
