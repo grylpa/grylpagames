@@ -76,17 +76,25 @@ After `rounds_before_hide` rounds, both rule labels fade to alpha=0.
 
 ## Levels
 
-5 levels, cycling via `LEVEL_PROGRESSION_ORDER = [1,2,1,2,3,4,5,3,4,5]`:
+5 levels, cycling via `LEVEL_PROGRESSION_ORDER = [1,2,3,4,5,3,4,5]`:
 
-Each level defines a **`rules` pool**, not a fixed left/right pair. On every level load, `_pick_pair_from_pool()` shuffles the pool and takes the first two **distinct, non-confusable** keys, so which rules appear — and which bucket each one lands on — varies from play to play. `_are_confusable()` (via `_CONFUSABLE_WITH`) keeps overlapping rules apart: a ■ is both a square AND a filled shape, so "square" is never shown opposite "filled"/"hollow" (an item would belong in both buckets). A pool may therefore safely list all of them.
+Each level defines a **`rules` pool**, not a fixed left/right pair. On every level load, `_pick_pair_from_pool()` shuffles the pool and takes the first two **distinct, non-confusable** keys, so which rules appear — and which bucket each one lands on — varies from play to play. `_are_confusable()` (via `_CONFUSABLE_WITH`) keeps overlapping rules apart (see below).
+
+An **empty** `rules` list means "use every rule". Overlapping rules may safely share a pool — `_find_rule_pair` only ever returns a legal combination. The pair used last time is also avoided whenever the pool offers an alternative, so replaying a level (or wrapping around the progression order) doesn't serve up the same two rules again.
+
+**Stroop sizing.** The two objects of an item do **not** split the width 50/50 — a stroop word ("YELLOW") is many times wider than a glyph and used to spill over its half and collide with the other object. `_share_pair_widths` gives each object a share proportional to its natural text width (clamped to 18–82% so neither is starved), then `_fit_label_width` shrinks each font until its text fits the share it got. On a 220px belt the word keeps its full size; only narrower items shrink it.
+
+**Rule overlap (`_CONFUSABLE_WITH`).** Two rules may only be shown together if **no single object can satisfy both**, otherwise an item legitimately belongs to both sides and the "correct" answer is arbitrary. Overlapping sets: `digit`/`even_odd`/`prime` ("4" is a digit and even; "3" is a digit, prime and odd), `vowel`/`lines` (A, E, I are vowels and straight-line letters), and `square`/`filled`/`color_shape` (a ■ is a square and filled; colored shapes are all filled glyphs). `hollow` is deliberately unconstrained — hollow glyphs are disjoint from square, filled and color_shape. `_pick_pair_from_pool` searches **all** pairs in the shuffled pool for a legal combination, so a pool may safely list overlapping rules as long as some legal pair exists.
 
 | ID | Name   | Rules pool | Hide after | Rounds | Fall duration |
 |----|--------|-----------|-----------|--------|--------------|
-| 1  | Green  | digit, square | 6 | 10 | 2.5s |
-| 2  | Blue   | even_odd, vowel, digit | 5 | 12 | 2.2s |
-| 3  | Red    | prime, filled, vowel, digit | 4 | 12 | 2.0s |
-| 4  | Cyan   | stroop, color_shape, prime, lines | 3 | 15 | 1.8s |
-| 5  | Orange | lines, hollow, stroop, color_shape, prime, vowel | 2 | 15 | 1.5s |
+| 1 | Green | digit, square | 6 | 10 | 2.5s |
+| 2 | Blue | even_odd, vowel, hollow | 5 | 12 | 2.2s |
+| 3 | Red | hollow, even_odd, vowel, square | 4 | 12 | 2.0s |
+| 4 | Cyan | prime, filled, vowel, lines, color_shape | 3 | 15 | 1.8s |
+| 5 | Orange | lines, hollow, prime, color_shape, stroop, vowel | 2 | 15 | 1.5s |
+
+**Repeating the last level.** `LEVEL_PROGRESSION_ORDER` normally cycles back to its first entry once exhausted. Ending it with `-1` (`REPEAT_LAST`) instead makes the run **hold on the last level forever** — e.g. `[1, 2, 3, 4, 5, -1]` plays 1..5 then stays on 5. With the sentinel present `reset_queue_from` does **not** wrap the tail around, so picking a mid-list starting level still ends on the final level rather than making an earlier one repeat. `-1` is only a sentinel and is never handed out as a level id. Since the rules are re-picked on every level load (and the previous pair is avoided), a repeated level still plays different rules each time.
 
 If accuracy < 70%, level is replayed.
 

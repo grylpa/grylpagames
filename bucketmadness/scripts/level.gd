@@ -28,18 +28,32 @@ var total_corrects: int = 0
 
 var current_pair: Array = []
 
+var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime", "filled", "hollow", "stroop", "color_shape", "lines"]
+
 # The pool of rule keys allowed for the CURRENT level (from level_config "rules"). The two shown
 # rules are drawn from it at random each time the level loads, so which rules appear — and which
 # bucket each one lands on — varies from play to play instead of always being the same two.
 var _level_rules_pool: Array = []
 
-# Rules whose items can ALSO be explained by another rule — never show both at once (e.g. a ■ is
-# both a square AND a filled shape, so one item would belong in both buckets). Extend as other
-# overlaps are found.
+# The rule pair used last time, so the next pick can avoid repeating it.
+var _last_pair_keys: Array = []
+
+# Two rules may only be shown together if NO single object can satisfy both — otherwise an item
+# would legitimately belong to both sides and the "correct" answer is arbitrary. The pairs below
+# genuinely overlap:
+#   digit/even_odd/prime — "4" is a digit AND even; "3" is a digit AND prime AND odd
+#   vowel/lines          — A, E, I are vowels AND straight-line letters
+#   square/filled/color_shape — a ■ is a square AND filled; colored shapes are all filled glyphs
+# (hollow is absent on purpose: hollow glyphs are disjoint from square, filled and color_shape.)
 const _CONFUSABLE_WITH: Dictionary = {
-	"square": ["filled", "hollow"],
-	"filled": ["square"],
-	"hollow": ["square"],
+	"digit": ["even_odd", "prime"],
+	"even_odd": ["digit", "prime"],
+	"prime": ["digit", "even_odd"],
+	"vowel": ["lines"],
+	"lines": ["vowel"],
+	"square": ["filled", "color_shape"],
+	"filled": ["square", "color_shape"],
+	"color_shape": ["square", "filled"],
 }
 
 var _bucket_tex: Texture2D = preload("res://bucketmadness/art/bucket_open_2.png")
@@ -268,18 +282,55 @@ func _make_colored_shape(item: Dictionary) -> Label:
 
 func _make_pair_control(item_a: Variant, mod_a: Dictionary, item_b: Variant, mod_b: Dictionary) -> Control:
 	var c: Control = Control.new()
-	var half_w: float = item_w * 0.5
 	var lbl_a: Label = mod_a["make"].call(item_a)
-	lbl_a.add_theme_font_size_override("font_size", pair_font_size)
-	lbl_a.size = Vector2(half_w, item_h)
-	lbl_a.position = Vector2(0.0, 0.0)
 	var lbl_b: Label = mod_b["make"].call(item_b)
-	lbl_b.add_theme_font_size_override("font_size", pair_font_size)
-	lbl_b.size = Vector2(half_w, item_h)
-	lbl_b.position = Vector2(half_w, 0.0)
+	var shares: Array = _share_pair_widths(lbl_a, lbl_b, item_w, pair_font_size)
+	lbl_a.size = Vector2(shares[0], item_h)
+	lbl_a.position = Vector2(0.0, 0.0)
+	lbl_b.size = Vector2(shares[1], item_h)
+	lbl_b.position = Vector2(shares[0] + _PAIR_GAP, 0.0)
 	c.add_child(lbl_a)
 	c.add_child(lbl_b)
 	return c
+
+# --- Pair layout ---
+# Objects are sized to FIT. A stroop word ("YELLOW") is many times wider than a glyph, so splitting
+# the item width 50/50 made the word spill over its half and collide with the other object. Instead
+# the two objects share the width in proportion to how wide they actually are, and each font is
+# shrunk until its text fits the share it got.
+
+const _PAIR_GAP: float = 8.0
+const _MIN_PAIR_FONT: int = 12
+
+func _text_width(lbl: Label, font_size: int) -> float:
+	var f: Font = lbl.get_theme_font("font")
+	if f == null:
+		f = MainGlobals.get_system_sans_font()
+	return f.get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+
+# Shrink the label's font until its text fits max_w. Returns the size actually used.
+func _fit_label_width(lbl: Label, max_w: float, start_size: int) -> int:
+	var fs: int = start_size
+	while fs > _MIN_PAIR_FONT and _text_width(lbl, fs) > max_w:
+		fs -= 1
+	lbl.add_theme_font_size_override("font_size", fs)
+	return fs
+
+# Give each label a share of `total_w` proportional to its natural width, then fit its font to that
+# share. Returns [width_l, width_r] — laid out with _PAIR_GAP between them.
+func _share_pair_widths(lbl_l: Label, lbl_r: Label, total_w: float, base_size: int) -> Array:
+	var avail: float = maxf(total_w - _PAIR_GAP, 20.0)
+	var wl: float = _text_width(lbl_l, base_size)
+	var wr: float = _text_width(lbl_r, base_size)
+	var alloc_l: float = avail * 0.5
+	var alloc_r: float = avail * 0.5
+	if wl + wr > 0.0:
+		# proportional share, but never starve one side below a readable sliver
+		alloc_l = clampf(avail * (wl / (wl + wr)), avail * 0.18, avail * 0.82)
+		alloc_r = avail - alloc_l
+	_fit_label_width(lbl_l, alloc_l, base_size)
+	_fit_label_width(lbl_r, alloc_r, base_size)
+	return [alloc_l, alloc_r]
 
 # --- Game flow ---
 
@@ -334,18 +385,36 @@ func _are_confusable(a: String, b: String) -> bool:
 # order, so a given rule shows up on the left bucket sometimes and on the right bucket other times.
 func _pick_pair_from_pool() -> void:
 	var pool: Array = _level_rules_pool.duplicate()
+	if pool.is_empty():
+		pool = _all_modality_keys.duplicate()   # empty "rules" in level_config = use every rule
 	if pool.size() < 2:
 		pool = ["digit", "square"]
 	pool.shuffle()
-	var chosen: Array = [pool[0]]
-	for k in pool.slice(1):
-		if not _are_confusable(chosen[0], k):
-			chosen.append(k)
-			break
-	if chosen.size() < 2:
-		# pool too confusable to find a clean partner — fall back to the first two keys
+	# Prefer a pair different from last time so replaying a level (or wrapping around the
+	# progression order) doesn't serve up the same two rules again; fall back to repeating only
+	# when the pool offers no alternative.
+	var chosen: Array = _find_rule_pair(pool, true)
+	if chosen.is_empty():
+		chosen = _find_rule_pair(pool, false)
+	if chosen.is_empty():
+		# every rule in the pool overlaps every other — author error; fall back rather than hang
+		push_warning("level rule pool has no non-overlapping pair: %s" % str(pool))
 		chosen = [pool[0], pool[1]]
+	_last_pair_keys = [chosen[0], chosen[1]]
 	current_pair = [_build_modality(chosen[0]), _build_modality(chosen[1])]
+
+
+# Search the shuffled pool for a legal pair (no single object may satisfy both rules). When
+# `avoid_last` is set, the pair used last time is skipped regardless of order.
+func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
+	for i in pool.size():
+		for j in pool.size():
+			if i == j or _are_confusable(pool[i], pool[j]):
+				continue
+			if avoid_last and _last_pair_keys.has(pool[i]) and _last_pair_keys.has(pool[j]):
+				continue
+			return [pool[i], pool[j]]
+	return []
 
 func _clear_fall_area() -> void:
 	for child in %FallArea.get_children():

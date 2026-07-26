@@ -43,7 +43,7 @@ If an item exits the bottom before the robot acts, the window is silently discar
 
 ### Question phase
 
-For each active belt in order, a full-screen overlay shows a multiple-choice question with `num_options` options. The correct answer is the modality label for that belt's rule; wrong answers are randomly drawn from other modalities.
+For each active belt in order, a full-screen overlay shows a multiple-choice question with `num_options` options. The correct answer is the modality label for that belt's rule; every wrong answer is validated against the demos first (see Key Pitfalls) so it is always one the player could have ruled out.
 
 - Correct: +10, green highlight on correct button
 - Wrong: −min(3, score), red on chosen, green on correct
@@ -55,7 +55,7 @@ After all questions are answered, `rounds_done` increments. If `rounds_done >= n
 Uses the same scene structure as Sorting Robots:
 - `%LeftItemsContainer` / `%RightItemsContainer` — clip_contents=true, direct item children
 - Right side hidden for 1-belt levels
-- `%AvgTimeLabel` — "Watch the robot..." during demo, avg time after first question round
+- `%AvgTimeLabel` — always reads "Watch the robot..."; the mean option-selection time is deliberately NOT shown mid-level (it measures how fast the player names the rule, not anything about the belt). Still tracked in `times_to_answer` for the score row and level-end popup.
 - `%FeedbackLabel` — not used in demo; question feedback handled inline by button highlights
 - `%LeftRuleLabel`, `%RightRuleLabel` — always hidden (alpha=0); no rules shown to player
 
@@ -67,17 +67,23 @@ Each belt item is a **pair** (two objects side by side), identical to sorting ro
 
 ## Levels
 
-5 levels, cycling via `LEVEL_PROGRESSION_ORDER = [1,2,1,2,3,4,5,3,4,5]`:
+5 levels, cycling via `LEVEL_PROGRESSION_ORDER = [1,2,3,4,5,3,4,5]`:
 
 Each level defines a **`rules` pool**, not a fixed left/right pair. Every **round**, `_pick_pair_from_pool()` shuffles the pool and takes the first two **distinct, non-confusable** keys, so the hidden rule changes from round to round instead of being the same one all level. For 1 belt the first pick is the hidden rule and the second is a visible decoy attribute; for 2 belts both picks are hidden rules (one per belt). A bigger pool = harder and less predictable.
 
+An **empty** `rules` list means "use every rule". Overlapping rules may safely share a pool — `_find_rule_pair` only ever returns a legal combination. The pair used last time is also avoided whenever the pool offers an alternative, so replaying a level (or wrapping around the progression order) doesn't serve up the same two rules again.
+
+**Stroop sizing.** The two objects of an item do **not** split the width 50/50 — a stroop word ("YELLOW") is many times wider than a glyph and used to spill over its half and collide with the other object. `_share_pair_widths` gives each object a share proportional to its natural text width (clamped to 18–82% so neither is starved), then `_fit_label_width` shrinks each font until its text fits the share it got. On a 220px belt the word keeps its full size; only narrower items shrink it.
+
 | ID | Name   | Rules pool | Belts | Belt spd | Robot answer time | Min ex | Rounds | Options |
 |----|--------|-----------|-------|----------|-------------------|--------|--------|---------|
-| 1  | Simple | digit, square | 1 | 55 | 5.8s | 4 | 3 | 2 |
-| 2  | Even   | even_odd, vowel, digit | 1 | 60 | 1.6s | 4 | 3 | 3 |
-| 3  | Two    | digit, vowel, even_odd, square | 2 | 60 | 1.4s | 4 | 3 | 4 |
-| 4  | Tricky | prime, filled, vowel, lines, digit | 1 | 65 | 1.2s | 5 | 4 | 4 |
-| 5  | Expert | lines, hollow, prime, color_shape, stroop, vowel | 2 | 70 | 1.0s | 5 | 4 | 5 |
+| 1 | Simple | digit, square | 1 | 55 | 5.8s | 4 | 3 | 2 |
+| 2 | Even | even_odd, vowel, hollow | 1 | 60 | 1.6s | 4 | 3 | 3 |
+| 3 | Two | hollow, vowel, even_odd, square | 2 | 60 | 1.4s | 4 | 3 | 4 |
+| 4 | Tricky | prime, filled, vowel, lines, color_shape | 1 | 65 | 1.2s | 5 | 4 | 4 |
+| 5 | Expert | lines, hollow, prime, color_shape, stroop, vowel | 2 | 70 | 1.0s | 5 | 4 | 5 |
+
+**Repeating the last level.** `LEVEL_PROGRESSION_ORDER` normally cycles back to its first entry once exhausted. Ending it with `-1` (`REPEAT_LAST`) instead makes the run **hold on the last level forever** — e.g. `[1, 2, 3, 4, 5, -1]` plays 1..5 then stays on 5. With the sentinel present `reset_queue_from` does **not** wrap the tail around, so picking a mid-list starting level still ends on the final level rather than making an earlier one repeat. `-1` is only a sentinel and is never handed out as a level id. Since the rules are re-picked on every level load (and the previous pair is avoided), a repeated level still plays different rules each time.
 
 If accuracy < 70%, level is replayed.
 
@@ -94,10 +100,15 @@ Same 9 modalities as other games: `digit`, `square`, `even_odd`, `vowel`, `prime
 - For 1-belt levels, `current_pair[1]` exists (set from level def) but `_spawn_belt_item` is only called for `si in num_belts` (i.e., only si=0).
 - `_take_item` is async (awaits the question phase) and is called from `_process`; `_showing_demo_action` prevents re-entry.
 - **Mark vs take are position-based** (`_mark_item` / `_take_item`, driven by `_process`): on window-open, `_open_demo_window` picks a random `_take_top` so the item is **between h/2 and 3h/4** when taken, and `_mark_top = max(0, _take_top − robot_answer_time·scroll_speed)`. `_mark_item()` shows the ✓/✗ answer when the item reaches `_mark_top`; `_take_item()` pulls (yes) or leaves (no) it at `_take_top`. So **`robot_answer_time` = how long the answer is shown before the take** (bigger = answer appears sooner/higher, shown longer = easier), while the take always lands in the h/2..3h/4 band. (`mark_time` was merged into this — removed.)
+- **Rule overlap**: two rules may only be shown together if **no single object can satisfy both** (`_CONFUSABLE_WITH`): `digit`/`even_odd`/`prime`, `vowel`/`lines`, `square`/`filled`/`color_shape`. `hollow` is deliberately unconstrained — hollow glyphs are disjoint from square, filled and color_shape.
 - **Rule variety comes from the pool**: `_pick_pair_from_pool()` runs in `_load_level` AND in `_refresh_rules` (per round), shuffling the level's `rules` pool and taking the first two distinct, non-confusable keys. So the hidden rule varies round to round, and a given rule lands on the left belt sometimes and the right belt other times. (This replaced the old fixed `left`/`right` keys plus the 1-belt `current_pair.reverse()` hack.)
-- **Options are drawn from the level's pool**, not from all 10 modalities: `_build_options` force-includes the other **visible** attribute first (the tempting wrong guess — the player must reason rather than pick the only shown alternative), then fills the rest from the pool. Keep `num_options` ≤ pool size, or fewer options are offered than requested.
+- **Every offered wrong answer is proved fair against the demos.** `_build_options` never trusts a static overlap table; it calls `_is_distinguishable(mod, belt)`, which replays `_demo_log[belt]` (every item the robot judged this round, logged in `_mark_item`) and keeps the option only if the rule **disagrees with the robot on at least one demo**. A rule that agrees with everything the player saw explains the demos as well as the real rule, so offering it would mark a sound answer wrong. This catches *accidental* overlaps a table cannot — e.g. rule "digit" where the demoed digits all happened to be prime, so "Is it prime?" must not be offered that round.
+  - Each modality carries a `"test"` callable returning 1/0/−1 (satisfies / does not / rule doesn't apply to this object kind). `_rule_verdict` says an item matches when **either** object satisfies the rule; a rule applying to neither object yields **false, not "unknown"** (an item with no letters is not a vowel) — and since gating guarantees a pick-up was demoed, such a rule is genuinely ruled out.
+  - The modality is built **once** and that same instance is validated and offered — `even_odd` randomizes even-vs-odd per build, so testing one instance and showing another would desync the label from the verdict.
+  - Candidate order: other visible attribute → rest of the level pool → any remaining modality. Because candidates fall back to all 10 modalities, `num_options` is **not** capped by pool size. If too few candidates survive validation, **fewer options are shown** — deliberately, since a smaller honest question beats a full-size one containing an unanswerable option.
+- **`_demo_log` must be cleared with the rules** (both round reset and `new_game`), or last round's evidence validates this round's options.
 - **Demo gating**: the question screen only appears once every belt has demonstrated **≥3 picked-up (yes)** and **≥2 left (no)** items (`_yes_per_belt`/`_no_per_belt`), so the rule is always inferable. The window-opening candidate check (`_open_demo_window`) uses the **same** condition, otherwise the demo stalls at `min_examples` and the belt scrolls forever. Item selection is biased toward the still-needed answer so it converges.
 - **No ambiguous options**: `_build_options` drops any distractor listed in `_CONFUSABLE_WITH[correct_key]` — e.g. a filled ■ is also a square, so "filled"/"hollow" are never offered when the rule is "square" (and "square" isn't offered when the rule is filled/hollow). Extend the map for other overlaps.
 - **Window slides in from the top**: `_open_demo_window` opens on an **entering** item (`item_y < 0`), so the highlight slides in gradually with it (clip_contents). It never marks mid-entry — the mark waits for `_mark_top` (which is ≥ 0, i.e. fully inside). Item selection is biased toward the still-needed answer (gating), which keeps the yes/no spread balanced.
-- **Claw pickup** (`_claw_pull`): on a correct pick-up the **actual item** (removed from `belt_items`, reparented into a flyer with `reparent(flyer, true)` so it looks exactly as on the belt) is gripped by a `claw.gd` arm and yanked off the **nearest** side (single-belt → right; belt 0 → left, belt 1 → right). The highlight **rectangle is kept** around it (border reparented too, fill set transparent, ✓/✗ removed) so nothing covers the item, and it **moves the whole time** (no freeze/hold).
+- **Claw pickup** (`_claw_pull`): on a correct pick-up the **actual item** (removed from `belt_items`, reparented into a flyer with `reparent(flyer, true)` so it looks exactly as on the belt) is gripped by a `claw.gd` arm and yanked off the **nearest** side. On pick-up the item is first **popped to 1.18× over 0.14s** (TRANS_BACK ease-out, so it slightly overshoots — reading as the claw closing and lifting it off the belt) and only **then** yanked off the side over 0.55s. The flyer's origin is set to the item's **centre** so the pop grows it in place; with the origin at (0,0) the scale-up would drag the item toward the canvas corner. Durations live in `_GRAB_TIME` / `_PULL_TIME` / `_GRAB_SCALE` (single-belt → right; belt 0 → left, belt 1 → right). The highlight **rectangle is kept** around it (border reparented too, fill set transparent, ✓/✗ removed) so nothing covers the item, and it **moves the whole time** (no freeze/hold).
 - **Layout**: `LeftSide`/`RightSide` fill their screen halves (rule label spans the half); each belt keeps its width but is `size_flags_horizontal = 4` (shrink-center) so its center sits at ~w/4 and ~3w/4. Rule labels reserve a 2-line height (like sortingrobots) so a 1- vs 2-line rule doesn't shift a belt down.
