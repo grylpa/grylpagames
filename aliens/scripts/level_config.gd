@@ -2,56 +2,33 @@ extends Node
 
 # AliensLevelConfig autoload. Per-level knobs for the Aliens game: little aliens roam a field and
 # walk into the OUTER ring of a target area on their own; the player drags each one either into
-# that area's INNER ring (if it matches the area's rule) or back out to the field (if it doesn't).
+# that gate's INNER ring (if it matches the gate's pass) or back out to the hall (if it doesn't).
 #
 # ---------------------------------------------------------------------------------------------
-# AVAILABLE RULE KEYS for the "rules" pool (the label shown on the area is in parentheses):
+# AVAILABLE MODALITIES for the "rules" pool. A level lists MODALITIES, not individual rules:
+# one modality is drawn per gate and then a random rule from inside it. Because two gates always
+# get different modalities, the player is forced to SWITCH ATTENTION between traits rather than
+# just compare two values of the same trait — which is the point of the game.
 #
-#   EYES        "eyes1"    (1 EYE)          one big central eye
-#               "eyes2"    (2 EYES)         a horizontal pair
-#               "eyes3"    (3 EYES)         a triangle of three
-#   SHAPE       "fat"      (WIDE)           clearly wider than tall
-#               "thin"     (NARROW)         clearly taller than wide
-#               (There is no tall/short rule on purpose: height and girth describe the same
-#                ellipse, so having both always left one combination an unjudgeable near-square.
-#                "thin" already carries the taller-than-wide meaning.)
-#   ANTENNAE    "ant0"     (NO ANTENNAE)
-#               "ant1"     (1 ANTENNA)
-#               "ant2"     (2 ANTENNAE)
-#   SPOTS       "spots"    (SPOTTED)        darker dots on the lower body
-#               "nospots"  (NO SPOTS)
-#   COLOR       "blue"     (BLUE)           color id 0
-#               "red"      (RED)            color id 1
-#               "green"    (GREEN)          color id 2
-#               "yellow"   (YELLOW)         color id 3
-#               "purple"   (PURPLE)         color id 4
+#   "eyes"      -> 1 EYE / 2 EYES / 3 EYES     (which eye arrangement)
+#   "shape"     -> FAT / THIN                  (FAT = wider than tall, THIN = taller than wide)
+#   "antennae"  -> NO ANTENNAE / 1 ANTENNA / 2 ANTENNAE
+#   "spots"     -> SPOTTED / NO SPOTS
+#   "color"     -> BLUE / RED / GREEN / YELLOW / PURPLE
 #
-# A level's "rules" list is a POOL: one distinct rule is drawn from it per target area at load
-# time, so which rules appear (and which area gets which) varies from play to play. An EMPTY
-# pool ([]) means "use every usable rule".
+# An EMPTY pool ([]) means "any modality". A pool needs at least `num_areas` entries, or the level
+# quietly falls back to the full set.
 #
-# A rule is USABLE only if this level's trait pools can produce both matches and non-matches:
-#   a color rule needs its color id in "colors"; "eyesN" needs N in "eye_counts"; "antN" needs N
-#   in "antennae_counts"; "spots"/"nospots" need 0 < spots_chance < 1. Unusable rules are
-#   silently dropped, so a pool can safely over-list. The pool needs at least `num_areas` usable
-#   entries or the level falls back to a safe default trio.
-# Two areas never get the same rule, and never get an exact COMPLEMENT pair (fat/thin,
-# spots/nospots) — that would collapse two judgments into one binary.
-# Two DIFFERENT values of the same dimension (BLUE vs RED, 2 EYES vs 3 EYES) are fine and
-# actually good: they force a value comparison rather than a mere dimension check.
-# Aim for 2..4 colors. With all 5, a color rule matches only 20% of aliens and "push it out"
-# becomes almost always the right answer.
-#
-# NOTE: no confusability table is needed (unlike sortingrobots/monkeyc). An alien is judged only
-# against the rule of the area it walked into, so an alien matching both areas' rules is
-# harmless — it simply belongs wherever it went.
-# ---------------------------------------------------------------------------------------------
+# Which rules a modality can actually pose depends on this level's trait pools: a color rule needs
+# its color id in "colors" (and at least 2 colors to choose from); "eyes" needs at least 2 entries
+# in "eye_counts"; "antennae" likewise in "antennae_counts"; "spots" needs 0 < spots_chance < 1.
+# A modality with nothing usable is silently skipped, so pools can safely over-list.
 #
 # Fields per level:
 #   id                 level id (monotonic)
 #   name               display name (level label / scores)
 #   level_time_sec     how long the level lasts; it completes when this elapses
-#   rules              pool of rule keys (see above); [] = every usable rule
+#   rules              pool of MODALITY names (see above); [] = any modality
 #   num_areas          number of target areas. 1 sits in the middle of the field; 2 go in
 #                      OPPOSING corners; 3 and 4 fill the remaining corners. 1..2 is the tuned
 #                      range on a phone — 3+ auto-shrinks the aliens.
@@ -75,7 +52,10 @@ extends Node
 #                      reads as "queueing up". A short global cooldown stops two aliens
 #                      committing on the very same frame.
 #   park_patience_sec  a parked alien the player never resolves gives up and leaves after this
-#                      many seconds, with NO penalty. 0 = it waits forever (hardest).
+#                      many seconds. If it MATCHED the gate's pass this costs a MISS — you let a
+#                      valid passenger walk away; if it did not match it costs nothing, since
+#                      leaving is what should have happened to it anyway.
+#                      0 means it waits FOREVER (not "zero seconds") — the check is skipped.
 #   colors             OPTIONAL color-id pool, default [0, 1, 2] (blue, red, green)
 #   eye_counts         OPTIONAL eye-count pool, default [1, 2, 3]
 #   antennae_counts    OPTIONAL antenna-count pool, default [0, 1, 2]
@@ -83,47 +63,47 @@ extends Node
 
 const LEVELS: Array = [
 	# 1 — teach the loop: one area, color rules only, the rule never hides, roomy ring.
-	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["blue", "red", "green"],
+	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["color"],
 	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 9, "hide_after_sec": 0, "enter_chance": 0.16,
-	 "park_patience_sec": 5.0},
+	 "park_patience_sec": 30.0},
 
 	# 2 — same shape, but now the rule disappears partway through.
-	{"id": 2, "name": "2", "level_time_sec": 80, "rules": ["eyes1", "eyes2", "eyes3"],
+	{"id": 2, "name": "2", "level_time_sec": 80, "rules": ["eyes", "color"],
 	 "num_areas": 2, "alien_speed": 0.155, "alien_size": "big", "num_free_aliens": 10, "hide_after_sec": 35, "enter_chance": 0.20,
 	 "park_patience_sec": 30.0},
 
 	# 3 — silhouette rules; body shape varies independently of everything else.
-	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["fat", "eyes3", "green", "ant1"],
+	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["shape", "eyes", "color", "antennae"],
 	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "hide_after_sec": 28, "enter_chance": 0.24,
-	 "park_patience_sec": 28.0},
+	 "park_patience_sec": 29.0},
 
 	# 4 — TWO areas: two rules to hold at once.
-	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["blue", "red", "eyes2", "eyes3"],
+	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["color", "eyes"],
 	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "hide_after_sec": 25, "enter_chance": 0.30,
-	 "park_patience_sec": 26.0},
+	 "park_patience_sec": 28.0},
 
 	# 5 — antennae join in; slots tighten to 3, so a ring fills sooner.
 	{"id": 5, "name": "5", "level_time_sec": 110,
-	 "rules": ["ant0", "ant2", "eyes1", "yellow", "thin"],
+	 "rules": ["antennae", "eyes", "color", "shape"],
 	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 20, "enter_chance": 0.36,
-	 "colors": [0, 1, 3], "park_patience_sec": 24.0},
+	 "colors": [0, 1, 3], "park_patience_sec": 27.0},
 
 	# 6 — spots added (the weakest trait), rules hide early.
 	{"id": 6, "name": "6", "level_time_sec": 120,
-	 "rules": ["spots", "eyes3", "thin", "ant1", "purple"],
+	 "rules": ["spots", "eyes", "shape", "antennae", "color"],
 	 "num_areas": 2, "alien_speed": 0.205, "alien_size": "med", "num_free_aliens": 12, "hide_after_sec": 14, "enter_chance": 0.42,
-	 "colors": [0, 2, 4], "park_patience_sec": 22.0},
+	 "colors": [0, 2, 4], "park_patience_sec": 26.0},
 
 	# 7 — wide pool, smaller aliens, brisk arrivals, no patience valve.
 	{"id": 7, "name": "7", "level_time_sec": 140,
-	 "rules": ["eyes1", "eyes3", "thin", "fat", "ant0", "ant2", "spots", "blue", "yellow"],
+	 "rules": ["eyes", "shape", "antennae", "spots", "color"],
 	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 9, "enter_chance": 0.50,
-	 "colors": [0, 1, 3, 4], "park_patience_sec": 0.0},
+	 "colors": [0, 1, 3, 4], "park_patience_sec": 25.0},
 
 	# 8 — every usable rule, fast: the ring only empties if the player empties it.
 	{"id": 8, "name": "8", "level_time_sec": 170, "rules": [],
 	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "hide_after_sec": 6, "enter_chance": 0.60,
-	 "colors": [0, 1, 2, 3], "park_patience_sec": 0.0},
+	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0},
 ]
 
 # LEVEL_PROGRESSION_ORDER: the level play order; may repeat ids. When the list runs out it

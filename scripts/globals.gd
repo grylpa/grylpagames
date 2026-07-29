@@ -25,6 +25,12 @@ var active_game = null
 var popup_open: bool = false
 var scores_last_synced_ts: int = 0
 var user_file_key: String = "guest"
+# save_settings() writes the WHOLE settings array and the profile hint from whatever is in memory.
+# Until load_settings() has run, that memory is defaults ("guest", no name, no history) — saving
+# then silently overwrites a real profile's settings and repoints the hint at the unnamed guest,
+# which reads to the player as "the app forgot me and lost my scores". The app always loads first
+# (main.gd:48), so this only bites test/probe scenes that instance an autoload-only tree. Refuse.
+var _settings_loaded: bool = false
 var guest_names_used: Array = []
 var swipe_active: bool = false
 var swipe_was_drag: bool = false
@@ -158,16 +164,21 @@ func global_help_button_pressed():
 	sig_global_help_button_pressed.emit()
 
 func save_settings():
+	if not _settings_loaded:
+		push_error("MainGlobals.save_settings() called before load_settings() — refusing, " +
+			"this would overwrite the stored profile with in-memory defaults")
+		return
 	_save_last_profile_hint()
 	# Keep slot 1 reserved for backward compatibility with older settings files that
 	# stored a password there. New saves intentionally persist an empty string instead.
-	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used])
+	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name()])
 	# var s:SavedGrylpaBrainSettings = SavedGrylpaBrainSettings.new()
 	# s.username = BE.stored_username
 	# s.email = BE.stored_email
 	# ResourceSaver.save(s, settings_name)
 
 func load_settings():
+	_settings_loaded = true
 	var hinted_key: String = _load_last_profile_hint()
 	if not hinted_key.is_empty():
 		user_file_key = hinted_key
@@ -218,6 +229,10 @@ func load_settings():
 		set_user_file_key(BE.stored_email)  # fallback for old installs
 	if settings.size() > 12 and settings[12] is Array:
 		guest_names_used = settings[12]
+	# An int here is a pre-release save that stored the index; ignore it and take the default.
+	if settings.size() > 13 and settings[13] is String:
+		game_font_idx = game_font_index_by_name(settings[13])
+	apply_game_font()
 	# if !ResourceLoader.exists(settings_name):
 	# 	return
 	# var s:SavedGrylpaBrainSettings = ResourceLoader.load(settings_name)
@@ -419,6 +434,85 @@ func sum_dict_vals(d):
 	for v in d.values():
 		total += v
 	return total
+
+# --- Game font -------------------------------------------------------------------------------
+# The THEME font (project.godot gui/theme/custom_font) is what menus, buttons and titles use, and
+# it is the only font this setting changes. In-game text mostly overrides with
+# get_system_sans_font(), so it is unaffected.
+# Listed best-readable first; index 0 is therefore the default. Stormfaze is last because its
+# look-alikes (S/5, O/0) are the reason this setting exists at all.
+const GAME_FONTS: Array = [
+	{"name": "Orbitron", "path": "res://art/fonts/Orbitron.ttf", "weight": 600},
+	{"name": "Exo 2", "path": "res://art/fonts/Exo2.ttf", "weight": 600},
+	{"name": "Space Grotesk", "path": "res://art/fonts/SpaceGrotesk.ttf", "weight": 600},
+	{"name": "Baloo 2", "path": "res://art/fonts/Baloo2.ttf", "weight": 600},
+	{"name": "Stormfaze", "path": "res://art/fonts/Stormfaze.otf", "weight": 0},
+]
+var game_font_idx: int = 0
+
+# Settings store the font by NAME, not by index, so reordering or inserting a face can never
+# silently repoint a saved choice at a different font.
+func game_font_index_by_name(nm: String) -> int:
+	for i in GAME_FONTS.size():
+		if str(GAME_FONTS[i]["name"]) == nm:
+			return i
+	return 0
+
+func game_font_name() -> String:
+	return str(GAME_FONTS[clampi(game_font_idx, 0, GAME_FONTS.size() - 1)]["name"])
+
+# Build (but do not apply) one of the choices, so a settings screen can preview each option in
+# its own face.
+#
+# `with_fallbacks` trades glyph coverage for a tight line box. A Font's line height is the MAX over
+# its fallbacks, and Noto Sans Symbols is a very tall face: it takes the box from 1.29x the font
+# size to 2.15x. That surplus is invisible until it is the only thing in a row — a heading, a title
+# — where it reads as a large unasked-for margin. Pass false ONLY for known-ASCII text; anything
+# that might carry a symbol or an em dash needs the fallbacks or it renders tofu.
+func build_game_font(idx: int, with_fallbacks: bool = true) -> Font:
+	var i: int = clampi(idx, 0, GAME_FONTS.size() - 1)
+	var spec: Dictionary = GAME_FONTS[i]
+	var base: FontFile = ResourceLoader.load(str(spec["path"])) as FontFile
+	if base == null:
+		return null
+	# Always wrap, and hang the fallbacks off the WRAPPER: ResourceLoader hands out one shared
+	# FontFile per path, so assigning `base.fallbacks` would reach every other user of that face —
+	# including the theme's font — and a fallback-free variant would strip them app-wide.
+	var fv: FontVariation = FontVariation.new()
+	fv.base_font = base
+	var wght: int = int(spec.get("weight", 0))
+	if wght > 0:
+		# these are VARIABLE fonts; their default instance is Regular, which reads thin for a
+		# game UI, so pick a heavier instance
+		fv.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("weight"): wght}
+	if with_fallbacks:
+		# Display faces carry small charsets (Stormfaze and Orbitron especially), so give every
+		# choice the same symbol/text fallbacks. Without these a missing glyph silently drops out.
+		var fallbacks: Array = []
+		for fb_path in ["res://art/fonts/NotoSansSymbols2-Regular.ttf",
+				"res://art/fonts/NotoSansSymbols-Regular.ttf",
+				"res://art/fonts/OpenSans-SemiBold.ttf"]:
+			var fb: FontFile = ResourceLoader.load(fb_path) as FontFile
+			if fb != null and fb != base:
+				fallbacks.append(fb)
+		fv.fallbacks = fallbacks
+	return fv
+
+# The current face with a tight line box, for ASCII-only headings and titles. See build_game_font.
+func ui_heading_font() -> Font:
+	return build_game_font(game_font_idx, false)
+
+# Swap the theme's default font. Everything that does not override its font follows immediately —
+# no restart, no per-node work.
+func apply_game_font() -> void:
+	var f: Font = build_game_font(game_font_idx)
+	if f != null:
+		ThemeDB.get_default_theme().default_font = f
+
+func set_game_font(idx: int) -> void:
+	game_font_idx = clampi(idx, 0, GAME_FONTS.size() - 1)
+	apply_game_font()
+	save_settings()
 
 var _system_sans_font: Font = null
 func _init_app_fonts() -> void:

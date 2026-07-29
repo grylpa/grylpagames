@@ -2,7 +2,7 @@ extends CanvasLayer
 
 # Aliens — little aliens roam a field and walk into the OUTER ring of a target area on their own.
 # The player drags each arrival either into that area's INNER ring (if it matches the area's rule)
-# or back out to the field (if it doesn't). While an outer ring is FULL, aliens that walk up to it
+# or back out to the hall (if it doesn't). While a gate's queue is FULL, aliens that walk up to it
 # are turned away and each one costs a miss.
 #
 # The whole UI is built in code (see _build_ui); level.tscn is just a CanvasLayer + this script.
@@ -34,19 +34,33 @@ const ALL_RULES: Array = [
 
 const RULE_LABELS: Dictionary = {
 	"eyes1": "1 EYE", "eyes2": "2 EYES", "eyes3": "3 EYES",
-	"fat": "WIDE", "thin": "NARROW",
+	"fat": "FAT", "thin": "THIN",
 	"ant0": "NO ANTENNAE", "ant1": "1 ANTENNA", "ant2": "2 ANTENNAE",
 	"spots": "SPOTTED", "nospots": "NO SPOTS",
 	"blue": "BLUE", "red": "RED", "green": "GREEN", "yellow": "YELLOW", "purple": "PURPLE",
 }
 
-# Exact complements must never be the two shown rules: that collapses two independent judgments
-# into a single binary and halves the memory load. Two DIFFERENT values of the same dimension
-# (BLUE vs RED, 2 EYES vs 3 EYES) are fine and actually desirable.
-const COMPLEMENTS: Dictionary = {
-	"fat": "thin", "thin": "fat",
-	"spots": "nospots", "nospots": "spots",
+# Which trait each rule reads. Two rules may only be shown together if they read DIFFERENT
+# dimensions — that is the point of the game: a forced CONTEXT SWITCH. "1 EYE" beside "2 EYES"
+# keeps the player staring at the same feature and merely changes the value, which is a comparison,
+# not a switch. (This subsumes the old complement rule: fat/thin and spots/nospots are the same
+# dimension, so they can never be paired either.)
+# The config lists MODALITIES, not individual rules: one modality per gate, then a random rule
+# from within it. Orthogonality is then guaranteed by construction rather than filtered for.
+const ALL_MODALITIES: Array = ["eyes", "shape", "antennae", "spots", "color"]
+
+const RULE_DIMENSION: Dictionary = {
+	"eyes1": "eyes", "eyes2": "eyes", "eyes3": "eyes",
+	"fat": "shape", "thin": "shape",
+	"ant0": "antennae", "ant1": "antennae", "ant2": "antennae",
+	"spots": "spots", "nospots": "spots",
+	"blue": "color", "red": "color", "green": "color", "yellow": "color", "purple": "color",
 }
+
+# True when both rules read the same trait, so pairing them would ask for a value comparison
+# rather than a context switch.
+func _same_dimension(a: String, b: String) -> bool:
+	return str(RULE_DIMENSION.get(a, a)) == str(RULE_DIMENSION.get(b, b))
 
 const COLOR_RULE_ID: Dictionary = {"blue": 0, "red": 1, "green": 2, "yellow": 3, "purple": 4}
 
@@ -85,6 +99,7 @@ const NO_ANSWER_MS: int = 99999
 const MARK_RISE: float = 54.0      # how far the ✓/✗ floats up
 const MARK_MS: float = 900.0
 const SEEK_TIMEOUT_MS: float = 3500.0    # give up on a blocked approach quickly and visibly
+const LEAVE_TIMEOUT_MS: float = 3000.0   # a departure blocked by the crowd cannot linger forever
 const MIN_SUPPLY: int = 2                # roamers that must match / not match EACH area's rule
 const TOPUP_PERIOD_MS: float = 1200.0    # how often the supply is checked (slow: each swap is
                                          # a visible fade out/in, and churn looks bad)
@@ -502,38 +517,67 @@ func _is_rule_usable(rule_key: String) -> bool:
 		return trait_spots_chance > 0.01 and trait_spots_chance < 0.99
 	return rule_key == "fat" or rule_key == "thin"
 
-func _usable_rules(pool: Array) -> Array:
-	var src: Array = pool.duplicate()
-	if src.is_empty():
-		src = ALL_RULES.duplicate()
+# Every rule belonging to a modality.
+func _rules_in_modality(m: String) -> Array:
 	var out: Array = []
-	for k in src:
-		var key: String = str(k)
-		if ALL_RULES.has(key) and _is_rule_usable(key) and not out.has(key):
-			out.append(key)
+	for k in ALL_RULES:
+		if str(RULE_DIMENSION.get(k, "")) == m:
+			out.append(str(k))
 	return out
 
-# One distinct rule per area: never the same key twice, never an exact complement pair.
+# Rules of this modality that this level's trait pools can actually pose (see _is_rule_usable).
+func _usable_rules_in(m: String) -> Array:
+	var out: Array = []
+	for k in _rules_in_modality(m):
+		if _is_rule_usable(k):
+			out.append(k)
+	return out
+
+# Modalities from the level's pool that can pose at least one rule. An EMPTY pool means "all".
+func _usable_modalities(pool: Array) -> Array:
+	var src: Array = pool.duplicate()
+	if src.is_empty():
+		src = ALL_MODALITIES.duplicate()
+	var out: Array = []
+	for m in src:
+		var name: String = str(m)
+		if not ALL_MODALITIES.has(name) or out.has(name):
+			continue
+		if not _usable_rules_in(name).is_empty():
+			out.append(name)
+	return out
+
+# One gate per MODALITY, then a random rule from inside it. Different modalities means switching
+# gates forces a switch of attention, not just a change of value — which is the whole game.
 func _pick_rules() -> void:
-	var pool: Array = _usable_rules(rules_pool)
-	pool.shuffle()
-	if pool.size() < _areas.size():
-		pool = _usable_rules([])
-		pool.shuffle()
+	var mods: Array = _usable_modalities(rules_pool)
+	mods.shuffle()
+	if mods.size() < _areas.size():
+		mods = _usable_modalities([])       # pool too narrow for this many gates — fall back to all
+		mods.shuffle()
 	var chosen: Array = []
-	for k in pool:
-		var key: String = str(k)
-		var ok: bool = true
-		for c in chosen:
-			if c == key or str(COMPLEMENTS.get(c, "")) == key:
-				ok = false
-				break
-		if ok:
-			chosen.append(key)
+	for m in mods:
 		if chosen.size() >= _areas.size():
 			break
+		var opts: Array = _usable_rules_in(str(m))
+		if not opts.is_empty():
+			chosen.append(str(opts[game.rng.randi_range(0, opts.size() - 1)]))
 	while chosen.size() < _areas.size():
-		chosen.append("blue" if chosen.is_empty() else "eyes3")
+		# not enough distinct modalities to go round: pad with anything not already used
+		var pad: String = ""
+		for k in ALL_RULES:
+			var cand: String = str(k)
+			if not _is_rule_usable(cand):
+				continue
+			var clash: bool = false
+			for c in chosen:
+				if _same_dimension(str(c), cand):
+					clash = true
+					break
+			if not clash:
+				pad = cand
+				break
+		chosen.append(pad if pad != "" else "eyes3")
 	for i in _areas.size():
 		_areas[i]["rule"] = chosen[i]
 	_refresh_rule_labels()
@@ -835,6 +879,11 @@ func _update_leaving(al, d: float) -> void:
 		var ar_home: Dictionary = _areas[al.area_idx]
 		if al.sim_pos.distance_to(Vector2(ar_home["center"])) > float(ar_home["r_out"]) + al.radius:
 			al.area_idx = -1
+		elif _last_now - al.seek_start_ms > LEAVE_TIMEOUT_MS:
+			# boxed in by the crowd on the way out. Seekers have a watchdog; departures need one
+			# too, or a blocked alien sits in the ring indefinitely. Dropping the exemption lets
+			# the keep-out ease it out over the next frames.
+			al.area_idx = -1
 	if al.waypoints.is_empty():
 		al.state = AState.ROAM
 		al.retarget_ms = 0.0
@@ -921,6 +970,7 @@ func _turned_away(al) -> void:
 	_release_park(al)
 	al.state = AState.LEAVING
 	al.area_idx = home2            # kept until it is clear of the ring — see _update_leaving
+	al.seek_start_ms = _last_now
 	_send_away_from(al, home2, _last_now)
 	al.waypoints = _exit_waypoints(al, home2)
 	game.play_sound("wrong")
@@ -928,7 +978,7 @@ func _turned_away(al) -> void:
 	game.add_score_and_time(-penalty, 0)
 	game.add_correct_or_mistake(0, 1)
 	total_rounds += 1
-	_flash_mark(al.sim_pos, "FULL!", Color(1.0, 0.55, 0.25))
+	_flash_mark(al.sim_pos, "NO ROOM", Color(1.0, 0.55, 0.25))
 	MainGlobals.sig_global_update_hud.emit()
 
 # Walk this alien away from `area_idx` and stop it trying to enter again for a while.
@@ -958,15 +1008,20 @@ func _send_away_from(al, area_idx: int, now: float) -> void:
 			al.wander_target = _random_free_point(al.radius, true, al)
 	al.retarget_ms = now + 2200.0
 
-# Deadlock valve: a parked alien the player never resolves gives up and frees its slot, with NO
-# penalty. park_patience_sec = 0 disables it (the hardest levels).
+# Deadlock valve: a parked alien the player never resolves gives up and frees its place.
+# A MATCHING alien walking away is a MISS — the player let a valid passenger go. A non-matching
+# one costs nothing: leaving is exactly what should have happened to it anyway.
+# park_patience_sec = 0 disables the valve entirely (the hardest levels).
 func _give_up(al) -> void:
 	var home3: int = al.area_idx
+	if home3 >= 0 and home3 < _areas.size() and _alien_matches(al, str(_areas[home3]["rule"])):
+		_score_mistake(al, _last_now)
 	_release_park(al)
 	al.state = AState.LEAVING
 	# area_idx is KEPT until it is actually clear of the ring (see _update_leaving): clearing it
 	# here makes the keep-out treat the alien as a trespasser and teleport it outside instantly.
 	al.area_idx = home3
+	al.seek_start_ms = _last_now
 	_send_away_from(al, home3, _last_now)
 	al.waypoints = _exit_waypoints(al, home3)
 
@@ -1585,11 +1640,12 @@ func new_game(from_scratch: bool = true) -> void:
 
 	var hide_txt: String = "never" if hide_after_ms <= 0.0 else "%d s" % int(hide_after_ms / 1000.0)
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
-		("Aliens wander into the outer ring.\n" +
-		"Drag one that MATCHES the rule into\n" +
-		"the inner ring, and one that does NOT\n" +
-		"back out to the field.\n\n" +
-		"Areas: %d\nRule hides after: %s\nTime: %d s") % [num_areas, hide_txt, level_time_sec])
+		("Aliens queue up in a gate's outer ring.\n" +
+		"Drag one that MATCHES the pass onto\n" +
+		"the boarding ramp, and one that does\n" +
+		"NOT back out to the hall.\n\n" +
+		"Gates: %d\nPass comes down after: %s\nTime: %d s")
+		% [num_areas, hide_txt, level_time_sec])
 	intro.closed.connect(_on_game_popup_closed)
 
 func _on_game_popup_closed() -> void:

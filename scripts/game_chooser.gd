@@ -18,10 +18,11 @@ var _list_desc_size: int = 20
 var _account_btn: Button = null
 var _account_status_dot: Panel = null
 var _about_btn: Button = null
-var _about_icon: Label = null
+var _about_icon: Control = null
 var _about_icon_d: float = 0.0
 var _about_pill_h: float = 0.0
 var _about_screen: CanvasLayer = null
+var _settings_screen: CanvasLayer = null
 
 var _icon_grid: Texture2D = preload("res://art/grid-48.png")
 var _icon_list: Texture2D = preload("res://art/list-48.png")
@@ -134,6 +135,11 @@ func _create_about_button() -> void:
 	_about_screen = load("res://scripts/about_screen.gd").new()
 	add_child(_about_screen)
 
+	# App settings live on their own overlay, reached from About.
+	_settings_screen = load("res://scripts/settings_screen.gd").new()
+	add_child(_settings_screen)
+	_about_screen.connect("sig_open_settings", Callable(self, "_open_settings"))
+
 	# The scene's plain version label is superseded by this pill.
 	var vlabel: Label = %VersionLabel
 	vlabel.hide()
@@ -172,24 +178,32 @@ func _create_about_button() -> void:
 	_about_btn.add_theme_stylebox_override("focus", pill)
 	_about_btn.custom_minimum_size = Vector2(0, _about_pill_h)
 
-	# Round (i) icon as a child of the button so it travels with it.
-	_about_icon = Label.new()
-	_about_icon.text = "i"
-	_about_icon.add_theme_font_size_override("font_size", int(_about_icon_d * 0.72))
-	_about_icon.add_theme_color_override("font_color", Color(0.08, 0.08, 0.08, 1.0))
-	_about_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_about_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Round (i) icon as a child of the button so it travels with it. It is DRAWN, not typeset:
+	# a Label's height is floored by the font's line box (ascent+descent), which the symbol
+	# fallbacks inflate to ~1.5x the font size — so a d x d Label silently became d x 1.5d, the
+	# "circle" came out as a rounded rect, and the glyph sat below the version text's center.
+	# Drawing also makes the icon independent of the player's chosen game font.
+	_about_icon = Control.new()
 	_about_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_about_icon.custom_minimum_size = Vector2(_about_icon_d, _about_icon_d)
 	_about_icon.size = Vector2(_about_icon_d, _about_icon_d)
-	var icon_style: StyleBoxFlat = StyleBoxFlat.new()
-	icon_style.bg_color = _ICON_COLOR
-	icon_style.set_corner_radius_all(int(_about_icon_d / 2.0))
-	_about_icon.add_theme_stylebox_override("normal", icon_style)
+	_about_icon.draw.connect(_draw_info_icon)
 	_about_btn.add_child(_about_icon)
 
 	vlabel.get_parent().add_child(_about_btn)
 	call_deferred("_position_about_button")
+
+# The classic info mark: a filled disc with a dot and a stem, both symmetric about the disc's
+# center, so the glyph is optically centered whatever the UI font happens to be.
+func _draw_info_icon() -> void:
+	var d: float = _about_icon_d
+	var c: Vector2 = Vector2(d, d) * 0.5
+	var ink: Color = Color(0.08, 0.08, 0.08, 1.0)
+	_about_icon.draw_circle(c, d * 0.5, _ICON_COLOR)
+	var r_dot: float = d * 0.075
+	_about_icon.draw_circle(c + Vector2(0.0, -0.30 * d + r_dot), r_dot, ink)
+	var stem_w: float = d * 0.15
+	_about_icon.draw_rect(Rect2(c.x - stem_w * 0.5, c.y - 0.10 * d, stem_w, 0.40 * d), ink, true)
 
 func _position_about_button() -> void:
 	if _about_btn == null:
@@ -215,6 +229,10 @@ func _position_about_button() -> void:
 func _open_about() -> void:
 	if _about_screen != null:
 		_about_screen.call("open")
+
+func _open_settings() -> void:
+	if _settings_screen != null:
+		_settings_screen.call("open")
 
 func create_grid():
 	await get_tree().process_frame

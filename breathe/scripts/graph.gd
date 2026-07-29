@@ -54,7 +54,7 @@ func _draw() -> void:
 	while xi <= dur_s + 0.01:
 		var gx: float = chart_x + (xi / dur_s) * chart_w
 		draw_line(Vector2(gx, chart_y), Vector2(gx, tap_bot_y), grid_col, 1.0)
-		draw_string(font, Vector2(gx - 14.0, tick_label_y), "%ds" % int(xi),
+		draw_string(font, Vector2(gx - 14.0, tick_label_y), "%d s" % int(xi),
 			HORIZONTAL_ALIGNMENT_CENTER, 28, fs, label_col)
 		xi += x_step_s
 

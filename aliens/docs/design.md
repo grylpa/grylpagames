@@ -2,6 +2,13 @@
 
 ## Overview
 
+**Framing:** the player is the gate agent at an alien **spaceport**. Each target area is a
+**GATE**; its rule is the gate's **BOARDING PASS**; the outer ring is the **queue**, the inner ring
+the **boarding ramp**; the open field is the **hall**; a full outer ring shows **GATE FULL**
+and turns arrivals away. The words "aliens" and "level" are kept as-is. Only player-facing text
+uses this vocabulary — the code still says areas/rings, which is deliberate: renaming the internals
+would be a large refactor with real regression risk and no player benefit.
+
 Cute little aliens roam an open field. There are 1–2 **target areas**, each drawn as two
 concentric circles: an **outer ring** (annulus) and an **inner ring** (inner disc). Each area
 has a rule about alien traits ("3 EYES", "TALL", "BLUE").
@@ -49,7 +56,7 @@ confusion mechanism — traits must never be correlated.
 | dim | field | values |
 |---|---|---|
 | body color | `color_id` | 0 blue, 1 red, 2 green, 3 yellow, 4 purple |
-| body shape | `is_fat` | WIDE (1.00 × 0.58) / NARROW (0.58 × 1.00) — a single aspect axis |
+| body shape | `is_fat` | FAT (1.00 × 0.58) / THIN (0.58 × 1.00) — a single aspect axis |
 | eyes | `eyes` | 1 / 2 / 3 |
 | antennae | `antennae` | 0 / 1 / 2 |
 | spots | `has_spots` | bool (lower body only) |
@@ -70,14 +77,14 @@ taller-than-wide meaning:
 
 | | extents | height/width |
 |---|---|---|
-| **WIDE** (`fat`) | 1.00 × 0.58 | 0.58 — clearly wider than tall |
-| **NARROW** (`thin`) | 0.58 × 1.00 | 1.72 — clearly taller than wide |
+| **FAT** (`fat`) | 1.00 × 0.58 | 0.58 — clearly wider than tall |
+| **THIN** (`thin`) | 0.58 × 1.00 | 1.72 — clearly taller than wide |
 
 Exact mirrors, ~3× apart in aspect, so every alien reads as one or the other. **Antennae are the
 one thing allowed outside the body ellipse** — curved, tapering stalks with a bulb, reaching
 ~0.62 radii above the head, because short nubs inside the outline did not read as antennae.
 Collision still uses `radius` alone, so they never affect spacing. The probe asserts the
-**separation** (wide ≤ 0.75, narrow ≥ 1.33, ≥ 2× apart) and that no rule named `tall`/`short`
+**separation** (fat ≤ 0.75, thin ≥ 1.33, ≥ 2× apart) and that no rule named `tall`/`short`
 survives — a bare `ry > rx` test would have passed the unreadable version. That leaves five trait
 dimensions and 15 rules, which is plenty.
 
@@ -95,8 +102,18 @@ comment block at the top of `level_config.gd` for the authoritative list with la
   harmless — it belongs wherever it went.
 - **Usability filter** (`_is_rule_usable`): a rule is only offered if the level's trait pools can
   produce both matches and non-matches. Pools may safely over-list; unusable keys are dropped.
-- **`COMPLEMENTS`**: two areas never get an exact complement pair (`fat/thin`, `spots/nospots`) — that would collapse two independent judgments into one binary. Two
-  *different values of the same dimension* (BLUE vs RED, 2 EYES vs 3 EYES) are fine and good.
+- **The config lists MODALITIES, not rules** (`ALL_MODALITIES`: eyes / shape / antennae / spots /
+  color). One modality is drawn per gate, then a random usable rule from inside it — so
+  orthogonality is guaranteed **by construction** instead of being filtered for, and each pool
+  yields far more variety (a 4-modality pool produces 39 distinct pairings; the open pool, 60+).
+  `_usable_modalities()` skips any modality this level's trait pools cannot pose.
+- **`RULE_DIMENSION`**: the two shown rules must read **different traits** (eyes / shape /
+  antennae / spots / color). The game is a forced **context switch**, so "1 EYE" beside "2 EYES",
+  or BLUE beside RED, is no good — the player keeps looking at the same feature and only the value
+  changes, which is a comparison, not a switch. This also subsumes the old complement rule, since
+  `fat/thin` and `spots/nospots` are the same trait. A multi-area level's pool must span at least
+  `num_areas` traits; the probe checks that, and it caught level 2 shipping 2 gates with an
+  all-eyes pool.
 - **Arrival mix ~50/50**, kept there by two light mechanisms rather than a scheduler:
   `_choose_area_for` sends an alien to an area it actually fits about half the time
   (`SMART_ENTRY`), and `_arrival_allowed` softly vetoes an attempt when the last 8 arrivals were
@@ -254,7 +271,11 @@ it and nothing compares it between runs, so pinning it only threw away free vari
   it a released alien turned straight round and marched back in, which made a *correct* release
   look like a failed drag.
 - `park_patience_sec` is the deadlock valve: a parked alien the player never resolves leaves on
-  its own with **no** penalty. It **walks** out — `area_idx` is deliberately kept until it is clear
+  its own after that long. If it **matched** the gate's pass this is scored as a **miss** — a valid
+  passenger was let go; if it did not match it costs nothing, since leaving is what should have
+  happened to it anyway. Ramped 30 s → 25 s across the levels.
+  **`0` means WAIT FOREVER, not zero seconds** — the check is skipped entirely. That convention is
+  a trap worth remembering when editing the config. It **walks** out — `area_idx` is deliberately kept until it is clear
   of the ring, because clearing it immediately made the keep-out treat the alien as a trespasser
   and teleport it outside in one frame, which looked like it was erased and dumped. `0` disables it (levels 7–8, where the pressure is the point).
 - A promoted alien celebrates in the inner ring for `INNER_HOLD_MS`, fades, and is **recycled**

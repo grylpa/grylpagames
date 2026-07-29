@@ -590,7 +590,7 @@ func create_chart() -> void:
 	_chart_control.y_min_padding = 0.1 if (_chart_metric == 1 and not _progress_time_is_pct) else 0.0
 	if _chart_metric == 1 and not _progress_time_is_pct and _progress_time_format == "%d ms":
 		_chart_control.y_label_divisor = 1000.0
-		_chart_control.y_label_format = "%.1fs"
+		_chart_control.y_label_format = "%.1f s"
 	else:
 		_chart_control.y_label_divisor = 1.0
 		_chart_control.y_label_format = ""

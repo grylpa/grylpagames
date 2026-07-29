@@ -932,7 +932,7 @@ func level_is_done(didwin: bool):
 	})
 	var time_from_start_s: float = (game.game_time - time_started_level_ms) / 1000.0
 	var stats: Dictionary = count_round_stats()
-	var stats_str: String = "\nScore: %d  |  Time: %ds\nSaved: %d  Lost: %d  Flooded: %d" % [
+	var stats_str: String = "\nScore: %d  |  Time: %d s\nSaved: %d  Lost: %d  Flooded: %d" % [
 		game.score, int(time_from_start_s), stats["saved"], round_items_lost, stats["flooded"]]
 	if didwin:
 		var score_add: int = min(5, 60 - time_from_start_s)

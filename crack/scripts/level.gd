@@ -513,7 +513,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var live_s: float = _gesture_timer_ms / 1000.0
 	var gesture_name: String = "■" if _gesture == 0 else ("▲" if _gesture == 1 else "▼")
 	canvas.draw_string(score_font, Vector2(text_x, y_now),
-		"Now: %.1fs %s" % [live_s, gesture_name], HORIZONTAL_ALIGNMENT_CENTER, text_w, fs_now,
+		"Now: %.1f s %s" % [live_s, gesture_name], HORIZONTAL_ALIGNMENT_CENTER, text_w, fs_now,
 		Color(0.62, 0.82, 1.00, 0.90))
 	if not active_mode:
 		var d: Array = CrackG.get_guided_durations()
@@ -591,7 +591,7 @@ func _populate_phase_grid(phases: Array, durations: Array) -> void:
 		lbl_n.add_theme_color_override("font_color", Color(0.72, 0.82, 0.95, 0.80))
 		_phase_grid.add_child(lbl_n)
 		var lbl_v: Label = Label.new()
-		lbl_v.text = "%.1fs" % [float(row[1]) / 1000.0]
+		lbl_v.text = "%.1f s" % [float(row[1]) / 1000.0]
 		lbl_v.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		lbl_v.add_theme_font_override("font", font)
 		lbl_v.add_theme_font_size_override("font_size", fs)
@@ -599,7 +599,7 @@ func _populate_phase_grid(phases: Array, durations: Array) -> void:
 		_phase_grid.add_child(lbl_v)
 		if has_target:
 			var lbl_t: Label = Label.new()
-			lbl_t.text = "(target %.1fs)" % [float(row[2]) / 1000.0]
+			lbl_t.text = "(target %.1f s)" % [float(row[2]) / 1000.0]
 			lbl_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 			lbl_t.add_theme_font_override("font", font)
 			lbl_t.add_theme_font_size_override("font_size", fs)

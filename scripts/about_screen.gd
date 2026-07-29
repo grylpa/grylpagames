@@ -5,7 +5,9 @@ extends CanvasLayer
 # grylpa developer identity + clickable contact links, a privacy note, and
 # third-party asset credits. Dismissed by the X button or by tapping the dimmed
 # backdrop. Sizing/fonts adapt to mobile so the text stays readable and the body
-# scrolls by touch.
+# scrolls by touch. It is also the way into the app Settings overlay.
+
+signal sig_open_settings
 
 const _ACCENT: Color = Color(0.9843137, 0.85490197, 0.1882353, 1.0)
 const _LINK: Color = Color(0.4, 0.788, 1.0, 1.0)
@@ -19,6 +21,7 @@ var _body_nodes: Array = []
 var _link_nodes: Array = []
 var _header_nodes: Array = []
 var _spacer_nodes: Array = []
+var _settings_btn: Button = null
 
 # Tap-to-dismiss: a press+release that barely moved is a tap (close); a press
 # that travels is a scroll/drag (ignore, so the body still scrolls).
@@ -70,7 +73,7 @@ func _build() -> void:
 	var margin: MarginContainer = MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 24)
 	margin.add_theme_constant_override("margin_right", 24)
-	margin.add_theme_constant_override("margin_top", 18)
+	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_bottom", 20)
 	_panel.add_child(margin)
 
@@ -113,6 +116,17 @@ func _build() -> void:
 	_body_nodes.append(_version_lbl)
 	_body_nodes.append(_add_text(body, "A collection of small challenging and relaxing games.", Color(0.9, 0.9, 0.9, 1.0)))
 
+	# The app has no other home for global preferences, and About is already the one
+	# app-level screen reachable from the chooser — so Settings hangs off it.
+	_header_nodes.append(_add_header(body, "Settings"))
+	_settings_btn = Button.new()
+	_settings_btn.text = "Game font…"
+	_settings_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_settings_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_settings_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_settings_btn.pressed.connect(_on_settings_pressed)
+	body.add_child(_settings_btn)
+
 	_header_nodes.append(_add_header(body, "Developer"))
 	_link_nodes.append(_add_link(body, "grylpa.com", "https://grylpa.com"))
 	_link_nodes.append(_add_link(body, "info@grylpa.com", "mailto:info@grylpa.com"))
@@ -122,8 +136,14 @@ func _build() -> void:
 
 	_header_nodes.append(_add_header(body, "Credits"))
 	_body_nodes.append(_add_text(body, "Sound effects — Kenney (kenney.nl), CC0", Color(0.85, 0.85, 0.85, 1.0)))
-	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
+	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono, Exo 2, Orbitron, Baloo 2, Space Grotesk (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
 	_body_nodes.append(_add_text(body, "Made with the Godot Engine.", Color(0.85, 0.85, 0.85, 1.0)))
+
+# Close About first: the two overlays share a layer, and About's tap-to-dismiss would
+# otherwise keep firing over the Settings panel.
+func _on_settings_pressed() -> void:
+	close()
+	sig_open_settings.emit()
 
 func _add_text(parent: VBoxContainer, txt: String, col: Color) -> Label:
 	var lbl: Label = Label.new()
@@ -174,16 +194,27 @@ func _apply_layout() -> void:
 	var body_size: int = 30 if is_mob else 18
 	var close_size: int = 44 if is_mob else 26
 
+	# Title and headers are ASCII, so they take the fallback-free face: the symbol fallbacks
+	# otherwise inflate their line box to ~2.15x the font size, and the surplus above the glyphs
+	# reads as a large top margin nobody asked for.
+	var heading_font: Font = MainGlobals.ui_heading_font()
+
 	_title.add_theme_font_size_override("font_size", title_size)
+	if heading_font != null:
+		_title.add_theme_font_override("font", heading_font)
 	_close_btn.add_theme_font_size_override("font_size", close_size)
 	_close_btn.custom_minimum_size = Vector2(close_size + 14, close_size + 14)
 
 	for n in _header_nodes:
 		n.add_theme_font_size_override("font_size", header_size)
+		if heading_font != null:
+			n.add_theme_font_override("font", heading_font)
 	for n in _body_nodes:
 		n.add_theme_font_size_override("font_size", body_size)
 	for n in _link_nodes:
 		n.add_theme_font_size_override("font_size", body_size)
+	if _settings_btn != null:
+		_settings_btn.add_theme_font_size_override("font_size", body_size)
 
 	var spacer_h: float = 22.0 if is_mob else 12.0
 	for s in _spacer_nodes:

@@ -808,7 +808,7 @@ func _populate_phase_grid_u(phases: Array) -> void:
 		lbl_n.add_theme_color_override("font_color", Color(0.72, 0.82, 0.95, 0.80))
 		_phase_grid.add_child(lbl_n)
 		var lbl_v: Label = Label.new()
-		lbl_v.text = "%.1fs" % [float(row[1]) / 1000.0]
+		lbl_v.text = "%.1f s" % [float(row[1]) / 1000.0]
 		lbl_v.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		lbl_v.add_theme_font_override("font", font)
 		lbl_v.add_theme_font_size_override("font_size", fs)
