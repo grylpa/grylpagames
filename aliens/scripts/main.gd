@@ -40,7 +40,7 @@ func _ready() -> void:
 	game.set_instructions("Aliens",
 		"Each area has a rule about the aliens.\n" +
 		"Aliens wander into the OUTER ring by themselves.\n" +
-		"Drag one that MATCHES the rule into the middle.\n" +
+		"Drag one that MATCHES the rule into the INNER ring.\n" +
 		"Drag one that does NOT match back out to the field.\n" +
 		"If an outer ring fills up, new arrivals are turned away.\n" +
 		"After a while the rules disappear — remember them!", 26)

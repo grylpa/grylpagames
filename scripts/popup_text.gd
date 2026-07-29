@@ -35,18 +35,51 @@ func popup_text(text_title: String, text: String, vcenter:bool, top_px := 80.0) 
 		_title.text = text_title
 		_title.visible = true
 		_title.add_theme_font_size_override("font_size", fs + 8)
+	# The panel used to be sized purely from its content, so ANY text wider than the window made
+	# it overflow the screen — on every platform, not just narrow ones. Shrink the font until the
+	# widest line fits the available width, fall back to wrapping if even the floor is too wide,
+	# and hard-clamp the final size below. Callers never have to think about line lengths.
+	var winsize: Vector2 = MainGlobals.screen_size
+	# A Window's size is floored by its contents' minimum, so clamping `size` alone cannot shrink
+	# an oversized popup — the CONTENT has to fit. Account for the panel's own stylebox padding
+	# too, which is on top of margin_px.
+	var pad: Vector2 = Vector2.ZERO
+	var sb: StyleBox = get_theme_stylebox("panel")
+	if sb != null:
+		pad = Vector2(sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT),
+			sb.get_margin(SIDE_TOP) + sb.get_margin(SIDE_BOTTOM))
+	var overhead: Vector2 = pad + 2.0 * Vector2(margin_px, margin_px)
+	var limit: Vector2 = winsize - 2.0 * Vector2(clamp_margin_px, clamp_margin_px)
+	var avail: Vector2 = limit - overhead
+
+	fs = _fit_font_to_width(fs, avail.x)
+	_apply_font(fs)
+	if _widest_line(fs) > avail.x:
+		# even at the smallest readable size a line is too long — let it wrap instead
+		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_label.custom_minimum_size.x = avail.x
+		_title.custom_minimum_size.x = avail.x
+
 	_ensure_blocker()
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	# size to the whole content column (title + text + tap prompt), not just the text label
-	var content_size := ($VBoxContainer as Control).get_combined_minimum_size()
-	var desired := content_size + 2 * Vector2(margin_px, margin_px)
-	size = Vector2i(ceili(desired.x), ceili(desired.y))
+	# Measure what the laid-out content actually needs and shrink until it fits BOTH dimensions.
+	# Measuring beats predicting: wrapping, theme margins and font metrics all feed into this.
+	var desired: Vector2 = Vector2.ZERO
+	for _try in 10:
+		desired = ($VBoxContainer as Control).get_combined_minimum_size() + overhead
+		if (desired.x <= limit.x and desired.y <= limit.y) or fs <= MIN_POPUP_FONT:
+			break
+		fs -= 2
+		_apply_font(fs)
+		if _label.autowrap_mode != TextServer.AUTOWRAP_OFF:
+			_label.custom_minimum_size.x = avail.x
+			_title.custom_minimum_size.x = avail.x
+		await get_tree().process_frame
 
-	# var win := get_tree().root.get_window()
-	# var win: Rect2 = get_viewport().get_visible_rect()
-	var winsize:Vector2 = MainGlobals.screen_size
+	size = Vector2i(mini(ceili(desired.x), int(limit.x)), mini(ceili(desired.y), int(limit.y)))
 	var x := (winsize.x - float(size.x)) * 0.5
 	var y := float(top_px)
 	if vcenter:
@@ -60,6 +93,42 @@ func popup_text(text_title: String, text: String, vcenter:bool, top_px := 80.0) 
 	MainGlobals.bring_to_front()
 	_hidden_temporarily = false
 
+
+const MIN_POPUP_FONT: int = 14
+
+func _apply_font(fs: int) -> void:
+	_label.add_theme_font_size_override("font_size", fs)
+	if _title.visible:
+		_title.add_theme_font_size_override("font_size", fs + 8)
+
+# Widest single line across title, body and the tap prompt, at body font size `fs`. Measured from
+# the font directly rather than from a laid-out Control, so it is deterministic and needs no frame.
+func _widest_line(fs: int) -> float:
+	var w: float = 0.0
+	var body_font: Font = _label.get_theme_font("font")
+	if body_font == null:
+		body_font = MainGlobals.get_system_sans_font()
+	for line in _label.text.split("\n"):
+		w = maxf(w, body_font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	if _title.visible:
+		var title_font: Font = _title.get_theme_font("font")
+		if title_font == null:
+			title_font = body_font
+		for line in _title.text.split("\n"):
+			w = maxf(w, title_font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs + 8).x)
+	var tap_font: Font = _tap.get_theme_font("font")
+	if tap_font == null:
+		tap_font = body_font
+	var tap_fs: int = _tap.get_theme_font_size("font_size")
+	w = maxf(w, tap_font.get_string_size(_tap.text, HORIZONTAL_ALIGNMENT_LEFT, -1, tap_fs).x)
+	return w
+
+# Largest font size (up to `fs`) whose widest line still fits `avail_w`.
+func _fit_font_to_width(fs: int, avail_w: float) -> int:
+	var out: int = fs
+	while out > MIN_POPUP_FONT and _widest_line(out) > avail_w:
+		out -= 1
+	return out
 
 func _ready() -> void:
 	# Fires for any reason the popup hides (ESC, outside click, hide(), etc).

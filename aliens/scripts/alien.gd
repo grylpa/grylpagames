@@ -43,6 +43,7 @@ var hint_until_ms: float = 0.0   # 0 = no timed hint
 var seek_start_ms: float = 0.0   # when it committed to walking in (stall watchdog)
 var respawn_need: Array = []     # [rule_key, want_match] to satisfy on the next recycle
 var entry_block_ms: float = 0.0  # cannot try to enter an area again until this time
+var grab_delay_ms: float = -1.0  # park -> grab time, banked at the START of a drag (-1 = n/a)
 
 # --- drawing-only state ---
 var _bob: float = 0.0                     # walk bob in px

@@ -232,6 +232,17 @@ any ring; another area's ring → this inner ring). It is an affordance error, r
 free of charge. Mistake = a legal move with the wrong judgment. Only mistakes are scored against
 the player.
 
+**Response time** is measured from the alien **parking in the outer ring** to the player
+**grabbing it** — the decision time. It deliberately excludes the drag itself, which is hand speed
+rather than thinking, and it is banked in `grab_delay_ms` at `_begin_drag` so a slow drag cannot
+inflate it. Only **correct** calls are recorded: a mistake, an illegal move, or repositioning a
+roaming alien record nothing. The speed bonus uses the same value.
+
+With no correct call at all the average would come out 0 — which reads as *perfect* on a
+lower-is-better metric — so `mean_response_time_ms()` returns `NO_ANSWER_MS` (99999) instead. The
+level-done popup still shows "N/A" in that case; it is the stored score row that carries the
+large value.
+
 Score row: `[..., didwin, wasaborted, level_id, mean_ms, pct]` →
 `POS_SCORE_LEVEL_ID = 6`, `MEAN_TIME_MS = 7`, `PCT_CORRECT = 8`.
 
