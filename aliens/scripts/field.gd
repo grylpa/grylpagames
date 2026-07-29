@@ -148,7 +148,7 @@ func _draw() -> void:
 func _draw_full_badge(c: Vector2, r_out: float) -> void:
 	var f: Font = _badge_font()
 	var fs: int = maxi(12, int(alien_radius * 0.52))
-	var txt: String = "FULL"
+	var txt: String = "GATE FULL"
 	var ss: Vector2 = f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 	var pos: Vector2 = Vector2(c.x - ss.x * 0.5, c.y + r_out + ss.y * 0.95)
 	draw_rect(Rect2(pos.x - 8.0, pos.y - ss.y * 0.82, ss.x + 16.0, ss.y * 1.12),

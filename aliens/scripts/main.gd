@@ -38,12 +38,13 @@ func _ready() -> void:
 	$Help.close_help.connect(_on_help_close_help)
 
 	game.set_instructions("Aliens",
-		"Each area has a rule about the aliens.\n" +
-		"Aliens wander into the OUTER ring by themselves.\n" +
-		"Drag one that MATCHES the rule into the INNER ring.\n" +
-		"Drag one that does NOT match back out to the field.\n" +
-		"If an outer ring fills up, new arrivals are turned away.\n" +
-		"After a while the rules disappear — remember them!", 26)
+		"You are the gate agent at an alien spaceport.\n" +
+		"Each GATE boards only aliens on its BOARDING PASS.\n" +
+		"Aliens queue in the gate's outer ring by themselves.\n" +
+		"Drag a MATCH onto the boarding ramp in the middle,\n" +
+		"and a NON-match back out to the hall.\n" +
+		"A full queue turns arrivals away, so keep it moving.\n" +
+		"The pass comes down later — remember it!", 26)
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		AliensG.save_settings()
