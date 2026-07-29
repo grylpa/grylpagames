@@ -12,8 +12,7 @@ extends Node2D
 var radius: float = 33.0
 var eyes: int = 2            # 1 | 2 | 3
 var color_id: int = 0        # index into ALIEN_COLORS
-var is_tall: bool = false
-var is_fat: bool = false
+var is_fat: bool = false     # the ONE body-shape dimension: wide vs narrow ASPECT
 var antennae: int = 0        # 0 | 1 | 2
 var has_spots: bool = false
 
@@ -76,11 +75,10 @@ const SPOT_UNITS: Array = [
 	Vector2(-0.46, 0.34), Vector2(0.42, 0.24), Vector2(-0.12, 0.62), Vector2(0.28, 0.64),
 ]
 
-func setup(r: float, n_eyes: int, cid: int, tall: bool, fat: bool, ant: int, spots: bool) -> void:
+func setup(r: float, n_eyes: int, cid: int, fat: bool, ant: int, spots: bool) -> void:
 	radius = r
 	eyes = clampi(n_eyes, 1, 3)
 	color_id = clampi(cid, 0, ALIEN_COLORS.size() - 1)
-	is_tall = tall
 	is_fat = fat
 	antennae = clampi(ant, 0, 2)
 	has_spots = spots
@@ -107,23 +105,22 @@ func set_hint(h: int) -> void:
 func body_color() -> Color:
 	return ALIEN_COLORS[color_id]
 
-# Half-extents of the body ellipse.
+# Half-extents of the body ellipse — ONE shape dimension, defined as an ASPECT RATIO.
 #
-# TALL is defined so BOTH readings agree: a tall alien is always TALLER THAN IT IS WIDE, and a
-# short one is always WIDER THAN IT IS TALL — whatever its girth. Previously "tall" meant only
-# "greater absolute height", so a tall+wide alien came out at (0.92 w, 0.86 h): visibly wider than
-# tall while labelled TALL. You had to compare it against other aliens to judge the rule at all.
+# There is deliberately no tall/short rule. Height and girth both describe the same ellipse, so
+# having both meant one of the four combinations was always a near-square that could not be judged
+# at a glance (a "tall + wide" alien is just a big blob). Collapsing to a single axis removes the
+# ambiguity instead of tuning around it:
 #
-#            WIDE            NARROW
-#   TALL   (0.86, 0.98)   (0.56, 1.00)     ry > rx in every case
-#   SHORT  (0.98, 0.52)   (0.66, 0.54)     rx > ry in every case
+#   WIDE   (1.00, 0.58)   h/w 0.58 — clearly wider than tall
+#   NARROW (0.58, 1.00)   h/w 1.72 — clearly taller than wide
 #
-# Girth stays an independent dimension: it sets rx, height sets ry. Nothing exceeds `radius`, so
-# the drawn body always stays inside the collision circle.
+# The two are exact mirrors, ~3x apart in aspect, so every alien reads as one or the other.
+# Nothing exceeds `radius`, so the drawn body always fits inside the collision circle.
 func body_extents() -> Vector2:
-	if is_tall:
-		return Vector2(radius * (0.86 if is_fat else 0.56), radius * (0.98 if is_fat else 1.00))
-	return Vector2(radius * (0.98 if is_fat else 0.66), radius * (0.52 if is_fat else 0.54))
+	if is_fat:
+		return Vector2(radius * 1.00, radius * 0.58)
+	return Vector2(radius * 0.58, radius * 1.00)
 
 func _ellipse(rx: float, ry: float, center_y: float) -> PackedVector2Array:
 	var pts: PackedVector2Array = PackedVector2Array()

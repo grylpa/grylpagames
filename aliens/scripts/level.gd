@@ -28,14 +28,14 @@ var trait_spots_chance: float = 0.5
 
 # --- rules -----------------------------------------------------------------------------------
 const ALL_RULES: Array = [
-	"eyes1", "eyes2", "eyes3", "tall", "short", "fat", "thin",
+	"eyes1", "eyes2", "eyes3", "fat", "thin",
 	"ant0", "ant1", "ant2", "spots", "nospots",
 	"blue", "red", "green", "yellow", "purple",
 ]
 
 const RULE_LABELS: Dictionary = {
 	"eyes1": "1 EYE", "eyes2": "2 EYES", "eyes3": "3 EYES",
-	"tall": "TALL", "short": "SHORT", "fat": "WIDE", "thin": "NARROW",
+	"fat": "WIDE", "thin": "NARROW",
 	"ant0": "NO ANTENNAE", "ant1": "1 ANTENNA", "ant2": "2 ANTENNAE",
 	"spots": "SPOTTED", "nospots": "NO SPOTS",
 	"blue": "BLUE", "red": "RED", "green": "GREEN", "yellow": "YELLOW", "purple": "PURPLE",
@@ -45,7 +45,6 @@ const RULE_LABELS: Dictionary = {
 # into a single binary and halves the memory load. Two DIFFERENT values of the same dimension
 # (BLUE vs RED, 2 EYES vs 3 EYES) are fine and actually desirable.
 const COMPLEMENTS: Dictionary = {
-	"tall": "short", "short": "tall",
 	"fat": "thin", "thin": "fat",
 	"spots": "nospots", "nospots": "spots",
 }
@@ -53,6 +52,7 @@ const COMPLEMENTS: Dictionary = {
 const COLOR_RULE_ID: Dictionary = {"blue": 0, "red": 1, "green": 2, "yellow": 3, "purple": 4}
 
 const SMART_ENTRY: float = 0.5     # chance an alien heads for an area it actually fits
+const EAGER_ENTER: float = 0.85    # commit chance when hovering beside a ring with free space
 const LOITER_BIAS: float = 0.45     # chance a wander target sits just outside a ring
 const LOITER_BAND: float = 4.2      # depth of the loitering band, in alien radii
 const MIN_ENTRY_GAP_MS: float = 550.0   # so two aliens never commit on the same frame
@@ -449,10 +449,6 @@ func _alien_matches(al, rule_key: String) -> bool:
 			return al.eyes == 2
 		"eyes3":
 			return al.eyes == 3
-		"tall":
-			return al.is_tall
-		"short":
-			return not al.is_tall
 		"fat":
 			return al.is_fat
 		"thin":
@@ -490,7 +486,7 @@ func _is_rule_usable(rule_key: String) -> bool:
 		return trait_antennae.size() >= 2 and trait_antennae.has(int(rule_key.substr(3)))
 	if rule_key == "spots" or rule_key == "nospots":
 		return trait_spots_chance > 0.01 and trait_spots_chance < 0.99
-	return rule_key == "tall" or rule_key == "short" or rule_key == "fat" or rule_key == "thin"
+	return rule_key == "fat" or rule_key == "thin"
 
 func _usable_rules(pool: Array) -> Array:
 	var src: Array = pool.duplicate()
@@ -556,7 +552,6 @@ func _roll_traits(al) -> void:
 	al.setup(_alien_radius,
 		int(trait_eyes[game.rng.randi_range(0, trait_eyes.size() - 1)]),
 		int(trait_colors[game.rng.randi_range(0, trait_colors.size() - 1)]),
-		game.rng.randf() < 0.5,
 		game.rng.randf() < 0.5,
 		int(trait_antennae[game.rng.randi_range(0, trait_antennae.size() - 1)]),
 		game.rng.randf() < trait_spots_chance)
@@ -725,6 +720,10 @@ func _update_roam(al, d: float, now: float) -> void:
 # Semi-random wander: most targets sit in a loitering band just outside a random area's outer
 # ring, so aliens congregate around the areas instead of scattering over the whole field.
 func _wander_target_for(al) -> Vector2:
+	# while barred from entering, keep away from the rings — hovering at a door it cannot use is
+	# exactly the "wants in but doesn't" look
+	if _last_now < al.entry_block_ms:
+		return _random_free_point(al.radius, true, al)
 	if not _areas.is_empty() and game.rng.randf() < LOITER_BIAS:
 		var ar: Dictionary = _areas[game.rng.randi_range(0, _areas.size() - 1)]
 		var c: Vector2 = Vector2(ar["center"])
@@ -747,12 +746,24 @@ func _try_enter(al, now: float) -> bool:
 	# failed, and the player cannot tell a correct release from a mistake.
 	if now < al.entry_block_ms:
 		return false
-	if game.rng.randf() >= enter_chance:
-		return false
 	var ai: int = _choose_area_for(al)
 	var ar: Dictionary = _areas[ai]
+	# Eagerness follows ROOM. `enter_chance` alone meant an alien beside an EMPTY ring still only
+	# committed on ~1 retarget in 6, so it circled the door for a median 6.5 s (worst 25 s) while
+	# visibly "wanting in" — which reads as broken. An alien next to a ring with space now goes in
+	# almost at once; a full ring attracts no rush, since there is nothing to rush for.
+	var cap: int = _ring_capacity(ar)
+	var taken: int = _taken_angles(ai, null).size()
+	var free_frac: float = clampf(float(cap - taken) / float(maxi(1, cap)), 0.0, 1.0)
+	var near_ring: bool = al.sim_pos.distance_to(Vector2(ar["center"])) \
+		<= float(ar["r_out"]) + al.radius * 5.0
+	var eager: float = free_frac * (0.85 if near_ring else 0.35)
+	if game.rng.randf() >= lerpf(enter_chance, EAGER_ENTER, eager):
+		return false
 	var would_match: bool = _alien_matches(al, str(ar["rule"]))
-	if not _arrival_allowed(would_match):
+	# An EMPTY ring is a wasted opportunity, so the arrival-mix veto only applies once somebody is
+	# already parked — otherwise the balancer can silently hold everyone out of an empty ring.
+	if taken > 0 and not _arrival_allowed(would_match):
 		return false                     # too many of this kind lately — mill about and retry
 	_record_arrival(would_match)
 	_entry_cooldown_ms = now + MIN_ENTRY_GAP_MS
@@ -1441,10 +1452,6 @@ func _force_rule(al, rule_key: String, want: bool) -> void:
 		al.has_spots = want
 	elif rule_key == "nospots":
 		al.has_spots = not want
-	elif rule_key == "tall":
-		al.is_tall = want
-	elif rule_key == "short":
-		al.is_tall = not want
 	elif rule_key == "fat":
 		al.is_fat = want
 	elif rule_key == "thin":
@@ -1587,13 +1594,13 @@ func new_game(from_scratch: bool = true) -> void:
 	_stock_initial_supply()
 	_field_node.queue_redraw()
 
-	var hide_txt: String = "never" if hide_after_ms <= 0.0 else "%ds" % int(hide_after_ms / 1000.0)
+	var hide_txt: String = "never" if hide_after_ms <= 0.0 else "%d s" % int(hide_after_ms / 1000.0)
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
 		("Aliens wander into the outer ring.\n" +
 		"Drag one that MATCHES the rule into\n" +
 		"the inner ring, and one that does NOT\n" +
 		"back out to the field.\n\n" +
-		"Areas: %d\nRule hides after: %s\nTime: %ds") % [num_areas, hide_txt, level_time_sec])
+		"Areas: %d\nRule hides after: %s\nTime: %d s") % [num_areas, hide_txt, level_time_sec])
 	intro.closed.connect(_on_game_popup_closed)
 
 func _on_game_popup_closed() -> void:

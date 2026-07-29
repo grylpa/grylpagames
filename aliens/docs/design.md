@@ -43,14 +43,13 @@ Aliens are **drawn**, not images — no per-game art beyond the chooser thumbnai
 
 ## Trait model
 
-Six **independent** dimensions, heaviest visual weight first. Independence is the entire
+Five **independent** dimensions, heaviest visual weight first. Independence is the entire
 confusion mechanism — traits must never be correlated.
 
 | dim | field | values |
 |---|---|---|
 | body color | `color_id` | 0 blue, 1 red, 2 green, 3 yellow, 4 purple |
-| height | `is_tall` | TALL = **taller than it is wide**, SHORT = **wider than it is tall** |
-| girth | `is_fat` | WIDE / NARROW (body ellipse `rx`) |
+| body shape | `is_fat` | WIDE (1.00 × 0.58) / NARROW (0.58 × 1.00) — a single aspect axis |
 | eyes | `eyes` | 1 / 2 / 3 |
 | antennae | `antennae` | 0 / 1 / 2 |
 | spots | `has_spots` | bool (lower body only) |
@@ -59,17 +58,31 @@ Mouth is deliberately **not** a trait — every alien wears the same smile (cute
 information). It would be the weakest discriminator at phone size and it competes with the eyes
 for face area.
 
-**TALL is defined so both readings agree.** A tall alien is taller than it is wide at *either*
-girth, and a short one is wider than it is tall. Previously "tall" meant only greater absolute
-height, so a tall+wide alien came out `(0.92 w, 0.86 h)` — visibly wider than tall while labelled
-TALL, judgeable only by comparing it against other aliens. Girth stays independent: height sets
-`ry`, girth sets `rx`. Nothing exceeds `radius`, so the body always fits the collision circle.
+**There is no tall/short rule — on purpose.** Height and girth describe the same ellipse, so
+offering both always left one of the four combinations an unjudgeable near-square: a "tall + wide"
+alien is just a big blob. Two attempts to tune it failed in opposite ways — first "tall" meant only
+greater *absolute* height (so a tall+wide alien came out visibly **wider** than tall), then it meant
+taller-than-wide by a mere 14%, which reads as a circle. The fix was to drop the dimension, not to
+keep tuning it.
+
+Body shape is now **one axis, read as an aspect ratio**, and `thin` already carries the
+taller-than-wide meaning:
+
+| | extents | height/width |
+|---|---|---|
+| **WIDE** (`fat`) | 1.00 × 0.58 | 0.58 — clearly wider than tall |
+| **NARROW** (`thin`) | 0.58 × 1.00 | 1.72 — clearly taller than wide |
+
+Exact mirrors, ~3× apart in aspect, so every alien reads as one or the other. The probe asserts the
+**separation** (wide ≤ 0.75, narrow ≥ 1.33, ≥ 2× apart) and that no rule named `tall`/`short`
+survives — a bare `ry > rx` test would have passed the unreadable version. That leaves five trait
+dimensions and 15 rules, which is plenty.
 
 **Eyes are drawn as three distinct SHAPES, not three counts**: 1 = one big central eye,
 2 = a horizontal pair, 3 = a triangle. Recognizing a shape is instant; counting pips is not. The
 triangle also fits a narrow body, where a row of three would have to shrink to nothing.
 
-17 rule keys, all evaluated by one `_alien_matches(al, rule_key)` match statement. See the
+15 rule keys, all evaluated by one `_alien_matches(al, rule_key)` match statement. See the
 comment block at the top of `level_config.gd` for the authoritative list with labels.
 
 ## Rules
@@ -79,8 +92,7 @@ comment block at the top of `level_config.gd` for the authoritative list with la
   harmless — it belongs wherever it went.
 - **Usability filter** (`_is_rule_usable`): a rule is only offered if the level's trait pools can
   produce both matches and non-matches. Pools may safely over-list; unusable keys are dropped.
-- **`COMPLEMENTS`**: two areas never get an exact complement pair (`tall/short`, `fat/thin`,
-  `spots/nospots`) — that would collapse two independent judgments into one binary. Two
+- **`COMPLEMENTS`**: two areas never get an exact complement pair (`fat/thin`, `spots/nospots`) — that would collapse two independent judgments into one binary. Two
   *different values of the same dimension* (BLUE vs RED, 2 EYES vs 3 EYES) are fine and good.
 - **Arrival mix ~50/50**, kept there by two light mechanisms rather than a scheduler:
   `_choose_area_for` sends an alien to an area it actually fits about half the time
@@ -131,6 +143,17 @@ DRAGGED / SNAPPING / FADING`.
   ring (`LOITER_BIAS`, `LOITER_BAND`), so the crowd reads as "queueing up" rather than drifting
   at random. This concentrates the population near the areas, which is why the solver needs more
   passes than a uniformly spread field would.
+- **Eagerness follows ROOM** (`EAGER_ENTER`). `enter_chance` alone is rolled once per retarget
+  (~1.5 s), so at level 1 (0.16) an alien beside a completely EMPTY ring still committed only
+  about 1 retarget in 6 — it circled the door for a measured median of **6.5 s** (worst 25 s)
+  while visibly wanting in, which reads as broken. The chance is now lerped toward `EAGER_ENTER`
+  by how free the target ring is (and further if the alien is already beside it), which cut the
+  median to 3.5 s and the worst to 11 s. A **full** ring deliberately attracts no rush — there is
+  nothing to rush for.
+- Two silent blockers made it worse and are now handled: the arrival-mix veto only applies once
+  somebody is already parked (it could otherwise hold everyone out of an empty ring), and an
+  alien serving its `RE_ENTRY_COOLDOWN_MS` no longer picks loitering targets at all — hovering at
+  a door it is barred from using is exactly the look being complained about.
 - Wander targets are rejection-sampled outside every disk, so an alien never *steers* into a ring.
 - **Aliens never walk over an INNER ring.** `_push_out_of_areas` keeps everyone out of the whole
   disc except in their own area, where they are still kept out of the inner disc (`INNER_PAD`).
