@@ -79,6 +79,9 @@ const SNAP_MS: float = 190.0
 const INNER_HOLD_MS: float = 1100.0
 const FADE_MS: float = 480.0
 const HINT_FLASH_MS: float = 650.0
+# Reported when the player never made a single correct call. Response time is "lower is better",
+# so an empty average must read as BAD, not as a perfect 0.
+const NO_ANSWER_MS: int = 99999
 const MARK_RISE: float = 54.0      # how far the ✓/✗ floats up
 const MARK_MS: float = 900.0
 const SEEK_TIMEOUT_MS: float = 3500.0    # give up on a blocked approach quickly and visibly
@@ -1152,6 +1155,13 @@ func _begin_drag(al, p: Vector2) -> void:
 			_release_park(al)
 		al.drag_from_state = AState.ROAM
 		al.area_idx = -1
+	# Response time is measured from the alien PARKING in the outer ring to the player GRABBING
+	# it — the decision time. It deliberately excludes how long the drag itself takes, which is
+	# hand speed, not thinking. Banked here and only counted if the drop turns out correct.
+	if al.drag_from_state == AState.PARKED_OUTER:
+		al.grab_delay_ms = maxf(0.0, game.game_time - al.park_ms)
+	else:
+		al.grab_delay_ms = -1.0
 	al.drag_origin = al.sim_pos
 	al.state = AState.DRAGGED
 	al.vel = Vector2.ZERO
@@ -1251,7 +1261,9 @@ func _flash_mark(at: Vector2, txt: String, col: Color) -> void:
 func _score_correct(al, now: float) -> void:
 	total_rounds += 1
 	total_corrects += 1
-	var elapsed: float = maxf(0.0, now - al.park_ms)
+	# use the banked park->grab time; fall back to park->now for any non-drag scoring path
+	var elapsed: float = al.grab_delay_ms if al.grab_delay_ms >= 0.0 else maxf(0.0, now - al.park_ms)
+	al.grab_delay_ms = -1.0
 	times_to_answer.append(elapsed)
 	while times_to_answer.size() > 20:
 		times_to_answer.remove_at(0)
@@ -1579,7 +1591,7 @@ func new_game(from_scratch: bool = true) -> void:
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
 		("Aliens wander into the outer ring.\n" +
 		"Drag one that MATCHES the rule into\n" +
-		"the middle, and one that does NOT\n" +
+		"the inner ring, and one that does NOT\n" +
 		"back out to the field.\n\n" +
 		"Areas: %d\nRule hides after: %s\nTime: %ds") % [num_areas, hide_txt, level_time_sec])
 	intro.closed.connect(_on_game_popup_closed)
@@ -1645,7 +1657,7 @@ func _on_level_done_popup_closed() -> void:
 
 func mean_response_time_ms() -> int:
 	if times_to_answer.is_empty():
-		return 0
+		return NO_ANSWER_MS      # no correct call at all — report it as bad, not as instant
 	var s: float = 0.0
 	for t in times_to_answer:
 		s += t
