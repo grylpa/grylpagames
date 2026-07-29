@@ -122,6 +122,27 @@ func body_extents() -> Vector2:
 		return Vector2(radius * 1.00, radius * 0.58)
 	return Vector2(radius * 0.58, radius * 1.00)
 
+# A curved, tapering stalk with a bulb on the end. `lean` is how far the tip splays sideways,
+# in units of the antenna's length (negative = left).
+const ANT_LEN: float = 0.62        # length in alien radii — long enough to clear the body
+const ANT_SEGMENTS: int = 12
+
+func _draw_antenna(base: Vector2, lean: float, col: Color) -> void:
+	var tip: Vector2 = base + Vector2(lean * radius * ANT_LEN * 0.62, -radius * ANT_LEN)
+	# control point near the base keeps the stalk upright at the root and curls it near the tip
+	var ctrl: Vector2 = base + Vector2(lean * radius * ANT_LEN * 0.04, -radius * ANT_LEN * 0.68)
+	var stalk: Color = col.darkened(0.42)
+	var prev: Vector2 = base
+	for i in range(1, ANT_SEGMENTS + 1):
+		var t: float = float(i) / float(ANT_SEGMENTS)
+		var omt: float = 1.0 - t
+		var pt: Vector2 = base * (omt * omt) + ctrl * (2.0 * omt * t) + tip * (t * t)
+		draw_line(prev, pt, stalk, lerpf(radius * 0.09, radius * 0.035, t), true)
+		prev = pt
+	draw_circle(tip, radius * 0.15, col.lightened(0.32))
+	draw_arc(tip, radius * 0.15, 0.0, TAU, 16, stalk, radius * 0.028, true)
+	draw_circle(tip + Vector2(-radius * 0.045, -radius * 0.045), radius * 0.055, Color(1, 1, 1, 0.75))
+
 func _ellipse(rx: float, ry: float, center_y: float) -> PackedVector2Array:
 	var pts: PackedVector2Array = PackedVector2Array()
 	for i in BODY_STEPS:
@@ -159,15 +180,16 @@ func _draw() -> void:
 	# a pure TRANSLATION is safe here; scaling the transform would squash the eyes into ovals
 	draw_set_transform(Vector2(0.0, -_bob), 0.0, Vector2.ONE)
 
-	# 2) antennae, before the body so the stalk roots tuck under it
-	if antennae > 0:
-		var xs: Array = [0.0] if antennae == 1 else [-rx * 0.42, rx * 0.42]
-		for bx in xs:
-			var base: Vector2 = Vector2(bx, -ry * 0.72)
-			var sgn: float = 1.0 if bx >= 0.0 else -1.0
-			var tip: Vector2 = base + Vector2(sgn * radius * 0.15, -radius * 0.30)
-			draw_line(base, tip, col.darkened(0.35), radius * 0.075, true)
-			draw_circle(tip, radius * 0.11, col.lightened(0.35))
+	# 2) antennae, drawn BEFORE the body so their roots tuck under its outline.
+	# They deliberately reach well outside the body ellipse — that is what makes them read as
+	# antennae rather than nubs — and are ignored by collision, which uses `radius` only.
+	if antennae == 1:
+		_draw_antenna(Vector2(0.0, -ry), 0.30, col)
+	elif antennae == 2:
+		var k: float = 0.45                       # where on the top of the head they sprout
+		var by: float = -ry * sqrt(1.0 - k * k)   # sit them ON the ellipse surface
+		_draw_antenna(Vector2(-rx * k, by), -1.0, col)
+		_draw_antenna(Vector2(rx * k, by), 1.0, col)
 
 	# 3) body + outline
 	var body_pts: PackedVector2Array = _ellipse(rx, ry, 0.0)

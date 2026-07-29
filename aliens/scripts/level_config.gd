@@ -62,11 +62,10 @@ extends Node
 #                      (0.112 / 0.098 / 0.086), x0.70 off mobile. Shrunk further automatically
 #                      if the rings would not otherwise fit the screen.
 #   num_free_aliens    how many aliens live on the field at once
-#   (The OUTER ring has no slot count: it simply holds as many aliens as physically fit around
-#    it without overlapping. Its capacity therefore follows from alien_size and inner_slots.
-#    While a ring is full, every alien that walks up to it is turned away = 1 MISS, so
-#    enter_chance is the pressure knob.)
-#   inner_slots        places in each INNER ring. Also sets the inner circle's size. 2 is plenty.
+#   (Neither ring has a slot count: each simply holds as many aliens as physically fit without
+#    overlapping, so both capacities follow from alien_size alone.
+#    While an outer ring is full, every alien that walks up to it is turned away = 1 MISS,
+#    so enter_chance is the pressure knob.)
 #   hide_after_sec     seconds after the level starts before the rule labels turn into "?".
 #                      0 = never hide (teaching levels).
 #   enter_chance       0..1. EVERY alien wants in: each time it picks a new wander target
@@ -85,45 +84,45 @@ extends Node
 const LEVELS: Array = [
 	# 1 — teach the loop: one area, color rules only, the rule never hides, roomy ring.
 	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["blue", "red", "green"],
-	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 7, "inner_slots": 2, "hide_after_sec": 0, "enter_chance": 0.16,
+	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 9, "hide_after_sec": 0, "enter_chance": 0.16,
 	 "park_patience_sec": 5.0},
 
 	# 2 — same shape, but now the rule disappears partway through.
 	{"id": 2, "name": "2", "level_time_sec": 80, "rules": ["eyes1", "eyes2", "eyes3"],
-	 "num_areas": 2, "alien_speed": 0.155, "alien_size": "big", "num_free_aliens": 8, "inner_slots": 2, "hide_after_sec": 35, "enter_chance": 0.20,
+	 "num_areas": 2, "alien_speed": 0.155, "alien_size": "big", "num_free_aliens": 10, "hide_after_sec": 35, "enter_chance": 0.20,
 	 "park_patience_sec": 30.0},
 
 	# 3 — silhouette rules; body shape varies independently of everything else.
 	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["fat", "eyes3", "green", "ant1"],
-	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "inner_slots": 2, "hide_after_sec": 28, "enter_chance": 0.24,
+	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "hide_after_sec": 28, "enter_chance": 0.24,
 	 "park_patience_sec": 28.0},
 
 	# 4 — TWO areas: two rules to hold at once.
 	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["blue", "red", "eyes2", "eyes3"],
-	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "inner_slots": 2, "hide_after_sec": 25, "enter_chance": 0.30,
+	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "hide_after_sec": 25, "enter_chance": 0.30,
 	 "park_patience_sec": 26.0},
 
 	# 5 — antennae join in; slots tighten to 3, so a ring fills sooner.
 	{"id": 5, "name": "5", "level_time_sec": 110,
 	 "rules": ["ant0", "ant2", "eyes1", "yellow", "thin"],
-	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "inner_slots": 2, "hide_after_sec": 20, "enter_chance": 0.36,
+	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 20, "enter_chance": 0.36,
 	 "colors": [0, 1, 3], "park_patience_sec": 24.0},
 
 	# 6 — spots added (the weakest trait), rules hide early.
 	{"id": 6, "name": "6", "level_time_sec": 120,
 	 "rules": ["spots", "eyes3", "thin", "ant1", "purple"],
-	 "num_areas": 2, "alien_speed": 0.205, "alien_size": "med", "num_free_aliens": 12, "inner_slots": 2, "hide_after_sec": 14, "enter_chance": 0.42,
+	 "num_areas": 2, "alien_speed": 0.205, "alien_size": "med", "num_free_aliens": 12, "hide_after_sec": 14, "enter_chance": 0.42,
 	 "colors": [0, 2, 4], "park_patience_sec": 22.0},
 
 	# 7 — wide pool, smaller aliens, brisk arrivals, no patience valve.
 	{"id": 7, "name": "7", "level_time_sec": 140,
 	 "rules": ["eyes1", "eyes3", "thin", "fat", "ant0", "ant2", "spots", "blue", "yellow"],
-	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "inner_slots": 2, "hide_after_sec": 9, "enter_chance": 0.50,
+	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 9, "enter_chance": 0.50,
 	 "colors": [0, 1, 3, 4], "park_patience_sec": 0.0},
 
 	# 8 — every usable rule, fast: the ring only empties if the player empties it.
 	{"id": 8, "name": "8", "level_time_sec": 170, "rules": [],
-	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "inner_slots": 2, "hide_after_sec": 6, "enter_chance": 0.60,
+	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "hide_after_sec": 6, "enter_chance": 0.60,
 	 "colors": [0, 1, 2, 3], "park_patience_sec": 0.0},
 ]
 

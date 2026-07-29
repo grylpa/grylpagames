@@ -17,7 +17,6 @@ var num_areas: int = 1
 var alien_speed_frac: float = 0.055
 var alien_size_key: String = "med"
 var num_free_aliens: int = 8
-var cfg_inner_slots: int = 2
 var hide_after_ms: float = 0.0
 var enter_chance: float = 0.30      # per-alien probability, rolled on each retarget
 var park_patience_ms: float = 0.0
@@ -62,12 +61,13 @@ const ARRIVAL_SKEW: int = 6
 
 # --- geometry --------------------------------------------------------------------------------
 const SLOT_GAP: float = 1.10       # required center spacing between slots = 2 * a * SLOT_GAP
-const INNER_MARGIN: float = 1.16
+const INNER_MUL: float = 2.40      # inner disc radius, in alien radii
 const BAND_MUL: float = 2.60       # annulus width in units of a (2.0 would be an exact fit);
                                    # the extra room keeps the parking lane clear of the inner disc
 const AREA_PAD: float = 6.0
 const KEEP_OUT_PAD: float = 3.0
-const PARK_GAP: float = 2.0        # clearance between two aliens parked in an outer ring
+const PARK_GAP: float = 6.0        # clearance between two aliens parked in an outer ring;
+                                   # also absorbs the small glide offset on arrival
 const INNER_PAD: float = 1.0       # how far parked/walking aliens stay off the inner disc
 const SEP_ITERS: int = 3       # relaxation passes per resolve cycle
 const RESOLVE_CYCLES: int = 4  # separate + keep-out, interleaved (see _resolve_positions)
@@ -231,12 +231,11 @@ func _layout() -> void:
 	if not mob:
 		a_want *= 0.70          # same convention as change: wider/shorter screens get smaller
 
-	var k_in: int = maxi(1, cfg_inner_slots)
 	var a: float = a_want
 	var rr: Vector2 = Vector2.ZERO
 	var centers: Array = []
 	for _try in 12:
-		rr = _ring_radii(a, k_in)
+		rr = _ring_radii(a)
 		centers = _area_centers(n, rr.y, label_res)
 		var fit_r: float = minf(_field.size.x * 0.5 - AREA_PAD,
 			(_field.size.y - label_res * 2.0) * 0.5 - AREA_PAD)
@@ -253,16 +252,16 @@ func _layout() -> void:
 			break
 		a *= 0.94
 	_alien_radius = a
-	rr = _ring_radii(a, k_in)
+	rr = _ring_radii(a)
 	centers = _area_centers(n, rr.y, label_res)
 
 	_roam_speed = alien_speed_frac * sw
 	_seek_speed = _roam_speed * 1.7
 
 	var s_out: float = (rr.x + rr.y) * 0.5
-	var s_in: float = 0.0
-	if k_in > 1:
-		s_in = a * SLOT_GAP / sin(PI / float(k_in))
+	var inner: Vector2 = _inner_lane(rr.x, a)
+	var s_in: float = inner.x
+	var k_in: int = int(inner.y)
 
 	var old_rules: Array = []
 	for ar in _areas:
@@ -310,13 +309,20 @@ func _layout() -> void:
 
 	_field_node.areas = _areas
 	_field_node.field_rect = _field
+	_field_node.set_sky_size(Vector2(sw, sh))
 	_field_node.alien_radius = _alien_radius
 	_field_node.queue_redraw()
 
 	for al in _aliens:
-		if is_instance_valid(al):
-			al.radius = _alien_radius
-			al.queue_redraw()
+		if not is_instance_valid(al):
+			continue
+		al.radius = _alien_radius
+		al.queue_redraw()
+		# the rings may have moved/resized — put anyone already parked back on their (new) spot
+		if al.state == AState.PARKED_OUTER and not is_nan(al.park_angle) \
+			and al.area_idx >= 0 and al.area_idx < _areas.size():
+			al.sim_pos = _outer_park_pos(_areas[al.area_idx], al.park_angle)
+			al.position = al.sim_pos
 
 # Areas sit in the screen CORNERS: one area centres in the field, two take OPPOSING corners, and
 # three or four fill the remaining ones. Corners keep the middle of the field open as one
@@ -354,15 +360,22 @@ func _area_is_bottom(i: int, n: int) -> bool:
 		return false
 	return i < CORNER_SIGNS.size() and Vector2(CORNER_SIGNS[i]).y > 0.0
 
-# r_in / r_out derived from the alien radius and the inner slot count, so the geometry is right
-# by construction rather than by tuning.
-func _ring_radii(a: float, k_in: int) -> Vector2:
-	var r_in: float
-	if k_in <= 1:
-		r_in = a * 1.55
-	else:
-		r_in = a * SLOT_GAP / sin(PI / float(k_in)) + a * INNER_MARGIN
+# r_in / r_out derived purely from the alien radius, so the geometry is right by construction.
+# The inner disc holds as many aliens as physically fit, exactly like the outer ring — neither
+# has a configured slot count.
+func _ring_radii(a: float) -> Vector2:
+	var r_in: float = a * INNER_MUL
 	return Vector2(r_in, r_in + a * BAND_MUL)
+
+# How many aliens fit inside the inner disc, and the lane radius they stand on.
+func _inner_lane(r_in: float, a: float) -> Vector2:
+	var lane: float = r_in - a - INNER_PAD
+	if lane < a * 0.55:
+		return Vector2(0.0, 1.0)                 # only room for one, at the centre
+	var q: float = clampf(a * SLOT_GAP / lane, 0.0, 1.0)
+	if q >= 1.0:
+		return Vector2(0.0, 1.0)
+	return Vector2(lane, float(maxi(1, int(floor(PI / asin(q))))))
 
 # The OUTER ring has no fixed slots: aliens pack anywhere around the parking lane that has room.
 # Capacity is therefore whatever geometry allows, not a configured number.
@@ -388,7 +401,8 @@ func _taken_angles(ai: int, ignore_al) -> Array:
 	for al in _aliens:
 		if al == ignore_al or al.area_idx != ai:
 			continue
-		if al.state != AState.SEEKING_SLOT and al.state != AState.PARKED_OUTER:
+		if al.state != AState.SEEKING_SLOT and al.state != AState.PARKED_OUTER \
+			and al.state != AState.SNAPPING:
 			continue
 		if is_nan(al.park_angle):
 			continue
@@ -769,13 +783,8 @@ func _try_enter(al, now: float) -> bool:
 	_entry_cooldown_ms = now + MIN_ENTRY_GAP_MS
 	al.state = AState.SEEKING_SLOT
 	al.area_idx = ai
-	# reserve a spot nearest the alien's current bearing; failure = hopeful (the ring is full)
-	var bearing: Vector2 = al.sim_pos - Vector2(ar["center"])
-	if bearing.length_squared() < 0.25:
-		bearing = Vector2(0.0, 1.0)
-	_reserve_park(ai, al, bearing.angle())
+	al.park_angle = NAN        # claimed on arrival at the ring edge, not from across the field
 	al.seek_start_ms = now
-	_set_seek_path(al, ar)
 	return true
 
 # With several areas an alien heads for one it actually belongs to about half the time — that
@@ -820,6 +829,12 @@ func _record_arrival(matched: bool) -> void:
 		_recent_arrivals.remove_at(0)
 
 func _update_leaving(al, d: float) -> void:
+	# release the "may stand inside my own ring" exemption only once genuinely clear of it, so the
+	# walk out is continuous instead of a jump
+	if al.area_idx >= 0 and al.area_idx < _areas.size():
+		var ar_home: Dictionary = _areas[al.area_idx]
+		if al.sim_pos.distance_to(Vector2(ar_home["center"])) > float(ar_home["r_out"]) + al.radius:
+			al.area_idx = -1
 	if al.waypoints.is_empty():
 		al.state = AState.ROAM
 		al.retarget_ms = 0.0
@@ -831,94 +846,51 @@ func _update_leaving(al, d: float) -> void:
 			al.state = AState.ROAM
 			al.retarget_ms = 0.0
 
-# A seeker walks to a GATE radially outside its own slot, then straight in along that radius —
-# never diagonally across the annulus, so it cannot brush a parked neighbor.
-#
-# The gate must be REACHABLE. The circles hug the top of the field, so the raw radial point for a
-# slot on the upper arc lands ABOVE the field; the alien then gets clamped to the field edge,
-# never arrives, and stalls in SEEKING_SLOT forever. Clamp it into the field and out of the other
-# areas, and let the caller drop it entirely if clamping dragged it inside the ring.
-func _gate_point(ar: Dictionary, slot_pos: Vector2, r: float, own_idx: int) -> Vector2:
-	var c: Vector2 = Vector2(ar["center"])
-	var dir: Vector2 = slot_pos - c
-	if dir.length_squared() < 0.25:
-		dir = Vector2(0.0, 1.0)
-	var g: Vector2 = c + dir.normalized() * (float(ar["r_out"]) + r + KEEP_OUT_PAD + 2.0)
-	var lo: Vector2 = _field.position + Vector2(r, r)
-	var hi: Vector2 = _field.position + _field.size - Vector2(r, r)
-	g = _push_out_of_areas(g.clamp(lo, hi), r, own_idx)
-	return g.clamp(lo, hi)
-
-func _set_seek_path(al, ar: Dictionary) -> void:
-	var slot_pos: Vector2
-	if not is_nan(al.park_angle):
-		slot_pos = _outer_park_pos(ar, al.park_angle)
-	else:
-		# hopeful: aim at the band on its current bearing, re-pathed if a slot frees up en route
-		var c: Vector2 = Vector2(ar["center"])
-		var dir: Vector2 = al.sim_pos - c
-		if dir.length_squared() < 0.25:
-			dir = Vector2(0.0, 1.0)
-		slot_pos = c + dir.normalized() * float(ar["s_out"])
-	al.waypoints = []
-	var gate: Vector2 = _gate_point(ar, slot_pos, al.radius, al.area_idx)
-	# only keep a gate that really is outside the ring; otherwise walk straight to the slot
-	if gate.distance_to(Vector2(ar["center"])) > float(ar["r_out"]) * 0.92:
-		al.waypoints.append(gate)
-	al.waypoints.append(slot_pos)
-
 func _update_seek(al, d: float, now: float) -> void:
-	if al.area_idx < 0 or al.area_idx >= _areas.size() or al.waypoints.is_empty():
+	if al.area_idx < 0 or al.area_idx >= _areas.size():
 		_abandon_seek(al)
 		return
-	# Watchdog. Any geometry that leaves a seeker unable to reach its waypoint would otherwise
-	# wedge it outside the ring forever (this actually happened with gates above the field).
+	# Watchdog: a seeker can never stall forever, whatever the geometry or the crowd do.
 	if now - al.seek_start_ms > SEEK_TIMEOUT_MS:
 		_abandon_seek(al)
 		return
 	var ar: Dictionary = _areas[al.area_idx]
-	if is_nan(al.park_angle):
-		# room may have opened up en route
-		var bear: Vector2 = al.sim_pos - Vector2(ar["center"])
-		if bear.length_squared() < 0.25:
-			bear = Vector2(0.0, 1.0)
-		if _reserve_park(al.area_idx, al, bear.angle()):
-			_set_seek_path(al, ar)
 	var c: Vector2 = Vector2(ar["center"])
-	# A hopeful seeker (ring was full) is turned away as soon as it REACHES THE RING EDGE — not on
-	# pinpoint arrival at a gate, which the jostling crowd can stop it from ever hitting exactly.
-	if is_nan(al.park_angle) and al.sim_pos.distance_to(c) <= float(ar["r_out"]) + al.radius * 1.9:
-		_turned_away(al)
-		return
-	if al.waypoints.size() == 1 and not is_nan(al.park_angle):
-		var rad: Vector2 = al.sim_pos - c
-		if rad.length() < float(ar["r_out"]) \
-			and absf(wrapf(rad.angle() - al.park_angle, -PI, PI)) > _ring_min_da(ar) * 1.1:
-			_set_seek_path(al, ar)          # knocked off the line — go back out and re-approach
-	var tgt: Vector2 = al.waypoints[0]
-	_steer(al, tgt, _seek_speed, d)
-	var arrived: bool = al.sim_pos.distance_to(tgt) <= al.radius * 0.6
-	if not arrived and al.waypoints.size() > 1:
-		# gate leg: near the ring AND lined up with the reserved spot, so the last leg is radial
-		var to_al: Vector2 = al.sim_pos - c
-		var aligned: bool = true
-		if not is_nan(al.park_angle) and to_al.length_squared() > 1.0:
-			aligned = absf(wrapf(to_al.angle() - al.park_angle, -PI, PI)) < _ring_min_da(ar) * 0.7
-		arrived = aligned and to_al.length() <= float(ar["r_out"]) + al.radius * 3.0
-	if not arrived:
-		return
-	al.waypoints.remove_at(0)
+	var to_al: Vector2 = al.sim_pos - c
+	if to_al.length_squared() < 0.25:
+		to_al = Vector2(0.0, 1.0)
+
+	# Phase 1 — no spot yet: walk straight at the ring along the bearing it already has, and claim
+	# a place only on ARRIVAL at the edge, taking the free angle nearest to where it actually got
+	# there. Claiming at commit time (possibly from across the field) is what made aliens trek to a
+	# specific angle and look like they were filling assigned slots.
 	if is_nan(al.park_angle):
-		_turned_away(al)
+		if to_al.length() > float(ar["r_out"]) + al.radius * 1.6:
+			_steer(al, c + to_al.normalized() * float(ar["s_out"]), _seek_speed, d)
+			return
+		if not _reserve_park(al.area_idx, al, to_al.angle()):
+			_turned_away(al)                   # reached the edge and the ring is full
+			return
+
+	# Phase 2 — line up OUTSIDE the ring, then come straight in. Any sideways travel happens on
+	# the outside; once inside, the only movement is the radial step onto the lane, where it
+	# stops. Sliding around the lane inside the ring is what read as aliens shuffling about.
+	var spot: Vector2 = _outer_park_pos(ar, al.park_angle)
+	var dir_spot: Vector2 = Vector2(cos(al.park_angle), sin(al.park_angle))
+	var off_angle: float = absf(wrapf(to_al.angle() - al.park_angle, -PI, PI))
+	if off_angle > _ring_min_da(ar) * 0.5:
+		# not lined up yet: hold station just outside the ring and slide round to the right bearing
+		_steer(al, c + dir_spot * (float(ar["r_out"]) + al.radius + 4.0), _seek_speed, d)
 		return
-	if al.waypoints.is_empty():
-		al.state = AState.PARKED_OUTER
-		al.sim_pos = _outer_park_pos(ar, al.park_angle)
-		al.set_hint(0)
-		al.vel = Vector2.ZERO
-		al.park_ms = now                       # the response-time clock starts here
-		al.set_look((Vector2(ar["center"]) - al.sim_pos).normalized())
-		_field_node.queue_redraw()
+	_steer(al, spot, _seek_speed, d)
+	if al.sim_pos.distance_to(spot) > al.radius * 0.2:
+		return
+	al.set_hint(0)
+	al.vel = Vector2.ZERO
+	_start_snap(al, spot, AState.PARKED_OUTER, now)
+	al.park_ms = now                           # the response-time clock starts here
+	al.set_look((c - al.sim_pos).normalized())
+	_field_node.queue_redraw()
 
 # Give up on entering, free any reservation, and go back to roaming. No penalty — this is a
 # safety valve, not a judgment.
@@ -948,9 +920,9 @@ func _turned_away(al) -> void:
 	var home2: int = al.area_idx
 	_release_park(al)
 	al.state = AState.LEAVING
-	al.area_idx = -1
+	al.area_idx = home2            # kept until it is clear of the ring — see _update_leaving
 	_send_away_from(al, home2, _last_now)
-	al.waypoints = [al.wander_target]
+	al.waypoints = _exit_waypoints(al, home2)
 	game.play_sound("wrong")
 	var penalty: int = mini(2, maxi(0, game.score))
 	game.add_score_and_time(-penalty, 0)
@@ -960,6 +932,20 @@ func _turned_away(al) -> void:
 	MainGlobals.sig_global_update_hud.emit()
 
 # Walk this alien away from `area_idx` and stop it trying to enter again for a while.
+# The first leg out of a ring is RADIAL: step straight out, then wander off. Heading directly for
+# a distant field point made a departing alien cut diagonally across the annulus, which reads as
+# it milling around inside the ring.
+func _exit_waypoints(al, area_idx: int) -> Array:
+	if area_idx < 0 or area_idx >= _areas.size():
+		return [al.wander_target]
+	var ar: Dictionary = _areas[area_idx]
+	var c: Vector2 = Vector2(ar["center"])
+	var dir_out: Vector2 = al.sim_pos - c
+	if dir_out.length_squared() < 0.25:
+		dir_out = Vector2(0.0, 1.0)
+	var edge: Vector2 = c + dir_out.normalized() * (float(ar["r_out"]) + al.radius + 6.0)
+	return [edge, al.wander_target]
+
 func _send_away_from(al, area_idx: int, now: float) -> void:
 	al.entry_block_ms = now + RE_ENTRY_COOLDOWN_MS
 	al.wander_target = _random_free_point(al.radius, true, al)
@@ -978,9 +964,11 @@ func _give_up(al) -> void:
 	var home3: int = al.area_idx
 	_release_park(al)
 	al.state = AState.LEAVING
-	al.area_idx = -1
+	# area_idx is KEPT until it is actually clear of the ring (see _update_leaving): clearing it
+	# here makes the keep-out treat the alien as a trespasser and teleport it outside instantly.
+	al.area_idx = home3
 	_send_away_from(al, home3, _last_now)
-	al.waypoints = [al.wander_target]
+	al.waypoints = _exit_waypoints(al, home3)
 
 # --- Separation, keep-out, commit ---------------------------------------------------------------
 
@@ -1386,7 +1374,7 @@ func _update_snaps(now: float) -> void:
 				al.z_index = _next_z()
 
 # A promoted alien celebrates briefly, then fades and is recycled with fresh traits elsewhere.
-# That keeps inner_slots small, the population constant, and the trait mix fresh.
+# That keeps the inner ring turning over, the population constant, and the trait mix fresh.
 func _update_fades(now: float) -> void:
 	for al in _aliens:
 		if al.state == AState.PARKED_INNER:
@@ -1589,6 +1577,7 @@ func new_game(from_scratch: bool = true) -> void:
 	_layout()
 	call_deferred("_layout")     # re-apply once the menu->level transition settles
 	_pick_rules()
+	_field_node.rebuild_sky()      # a new sky for each level
 	for _i in num_free_aliens:
 		_spawn_alien()
 	_stock_initial_supply()
@@ -1621,7 +1610,6 @@ func _load_level(id: int) -> void:
 	alien_speed_frac = float(def.get("alien_speed", 0.055))
 	alien_size_key = str(def.get("alien_size", "med"))
 	num_free_aliens = maxi(3, int(def.get("num_free_aliens", 8)))
-	cfg_inner_slots = maxi(1, int(def.get("inner_slots", 2)))
 	hide_after_ms = float(def.get("hide_after_sec", 0.0)) * 1000.0
 	enter_chance = clampf(float(def.get("enter_chance", 0.30)), 0.0, 1.0)
 	park_patience_ms = maxf(0.0, float(def.get("park_patience_sec", 0.0)) * 1000.0)

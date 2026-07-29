@@ -32,13 +32,26 @@ def alien(cx, cy, r, cid, eyes, wide, ants, spots):
     # body_extents() from alien.gd — ONE shape dimension, read as an aspect ratio
     rx, ry = (r*1.00, r*0.58) if wide else (r*0.58, r*1.00)
     ell(cx, cy + ry*0.98, rx*0.82, r*0.11, fill=(0,0,0,56))              # ground shadow
-    if ants:                                                              # antennae
-        xs = [0.0] if ants == 1 else [-rx*0.42, rx*0.42]
-        for bx in xs:
-            sgn = 1 if bx >= 0 else -1
-            bp, tp = (cx+bx, cy-ry*0.72), (cx+bx+sgn*r*0.15, cy-ry*0.72-r*0.30)
-            d.line([bp, tp], fill=dark, width=max(2, int(r*0.15)))
-            ell(tp[0], tp[1], r*0.11, r*0.11, fill=lite)
+    def antenna(bx, by, lean):                                            # curved tapered stalk
+        L = r*0.62
+        tip = (bx + lean*L*0.62, by - L)
+        ctrl = (bx + lean*L*0.04, by - L*0.68)
+        prev = (bx, by)
+        for i in range(1, 13):
+            t2 = i/12.0; om = 1-t2
+            px = bx*om*om + ctrl[0]*2*om*t2 + tip[0]*t2*t2
+            py = by*om*om + ctrl[1]*2*om*t2 + tip[1]*t2*t2
+            w = r*0.09*(1-t2) + r*0.035*t2
+            d.line([prev, (px, py)], fill=dark, width=max(2, int(w*2)))
+            prev = (px, py)
+        ell(tip[0], tip[1], r*0.15, r*0.15, fill=lite, outline=dark, width=max(1, int(r*0.06)))
+        ell(tip[0]-r*0.045, tip[1]-r*0.045, r*0.055, r*0.055, fill=(255,255,255,190))
+    if ants == 1:
+        antenna(cx, cy-ry, 0.30)
+    elif ants == 2:
+        k = 0.45; by = cy - ry*math.sqrt(1-k*k)
+        antenna(cx - rx*k, by, -1.0)
+        antenna(cx + rx*k, by, 1.0)
     ell(cx, cy, rx, ry, fill=col, outline=dark, width=max(2, int(r*0.11)))
     ell(cx, cy + ry*0.28, rx*0.56, ry*0.44, fill=tuple(min(255,int(c*1.16)) for c in col))
     if spots:
