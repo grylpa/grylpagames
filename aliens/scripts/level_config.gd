@@ -10,10 +10,11 @@ extends Node
 #   EYES        "eyes1"    (1 EYE)          one big central eye
 #               "eyes2"    (2 EYES)         a horizontal pair
 #               "eyes3"    (3 EYES)         a triangle of three
-#   HEIGHT      "tall"     (TALL)           taller than it is wide  (always, at any girth)
-#               "short"    (SHORT)          wider than it is tall   (always, at any girth)
-#   GIRTH       "fat"      (WIDE)           a wide body
-#               "thin"     (NARROW)         a narrow body
+#   SHAPE       "fat"      (WIDE)           clearly wider than tall
+#               "thin"     (NARROW)         clearly taller than wide
+#               (There is no tall/short rule on purpose: height and girth describe the same
+#                ellipse, so having both always left one combination an unjudgeable near-square.
+#                "thin" already carries the taller-than-wide meaning.)
 #   ANTENNAE    "ant0"     (NO ANTENNAE)
 #               "ant1"     (1 ANTENNA)
 #               "ant2"     (2 ANTENNAE)
@@ -34,8 +35,8 @@ extends Node
 #   in "antennae_counts"; "spots"/"nospots" need 0 < spots_chance < 1. Unusable rules are
 #   silently dropped, so a pool can safely over-list. The pool needs at least `num_areas` usable
 #   entries or the level falls back to a safe default trio.
-# Two areas never get the same rule, and never get an exact COMPLEMENT pair (tall/short,
-# fat/thin, spots/nospots) — that would collapse two judgments into one binary.
+# Two areas never get the same rule, and never get an exact COMPLEMENT pair (fat/thin,
+# spots/nospots) — that would collapse two judgments into one binary.
 # Two DIFFERENT values of the same dimension (BLUE vs RED, 2 EYES vs 3 EYES) are fine and
 # actually good: they force a value comparison rather than a mere dimension check.
 # Aim for 2..4 colors. With all 5, a color rule matches only 20% of aliens and "push it out"
@@ -84,27 +85,27 @@ extends Node
 const LEVELS: Array = [
 	# 1 — teach the loop: one area, color rules only, the rule never hides, roomy ring.
 	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["blue", "red", "green"],
-	 "num_areas": 1, "alien_speed": 0.130, "alien_size": "big", "num_free_aliens": 7, "inner_slots": 2, "hide_after_sec": 0, "enter_chance": 0.16,
-	 "park_patience_sec": 30.0},
+	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 7, "inner_slots": 2, "hide_after_sec": 0, "enter_chance": 0.16,
+	 "park_patience_sec": 5.0},
 
 	# 2 — same shape, but now the rule disappears partway through.
 	{"id": 2, "name": "2", "level_time_sec": 80, "rules": ["eyes1", "eyes2", "eyes3"],
-	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 8, "inner_slots": 2, "hide_after_sec": 35, "enter_chance": 0.20,
+	 "num_areas": 2, "alien_speed": 0.155, "alien_size": "big", "num_free_aliens": 8, "inner_slots": 2, "hide_after_sec": 35, "enter_chance": 0.20,
 	 "park_patience_sec": 30.0},
 
 	# 3 — silhouette rules; body shape varies independently of everything else.
-	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["tall", "fat", "eyes3", "green"],
-	 "num_areas": 1, "alien_speed": 0.160, "alien_size": "med", "num_free_aliens": 9, "inner_slots": 2, "hide_after_sec": 28, "enter_chance": 0.24,
+	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["fat", "eyes3", "green", "ant1"],
+	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "inner_slots": 2, "hide_after_sec": 28, "enter_chance": 0.24,
 	 "park_patience_sec": 28.0},
 
 	# 4 — TWO areas: two rules to hold at once.
 	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["blue", "red", "eyes2", "eyes3"],
-	 "num_areas": 2, "alien_speed": 0.160, "alien_size": "med", "num_free_aliens": 10, "inner_slots": 2, "hide_after_sec": 25, "enter_chance": 0.30,
+	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "inner_slots": 2, "hide_after_sec": 25, "enter_chance": 0.30,
 	 "park_patience_sec": 26.0},
 
 	# 5 — antennae join in; slots tighten to 3, so a ring fills sooner.
 	{"id": 5, "name": "5", "level_time_sec": 110,
-	 "rules": ["ant0", "ant2", "tall", "eyes1", "yellow"],
+	 "rules": ["ant0", "ant2", "eyes1", "yellow", "thin"],
 	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "inner_slots": 2, "hide_after_sec": 20, "enter_chance": 0.36,
 	 "colors": [0, 1, 3], "park_patience_sec": 24.0},
 
@@ -116,13 +117,13 @@ const LEVELS: Array = [
 
 	# 7 — wide pool, smaller aliens, brisk arrivals, no patience valve.
 	{"id": 7, "name": "7", "level_time_sec": 140,
-	 "rules": ["eyes1", "eyes3", "tall", "thin", "ant0", "ant2", "spots", "blue", "yellow"],
-	 "num_areas": 2, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "inner_slots": 2, "hide_after_sec": 9, "enter_chance": 0.50,
+	 "rules": ["eyes1", "eyes3", "thin", "fat", "ant0", "ant2", "spots", "blue", "yellow"],
+	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "inner_slots": 2, "hide_after_sec": 9, "enter_chance": 0.50,
 	 "colors": [0, 1, 3, 4], "park_patience_sec": 0.0},
 
 	# 8 — every usable rule, fast: the ring only empties if the player empties it.
 	{"id": 8, "name": "8", "level_time_sec": 170, "rules": [],
-	 "num_areas": 2, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "inner_slots": 2, "hide_after_sec": 6, "enter_chance": 0.60,
+	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "inner_slots": 2, "hide_after_sec": 6, "enter_chance": 0.60,
 	 "colors": [0, 1, 2, 3], "park_patience_sec": 0.0},
 ]
 

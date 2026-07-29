@@ -25,15 +25,12 @@ ell(CX, CY, R_IN, R_IN, outline=(217, 255, 224, 200), width=3*SS)        # INNER
 
 COLORS = [(71,143,242), (237,87,77), (92,199,107), (247,204,64), (179,117,230)]
 
-def alien(cx, cy, r, cid, eyes, tall, wide, ants, spots):
+def alien(cx, cy, r, cid, eyes, wide, ants, spots):
     col = COLORS[cid]
     dark = tuple(int(c*0.66) for c in col)
     lite = tuple(min(255, int(c*1.35)) for c in col)
-    # body_extents() from alien.gd — TALL is always taller than wide
-    if tall:
-        rx, ry = r*(0.86 if wide else 0.56), r*(0.98 if wide else 1.00)
-    else:
-        rx, ry = r*(0.98 if wide else 0.66), r*(0.52 if wide else 0.54)
+    # body_extents() from alien.gd — ONE shape dimension, read as an aspect ratio
+    rx, ry = (r*1.00, r*0.58) if wide else (r*0.58, r*1.00)
     ell(cx, cy + ry*0.98, rx*0.82, r*0.11, fill=(0,0,0,56))              # ground shadow
     if ants:                                                              # antennae
         xs = [0.0] if ants == 1 else [-rx*0.42, rx*0.42]
@@ -60,17 +57,17 @@ def alien(cx, cy, r, cid, eyes, tall, wide, ants, spots):
 
 # parked on the lane (matching), one promoted inside, and a few roaming below
 LANE = (R_OUT + R_IN) / 2
-for ang, cid, eyes, tall, wide, ants, spots in [
-        (-150, 0, 3, True,  False, 2, False),
-        (-58,  0, 3, True,  True,  0, True),
-        (25,   1, 2, False, True,  2, False)]:
+for ang, cid, eyes, wide, ants, spots in [
+        (-150, 0, 3, False, 2, False),
+        (-58,  0, 3, True,  0, True),
+        (25,   1, 2, True,  2, False)]:
     a = math.radians(ang)
-    alien(CX + math.cos(a)*LANE, CY + math.sin(a)*LANE, W*0.075, cid, eyes, tall, wide, ants, spots)
-alien(CX, CY, W*0.072, 0, 3, True, False, 2, False)                       # promoted, inner ring
-alien(W*0.17, W*0.30, W*0.075, 2, 1, False, True, 1, True)
-alien(W*0.15, W*0.74, W*0.078, 4, 2, True, False, 0, False)
-alien(W*0.44, W*0.83, W*0.075, 3, 3, False, False, 2, True)
-alien(W*0.78, W*0.82, W*0.072, 1, 1, True, True, 1, False)
+    alien(CX + math.cos(a)*LANE, CY + math.sin(a)*LANE, W*0.075, cid, eyes, wide, ants, spots)
+alien(CX, CY, W*0.072, 0, 3, False, 2, False)                             # promoted, inner ring
+alien(W*0.17, W*0.30, W*0.075, 2, 1, True,  1, True)
+alien(W*0.15, W*0.74, W*0.078, 4, 2, False, 0, False)
+alien(W*0.44, W*0.83, W*0.075, 3, 3, True,  2, True)
+alien(W*0.78, W*0.82, W*0.072, 1, 1, False, 1, False)
 
 img.resize((S, S), Image.LANCZOS).save("aliens/art/game_screen_200.png")
 print("wrote aliens/art/game_screen_200.png")
