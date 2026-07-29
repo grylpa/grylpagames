@@ -73,7 +73,10 @@ taller-than-wide meaning:
 | **WIDE** (`fat`) | 1.00 × 0.58 | 0.58 — clearly wider than tall |
 | **NARROW** (`thin`) | 0.58 × 1.00 | 1.72 — clearly taller than wide |
 
-Exact mirrors, ~3× apart in aspect, so every alien reads as one or the other. The probe asserts the
+Exact mirrors, ~3× apart in aspect, so every alien reads as one or the other. **Antennae are the
+one thing allowed outside the body ellipse** — curved, tapering stalks with a bulb, reaching
+~0.62 radii above the head, because short nubs inside the outline did not read as antennae.
+Collision still uses `radius` alone, so they never affect spacing. The probe asserts the
 **separation** (wide ≤ 0.75, narrow ≥ 1.33, ≥ 2× apart) and that no rule named `tall`/`short`
 survives — a bare `ry > rx` test would have passed the unreadable version. That leaves five trait
 dimensions and 15 rules, which is plenty.
@@ -204,6 +207,23 @@ there is no correct answer left to give and every arrival becomes an eviction.
   neighbor is an instant overlap the solver then has to unpick, and with frequent top-ups it was
   visible.
 
+## Background
+
+`field.gd` draws an **alien night sky** behind everything: a 40-band vertical gradient (near-black
+overhead → deep teal-green at the horizon), ~70 stars in two size classes, and an edge vignette
+that pulls the eye to the middle of the board.
+
+**No planets, moons or other large discs.** An early version had two dim planets low in the
+corners; every circle in this game *means* something (outer ring, inner ring), so a big circle in
+the background was read as a target area. Stars are safe because they are far too small to be
+mistaken for anything — keep any future background motif non-circular. The stars
+drift at `STAR_DRIFT` = **3 px/s** and wrap — deliberately slow, because the aliens are small,
+numerous and always moving, and anything back here that reads as motion competes with the thing the
+player has to track. The star scatter is **re-randomised for every level** (`rebuild_sky()`): determinism matters for the
+simulation so tests repeat and behaviour is reproducible, but the sky is decoration — nothing reads
+it and nothing compares it between runs, so pinning it only threw away free variety.
+`set_sky_size()` keeps it spanning the screen after a relayout.
+
 ## Feedback and captions
 
 - **Every judgment is unmissable**: `_flash_mark` floats a large ✓ +N / ✗ -N (outlined, ~2.1×
@@ -234,7 +254,9 @@ there is no correct answer left to give and every arrival becomes an eviction.
   it a released alien turned straight round and marched back in, which made a *correct* release
   look like a failed drag.
 - `park_patience_sec` is the deadlock valve: a parked alien the player never resolves leaves on
-  its own with **no** penalty. `0` disables it (levels 7–8, where the pressure is the point).
+  its own with **no** penalty. It **walks** out — `area_idx` is deliberately kept until it is clear
+  of the ring, because clearing it immediately made the keep-out treat the alien as a trespasser
+  and teleport it outside in one frame, which looked like it was erased and dumped. `0` disables it (levels 7–8, where the pressure is the point).
 - A promoted alien celebrates in the inner ring for `INNER_HOLD_MS`, fades, and is **recycled**
   with fresh traits elsewhere. Keeps `inner_slots` small, the population constant, the mix fresh.
 - Level ends when `level_time_sec` elapses (`game.sig_time_over` → `_level_done`). Accuracy feeds

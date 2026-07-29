@@ -1,8 +1,11 @@
 extends Node2D
 
-# Draws the static board behind the aliens: the field backdrop, each target area's two rings,
-# a pip per parking slot (filled when taken), and a "FULL" badge when an outer ring has no room.
-# level.gd owns `areas` and calls queue_redraw() whenever slot ownership changes.
+# Draws everything behind the aliens: an alien night sky (gradient, drifting stars, vignette),
+# then the field panel and each target area's two rings, plus a "FULL" badge
+# when an outer ring has no room. level.gd owns `areas` and calls queue_redraw() on state changes.
+#
+# The sky is deliberately low-contrast and slow: the aliens are small, numerous and always moving,
+# so anything back here that draws the eye competes with the thing the player must actually track.
 
 var areas: Array = []                       # the level's area dictionaries (read-only here)
 var field_rect: Rect2 = Rect2(0, 0, 10, 10)
@@ -16,6 +19,85 @@ const RING_LINE: Color = Color(0.65, 0.90, 0.72, 0.55)
 const INNER_LINE: Color = Color(0.85, 1.00, 0.88, 0.75)
 const FULL_COL: Color = Color(1.0, 0.45, 0.35, 0.95)
 
+# --- sky ---
+const SKY_TOP: Color = Color(0.030, 0.045, 0.070)     # near-black overhead
+const SKY_BOTTOM: Color = Color(0.075, 0.185, 0.150)  # deep teal-green at the horizon
+const SKY_BANDS: int = 40
+const STAR_COUNT: int = 70
+const STAR_DRIFT: float = 3.0                         # px/sec — slow enough to never read as an alien
+const VIGNETTE_STEPS: int = 10
+const VIGNETTE_DEPTH: float = 0.26                    # fraction of the short side that is darkened
+
+var _stars: Array = []          # [{p: Vector2 (0..1 normalised), r: float, a: float}]
+var _drift: float = 0.0
+var _sky_size: Vector2 = Vector2(680, 748)
+
+func _ready() -> void:
+	_sky_size = Vector2(MainGlobals.screen_size)
+	_build_stars()
+	set_process(true)
+
+# The sky spans the whole screen, so it has to follow a relayout.
+func set_sky_size(sz: Vector2) -> void:
+	if sz.x > 1.0 and sz.y > 1.0:
+		_sky_size = sz
+
+func _process(delta: float) -> void:
+	_drift += delta * STAR_DRIFT
+	queue_redraw()
+
+# A fresh scatter each level. Determinism matters for the SIMULATION (so tests are repeatable and
+# behaviour is reproducible), but the sky is pure decoration — nothing reads it, nothing compares
+# it between runs, so pinning it only threw away free variety.
+func rebuild_sky() -> void:
+	_build_stars()
+	queue_redraw()
+
+func _build_stars() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.randomize()
+	_stars.clear()
+	for _i in STAR_COUNT:
+		var big: bool = rng.randf() < 0.16
+		_stars.append({
+			"p": Vector2(rng.randf(), rng.randf()),
+			"r": rng.randf_range(1.6, 2.6) if big else rng.randf_range(0.7, 1.3),
+			"a": rng.randf_range(0.55, 0.95) if big else rng.randf_range(0.20, 0.55),
+		})
+
+func _draw_sky() -> void:
+	var w: float = _sky_size.x
+	var h: float = _sky_size.y
+	# vertical gradient, as bands (cheap and invisible at this contrast)
+	var band_h: float = h / float(SKY_BANDS)
+	for i in SKY_BANDS:
+		var t: float = float(i) / float(SKY_BANDS - 1)
+		draw_rect(Rect2(0.0, float(i) * band_h, w, band_h + 1.0), SKY_TOP.lerp(SKY_BOTTOM, t), true)
+
+	# NO planets, moons or any other large disc back here: every circle in this game MEANS
+	# something (outer ring, inner ring), so a big circle in the background gets read as a target
+	# area. Stars are fine — they are far too small to be confused with anything.
+
+	# stars, drifting slowly and wrapping
+	for st in _stars:
+		var pn: Vector2 = st["p"]
+		var x: float = fposmod(pn.x * w + _drift * 0.35, w)
+		var y: float = fposmod(pn.y * h + _drift, h)
+		draw_circle(Vector2(x, y), float(st["r"]), Color(0.86, 0.92, 1.0, float(st["a"])))
+
+	# vignette: darken the edges so the eye settles on the middle of the board
+	var depth: float = minf(w, h) * VIGNETTE_DEPTH
+	var step: float = depth / float(VIGNETTE_STEPS)
+	for i in VIGNETTE_STEPS:
+		var f: float = 1.0 - float(i) / float(VIGNETTE_STEPS)
+		var a: float = 0.30 * f * f
+		var o: float = float(i) * step
+		draw_rect(Rect2(0.0, o, w, step), Color(0, 0, 0, a), true)
+		draw_rect(Rect2(0.0, h - o - step, w, step), Color(0, 0, 0, a), true)
+		draw_rect(Rect2(o, 0.0, step, h), Color(0, 0, 0, a), true)
+		draw_rect(Rect2(w - o - step, 0.0, step, h), Color(0, 0, 0, a), true)
+
+
 static var _font: Font = null
 
 static func _badge_font() -> Font:
@@ -27,6 +109,7 @@ static func _badge_font() -> Font:
 	return _font
 
 func _draw() -> void:
+	_draw_sky()
 	# field backdrop — a slightly lighter panel so the play area reads as a place
 	draw_rect(field_rect, Color(1, 1, 1, 0.035), true)
 	draw_rect(field_rect, Color(1, 1, 1, 0.10), false, 2.0)
