@@ -27,7 +27,13 @@ var retarget_ms: float = 0.0
 var waypoints: Array = []                # remaining path points (gate, then slot)
 var area_idx: int = -1                   # which area it is seeking / parked at
 var slot_idx: int = -1                   # INNER-ring slot it owns (-1 = none)
-var park_angle: float = NAN              # reserved angle on the OUTER ring lane (NAN = none)
+# Reserved angle on the OUTER ring lane. NO_ANGLE means "none" — it used to be NAN, but a NaN in
+# a script member default reaches the editor's LSP payload on project load and trips Godot's
+# "NaN cannot be represented in JSON" warning. Any out-of-range angle works as well and is easier
+# to read in a debugger; real angles are always within [-PI, PI].
+const NO_ANGLE: float = -1000.0
+const HAS_ANGLE_MIN: float = -999.0      # park_angle > this  <=>  an angle is actually reserved
+var park_angle: float = NO_ANGLE
 var park_ms: float = 0.0                 # when it parked (starts the response-time clock)
 var bob_phase: float = 0.0
 var drag_from_state: int = 0
@@ -48,6 +54,8 @@ var grab_delay_ms: float = -1.0  # park -> grab time, banked at the START of a d
 var _bob: float = 0.0                     # walk bob in px
 var _look: Vector2 = Vector2(0.0, 1.0)    # unit gaze direction for the pupils
 var _hint: int = 0                        # 0 none, 1 legal target, 2 illegal, 3 grabbed
+var _called: bool = false                 # this alien is the priority passenger being boarded now
+var _call_frac: float = 1.0               # share of the call window still left (drives the arc)
 
 const ALIEN_COLORS: Array = [
 	Color(0.28, 0.56, 0.95),  # 0 blue
@@ -101,6 +109,20 @@ func set_hint(h: int) -> void:
 	if _hint != h:
 		_hint = h
 		queue_redraw()
+
+# The boarding call. `frac` is the remaining share of the window, drawn as a countdown arc — a
+# number would be unreadable at alien size, and the shrinking arc is legible from the corner of
+# the eye, which is the point: the call has to be noticed while attention is on another gate.
+func set_called(on: bool, frac: float = 1.0) -> void:
+	var f: float = clampf(frac, 0.0, 1.0)
+	if on == _called and absf(f - _call_frac) < 0.02:
+		return
+	_called = on
+	_call_frac = f
+	queue_redraw()
+
+func is_called() -> bool:
+	return _called
 
 func body_color() -> Color:
 	return ALIEN_COLORS[color_id]
@@ -220,7 +242,17 @@ func _draw() -> void:
 	draw_arc(Vector2(0.0, ry * 0.36), radius * 0.16, 0.22 * PI, 0.78 * PI, 12,
 		col.darkened(0.45), radius * 0.05, true)
 
-	# 8) hint ring while dragging
+	# 8) boarding call: a full faint ring with a bright arc counting down over it, drawn OUTSIDE
+	# the hint ring so the two never overlap and a called alien can still show correct/wrong.
+	if _called:
+		var cr: float = radius * 1.30
+		draw_arc(Vector2.ZERO, cr, 0.0, TAU, 40, Color(1.0, 0.72, 0.15, 0.22), radius * 0.10, true)
+		if _call_frac > 0.0:
+			# clockwise from 12 o'clock, shrinking toward it as the window runs out
+			draw_arc(Vector2.ZERO, cr, -PI * 0.5, -PI * 0.5 + TAU * _call_frac,
+				maxi(6, int(40.0 * _call_frac)), Color(1.0, 0.80, 0.20, 0.95), radius * 0.11, true)
+
+	# 9) hint ring while dragging
 	if _hint != 0:
 		var hc: Color = Color(0.35, 1.0, 0.55, 0.85)
 		if _hint == 2:
