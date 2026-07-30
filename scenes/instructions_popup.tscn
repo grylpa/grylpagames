@@ -104,6 +104,7 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_colors/font_color = Color(0.94, 0.94, 0.5734, 1)
 theme_override_font_sizes/font_size = 36
+theme_override_constants/line_spacing = -12
 text = "instructions for the game"
 autowrap_mode = 3
 
