@@ -44,7 +44,11 @@ func _ready() -> void:
 		"Drag a MATCH onto the boarding ramp in the middle,\n" +
 		"and a NON-match back out to the hall.\n" +
 		"A full queue turns arrivals away, so keep it moving.\n" +
-		"The pass comes down later — remember it!", 26)
+		"The pass comes down later — remember it!\n\n" +
+		"Later shifts get harder:\n" +
+		"A red NOT ... pass boards everyone EXCEPT that.\n" +
+		"GATE CHANGE moves the passes between gates.\n" +
+		"NOW BOARDING calls one alien — clear it in time.", 26)
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		AliensG.save_settings()

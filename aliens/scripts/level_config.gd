@@ -60,6 +60,45 @@ extends Node
 #   eye_counts         OPTIONAL eye-count pool, default [1, 2, 3]
 #   antennae_counts    OPTIONAL antenna-count pool, default [0, 1, 2]
 #   spots_chance       OPTIONAL probability an alien is spotted, default 0.5
+#
+# ---------------------------------------------------------------------------------------------
+# THE INTERFERENCE LAYER. The three fields below are what make the later levels genuinely hard
+# rather than merely busy. Each one removes a specific shortcut:
+#
+#   gate_change_sec    0 = off. Every this-many seconds (+/- jitter) the passes ROTATE between
+#                      the gates, and the chips come back up for ~2 s so the new arrangement can
+#                      be read. Needs num_areas >= 2.
+#                      WHY: without it the rule stops being a rule and becomes a place —
+#                      "left = blue" — and recalling a place is nearly free. A rotation voids
+#                      every such binding at once, and the old one keeps interfering.
+#
+#   deny_chance        0..1, an INDEPENDENT roll per gate with no correction afterwards, so the
+#                      number means what it says: 0.5 on 4 gates really is ~2 deny gates on
+#                      average, and sometimes none at all. A DENY gate boards everything EXCEPT
+#                      its pass; its chip reads "NOT SPOTTED" and its rings are tinted warm.
+#                      A COMPOUND pass is never denied (see compound_chance).
+#                      WHY: it doubles what has to be held per gate — the trait AND its sense.
+#
+#   compound_chance    0..1, per gate. The pass becomes TWO rules from different modalities
+#                      joined by an operator: "1 EYE AND BLUE", "1 EYE OR NOT PURPLE".
+#   compound_ops       which operators may be drawn; default all four. Their characters differ:
+#                        "and"    both must hold      — rare, so a match is precious
+#                        "or"     either will do      — often decidable from one trait alone
+#                        "andnot" A but not B         — the sharpest: two traits, opposite senses
+#                        "ornot"  A or anything not B — common, so a REJECT is the rare event
+#                      WHY: a single pass now spans two traits, so there is no "the trait for
+#                      this gate" to settle on — the switch happens inside one decision.
+#                      NOTE both atoms always come from DIFFERENT modalities, which is what keeps
+#                      the supply system exact (forcing one atom cannot disturb the other).
+#
+#   priority_every_sec 0 = off. Every this-many seconds one PARKED alien is called to board and
+#                      must be resolved within priority_window_sec or it costs a MISS. It is
+#                      drawn from a gate other than the last one called whenever possible.
+#   priority_window_sec  how long the call stands (default 6; floored at 1.5).
+#                      WHY: this is the deepest one. Free choice of what to handle lets the
+#                      player work a single gate at a time, and batching a gate removes the
+#                      task-switch cost that IS the difficulty. A call from the gate you are not
+#                      looking at, on a clock, breaks the batch.
 
 const LEVELS: Array = [
 	# 1 — teach the loop: one area, color rules only, the rule never hides, roomy ring.
@@ -77,39 +116,68 @@ const LEVELS: Array = [
 	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "hide_after_sec": 28, "enter_chance": 0.24,
 	 "park_patience_sec": 29.0},
 
-	# 4 — TWO areas: two rules to hold at once.
+	# 4 — GATE CHANGE arrives. Everything else is held at level 3's settings on purpose: one new
+	#     idea at a time, and this is a big one.
 	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["color", "eyes"],
 	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "hide_after_sec": 25, "enter_chance": 0.30,
-	 "park_patience_sec": 28.0},
+	 "park_patience_sec": 28.0,
+	 "gate_change_sec": 34.0},
 
-	# 5 — antennae join in; slots tighten to 3, so a ring fills sooner.
+	# 5 — NOW BOARDING arrives: a called alien on a clock, so a gate can no longer be worked alone.
 	{"id": 5, "name": "5", "level_time_sec": 110,
 	 "rules": ["antennae", "eyes", "color", "shape"],
 	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 20, "enter_chance": 0.36,
-	 "colors": [0, 1, 3], "park_patience_sec": 27.0},
+	 "colors": [0, 1, 3], "park_patience_sec": 27.0,
+	 "gate_change_sec": 30.0, "priority_every_sec": 19.0, "priority_window_sec": 8.0},
 
-	# 6 — spots added (the weakest trait), rules hide early.
+	# 6 — DENY gates arrive; spots join the pool. Gate change is eased off while the new polarity
+	#     is learned, then tightened again from 7.
 	{"id": 6, "name": "6", "level_time_sec": 120,
 	 "rules": ["spots", "eyes", "shape", "antennae", "color"],
 	 "num_areas": 2, "alien_speed": 0.205, "alien_size": "med", "num_free_aliens": 12, "hide_after_sec": 14, "enter_chance": 0.42,
-	 "colors": [0, 2, 4], "park_patience_sec": 26.0},
+	 "colors": [0, 2, 4], "park_patience_sec": 26.0,
+	 "gate_change_sec": 34.0, "deny_chance": 0.5,
+	 "priority_every_sec": 18.0, "priority_window_sec": 7.5},
 
-	# 7 — wide pool, smaller aliens, brisk arrivals, no patience valve.
+	# 7 — three gates, all three twists running together.
 	{"id": 7, "name": "7", "level_time_sec": 140,
 	 "rules": ["eyes", "shape", "antennae", "spots", "color"],
 	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 9, "enter_chance": 0.50,
-	 "colors": [0, 1, 3, 4], "park_patience_sec": 25.0},
+	 "colors": [0, 1, 3, 4], "park_patience_sec": 25.0,
+	 "gate_change_sec": 26.0, "deny_chance": 0.5,
+	 "priority_every_sec": 15.0, "priority_window_sec": 6.5},
 
-	# 8 — every usable rule, fast: the ring only empties if the player empties it.
+	# 8 — every usable rule, four gates, fast: the ring only empties if the player empties it.
 	{"id": 8, "name": "8", "level_time_sec": 170, "rules": [],
 	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "hide_after_sec": 6, "enter_chance": 0.60,
-	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0},
+	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0,
+	 "gate_change_sec": 22.0, "deny_chance": 0.5,
+	 "priority_every_sec": 13.0, "priority_window_sec": 6.0},
+
+	# 9 — COMPOUND passes arrive: two traits in one pass. Back to 2 gates and a slower clock, and
+	#     deny is off — one pass now spans two traits, which is quite enough to be going on with.
+	#     Only AND and OR at first: they read the most naturally.
+	{"id": 9, "name": "9", "level_time_sec": 130,
+	 "rules": ["color", "eyes", "shape", "antennae"],
+	 "num_areas": 2, "alien_speed": 0.195, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 22, "enter_chance": 0.36,
+	 "colors": [0, 1, 3], "park_patience_sec": 27.0,
+	 "gate_change_sec": 32.0,
+	 "priority_every_sec": 18.0, "priority_window_sec": 7.5,
+	 "compound_chance": 1.0, "compound_ops": ["and", "or"]},
+
+	# 10 — everything at once: all four operators, deny on whichever gates stay simple, 3 gates.
+	{"id": 10, "name": "10", "level_time_sec": 180, "rules": [],
+	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 10, "enter_chance": 0.50,
+	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0,
+	 "gate_change_sec": 26.0, "deny_chance": 0.5,
+	 "priority_every_sec": 14.0, "priority_window_sec": 6.5,
+	 "compound_chance": 0.6},
 ]
 
 # LEVEL_PROGRESSION_ORDER: the level play order; may repeat ids. When the list runs out it
 #   cycles back to the start. End the list with -1 instead to REPEAT THE LAST LEVEL forever
 #   (e.g. [1, 2, 3, -1] plays 1..3 then stays on 3). -1 is a sentinel, never a level id.
-const LEVEL_PROGRESSION_ORDER: Array = [1, 2, 3, 4, 5, 4, 5, 6, 7, 8, -1]
+const LEVEL_PROGRESSION_ORDER: Array = [1, 2, 3, 4, 5, 4, 5, 6, 7, 8, 9, 10, -1]
 
 func max_level() -> int:
 	return int(LEVELS[LEVELS.size() - 1]["id"])

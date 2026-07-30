@@ -24,6 +24,13 @@ var trait_colors: Array = [0, 1, 2]
 var trait_eyes: Array = [1, 2, 3]
 var trait_antennae: Array = [0, 1, 2]
 var trait_spots_chance: float = 0.5
+var gate_change_ms: float = 0.0        # 0 = gates never swap passes
+var deny_chance: float = 0.0           # per-gate probability of being a DENY gate
+var priority_every_ms: float = 0.0     # 0 = no boarding calls
+var priority_window_ms: float = 6000.0
+var compound_chance: float = 0.0       # per gate, probability the pass is two rules joined
+var compound_ops: Array = []           # subset of ALL_OPS; empty = no compounds
+var _chip_lines: int = 1               # rule-chip height in lines (2 once compounds can appear)
 
 # --- rules -----------------------------------------------------------------------------------
 const ALL_RULES: Array = [
@@ -59,6 +66,19 @@ const RULE_DIMENSION: Dictionary = {
 
 # True when both rules read the same trait, so pairing them would ask for a value comparison
 # rather than a context switch.
+# Rules whose LABEL is already a negation. A DENY gate must never take one: the chip would read
+# "NO NO SPOTS", and for a two-valued trait deny+nospots is logically identical to accept+spots
+# anyway — so the double negative buys no extra load, only confusion. A deny gate swaps to the
+# positive rule of the same modality instead (which also keeps one modality per gate intact).
+const NEGATIVE_RULES: Array = ["nospots", "ant0"]
+
+# Two different negations, kept as two different words so they never blur together:
+#   "NO ..."  a trait that is ABSENT      — NO ANTENNAE, NO SPOTS, NO ANT (a rule's own name)
+#   "NOT ..." the requirement is NEGATED  — NOT FAT, NOT BLUE (a deny gate, or a compound operand)
+# "NOT" also matches the compound operators ("AND NOT", "OR NOT"), so the player learns one word
+# for negation rather than two for the same idea.
+const DENY_PREFIX: String = "NOT "
+
 func _same_dimension(a: String, b: String) -> bool:
 	return str(RULE_DIMENSION.get(a, a)) == str(RULE_DIMENSION.get(b, b))
 
@@ -106,6 +126,17 @@ const TOPUP_PERIOD_MS: float = 1200.0    # how often the supply is checked (slow
 const TOPUP_MAX_PER_TICK: int = 2        # a burst of promotions can open several gaps at once
 const SUPPLY_HEADROOM: int = 3           # extra aliens allowed above num_free_aliens to cover gaps
 
+# --- interference layer (gate change / deny list / boarding call) ------------------------------
+# These exist to defeat the three shortcuts that made the base game gentler than rlmadness:
+#   1. the rule settles into a LOCATION ("left = blue")  -> gate change re-permutes the passes
+#   2. polarity is always ACCEPT                         -> a deny gate boards everything EXCEPT
+#   3. the player picks what to handle and when, so gates can be batched one at a time, and
+#      batching removes the task-switch cost entirely    -> a boarding call interrupts the batch
+const GATE_CHANGE_REVEAL_MS: float = 2200.0  # passes come back up briefly after a swap
+const GATE_CHANGE_JITTER: float = 0.22       # +/- share of the period, so it is never countable
+const BANNER_MS: float = 1600.0
+const CALL_RETRY_MS: float = 900.0           # nobody parked to call yet — look again shortly
+
 enum AState { ROAM, SEEKING_SLOT, PARKED_OUTER, PARKED_INNER, LEAVING, DRAGGED, SNAPPING, FADING }
 enum Region { FIELD, OUTER, INNER }
 
@@ -124,7 +155,20 @@ var topup_swaps: int = 0     # supply-driven replacements (diagnostic)
 var _recent_arrivals: Array = []
 var _play_start_ms: float = 0.0
 var _rules_hidden: bool = false
+var _chips_visible: bool = true      # what the chips are actually showing right now
 var _z_counter: int = 10
+
+# --- interference state ---
+var _next_gate_change_ms: float = 0.0
+var _reveal_until_ms: float = 0.0    # passes forced back up (after a swap) even when hidden
+var _called_al = null                # the priority passenger, or null
+var _called_until_ms: float = 0.0
+var _next_priority_ms: float = 0.0
+var _last_called_area: int = -1      # so consecutive calls prefer a DIFFERENT gate
+var gate_changes: int = 0            # diagnostics
+var calls_made: int = 0
+var calls_missed: int = 0
+var _banner: Label = null
 
 # --- drag state ---
 var _drag_alien = null
@@ -146,6 +190,8 @@ const FIELD_SCRIPT: GDScript = preload("res://aliens/scripts/field.gd")
 
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+var gatechange_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var call_audio = preload("res://art/sounds/FreeSFX/GameSFX/Blops/Retro Blop 22.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing
@@ -155,6 +201,8 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	game.add_sound(self, "gatechange", gatechange_audio)
+	game.add_sound(self, "call", call_audio)
 	_build_ui()
 	set_process(true)
 
@@ -200,9 +248,17 @@ func _fit_caption(lb: Label, max_w: float, base_fs: int) -> void:
 	if f == null:
 		f = MainGlobals.get_system_sans_font()
 	var fs: int = base_fs
-	while fs > 10 and f.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > max_w:
+	# a compound caption is two lines: measure the WIDEST one. Measuring the whole string would
+	# include the newline as ordinary text and shrink the font far more than necessary.
+	while fs > 10 and _widest_line_w(f, lb.text, fs) > max_w:
 		fs -= 1
 	lb.add_theme_font_size_override("font_size", fs)
+
+func _widest_line_w(f: Font, txt: String, fs: int) -> float:
+	var w: float = 0.0
+	for line in txt.split("\n"):
+		w = maxf(w, f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	return w
 
 func _place(c: Control, x: float, y: float, w: float, h: float) -> void:
 	c.position = Vector2(x, y)
@@ -229,7 +285,7 @@ func _layout() -> void:
 
 	var cap_fs: int = 28 if mob else 21
 	var cap_font: Font = MainGlobals.get_system_sans_font()
-	var label_res: float = cap_font.get_height(cap_fs) + 18.0
+	var label_res: float = cap_font.get_height(cap_fs) * float(_chip_lines) + 18.0
 	var n: int = maxi(1, num_areas)
 
 	# base alien radius as a fraction of screen WIDTH (platform-independent), then shrunk until
@@ -278,22 +334,25 @@ func _layout() -> void:
 	var s_in: float = inner.x
 	var k_in: int = int(inner.y)
 
-	var old_rules: Array = []
+	var old_pass: Array = []
+	var old_deny: Array = []
 	for ar in _areas:
-		old_rules.append(str(ar["rule"]))
+		old_pass.append(ar.get("pass", {}))
+		old_deny.append(bool(ar.get("deny", false)))
 	_areas.clear()
 	for i in n:
 		var inner_owner: Array = []
 		for _s in k_in:
 			inner_owner.append(null)
-		var rule_key: String = ""
-		if i < old_rules.size():
-			rule_key = str(old_rules[i])
+		var pass_def: Dictionary = {}
+		if i < old_pass.size():
+			pass_def = old_pass[i]
 		_areas.append({
 			"center": Vector2(centers[i]), "r_in": rr.x, "r_out": rr.y,
 			"s_in": s_in, "s_out": s_out,
 			"inner_slots": k_in, "inner_owner": inner_owner,
-			"parked": 0, "capacity": 0, "rule": rule_key,
+			"parked": 0, "capacity": 0, "pass": pass_def,
+			"deny": bool(old_deny[i]) if i < old_deny.size() else false,
 		})
 	for i in n:
 		_refresh_ring_state(i)
@@ -305,7 +364,7 @@ func _layout() -> void:
 		_rule_labels.append(lbl)
 	for i in _rule_labels.size():
 		var lb: Label = _rule_labels[i]
-		lb.visible = i < n and not _rules_hidden
+		lb.visible = i < n and _chips_visible
 		if i >= n:
 			continue
 		lb.add_theme_font_size_override("font_size", cap_fs)
@@ -334,7 +393,7 @@ func _layout() -> void:
 		al.radius = _alien_radius
 		al.queue_redraw()
 		# the rings may have moved/resized — put anyone already parked back on their (new) spot
-		if al.state == AState.PARKED_OUTER and not is_nan(al.park_angle) \
+		if al.state == AState.PARKED_OUTER and al.park_angle > al.HAS_ANGLE_MIN \
 			and al.area_idx >= 0 and al.area_idx < _areas.size():
 			al.sim_pos = _outer_park_pos(_areas[al.area_idx], al.park_angle)
 			al.position = al.sim_pos
@@ -419,7 +478,7 @@ func _taken_angles(ai: int, ignore_al) -> Array:
 		if al.state != AState.SEEKING_SLOT and al.state != AState.PARKED_OUTER \
 			and al.state != AState.SNAPPING:
 			continue
-		if is_nan(al.park_angle):
+		if al.park_angle < al.HAS_ANGLE_MIN:
 			continue
 		out.append(al.park_angle)
 	return out
@@ -448,7 +507,7 @@ func _reserve_park(ai: int, al, prefer_ang: float) -> bool:
 
 func _release_park(al) -> void:
 	var ai: int = al.area_idx
-	al.park_angle = NAN
+	al.park_angle = al.NO_ANGLE
 	if ai >= 0 and ai < _areas.size():
 		_refresh_ring_state(ai)
 
@@ -504,6 +563,25 @@ func _alien_matches(al, rule_key: String) -> bool:
 			return al.color_id == 4
 	return false
 
+# THE judgment, in exactly one place: should this gate board this alien?
+#
+# An ACCEPT gate boards the aliens matching its pass. A DENY gate boards everything EXCEPT them —
+# the polarity flips, and after the pass hides the player has to remember both which rule it was
+# and which way round it ran. Every decision, every supply calculation and every arrival choice
+# goes through here, so the two never disagree.
+func _gate_wants(al, area_idx: int) -> bool:
+	if area_idx < 0 or area_idx >= _areas.size():
+		return false
+	var m: bool = _pass_matches(al, _areas[area_idx].get("pass", {}))
+	return m != bool(_areas[area_idx].get("deny", false))
+
+# Inverse of the above, for the supply system: given "this gate should (not) board it", what does
+# the alien have to do with the gate's RULE? _force_rule speaks rules, not gate decisions.
+func _match_want(area_idx: int, gate_want: bool) -> bool:
+	if area_idx < 0 or area_idx >= _areas.size():
+		return gate_want
+	return gate_want != bool(_areas[area_idx].get("deny", false))
+
 # A rule is only offered if this level's trait pools can produce BOTH matches and non-matches —
 # otherwise it is either always true or always false and carries no information.
 func _is_rule_usable(rule_key: String) -> bool:
@@ -540,69 +618,392 @@ func _usable_modalities(pool: Array) -> Array:
 		src = ALL_MODALITIES.duplicate()
 	var out: Array = []
 	for m in src:
-		var name: String = str(m)
-		if not ALL_MODALITIES.has(name) or out.has(name):
+		var mk: String = str(m)          # not `name` — that shadows Node.name
+		if not ALL_MODALITIES.has(mk) or out.has(mk):
 			continue
-		if not _usable_rules_in(name).is_empty():
-			out.append(name)
+		if not _usable_rules_in(mk).is_empty():
+			out.append(mk)
 	return out
 
-# One gate per MODALITY, then a random rule from inside it. Different modalities means switching
-# gates forces a switch of attention, not just a change of value — which is the whole game.
+# A gate's PASS is either a single rule or two rules from DIFFERENT modalities joined by an
+# operator. Both atoms coming from different modalities is what makes everything downstream
+# tractable: forcing one atom can never disturb the other, so the supply system decomposes
+# exactly instead of needing a constraint solver.
+#
+#   {"op": "atom",   "a": "blue"}                 BLUE
+#   {"op": "and",    "a": "eyes1", "b": "blue"}   1 EYE AND BLUE
+#   {"op": "or",     ...}                         1 EYE OR BLUE
+#   {"op": "andnot", ...}                         1 EYE AND NOT BLUE
+#   {"op": "ornot",  ...}                         1 EYE OR NOT BLUE
+const OP_JOIN: Dictionary = {
+	"and": "AND ", "or": "OR ", "andnot": "AND NOT ", "ornot": "OR NOT ",
+}
+const ALL_OPS: Array = ["and", "or", "andnot", "ornot"]
+
+# Compound labels are twice as long as simple ones in a chip that does not get any wider, and the
+# font shrinks to fit: measured, "NO ANTENNAE AND NOT SPOTTED" landed at 11 px on a 3-gate level,
+# which is unreadable on a phone. Two fixes, both needed. First, compound OPERANDS use these
+# abbreviations — only inside a compound, since a simple gate has room for the full wording.
+const RULE_LABELS_SHORT: Dictionary = {
+	"ant0": "NO ANT", "ant1": "1 ANT", "ant2": "2 ANT",
+	"spots": "SPOTS", "nospots": "NO SPOTS",
+	"eyes1": "1 EYE", "eyes2": "2 EYES", "eyes3": "3 EYES",
+}
+
+func _atom_label(key: String, short: bool) -> String:
+	if short and RULE_LABELS_SHORT.has(key):
+		return str(RULE_LABELS_SHORT[key])
+	return str(RULE_LABELS.get(key, key))
+
+func _pass_matches(al, ps: Dictionary) -> bool:
+	var a: bool = _alien_matches(al, str(ps.get("a", "")))
+	var op: String = str(ps.get("op", "atom"))
+	if op == "atom":
+		return a
+	var b: bool = _alien_matches(al, str(ps.get("b", "")))
+	match op:
+		"and":
+			return a and b
+		"or":
+			return a or b
+		"andnot":
+			return a and not b
+		"ornot":
+			return a or not b
+	return a
+
+# Second fix: a compound breaks at the OPERATOR onto a second line, so neither line is longer than
+# a simple pass. `_chip_lines` reserves the height for it at layout time (the passes are not drawn
+# yet then, so the reservation is per-LEVEL, not per-pass — stable geometry beats a tight fit).
+func _pass_label(ps: Dictionary, multiline: bool = true) -> String:
+	var op: String = str(ps.get("op", "atom"))
+	var short: bool = op != "atom"
+	var la: String = _atom_label(str(ps.get("a", "")), short)
+	if op == "atom":
+		return la
+	var lb: String = _atom_label(str(ps.get("b", "")), short)
+	var joiner: String = str(OP_JOIN.get(op, "AND "))
+	if multiline and _chip_lines > 1:
+		return la + "\n" + joiner + lb
+	return la + " " + joiner + lb
+
+# Identity of a pass, for "no two gates get the same one". AND and OR are symmetric, so their
+# operands are sorted — otherwise "1 EYE AND BLUE" and "BLUE AND 1 EYE" would count as different
+# passes while reading as the same requirement.
+func _pass_signature(ps: Dictionary) -> String:
+	var op: String = str(ps.get("op", "atom"))
+	if op == "atom":
+		return "atom:" + str(ps.get("a", ""))
+	if op == "and" or op == "or":
+		var pair: Array = [str(ps.get("a", "")), str(ps.get("b", ""))]
+		pair.sort()
+		return op + ":" + str(pair[0]) + "," + str(pair[1])
+	return op + ":" + str(ps.get("a", "")) + "," + str(ps.get("b", ""))
+
+func _rule_in(m: String) -> String:
+	var opts: Array = _usable_rules_in(m)
+	if opts.is_empty():
+		return ""
+	return str(opts[game.rng.randi_range(0, opts.size() - 1)])
+
+func _draw_pass(mods: Array, allow_compound: bool = true) -> Dictionary:
+	var want_compound: bool = allow_compound and compound_chance > 0.0 \
+		and not compound_ops.is_empty() \
+		and mods.size() >= 2 and game.rng.randf() < compound_chance
+	if not want_compound:
+		return {"op": "atom", "a": _rule_in(str(mods[game.rng.randi_range(0, mods.size() - 1)]))}
+	var two: Array = mods.duplicate()
+	two.shuffle()
+	var op: String = str(compound_ops[game.rng.randi_range(0, compound_ops.size() - 1)])
+	var ka: String = _rule_in(str(two[0]))
+	var kb: String = ""
+	if op == "andnot" or op == "ornot":
+		# the right operand is already negated by the operator, so it must not be a
+		# negatively-labelled rule as well: "1 EYE AND NOT NO ANTENNAE" is unreadable
+		kb = _positive_rule_in(str(two[1]))
+		if kb == "":
+			op = "and" if op == "andnot" else "or"
+			kb = _rule_in(str(two[1]))
+	else:
+		kb = _rule_in(str(two[1]))
+	if ka == "" or kb == "":
+		return {"op": "atom", "a": ka if ka != "" else kb}
+	return {"op": op, "a": ka, "b": kb}
+
+# One pass per gate. Plain (atom) gates still take DIFFERENT modalities wherever possible — that
+# is what makes moving between gates a switch of attention rather than a change of value. With
+# compounds the old "every gate a distinct modality" invariant becomes arithmetically impossible
+# (4 gates x 2 atoms needs 8 slots from 5 modalities), so it weakens to "no two gates get the
+# same pass", with distinct modalities still preferred for the simple ones.
 func _pick_rules() -> void:
 	var mods: Array = _usable_modalities(rules_pool)
-	mods.shuffle()
-	if mods.size() < _areas.size():
-		mods = _usable_modalities([])       # pool too narrow for this many gates — fall back to all
-		mods.shuffle()
-	var chosen: Array = []
-	for m in mods:
-		if chosen.size() >= _areas.size():
-			break
-		var opts: Array = _usable_rules_in(str(m))
-		if not opts.is_empty():
-			chosen.append(str(opts[game.rng.randi_range(0, opts.size() - 1)]))
-	while chosen.size() < _areas.size():
-		# not enough distinct modalities to go round: pad with anything not already used
-		var pad: String = ""
-		for k in ALL_RULES:
-			var cand: String = str(k)
-			if not _is_rule_usable(cand):
-				continue
-			var clash: bool = false
-			for c in chosen:
-				if _same_dimension(str(c), cand):
-					clash = true
-					break
-			if not clash:
-				pad = cand
-				break
-		chosen.append(pad if pad != "" else "eyes3")
+	if mods.size() < 2:
+		mods = _usable_modalities([])
+	if mods.is_empty():
+		mods = ["eyes"]
+
+	# MODALITY BUDGET. Gates must read DIFFERENT traits — that is what makes moving between them a
+	# switch of attention rather than a change of value, and it is the reason the game exists. A
+	# compound spends TWO modalities, an atom one, and each gate draws only from those still
+	# unspent, so the traits are disjoint across the whole board by construction.
+	#
+	# A gate may only go compound if the gates AFTER it would still have one modality each. That
+	# is what caps the number of compounds — by the budget rather than by luck. With five
+	# modalities: 2 gates can both be compound, 3 gates get at most two, 4 gates at most one.
+	#
+	# (An earlier version only enforced this between the SIMPLE gates and let compounds overlap
+	# anything. Measured, that put two gates on a shared trait in 84% of rounds on levels 9-10 —
+	# no ambiguity ever, but a badly weakened switch: "3 EYES OR 2 ANT" beside "3 EYES AND BLUE"
+	# is answered half-way by one look at the eyes.)
+	var avail: Array = mods.duplicate()
+	avail.shuffle()
+	var used_sig: Dictionary = {}
 	for i in _areas.size():
-		_areas[i]["rule"] = chosen[i]
+		var others_left: int = _areas.size() - i - 1
+		var can_compound: bool = avail.size() - 2 >= others_left
+		var pool: Array = avail if avail.size() >= (2 if can_compound else 1) else mods
+		var best: Dictionary = {}
+		for _try in 16:
+			var ps: Dictionary = _draw_pass(pool, can_compound)
+			if str(ps.get("a", "")) == "":
+				continue
+			best = ps
+			if not used_sig.has(_pass_signature(ps)):
+				break
+		if best.is_empty():
+			best = {"op": "atom", "a": _rule_in(str(pool[0]))}
+		used_sig[_pass_signature(best)] = true
+		for m in _pass_modalities(best):
+			avail.erase(m)
+		_areas[i]["pass"] = best
+	_assign_polarity()
 	_refresh_rule_labels()
+
+# Which traits a pass reads: one for an atom, two for a compound.
+func _pass_modalities(ps: Dictionary) -> Array:
+	var out: Array = [str(RULE_DIMENSION.get(str(ps.get("a", "")), ""))]
+	if str(ps.get("op", "atom")) != "atom":
+		out.append(str(RULE_DIMENSION.get(str(ps.get("b", "")), "")))
+	return out
+
+# A DENY gate boards everything EXCEPT its pass — an INDEPENDENT roll per gate, with no correction
+# afterwards, so `deny_chance` means what it says at every gate count. (An earlier version forced
+# the polarities to be mixed on the grounds that a uniform polarity is "one rule inverted once".
+# That was simply wrong: the gates carry DIFFERENT rules, so all-deny is not equivalent to
+# all-accept. The forcing also made the knob a no-op at 2 gates, where any 0 < p < 1 produced
+# exactly one deny gate.)
+#
+# A COMPOUND pass is never denied: "NO (1 EYE AND BLUE)" is a De Morgan puzzle, and `andnot` /
+# `ornot` already provide negation in a form that can be read straight off the chip.
+func _assign_polarity() -> void:
+	for ar in _areas:
+		ar["deny"] = false
+	if deny_chance <= 0.0:
+		return
+	for ar in _areas:
+		if str(ar["pass"].get("op", "atom")) != "atom":
+			continue
+		ar["deny"] = game.rng.randf() < deny_chance
+	_avoid_double_negatives()
+
+# Swapping the rule (rather than dropping the deny) keeps the requested deny rate intact; a usable
+# modality always has at least one positively-labelled rule, so the fallback is unreachable in
+# practice.
+func _avoid_double_negatives() -> void:
+	for i in _areas.size():
+		if not bool(_areas[i]["deny"]):
+			continue
+		var key: String = str(_areas[i]["pass"].get("a", ""))
+		if not NEGATIVE_RULES.has(key):
+			continue
+		var alt: String = _positive_rule_in(str(RULE_DIMENSION.get(key, "")))
+		if alt != "":
+			_areas[i]["pass"] = {"op": "atom", "a": alt}
+		else:
+			_areas[i]["deny"] = false
+
+func _positive_rule_in(m: String) -> String:
+	if m == "":
+		return ""
+	var opts: Array = []
+	for r in _usable_rules_in(m):
+		if not NEGATIVE_RULES.has(str(r)):
+			opts.append(str(r))
+	if opts.is_empty():
+		return ""
+	return str(opts[game.rng.randi_range(0, opts.size() - 1)])
 
 # Once the rules hide the caption is REMOVED, not replaced by a placeholder — an empty box left
 # on screen is just clutter over the play area.
+#
+# A DENY gate reads "NOT SPOTTED" in a warning colour. The word AND the colour both carry it,
+# because after the pass hides the player is recalling the polarity too, and a single cue that
+# only exists while the chip is up would make that recall a coin flip.
 func _refresh_rule_labels() -> void:
 	for i in _areas.size():
 		if i >= _rule_labels.size():
 			continue
-		var key: String = str(_areas[i]["rule"])
-		_rule_labels[i].text = str(RULE_LABELS.get(key, key))
-		_rule_labels[i].visible = not _rules_hidden
+		var deny: bool = bool(_areas[i].get("deny", false))
+		var txt: String = _pass_label(_areas[i].get("pass", {}))
+		_rule_labels[i].text = (DENY_PREFIX + txt) if deny else txt
+		_rule_labels[i].add_theme_color_override("font_color",
+			Color(1.0, 0.62, 0.52, 1.0) if deny else Color(1, 0.97, 0.72, 1.0))
+		var st: StyleBoxFlat = StyleBoxFlat.new()
+		st.bg_color = Color(0.16, 0.05, 0.05, 0.52) if deny else Color(0.04, 0.10, 0.07, 0.42)
+		st.set_corner_radius_all(10)
+		_rule_labels[i].add_theme_stylebox_override("normal", st)
+		_rule_labels[i].visible = _chips_visible
 		_fit_caption(_rule_labels[i], _rule_labels[i].size.x - 14.0,
 			28 if MainGlobals.is_mobile() else 21)
 		_rule_labels[i].size.x = _rule_labels[i].size.x
 
-# Shows "?", not blank, so the player still knows THAT there is a rule — the memory load is
-# recalling WHICH one (same idea as rlmadness's hide_after).
+# The chips are up while the pass is public, and again for a moment after a GATE CHANGE — a swap
+# the player cannot read is not a memory test, it is a guess. The glimpse is short: you get to
+# re-encode the new arrangement, not to keep reading it.
 func _update_rules_visibility(now: float) -> void:
-	if _rules_hidden or hide_after_ms <= 0.0:
-		return
-	if now - _play_start_ms >= hide_after_ms:
+	if not _rules_hidden and hide_after_ms > 0.0 and now - _play_start_ms >= hide_after_ms:
 		_rules_hidden = true
+	var want: bool = (not _rules_hidden) or now < _reveal_until_ms
+	if want != _chips_visible:
+		_chips_visible = want
 		_refresh_rule_labels()
+
+# --- Gate change ------------------------------------------------------------------------------
+#
+# The passes ROTATE between the gates. This is the answer to the cheapest shortcut in the game:
+# after a few seconds the player stops holding "the rule" and starts holding "left = blue", and a
+# rule welded to a place costs nothing to recall. A rotation invalidates every such binding at
+# once, and the old one keeps interfering, which is exactly the cost rlmadness charges every round.
+#
+# A rotation (not a shuffle) because it is guaranteed to be a derangement: NO gate keeps its pass,
+# so there is never a swap where nothing observable happened.
+
+func _schedule_gate_change(now: float) -> void:
+	if gate_change_ms <= 0.0:
+		_next_gate_change_ms = 1e18
+		return
+	var j: float = 1.0 + game.rng.randf_range(-GATE_CHANGE_JITTER, GATE_CHANGE_JITTER)
+	_next_gate_change_ms = now + gate_change_ms * j
+
+func _maybe_gate_change(now: float) -> void:
+	if gate_change_ms <= 0.0 or _areas.size() < 2 or now < _next_gate_change_ms:
+		return
+	# Never re-judge an alien that is already in the player's hand: they committed to a decision
+	# under the old pass, and having it graded against a new one is the game cheating.
+	if _drag_alien != null:
+		return
+	_schedule_gate_change(now)
+	var n: int = _areas.size()
+	var k: int = game.rng.randi_range(1, n - 1)
+	var passes: Array = []
+	var denies: Array = []
+	for ar in _areas:
+		passes.append(ar.get("pass", {}))
+		denies.append(bool(ar.get("deny", false)))
+	for i in n:
+		var src: int = (i + k) % n
+		_areas[i]["pass"] = passes[src]
+		_areas[i]["deny"] = denies[src]      # the whole pass travels, polarity included
+	gate_changes += 1
+	_reveal_until_ms = now + GATE_CHANGE_REVEAL_MS
+	_chips_visible = true
+	_refresh_rule_labels()
+	_field_node.queue_redraw()
+	_show_banner("GATE CHANGE")
+	game.play_sound("gatechange")
+
+# --- Boarding call ------------------------------------------------------------------------------
+#
+# One parked alien is called to board within `priority_window_ms`. This is the answer to the
+# deepest shortcut: the player chooses what to handle and when, so gates can be worked one at a
+# time — and batching a gate removes the task-switch cost that IS the difficulty. A call comes
+# from a gate you are probably not looking at and has a deadline, so it interrupts the batch and
+# forces the switch, without taking the free play away the rest of the time.
+
+func _eligible_for_call() -> Array:
+	var out: Array = []
+	for al in _aliens:
+		if is_instance_valid(al) and al.state == AState.PARKED_OUTER and al != _drag_alien:
+			out.append(al)
+	return out
+
+func _update_priority(now: float) -> void:
+	if priority_every_ms <= 0.0:
+		return
+	if _called_al != null:
+		# The call survives being PICKED UP. Ending it on "no longer parked" would let the player
+		# grab the called alien and drop it straight back — a legal no-op — to cancel the clock for
+		# free. It ends only when the alien is genuinely resolved (the scoring paths call
+		# _end_call_for) or when it is no longer at the gate at all.
+		var st: int = -1
+		if is_instance_valid(_called_al):
+			st = _called_al.state
+		var pending: bool = st == AState.PARKED_OUTER or st == AState.DRAGGED or st == AState.SNAPPING
+		if not pending:
+			_clear_call()
+		elif now >= _called_until_ms:
+			calls_missed += 1
+			_score_mistake(_called_al, now)   # a called passenger left standing is a missed boarding
+			_clear_call()
+			_next_priority_ms = now + priority_every_ms
+		else:
+			var left: float = (_called_until_ms - now) / maxf(1.0, priority_window_ms)
+			_called_al.set_called(true, left)
+		return
+	if now < _next_priority_ms:
+		return
+	var cand: Array = _eligible_for_call()
+	if cand.is_empty():
+		_next_priority_ms = now + CALL_RETRY_MS
+		return
+	# prefer a gate other than the one called last, so consecutive calls actually force a switch
+	var pref: Array = cand.filter(func(a): return a.area_idx != _last_called_area)
+	if pref.is_empty():
+		pref = cand
+	_called_al = pref[game.rng.randi_range(0, pref.size() - 1)]
+	_called_until_ms = now + priority_window_ms
+	_last_called_area = _called_al.area_idx
+	_called_al.set_called(true, 1.0)
+	calls_made += 1
+	_show_banner("NOW BOARDING")
+	game.play_sound("call")
+
+# Called from every path that RESOLVES an alien, so an answered call ends there and then rather
+# than waiting for a state check that cannot tell "boarded" from "still being dropped".
+func _end_call_for(al) -> void:
+	if _called_al != null and _called_al == al:
+		_clear_call()
+
+func _clear_call() -> void:
+	if _called_al != null and is_instance_valid(_called_al):
+		_called_al.set_called(false)
+	_called_al = null
+	if priority_every_ms > 0.0:
+		_next_priority_ms = _last_now + priority_every_ms
+
+# A short caption across the top of the field. Announcements have to be readable at a glance while
+# the player's attention is on an alien, so: one short phrase, high contrast, gone by itself.
+func _show_banner(txt: String) -> void:
+	if _banner != null and is_instance_valid(_banner):
+		_banner.queue_free()
+	var lbl: Label = Label.new()
+	lbl.text = txt
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.z_index = 210
+	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
+	lbl.add_theme_font_size_override("font_size", int(_alien_radius * (1.05 if MainGlobals.is_mobile() else 0.95)))
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.86, 0.30))
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	lbl.add_theme_constant_override("outline_size", 8)
+	_place(lbl, _field.position.x, _field.position.y + _field.size.y * 0.5 - _alien_radius,
+		_field.size.x, _alien_radius * 2.0)
+	add_child(lbl)
+	_banner = lbl
+	var tw: Tween = lbl.create_tween()
+	tw.tween_property(lbl, "modulate:a", 0.0, BANNER_MS / 1000.0).set_delay(BANNER_MS / 2600.0)
+	tw.tween_callback(lbl.queue_free)
 
 # --- Alien creation ---------------------------------------------------------------------------
 
@@ -633,22 +1034,22 @@ func _stock_initial_supply() -> void:
 		var need: Array = _find_supply_gap()
 		if need.is_empty():
 			return
-		var rule: String = str(_areas[int(need[0])]["rule"])
+		var ai: int = int(need[0])
 		var want: bool = bool(need[1])
 		var victim = null
 		for al in _aliens:
-			if al.state == AState.ROAM and _alien_matches(al, rule) != want:
+			if al.state == AState.ROAM and _gate_wants(al, ai) != want:
 				victim = al
 				break
 		if victim == null:
 			return
-		_force_rule(victim, rule, want)
+		_force_pass(victim, _areas[ai].get("pass", {}), _match_want(ai, want))
 
-# A brand new alien, forced onto the side of `rule` the pool is short of.
-func _spawn_alien_for(rule: String, want: bool) -> void:
+# A brand new alien, forced onto whichever side of gate `area_idx` the pool is short of.
+func _spawn_alien_for(area_idx: int, gate_want: bool) -> void:
 	_spawn_alien()
 	var al = _aliens[_aliens.size() - 1]
-	_force_rule(al, rule, want)
+	_force_pass(al, _areas[area_idx].get("pass", {}), _match_want(area_idx, gate_want))
 
 func _next_z() -> int:
 	_z_counter += 1
@@ -660,6 +1061,7 @@ func _clear_world() -> void:
 			al.queue_free()
 	_aliens.clear()
 	_drag_alien = null
+	_called_al = null          # it pointed at an alien that no longer exists
 	for ai in _areas.size():
 		var ar: Dictionary = _areas[ai]
 		for i in ar["inner_owner"].size():
@@ -712,7 +1114,9 @@ func _process(dt: float) -> void:
 # One frame of the world. Everything the game does per frame must live here.
 func _simulate(d: float, now: float) -> void:
 	_last_now = now
+	_maybe_gate_change(now)
 	_update_rules_visibility(now)
+	_update_priority(now)
 	for al in _aliens:
 		_update_alien(al, d, now)
 	_resolve_positions()
@@ -818,7 +1222,7 @@ func _try_enter(al, now: float) -> bool:
 	var eager: float = free_frac * (0.85 if near_ring else 0.35)
 	if game.rng.randf() >= lerpf(enter_chance, EAGER_ENTER, eager):
 		return false
-	var would_match: bool = _alien_matches(al, str(ar["rule"]))
+	var would_match: bool = _gate_wants(al, ai)
 	# An EMPTY ring is a wasted opportunity, so the arrival-mix veto only applies once somebody is
 	# already parked — otherwise the balancer can silently hold everyone out of an empty ring.
 	if taken > 0 and not _arrival_allowed(would_match):
@@ -827,7 +1231,7 @@ func _try_enter(al, now: float) -> bool:
 	_entry_cooldown_ms = now + MIN_ENTRY_GAP_MS
 	al.state = AState.SEEKING_SLOT
 	al.area_idx = ai
-	al.park_angle = NAN        # claimed on arrival at the ring edge, not from across the field
+	al.park_angle = al.NO_ANGLE  # claimed on arrival at the ring edge, not from across the field
 	al.seek_start_ms = now
 	return true
 
@@ -837,7 +1241,7 @@ func _choose_area_for(al) -> int:
 	var pool: Array = []
 	if _areas.size() > 1 and game.rng.randf() < SMART_ENTRY:
 		for i in _areas.size():
-			if _alien_matches(al, str(_areas[i]["rule"])):
+			if _gate_wants(al, i):
 				pool.append(i)
 	if pool.is_empty():
 		for i in _areas.size():
@@ -913,7 +1317,7 @@ func _update_seek(al, d: float, now: float) -> void:
 	# a place only on ARRIVAL at the edge, taking the free angle nearest to where it actually got
 	# there. Claiming at commit time (possibly from across the field) is what made aliens trek to a
 	# specific angle and look like they were filling assigned slots.
-	if is_nan(al.park_angle):
+	if al.park_angle < al.HAS_ANGLE_MIN:
 		if to_al.length() > float(ar["r_out"]) + al.radius * 1.6:
 			_steer(al, c + to_al.normalized() * float(ar["s_out"]), _seek_speed, d)
 			return
@@ -1013,8 +1417,9 @@ func _send_away_from(al, area_idx: int, now: float) -> void:
 # one costs nothing: leaving is exactly what should have happened to it anyway.
 # park_patience_sec = 0 disables the valve entirely (the hardest levels).
 func _give_up(al) -> void:
+	_end_call_for(al)
 	var home3: int = al.area_idx
-	if home3 >= 0 and home3 < _areas.size() and _alien_matches(al, str(_areas[home3]["rule"])):
+	if home3 >= 0 and home3 < _areas.size() and _gate_wants(al, home3):
 		_score_mistake(al, _last_now)
 	_release_park(al)
 	al.state = AState.LEAVING
@@ -1270,7 +1675,7 @@ func _drop_dragged(now: float) -> void:
 		if home < 0 or home >= _areas.size():
 			_reject(al, now)
 			return
-		var matched: bool = _alien_matches(al, str(_areas[home]["rule"]))
+		var matched: bool = _gate_wants(al, home)
 		# Both judgments COMMIT. A wrong call is scored against the player, not undone.
 		if kind == Region.INNER and idx == home:
 			_accept_into_inner(al, now, not matched)
@@ -1344,7 +1749,26 @@ func _score_mistake(al, now: float) -> void:
 # Drop into this area's inner ring. Correct when the alien matches the rule; a scored mistake
 # when it doesn't — but either way it goes in.
 func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
+	_end_call_for(al)
 	_release_park(al)
+	if is_mistake:
+		_score_mistake(al, now)
+	else:
+		_score_correct(al, now)
+
+	# A CORRECT boarding starts dissolving the moment the player lets go — it boards, it does not
+	# linger. Waiting SNAP_MS to glide onto a slot and then INNER_HOLD_MS before the fade left a
+	# correctly-handled alien sitting there for over 1.5 s, which reads as "still to deal with"
+	# on exactly the gate the player has just finished with. No inner slot is claimed at all:
+	# it fades where it was dropped, which is already inside the ramp.
+	if not is_mistake:
+		al.state = AState.FADING
+		al.fade_t0 = now
+		_field_node.queue_redraw()
+		return
+
+	# A MISTAKE still takes a slot and holds: the move stands, and the alien has to remain visible
+	# long enough for the red flash to be connected to it.
 	var ar: Dictionary = _areas[al.area_idx]
 	var owners: Array = ar["inner_owner"]
 	var slot: int = -1
@@ -1353,10 +1777,6 @@ func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
 			owners[i] = al
 			slot = i
 			break
-	if is_mistake:
-		_score_mistake(al, now)
-	else:
-		_score_correct(al, now)
 	if slot < 0:
 		# inner ring momentarily full — pause in place, then leave
 		al.state = AState.FADING
@@ -1371,6 +1791,7 @@ func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
 # Drop out onto the open field. Correct when the alien does NOT match the rule; a scored mistake
 # when it does — but either way it is released and roams off from where it was dropped.
 func _send_to_field(al, now: float, is_mistake: bool) -> void:
+	_end_call_for(al)
 	var home: int = al.area_idx
 	_release_park(al)
 	_send_away_from(al, home, now)
@@ -1457,7 +1878,6 @@ func _update_fades(now: float) -> void:
 # [area_idx, want_match] for the first shortage found, or [] when every side is stocked.
 func _find_supply_gap(ignore_al = null) -> Array:
 	for i in _areas.size():
-		var rule: String = str(_areas[i]["rule"])
 		var m: int = 0
 		var nm: int = 0
 		for al in _aliens:
@@ -1466,7 +1886,7 @@ func _find_supply_gap(ignore_al = null) -> Array:
 			if al.state != AState.ROAM and al.state != AState.SEEKING_SLOT \
 				and al.state != AState.PARKED_OUTER:
 				continue
-			if _alien_matches(al, rule):
+			if _gate_wants(al, i):
 				m += 1
 			else:
 				nm += 1
@@ -1501,6 +1921,56 @@ func _force_rule(al, rule_key: String, want: bool) -> void:
 		al.is_fat = not want
 	al.queue_redraw()
 
+# Make `_pass_matches(al, ps) == want` by nudging as few traits as possible.
+#
+# Correct because the two atoms always come from DIFFERENT modalities, so forcing one cannot
+# change the other's truth. Note the asymmetry: to SATISFY an AND both sides must be set, but to
+# BREAK one only a single side is needed (and vice versa for OR) — forcing both when one would do
+# would correlate the two traits and quietly weaken the confusion the whole game rests on.
+func _force_pass(al, ps: Dictionary, want: bool) -> void:
+	var op: String = str(ps.get("op", "atom"))
+	var ka: String = str(ps.get("a", ""))
+	if ka == "":
+		return
+	if op == "atom":
+		_force_rule(al, ka, want)
+		return
+	var kb: String = str(ps.get("b", ""))
+	if kb == "":
+		_force_rule(al, ka, want)
+		return
+	var neg_b: bool = op == "andnot" or op == "ornot"
+	var is_and: bool = op == "and" or op == "andnot"
+	# work in terms of B' = the operand AFTER the operator's own negation
+	var set_a: bool = false
+	var va: bool = false
+	var set_b: bool = false
+	var vb: bool = false
+	if is_and:
+		if want:
+			set_a = true
+			va = true
+			set_b = true
+			vb = true
+		elif game.rng.randf() < 0.5:
+			set_a = true            # A false is enough to break the AND
+		else:
+			set_b = true            # ...or B' false
+	else:
+		if not want:
+			set_a = true
+			set_b = true            # both sides false to break the OR
+		elif game.rng.randf() < 0.5:
+			set_a = true
+			va = true               # either side true satisfies the OR
+		else:
+			set_b = true
+			vb = true
+	if set_a:
+		_force_rule(al, ka, va)
+	if set_b:
+		_force_rule(al, kb, vb != neg_b)     # B' -> B
+
 # Any value from `pool` other than `avoid`; falls back to the current value if the pool has none.
 func _other_from(pool: Array, avoid: int, fallback: int) -> int:
 	var alts: Array = pool.filter(func(v): return int(v) != avoid)
@@ -1520,7 +1990,7 @@ func _top_up_supply(now: float) -> void:
 		var need: Array = _find_supply_gap()
 		if need.is_empty():
 			return
-		var rule: String = str(_areas[int(need[0])]["rule"])
+		var ai: int = int(need[0])
 		var want: bool = bool(need[1])
 		# take the surplus roamer FARTHEST from any ring, so the swap is out of the player's focus
 		# 1st choice: a surplus roamer we can spare; 2nd: any other-class roamer; then spawn.
@@ -1529,7 +1999,7 @@ func _top_up_supply(now: float) -> void:
 		var fallback = null
 		var fallback_d: float = -1.0
 		for al in _aliens:
-			if al.state != AState.ROAM or _alien_matches(al, rule) == want:
+			if al.state != AState.ROAM or _gate_wants(al, ai) == want:
 				continue
 			var d: float = _dist_to_nearest_area(al.sim_pos)
 			if _can_spare(al):
@@ -1545,30 +2015,29 @@ func _top_up_supply(now: float) -> void:
 			# Nothing can be spared without opening another gap — ADD an alien instead. The
 			# population drains back to num_free_aliens as promoted aliens are retired.
 			if _aliens.size() < num_free_aliens + SUPPLY_HEADROOM:
-				_spawn_alien_for(rule, want)
+				_spawn_alien_for(ai, want)
 				topup_swaps += 1
 				continue
 			return
-		victim.respawn_need = [rule, want]
+		victim.respawn_need = [ai, want]
 		victim.state = AState.FADING
 		victim.fade_t0 = now
 		topup_swaps += 1
 
 # How many roamers fall on `want` side of area `area_idx`'s rule.
 func _class_count(area_idx: int, want: bool, ignore_al) -> int:
-	var rule: String = str(_areas[area_idx]["rule"])
 	var n: int = 0
 	for al in _aliens:
 		if al == ignore_al or al.state != AState.ROAM:
 			continue
-		if _alien_matches(al, rule) == want:
+		if _gate_wants(al, area_idx) == want:
 			n += 1
 	return n
 
 # True when converting this alien would not push any area's class below the minimum.
 func _can_spare(al) -> bool:
 	for i in _areas.size():
-		var want: bool = _alien_matches(al, str(_areas[i]["rule"]))
+		var want: bool = _gate_wants(al, i)
 		if _class_count(i, want, al) < MIN_SUPPLY:
 			return false
 	return true
@@ -1591,16 +2060,18 @@ func _recycle(al) -> void:
 		al.queue_free()
 		return
 	_roll_traits(al)
+	al.set_called(false)
 	if need.size() >= 2 and need[0] is int:
-		_force_rule(al, str(_areas[int(need[0])]["rule"]), bool(need[1]))
-	elif need.size() >= 2:
-		_force_rule(al, str(need[0]), bool(need[1]))
+		var ai2: int = int(need[0])
+		# resolved against the gate's rule AS IT IS NOW: a gate change may have swapped the pass
+		# (or its polarity) while this alien was fading out
+		_force_pass(al, _areas[ai2].get("pass", {}), _match_want(ai2, bool(need[1])))
 	al.self_modulate.a = 0.0          # fade in rather than pop into existence
 	al.fade_in_t0 = _last_now
 	al.state = AState.ROAM
 	al.area_idx = -1
 	al.slot_idx = -1
-	al.park_angle = NAN
+	al.park_angle = al.NO_ANGLE
 	al.waypoints = []
 	al.vel = Vector2.ZERO
 	al.sim_pos = _random_free_point(al.radius, true, al)
@@ -1623,15 +2094,25 @@ func new_game(from_scratch: bool = true) -> void:
 	game.mistakes = 0
 	times_to_answer.clear()
 	_rules_hidden = false
+	_chips_visible = true
+	_reveal_until_ms = 0.0
 	_recent_arrivals.clear()
 	_entry_cooldown_ms = 0.0
 	_next_topup_ms = 0.0
 	_drag_alien = null
+	_called_al = null
+	_last_called_area = -1
+	gate_changes = 0
+	calls_made = 0
+	calls_missed = 0
 	_clear_world()
 	_load_level(current_level_id)
 	_layout()
 	call_deferred("_layout")     # re-apply once the menu->level transition settles
 	_pick_rules()
+	# the clocks start when play does (_on_game_popup_closed), not while the intro is up
+	_next_gate_change_ms = 1e18
+	_next_priority_ms = 1e18
 	_field_node.rebuild_sky()      # a new sky for each level
 	for _i in num_free_aliens:
 		_spawn_alien()
@@ -1639,13 +2120,30 @@ func new_game(from_scratch: bool = true) -> void:
 	_field_node.queue_redraw()
 
 	var hide_txt: String = "never" if hide_after_ms <= 0.0 else "%d s" % int(hide_after_ms / 1000.0)
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
-		("Aliens queue up in a gate's outer ring.\n" +
-		"Drag one that MATCHES the pass onto\n" +
-		"the boarding ramp, and one that does\n" +
-		"NOT back out to the hall.\n\n" +
-		"Gates: %d\nPass comes down after: %s\nTime: %d s")
-		% [num_areas, hide_txt, level_time_sec])
+	var body: String = ("Aliens queue up in a gate's outer ring.\n" +
+		"Drag one the pass ACCEPTS onto the\n" +
+		"boarding ramp, and one it does not\n" +
+		"back out to the hall.\n")
+	# Only name the twists THIS ROUND actually drew. _pick_rules has already run, so the briefing
+	# can report what is really on the board rather than what the level permits — with an
+	# independent deny roll, a level that allows deny gates will sometimes have none.
+	var n_deny: int = 0
+	var n_compound: int = 0
+	for ar in _areas:
+		if bool(ar.get("deny", false)):
+			n_deny += 1
+		if str(ar.get("pass", {}).get("op", "atom")) != "atom":
+			n_compound += 1
+	if n_compound > 0:
+		body += "\nSome passes ask for TWO things at once.\n"
+	if n_deny > 0:
+		body += "\nA red \"NOT ...\" pass boards everyone EXCEPT that.\n"
+	if gate_change_ms > 0.0 and num_areas > 1:
+		body += "\nGATE CHANGE: the passes move between gates.\n"
+	if priority_every_ms > 0.0:
+		body += "\nNOW BOARDING: the ringed alien must be\ndealt with before its ring runs out.\n"
+	body += "\nGates: %d\nPass comes down after: %s\nTime: %d s" % [num_areas, hide_txt, level_time_sec]
+	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, body)
 	intro.closed.connect(_on_game_popup_closed)
 
 func _on_game_popup_closed() -> void:
@@ -1653,6 +2151,10 @@ func _on_game_popup_closed() -> void:
 		_layout()
 		_play_start_ms = game.game_time
 		game.level_is_ready = true
+		# start the interference clocks now: the intro popup can sit open for any length of time,
+		# and a gate change firing on the first frame of play would be unreadable
+		_schedule_gate_change(_play_start_ms)
+		_next_priority_ms = (_play_start_ms + priority_every_ms) if priority_every_ms > 0.0 else 1e18
 		started_playing.emit()
 
 func stop_level() -> void:
@@ -1673,6 +2175,19 @@ func _load_level(id: int) -> void:
 	trait_eyes = def.get("eye_counts", [1, 2, 3]).duplicate()
 	trait_antennae = def.get("antennae_counts", [0, 1, 2]).duplicate()
 	trait_spots_chance = float(def.get("spots_chance", 0.5))
+	gate_change_ms = maxf(0.0, float(def.get("gate_change_sec", 0.0)) * 1000.0)
+	deny_chance = clampf(float(def.get("deny_chance", 0.0)), 0.0, 1.0)
+	priority_every_ms = maxf(0.0, float(def.get("priority_every_sec", 0.0)) * 1000.0)
+	priority_window_ms = maxf(1500.0, float(def.get("priority_window_sec", 6.0)) * 1000.0)
+	compound_chance = clampf(float(def.get("compound_chance", 0.0)), 0.0, 1.0)
+	_chip_lines = 2 if compound_chance > 0.0 else 1
+	compound_ops = def.get("compound_ops", ALL_OPS).duplicate()
+	if compound_chance <= 0.0:
+		compound_ops = []
+	else:
+		compound_ops = compound_ops.filter(func(o): return ALL_OPS.has(str(o)))
+		if compound_ops.is_empty():
+			compound_ops = ALL_OPS.duplicate()
 	if trait_colors.is_empty():
 		trait_colors = [0, 1, 2]
 	if trait_eyes.is_empty():

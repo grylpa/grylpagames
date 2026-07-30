@@ -9,9 +9,10 @@ and turns arrivals away. The words "aliens" and "level" are kept as-is. Only pla
 uses this vocabulary — the code still says areas/rings, which is deliberate: renaming the internals
 would be a large refactor with real regression risk and no player benefit.
 
-Cute little aliens roam an open field. There are 1–2 **target areas**, each drawn as two
-concentric circles: an **outer ring** (annulus) and an **inner ring** (inner disc). Each area
-has a rule about alien traits ("3 EYES", "TALL", "BLUE").
+Cute little aliens roam an open field. There are 1–4 **target areas**, each drawn as two
+concentric circles: an **outer ring** (annulus) and an **inner ring** (inner disc). Each area has
+a **pass** — a rule about alien traits ("3 EYES", "BLUE"), optionally negated ("NOT BLUE") or
+compound ("1 EYE AND NOT BLUE"). There is deliberately no "TALL" rule; see Trait model.
 
 Aliens walk into an area's **outer ring by themselves** and park there. They can never enter an
 inner ring on their own. The player drags each arrival either **into the inner ring** (if it
@@ -20,6 +21,10 @@ full, aliens that walk up to it are turned away and each one costs a miss.
 
 Successor to `rlmadness` (same rapid rule-switching under interference, arcade presentation).
 `rlmadness` remains commented out of `scripts/config.gd`.
+
+From level 4 an **interference layer** switches on — see [Interference layer](#interference-layer).
+It exists because the base game, while pleasant, was measurably gentler than rlmadness, and for
+three identifiable reasons rather than a general lack of speed.
 
 ## File Structure
 
@@ -97,6 +102,12 @@ comment block at the top of `level_config.gd` for the authoritative list with la
 
 ## Rules
 
+- **`_gate_wants(al, area_idx)` is THE judgment**, and the only place polarity is applied:
+  `_alien_matches(al, rule) != deny`. Every decision, arrival choice and supply calculation goes
+  through it, so the scoring and the population can never disagree about what a gate wants. The
+  inverse, `_match_want(area_idx, gate_want)`, converts back into rule terms for `_force_rule`,
+  which speaks rules rather than gate decisions. Do **not** call `_alien_matches` against an
+  area's rule directly — that silently ignores a DENY gate.
 - **No confusability table is needed** (unlike sortingrobots/monkeyc). An alien is judged only
   against the rule of the area it walked into, so an alien matching both areas' rules is
   harmless — it belongs wherever it went.
@@ -260,6 +271,158 @@ it and nothing compares it between runs, so pinning it only threw away free vari
 - When the rules hide, the caption is **removed** (`visible = false`), not replaced by a `?`
   placeholder — an empty box left on screen is just clutter.
 
+## Interference layer
+
+Added after play showed the game was enjoyable but nowhere near as **cognitively costly** as
+rlmadness. The gap was not speed. Three specific shortcuts were doing the work, and each mechanic
+below removes exactly one. All three are off for levels 1–3 and ramp in from level 4 — the base
+game is still the game, this is a difficulty tier on top of it.
+
+| shortcut the player was using | why it is cheap | mechanic |
+|---|---|---|
+| the rule settles into a **place** — "left = blue" | recalling a location costs almost nothing next to recalling a rule | **gate change** |
+| polarity is always ACCEPT | one sense to hold per gate instead of two | **deny list** |
+| free choice of what to handle **lets gates be batched** | batching removes the task-switch cost, which *is* the difficulty | **boarding call** |
+
+### Gate change (`gate_change_sec`)
+
+The passes **rotate** between the gates every `gate_change_sec` ± `GATE_CHANGE_JITTER` (22%), and
+the chips come back up for `GATE_CHANGE_REVEAL_MS` (2.2 s) so the new arrangement can be read.
+Needs `num_areas >= 2`.
+
+- A **rotation, not a shuffle** — a rotation is guaranteed to be a derangement, so no gate ever
+  keeps its pass and there is never a "swap" where nothing visibly happened.
+- The **whole pass travels, polarity included**: a DENY gate's rule arrives at the next gate still
+  denying.
+- **Never fires while `_drag_alien != null`.** The player committed to a decision under the old
+  pass; grading it against a new one is the game cheating, not difficulty.
+- The reveal is short on purpose. A swap the player cannot read is a guess, not a memory test —
+  but a reveal long enough to keep reading would undo `hide_after_sec`.
+
+### Deny list (`deny_chance`)
+
+Per gate, at rule-pick time. A DENY gate boards everything **except** its pass; its chip reads
+`NOT SPOTTED` in a warm color and `field.gd` tints both its rings warm.
+
+- With 2+ gates `_assign_polarity` **forces the polarities to be mixed** (never all-accept, never
+  all-deny). A uniform polarity is just one rule inverted once — the load comes from holding two
+  *opposite* senses simultaneously.
+- **Two independent cues** for the polarity — the word `NOT` and the ring tint. The chip goes away
+  when the pass hides; the ring does not. Without the ring cue, recalling the polarity after the
+  hide would be a coin flip, which is frustration rather than difficulty.
+- **Two negations, two different words**, so they never blur together:
+  `NO ...` is a trait that is **absent** and belongs to the rule's own name (`NO ANTENNAE`,
+  `NO SPOTS`, and the compound short form `NO ANT`); `NOT ...` means the **requirement is
+  negated** — a deny gate (`NOT FAT`, `NOT BLUE`) or a compound operand (`AND NOT BLUE`).
+  `DENY_PREFIX` used to be `"NO "`, which produced `NO FAT` and, worse, used a different word
+  from the compound operators for the identical idea. A census of all 358 reachable chip strings
+  confirms no `NO NO`, `NOT NO` or `NOT NOT` can occur.
+  (There is no zero-eyes case: `alien.gd` clamps `eyes` to 1–3 and `ALL_RULES` has only
+  `eyes1/2/3`, so `NO EYES` is not a label the game can produce.)
+- **A deny gate never takes an already-negative rule** (`NEGATIVE_RULES` = `nospots`, `ant0`).
+  Caught in probe output reading `NO NO SPOTS`. It is not only unreadable: for a two-valued trait,
+  deny+`nospots` is *logically identical* to accept+`spots`, so the double negative adds no load
+  at all — only confusion. `_avoid_double_negatives` swaps the rule to the positive one of the
+  same modality, which keeps both the polarity mix and one-modality-per-gate intact. It runs
+  **after** the mixed-polarity fix so it can never be undone, and a usable modality always has a
+  positively-labelled rule, so the "drop the deny" fallback is effectively unreachable.
+  Deny genuinely earns its keep on the >2-valued traits (eyes, antennae, color), where `NO BLUE`
+  is not equivalent to any single accept rule.
+
+### Compound passes (`compound_chance`, `compound_ops`)
+
+A gate's pass is no longer always a single rule. With `compound_chance` it becomes two rules from
+**different modalities** joined by one of four operators:
+
+| op | reads | character |
+|---|---|---|
+| `and` | `1 EYE AND BLUE` | rare, so a *match* is the precious event |
+| `or` | `1 EYE OR BLUE` | often decidable from one trait alone — the weakest |
+| `andnot` | `1 EYE AND NOT BLUE` | sharpest: two traits held in opposite senses |
+| `ornot` | `1 EYE OR NOT PURPLE` | common, so a *reject* is the rare event |
+
+Stored as `{"op": ..., "a": rule, "b": rule}` on `_areas[i]["pass"]` (there is no `["rule"]` key
+any more), evaluated by `_pass_matches`, labelled by `_pass_label`.
+
+- **Both atoms always come from different modalities**, and that is not cosmetic — it is what
+  makes `_force_pass` exact. Forcing one atom can never change the other's truth, so satisfying
+  or breaking a compound decomposes into independent single-trait nudges instead of needing a
+  constraint solver.
+- **`_force_pass` forces the minimum.** To satisfy an AND both sides must be set, but to break one
+  only a single (randomly chosen) side is needed — and vice versa for OR. Forcing both when one
+  would do would correlate the two traits and quietly weaken the trait independence the whole
+  confusion mechanism rests on.
+- **A compound is never denied.** `NO (1 EYE AND BLUE)` is a De Morgan puzzle; `andnot` / `ornot`
+  already give negation in a form that reads straight off the chip.
+- **The right operand of `andnot`/`ornot` is never a negatively-labelled rule**, or the chip reads
+  `1 EYE AND NOT NO ANTENNAE`. Same class of bug as the deny double-negative.
+- **Chip legibility was the real cost, and it was measured, not guessed.** A compound label is
+  roughly twice as long in a chip that does not get any wider, and `_fit_caption` shrinks the font
+  to fit: `NO ANTENNAE AND NOT SPOTTED` came out at **11 px** on a 3-gate level. Two fixes, both
+  needed: compound *operands* use `RULE_LABELS_SHORT` (`2 ANTENNAE` → `2 ANT`), and a compound
+  breaks at the operator onto a **second line**, so neither line is longer than a simple pass.
+- **`_chip_lines` is per-LEVEL, not per-pass.** `_layout` reserves the chip height before
+  `_pick_rules` has drawn anything, so the second line is reserved whenever `compound_chance > 0`
+  even on gates that end up simple. Stable geometry beats a tight fit — sizing the chip from the
+  actual passes would make the alien radius jump between rounds of the same level.
+- `_fit_caption` measures the **widest line**, not the whole string: measuring across the newline
+  would treat it as one long line and shrink the font far more than necessary.
+- **Gates still read disjoint traits — via a MODALITY BUDGET.** A compound spends two modalities,
+  an atom one, and each gate draws only from those still unspent, so no two gates ever share a
+  trait. A gate may go compound only if the gates after it would still have one modality each,
+  which is what caps the compound count: with five modalities, 2 gates can both be compound,
+  3 gates get at most two, 4 gates at most one.
+  The first version instead dropped the invariant to "no two gates share a pass"
+  (`_pass_signature`, with AND/OR operands sorted since they are symmetric) on the grounds that
+  4 gates × 2 atoms cannot fit 5 modalities. Measured, that put two gates on a shared trait in
+  **84% of rounds** on levels 9–10 — never ambiguous (a brute-force check over all 180 trait
+  combinations found no two gates ever logically equivalent), but a badly weakened switch:
+  `3 EYES OR 2 ANT` beside `3 EYES AND BLUE` is answered half-way by one look at the eyes. The
+  budget gets full disjointness at every real gate count; the signature check is still there as a
+  backstop against two gates drawing the identical pass.
+
+### Boarding call (`priority_every_sec`, `priority_window_sec`)
+
+One **parked** alien is called and must be resolved within the window or it costs a MISS (one
+`_score_mistake`, then the call clears). The alien draws a countdown arc around itself.
+
+- The candidate is preferentially drawn from a gate **other than the last one called**, so
+  consecutive calls actually force a switch.
+- A countdown **arc**, not a number: unreadable at alien size otherwise, and a shrinking arc is
+  legible peripherally — the call has to be noticed while attention is on another gate.
+- If the alien is resolved, gives up, or otherwise leaves `PARKED_OUTER`, the call ends **unscored**
+  (the resolution already scored itself). Only expiry is penalized, exactly once.
+- With nobody parked, the call retries in `CALL_RETRY_MS` rather than being wasted.
+
+**Clocks start at `_on_game_popup_closed`, not in `new_game`.** The intro popup can sit open for
+any length of time, and a gate change firing on the first frame of play would be unreadable.
+
+### Ramp
+
+| level | gates | gate change | deny | call (every / window) | compound |
+|---|---|---|---|---|---|
+| 1–3 | 1–2 | — | — | — | — |
+| 4 | 2 | 34 s | — | — | — |
+| 5 | 2 | 30 s | — | 19 s / 8 s | — |
+| 6 | 2 | 34 s | 0.5 | 18 s / 7.5 s | — |
+| 7 | 3 | 26 s | 0.5 | 15 s / 6.5 s | — |
+| 8 | 4 | 22 s | 0.5 | 13 s / 6 s | — |
+| 9 | 2 | 32 s | — | 18 s / 7.5 s | 0.55, `and`/`or` |
+| 10 | 3 | 26 s | 0.5 | 14 s / 6.5 s | 0.6, all four |
+
+One new idea per level: 4 adds gate change alone (everything else held at level 3's settings),
+5 adds the call, 6 adds deny and *eases gate change back* while the new polarity is learned.
+**9 drops back to 2 gates and turns deny off** to introduce compounds — one pass spanning two
+traits is enough on its own — and starts with `and`/`or`, which read the most naturally. 10 puts
+everything together.
+
+Measured cost of the two-line chip: level 10's alien radius is **17.0** where the comparable
+3-gate level 7 gets 20.5, because `label_res` reserves the second line. Worst fitted chip font is
+17 px against a 21 px base (level 10, `3 EYES / AND NOT YELLOW`); level 9 never shrinks at all.
+
+The level intro popup names **only the twists that level actually uses** — a briefing listing
+rules the player will not meet is worse than no briefing.
+
 ## Pressure and level flow
 
 - Outer ring availability is re-checked **every frame** during the walk; the miss is only booked
@@ -278,6 +441,12 @@ it and nothing compares it between runs, so pinning it only threw away free vari
   a trap worth remembering when editing the config. It **walks** out — `area_idx` is deliberately kept until it is clear
   of the ring, because clearing it immediately made the keep-out treat the alien as a trespasser
   and teleport it outside in one frame, which looked like it was erased and dumped. `0` disables it (levels 7–8, where the pressure is the point).
+- **A CORRECT boarding starts fading the instant the player lets go** — no snap onto a slot, no
+  hold, and no inner slot claimed at all; it dissolves where it was dropped, which is already
+  inside the ramp. Gliding into a slot and then holding kept a correctly-handled alien on screen
+  for over 1.5 s, which reads as "still to deal with" on the very gate just finished with.
+  A **MISTAKE** still takes a slot and holds for `INNER_HOLD_MS`: that move stands, and the alien
+  has to stay visible long enough for the red flash to be connected to it.
 - A promoted alien celebrates in the inner ring for `INNER_HOLD_MS`, fades, and is **recycled**
   with fresh traits elsewhere. Keeps `inner_slots` small, the population constant, the mix fresh.
 - Level ends when `level_time_sec` elapses (`game.sig_time_over` → `_level_done`). Accuracy feeds
@@ -291,6 +460,7 @@ it and nothing compares it between runs, so pinning it only threw away free vari
 | correct promote / correct release | `+12 + speed bonus` (max +10) | `corrects+1`, round |
 | MISTAKE (bad promotion, evicted a match) — the move still commits | `-min(4, score)` | `mistakes+1`, round |
 | turned away at a FULL ring | `-min(2, score)` | `mistakes+1`, round |
+| a BOARDING CALL expired unanswered | `-min(4, score)` | `mistakes+1`, round |
 | ILLEGAL drop | nothing | not counted |
 
 **ILLEGAL vs MISTAKE is the key distinction.** Illegal = a move the rules don't permit (field →
@@ -363,6 +533,21 @@ Measured on 680×788 mobile: levels 1–2 `a=38.1` (~121 device px diameter), 3�
 - `_build_modality`-style per-instance randomness does not exist here, but `_roll_traits` must
   keep the six dimensions **independent**; correlating any two silently destroys the confusion.
 - The chooser `load()`s `art/game_screen_200.png` unconditionally — it must exist.
+- **Never judge with `_alien_matches` against an area's rule** — use `_gate_wants`, or a DENY gate
+  is silently graded backwards. The supply system is the easy place to get this wrong: a
+  mismatch there does not crash, it just quietly starves one side of a gate.
+- `respawn_need` carries `[area_idx, gate_want]`, **not** `[rule, want]`. A gate change can swap
+  the pass (or its polarity) while an alien is mid-fade, so the rule has to be re-read at recycle
+  time rather than captured when the swap was requested.
+- A gate change must not fire mid-drag, and the interference clocks must not start until the
+  intro popup closes.
+- `var name: ...` shadows `Node.name`; `_usable_modalities` uses `mk`.
+- **`park_angle` uses `Alien.NO_ANGLE` (-1000), not NaN.** It was NaN originally, which is a
+  natural sentinel in GDScript — but a NaN in a script MEMBER DEFAULT reaches the editor's LSP
+  payload when the project is indexed on load, and Godot prints
+  `NaN cannot be represented in JSON` from `core/io/json.cpp`. Harmless, but it looks like an
+  error. Test the sentinel with `park_angle > Alien.HAS_ANGLE_MIN` (-999), never `is_nan`; real
+  angles are always inside `[-PI, PI]`, so the two ranges cannot collide.
 
 ## Verification
 
@@ -374,6 +559,45 @@ including the cross-area illegal case; a REAL press→move→release through `_o
 asserting the alien tracks the pointer and scores on release; self-entry (aliens reach the rings
 with no scheduler); rule key validity, distinctness, non-complement pairs, base rates in range,
 arrival mix ≈ 0.5 over real arrivals, and trait independence `|P(tall|eyes3) − P(tall)| < 0.06`.
+
+**Assert the world is real before asserting anything about it.** The probe scene instances
+`main.tscn` but nothing calls `MainGlobals.init_globals` (`scripts/main.gd:36` is its only
+caller), so `screen_size` was `(0,0)`, `_layout()` produced `alien_radius = 0`, every ring
+collapsed and no alien could reach a gate. Most of the suite then passed **vacuously** — notably
+the overlap check, since zero-radius aliens cannot overlap — while the boarding-call tests failed
+for a reason that had nothing to do with boarding calls. The probe now calls `init_globals` and
+opens with a geometry/parking guard.
+
+A third pass covers compound passes: **`_force_pass` agrees with `_pass_matches` over 800 forced
+aliens across all four operators** (the load-bearing invariant — if the supply system and the
+scorer could disagree about what a gate wants, the game would be unwinnable in a way play-testing
+could never localise); every compound spans two different modalities; no double negatives; no
+compound is ever denied, including after a gate change; `deny_chance` produces a real binomial
+spread at 2 gates (47/104/49 over 200 draws); no two gates share a pass; and the worst fitted chip
+font stays above 75% of the platform base size.
+
+A second probe pass covers the interference layer: gate changes actually fire at the configured
+rate; every rotation is a **derangement** (no gate keeps its pass); **no swap while dragging**;
+level 7 polarity is always mixed and levels without `deny_chance` are all-accept; `_gate_wants`
+agrees with `matches != deny` at every gate; the deny chip reads `NOT ...`; the supply keeps both
+kinds available per gate under deny + rotation; calls fire at rate; an expired call costs
+**exactly one** mistake and clears the marker; a resolved call clears **unscored**; a
+grab-and-release **cannot dodge** a call; levels 1–3 fire no interference events at all; and no
+alien overlap regression.
+
+**A probe cannot advance `game.game_time`.** It is a read-only computed property derived from the
+wall clock (`generic_game_util.gd:1156`), and assigning to it is **silently ignored** — no error,
+no warning. A probe that stepped `game.game_time += dt * 1000` and passed it to `_simulate` held
+`now` at a standstill: no gate change and no boarding call ever fired, which looked exactly like
+two broken mechanics. The probe must keep its **own** clock and re-anchor the level's time-stamped
+state to it after each boot (`_play_start_ms`, `_last_now`, `_next_topup_ms`, and the two
+interference schedules). Every wait must be **bounded** for the same reason — the unbounded
+version spun for the full 900 s timeout instead of reporting a failure.
+
+**Keep the probe's frame budget small.** The first version simulated ~40,000 frames at 60 Hz and
+was killed at the 300 s timeout — the sim is O(n²) with 4 resolve cycles per frame. Stepping at
+30 Hz (still under `_process`'s 0.05 clamp) and trimming each window to the shortest that can
+still observe the event brings it back to a couple of minutes.
 
 **The probe must drive `_simulate()`, never a hand-copied frame loop.** An earlier probe
 mirrored `_process` by hand, drifted out of sync, and silently never ran the supply top-up — so
