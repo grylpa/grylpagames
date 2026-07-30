@@ -54,6 +54,7 @@ z_index = 100
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.24705882, 0, 1)
 theme_override_font_sizes/font_size = 36
+theme_override_constants/line_spacing = -12
 text = "There is a storm outside
 It will last
 2 minutes"
