@@ -122,6 +122,38 @@ breath, not just an animation playing alongside it.
 Measured: openness spans 0.02–1.00 over a cycle, mother width 15.9–20.5 px against a base of 18
 (bounds 15.8–20.5), worst per-frame width step 0.013 px — far below anything that could strobe.
 
+### Anything spatial must scale with the body width
+
+`MOTHER_W` / `CHILD_W` have been retuned several times (18 → 30 → 80). Every constant expressed in
+absolute pixels silently went wrong each time:
+
+| constant | at body width 18 | at body width 76 |
+|---|---|---|
+| sample step 2 px | segment/width 0.11 | **0.026** |
+| `BAND_PX` 12 px | 1.5 bands per width | **6.4 bands per width** |
+
+**The sample step is now proportional** (`max(MOTHER_W, CHILD_W) * 0.16`, clamped 2–14 px). A fixed
+2 px step against an 80 px body puts a round joint fan every 2 px, each ~40 px across, so the fans
+overlap almost completely and Line2D is asked for geometry it cannot form cleanly. It also cut the
+mother from 289 points to 51, with segment/width back to a healthy 0.21.
+
+**`BAND_PX` is still absolute** and is left at whatever it is tuned to — but it is the first thing
+to re-check after a width change, because band density scales inversely with it.
+
+### Width and taper
+
+`MOTHER_W` / `CHILD_W` are the width at the **head**; `width_curve` tapers from there to
+`TAIL_FRAC` at the tail, and the breathing pulse scales the whole thing by
+`PULSE_W_LOW`..`PULSE_W_HIGH`.
+
+**Judge the width by the MEAN along the body, not by the base number.** The first taper
+(`TAIL_FRAC` 0.34, dropping from 62% of the length) left a mean of 22.3 px against a 30 px base —
+so the snakes read as thin even after the base width had been raised, because the taper was
+quietly removing a quarter of it and the tail thinned to 9 px. Raising the base again would only
+have made the head fat while the body stayed thin. The taper now holds ~96% of full width for the
+first 70% of the body and falls to `TAIL_FRAC` 0.58 over the last third: mean **87%** of base
+(26.1 px mother, 21.2 px child).
+
 ### Skin: bands + a dorsal stripe
 
 Added after the pulse, once the plain baseline was confirmed clean. Both parts are drawn on the
@@ -132,6 +164,18 @@ offsets, no UVs, which is what every failed attempt needed.
   interpolated per-vertex by the engine. The tail dissolve is folded into the same gradient.
 - **The dorsal stripe** is a narrower Line2D (`STRIPE_W` of the body) on the same points, lighter
   by `STRIPE_LIGHT`. Being narrower, its round joints sit *inside* the body's at every turn.
+  **It must NOT be banded.** It first shared the body's banded gradient, whose dark stops came out
+  at value 0.72 against the body's lit 0.88 — so along the length the spine alternated between
+  lighter *and darker* than the body it sits on, and never read as a continuous line. It now has a
+  plain gradient (constant colour + tail fade) built once and never rebuilt; measured, stripe 0.946
+  against a body range of 0.722–0.880, so it is lighter everywhere.
+- **A soft edge halo** (`EDGE_SOFT_MUL`, `EDGE_SOFT_ALPHA`): a wider, low-alpha line in the body
+  colour drawn *under* the body, so the silhouette feathers into the ground instead of ending on a
+  hard boundary.
+
+**Z order is now explicit and unambiguous:** ground 0 → shadow/halo 1 → body 2 → stripe 3 →
+props 4 → heads 5/6. The stripe and the props canvas previously shared z 3 and only rendered in the
+right order by accident of tree order.
 
 **`Line2D.gradient` REPLACES `default_color`, it does not multiply it.** The pulse's brightness was
 originally written to `default_color`, where a line with a gradient ignores it completely — so
@@ -171,7 +215,37 @@ it. The mother's was previously set straight from her phase velocity with no smo
 child's was smoothed at rate 20, fast enough to read as instant. Measured: the mother swings 94°
 over a cycle at no more than 1.95°/frame.
 
-Still deliberately absent: any per-point offset, any UV-derived shading, any tiled texture.
+### Slither — vertical displacement only
+
+The body undulates: amplitude `SLITHER_AMP_W`, one wave per `SLITHER_WAVE_W` body widths,
+travelling toward the tail at `SLITHER_SPEED`, eased in over `SLITHER_RAMP_W` behind the head so
+the head stays exactly on the true path.
+
+**It displaces in Y only, and that is the whole design.** The first attempt displaced along the
+local NORMAL; at a turn that normal rotates through nearly 180° between samples 2 px apart, so the
+displaced points crossed and the body tangled itself at exactly the turns. The path is strictly
+monotonic in x, so moving points in y alone leaves it monotonic in x — and **a polyline monotonic
+in x cannot self-intersect**, because any vertical line still crosses it exactly once. That is a
+proof, not a tuning. The probe asserts the monotonicity every frame on both snakes.
+
+The phase is keyed to **horizontal distance from the head**, which is monotonic and independent of
+the point count, so it cannot jump when the sampler adds or drops a vertex.
+
+Measured: 0 monotonicity violations over 600 frames, head 0.00 px off the true path, body
+departing by up to 9.6 px.
+
+### Environment
+
+- **Three parallax dune ridges** (`DUNE_LAYERS`), filled bands whose top edge is a slow double
+  sine, each scrolling at its own fraction of world speed (0.22 / 0.40 / 0.62, far to near).
+  Deliberately **not** a horizon with a moon: the ripples, pebbles, bushes and beetles all
+  establish an oblique view of a ground *plane*, and a skyline would contradict every one of them.
+  Ridges read as dunes on that same plane.
+- **Drifting dust** (`DUST_COUNT`), larger and faster nearer the viewer, which is what sells depth.
+- **A vignette** drawn last on the props canvas, so the eye settles on the middle of the board.
+
+Still deliberately absent: any UV-derived shading and any tiled texture — the two things that
+could not survive a round joint.
 
 ### Layer order
 
