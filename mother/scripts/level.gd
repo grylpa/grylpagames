@@ -59,6 +59,33 @@ const VIGNETTE_STEPS: int = 12
 # thing on screen the eye is supposed to go to.
 const VIGNETTE_DEPTH: float = 0.16
 const VIGNETTE_MAX_A: float = 0.26
+
+# --- Head shape ---------------------------------------------------------------------------------
+# The head is DRAWN, not a sprite. It used to be head1/2/3-4x.png — a white ellipse with a black
+# border and two eyes, tinted to the body colour. An ellipse cannot be made snake-like by any
+# transform: scale/rotation/skew are affine, so they map a rectangle to a parallelogram and can
+# never produce a taper. Squashing the quad narrower at the nose would squash the BORDER with it,
+# giving an outline thick at the base and thin at the snout.
+#
+# Drawn, the outline can be the real thing: narrow at the snout, widest at the JAW a little behind
+# it, then narrowing into the neck. A straight wedge reads as a spearhead; the jaw bulge is what
+# makes it read as a snake.
+const HEAD_LEN_W: float = 1.55       # head length, in body widths
+const HEAD_WIDE_W: float = 1.15      # width at the jaw, in body widths
+const HEAD_JAW_AT: float = 0.28      # where the jaw sits, as a share of length back from the nose
+const HEAD_NOSE_W: float = 0.30      # snout width as a share of the jaw width
+const HEAD_NECK_W: float = 0.86      # width where it meets the body, as a share of the jaw width
+const HEAD_STEPS: int = 22           # outline resolution along one side
+const HEAD_BORDER: float = 0.10      # border thickness, in body widths
+const HEAD_EYE_AT: float = 0.34      # eye position along the head, share of length from the nose
+const HEAD_EYE_OUT: float = 0.56     # eye offset from the spine, share of half-width there
+const HEAD_EYE_R: float = 0.17       # eye radius, in body widths
+const HEAD_CAP_STEPS: int = 10       # resolution of the rounded snout and neck caps
+# The border fades to nothing toward the neck. Drawn all the way round, it put a dark ring ON the
+# body wherever the head overlapped it — which is what made the head read as a separate disc
+# rotating over an unrelated body.
+const HEAD_BORDER_FADE: float = 0.55 # share of the length over which the border fades out
+const HEAD_STRIPE_FROM: float = 0.22 # dorsal stripe starts this far back from the nose
 const RIPPLE_LIGHT: Color = Color(0.62, 0.50, 0.44)       # moonlight catching a dune crest
 const RIPPLE_DARK: Color = Color(0.04, 0.03, 0.04)        # the trough behind it
 const PEBBLE_COL: Color = Color(0.24, 0.19, 0.19, 0.75)
@@ -158,9 +185,8 @@ var _mother_angle: float = 0.0
 var _child_vel_y: float = 0.0   # smooth keyboard velocity (px/s, positive = down)
 var _session_ps: int = 0
 
-var _head_textures: Array = []
-var _sprite_child: Sprite2D
-var _sprite_mother: Sprite2D
+var _sprite_child: Node2D
+var _sprite_mother: Node2D
 var _anim_time: float = 0.0
 var _head_frame: int = 0
 var _bg_seeds: Array = []
@@ -188,6 +214,82 @@ var _computed_phases: Array = [0.0, 0.0, 0.0, 0.0]
 @onready var _results_panel: Control = $ResultsPanel
 @onready var _result_label: Label = $ResultsPanel/Margin/VBox/ResultLabel
 
+# A head as a Node2D that draws itself, so the outline can be a real snake head rather than an
+# ellipse. Positioned and rotated by _process exactly as the sprite was.
+func _make_head(body_w: float, col: Color, z: int) -> Node2D:
+	var nd: Node2D = Node2D.new()
+	nd.z_index = z
+	nd.visible = false
+	nd.set_meta("body_w", body_w)
+	nd.set_meta("col", col)
+	nd.draw.connect(_draw_head.bind(nd))
+	add_child(nd)
+	return nd
+
+# Outline in head-local space: +x toward the nose, y across. Widest at the JAW, not at the base.
+# BOTH ends are rounded caps — flat cuts left hard corners at the snout and the neck, and the neck
+# corners in particular caught the eye every time the head turned.
+#
+# `extra` pushes the outline outward to make the border, and is faded toward the neck by
+# HEAD_BORDER_FADE so no dark edge is drawn over the body the head is sitting on.
+func _head_half_width(t: float, half: float) -> float:
+	if t < HEAD_JAW_AT:
+		return half * lerpf(HEAD_NOSE_W, 1.0, smoothstep(0.0, 1.0, t / HEAD_JAW_AT))
+	return half * lerpf(1.0, HEAD_NECK_W, smoothstep(0.0, 1.0, (t - HEAD_JAW_AT) / (1.0 - HEAD_JAW_AT)))
+
+func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
+	var ln: float = body_w * HEAD_LEN_W
+	var half: float = body_w * HEAD_WIDE_W * 0.5
+	var nose_x: float = ln * 0.5
+	var neck_x: float = -ln * 0.5
+	var hw0: float = _head_half_width(0.0, half)
+	var hw1: float = _head_half_width(1.0, half)
+	var pts: PackedVector2Array = PackedVector2Array()
+
+	# upper edge, nose -> neck
+	for i in range(HEAD_STEPS + 1):
+		var t: float = float(i) / float(HEAD_STEPS)
+		var e: float = extra * (1.0 - smoothstep(1.0 - HEAD_BORDER_FADE, 1.0, t))
+		pts.append(Vector2(lerpf(nose_x, neck_x, t), -(_head_half_width(t, half) + e)))
+	# rounded neck cap, bulging backward; no border here, it is inside the body
+	for i in range(1, HEAD_CAP_STEPS):
+		var a: float = lerpf(-PI * 0.5, -PI * 1.5, float(i) / float(HEAD_CAP_STEPS))
+		pts.append(Vector2(neck_x + cos(a) * hw1, sin(a) * hw1))
+	# lower edge, neck -> nose
+	for i in range(HEAD_STEPS + 1):
+		var t2: float = 1.0 - float(i) / float(HEAD_STEPS)
+		var e2: float = extra * (1.0 - smoothstep(1.0 - HEAD_BORDER_FADE, 1.0, t2))
+		pts.append(Vector2(lerpf(nose_x, neck_x, t2), _head_half_width(t2, half) + e2))
+	# rounded snout cap
+	for i in range(1, HEAD_CAP_STEPS):
+		var a2: float = lerpf(PI * 0.5, -PI * 0.5, float(i) / float(HEAD_CAP_STEPS))
+		pts.append(Vector2(nose_x + cos(a2) * (hw0 + extra), sin(a2) * (hw0 + extra)))
+	return pts
+
+func _draw_head(nd: Node2D) -> void:
+	var body_w: float = float(nd.get_meta("body_w"))
+	var col: Color = nd.get_meta("col")
+	nd.draw_colored_polygon(_head_shape(body_w, body_w * HEAD_BORDER), col.darkened(0.62))
+	nd.draw_colored_polygon(_head_shape(body_w, 0.0), col)
+
+	# The dorsal stripe continues from the body onto the head. This is the strongest cue that the
+	# two are one animal rather than a shape parked on top of another shape.
+	var ln: float = body_w * HEAD_LEN_W
+	nd.draw_line(Vector2(ln * 0.5 - ln * HEAD_STRIPE_FROM, 0.0), Vector2(-ln * 0.5, 0.0),
+		col.lightened(STRIPE_LIGHT), body_w * STRIPE_W, true)
+
+	# eyes on the flanks, looking forward; frame 2 of 4 is a blink
+	var half: float = body_w * HEAD_WIDE_W * 0.5
+	var ex: float = ln * 0.5 - ln * HEAD_EYE_AT
+	var ey: float = _head_half_width(HEAD_EYE_AT, half) * HEAD_EYE_OUT
+	var er: float = body_w * HEAD_EYE_R
+	for sgn in [-1.0, 1.0]:
+		if _head_frame == 2:
+			nd.draw_line(Vector2(ex - er, ey * sgn), Vector2(ex + er, ey * sgn),
+				col.darkened(0.72), maxf(1.0, er * 0.45), true)
+		else:
+			nd.draw_circle(Vector2(ex, ey * sgn), er, Color(0.06, 0.05, 0.06), true, -1.0, true)
+
 func _ready() -> void:
 	game = MotherG.game
 	_screen_w = float(MainGlobals.screen_size.x)
@@ -199,13 +301,6 @@ func _ready() -> void:
 		MOTHER_W *= 2.0
 		CHILD_W *= 2.0
 		HEAD_SCALE *= 2.0
-
-	_head_textures = [
-		load("res://art/head1-4x.png"),
-		load("res://art/head2-4x.png"),
-		load("res://art/head3-4x.png"),
-		load("res://art/head2-4x.png"),
-	]
 
 	# Bodies are Line2D nodes living above the ground canvas (z 0) and below the props canvas and
 	# the heads. Shadows go under their own body.
@@ -225,21 +320,8 @@ func _ready() -> void:
 	_l_mother_st = _make_body_line(MOTHER_W * STRIPE_W, MOTHER_COL.lightened(STRIPE_LIGHT), 3, false)
 	_l_child_st = _make_body_line(CHILD_W * STRIPE_W, CHILD_COL.lightened(STRIPE_LIGHT), 3, false)
 
-	_sprite_mother = Sprite2D.new()
-	_sprite_mother.texture = _head_textures[0]
-	_sprite_mother.scale = Vector2(HEAD_SCALE * 0.675, HEAD_SCALE * 0.475)
-	_sprite_mother.modulate = MOTHER_COL
-	_sprite_mother.z_index = 5
-	_sprite_mother.visible = false
-	add_child(_sprite_mother)
-
-	_sprite_child = Sprite2D.new()
-	_sprite_child.texture = _head_textures[0]
-	_sprite_child.scale = _sprite_mother.scale * 0.8
-	_sprite_child.modulate = CHILD_COL      # was untinted, so the two heads did not match
-	_sprite_child.z_index = 6
-	_sprite_child.visible = false
-	add_child(_sprite_child)
+	_sprite_mother = _make_head(MOTHER_W, MOTHER_COL, 5)
+	_sprite_child = _make_head(CHILD_W, CHILD_COL, 6)
 
 	var sys_font: Font = MainGlobals.get_system_sans_font()
 	var theme: Theme = Theme.new()
@@ -503,9 +585,12 @@ func _process(delta: float) -> void:
 		_trace_last_ms = _elapsed_ms
 
 	# Head animation
-	_head_frame = int(_anim_time * 3.5) % 4
-	_sprite_child.texture = _head_textures[_head_frame]
-	_sprite_mother.texture = _head_textures[_head_frame]
+	# Same cadence the three-frame sprite cycle used; frame 2 of 4 is the blink.
+	var f_now: int = int(_anim_time * 3.5) % 4
+	if f_now != _head_frame:
+		_head_frame = f_now
+		_sprite_child.queue_redraw()
+		_sprite_mother.queue_redraw()
 
 	var scroll_px_s: float = _scroll_px_per_ms * 1000.0
 	var y_old: float = _child_y_at_time(_elapsed_ms - 50.0)
