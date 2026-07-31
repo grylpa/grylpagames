@@ -39,6 +39,17 @@ const DUNE_LAYERS: Array = [
 	{"y": 0.34, "amp": 0.036, "period": 0.78, "speed": 0.62, "col": Color(0.158, 0.119, 0.110)},
 ]
 const DUNE_STEP: float = 14.0
+# Drifting dust. Size, speed and opacity are all derived from the SAME depth value as the mote's
+# y position, so a nearer mote is bigger, faster and brighter together — that correlation is what
+# reads as depth. Rolling the three independently just looks like noise.
+const DUST_COUNT: int = 26
+const DUST_R_FAR: float = 0.6
+const DUST_R_NEAR: float = 2.2
+const DUST_SPEED_FAR: float = 1.3      # multiples of the world scroll speed
+const DUST_SPEED_NEAR: float = 3.6
+const DUST_A_FAR: float = 0.10
+const DUST_A_NEAR: float = 0.30
+const DUST_COL: Color = Color(0.86, 0.78, 0.70)
 const RIPPLE_LIGHT: Color = Color(0.62, 0.50, 0.44)       # moonlight catching a dune crest
 const RIPPLE_DARK: Color = Color(0.04, 0.03, 0.04)        # the trough behind it
 const PEBBLE_COL: Color = Color(0.24, 0.19, 0.19, 0.75)
@@ -367,6 +378,18 @@ func _ready() -> void:
 			"r": bg_rng.randf_range(10.0, 20.0),
 			"spikes": spikes,
 			"speed_f": bg_rng.randf_range(1.1, 1.5),
+			"phase": bg_rng.randf_range(0.0, TAU),
+		})
+	# Drifting dust
+	for i in DUST_COUNT:
+		var depth: float = bg_rng.randf_range(0.06, 0.98)   # 0 far, 1 near
+		_bg_seeds.append({
+			"type": 4,
+			"wx": bg_rng.randf_range(0.0, 2000.0),
+			"y_frac": depth,
+			"r": lerpf(DUST_R_FAR, DUST_R_NEAR, depth),
+			"speed_f": lerpf(DUST_SPEED_FAR, DUST_SPEED_NEAR, depth),
+			"alpha": lerpf(DUST_A_FAR, DUST_A_NEAR, depth),
 			"phase": bg_rng.randf_range(0.0, TAU),
 		})
 	# Beetles
@@ -812,6 +835,14 @@ func _do_draw(canvas: CanvasItem) -> void:
 				rpts[j] = Vector2(rx, y_base + bg_item.amp * sin((rx + scroll_off) * TAU / bg_item.period + bg_item.phase))
 			var rc: Color = Color(RIPPLE_LIGHT, bg_item.alpha * 0.55) if bg_item.light else Color(RIPPLE_DARK, bg_item.alpha)
 			canvas.draw_polyline(rpts, rc, 1.0, true)
+		elif bg_item.type == 4:  # drifting dust
+			var dsx: float = fmod(bg_item.wx - scroll_off * bg_item.speed_f, bg_span)
+			if dsx < 0.0:
+				dsx += bg_span
+			if dsx >= -4.0 and dsx <= w + 4.0:
+				var dsy: float = bg_item.y_frac * h + sin(_elapsed_ms * 0.0009 + bg_item.phase) * 5.0
+				canvas.draw_circle(Vector2(dsx, dsy), bg_item.r,
+					Color(DUST_COL, bg_item.alpha), true, -1.0, true)
 		elif bg_item.type == 1:  # pebble
 			var sx_raw: float = fmod(bg_item.wx - scroll_off * bg_item.speed_f, bg_span)
 			if sx_raw < 0.0:
