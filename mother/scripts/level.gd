@@ -70,22 +70,26 @@ const VIGNETTE_MAX_A: float = 0.26
 # Drawn, the outline can be the real thing: narrow at the snout, widest at the JAW a little behind
 # it, then narrowing into the neck. A straight wedge reads as a spearhead; the jaw bulge is what
 # makes it read as a snake.
-const HEAD_LEN_W: float = 1.55       # head length, in body widths
+const HEAD_LEN_W: float = 1.30       # head length, in body widths
 const HEAD_WIDE_W: float = 1.15      # width at the jaw, in body widths
 const HEAD_JAW_AT: float = 0.28      # where the jaw sits, as a share of length back from the nose
 const HEAD_NOSE_W: float = 0.30      # snout width as a share of the jaw width
 const HEAD_NECK_W: float = 0.86      # width where it meets the body, as a share of the jaw width
 const HEAD_STEPS: int = 22           # outline resolution along one side
-const HEAD_BORDER: float = 0.10      # border thickness, in body widths
+# No dark border: the BODY has none — it is a banded fill, a lighter spine and a faint halo, and
+# nothing else. A dark outline on the head alone was a large part of why it read as a separate
+# object stuck on the front. The head now gets the same three ingredients and no outline.
+const HEAD_EYE_RING: float = 0.055   # faint lid ring so the eye reads on a banded fill
 const HEAD_EYE_AT: float = 0.34      # eye position along the head, share of length from the nose
 const HEAD_EYE_OUT: float = 0.56     # eye offset from the spine, share of half-width there
 const HEAD_EYE_R: float = 0.17       # eye radius, in body widths
 const HEAD_CAP_STEPS: int = 10       # resolution of the rounded snout and neck caps
-# The border fades to nothing toward the neck. Drawn all the way round, it put a dark ring ON the
-# body wherever the head overlapped it — which is what made the head read as a separate disc
-# rotating over an unrelated body.
-const HEAD_BORDER_FADE: float = 0.55 # share of the length over which the border fades out
-const HEAD_STRIPE_FROM: float = 0.22 # dorsal stripe starts this far back from the nose
+# The halo fades to nothing toward the neck. Carried all the way round, anything drawn outside the
+# outline puts a ring ON the body wherever the head overlaps it — which is what made the head read
+# as a separate disc rotating over an unrelated body.
+const HEAD_HALO_FADE: float = 0.55   # share of the length over which the halo fades out
+const HEAD_STRIPE_FROM: float = 0.42 # dorsal stripe starts this far back from the nose
+
 const RIPPLE_LIGHT: Color = Color(0.62, 0.50, 0.44)       # moonlight catching a dune crest
 const RIPPLE_DARK: Color = Color(0.04, 0.03, 0.04)        # the trough behind it
 const PEBBLE_COL: Color = Color(0.24, 0.19, 0.19, 0.75)
@@ -102,8 +106,20 @@ const TAIL_FRAC: float = 0.34        # tail width as a share of head width
 const EDGE_MUL: float = 1.20         # dark rim drawn under the body
 const HL_MUL: float = 0.34           # highlight width as a share of body width
 const HL_OFFSET: float = 0.22        # highlight offset along the normal, in body widths
-const SHADOW_DY: float = 7.0         # ground shadow drop, px
-const SHADOW_COL: Color = Color(0.0, 0.0, 0.0, 0.28)
+# The second line under each body is the SOFT EDGE, not a drop shadow. It was a dark offset
+# shadow, which on a near-black ground did almost nothing visible.
+#
+# It has to be a Line2D and not a hand-drawn polyline: draw_polyline has a CONSTANT width, so it
+# cannot follow the body's width_curve — at the tail the body is TAIL_FRAC of full width while the
+# halo stayed at 100%, ballooning around the thin tail — and its joints are what looked wrong on
+# corners. A Line2D gets the same taper and the same round joints as the body for free, because it
+# is built by the same function from the same points.
+#
+# Reusing the existing node rather than adding one is deliberate: the previous soft-edge attempt
+# added two more Line2Ds and every body stopped rendering.
+const SHADOW_DY: float = 2.0         # slight downward offset, so it still grounds the snake a bit
+const GLOW_MUL: float = 1.10         # halo width, as a share of body width
+const GLOW_ALPHA: float = 0.18
 
 # The body BREATHES: it swells and brightens on the inhale and settles on the exhale. This is the
 # only animation on the body, and deliberately so — it changes nothing geometric (only `width` and
@@ -231,7 +247,7 @@ func _make_head(body_w: float, col: Color, z: int) -> Node2D:
 # corners in particular caught the eye every time the head turned.
 #
 # `extra` pushes the outline outward to make the border, and is faded toward the neck by
-# HEAD_BORDER_FADE so no dark edge is drawn over the body the head is sitting on.
+# HEAD_HALO_FADE so no dark edge is drawn over the body the head is sitting on.
 func _head_half_width(t: float, half: float) -> float:
 	if t < HEAD_JAW_AT:
 		return half * lerpf(HEAD_NOSE_W, 1.0, smoothstep(0.0, 1.0, t / HEAD_JAW_AT))
@@ -249,7 +265,7 @@ func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
 	# upper edge, nose -> neck
 	for i in range(HEAD_STEPS + 1):
 		var t: float = float(i) / float(HEAD_STEPS)
-		var e: float = extra * (1.0 - smoothstep(1.0 - HEAD_BORDER_FADE, 1.0, t))
+		var e: float = extra * (1.0 - smoothstep(1.0 - HEAD_HALO_FADE, 1.0, t))
 		pts.append(Vector2(lerpf(nose_x, neck_x, t), -(_head_half_width(t, half) + e)))
 	# rounded neck cap, bulging backward; no border here, it is inside the body
 	for i in range(1, HEAD_CAP_STEPS):
@@ -258,7 +274,7 @@ func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
 	# lower edge, neck -> nose
 	for i in range(HEAD_STEPS + 1):
 		var t2: float = 1.0 - float(i) / float(HEAD_STEPS)
-		var e2: float = extra * (1.0 - smoothstep(1.0 - HEAD_BORDER_FADE, 1.0, t2))
+		var e2: float = extra * (1.0 - smoothstep(1.0 - HEAD_HALO_FADE, 1.0, t2))
 		pts.append(Vector2(lerpf(nose_x, neck_x, t2), _head_half_width(t2, half) + e2))
 	# rounded snout cap
 	for i in range(1, HEAD_CAP_STEPS):
@@ -266,20 +282,47 @@ func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
 		pts.append(Vector2(nose_x + cos(a2) * (hw0 + extra), sin(a2) * (hw0 + extra)))
 	return pts
 
+# One band period of the body's skin, as a multiplier. Mirrors _build_gradient exactly: its stops
+# alternate base / BAND_DARK every half period and interpolate linearly, which is a triangle wave.
+func _band_shade(dist_px: float) -> float:
+	var phase: float = fposmod(dist_px / maxf(1.0, BAND_PX), 1.0)
+	return lerpf(BAND_DARK, 1.0, absf(phase * 2.0 - 1.0))
+
+# The head is drawn with the SAME three ingredients as the body and in the same order: faint halo,
+# banded fill, lighter spine. No dark outline, because the body has none.
+#
+# The banding continues the body's: the body pins its bands to pixel distance BACK from the head
+# point, and head-local +x runs FORWARD from that same point, so distance = -x carries the phase
+# straight across the join with no seam.
 func _draw_head(nd: Node2D) -> void:
 	var body_w: float = float(nd.get_meta("body_w"))
 	var col: Color = nd.get_meta("col")
-	nd.draw_colored_polygon(_head_shape(body_w, body_w * HEAD_BORDER), col.darkened(0.62))
-	nd.draw_colored_polygon(_head_shape(body_w, 0.0), col)
-
-	# The dorsal stripe continues from the body onto the head. This is the strongest cue that the
-	# two are one animal rather than a shape parked on top of another shape.
 	var ln: float = body_w * HEAD_LEN_W
+	var half: float = body_w * HEAD_WIDE_W * 0.5
+
+	# 1. halo, matching the body's
+	nd.draw_colored_polygon(_head_shape(body_w, body_w * (GLOW_MUL - 1.0) * 0.5),
+		Color(col, GLOW_ALPHA))
+
+	# 2. banded fill, as transverse strips so each band follows the tapering outline
+	var strips: int = HEAD_STEPS * 2
+	for i in strips:
+		var t0: float = float(i) / float(strips)
+		var t1: float = float(i + 1) / float(strips)
+		var x0: float = lerpf(ln * 0.5, -ln * 0.5, t0)
+		var x1: float = lerpf(ln * 0.5, -ln * 0.5, t1)
+		var h0: float = _head_half_width(t0, half)
+		var h1: float = _head_half_width(t1, half)
+		var sh: float = _band_shade(-(x0 + x1) * 0.5)
+		var quad: PackedVector2Array = PackedVector2Array([
+			Vector2(x0, -h0), Vector2(x1, -h1), Vector2(x1, h1), Vector2(x0, h0)])
+		nd.draw_colored_polygon(quad, Color(col.r * sh, col.g * sh, col.b * sh, 1.0))
+
+	# 3. the dorsal stripe, continuing the body's
 	nd.draw_line(Vector2(ln * 0.5 - ln * HEAD_STRIPE_FROM, 0.0), Vector2(-ln * 0.5, 0.0),
 		col.lightened(STRIPE_LIGHT), body_w * STRIPE_W, true)
 
 	# eyes on the flanks, looking forward; frame 2 of 4 is a blink
-	var half: float = body_w * HEAD_WIDE_W * 0.5
 	var ex: float = ln * 0.5 - ln * HEAD_EYE_AT
 	var ey: float = _head_half_width(HEAD_EYE_AT, half) * HEAD_EYE_OUT
 	var er: float = body_w * HEAD_EYE_R
@@ -289,6 +332,8 @@ func _draw_head(nd: Node2D) -> void:
 				col.darkened(0.72), maxf(1.0, er * 0.45), true)
 		else:
 			nd.draw_circle(Vector2(ex, ey * sgn), er, Color(0.06, 0.05, 0.06), true, -1.0, true)
+			nd.draw_arc(Vector2(ex, ey * sgn), er, 0.0, TAU, 14,
+				col.lightened(0.30), maxf(1.0, body_w * HEAD_EYE_RING), true)
 
 func _ready() -> void:
 	game = MotherG.game
@@ -736,7 +781,7 @@ var _props_canvas: Control = null
 func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
 	var ln: Line2D = Line2D.new()
 	ln.width = w
-	ln.default_color = SHADOW_COL if shadow else col
+	ln.default_color = Color(col, GLOW_ALPHA) if shadow else col
 	ln.joint_mode = Line2D.LINE_JOINT_ROUND
 	ln.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	ln.end_cap_mode = Line2D.LINE_CAP_ROUND
@@ -843,7 +888,7 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	var o: float = clampf(openness, 0.0, 1.0)
 	var pw: float = w * lerpf(PULSE_W_LOW, PULSE_W_HIGH, o)
 	ln.width = pw
-	sh.width = pw
+	sh.width = pw * GLOW_MUL
 	st.width = pw * STRIPE_W
 
 	# The inhale brightening rides on `modulate`, which MULTIPLIES the gradient. Putting it on
