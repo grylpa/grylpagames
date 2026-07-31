@@ -10,7 +10,60 @@ const M_BOT_FRAC: float = 0.56   # mother y range bottom; child starts at 0.5 (j
 # Visuals
 var MOTHER_W: float = 18.0
 var CHILD_W: float = 12.0
-var HEAD_SCALE: float = 0.34
+var HEAD_SCALE: float = 0.44
+
+# --- Palette: NIGHT DESERT ---------------------------------------------------------------------
+# This is a breathing game in the "Serenity" category, and every sibling there is dark and
+# low-chroma (crack 0.04,0.05,0.09; river 0.06,0.18,0.34; udbr 0.04,0.07,0.14). It used to be the
+# one bright, high-chroma screen in the category — saturated sand under a pure-green mother and a
+# saturated indigo child, three unrelated hue families all shouting at once. It also contradicted
+# itself: the results panel and the stats graph were already dark, so the palette flipped the
+# moment a session ended.
+#
+# Now the ground is dark and warm and the SNAKES are the light source. Mother and child sit in one
+# hue family and differ in lightness, so they read as the same animal at two ages — the child used
+# to be blue for no stated reason, which made them look like unrelated species.
+const GROUND_TOP: Color = Color(0.086, 0.067, 0.078)      # horizon, slightly cooler
+const GROUND_BOTTOM: Color = Color(0.145, 0.110, 0.106)   # nearer sand, warmer
+const GROUND_BANDS: int = 24
+const RIPPLE_LIGHT: Color = Color(0.62, 0.50, 0.44)       # moonlight catching a dune crest
+const RIPPLE_DARK: Color = Color(0.04, 0.03, 0.04)        # the trough behind it
+const PEBBLE_COL: Color = Color(0.24, 0.19, 0.19, 0.75)
+const BUSH_COL: Color = Color(0.30, 0.23, 0.17, 0.80)
+const BEETLE_COL: Color = Color(0.03, 0.025, 0.03, 0.95)
+const MOTHER_COL: Color = Color(0.88, 0.63, 0.30, 1.0)    # warm amber
+const CHILD_COL: Color = Color(0.96, 0.85, 0.62, 1.0)     # pale gold — same family, lighter
+const TEXT_COL: Color = Color(0.93, 0.86, 0.74, 0.90)     # warm cream
+
+# Body shape. A constant-width polyline reads as a cable or a logic-analyzer trace, which is
+# exactly how the old thumbnail looked. A real snake tapers, catches light on one side, and casts
+# a shadow on the ground it is lying on.
+const TAIL_FRAC: float = 0.34        # tail width as a share of head width
+const EDGE_MUL: float = 1.20         # dark rim drawn under the body
+const HL_MUL: float = 0.34           # highlight width as a share of body width
+const HL_OFFSET: float = 0.22        # highlight offset along the normal, in body widths
+const SHADOW_DY: float = 7.0         # ground shadow drop, px
+const SHADOW_COL: Color = Color(0.0, 0.0, 0.0, 0.28)
+
+# The body BREATHES: it swells and brightens on the inhale and settles on the exhale. This is the
+# only animation on the body, and deliberately so — it changes nothing geometric (only `width` and
+# `default_color`), so it cannot reintroduce the artifacts that offsetting points along their
+# normals produced at the turns. It also ties the visuals to the actual mechanic instead of just
+# decorating: in a breathing game the snake should visibly breathe.
+const PULSE_W_LOW: float = 0.88      # width multiplier when fully exhaled
+const PULSE_W_HIGH: float = 1.14     # ...and when fully inhaled
+const PULSE_LIGHT: float = 0.20      # brightening at full inhale
+const CHILD_START_DROP: float = 60.0 # child starts this far below the mother's band
+
+# Skin pattern. Both parts are drawn on the IDENTICAL path as the body, so their joints behave
+# exactly as the body's do — no normals, no offsets, no UVs. That is the whole point: every
+# previous attempt at skin failed at the turns because it needed one of those three.
+const BAND_PX: float = 15.0          # spacing of the dark bands along the body
+const BAND_DARK: float = 0.72        # how dark a band gets, as a multiplier
+const BAND_MAX: int = 56             # cap on bands, so the gradient stays a sane size
+const TAIL_SOLID: float = 0.82       # gradient offset at which the tail dissolve begins
+const STRIPE_W: float = 0.28         # dorsal stripe width, as a share of body width
+const STRIPE_LIGHT: float = 0.40     # how much lighter the stripe is than the body
 
 # Child body history ring buffer — interpolated to eliminate jitter
 const HISTORY_INTERVAL_MS: float = 16.0
@@ -88,18 +141,37 @@ func _ready() -> void:
 		load("res://art/head2-4x.png"),
 	]
 
+	# Bodies are Line2D nodes living above the ground canvas (z 0) and below the props canvas and
+	# the heads. Shadows go under their own body.
+	_props_canvas = Control.new()
+	_props_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_props_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_props_canvas.z_index = 3
+	add_child(_props_canvas)
+	_props_canvas.draw.connect(_draw_props.bind(_props_canvas))
+
+	_l_mother_sh = _make_body_line(MOTHER_W, MOTHER_COL, 1, true)
+	_l_child_sh = _make_body_line(CHILD_W, CHILD_COL, 1, true)
+	_l_mother = _make_body_line(MOTHER_W, MOTHER_COL, 2, false)
+	_l_child = _make_body_line(CHILD_W, CHILD_COL, 2, false)
+	# A dorsal stripe: a narrower line on the SAME path, so its round joints sit inside the body's
+	# at every turn. Real snakes have one, and it gives the body a spine without any offsetting.
+	_l_mother_st = _make_body_line(MOTHER_W * STRIPE_W, MOTHER_COL.lightened(STRIPE_LIGHT), 3, false)
+	_l_child_st = _make_body_line(CHILD_W * STRIPE_W, CHILD_COL.lightened(STRIPE_LIGHT), 3, false)
+
 	_sprite_mother = Sprite2D.new()
 	_sprite_mother.texture = _head_textures[0]
 	_sprite_mother.scale = Vector2(HEAD_SCALE * 0.675, HEAD_SCALE * 0.475)
-	_sprite_mother.modulate = Color(0.35, 1.0, 0.40, 1.0)
-	_sprite_mother.z_index = 3
+	_sprite_mother.modulate = MOTHER_COL
+	_sprite_mother.z_index = 5
 	_sprite_mother.visible = false
 	add_child(_sprite_mother)
 
 	_sprite_child = Sprite2D.new()
 	_sprite_child.texture = _head_textures[0]
 	_sprite_child.scale = _sprite_mother.scale * 0.8
-	_sprite_child.z_index = 4
+	_sprite_child.modulate = CHILD_COL      # was untinted, so the two heads did not match
+	_sprite_child.z_index = 6
 	_sprite_child.visible = false
 	add_child(_sprite_child)
 
@@ -111,16 +183,24 @@ func _ready() -> void:
 	_results_panel.theme = theme
 
 	var btn_style: StyleBoxFlat = StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.10, 0.28, 0.12, 1.0)
+	btn_style.bg_color = Color(0.42, 0.28, 0.13, 1.0)
 	btn_style.corner_radius_top_left = 10
 	btn_style.corner_radius_top_right = 10
 	btn_style.corner_radius_bottom_left = 10
 	btn_style.corner_radius_bottom_right = 10
 	var btn_pressed: StyleBoxFlat = btn_style.duplicate()
-	btn_pressed.bg_color = Color(0.06, 0.18, 0.08, 1.0)
+	btn_pressed.bg_color = Color(0.28, 0.18, 0.09, 1.0)
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("normal", btn_style)
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("hover", btn_style)
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("pressed", btn_pressed)
+
+	for lb in [_timer_label, _goal_label, _phase_label]:
+		lb.add_theme_color_override("font_color", TEXT_COL)
+		lb.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.55))
+		lb.add_theme_constant_override("outline_size", 5)
+	$ResultsPanel/Margin/VBox/TitleLabel.add_theme_color_override("font_color", TEXT_COL)
+	_result_label.add_theme_color_override("font_color", Color(TEXT_COL, 0.82))
+	$ResultsPanel/Margin/VBox/DoneButton.add_theme_color_override("font_color", TEXT_COL)
 
 	_timer_label.offset_right = -16.0
 	if MainGlobals.is_mobile():
@@ -141,7 +221,7 @@ func _ready() -> void:
 
 	_graph = Control.new()
 	_graph.set_script(load("res://mother/scripts/key_graph.gd"))
-	_graph.set("bg_color", Color(0.04, 0.07, 0.04, 1.0))
+	_graph.set("bg_color", Color(0.075, 0.058, 0.066, 1.0))
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.custom_minimum_size = Vector2(0, 100)
 	_graph.visible = false
@@ -260,7 +340,7 @@ func new_game() -> void:
 	_anim_time = 0.0
 	_head_frame = 0
 	_scroll_px_per_ms = _compute_scroll_speed()
-	_child_y = _m_bot_y + 60.0
+	_child_y = _m_bot_y + CHILD_START_DROP
 	_child_angle = 0.0
 	_child_vel_y = 0.0
 	_session_ps = 0
@@ -274,8 +354,11 @@ func new_game() -> void:
 	_trace_last_ms = 0.0
 	_key_poll = []
 	_computed_phases = [0.0, 0.0, 0.0, 0.0]
-	_sprite_child.visible = not active_mode
-	_sprite_mother.visible = true
+	# In ACTIVE mode the only snake on screen is the PLAYER's own trail, so it wears the child's
+	# head and colours. It used to wear the mother's, which made Active mode look like Guided mode
+	# with the mother missing — the single most confusing thing about this game.
+	_sprite_child.visible = true
+	_sprite_mother.visible = not active_mode
 	if active_mode:
 		_goal_label.text = ""
 	else:
@@ -286,6 +369,8 @@ func new_game() -> void:
 	$SessionOverlay.show()
 	_results_panel.hide()
 	_canvas.queue_redraw()
+	if _props_canvas != null:
+		_props_canvas.queue_redraw()
 
 func _compute_scroll_speed() -> float:
 	var d: Array = MotherG.get_guided_durations()
@@ -348,8 +433,9 @@ func _process(delta: float) -> void:
 	var child_vel_px_s: float = (_child_y - y_old) / 0.05
 
 	if active_mode:
-		_sprite_mother.position = Vector2(_head_x, _child_y)
-		_sprite_mother.rotation = atan2(child_vel_px_s, scroll_px_s)
+		_child_angle = lerpf(_child_angle, atan2(child_vel_px_s, scroll_px_s), delta * 20.0)
+		_sprite_child.rotation = _child_angle
+		_sprite_child.position = Vector2(_head_x, _child_y)
 	else:
 		var mother_y: float = _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)
 		var mother_vel_px_s: float = _phase_vel_norm_at(_elapsed_ms) * (_m_bot_y - _m_top_y) * 1000.0
@@ -364,6 +450,8 @@ func _process(delta: float) -> void:
 	_phase_label.text = _current_phase_label()
 
 	_canvas.queue_redraw()
+	if _props_canvas != null:
+		_props_canvas.queue_redraw()
 
 	if _elapsed_ms >= _duration_ms:
 		_on_session_complete()
@@ -451,11 +539,138 @@ func _current_phase_label() -> String:
 		return "Exhale  ▼"
 	return "Hold  ■"
 
+# --- Snake body rendering -----------------------------------------------------------------------
+#
+# --- Snake bodies: Line2D, not hand-built polygons ------------------------------------------------
+#
+# Two earlier attempts failed here, and the reason the second one failed is worth keeping:
+#
+#   1. `draw_polyline` at constant width with a pale stripe down the CENTRE. A centred stripe reads
+#      as a racing stripe rather than a rounded form, and a constant-width line with round caps
+#      reads as a cable — the two snakes looked like a logic-analyzer timing diagram.
+#   2. A hand-built tapered polygon ribbon. `draw_colored_polygon` triangulates through
+#      Geometry2D, which FAILS AND DRAWS NOTHING on a self-intersecting polygon — and an offset
+#      ribbon self-intersects wherever the path turns sharper than its own half-width. So the
+#      mother (steep guided path, wide body) vanished completely and the child flickered as folds
+#      appeared and disappeared while scrolling. A fold does not render a knot; it renders
+#      nothing.
+#
+# Line2D solves all of it in the engine: it tessellates its own strip robustly, `joint_mode` ROUND
+# gives genuinely rounded turns, `width_curve` gives the taper, and a tiled `texture` gives both
+# the cross-section shading (roundness) and the SCALES. Nothing here can fail to triangulate.
+
+var _l_mother: Line2D = null
+var _l_child: Line2D = null
+var _l_mother_sh: Line2D = null
+var _l_child_sh: Line2D = null
+var _l_mother_st: Line2D = null      # dorsal stripe, same path, drawn over the body
+var _l_child_st: Line2D = null
+var _bands: Dictionary = {}          # line -> band count its gradient was built for
+var _props_canvas: Control = null
+
+func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
+	var ln: Line2D = Line2D.new()
+	ln.width = w
+	ln.default_color = SHADOW_COL if shadow else col
+	ln.joint_mode = Line2D.LINE_JOINT_ROUND
+	ln.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	ln.end_cap_mode = Line2D.LINE_CAP_ROUND
+	ln.round_precision = 16
+	ln.antialiased = true
+	ln.z_index = z
+	var cur: Curve = Curve.new()
+	cur.add_point(Vector2(0.0, 1.0))
+	cur.add_point(Vector2(0.62, 0.90))
+	cur.add_point(Vector2(1.0, TAIL_FRAC))
+	ln.width_curve = cur
+	add_child(ln)
+	return ln
+
+# Banding and the tail dissolve, baked into one Gradient.
+#
+# NOTE Line2D.gradient REPLACES default_color rather than multiplying it, so everything about the
+# body's colour has to live in here — an earlier version set the pulse brightness on
+# default_color, where it was silently ignored. The per-frame brightness now rides on `modulate`,
+# which does multiply.
+func _build_gradient(base_col: Color, n_bands: int) -> Gradient:
+	var offs: PackedFloat32Array = PackedFloat32Array()
+	var cols: PackedColorArray = PackedColorArray()
+	var dark: Color = Color(base_col.r * BAND_DARK, base_col.g * BAND_DARK, base_col.b * BAND_DARK, 1.0)
+	var steps: int = maxi(1, n_bands) * 2
+	for i in range(steps + 1):
+		var t: float = float(i) / float(steps)
+		var c: Color = base_col if i % 2 == 0 else dark
+		# the tail dissolves; a hard round cap there is what used to read as an artifact
+		var a: float = 1.0
+		if t > TAIL_SOLID:
+			a = 1.0 - (t - TAIL_SOLID) / (1.0 - TAIL_SOLID)
+		offs.append(t)
+		cols.append(Color(c.r, c.g, c.b, a))
+	var g: Gradient = Gradient.new()
+	g.offsets = offs
+	g.colors = cols
+	return g
+
+# How open the breath is right now: 0 fully exhaled (bottom of the range), 1 fully inhaled (top).
+func _openness(y: float, drop: float) -> float:
+	var span: float = _m_bot_y - _m_top_y
+	if span <= 0.0:
+		return 0.0
+	return clampf((_m_bot_y + drop - y) / span, 0.0, 1.0)
+
+# `pts` must arrive HEAD FIRST — Line2D samples width_curve and gradient from points[0].
+func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: float,
+		base_col: Color, openness: float) -> void:
+	if pts.size() < 2:
+		ln.points = PackedVector2Array()
+		sh.points = PackedVector2Array()
+		st.points = PackedVector2Array()
+		return
+	var o: float = clampf(openness, 0.0, 1.0)
+	var pw: float = w * lerpf(PULSE_W_LOW, PULSE_W_HIGH, o)
+	ln.width = pw
+	sh.width = pw
+	st.width = pw * STRIPE_W
+
+	# The inhale brightening rides on `modulate`, which MULTIPLIES the gradient. Putting it on
+	# default_color did nothing, because a Line2D with a gradient ignores default_color entirely.
+	var m: float = 1.0 + PULSE_LIGHT * o
+	ln.modulate = Color(m, m, m, 1.0)
+	st.modulate = ln.modulate
+
+	# Bands are spaced in PIXELS, but gradient offsets are normalised over the line — so the band
+	# count has to track the body's length, or the spacing would stretch as the child grows.
+	#
+	# Measured against ARC length it changed ~19 times per 700 frames, because the arc lengthens
+	# and shortens as the breath steepens the path. Every change renormalises the offsets and
+	# shifts EVERY band a little, which would read as the pattern crawling. The HORIZONTAL span is
+	# the stable proxy: constant for the mother, monotonically growing for the child, so the count
+	# settles and stops churning.
+	var span: float = absf(pts[0].x - pts[pts.size() - 1].x)
+	var n_bands: int = clampi(int(span / BAND_PX), 1, BAND_MAX)
+	if int(_bands.get(ln, -1)) != n_bands:
+		_bands[ln] = n_bands
+		ln.gradient = _build_gradient(base_col, n_bands)
+		st.gradient = _build_gradient(base_col.lightened(STRIPE_LIGHT), n_bands)
+
+	ln.points = pts
+	st.points = pts
+	var shifted: PackedVector2Array = PackedVector2Array()
+	shifted.resize(pts.size())
+	for i in pts.size():
+		shifted[i] = pts[i] + Vector2(0.0, SHADOW_DY)
+	sh.points = shifted
+
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
 	var h: float = (canvas as Control).size.y
 
-	canvas.draw_rect(Rect2(0.0, 0.0, w, h), Color(0.82, 0.70, 0.46, 1.0))
+	# banded vertical gradient: cooler at the horizon, warmer nearer the viewer
+	var band_h: float = h / float(GROUND_BANDS)
+	for gi in GROUND_BANDS:
+		var gt: float = float(gi) / float(GROUND_BANDS - 1)
+		canvas.draw_rect(Rect2(0.0, float(gi) * band_h, w, band_h + 1.0),
+			GROUND_TOP.lerp(GROUND_BOTTOM, gt), true)
 
 	var scroll_off: float = _elapsed_ms * _scroll_px_per_ms
 	var bg_span: float = 2000.0
@@ -471,7 +686,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 			for j in range(rn):
 				var rx: float = float(j) * rx_step
 				rpts[j] = Vector2(rx, y_base + bg_item.amp * sin((rx + scroll_off) * TAU / bg_item.period + bg_item.phase))
-			var rc: Color = Color(0.96, 0.88, 0.68, bg_item.alpha) if bg_item.light else Color(0.38, 0.28, 0.14, bg_item.alpha)
+			var rc: Color = Color(RIPPLE_LIGHT, bg_item.alpha * 0.55) if bg_item.light else Color(RIPPLE_DARK, bg_item.alpha)
 			canvas.draw_polyline(rpts, rc, 1.0, true)
 		elif bg_item.type == 1:  # pebble
 			var sx_raw: float = fmod(bg_item.wx - scroll_off * bg_item.speed_f, bg_span)
@@ -482,62 +697,66 @@ func _do_draw(canvas: CanvasItem) -> void:
 				var sx: float = sx_raw if _si == 0 else sx_raw - bg_span
 				if sx < -6.0 or sx > w + 6.0:
 					continue
-				canvas.draw_circle(Vector2(sx, sy), bg_item.r, Color(0.28, 0.22, 0.13, 0.65), true, -1.0, true)
+				canvas.draw_circle(Vector2(sx, sy), bg_item.r, PEBBLE_COL, true, -1.0, true)
 
 	var step: float = 2.0
-
-	# Exact phase transition x positions for jitter-free corners
-	var _d: Array = MotherG.get_guided_durations()
-	var _cycle_ms: float = _d[0] + _d[1] + _d[2] + _d[3]
-	var _t_left: float = _elapsed_ms - (_head_x + MOTHER_W) / _scroll_px_per_ms
-	var _trans_in_cycle: Array = [0.0, _d[0], _d[0] + _d[1], _d[0] + _d[1] + _d[2]]
-	var _extra_xs: Array = []
-	var _ct: float = floor(_t_left / _cycle_ms) * _cycle_ms
-	while _ct <= _elapsed_ms + _cycle_ms:
-		for _off in _trans_in_cycle:
-			var _tt: float = _ct + _off
-			if _tt >= _t_left and _tt <= _elapsed_ms:
-				_extra_xs.append(_head_x - (_elapsed_ms - _tt) * _scroll_px_per_ms)
-		_ct += _cycle_ms
-	_extra_xs.sort()
+	# Guard: the transition-marker loop below steps by _cycle_ms from a start derived by dividing
+	# by _scroll_px_per_ms. Either being zero makes that start -INF and the loop never terminates —
+	# a hard freeze, not a glitch. Both are derived from the screen width, so a layout that has not
+	# been sized yet is enough to trigger it.
+	if _scroll_px_per_ms <= 0.0:
+		return
+	if active_mode:
+		_l_mother.points = PackedVector2Array()
+		_l_mother_sh.points = PackedVector2Array()
+		_l_mother_st.points = PackedVector2Array()
 
 	# --- Mother body ---
 	if active_mode:
-		# In active mode the mother follows the player — draw using child history
+		# Active mode: no guide exists, so the one body drawn is the PLAYER's own trail — child
+		# colours and child width, matching the head above.
 		if _history_count > 4:
-			var reliable_px_a: float = minf(float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms, _head_x + MOTHER_W)
+			var reliable_px_a: float = minf(float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms, _head_x + CHILD_W)
 			var n_ma: int = int(reliable_px_a / step) + 2
 			if n_ma >= 2:
-				var mother_pts_a: PackedVector2Array = PackedVector2Array()
-				mother_pts_a.append(Vector2(_head_x, _child_y))
+				var trail_pts: PackedVector2Array = PackedVector2Array()
+				trail_pts.append(Vector2(_head_x, _child_y))
 				# Snap sample times to a fixed grid so sharp trail vertices don't alias/jitter while scrolling
 				var dt_step_a: float = step / _scroll_px_per_ms
 				var t_base_a: float = floor(_elapsed_ms / dt_step_a) * dt_step_a
 				for i in range(n_ma + 1):
 					var t_at_x: float = t_base_a - float(i) * dt_step_a
 					var x: float = _head_x - (_elapsed_ms - t_at_x) * _scroll_px_per_ms
-					if x < -MOTHER_W:
+					if x < -CHILD_W:
 						break
-					mother_pts_a.append(Vector2(x, _child_y_at_time(t_at_x)))
-				if mother_pts_a.size() >= 2:
-					canvas.draw_polyline(mother_pts_a, Color(0.18, 0.82, 0.22, 0.92), MOTHER_W, true)
-					canvas.draw_polyline(mother_pts_a, Color(0.55, 1.0, 0.60, 0.28), MOTHER_W * 0.38, true)
+					trail_pts.append(Vector2(x, _child_y_at_time(t_at_x)))
+				if trail_pts.size() >= 2:
+					_set_body(_l_child, _l_child_sh, _l_child_st, trail_pts, CHILD_W, CHILD_COL,
+						_openness(_child_y, CHILD_START_DROP))
 	else:
-		# Guided mode: mother path from preset, starts before left edge so endpoint cap is hidden
+		# Guided mode: the mother's own path, sampled on a SNAPPED TIME GRID and walked head-first.
+		#
+		# It used to be sampled at fixed screen-x with exact phase-transition vertices spliced in.
+		# That inserts and drops points as the transitions scroll past, so the point count changed
+		# every frame — which jittered the texture, the joints and (before it was arc-length based)
+		# the slither, all worst at the turns. The child already used a snapped time grid for
+		# exactly this reason: snapping the sample TIMES keeps each vertex's neighbours constant
+		# frame to frame, so the whole body scrolls smoothly instead of resampling under itself.
+		# The transition vertices are not missed: `_phase_y_at` uses smootherstep, which is C2, so
+		# there is no corner at a phase boundary that needs a vertex placed on it.
 		var mother_pts: PackedVector2Array = PackedVector2Array()
-		var _mx: float = -MOTHER_W
-		var _ex_idx: int = 0
-		while _mx <= _head_x + step:
-			while _ex_idx < _extra_xs.size() and _extra_xs[_ex_idx] < _mx:
-				var _ex: float = _extra_xs[_ex_idx]
-				if _ex >= -MOTHER_W and _ex <= _head_x:
-					mother_pts.append(Vector2(_ex, _phase_y_at(_elapsed_ms - (_head_x - _ex) / _scroll_px_per_ms, _m_top_y, _m_bot_y)))
-				_ex_idx += 1
-			if _mx <= _head_x:
-				mother_pts.append(Vector2(_mx, _phase_y_at(_elapsed_ms - (_head_x - _mx) / _scroll_px_per_ms, _m_top_y, _m_bot_y)))
-			_mx += step
-		canvas.draw_polyline(mother_pts, Color(0.18, 0.82, 0.22, 0.92), MOTHER_W, true)
-		canvas.draw_polyline(mother_pts, Color(0.55, 1.0, 0.60, 0.28), MOTHER_W * 0.38, true)
+		var dt_step_m: float = step / _scroll_px_per_ms
+		var t_base_m: float = floor(_elapsed_ms / dt_step_m) * dt_step_m
+		mother_pts.append(Vector2(_head_x, _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)))
+		var n_m: int = int((_head_x + MOTHER_W) / step) + 2
+		for i in range(n_m + 1):
+			var t_at_x_m: float = t_base_m - float(i) * dt_step_m
+			var x_m: float = _head_x - (_elapsed_ms - t_at_x_m) * _scroll_px_per_ms
+			if x_m < -MOTHER_W:
+				break
+			mother_pts.append(Vector2(x_m, _phase_y_at(t_at_x_m, _m_top_y, _m_bot_y)))
+		_set_body(_l_mother, _l_mother_sh, _l_mother_st, mother_pts, MOTHER_W, MOTHER_COL,
+			_openness(mother_pts[0].y, 0.0))
 
 		# --- Child body — break at left edge to avoid tail jitter ---
 		if _history_count > 4:
@@ -556,10 +775,18 @@ func _do_draw(canvas: CanvasItem) -> void:
 						break
 					child_pts.append(Vector2(x, _child_y_at_time(t_at_x)))
 				if child_pts.size() >= 2:
-					canvas.draw_polyline(child_pts, Color(0.30, 0.25, 0.90, 0.92), CHILD_W, true)
-					canvas.draw_polyline(child_pts, Color(0.7, 0.85, 1.0, 0.20), CHILD_W * 0.35, true)
+					_set_body(_l_child, _l_child_sh, _l_child_st, child_pts, CHILD_W, CHILD_COL,
+						_openness(_child_y, CHILD_START_DROP))
 
-	# Ground objects (drawn over snake — same ground level): bushes and beetles
+
+# Bushes and beetles sit at the same ground level as the snakes and are drawn OVER them, so a
+# snake passing behind a bush reads as being on the ground rather than floating above it. Now that
+# the bodies are Line2D nodes rather than canvas draws, these need their own canvas above them.
+func _draw_props(canvas: CanvasItem) -> void:
+	var w: float = (canvas as Control).size.x
+	var h: float = (canvas as Control).size.y
+	var scroll_off: float = _elapsed_ms * _scroll_px_per_ms
+	var bg_span: float = 2000.0
 	for bg_item in _bg_seeds:
 		if bg_item.type == 2:  # dry bush with wind rotation and gentle bob
 			var sx_raw: float = fmod(bg_item.wx - scroll_off * bg_item.speed_f, bg_span)
@@ -572,7 +799,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 				var rot_angle: float = sin(_elapsed_ms * 0.0015 + bg_item.phase) * 0.4
 				var bob_y: float = sin(_elapsed_ms * 0.0022 + bg_item.phase * 0.7) * 4.0
 				var sy: float = bg_item.y_frac * h + bob_y
-				var bc: Color = Color(0.42, 0.30, 0.14, 0.75)
+				var bc: Color = BUSH_COL
 				for sp in bg_item.spikes:
 					var total_a: float = sp.a + rot_angle
 					var ex: float = sx + cos(total_a) * bg_item.r * sp.r
@@ -590,7 +817,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 					continue
 				var sx: float = sx_base + sin(_elapsed_ms * 0.0031 + bg_item.phase) * 0.5
 				var sy: float = base_sy + sin(_elapsed_ms * 0.0047 + bg_item.phase * 1.4) * 0.35
-				var col: Color = Color(0.06, 0.06, 0.04, 0.90)
+				var col: Color = BEETLE_COL
 				var bw_b: float = 7.0
 				var bh_b: float = 4.5
 				var bpts: PackedVector2Array = PackedVector2Array()
