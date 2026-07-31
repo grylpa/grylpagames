@@ -26,6 +26,19 @@ var HEAD_SCALE: float = 0.74
 const GROUND_TOP: Color = Color(0.086, 0.067, 0.078)      # horizon, slightly cooler
 const GROUND_BOTTOM: Color = Color(0.145, 0.110, 0.106)   # nearer sand, warmer
 const GROUND_BANDS: int = 24
+# Parallax dune ridges, far to near. Each is a filled band whose top edge is a slow double sine,
+# scrolling at its OWN fraction of the world speed — the differing speeds are what read as depth;
+# a single layer would just look like a wavy line.
+#
+# Deliberately NOT a horizon with a moon: the ripples, pebbles, bushes and beetles all establish
+# an oblique view of a ground PLANE, and a skyline would contradict every one of them. Ridges sit
+# on that same plane.
+const DUNE_LAYERS: Array = [
+	{"y": 0.14, "amp": 0.055, "period": 1.55, "speed": 0.22, "col": Color(0.115, 0.088, 0.092)},
+	{"y": 0.24, "amp": 0.045, "period": 1.05, "speed": 0.40, "col": Color(0.137, 0.104, 0.101)},
+	{"y": 0.34, "amp": 0.036, "period": 0.78, "speed": 0.62, "col": Color(0.158, 0.119, 0.110)},
+]
+const DUNE_STEP: float = 14.0
 const RIPPLE_LIGHT: Color = Color(0.62, 0.50, 0.44)       # moonlight catching a dune crest
 const RIPPLE_DARK: Color = Color(0.04, 0.03, 0.04)        # the trough behind it
 const PEBBLE_COL: Color = Color(0.24, 0.19, 0.19, 0.75)
@@ -766,6 +779,25 @@ func _do_draw(canvas: CanvasItem) -> void:
 
 	var scroll_off: float = _elapsed_ms * _scroll_px_per_ms
 	var bg_span: float = 2000.0
+
+	# Dune ridges. The top edge is single-valued in x and always well above the bottom, so the
+	# outline is a simple polygon and draw_colored_polygon can always triangulate it — the failure
+	# mode that made an earlier body renderer draw nothing at all.
+	for dune in DUNE_LAYERS:
+		var dy: float = float(dune["y"]) * h
+		var damp: float = float(dune["amp"]) * h
+		var dper: float = maxf(1.0, float(dune["period"]) * w)
+		var doff: float = scroll_off * float(dune["speed"])
+		var dn: int = int(w / DUNE_STEP) + 2
+		var poly: PackedVector2Array = PackedVector2Array()
+		for j in range(dn):
+			var dx: float = float(j) * DUNE_STEP
+			poly.append(Vector2(dx, dy
+				+ damp * sin((dx + doff) * TAU / dper)
+				+ damp * 0.38 * sin((dx + doff * 1.7) * TAU / (dper * 0.41))))
+		poly.append(Vector2(w, h))
+		poly.append(Vector2(0.0, h))
+		canvas.draw_colored_polygon(poly, dune["col"])
 
 	# Ground texture (behind snake paths): sand ripple lines and pebbles
 	for bg_item in _bg_seeds:
