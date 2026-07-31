@@ -144,6 +144,33 @@ crawling. Arc length oscillates as the breath steepens the path: measured, 19 re
 frames on the mother. Horizontal span is constant for the mother and grows monotonically for the
 child, giving 0 rebuilds for the mother and rebuilds only while the child's body is still growing.
 
+### The child's tail: starts long, grows slowly
+
+The child's body length used to be whatever history existed — zero at session start, full in ~12 s.
+So every session opened with the tail visibly stretching, and the pattern renormalising while it
+did. Now it starts at `CHILD_START_LEN_PX` and lengthens at `CHILD_GROW_PX_PER_MS` (~40 s to fill
+the screen). `_prefill_history` seeds the ring buffer with a flat run at the starting position, so
+the opening tail is made of ordinary history samples and is drawn by exactly the same code path.
+
+**Bands are anchored in PIXELS from the head**, not as equal fractions of the body: `offset =
+distance / length`. A band 100 px back stays 100 px back as the body grows, and only new bands
+appear at the tail. Splitting 0..1 into equal fractions instead moved *every* band slightly each
+time the length changed — that was the growth jitter.
+
+**The gradient is keyed to the smooth growth cap, not the measured span.** The snapped-time
+sampler quantises the tail to the 2 px sample step, so the measured span oscillates by up to one
+step every frame (132 shrinks per 900 frames, measured); feeding that in would put the wobble into
+the pattern. The tail *tip* still moves those 2 px, where the alpha ramp has already faded it to
+nothing. Measured after: band #3 holds 18.6–19.3 px from the head across the whole growth.
+
+### Heads turn gradually
+
+Both heads ease toward the current direction at `HEAD_TURN_RATE` via `lerp_angle`. The body's turn
+is smootherstep-eased, so a head snapped to the instantaneous tangent looked mechanical against
+it. The mother's was previously set straight from her phase velocity with no smoothing at all; the
+child's was smoothed at rate 20, fast enough to read as instant. Measured: the mother swings 94°
+over a cycle at no more than 1.95°/frame.
+
 Still deliberately absent: any per-point offset, any UV-derived shading, any tiled texture.
 
 ### Layer order

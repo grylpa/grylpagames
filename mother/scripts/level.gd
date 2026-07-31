@@ -8,9 +8,9 @@ const HEAD_X_FRAC: float = 0.82
 const M_TOP_FRAC: float = 0.30   # mother y range top (center of range ~0.43, just above screen center)
 const M_BOT_FRAC: float = 0.56   # mother y range bottom; child starts at 0.5 (just below mid-range)
 # Visuals
-var MOTHER_W: float = 18.0
-var CHILD_W: float = 12.0
-var HEAD_SCALE: float = 0.44
+var MOTHER_W: float = 30.0
+var CHILD_W: float = 25.0
+var HEAD_SCALE: float = 0.74
 
 # --- Palette: NIGHT DESERT ---------------------------------------------------------------------
 # This is a breathing game in the "Serenity" category, and every sibling there is dark and
@@ -55,11 +55,24 @@ const PULSE_W_HIGH: float = 1.14     # ...and when fully inhaled
 const PULSE_LIGHT: float = 0.20      # brightening at full inhale
 const CHILD_START_DROP: float = 60.0 # child starts this far below the mother's band
 
+# The child's body starts at a visible length and lengthens SLOWLY. It used to start at zero and
+# reach full length in ~12 s, driven straight off how much history existed — so for the first
+# seconds of every session the tail was visibly stretching, and the pattern had to renormalise
+# continuously while it did.
+# The heads swing round over time rather than snapping to the current direction. The body's turn
+# is eased (smootherstep), so a head that tracked the instantaneous tangent looked mechanical
+# against it. The mother's used to be set directly from her phase velocity with no smoothing at
+# all; the child's was smoothed, but at rate 20, which is fast enough to read as instant.
+const HEAD_TURN_RATE: float = 6.0
+
+const CHILD_START_LEN_PX: float = 120.0    # visible tail the moment a session starts
+const CHILD_GROW_PX_PER_MS: float = 0.011  # ~40 s from there to filling the screen
+
 # Skin pattern. Both parts are drawn on the IDENTICAL path as the body, so their joints behave
 # exactly as the body's do — no normals, no offsets, no UVs. That is the whole point: every
 # previous attempt at skin failed at the turns because it needed one of those three.
-const BAND_PX: float = 15.0          # spacing of the dark bands along the body
-const BAND_DARK: float = 0.72        # how dark a band gets, as a multiplier
+const BAND_PX: float = 12.0          # spacing of the dark bands along the body
+const BAND_DARK: float = 0.82        # how dark a band gets, as a multiplier
 const BAND_MAX: int = 56             # cap on bands, so the gradient stays a sane size
 const TAIL_SOLID: float = 0.82       # gradient offset at which the tail dissolve begins
 const STRIPE_W: float = 0.28         # dorsal stripe width, as a share of body width
@@ -89,6 +102,7 @@ var _history_count: int = 0
 var _history_last_ms: float = -1000.0
 
 var _child_angle: float = 0.0
+var _mother_angle: float = 0.0
 var _child_vel_y: float = 0.0   # smooth keyboard velocity (px/s, positive = down)
 var _session_ps: int = 0
 
@@ -347,6 +361,7 @@ func new_game() -> void:
 	_rt_ms = 0
 	_history_head = 0
 	_history_count = 0
+	_prefill_history(_child_y)
 	_history_last_ms = -1000.0
 	_child_history.fill(_child_y)
 	_trace_segments = []
@@ -433,15 +448,16 @@ func _process(delta: float) -> void:
 	var child_vel_px_s: float = (_child_y - y_old) / 0.05
 
 	if active_mode:
-		_child_angle = lerpf(_child_angle, atan2(child_vel_px_s, scroll_px_s), delta * 20.0)
+		_child_angle = lerp_angle(_child_angle, atan2(child_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
 		_sprite_child.rotation = _child_angle
 		_sprite_child.position = Vector2(_head_x, _child_y)
 	else:
 		var mother_y: float = _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)
 		var mother_vel_px_s: float = _phase_vel_norm_at(_elapsed_ms) * (_m_bot_y - _m_top_y) * 1000.0
-		_sprite_mother.rotation = atan2(mother_vel_px_s, scroll_px_s)
+		_mother_angle = lerp_angle(_mother_angle, atan2(mother_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
+		_sprite_mother.rotation = _mother_angle
 		_sprite_mother.position = Vector2(_head_x, mother_y)
-		_child_angle = lerpf(_child_angle, atan2(child_vel_px_s, scroll_px_s), delta * 20.0)
+		_child_angle = lerp_angle(_child_angle, atan2(child_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
 		_sprite_child.rotation = _child_angle
 		_sprite_child.position = Vector2(_head_x, _child_y)
 
@@ -592,15 +608,20 @@ func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
 # body's colour has to live in here — an earlier version set the pulse brightness on
 # default_color, where it was silently ignored. The per-frame brightness now rides on `modulate`,
 # which does multiply.
-func _build_gradient(base_col: Color, n_bands: int) -> Gradient:
+func _build_gradient(base_col: Color, span_px: float) -> Gradient:
 	var offs: PackedFloat32Array = PackedFloat32Array()
 	var cols: PackedColorArray = PackedColorArray()
 	var dark: Color = Color(base_col.r * BAND_DARK, base_col.g * BAND_DARK, base_col.b * BAND_DARK, 1.0)
-	var steps: int = maxi(1, n_bands) * 2
-	for i in range(steps + 1):
-		var t: float = float(i) / float(steps)
+	var half: float = BAND_PX * 0.5
+	var span: float = maxf(half * 2.0, span_px)
+	var n_steps: int = clampi(int(span / half), 2, BAND_MAX * 2)
+	for i in range(n_steps + 1):
+		# ANCHORED IN PIXELS from the head: offset = distance / length. As the child's body grows,
+		# a band 100 px back stays 100 px back — only new bands appear at the tail. Dividing 0..1
+		# into equal fractions instead made every band shift a little each time the length changed,
+		# which is what the tail jitter during growth actually was.
+		var t: float = clampf(float(i) * half / span, 0.0, 1.0)
 		var c: Color = base_col if i % 2 == 0 else dark
-		# the tail dissolves; a hard round cap there is what used to read as an artifact
 		var a: float = 1.0
 		if t > TAIL_SOLID:
 			a = 1.0 - (t - TAIL_SOLID) / (1.0 - TAIL_SOLID)
@@ -611,6 +632,21 @@ func _build_gradient(base_col: Color, n_bands: int) -> Gradient:
 	g.colors = cols
 	return g
 
+# Seed the history ring with a flat run at the starting position, so the child HAS a tail on
+# frame one instead of growing one from nothing. These are ordinary history samples — the body is
+# drawn from them exactly as it is from real ones.
+func _child_grow_cap() -> float:
+	return CHILD_START_LEN_PX + _elapsed_ms * CHILD_GROW_PX_PER_MS
+
+func _prefill_history(y: float) -> void:
+	var px_per_slot: float = maxf(0.01, HISTORY_INTERVAL_MS * _scroll_px_per_ms)
+	var slots: int = clampi(int(CHILD_START_LEN_PX / px_per_slot) + 6, 8, HISTORY_SLOTS)
+	for i in slots:
+		_child_history[i] = y
+	_history_head = slots % HISTORY_SLOTS
+	_history_count = slots
+	_history_last_ms = 0.0
+
 # How open the breath is right now: 0 fully exhaled (bottom of the range), 1 fully inhaled (top).
 func _openness(y: float, drop: float) -> float:
 	var span: float = _m_bot_y - _m_top_y
@@ -620,7 +656,7 @@ func _openness(y: float, drop: float) -> float:
 
 # `pts` must arrive HEAD FIRST — Line2D samples width_curve and gradient from points[0].
 func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: float,
-		base_col: Color, openness: float) -> void:
+		base_col: Color, openness: float, stable_len: float) -> void:
 	if pts.size() < 2:
 		ln.points = PackedVector2Array()
 		sh.points = PackedVector2Array()
@@ -646,12 +682,20 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	# shifts EVERY band a little, which would read as the pattern crawling. The HORIZONTAL span is
 	# the stable proxy: constant for the mother, monotonically growing for the child, so the count
 	# settles and stops churning.
-	var span: float = absf(pts[0].x - pts[pts.size() - 1].x)
-	var n_bands: int = clampi(int(span / BAND_PX), 1, BAND_MAX)
-	if int(_bands.get(ln, -1)) != n_bands:
-		_bands[ln] = n_bands
-		ln.gradient = _build_gradient(base_col, n_bands)
-		st.gradient = _build_gradient(base_col.lightened(STRIPE_LIGHT), n_bands)
+	# Rebuild only when the number of stops would actually change; the stops themselves are
+	# pinned to pixel distances from the head, so growth appends bands rather than moving them.
+	#
+	# The length used here is the SMOOTH one passed in, not the measured span. The snapped-time
+	# sampler quantises the tail to the 2 px sample step, so the measured span oscillates by up to
+	# one step every frame (132 shrinks per 900 frames, measured) — feeding that into the gradient
+	# would put that wobble into the pattern. The tail tip itself still moves those 2 px, where the
+	# alpha ramp has already faded it to nothing.
+	var span: float = maxf(1.0, stable_len)
+	var n_steps: int = clampi(int(maxf(BAND_PX, span) / (BAND_PX * 0.5)), 2, BAND_MAX * 2)
+	if int(_bands.get(ln, -1)) != n_steps:
+		_bands[ln] = n_steps
+		ln.gradient = _build_gradient(base_col, span)
+		st.gradient = _build_gradient(base_col.lightened(STRIPE_LIGHT), span)
 
 	ln.points = pts
 	st.points = pts
@@ -716,7 +760,9 @@ func _do_draw(canvas: CanvasItem) -> void:
 		# Active mode: no guide exists, so the one body drawn is the PLAYER's own trail — child
 		# colours and child width, matching the head above.
 		if _history_count > 4:
-			var reliable_px_a: float = minf(float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms, _head_x + CHILD_W)
+			var reliable_px_a: float = minf(minf(
+				float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms,
+				_head_x + CHILD_W), _child_grow_cap())
 			var n_ma: int = int(reliable_px_a / step) + 2
 			if n_ma >= 2:
 				var trail_pts: PackedVector2Array = PackedVector2Array()
@@ -732,7 +778,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 					trail_pts.append(Vector2(x, _child_y_at_time(t_at_x)))
 				if trail_pts.size() >= 2:
 					_set_body(_l_child, _l_child_sh, _l_child_st, trail_pts, CHILD_W, CHILD_COL,
-						_openness(_child_y, CHILD_START_DROP))
+						_openness(_child_y, CHILD_START_DROP), reliable_px_a)
 	else:
 		# Guided mode: the mother's own path, sampled on a SNAPPED TIME GRID and walked head-first.
 		#
@@ -756,11 +802,13 @@ func _do_draw(canvas: CanvasItem) -> void:
 				break
 			mother_pts.append(Vector2(x_m, _phase_y_at(t_at_x_m, _m_top_y, _m_bot_y)))
 		_set_body(_l_mother, _l_mother_sh, _l_mother_st, mother_pts, MOTHER_W, MOTHER_COL,
-			_openness(mother_pts[0].y, 0.0))
+			_openness(mother_pts[0].y, 0.0), _head_x + MOTHER_W)
 
 		# --- Child body — break at left edge to avoid tail jitter ---
 		if _history_count > 4:
-			var reliable_px: float = minf(float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms, _head_x)
+			var reliable_px: float = minf(minf(
+				float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms,
+				_head_x), _child_grow_cap())
 			var n_child: int = int(reliable_px / step) + 2
 			if n_child >= 2:
 				var child_pts: PackedVector2Array = PackedVector2Array()
@@ -776,7 +824,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 					child_pts.append(Vector2(x, _child_y_at_time(t_at_x)))
 				if child_pts.size() >= 2:
 					_set_body(_l_child, _l_child_sh, _l_child_st, child_pts, CHILD_W, CHILD_COL,
-						_openness(_child_y, CHILD_START_DROP))
+						_openness(_child_y, CHILD_START_DROP), reliable_px)
 
 
 # Bushes and beetles sit at the same ground level as the snakes and are drawn OVER them, so a
