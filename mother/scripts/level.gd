@@ -50,6 +50,15 @@ const DUST_SPEED_NEAR: float = 3.6
 const DUST_A_FAR: float = 0.10
 const DUST_A_NEAR: float = 0.30
 const DUST_COL: Color = Color(0.86, 0.78, 0.70)
+# Vignette: darkens the screen edges so the eye settles on the middle, where the snakes are.
+# Drawn on the props canvas, i.e. OVER the snakes — a vignette behind them would be pointless,
+# since the thing it needs to de-emphasise is the busy edge of the play area, snakes included.
+const VIGNETTE_STEPS: int = 12
+# Share of the SHORT side that is darkened. Capped so the darkening stops short of HEAD_X_FRAC
+# (0.82): at 0.22 it reached 150 px in from a 680 px canvas, which clipped the heads — the one
+# thing on screen the eye is supposed to go to.
+const VIGNETTE_DEPTH: float = 0.16
+const VIGNETTE_MAX_A: float = 0.26
 const RIPPLE_LIGHT: Color = Color(0.62, 0.50, 0.44)       # moonlight catching a dune crest
 const RIPPLE_DARK: Color = Color(0.04, 0.03, 0.04)        # the trough behind it
 const PEBBLE_COL: Color = Color(0.24, 0.19, 0.19, 0.75)
@@ -941,11 +950,26 @@ func _do_draw(canvas: CanvasItem) -> void:
 # Bushes and beetles sit at the same ground level as the snakes and are drawn OVER them, so a
 # snake passing behind a bush reads as being on the ground rather than floating above it. Now that
 # the bodies are Line2D nodes rather than canvas draws, these need their own canvas above them.
+# Concentric bands of black, densest at the very edge. Cheap, and it needs no shader or texture —
+# the same approach aliens/scripts/field.gd uses.
+func _draw_vignette(canvas: CanvasItem, w: float, h: float) -> void:
+	var depth: float = minf(w, h) * VIGNETTE_DEPTH
+	var stepv: float = depth / float(VIGNETTE_STEPS)
+	for i in VIGNETTE_STEPS:
+		var f: float = 1.0 - float(i) / float(VIGNETTE_STEPS)
+		var a: float = VIGNETTE_MAX_A * f * f
+		var o: float = float(i) * stepv
+		canvas.draw_rect(Rect2(0.0, o, w, stepv), Color(0, 0, 0, a), true)
+		canvas.draw_rect(Rect2(0.0, h - o - stepv, w, stepv), Color(0, 0, 0, a), true)
+		canvas.draw_rect(Rect2(o, 0.0, stepv, h), Color(0, 0, 0, a), true)
+		canvas.draw_rect(Rect2(w - o - stepv, 0.0, stepv, h), Color(0, 0, 0, a), true)
+
 func _draw_props(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
 	var h: float = (canvas as Control).size.y
 	var scroll_off: float = _elapsed_ms * _scroll_px_per_ms
 	var bg_span: float = 2000.0
+	_draw_vignette(canvas, w, h)
 	for bg_item in _bg_seeds:
 		if bg_item.type == 2:  # dry bush with wind rotation and gentle bob
 			var sx_raw: float = fmod(bg_item.wx - scroll_off * bg_item.speed_f, bg_span)
