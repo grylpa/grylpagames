@@ -19,7 +19,11 @@ MOTHER = (224, 161, 77)
 CHILD = (245, 217, 158)
 SHADOW = (0, 0, 0, 71)
 
-TAIL_FRAC = 0.34
+TAIL_FRAC = 0.58
+STRIPE_W = 0.30
+STRIPE_LIGHT = 0.55
+EDGE_SOFT_MUL = 1.26
+EDGE_SOFT_ALPHA = 0.26
 EDGE_MUL = 1.20
 HL_MUL = 0.34
 HL_OFFSET = 0.22
@@ -116,59 +120,72 @@ def taper_poly(pts, w_head, w_scale, normal_shift, shift_xy):
     return left + right[::-1]
 
 
+# --- mirrors level.gd's constants -------------------------------------------------------------
+BAND_PX_OVER_W = 15.0 / 18.0    # BAND_PX / MOTHER_W
+BAND_DARK = 0.72
+TAIL_SOLID = 0.82
+
+
 def body_width(t):
-    """Mirrors the Line2D width_curve: 1.0 at the head, 0.90 at 0.62, TAIL_FRAC at the tail."""
-    if t <= 0.62:
-        return 1.0 + (0.90 - 1.0) * (t / 0.62)
-    return 0.90 + (TAIL_FRAC - 0.90) * ((t - 0.62) / 0.38)
+    """Mirrors the Line2D width_curve: 1.0 at the head, 0.96 at 0.70, TAIL_FRAC at the tail."""
+    if t <= 0.70:
+        return 1.0 + (0.96 - 1.0) * (t / 0.70)
+    return 0.96 + (TAIL_FRAC - 0.96) * ((t - 0.70) / 0.30)
 
 
-def skin(u, v):
-    """Mirrors _build_scale_texture: cross-section shading x a diamond scale lattice."""
-    shade = max(0.0, min(1.0, 1.06 - (abs(v - 0.36) / 0.64) ** 1.7))
-    shade = 0.34 + 0.66 * shade
-    d1 = abs((u * 4.0 + v * 2.0) % 1.0 - 0.5)
-    d2 = abs((u * 4.0 - v * 2.0) % 1.0 - 0.5)
-    e = min(d1, d2)
-    ss = 0.0 if e <= 0.0 else (1.0 if e >= 0.22 else (e / 0.22) ** 2 * (3 - 2 * (e / 0.22)))
-    return max(0.0, min(1.0, shade * (0.90 + 0.14 * ss)))
+def band_shade(dist_px, w_head):
+    """Dark bands anchored in PIXELS from the head, as the game's Gradient now is."""
+    period = BAND_PX_OVER_W * w_head
+    phase = (dist_px / period) % 1.0
+    # the gradient interpolates linearly between a light stop and a dark one
+    tri = 1.0 - abs(phase * 2.0 - 1.0)
+    return BAND_DARK + (1.0 - BAND_DARK) * tri
 
 
 def draw_snake(pts, w_head, col):
-    """Round joints + tapered width + snake skin, approximating how Line2D renders in game.
-
-    Drawn as a run of overlapping discs, which is effectively what a round-jointed Line2D is.
-    Two things matter: the dark rim is a SEPARATE silhouette pass (a per-disc outline beads the
-    edge and makes the body read as rope), and the skin is low-contrast (a strong lattice at
-    200px also reads as rope rather than scales).
-    """
+    """Flat body colour + pixel-anchored dark bands + a dorsal stripe + a dissolving tail —
+    the same four things the game draws, with no lattice and no cross-section texture (both were
+    removed after they broke at the turns)."""
     total = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
                 for i in range(len(pts) - 1))
 
     def walk(scale, dy, cb):
         acc = 0.0
-        for i in range(len(pts) - 1, -1, -1):        # tail <- head; head is the LAST point
+        for i in range(len(pts) - 1, -1, -1):        # tail <- head; the head is the LAST point
             if i < len(pts) - 1:
                 acc += math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
-            t = acc / total                          # 0 at the head
+            t = acc / total
             r = w_head * body_width(t) * 0.5 * scale
-            cb(pts[i][0], pts[i][1] + dy, r, (total - acc))
+            cb(pts[i][0], pts[i][1] + dy, r, acc, t)
 
-    walk(0.92, SHADOW_DY, lambda x, y, r, u: d.ellipse([x - r, y - r, x + r, y + r], fill=SHADOW))
-    rim = darkened(col, 0.58)
-    walk(1.16, 0.0, lambda x, y, r, u: d.ellipse([x - r, y - r, x + r, y + r], fill=rim + (255,)))
+    def tail_alpha(t):
+        return 1.0 if t <= TAIL_SOLID else max(0.0, 1.0 - (t - TAIL_SOLID) / (1.0 - TAIL_SOLID))
 
-    def body(x, y, r, u_px):
-        u = u_px / (w_head * 3.0)
-        steps = max(4, int(r / SS) + 4)
-        for k in range(steps):
-            v = k / (steps - 1)
-            lum = skin(u, v)
-            yy = y - r + 2 * r * v
-            c = tuple(int(min(255, cc * lum)) for cc in col)
-            d.rectangle([x - r * 0.80, yy, x + r * 0.80, yy + 2 * r / steps + 1], fill=c + (255,))
+    walk(0.92, SHADOW_DY, lambda x, y, r, d_px, t: d.ellipse(
+        [x - r, y - r, x + r, y + r], fill=SHADOW))
+    # soft edge: a wider, low-alpha pass in the body colour, so the silhouette feathers into the
+    # ground instead of ending on a hard boundary
+    halo = col + (int(255 * EDGE_SOFT_ALPHA),)
+    walk(EDGE_SOFT_MUL, 0.0, lambda x, y, r, d_px, t: d.ellipse(
+        [x - r, y - r, x + r, y + r], fill=halo))
+
+    def body(x, y, r, d_px, t):
+        sh = band_shade(d_px, w_head)
+        a = int(255 * tail_alpha(t))
+        c = tuple(int(min(255, cc * sh)) for cc in col)
+        d.ellipse([x - r, y - r, x + r, y + r], fill=c + (a,))
 
     walk(1.0, 0.0, body)
+
+    # The dorsal stripe is NOT banded: sharing the body's banding made it darker than the body's
+    # lit regions in places, so the spine inverted along its length instead of reading as a line.
+    stripe_col = lightened(col, STRIPE_LIGHT)
+
+    def stripe(x, y, r, d_px, t):
+        a = int(255 * tail_alpha(t))
+        d.ellipse([x - r, y - r, x + r, y + r], fill=stripe_col + (a,))
+
+    walk(STRIPE_W, 0.0, stripe)
 
 
 def draw_head(pts, w_head, col):
@@ -190,7 +207,7 @@ def draw_head(pts, w_head, col):
             y0 = hy - sa * half + ca * off
             x1 = hx + ca * half - sa * off
             y1 = hy + sa * half + ca * off
-            c = fill if fill else tuple(int(min(255, cc * skin(0.15, v))) for cc in col)
+            c = fill if fill else tuple(int(min(255, cc * (0.86 + 0.14 * (1.0 - abs(v - 0.4) * 2)))) for cc in col)
             d.line([x0, y0, x1, y1], fill=c + (255,), width=max(2, int(2 * pass_r / steps) + SS))
     ex = hx + ca * r * 0.42 - sa * r * 0.34
     ey = hy + sa * r * 0.42 + ca * r * 0.34

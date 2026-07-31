@@ -608,6 +608,17 @@ func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
 # body's colour has to live in here — an earlier version set the pulse brightness on
 # default_color, where it was silently ignored. The per-frame brightness now rides on `modulate`,
 # which does multiply.
+# The dorsal stripe gets a CONSTANT colour, not the body's banding. Sharing the banded gradient
+# made the stripe's dark stops (value 0.72) come out darker than the body's lit regions (0.88), so
+# along the length the spine alternated between lighter and darker than the body it sits on and
+# cancelled itself out. Only the tail dissolve is kept, so it fades with the body it rides on.
+func _build_plain_gradient(col: Color) -> Gradient:
+	var g: Gradient = Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, TAIL_SOLID, 1.0])
+	g.colors = PackedColorArray([
+		Color(col.r, col.g, col.b, 1.0), Color(col.r, col.g, col.b, 1.0), Color(col.r, col.g, col.b, 0.0)])
+	return g
+
 func _build_gradient(base_col: Color, span_px: float) -> Gradient:
 	var offs: PackedFloat32Array = PackedFloat32Array()
 	var cols: PackedColorArray = PackedColorArray()
@@ -695,7 +706,7 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	if int(_bands.get(ln, -1)) != n_steps:
 		_bands[ln] = n_steps
 		ln.gradient = _build_gradient(base_col, span)
-		st.gradient = _build_gradient(base_col.lightened(STRIPE_LIGHT), span)
+		st.gradient = _build_plain_gradient(base_col.lightened(STRIPE_LIGHT))
 
 	ln.points = pts
 	st.points = pts
