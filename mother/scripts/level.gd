@@ -75,6 +75,25 @@ const BAND_PX: float = 12.0          # spacing of the dark bands along the body
 const BAND_DARK: float = 0.82        # how dark a band gets, as a multiplier
 const BAND_MAX: int = 56             # cap on bands, so the gradient stays a sane size
 const TAIL_SOLID: float = 0.82       # gradient offset at which the tail dissolve begins
+# Slither: a lateral undulation travelling down the body toward the tail.
+#
+# VERTICAL displacement ONLY, and that is the whole design. An earlier attempt displaced each
+# point along its LOCAL NORMAL; at a turn that normal rotates through nearly 180 deg between
+# samples a couple of px apart, so the displaced points crossed over and the body tangled itself
+# at exactly the turns. The path is strictly monotonic in x, so moving points in y alone leaves it
+# monotonic in x — and a polyline monotonic in x CANNOT self-intersect, because any vertical line
+# still crosses it exactly once. That is a proof, not a tuning.
+#
+# The phase is keyed to HORIZONTAL DISTANCE FROM THE HEAD, which is monotonic and independent of
+# the point count, so it cannot jump when the sampler adds or drops a vertex.
+#
+# AMP is a share of body width, so it scales with the snake — but note it scales BOTH ways: at a
+# body width of 80 an amp of 0.32 is a 26 px wobble, which was too much. Keep it modest.
+const SLITHER_AMP_W: float = 0.22    # amplitude, in body widths
+const SLITHER_WAVE_W: float = 7.0    # wavelength, in body widths
+const SLITHER_SPEED: float = 2.0     # rad/s the wave travels toward the tail
+const SLITHER_RAMP_W: float = 3.5    # body widths behind the head before it eases in
+
 const STRIPE_W: float = 0.28         # dorsal stripe width, as a share of body width
 const STRIPE_LIGHT: float = 0.40     # how much lighter the stripe is than the body
 
@@ -666,6 +685,23 @@ func _openness(y: float, drop: float) -> float:
 	return clampf((_m_bot_y + drop - y) / span, 0.0, 1.0)
 
 # `pts` must arrive HEAD FIRST — Line2D samples width_curve and gradient from points[0].
+func _slither_y(pts: PackedVector2Array, w: float, now_s: float) -> PackedVector2Array:
+	var n: int = pts.size()
+	if n < 3 or w <= 0.0:
+		return pts
+	var amp: float = w * SLITHER_AMP_W
+	var wave: float = maxf(1.0, w * SLITHER_WAVE_W)
+	var ramp: float = maxf(1.0, w * SLITHER_RAMP_W)
+	var x0: float = pts[0].x
+	var out: PackedVector2Array = PackedVector2Array()
+	out.resize(n)
+	for i in n:
+		var dx: float = absf(x0 - pts[i].x)
+		# eased in behind the head, so the head itself stays exactly on the true path
+		var ease: float = smoothstep(0.0, 1.0, minf(1.0, dx / ramp))
+		out[i] = Vector2(pts[i].x, pts[i].y + amp * ease * sin(dx / wave * TAU - now_s * SLITHER_SPEED))
+	return out
+
 func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: float,
 		base_col: Color, openness: float, stable_len: float) -> void:
 	if pts.size() < 2:
@@ -673,6 +709,7 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 		sh.points = PackedVector2Array()
 		st.points = PackedVector2Array()
 		return
+	pts = _slither_y(pts, w, _elapsed_ms * 0.001)
 	var o: float = clampf(openness, 0.0, 1.0)
 	var pw: float = w * lerpf(PULSE_W_LOW, PULSE_W_HIGH, o)
 	ln.width = pw
