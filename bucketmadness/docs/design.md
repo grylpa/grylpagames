@@ -122,25 +122,42 @@ The geometry guarantees that items sliding to any bucket (fracs 0.1/0.5/0.9) nev
 ```
 Level (CanvasLayer, script=level.gd)
 ├── Background (TextureRect, fullscreen)
-└── MainLayout (MarginContainer, fullscreen, margins 12/0/12/0)
-    └── VBox (VBoxContainer)
-        ├── TopSpacer (expands)
-        └── ContentVBox (VBoxContainer, sep=10)
-            ├── AvgTimeLabel (Label, unique, centered, font=24)
-            ├── FallArea (Control, unique, clip_contents=true, min-h=320)
-            ├── BucketsRow (HBoxContainer, sep=8)
-            │   ├── LeftBucketSide (VBoxContainer, expand)
-            │   │   ├── LeftBucketBox (PanelContainer, min-h=70, yellow border)
-            │   │   └── LeftRuleLabel (Label, unique, min-h=52, font=18, autowrap)
-            │   ├── CenterBucketSide (same structure)
-            │   │   ├── CenterBucketBox
-            │   │   └── DumpsterLabel (Label, unique, "♻ Dumpster")
-            │   └── RightBucketSide (same structure)
-            │       ├── RightBucketBox
-            │       └── RightRuleLabel (Label, unique, min-h=52, font=18, autowrap)
-            └── FeedbackLabel (Label, unique, font=60, α=0 initially)
-        └── BottomSpacer (expands)
+├── MainLayout (MarginContainer, fullscreen, margins 12/0/12/0)
+│   └── VBox (VBoxContainer)
+│       ├── TopSpacer (expands)
+│       ├── ContentVBox (VBoxContainer, sep=10)
+│       │   ├── AvgTimeLabel (Label, unique, centered, font=24)
+│       │   ├── FallArea (Control, unique, clip_contents=true, min-h=320)
+│       │   ├── BucketsRow (HBoxContainer, sep=8)
+│       │   │   ├── LeftBucketSide (VBoxContainer, expand)
+│       │   │   │   ├── LeftBucketBox (PanelContainer, min-h=70, yellow border)
+│       │   │   │   └── LeftRuleLabel (Label, unique, min-h=52, font=18, autowrap)
+│       │   │   ├── CenterBucketSide (same structure)
+│       │   │   │   ├── CenterBucketBox
+│       │   │   │   └── DumpsterLabel (Label, unique, "♻ Dumpster")
+│       │   │   └── RightBucketSide (same structure)
+│       │   │       ├── RightBucketBox
+│       │   │       └── RightRuleLabel (Label, unique, min-h=52, font=18, autowrap)
+│       └── BottomSpacer (expands)
+└── FeedbackLabel (Label, unique, fullscreen anchors, font=60, α=0 initially)
 ```
+
+### Why FeedbackLabel hangs off the Level root
+
+It is a transient ✓/✗ flash, and it must cost the layout **nothing**. Inside `ContentVBox` it
+claimed ~124 px of permanent height — it takes `get_system_sans_font()`, whose Noto Symbols
+fallbacks make a single 60 px line ~2.1x as tall as the font size. That pushed `ContentVBox`'s
+minimum height to 732 px against the 583 px `MainLayout` actually has, so both spacers collapsed
+to zero and Godot grew the oversized `MainLayout` **upward past its own `offset_top`**, dropping
+`AvgTimeLabel` on top of the shared HUD's level number (a measured 28.5 px overlap).
+
+The parent must be a **non-container** so anchors cost no space. `FallArea` looks like the natural
+home but is wrong: `_clear_fall_area()` frees every child of it except `_trap_poly`, so the label
+is deleted on the first round. The `Level` CanvasLayer root is the correct host, and being the
+**last** sibling it draws over the board.
+
+`FeedbackLabel` keeps the symbol font because it genuinely renders `✓`/`✗`. Do not "fix" its
+height with a negative `line_spacing` — keep it out of the container flow instead.
 
 ## Key Pitfalls
 

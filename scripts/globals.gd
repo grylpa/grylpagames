@@ -441,11 +441,16 @@ func sum_dict_vals(d):
 # get_system_sans_font(), so it is unaffected.
 # Listed best-readable first; index 0 is therefore the default. Stormfaze is last because its
 # look-alikes (S/5, O/0) are the reason this setting exists at all.
+#
+# Every face here must have a line box close to Godot's built-in default (37 px at font size 30).
+# This is the DEFAULT font for every Control in the app, so a tall face inflates every Label's
+# minimum height and breaks layout everywhere at once. Check a candidate with
+# `font.get_ascent(30) + font.get_descent(30)` against `ThemeDB.fallback_font` before adding it;
+# more than ~8% over will shift layouts. Baloo 2 was dropped for exactly this — it measured +32%.
 const GAME_FONTS: Array = [
 	{"name": "Orbitron", "path": "res://art/fonts/Orbitron.ttf", "weight": 600},
 	{"name": "Exo 2", "path": "res://art/fonts/Exo2.ttf", "weight": 600},
 	{"name": "Space Grotesk", "path": "res://art/fonts/SpaceGrotesk.ttf", "weight": 600},
-	{"name": "Baloo 2", "path": "res://art/fonts/Baloo2.ttf", "weight": 600},
 	{"name": "Stormfaze", "path": "res://art/fonts/Stormfaze.otf", "weight": 0},
 ]
 var game_font_idx: int = 0
@@ -464,20 +469,26 @@ func game_font_name() -> String:
 # Build (but do not apply) one of the choices, so a settings screen can preview each option in
 # its own face.
 #
-# `with_fallbacks` trades glyph coverage for a tight line box. A Font's line height is the MAX over
-# its fallbacks, and Noto Sans Symbols is a very tall face: it takes the box from 1.29x the font
-# size to 2.15x. That surplus is invisible until it is the only thing in a row — a heading, a title
-# — where it reads as a large unasked-for margin. Pass false ONLY for known-ASCII text; anything
-# that might carry a symbol or an em dash needs the fallbacks or it renders tofu.
-func build_game_font(idx: int, with_fallbacks: bool = true) -> Font:
+# NO FALLBACKS, deliberately. A Font's line height is the MAX over its fallbacks, and Noto Sans
+# Symbols is a very tall face: attaching it took the theme font's line box from 1.23x the font
+# size to 2.15x. Since this font is the DEFAULT for every Control in the app, that made every
+# label ~73% taller than the built-in default all the layouts were tuned against — which showed up
+# as text overlapping headers, conveyor belts running under the bottom bar, and line spacing
+# everywhere looking too loose.
+#
+# The fallbacks bought nothing anyway: the symbols they were added for are missing from the bare
+# faces AND from OpenSans, so only Noto provides them — and the theme font never needs them.
+# In-game symbol text uses get_system_sans_font(), which keeps its own symbol fallbacks and is
+# untouched by this. Keep every string that renders in the theme font to characters the faces
+# actually have.
+func build_game_font(idx: int) -> Font:
 	var i: int = clampi(idx, 0, GAME_FONTS.size() - 1)
 	var spec: Dictionary = GAME_FONTS[i]
 	var base: FontFile = ResourceLoader.load(str(spec["path"])) as FontFile
 	if base == null:
 		return null
-	# Always wrap, and hang the fallbacks off the WRAPPER: ResourceLoader hands out one shared
-	# FontFile per path, so assigning `base.fallbacks` would reach every other user of that face —
-	# including the theme's font — and a fallback-free variant would strip them app-wide.
+	# Wrap rather than touching `base`: ResourceLoader hands out one shared FontFile per path, so
+	# mutating it would reach every other user of that face.
 	var fv: FontVariation = FontVariation.new()
 	fv.base_font = base
 	var wght: int = int(spec.get("weight", 0))
@@ -485,22 +496,7 @@ func build_game_font(idx: int, with_fallbacks: bool = true) -> Font:
 		# these are VARIABLE fonts; their default instance is Regular, which reads thin for a
 		# game UI, so pick a heavier instance
 		fv.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("weight"): wght}
-	if with_fallbacks:
-		# Display faces carry small charsets (Stormfaze and Orbitron especially), so give every
-		# choice the same symbol/text fallbacks. Without these a missing glyph silently drops out.
-		var fallbacks: Array = []
-		for fb_path in ["res://art/fonts/NotoSansSymbols2-Regular.ttf",
-				"res://art/fonts/NotoSansSymbols-Regular.ttf",
-				"res://art/fonts/OpenSans-SemiBold.ttf"]:
-			var fb: FontFile = ResourceLoader.load(fb_path) as FontFile
-			if fb != null and fb != base:
-				fallbacks.append(fb)
-		fv.fallbacks = fallbacks
 	return fv
-
-# The current face with a tight line box, for ASCII-only headings and titles. See build_game_font.
-func ui_heading_font() -> Font:
-	return build_game_font(game_font_idx, false)
 
 # Swap the theme's default font. Everything that does not override its font follows immediately —
 # no restart, no per-node work.
