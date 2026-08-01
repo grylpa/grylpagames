@@ -13,8 +13,9 @@ extends CanvasLayer
 
 const _ACCENT: Color = Color(0.9843137, 0.85490197, 0.1882353, 1.0)
 const _DIM: Color = Color(0.72, 0.72, 0.72, 1.0)
-# Deliberately exercises the look-alikes a display font tends to blur.
-const _SAMPLE: String = "0O 1lI 5S 8B 2Z — Level 3 · 25 s"
+# Deliberately exercises the look-alikes a display font tends to blur. ASCII only: the preview is
+# drawn in the face itself, which has no fallbacks, so anything exotic would render as tofu.
+const _SAMPLE: String = "0O 1lI 5S 8B 2Z - Level 3 - 25 s"
 const _MIN_SCROLL_H: float = 160.0
 
 var _panel: PanelContainer = null
@@ -25,6 +26,8 @@ var _header_nodes: Array = []
 var _body_nodes: Array = []
 var _font_buttons: Array = []      # one Button per choice, each drawn in its own face
 var _sample_labels: Array = []
+var _mark_labels: Array = []       # fixed-width selection-marker column, one per row
+var _sample_indents: Array = []    # MarginContainer indenting each sample to match its name
 var _scroll_room: float = 0.0     # tallest the scroll viewport may be on this screen
 
 func _ready() -> void:
@@ -130,25 +133,52 @@ func _build() -> void:
 
 	# One row per font. Each row is drawn IN THAT FONT, with a sample of the characters a display
 	# face most often blurs — so the choice can be judged without applying it first.
+	#
+	# The name and its sample must share one left edge, which rules out prefixing either with
+	# spaces: the name is a Button (whose stylebox adds its own left padding) while the sample is a
+	# Label (which has none), and both are set in a PROPORTIONAL face, so a space prefix lands in a
+	# different place on every row. Instead the marker gets its own fixed-width column and the two
+	# text nodes are stripped of horizontal padding, so their left edges are equal by construction.
 	for i in MainGlobals.GAME_FONTS.size():
 		var preview: Font = MainGlobals.build_game_font(i)
+
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 0)
+		body.add_child(row)
+
+		var mark: Label = Label.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(mark)
+		_mark_labels.append(mark)
+
 		var btn: Button = Button.new()
 		btn.text = str(MainGlobals.GAME_FONTS[i]["name"])
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.flat = true
+		# zero the button's own padding, or its text starts further right than the sample below it
+		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+			btn.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		btn.pressed.connect(_on_font_chosen.bind(i))
 		if preview != null:
 			btn.add_theme_font_override("font", preview)
-		body.add_child(btn)
+		row.add_child(btn)
 		_font_buttons.append(btn)
 
+		# the sample is indented by exactly the marker column, so it aligns with the name above it
+		var indent: MarginContainer = MarginContainer.new()
+		indent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		body.add_child(indent)
+		_sample_indents.append(indent)
+
 		var sample: Label = Label.new()
-		sample.text = "    " + _SAMPLE
+		sample.text = _SAMPLE
 		sample.add_theme_color_override("font_color", _DIM)
 		sample.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if preview != null:
 			sample.add_theme_font_override("font", preview)
-		body.add_child(sample)
+		indent.add_child(sample)
 		_sample_labels.append(sample)
 
 func _on_backdrop_input(event: InputEvent) -> void:
@@ -168,9 +198,13 @@ func _refresh_selection() -> void:
 	for i in _font_buttons.size():
 		var chosen: bool = i == MainGlobals.game_font_idx
 		var btn: Button = _font_buttons[i]
-		var nm: String = str(MainGlobals.GAME_FONTS[i]["name"])
-		btn.text = ("● " + nm) if chosen else ("○ " + nm)
 		var col: Color = _ACCENT if chosen else Color(0.88, 0.88, 0.88, 1.0)
+		# ASCII marker: the rows are drawn in the candidate face, which has no fallbacks, and every
+		# one of them is missing the round bullet glyphs. It sits in its own fixed-width column, so
+		# selecting a row never shifts its name sideways.
+		var mark: Label = _mark_labels[i]
+		mark.text = ">" if chosen else ""
+		mark.add_theme_color_override("font_color", _ACCENT)
 		for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 			btn.add_theme_color_override(state, col)
 
@@ -184,23 +218,23 @@ func _apply_layout() -> void:
 	var body_size: int = 30 if is_mob else 18
 	var close_size: int = 44 if is_mob else 26
 
-	# Title and header are ASCII, so they take the fallback-free face — see about_screen.gd. The
-	# font rows keep the full fallbacks: their ● / ○ markers come from one.
-	var heading_font: Font = MainGlobals.ui_heading_font()
-
 	_title.add_theme_font_size_override("font_size", title_size)
-	if heading_font != null:
-		_title.add_theme_font_override("font", heading_font)
 	_close_btn.add_theme_font_size_override("font_size", close_size)
 	_close_btn.custom_minimum_size = Vector2(close_size + 14, close_size + 14)
 	for n in _header_nodes:
 		n.add_theme_font_size_override("font_size", header_size)
-		if heading_font != null:
-			n.add_theme_font_override("font", heading_font)
 	for n in _body_nodes:
 		n.add_theme_font_size_override("font_size", body_size)
 	for b in _font_buttons:
 		b.add_theme_font_size_override("font_size", header_size)
+	# one marker column width, shared by the markers and the sample indent, so a name and its
+	# sample always start at the same x
+	var mark_w: float = roundf(float(header_size) * 0.75)
+	for m in _mark_labels:
+		m.add_theme_font_size_override("font_size", header_size)
+		m.custom_minimum_size = Vector2(mark_w, 0)
+	for mi in _sample_indents:
+		mi.add_theme_constant_override("margin_left", int(mark_w))
 	# the sample is the readability test, so keep it at the size real UI text uses
 	for sl in _sample_labels:
 		sl.add_theme_font_size_override("font_size", body_size)

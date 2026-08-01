@@ -20,6 +20,7 @@ var gap_ms: float = 1000.0
 var duration_sec: int = 60
 var num_coins: int = 6
 var overlap_key: String = "med"
+var show_level_instruction: bool = false
 
 # --- coin denominations (values in money; parallel relative sizes: a dime < a quarter, etc.) ---
 const DENOMS: Array = [0.01, 0.05, 0.10, 0.25, 0.50, 1.00]
@@ -104,9 +105,10 @@ func _build_ui() -> void:
 	_target_label.text = ""
 	add_child(_target_label)
 
-	_instruction = _make_label(28, Color(0.92, 0.94, 0.9, 1.0))
-	_instruction.text = "Drag coins into the tray to pay the exact amount, then press Pay"
-	add_child(_instruction)
+	if show_level_instruction:
+		_instruction = _make_label(28, Color(0.92, 0.94, 0.9, 1.0))
+		_instruction.text = "Drag coins into the tray to pay the exact amount, then press Pay"
+		add_child(_instruction)
 
 	# tray/basket (drawn behind the coins; no sum is ever shown here)
 	_basket_panel = Panel.new()
@@ -189,7 +191,8 @@ func _layout() -> void:
 	var hh: float = float(MainGlobals.header_height)
 
 	_target_label.add_theme_font_size_override("font_size", 66 if mob else 48)
-	_instruction.add_theme_font_size_override("font_size", 32 if mob else 24)
+	if show_level_instruction:
+		_instruction.add_theme_font_size_override("font_size", 32 if mob else 24)
 	_fb_font_big = 96 if mob else 66
 	_fb_font_small = 54 if mob else 38
 	_feedback.add_theme_font_size_override("font_size", _fb_font_big)
@@ -213,7 +216,8 @@ func _layout() -> void:
 	_place(_target_label, 0.0, target_top, sw, target_h)
 	var instr_top: float = target_top + target_h + (2.0 if mob else 2.0)
 	var instr_h: float = 62.0 if mob else 46.0
-	_place(_instruction, 12.0, instr_top, sw - 24.0, instr_h)
+	if show_level_instruction:
+		_place(_instruction, 12.0, instr_top, sw - 24.0, instr_h)
 
 	# vertical budget: reserve the app bottom button bar (taller on mobile than the footer),
 	# then the Pay button, then split the rest into pile (top) and tray (bottom).

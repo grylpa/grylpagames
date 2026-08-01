@@ -136,7 +136,7 @@ func _build() -> void:
 
 	_header_nodes.append(_add_header(body, "Credits"))
 	_body_nodes.append(_add_text(body, "Sound effects — Kenney (kenney.nl), CC0", Color(0.85, 0.85, 0.85, 1.0)))
-	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono, Exo 2, Orbitron, Baloo 2, Space Grotesk (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
+	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono, Exo 2, Orbitron, Space Grotesk (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
 	_body_nodes.append(_add_text(body, "Made with the Godot Engine.", Color(0.85, 0.85, 0.85, 1.0)))
 
 # Close About first: the two overlays share a layer, and About's tap-to-dismiss would
@@ -194,21 +194,12 @@ func _apply_layout() -> void:
 	var body_size: int = 30 if is_mob else 18
 	var close_size: int = 44 if is_mob else 26
 
-	# Title and headers are ASCII, so they take the fallback-free face: the symbol fallbacks
-	# otherwise inflate their line box to ~2.15x the font size, and the surplus above the glyphs
-	# reads as a large top margin nobody asked for.
-	var heading_font: Font = MainGlobals.ui_heading_font()
-
 	_title.add_theme_font_size_override("font_size", title_size)
-	if heading_font != null:
-		_title.add_theme_font_override("font", heading_font)
 	_close_btn.add_theme_font_size_override("font_size", close_size)
 	_close_btn.custom_minimum_size = Vector2(close_size + 14, close_size + 14)
 
 	for n in _header_nodes:
 		n.add_theme_font_size_override("font_size", header_size)
-		if heading_font != null:
-			n.add_theme_font_override("font", heading_font)
 	for n in _body_nodes:
 		n.add_theme_font_size_override("font_size", body_size)
 	for n in _link_nodes:
