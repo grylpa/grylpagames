@@ -6,31 +6,31 @@ const CATEGORY_ORDER: Array = ["Brain twisters", "Attention & Speed", "Serenity"
 var games = [
 	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
 	["udbr",          "Udbr",           "Follow your breathing pattern",                          "Serenity"],
-	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
 	["crack",         "Crack the Safe", "Crack the safe with your breath",                        "Serenity"],
 	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
+	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
 
-	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
+	["aliens",        "Aliens",         "Work the spaceport gates",                               "Brain twisters"],
 	["sortingrobots", "Sorting Robots", "Sort items by hidden rules",                             "Brain twisters"],
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
 	["monkeyc",       "Monkey C",       "Figure out the rule",                                    "Brain twisters"],
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
-	["aliens",        "Aliens",         "Work the spaceport gates",                               "Brain twisters"],
+	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
 	["ptbits",        "Ptbits",         "Push the balls into their baskets",  			          "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["couples",       "Couples",        "Find and the two identical cards",                       "Attention & Speed"],
-	["ddooo",         "DDOOO",          "Split attention",  									  "Attention & Speed"],
 	["didi",          "DIDI",           "Split attention",                                        "Attention & Speed"],
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Attention & Speed"],
+	["ddooo",         "DDOOO",          "Split attention",  									  "Attention & Speed"],
 	["pop",           "Pop",            "Remember the shapes and colors",                         "Attention & Speed"],
 	["ooo",           "OOO",            "Remember the shapes and colors",                         "Attention & Speed"],
 
+	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 	["movingcards",   "Moving Cards",   "Remember moving cards",                                  "Memory & Speed"],
 	["weris",         "Weris",          "Find people in a crowd",                                 "Memory & Speed"],
 	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Memory & Speed"],
-	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
 	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],
@@ -43,8 +43,8 @@ var games = [
 	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
 
 	["mmm",           "MMM",            "Explore and remember the room colors",                   "Memory & Navigation"],
-	["deliverem",     "Deliverem",      "Remember the delivery order",                            "Memory & Navigation"],
 	["lightsout",     "Lights Out",     "Remember your path, goal, and obstacles",                "Memory & Navigation"],
+	["deliverem",     "Deliverem",      "Remember the delivery order",                            "Memory & Navigation"],
 	["delemfp",       "Delem FP",       "Deliver packets in order while zoomed in",               "Memory & Navigation"],
 
 	# ["matchws",       "Matchws",        "Learn new words",                                        "Language", true],
