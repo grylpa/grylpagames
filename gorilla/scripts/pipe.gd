@@ -16,6 +16,7 @@ var _coin_more_scale: float = 1.0
 
 var fences := [false, false, false, false]		# right,bottom,left,top
 var fence_objects := [null, null, null, null]	# right,bottom,left,top
+var corner_patch: Sprite2D = null				# fills the top-left L-junction; see show_corner_patch()
 
 var wall_texture = preload("res://art/fence_inner_wall.png")
 var power_coin_texture = preload("res://art/coin-orange-w-power.png")
@@ -50,6 +51,52 @@ func show_fence(dir, _show:bool):
 		if fence_objects[dir] != null:
 			fence_objects[dir].hide()
 		fences[dir] = false
+
+# A wall bar is drawn INSIDE its owning cell, along one edge: a right fence covers the strip just
+# left of the cell boundary, a bottom fence the strip just above it. So where a wall runs RIGHT
+# from a corner and another runs DOWN from the same corner, the two bars only meet at a point and
+# the little square of the corner itself is covered by neither — the top-left L is the one
+# orientation that breaks. The other three are covered by one bar or the other:
+#
+#     top-left (broken)   top-right        bottom-left      bottom-right
+#        ?----             ----+              +             +----
+#        |                     |              |----      ----|
+#
+# `show_corner_patch()` fills that square with the matching corner of the wall texture itself, so
+# whatever shading the wall art has carries through.
+static var _wall_px: int = -1
+
+# Thickness of the bar in texture pixels, measured once from the art rather than hardcoded, so it
+# stays right if the wall graphic is ever redrawn.
+static func _wall_thickness(tex: Texture2D) -> int:
+	if _wall_px < 0:
+		var img: Image = tex.get_image()
+		var row: int = img.get_height() / 2
+		var n: int = 0
+		for i in range(img.get_width() - 1, -1, -1):
+			if img.get_pixel(i, row).a < 0.5:
+				break
+			n += 1
+		_wall_px = clampi(n, 1, img.get_width() / 4)
+	return _wall_px
+
+func show_corner_patch(_show: bool) -> void:
+	if not _show:
+		if corner_patch != null:
+			corner_patch.hide()
+		return
+	if corner_patch == null:
+		var w: int = _wall_thickness(wall_texture)
+		var tex_size: Vector2 = wall_texture.get_size()
+		corner_patch = Sprite2D.new()
+		corner_patch.texture = wall_texture
+		corner_patch.region_enabled = true
+		# the bottom tip of the bar, which is exactly the piece the junction is missing
+		corner_patch.region_rect = Rect2(tex_size.x - w, tex_size.y - w, w, w)
+		# just outside this cell's top-left corner, where the two neighbours' bars fail to meet
+		corner_patch.position = -(tex_size + Vector2(w, w)) * 0.5
+		add_child(corner_patch)
+	corner_patch.show()
 
 func can_fill():
 	return has_brick < 0 and has_coin < 0

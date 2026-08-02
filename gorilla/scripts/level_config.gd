@@ -2,7 +2,10 @@ class_name GorillaLevelConfig
 
 # Per-level configuration for Gorilla.
 # rounds            : rounds at this level before advancing
-# room_size         : board width/height (tiles)
+# room_size         : board width/height (tiles). 11 is the MAXIMUM that still fits: the peripheral
+#                     gorillas must clear the room floor by a full tile on every side, and at 11
+#                     there is exactly that much margin left. Going bigger makes levels spawn no
+#                     gorillas at all — see docs/design.md "Lane placement".
 # num_inside_monsters: number of enemy agents inside the room
 # num_bricks        : number of bricks (obstacles) placed in room
 # extra_passages    : number of extra wall removals on top of the spanning tree (more = more open, easier to escape)

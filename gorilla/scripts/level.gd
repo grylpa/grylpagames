@@ -41,6 +41,15 @@ var gorilla_spawn_times: Array[float] = []  # pre-planned spawn times in seconds
 var gorilla_spawn_index: int = 0
 var level_start_ms: int = 0
 
+const GorillaFigure = preload("res://gorilla/scripts/peripheral_gorilla.gd")   # for its half-extents
+# Gorilla body height, in tiles. Kept near one tile: bigger than this and the clearance rule below
+# has no band left to place it in once the room grows to 11x11.
+const GORILLA_TILES: float = 1.05
+# The gorilla's OUTLINE must clear the room floor by this much on every side, so it never walks
+# over the board or its wall ring. On an 11x11 room this is an exact fit rather than a comfortable
+# one — there are only ~2.5 tiles between the room and the screen edge. See docs/design.md.
+const GORILLA_BOARD_GAP_TILES: float = 1.0
+
 const PLAYER_COLOR: Color = Color(0.1, 0.5, 0.99)
 # Indices into game.colors that agents may use — excludes blue(3) and white(12)
 const AGENT_COLOR_INDICES: Array[int] = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -318,6 +327,31 @@ func _create_maze():
 			_remove_maze_wall(p, p + DirArray[dir], dir)
 			removed += 1
 
+	_patch_wall_corners()
+
+# The wall art leaves the corner square open where a wall runs right from a corner and another runs
+# down from it — see pipe.gd show_corner_patch(). A cell owns the patch for its OWN top-left corner,
+# which needs a wall along its top edge (the bottom fence of the cell above) and one along its left
+# edge (the right fence of the cell to its left). Must run after every fence is final.
+func _patch_wall_corners() -> void:
+	for ry in range(room_rect.position.y, room_rect.end.y):
+		for rx in range(room_rect.position.x, room_rect.end.x):
+			var pipe = board[ry][rx].pipe
+			if pipe == null:
+				continue
+			var above = board[ry - 1][rx].pipe if ry > room_rect.position.y else null
+			var left = board[ry][rx - 1].pipe if rx > room_rect.position.x else null
+			var diag = null
+			if ry > room_rect.position.y and rx > room_rect.position.x:
+				diag = board[ry - 1][rx - 1].pipe
+			# Only a bare elbow leaves a hole. If a wall CONTINUES past the corner — to the left (the
+			# diagonal cell's bottom fence) or upward (its right fence) — that bar already covers the
+			# square, and patching it again repaints those 2 px slightly off, which is what made a T
+			# look like its stem poked above the head.
+			var elbow: bool = above != null and above.fences[1] and left != null and left.fences[0]
+			var continues: bool = diag != null and (diag.fences[1] or diag.fences[0])
+			pipe.show_corner_patch(elbow and not continues)
+
 func _add_bricks():
 	var brick_type: int = rng.randi_range(0, 2)
 
@@ -504,11 +538,27 @@ func _fill_coins():
 	wh2.warp_to_pos = wh1.board_pos
 	
 
+# The slice of the WORLD that is visible between the header and the bottom bar. The camera zoom is
+# not 1 — it scales the board to fit the screen — so world pixels and screen pixels are different
+# units. Placing a lane straight from MainGlobals.screen_size pushes it off-screen at zoom > 1 and
+# leaves a gap at zoom < 1, which is why everything peripheral is measured through here.
+func _playfield_world_rect() -> Rect2:
+	var vp: Vector2 = Vector2(MainGlobals.screen_size)
+	var z: float = 1.0
+	var c: Vector2 = vp * 0.5
+	if game_cam != null and is_instance_valid(game_cam):
+		z = game_cam.zoom.x
+		c = game_cam.position
+	var tl: Vector2 = c + (Vector2(0.0, float(game.header_height)) - vp * 0.5) / z
+	var br: Vector2 = c + (Vector2(vp.x, vp.y - float(game.buttons_height)) - vp * 0.5) / z
+	return Rect2(tl, br - tl)
+
 func _plan_gorilla_spawns():
-	var screen_h: float = MainGlobals.screen_size.y
-	var screen_w: float = MainGlobals.screen_size.x
-	# Worst-case travel distance: use the longer of horizontal / vertical crossing.
-	var max_dist: float = max(screen_w + game.tile_size, screen_h - game.header_height - game.buttons_height + game.tile_size)
+	var play: Rect2 = _playfield_world_rect()
+	# Worst-case travel distance: the longer of a horizontal / vertical crossing. Must match the
+	# off-screen margin `_spawn_peripheral_gorilla()` starts and ends at, or the slots under-estimate.
+	var edge: float = 2.0 * game.tile_size * GORILLA_TILES * GorillaFigure.HALF_ALONG
+	var max_dist: float = max(play.size.x + edge, play.size.y + edge)
 	var travel_time: float = max_dist / gorilla_speed_px
 	# Each slot is 2×travel_time wide. A gorilla spawns near the slot center,
 	# so it always finishes before the next slot's gorilla could start — even for adjacent slots.
@@ -530,61 +580,80 @@ func _plan_gorilla_spawns():
 	level_start_ms = MainGlobals.timems()
 
 func _spawn_peripheral_gorilla():
-	var screen_h: float = MainGlobals.screen_size.y
-	var screen_w: float = MainGlobals.screen_size.x
+	var play: Rect2 = _playfield_world_rect()
+	var ts: float = float(game.tile_size)
+	var bh: float = ts * GORILLA_TILES
+	var gap: float = ts * GORILLA_BOARD_GAP_TILES
 
-	var room_t = room_rect.position.y
-	var room_b = room_rect.end.y
-	var room_l = room_rect.position.x
-	var room_r = room_rect.end.x
+	# "The board" the gorilla must stay off is the room floor, in pixels.
+	var half_tile: Vector2 = Vector2(ts, ts) * 0.5
+	var room_tl: Vector2 = game.board_to_px(room_rect.position) - half_tile
+	var room_br: Vector2 = game.board_to_px(room_rect.end - Vector2i.ONE) + half_tile
 
-	var sides: Array = []
-	if room_t > 0: sides.append(0)
-	if room_b < game.board_size.y - 1: sides.append(1)
-	if !MainGlobals.is_mobile() and room_l > 0: sides.append(2)
-	if !MainGlobals.is_mobile() and room_r < game.board_size.x - 1: sides.append(3)
+	# Half-extent of the figure ACROSS its direction of travel: a horizontal lane is placed by the
+	# side view's height, a vertical lane by the front view's width. Measured from the drawing, so
+	# the clearance below is the FIGURE's clearance, not its center point's.
+	var half_h: float = bh * GorillaFigure.HALF_ACROSS_SIDE
+	var half_w: float = bh * GorillaFigure.HALF_ACROSS_FRONT
 
+	# Per side, the band the gorilla's center may sit in: clear of the room by `gap` on the inner
+	# edge, inside the playfield on the outer one. An empty band means that side has no room.
+	var lo: Array[float] = [
+		play.position.y + half_h,
+		room_br.y + gap + half_h,
+		play.position.x + half_w,
+		room_br.x + gap + half_w,
+	]
+	var hi: Array[float] = [
+		room_tl.y - gap - half_h,
+		play.end.y - half_h,
+		room_tl.x - gap - half_w,
+		play.end.x - half_w,
+	]
+
+	var sides: Array[int] = []
+	for s in 4:
+		# Left/right lanes stay desktop-only, as before: a phone has no columns to spare.
+		if s >= 2 and MainGlobals.is_mobile():
+			continue
+		if lo[s] <= hi[s]:
+			sides.append(s)
 	if sides.is_empty():
 		return
 
 	var side: int = sides[rng.randi_range(0, sides.size() - 1)]
+	var lane: float = rng.randf_range(lo[side], hi[side])
 	var go_positive: bool = rng.randi() % 2 == 0
+	var off: float = bh * GorillaFigure.HALF_ALONG   # far enough out for the whole figure to be hidden
 
-	var start_pos: Vector2 = Vector2.ZERO
-	var velocity: Vector2 = Vector2.ZERO
-	var sr: Rect2 = Rect2()
+	var start_pos: Vector2
+	var vel: Vector2
+	var sr: Rect2
+	if side <= 1:
+		var x0: float = play.position.x - off
+		var x1: float = play.end.x + off
+		start_pos = Vector2(x0, lane) if go_positive else Vector2(x1, lane)
+		vel = Vector2(gorilla_speed_px if go_positive else -gorilla_speed_px, 0.0)
+		sr = Rect2(x0, lane - half_h, x1 - x0, 2.0 * half_h)
+	else:
+		var y0: float = play.position.y - off
+		var y1: float = play.end.y + off
+		start_pos = Vector2(lane, y0) if go_positive else Vector2(lane, y1)
+		vel = Vector2(0.0, gorilla_speed_px if go_positive else -gorilla_speed_px)
+		sr = Rect2(lane - half_w, y0, 2.0 * half_w, y1 - y0)
 
-	var ts:int = game.tile_size
-	var travel_dist: float
-
-	match side:
-		0,1:  # above room or below room — horizontal lane
-			var yi:int = rng.randi_range(0,room_t-1) if side == 0 else rng.randi_range(room_b+1, game.board_size.y-1)
-			var y:float = game.board_to_px(Vector2i(0, yi)).y
-
-			start_pos = Vector2(-ts, y) if go_positive else Vector2(screen_w, y)
-			velocity = Vector2(gorilla_speed_px if go_positive else -gorilla_speed_px, 0)
-			sr = Rect2(-ts, y, screen_w + ts, ts)
-			travel_dist = sr.size.x
-		2,3:  # left or right of room — vertical lane
-			var xi:int = rng.randi_range(0,room_l-1) if side == 2 else rng.randi_range(room_r+1, game.board_size.x-1)
-			var x:float = game.board_to_px(Vector2i(xi, 0)).x
-
-			start_pos = Vector2(x, game.header_height - ts) if go_positive else Vector2(x, screen_h - game.buttons_height)
-			velocity = Vector2(0, gorilla_speed_px if go_positive else -gorilla_speed_px)
-			sr = Rect2(x, game.header_height - ts, ts, screen_h - game.header_height - game.buttons_height)
-			travel_dist = sr.size.y
-
-	# Skip if gorilla can't cross the full screen before time runs out
-	# var travel_dist: float = (screen_w + 100.0) if side <= 1 else (screen_h - header - buttons + 100.0)
+	# Skip if the gorilla can't cross the full screen before time runs out
+	var travel_dist: float = sr.size.x if side <= 1 else sr.size.y
 	if game.time_left_sec * gorilla_speed_px < travel_dist:
 		return
 
 	var g = peripheral_gorilla_scene.instantiate()
-	g.velocity = velocity
+	g.velocity = vel
 	g.screen_rect = sr
 	g.position = start_pos
-	g.modulate = Color("#996633")
+	g.body_height = bh
+	# No modulate: the gorilla draws its own fur, saddle and face, and a tint would flatten the
+	# silverback back into the body color and cost the figure its main contrast.
 	g.exited_screen.connect(func(): peripheral_gorillas.erase(g))
 	add_child(g)
 	peripheral_gorillas.append(g)
@@ -986,14 +1055,23 @@ func _apply_level() -> void:
 
 var game_cam = null
 func create_camera():
-	var game_camscale = -0.0+min(game.get_tiles_in_screen_width() / float(game.board_size.x), game.get_tiles_in_screen_height() / float(game.board_size.y))
+	var game_camscale:float = -0.0+min(game.get_tiles_in_screen_width() / float(game.board_size.x), game.get_tiles_in_screen_height() / float(game.board_size.y))
+	# game_camscale = int(game_camscale * 2 + 0.5) / 2.0
+	# if abs(game_camscale - 1) < 0.2:
+	# 	game_camscale = 1
 	var game_center = game.get_viewport_center()
 	if !MainGlobals.is_mobile():
 		game_center -= Vector2(0,30)		# to account for level # label
 
-	game_cam = Camera2D.new()
-	add_child(game_cam)
-	game_cam.zoom = Vector2(game_camscale,game_camscale)
-	game_cam.position_smoothing_enabled = false
+	# Reuse one camera for the whole run. Making a new Camera2D per board leaked one every level and,
+	# worse, left the FIRST one current: Godot only auto-promotes a Camera2D when the viewport has no
+	# current one, so the zoom stayed frozen at whatever the STARTING level needed and never followed
+	# the room size again.
+	if game_cam == null or not is_instance_valid(game_cam):
+		game_cam = Camera2D.new()
+		game_cam.position_smoothing_enabled = false
+		add_child(game_cam)
+	game_cam.zoom = Vector2(game_camscale, game_camscale)
 	game_cam.position = game_center
 	game_cam.enabled = true
+	game_cam.make_current()
