@@ -52,10 +52,77 @@ Feedback shown to player after each answer:
 - Appear from one edge, move in a straight line, exit the opposite edge
 - All spawned gorillas count (including those still on screen when time ends)
 - Move in pixel space (not on the board grid)
-- Brown color only (fixed; not randomized)
-- Scale 0.25 to match inner monster size
-- Face movement direction (flip_h for left, ±90° rotation for up/down)
 - Speed and spawn rate increase with difficulty
+
+### Appearance
+
+The gorilla is **drawn in code** by `peripheral_gorilla.gd` `_draw()` — there is no sprite. It used
+to reuse the shared `art/enemy_head1-3.png` monster head tinted brown, which read as "some
+creature", not as a gorilla.
+
+The whole design constraint is that this figure is **never looked at directly**: the player is
+collecting coins in the room while it crosses the edge of the screen. So the silhouette has to
+carry the entire read at about one tile tall, out of the corner of the eye:
+
+- heavy hunched mass, shoulders clearly **higher** than the hips (a rump ellipse, a barrel ellipse
+  tilted along hip→shoulder, and a separate shoulder-hump ellipse — the hump is what arches the back)
+- small head sunk into the shoulders with **no neck**, plus a sagittal crest, a heavy dark brow and
+  a lighter muzzle
+- long arms reaching the ground ending in fists, short bent legs — the knuckle-walk stance
+- a **silverback saddle**: the most recognizable gorilla marking, and the contrast that keeps a
+  near-black animal visible against the dark grass
+
+Walk cycle: arms and legs swing on `sin(_phase)`, opposite sides in antiphase. `_phase` advances
+with actual travel speed, so a faster gorilla steps faster. The body bobs on every second step
+while the ground contacts stay put — that is what makes it feel heavy.
+
+#### Three views
+
+A side-on figure translating up or down the screen reads as **sliding**, not walking, so the
+vertical lanes get their own drawing rather than a rotation. `_ready()` picks the view from the
+velocity:
+
+| travel | view | notes |
+|--------|------|-------|
+| horizontal | side | mirrored via `draw_set_transform` to face the way it is going; far-side limbs drawn first in a darker fur for depth |
+| downward | front | walking toward the player — brow, two eyes, muzzle, mouth |
+| upward | rear | walking away — no face, and the silverback saddle fills the whole back |
+
+Both upright views lean side to side (`sway`), because a front-on walk has no forward motion to
+show; the lean plus the alternating raised fist is the entire cue. Head height, shoulder width and
+ground line are matched to the side view so a gorilla does not appear to change size depending on
+which lane it happens to cross.
+
+Two rules that are easy to break by accident:
+
+- **Never `modulate` the node.** It draws its own fur, saddle, brow and muzzle; any tint flattens
+  the silverback back into the body color and costs the figure its main contrast.
+- **The figure never rotates.** Rotating it ±90° to "face" up or down — which the old sprite did —
+  reads as a gorilla lying on its side. That is what the front/rear views are for.
+
+### Lane placement (clearance from the board)
+
+Every dimension is a fraction of `body_height`, which `level.gd` sets to
+`tile_size * GORILLA_TILES` (1.05 — a touch over one tile).
+
+The gorilla's **outline** must clear the room floor by `GORILLA_BOARD_GAP_TILES` (1.0) on every
+side, so it never walks over the board or its wall ring. `_spawn_peripheral_gorilla()` therefore
+does not pick a tile row any more: it builds, for each of the four sides, the band its **center**
+may occupy — bounded by the room plus the gap on the inner edge and by the playfield on the outer —
+and picks a random float position inside it. A side whose band is empty is simply not offered, and
+if no side has room, nothing spawns. The half-extents come from `HALF_ACROSS_SIDE` / `HALF_ACROSS_FRONT`
+in `peripheral_gorilla.gd`, so the placement math and the drawing cannot drift apart.
+
+**This is an exact fit, not a comfortable one.** On a 680×748 playfield with `tile_size` 40 the
+board is 15×15; an 11×11 room (level 4+) leaves only ~2.5 tiles between the room floor and the
+screen edge, which is one tile of gap plus the gorilla and nothing more. Measured worst-case
+clearance is 40.06 px against a 40 px tile. Consequences:
+
+- Enlarging the gorilla, enlarging the gap, or growing the room past 11×11 will start emptying
+  bands, and levels will quietly spawn **no gorillas at all** — which silently breaks the game's
+  only question. Re-measure if any of those three change.
+- The gap is measured from the **room floor**, not from the wall ring. Requiring a full tile beyond
+  the ring is geometrically impossible at 11×11.
 
 ## Inside Monsters
 
@@ -112,6 +179,75 @@ Uses standard `GenericGameUtil` file system with prefix `gorilla`:
 - `scores_v5_gorilla.gpa`
 - `ongoing_score_v5_gorilla.gpa`
 
+## Camera, Zoom and the Background
+
+`create_camera()` fits the board to the screen:
+`zoom = min(tiles_in_screen_w / board_size.x, tiles_in_screen_h / board_size.y)`. `board_size` is
+`room_size + 6` (desktop), so the zoom **changes with the level**:
+
+| level | room | board | zoom |
+|-------|------|-------|------|
+| 1–3 | 9×9 | 15×15 | 1.0667 (magnified) |
+| 4+ | 11×11 | 17×17 | 0.9412 (shrunk) |
+
+Two consequences that have each caused a bug:
+
+- **One camera, reused.** `create_camera()` must update the existing `game_cam`, never make a new
+  one. Godot only auto-promotes a `Camera2D` to current when the viewport has none, so creating one
+  per board leaked a camera each level *and* left the very first one current — the zoom stayed
+  frozen at whatever the starting level needed. Starting on level 10 and walking back to level 1
+  kept the level-10 view forever, while starting on level 1 looked right the whole way up.
+- **The background is screen-space.** `BackgroundRect` lives under `BgLayer` (a `CanvasLayer` at
+  `layer = -1` with `follow_viewport_enabled` off), *not* under `Level`, which does follow the
+  viewport. At zoom 0.9412 the visible world is 722 px wide against a 680 px viewport, so a
+  world-space background leaves ~21 px of bare screen down each side. In screen space it covers at
+  any zoom.
+
+**World pixels are not screen pixels here.** Anything positioned from `MainGlobals.screen_size` but
+placed in world coordinates is wrong by the zoom factor — off-screen at zoom > 1, short of the edge
+at zoom < 1. `_playfield_world_rect()` converts the visible band between the header and the bottom
+bar into world coordinates; peripheral gorilla lanes and travel distances are both measured through
+it. Use it for anything new that has to reach the screen edge.
+
+## Maze Wall Corners
+
+Each interior wall is a `fence_inner_wall.png` sprite drawn **inside** its owning cell along one
+edge — `_create_maze()` only ever uses fence dirs 0 (right) and 1 (bottom), so a right fence covers
+the 2 px strip just left of the cell boundary and a bottom fence the strip just above it.
+
+That inset means the four L-junction orientations are not equivalent. Where a wall runs **right**
+from a corner and another runs **down** from it, the two bars meet only at a point and the corner
+square itself is covered by neither. The other three orientations are covered by one bar or the
+other, which is why only the top-left L ever looked wrong:
+
+```
+top-left (was broken)   top-right      bottom-left     bottom-right
+   ?----                   ----+           +              +----
+   |                           |           |----       ----|
+```
+
+`pipe.gd show_corner_patch()` fills that square with the matching corner of the wall texture, so
+the wall's own shading carries through. A cell owns the patch for its **own** top-left corner.
+`_patch_wall_corners()` runs at the very end of `_create_maze()`, after every fence is final —
+running it earlier would patch corners that the extra-passage pass then opens up.
+
+**Only a bare elbow gets a patch.** Needing a bottom fence above and a right fence to the left is
+not sufficient: if a wall *continues* past the corner the square is already covered, and repainting
+those 2 px lands slightly off and shows as a seam — a T looked like its stem poked above the head.
+Both continuations belong to the **diagonal** cell (x-1, y-1): its bottom fence is the wall running
+left of the corner, its right fence the wall running up from it. If either exists, no patch.
+
+| junction | diag bottom | diag right | patched |
+|----------|-------------|------------|---------|
+| bare elbow ⌐ | – | – | **yes** |
+| T, head runs left | ✓ | – | no |
+| T, stem runs up | – | ✓ | no |
+| cross + | ✓ | ✓ | no |
+
+The bar thickness is **measured from the texture's alpha once at runtime** (`_wall_thickness()`,
+cached in a `static var`) rather than hardcoded, so the patch stays correct if the wall art is
+redrawn. It currently measures 2 px, against a 40×40 texture drawn 1:1 over a 40 px tile.
+
 ## Key Implementation Notes
 
 - `has_player` and `has_agent` are separate fields on `OneCell` — monsters can enter the player's cell (collision by pixel distance), but cannot enter cells already occupied by other monsters
@@ -144,7 +280,7 @@ gorilla/
 │   ├── pipe.tscn               (room floor tile)
 │   ├── empty_space.tscn        (wall tile ring outside room)
 │   ├── tube_animation.tscn     (snake body segment, unused)
-│   └── peripheral_gorilla.tscn (edge-crossing gorilla)
+│   └── peripheral_gorilla.tscn (edge-crossing gorilla — bare Node2D, no sprite)
 └── scripts/
     ├── globals.gd              (GorillaG autoload)
     ├── main.gd                 (orchestrator)
@@ -154,5 +290,5 @@ gorilla/
     ├── pipe.gd                 (room tile logic)
     ├── empty_space.gd          (wall visibility logic)
     ├── tube_animation.gd       (body segment, unused)
-    └── peripheral_gorilla.gd   (pixel-space gorilla mover)
+    └── peripheral_gorilla.gd   (pixel-space gorilla mover + the drawn gorilla itself)
 ```

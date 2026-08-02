@@ -33,7 +33,10 @@ player_scene = ExtResource("4")
 peripheral_gorilla_scene = ExtResource("5")
 empty_space_scene = ExtResource("6")
 
-[node name="BackgroundRect" type="TextureRect" parent="."]
+[node name="BgLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="BackgroundRect" type="TextureRect" parent="BgLayer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
