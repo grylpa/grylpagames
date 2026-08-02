@@ -268,20 +268,39 @@ func new_game(_from_scratch: bool = true) -> void:
 
 	# Storm-style intro popup (centered panel, tap anywhere to start). Play starts when
 	# it's closed. Sizes to its text, so keep short \n lines (no auto-wrap here).
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
-		# NOTE: parentheses around the whole concatenation are required — `%` binds tighter
-		# than `+`, so without them the format applies only to the last "Duration: %s".
-		("Swipe RIGHT if you've\n" +
-		"seen the card before,\n" +
-		"LEFT if it's new.\n\n" +
-		"Images: %s\n" +
-		"Card time: %s\n" +
-		"Duration: %s") % [
-			", ".join(_folders),
-			_fmt_secs(card_time_ms / 1000.0),
-			_fmt_secs(float(duration_sec))
-		])
+	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, _intro_text())
 	intro.closed.connect(_on_game_popup_closed)
+
+# Opens with what you are about to be shown, then the rule in full. Built as a line array rather
+# than one format string: the old version needed parentheses around the whole concatenation,
+# because `%` binds tighter than `+` and would otherwise format only the last line.
+#
+# CARD TIME is deliberately not listed. It is a timeout, not something to plan around, and the
+# per-card bar under the header shows it far better than a number in a panel you have already
+# dismissed.
+func _intro_text() -> String:
+	var lines: Array = [
+		"Cards: %s" % _folders_phrase(),
+		"",
+		"SEEN = this card has already",
+		"appeared THIS round.",
+		"",
+		"Swipe RIGHT = seen before",
+		"Swipe LEFT = new",
+		"",
+		"Duration: %s" % _fmt_secs(float(duration_sec)),
+	]
+	return "\n".join(lines)
+
+# The level's image folders in plain English — "people" is the folder name, "faces" is what the
+# player actually sees.
+func _folders_phrase() -> String:
+	var words: Array = []
+	for f in _folders:
+		words.append("faces" if str(f) == "people" else str(f))
+	var joined: String = " and ".join(words)
+	# only the first letter — String.capitalize() would Title Case Every Word
+	return joined.substr(0, 1).to_upper() + joined.substr(1)
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:
@@ -344,7 +363,10 @@ func _load_level(id: int) -> void:
 	# game.reset() in main.new_game, so it takes precedence.
 	game.set_reset_time_left(duration_sec)
 	game.set_time_left(0, 0, duration_sec)
-	game.level_label_changed("Level " + str(def.get("name", id)))
+	# Just the number. The old "Level 5 DP" leaked a scores-table shorthand onto the play screen,
+	# where it read as a code — and the thing it encoded (which folders the cards come from) is
+	# already on screen in the cards themselves.
+	game.level_label_changed("Level %d" % int(def.get("id", id)))
 
 func _build_pool() -> void:
 	# Reset the adaptive set. Per folder, keep a shuffled list of image indices not yet

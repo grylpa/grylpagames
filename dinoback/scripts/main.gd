@@ -10,20 +10,20 @@ var POS_SCORE_MEAN_TIME_MS: int = 7
 var POS_SCORE_PCT_CORRECT: int = 8
 
 func _ready() -> void:
-	game = DinoG.game
+	game = DinobackG.game
 	# Time is a per-level budget that ends the LEVEL (advance), not the game.
 	game.game_over_on_time_out = false
 
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
-	DinoG.load_settings()
+	DinobackG.load_settings()
 	main_menu = game.create_main_menu(self)
 
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
-	# "Level", not "Starting level": the caption's minimum width is subtracted from the dropdown's,
-	# and the dropdown carries the descriptive menu_names rather than the compact "6 D".
-	main_menu.add_option_entry(1, "Level", DinoLevelConfig.menu_names())
+	# "Level", not "Starting level": the caption's width is subtracted from the dropdown's, and the
+	# level names here are descriptive ("10 N2 Letter+color") rather than the usual "3".
+	main_menu.add_option_entry(1, "Level", DinobackLevelConfig.menu_names())
 	refresh_menu()
 	show_main_menu()
 
@@ -31,13 +31,13 @@ func _ready() -> void:
 	hud.show()
 	hud.show_corrects_mistakes()
 	hud.update_all()
-	# move the level-number label down so the per-image timeout bar fits between the
-	# header and it (the label defaults to y 60-104, right under the header).
+	# move the level-number label down so the per-card timeout bar fits between the header and it
+	# (the label defaults to y 60-104, right under the header).
 	var level_label = hud.get_node_or_null("LevelLabel")
 	if level_label != null:
 		level_label.offset_top = 92.0
 		level_label.offset_bottom = 132.0
-		level_label.modulate.a = 1.0  # fully opaque (default is ~0.63)
+		level_label.modulate.a = 1.0
 
 	game.sig_game_is_done.connect(on_game_is_done)
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
@@ -46,14 +46,18 @@ func _ready() -> void:
 	$Help.set_texts({"N": "New game", "M": "Main menu"})
 	$Help.close_help.connect(_on_help_close_help)
 
-	game.set_instructions("Dino",
-		"A card appears, one at a time. Have you already seen it this round?" +
+	game.set_instructions("Dino N-Back",
+		"Cards come one at a time. Say MATCH when the card in front of you is the same as " +
+		"the card N places back — not just one you have seen before." +
 		"\n\n" +
-		"Swipe right (or tap Seen) if yes, or left (or tap New) if it's new — " +
-		"answer before the card disappears.", 30)
+		"Each level says what N is and what counts as a match: the same shape/letter/digit, " +
+		"the same color, or both." +
+		"\n\n" +
+		"Swipe right (or tap Match) for yes, left (or tap No) for no. The first N cards of a " +
+		"level are just to watch and remember.", 30)
 	if not game.shown_instructions:
 		game.show_instructions(self)
-		DinoG.save_settings()
+		DinobackG.save_settings()
 
 	main_menu.show_continue_and_start_new(false)
 	game.scores_callback = Callable(self, "add_score_line_vals")
@@ -62,7 +66,7 @@ func _ready() -> void:
 	game.progress_level_pos = POS_SCORE_LEVEL_ID
 	game.progress_time_pos = POS_SCORE_MEAN_TIME_MS
 	game.progress_pct_pos = POS_SCORE_PCT_CORRECT
-	for lvl in DinoLevelConfig.LEVELS:
+	for lvl in DinobackLevelConfig.LEVELS:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
@@ -82,6 +86,7 @@ func show_level() -> void:
 	get_viewport().gui_release_focus()
 	$Level.show()
 	main_menu.hide()
+	# reversed theme: the dino background is light, so the bar buttons go dark to stay readable
 	MainGlobals.update_bottom_bar(["help", "mute"], Color.YELLOW, true)
 	MainGlobals.add_action_button(null)
 
@@ -108,14 +113,14 @@ func _on_level_sig_level_is_done(_didwin: bool) -> void:
 		new_game(false)
 
 func _on_main_menu_start_game(_start_new: bool) -> void:
-	DinoG.save_settings()
+	DinobackG.save_settings()
 	new_game()
 	show_level()
 
 func _on_menu_option_changed(id: int, idx: int) -> void:
 	if id == 1:
-		DinoG.starting_level_id = DinoLevelConfig.LEVELS[idx]["id"]
-		DinoG.save_settings()
+		DinobackG.starting_level_id = DinobackLevelConfig.LEVELS[idx]["id"]
+		DinobackG.save_settings()
 
 func _on_level_show_main_menu() -> void:
 	game.playing = false
@@ -137,7 +142,7 @@ func on_game_is_done(_didwin: bool, _wasaborted: bool) -> void:
 func add_score_line_vals(score_row: Array) -> Array:
 	var res: Array = []
 	if score_row.size() > POS_SCORE_LEVEL_ID:
-		var lvl: Dictionary = DinoLevelConfig.get_level(score_row[POS_SCORE_LEVEL_ID])
+		var lvl: Dictionary = DinobackLevelConfig.get_level(score_row[POS_SCORE_LEVEL_ID])
 		res.append(lvl.get("name", "?"))
 	if score_row.size() > POS_SCORE_MEAN_TIME_MS:
 		res.append(str(int(score_row[POS_SCORE_MEAN_TIME_MS])))
@@ -169,4 +174,4 @@ func _input(event: InputEvent) -> void:
 		game.handle_event(event, self)
 
 func refresh_menu() -> void:
-	main_menu.update_option(1, DinoLevelConfig.id_to_index(DinoG.starting_level_id))
+	main_menu.update_option(1, DinobackLevelConfig.id_to_index(DinobackG.starting_level_id))

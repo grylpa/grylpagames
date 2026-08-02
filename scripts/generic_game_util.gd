@@ -1054,8 +1054,12 @@ func show_level_done_popup(parent, title, text, level_id=0, text_add=""):
 	if title == null or title == "":
 		title = "Level complete!"
 	if text == null or text == "":
-		text = "You have\ncompleted\nlevel %d\n\nTotal score: %d\nTime left: %s" % \
-			[level_id, score, time_left_str()]
+		text = "You have\ncompleted\nlevel %d\n\nTotal score: %d" % [level_id, score]
+		# Only worth saying when there was time to spare. In a game whose clock IS the level's
+		# length, the level ends BECAUSE the clock hit zero, so the line would read "00:00:00"
+		# every single time and tell the player nothing.
+		if time_left_sec > 0:
+			text += "\nTime left: %s" % time_left_str()
 	text += text_add
 	var ldp = level_done_popup_scene.instantiate()
 	parent.add_child(ldp)

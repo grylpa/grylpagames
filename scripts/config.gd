@@ -28,6 +28,7 @@ var games = [
 	["ooo",           "OOO",            "Remember the shapes and colors",                         "Attention & Speed"],
 
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
+	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
 	["movingcards",   "Moving Cards",   "Remember moving cards",                                  "Memory & Speed"],
 	["weris",         "Weris",          "Find people in a crowd",                                 "Memory & Speed"],
 	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Memory & Speed"],
