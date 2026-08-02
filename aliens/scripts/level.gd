@@ -156,7 +156,25 @@ var _recent_arrivals: Array = []
 var _play_start_ms: float = 0.0
 var _rules_hidden: bool = false
 var _chips_visible: bool = true      # what the chips are actually showing right now
-var _z_counter: int = 10
+# --- draw order --------------------------------------------------------------------------------
+# One scheme for the whole game, because a fixed UI depth sitting INSIDE the aliens' range is how
+# the chips ended up sometimes behind and sometimes in front of them:
+#
+#   -10          field (sky, rings)
+#   10 .. 150    roaming aliens, handed out by _next_z() and WRAPPED
+#   180          rule chips        — above every roamer
+#   200 / 210    the flash mark and the banner
+#   1000         the alien being dragged — whatever is under the finger is on top
+#
+# The wrap matters on its own: `_z_counter` used to climb forever, so a long session would push
+# aliens over the flash mark, then over the banner, and finally into Godot's z_index ceiling of
+# 4096 — where every alien shares a depth and the `>=` tiebreak in _topmost_alien_at() stops
+# picking the visually topmost one. Wrapping only reshuffles the relative order of overlapping
+# aliens once, which is invisible: the sim keeps them apart anyway.
+const Z_ALIEN_MIN: int = 10
+const Z_ALIEN_MAX: int = 150
+const Z_CHIP: int = 180
+var _z_counter: int = Z_ALIEN_MIN
 
 # --- interference state ---
 var _next_gate_change_ms: float = 0.0
@@ -231,7 +249,11 @@ func _make_rule_label() -> Label:
 	lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	lbl.clip_text = true          # without this the Label's minimum size overrides _place()
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl.z_index = 20
+	# Always ABOVE the aliens. The chip is only on screen when it MUST be read — it is removed
+	# outright once the rules hide, and returns only for the short glimpse after a gate change — so
+	# a roamer drifting across the text costs the player the round at exactly the wrong moment.
+	# It is MOUSE_FILTER_IGNORE, so drawing on top never blocks a drag.
+	lbl.z_index = Z_CHIP
 	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	lbl.add_theme_color_override("font_color", Color(1, 0.97, 0.72, 1.0))
 	# deliberately quiet: no border, barely-there backdrop. It is a caption, not a UI panel.
@@ -398,7 +420,7 @@ func _layout() -> void:
 			al.sim_pos = _outer_park_pos(_areas[al.area_idx], al.park_angle)
 			al.position = al.sim_pos
 
-# Areas sit in the screen CORNERS: one area centres in the field, two take OPPOSING corners, and
+# Areas sit in the screen CORNERS: one area centers in the field, two take OPPOSING corners, and
 # three or four fill the remaining ones. Corners keep the middle of the field open as one
 # contiguous roaming space, and keep the two rings as far apart as the screen allows.
 const CORNER_SIGNS: Array = [
@@ -445,7 +467,7 @@ func _ring_radii(a: float) -> Vector2:
 func _inner_lane(r_in: float, a: float) -> Vector2:
 	var lane: float = r_in - a - INNER_PAD
 	if lane < a * 0.55:
-		return Vector2(0.0, 1.0)                 # only room for one, at the centre
+		return Vector2(0.0, 1.0)                 # only room for one, at the center
 	var q: float = clampf(a * SLOT_GAP / lane, 0.0, 1.0)
 	if q >= 1.0:
 		return Vector2(0.0, 1.0)
@@ -836,9 +858,15 @@ func _positive_rule_in(m: String) -> String:
 # Once the rules hide the caption is REMOVED, not replaced by a placeholder — an empty box left
 # on screen is just clutter over the play area.
 #
-# A DENY gate reads "NOT SPOTTED" in a warning colour. The word AND the colour both carry it,
-# because after the pass hides the player is recalling the polarity too, and a single cue that
-# only exists while the chip is up would make that recall a coin flip.
+# POLARITY HAS NO COLOR. A deny gate reads "NOT SPOTTED" and is otherwise indistinguishable —
+# same chip colors, same ring colors. Two reasons, and the second is the decisive one:
+#
+#   1. A tint on the RING outlives the caption, so polarity stayed free all level while the rule
+#      itself had to be remembered. That is half the memory task handed back.
+#   2. NOT is not only a gate property. A compound pass can carry its own negated operand —
+#      "1 EYE OR NOT BLUE" on a perfectly ordinary ACCEPT gate — and that NOT gets no color.
+#      Coloring gate-level deny alone teaches "red means NOT", then breaks the rule the first
+#      time an uncolored NOT shows up inside a compound. One word, one meaning, no exceptions.
 func _refresh_rule_labels() -> void:
 	for i in _areas.size():
 		if i >= _rule_labels.size():
@@ -846,12 +874,6 @@ func _refresh_rule_labels() -> void:
 		var deny: bool = bool(_areas[i].get("deny", false))
 		var txt: String = _pass_label(_areas[i].get("pass", {}))
 		_rule_labels[i].text = (DENY_PREFIX + txt) if deny else txt
-		_rule_labels[i].add_theme_color_override("font_color",
-			Color(1.0, 0.62, 0.52, 1.0) if deny else Color(1, 0.97, 0.72, 1.0))
-		var st: StyleBoxFlat = StyleBoxFlat.new()
-		st.bg_color = Color(0.16, 0.05, 0.05, 0.52) if deny else Color(0.04, 0.10, 0.07, 0.42)
-		st.set_corner_radius_all(10)
-		_rule_labels[i].add_theme_stylebox_override("normal", st)
 		_rule_labels[i].visible = _chips_visible
 		_fit_caption(_rule_labels[i], _rule_labels[i].size.x - 14.0,
 			28 if MainGlobals.is_mobile() else 21)
@@ -1053,6 +1075,8 @@ func _spawn_alien_for(area_idx: int, gate_want: bool) -> void:
 
 func _next_z() -> int:
 	_z_counter += 1
+	if _z_counter > Z_ALIEN_MAX:
+		_z_counter = Z_ALIEN_MIN
 	return _z_counter
 
 func _clear_world() -> void:
@@ -1062,6 +1086,7 @@ func _clear_world() -> void:
 	_aliens.clear()
 	_drag_alien = null
 	_called_al = null          # it pointed at an alien that no longer exists
+	_z_counter = Z_ALIEN_MIN   # nobody is left to be ordered against
 	for ai in _areas.size():
 		var ar: Dictionary = _areas[ai]
 		for i in ar["inner_owner"].size():
@@ -1520,7 +1545,7 @@ func _slide_out_of_wedge(p: Vector2, r: float, own_idx: int) -> Vector2:
 		var dist: float = dv.length()
 		if dist >= need - 0.01 or dist < 0.0001:
 			continue
-		# still inside after the clamp: step around the ring toward the field centre
+		# still inside after the clamp: step around the ring toward the field center
 		var nrm: Vector2 = dv / dist
 		var tang: Vector2 = Vector2(-nrm.y, nrm.x)
 		var to_middle: Vector2 = (_field.position + _field.size * 0.5) - q
@@ -1691,7 +1716,7 @@ func _drop_dragged(now: float) -> void:
 		else:
 			_reject(al, now)
 
-# A big ✓/✗ that floats up and fades, plus a colour flash on the alien itself. The small hint
+# A big ✓/✗ that floats up and fades, plus a color flash on the alien itself. The small hint
 # ring alone was too subtle to tell a correct call from a mistake at a glance.
 func _flash_mark(at: Vector2, txt: String, col: Color) -> void:
 	var lbl: Label = Label.new()
@@ -2137,7 +2162,7 @@ func new_game(from_scratch: bool = true) -> void:
 	if n_compound > 0:
 		body += "\nSome passes ask for TWO things at once.\n"
 	if n_deny > 0:
-		body += "\nA red \"NOT ...\" pass boards everyone EXCEPT that.\n"
+		body += "\nA \"NOT ...\" pass boards everyone EXCEPT that.\n"
 	if gate_change_ms > 0.0 and num_areas > 1:
 		body += "\nGATE CHANGE: the passes move between gates.\n"
 	if priority_every_ms > 0.0:

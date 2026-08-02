@@ -271,6 +271,31 @@ it and nothing compares it between runs, so pinning it only threw away free vari
 - When the rules hide, the caption is **removed** (`visible = false`), not replaced by a `?`
   placeholder — an empty box left on screen is just clutter.
 
+### Draw order
+
+One scheme for the whole game. A fixed UI depth must never sit *inside* the aliens' range:
+
+| z | what |
+|---|------|
+| −10 | field: sky, rings, FULL badge |
+| 10 … 150 | roaming aliens, handed out by `_next_z()` and **wrapped** |
+| 180 (`Z_CHIP`) | rule chips |
+| 200 / 210 | flash mark / banner |
+| 1000 | the alien being dragged — whatever is under the finger is on top |
+
+**Chips are always above the aliens.** They are only on screen when they must be read (removed
+once the rules hide, back only for the glimpse after a gate change), so a roamer drifting over the
+text costs the player the round at exactly the wrong moment. They are `MOUSE_FILTER_IGNORE`, so
+drawing on top never blocks a drag. Chips used to sit at z 20, inside the alien band: the 9–14
+starting roamers took z 11–19 and drew *behind* them, while every alien after the counter passed
+20 drew *in front* — both at once on the same screen, and permanently in front thereafter.
+
+**`_next_z()` wraps, and `_clear_world()` resets it.** The counter used to climb forever, so a long
+session pushed aliens over the flash mark, then the banner, and eventually into Godot's `z_index`
+ceiling of 4096 — where every alien shares a depth and the `>=` tiebreak in `_topmost_alien_at()`
+stops picking the visually topmost one, i.e. drags start grabbing the wrong alien. Wrapping only
+reshuffles overlapping aliens once, which is invisible since the sim keeps them apart anyway.
+
 ## Interference layer
 
 Added after play showed the game was enjoyable but nowhere near as **cognitively costly** as
@@ -302,14 +327,27 @@ Needs `num_areas >= 2`.
 ### Deny list (`deny_chance`)
 
 Per gate, at rule-pick time. A DENY gate boards everything **except** its pass; its chip reads
-`NOT SPOTTED` in a warm color and `field.gd` tints both its rings warm.
+`NOT SPOTTED`.
 
 - With 2+ gates `_assign_polarity` **forces the polarities to be mixed** (never all-accept, never
   all-deny). A uniform polarity is just one rule inverted once — the load comes from holding two
   *opposite* senses simultaneously.
-- **Two independent cues** for the polarity — the word `NOT` and the ring tint. The chip goes away
-  when the pass hides; the ring does not. Without the ring cue, recalling the polarity after the
-  hide would be a coin flip, which is frustration rather than difficulty.
+
+#### Polarity has no color
+
+A deny gate is carried by the word `NOT` and nothing else: same chip colors, same ring colors as
+an accept gate. It used to be tinted warm in both places. Two reasons it is not:
+
+1. **The ring tint outlived the caption.** The chip is removed when the pass hides, the rings are
+   not, so polarity stayed free for the whole level while the rule itself had to be remembered —
+   handing back half the memory task exactly when the task starts.
+2. **`NOT` is not only a gate property.** A compound pass can carry its own negated operand —
+   `1 EYE OR NOT BLUE` on a perfectly ordinary ACCEPT gate — and that `NOT` was never colored.
+   Coloring gate-level deny alone teaches "red means NOT", then breaks that the first time an
+   uncolored `NOT` appears inside a compound. One word, one meaning, no exceptions.
+
+This makes deny levels harder: polarity is now part of what you memorize, not a free readout.
+`deny_chance` is the dial if that turns out to be too steep.
 - **Two negations, two different words**, so they never blur together:
   `NO ...` is a trait that is **absent** and belongs to the rule's own name (`NO ANTENNAE`,
   `NO SPOTS`, and the compound short form `NO ANT`); `NOT ...` means the **requirement is

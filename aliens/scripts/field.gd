@@ -18,12 +18,6 @@ const INNER_BG: Color = Color(0.16, 0.34, 0.24, 0.75)
 const RING_LINE: Color = Color(0.65, 0.90, 0.72, 0.55)
 const INNER_LINE: Color = Color(0.85, 1.00, 0.88, 0.75)
 const FULL_COL: Color = Color(1.0, 0.45, 0.35, 0.95)
-# DENY gates: the same rings pushed warm. Deliberately close in value to the accept colors so the
-# board does not turn into a traffic light — it is a tint, not an alarm.
-const DENY_RING_BG: Color = Color(0.22, 0.11, 0.10, 0.55)
-const DENY_INNER_BG: Color = Color(0.40, 0.19, 0.16, 0.75)
-const DENY_RING_LINE: Color = Color(0.95, 0.66, 0.55, 0.60)
-const DENY_INNER_LINE: Color = Color(1.00, 0.82, 0.74, 0.80)
 
 # --- sky ---
 const SKY_TOP: Color = Color(0.030, 0.045, 0.070)     # near-black overhead
@@ -53,7 +47,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 # A fresh scatter each level. Determinism matters for the SIMULATION (so tests are repeatable and
-# behaviour is reproducible), but the sky is pure decoration — nothing reads it, nothing compares
+# behavior is reproducible), but the sky is pure decoration — nothing reads it, nothing compares
 # it between runs, so pinning it only threw away free variety.
 func rebuild_sky() -> void:
 	_build_stars()
@@ -126,14 +120,12 @@ func _draw() -> void:
 		var r_in: float = float(ar["r_in"])
 		var r_out: float = float(ar["r_out"])
 
-		# A DENY gate is tinted warm right on the board. The chip says "NO ..." too, but the chip
-		# goes away when the pass hides and the ring does not — so the polarity stays legible for
-		# the whole level while the rule itself still has to be remembered.
-		var deny: bool = bool(ar.get("deny", false))
+		# Rings are NOT tinted by polarity. A deny gate is carried by the word NOT in the caption
+		# and nothing else — see docs/design.md "Polarity has no color".
 
 		# outer disc (the annulus reads as the band between the two outlines)
-		draw_circle(c, r_out, DENY_RING_BG if deny else RING_BG)
-		var out_line: Color = DENY_RING_LINE if deny else RING_LINE
+		draw_circle(c, r_out, RING_BG)
+		var out_line: Color = RING_LINE
 		var out_w: float = 3.0
 		if highlight_outer == i:
 			out_line = Color(1.0, 0.95, 0.55, 0.85)
@@ -141,8 +133,8 @@ func _draw() -> void:
 		draw_arc(c, r_out, 0.0, TAU, 72, out_line, out_w, true)
 
 		# inner disc
-		draw_circle(c, r_in, DENY_INNER_BG if deny else INNER_BG)
-		var in_line: Color = DENY_INNER_LINE if deny else INNER_LINE
+		draw_circle(c, r_in, INNER_BG)
+		var in_line: Color = INNER_LINE
 		var in_w: float = 3.0
 		if highlight_inner == i:
 			in_line = Color(0.45, 1.0, 0.60, 1.0)
