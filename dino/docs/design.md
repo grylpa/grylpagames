@@ -40,6 +40,8 @@ Card border texture is the shared `res://art/zig1.png`.
 ## Level config params (per LEVELS entry)
 | field | meaning |
 |-------|---------|
+| `name` | compact label ("5 DP") for the HUD, scores table and chart legend — all three are narrow |
+| `menu_name` | descriptive name for the level **dropdown** only, where there is room (" 5 Dinos+faces"). Ordered by difficulty so choosing a starting level does not mean decoding "6 D". Space-padded so the ids line up in the dropdown's mono font; `menu_names()` falls back to `name` |
 | `card_size` | "small" \| "med" \| "big" — on-screen card size |
 | `card_time_sec` | seconds a card is shown before a non-answer = miss |
 | `gap_sec` | blank pause between cards |
@@ -56,10 +58,17 @@ if any folder is `dinos`, else grass.
 
 ## Gameplay flow
 - **Pre-level popup** (`game.show_text_popup`, the Storm-style centered "tap anywhere to
-  start" panel): shows the level, the swipe rule, card time and duration. Play + countdown
-  start when it closes (its `closed` signal → `_on_game_popup_closed`). `show_text_popup`
-  is a reusable `GenericGameUtil` wrapper over `MainGlobals.generic_text_popup()` (`PopupText`);
-  it sizes to its text, so format with short `\n` lines (no auto-wrap).
+  start" panel), built by `_intro_text()`. It opens with **what you are about to be shown**
+  (`Cards: Dinos and faces` — `_folders_phrase()` says "faces", not the folder name "people"),
+  then the rule in full, the swipe directions, and the duration. Play + countdown start when it
+  closes (its `closed` signal → `_on_game_popup_closed`). `show_text_popup` is a reusable
+  `GenericGameUtil` wrapper over `MainGlobals.generic_text_popup()` (`PopupText`); it sizes to its
+  text, so format with short `\n` lines (no auto-wrap).
+  **Card time is deliberately not listed**: it is a timeout, not something to plan around, and the
+  per-card bar under the header shows it far better than a number in a panel already dismissed.
+- **The HUD shows `Level 5`, just the number.** It used to show `"Level " + name` — i.e.
+  `Level 5 DP` — which leaked the scores-table shorthand onto the play screen where it read as a
+  code, and what it encoded (which folders the cards come from) is already visible in the cards.
 - **Adaptive card set** (rate-resistant; replaces a fixed pool): the working set starts at
   `start_cards` and grows by one image for every card that has been shown `new_after` times
   ("seen twice → add a card"). New images are drawn from the folder(s) (`_folder_avail`,
@@ -79,6 +88,14 @@ if any folder is `dinos`, else grass.
   above the level number, and depletes (green→red) over `card_time` during SHOW; hidden in
   FEEDBACK/GAP/IDLE. The HUD level-number label is moved down (main.gd sets its offsets to
   y≈92-132) so the bar fits between the header and it.
+
+## Main menu
+
+The level row's caption is **"Level"**, not "Starting level". The caption's minimum width is
+subtracted from the dropdown's, and at "Starting level" the dropdown got only 282 px of a 600 px
+row — 13 characters in the mono face the shared menu uses for numbered lists. "Level" leaves
+**465 px**, enough for the widest `menu_name` (432 px) at the full theme font size.
+`main_menu._fit_option_font` shrinks the mono size only if a list still would not fit.
 
 ## Bottom bar
 Dino calls `MainGlobals.update_bottom_bar([...], Color.YELLOW, true)` — the 3rd arg is the

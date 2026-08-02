@@ -21,7 +21,9 @@ func _ready() -> void:
 
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
-	main_menu.add_option_entry(1, "Starting level", DinoLevelConfig.level_names())
+	# "Level", not "Starting level": the caption's minimum width is subtracted from the dropdown's,
+	# and the dropdown carries the descriptive menu_names rather than the compact "6 D".
+	main_menu.add_option_entry(1, "Level", DinoLevelConfig.menu_names())
 	refresh_menu()
 	show_main_menu()
 
