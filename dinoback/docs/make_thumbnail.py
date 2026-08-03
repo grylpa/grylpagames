@@ -1,113 +1,97 @@
 #!/usr/bin/env python3
 """Generates dinoback/art/game_screen_200.png, the game-chooser tile.
 
-Draws three cards in a row — the middle one dimmed and the outer two matching — which is the
-whole game in one picture: "is this the same as the one N back". Shapes, colors and the zig-ish
-card frame mirror symbol_art.gd so the tile looks like the thing it links to.
+Three cards in a row: the OUTER TWO ARE THE SAME DINO, the middle one a different dino.
+That is the whole game in one picture — "is this the same as the card N back" — and it uses the
+real photographs from res://art/dinos, since the game is called Dino N-Back.
+
+The two dinos are chosen by index below (any 1..48); the script prints which files it used.
 
 Run from the repo root:  python3 dinoback/docs/make_thumbnail.py
 """
-from PIL import Image, ImageDraw
-import math
+from PIL import Image, ImageDraw, ImageFont
 import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+DINOS = os.path.join(ROOT, "art", "dinos")
+
+DINO_A = 5      # the repeated card (left and right)
+DINO_B = 9      # the odd one in the middle
 
 S = 200
 SS = 4                       # supersample, then downscale, for smooth edges
 W = S * SS
 BG = (60, 93, 62)            # 0x3C5D3E, main.gd's clear color
-PLATE = (18, 20, 28)         # symbol_art.gd PLATE
-FRAME = (255, 255, 255)
+FRAME = (255, 255, 255)      # dino cards carry the WHITE frame in game; drawn cards get yellow
 
-# symbol_art.gd COLORS, most distinct first
-BLUE = (89, 158, 250)
-YELLOW = (252, 209, 56)
-RED = (240, 82, 74)
+CARD_W = int(W * 0.285)
+CARD_H = int(CARD_W * 1.28)
+CY = int(W * 0.42)
+INSET = max(2, int(CARD_W * 0.075))
 
 img = Image.new("RGB", (W, W), BG)
 d = ImageDraw.Draw(img, "RGBA")
 
 
-def ngon(cx, cy, r, sides, rot=-math.pi / 2):
-    return [(cx + math.cos(rot + 2 * math.pi * i / sides) * r,
-             cy + math.sin(rot + 2 * math.pi * i / sides) * r) for i in range(sides)]
+def load_dino(n):
+    path = os.path.join(DINOS, "dino%d.jpg" % n)
+    if not os.path.exists(path):
+        raise SystemExit("no such image: %s" % path)
+    return path, Image.open(path).convert("RGB")
 
 
-def star(cx, cy, r_out, r_in):
-    pts = []
-    for i in range(10):
-        a = -math.pi / 2 + math.pi * i / 5
-        rr = r_out if i % 2 == 0 else r_in
-        pts.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr))
-    return pts
+def cover(im, w, h):
+    """Scale-and-crop to exactly w x h, keeping the centre — the same read as the game's card."""
+    sw, sh = im.size
+    k = max(w / sw, h / sh)
+    im = im.resize((max(1, int(sw * k)), max(1, int(sh * k))), Image.LANCZOS)
+    left = (im.size[0] - w) // 2
+    top = (im.size[1] - h) // 2
+    return im.crop((left, top, left + w, top + h))
 
 
-def centered(pts, cx, cy):
-    """Center a polygon's BOUNDING BOX, as symbol_art.gd does. Building a point-up triangle or
-    star around its circumcenter leaves it sitting visibly high: the apex reaches a full radius
-    up, the base only half a radius down."""
-    xs = [p[0] for p in pts]
-    ys = [p[1] for p in pts]
-    dx = cx - (min(xs) + max(xs)) / 2
-    dy = cy - (min(ys) + max(ys)) / 2
-    return [(x + dx, y + dy) for x, y in pts]
+def card(cx, photo):
+    """One card: white frame, photo cover-cropped inside it. All three are drawn at full
+    strength — the middle one is not dimmed. Dimming it made the tile read as "this card is
+    inactive" rather than "these two are the same one"."""
+    x0, y0 = cx - CARD_W // 2, CY - CARD_H // 2
+    d.rounded_rectangle([x0, y0, x0 + CARD_W, y0 + CARD_H],
+                        radius=int(CARD_W * 0.09), fill=FRAME)
+    iw, ih = CARD_W - INSET * 2, CARD_H - INSET * 2
+    img.paste(cover(photo, iw, ih), (x0 + INSET, y0 + INSET))
 
 
-def card(cx, cy, size, shape, color, alpha=255):
-    """One square card: white frame, dark plate, one big symbol — as the game draws it."""
-    h = size / 2
-    inset = size * 0.075
-    d.rounded_rectangle([cx - h, cy - h, cx + h, cy + h], radius=size * 0.09,
-                        fill=FRAME + (alpha,))
-    d.rounded_rectangle([cx - h + inset, cy - h + inset, cx + h - inset, cy + h - inset],
-                        radius=size * 0.05, fill=PLATE + (alpha,))
-    r = size * 0.32
-    col = color + (alpha,)
-    edge = tuple(int(c * 0.55) for c in color) + (alpha,)
-    lw = max(1, int(r * 0.07))
-    if shape == "circle":
-        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col, outline=edge, width=lw)
-    elif shape == "square":
-        q = r * 0.80
-        d.rectangle([cx - q, cy - q, cx + q, cy + q], fill=col, outline=edge, width=lw)
-    elif shape == "triangle":
-        d.polygon(centered(ngon(cx, cy, r * 1.14, 3), cx, cy), fill=col, outline=edge, width=lw)
-    elif shape == "star":
-        d.polygon(centered(star(cx, cy, r * 1.12, r * 0.46), cx, cy), fill=col, outline=edge, width=lw)
+path_a, dino_a = load_dino(DINO_A)
+path_b, dino_b = load_dino(DINO_B)
 
+card(int(W * 0.19), dino_a)
+card(int(W * 0.50), dino_b)
+card(int(W * 0.81), dino_a)
 
-# Three cards on a slight arc. The outer two are the SAME card (shape and color) with a different
-# one between them: a 2-back match, which is what the game asks about.
-CY = W * 0.46
-SIZE = W * 0.40
-card(W * 0.22, CY + W * 0.035, SIZE, "star", YELLOW)
-card(W * 0.50, CY - W * 0.020, SIZE, "triangle", BLUE, alpha=150)
-card(W * 0.78, CY + W * 0.035, SIZE, "star", YELLOW)
+# The link between the two matching cards: an arc with a dot at each end, and the N it turns on.
+ARC_Y = int(W * 0.80)
+d.arc([W * 0.19, ARC_Y - W * 0.20, W * 0.81, ARC_Y + W * 0.10], start=185, end=355,
+      fill=(255, 255, 255, 200), width=int(W * 0.016))
+for x in (W * 0.205, W * 0.795):
+    d.ellipse([x - W * 0.022, ARC_Y - W * 0.072, x + W * 0.022, ARC_Y - W * 0.028],
+              fill=(255, 255, 255, 220))
 
-# the link between the two matching cards, drawn as an arc with arrowheads
-ARC_Y = W * 0.80
-d.arc([W * 0.20, ARC_Y - W * 0.22, W * 0.80, ARC_Y + W * 0.10], start=185, end=355,
-      fill=(255, 255, 255, 190), width=int(W * 0.016))
-for x in (W * 0.215, W * 0.785):
-    d.ellipse([x - W * 0.022, ARC_Y - W * 0.078, x + W * 0.022, ARC_Y - W * 0.034],
-              fill=(255, 255, 255, 210))
+f = None
+for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+          "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"):
+    if os.path.exists(p):
+        f = ImageFont.truetype(p, int(W * 0.14))
+        break
+if f is not None:
+    # a dark halo so the N holds up over whatever the sky colour is
+    for ox, oy in ((-3, 0), (3, 0), (0, -3), (0, 3)):
+        d.text((W * 0.50 + ox * SS, ARC_Y - W * 0.01 + oy * SS), "N", font=f,
+               fill=(0, 0, 0, 190), anchor="mm")
+    d.text((W * 0.50, ARC_Y - W * 0.01), "N", font=f, fill=(255, 255, 255, 240), anchor="mm")
 
-# "N" tucked into the arc, the one parameter the whole game turns on
-try:
-    from PIL import ImageFont
-    f = None
-    for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-              "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"):
-        if os.path.exists(p):
-            f = ImageFont.truetype(p, int(W * 0.13))
-            break
-    if f is not None:
-        d.text((W * 0.50, ARC_Y - W * 0.015), "N", font=f, fill=(255, 255, 255, 235),
-               anchor="mm")
-except Exception:
-    pass
-
-out = os.path.join(os.path.dirname(__file__), "..", "art", "game_screen_200.png")
-out = os.path.normpath(out)
+out = os.path.normpath(os.path.join(HERE, "..", "art", "game_screen_200.png"))
 os.makedirs(os.path.dirname(out), exist_ok=True)
 img.resize((S, S), Image.LANCZOS).save(out)
+print("used %s (repeated) and %s (middle)" % (os.path.basename(path_a), os.path.basename(path_b)))
 print("wrote", out)
