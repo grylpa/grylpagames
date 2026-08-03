@@ -28,7 +28,7 @@ dinoback/
 │   ├── level.gd         # pool, sequence generation, phases, swipe/buttons, scoring
 │   └── main.gd          # orchestrator: menu, HUD, help, score/progress wiring
 ├── scenes/{level,main}.tscn      # all UI built in code
-├── art/game_screen_200.png       # chooser tile
+├── art/game_screen_200.png       # chooser tile, built by docs/make_thumbnail.py
 └── docs/{design.md,make_thumbnail.py}
 ```
 
@@ -74,9 +74,18 @@ Configs are corrected rather than trusted.
 ### Difficulty ramp
 
 Shapes first (a filled shape in one color is the least to hold in mind), then color arrives as a
-*distractor* before it becomes the *rule*, then letters and digits, then N grows. **Photographs
-come last**: a dino has no name to rehearse, so a 2-back on dinos bites harder than a 3-back on
-shapes. 17 levels, 1-back → 3-back, ending in an endless 20-minute practice level.
+*distractor* before it becomes the *rule*, then N grows.
+
+**Photographs recur at every N** — 1-back at 4–5, 2-back at 11–12, 3-back at 15–16 and 18–19 —
+rather than only at the end. A dino has no name to rehearse, so it is its own axis of difficulty
+independent of N; meeting it first at N=1, where the task itself is already understood, isolates
+that one new thing instead of stacking it on a bigger N.
+
+19 levels, 1-back → 3-back, ending in an endless 20-minute practice level.
+
+**Ids are the play order.** `new_game` advances with `current_level_id + 1`, so ids must stay
+sequential and match the array order — inserting a level means renumbering everything after it,
+which also re-labels any already-saved score rows (they store the level id).
 
 ## The sequence generator
 
@@ -127,12 +136,25 @@ did not mean what it documented. With the explicit split it measures 0.41–0.44
   radius down, so it sat visibly high in the card; a 5-point star and a pentagon are off by ~0.1
   radius the same way. Symmetric shapes (square, plus, hexagon) are unaffected, so it runs for all
   of them rather than special-casing. Measured centering error after the fix: 0.00 px on all six
-  polygon shapes. `docs/make_thumbnail.py` does the same thing for the chooser tile.
+  polygon shapes.
 - **No diamond** — a rotated square is not a distinct shape (project rule).
 - **Frame color**: white is reserved for dino photos (as in Dino); people and all three drawn
   categories get the yellow zigzag. On a drawn face — a dark plate with one bright symbol — a white
   frame reads as a second bright element competing with it. The frame never encodes the card's own
   color, or the color rule would be readable off the frame instead of the symbol.
+
+## Chooser tile
+
+`docs/make_thumbnail.py` (PIL, run by hand) composites `art/game_screen_200.png` from the **real
+dino photographs** in `res://art/dinos` — the game is called Dino N-Back, so the tile should not be
+abstract shapes. Three cards in a row, white-framed as dino cards are in game, all at full
+strength: **the outer two are the same dino**, the middle a different one; below them an arc
+joining the matching pair, with the `N` it all turns on. That is the whole game in one picture.
+The middle card is deliberately *not* dimmed — that read as "this card is inactive" rather than
+"these two are the same one".
+
+`DINO_A` / `DINO_B` at the top pick the photos by index (1..48) — currently dino5 (repeated) and
+dino9 (middle); the script prints which files it used.
 
 ## Scoring
 
@@ -201,7 +223,7 @@ names the symbol dimension the way this level's categories make sense (`SHAPE` /
 
 No CLI test pipeline. Everything below was checked with temporary headless probes (since deleted):
 
-- **Generator, 6000 trials per level × all 17 levels.** Every trial's scored label agrees with the
+- **Generator, 6000 trials per level × all 19 levels.** Every trial's scored label agrees with the
   rule; no trial out of pool/color range; target rate 0.29–0.32 against 0.30; lures present above
   half the configured rate; `rule: both` partials 0.41–0.44 against 0.40.
 - **The distractor does not leak the answer** — the key property. P(distractor also matches) is
