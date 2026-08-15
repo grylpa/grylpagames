@@ -42,6 +42,10 @@ const HALF_ALONG: float = 0.8           # generous: how far off-screen it must s
 
 var velocity: Vector2 = Vector2.ZERO
 var screen_rect: Rect2 = Rect2()
+# Set by level.gd at spawn. This figure runs on its own _process rather than the game's tick, so
+# without this it keeps walking while everything else is stopped — through the pause screen, a
+# popup, or a tutorial caption — and walks clean off the edge (where exited_screen deletes it).
+var game: GenericGameUtil = null
 var body_height: float = 50.0
 
 var _view: int = View.SIDE
@@ -58,6 +62,8 @@ func _ready() -> void:
 		_view = View.REAR
 
 func _process(delta: float) -> void:
+	if game != null and game.paused():
+		return
 	position += velocity * delta
 	_phase += delta * CADENCE * maxf(0.25, velocity.length() / REF_SPEED)
 	queue_redraw()

@@ -674,8 +674,12 @@ func create_board() -> void:
 
 	var timestr = MainGlobals.round_duration_str(storm_duration_s)
 	var roomsstr = "one room" if rooms.size() == 1 else "%d rooms" % rooms.size()
-	var ppp = game.show_text_popup(self, "Level %d" % level, "You have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [roomsstr, timestr], true, 120)
-	ppp.closed.connect(_on_closed_intro_popup)
+	if game.tutorial_mode:
+		# The tutorial teaches all of this by doing it.
+		_on_closed_intro_popup()
+	else:
+		var ppp = game.show_text_popup(self, "Level %d" % level, "You have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [roomsstr, timestr], true, 120)
+		ppp.closed.connect(_on_closed_intro_popup)
 
 	game.play_sound("rain")
 	started_sounds = true
@@ -799,6 +803,55 @@ func on_player_is_really_moving(is_moving: bool):
 	else:
 		game.stop_sound("feet")
 
+# A route the player could ACTUALLY walk, in screen coordinates, for the tutorial's drag demo.
+# Asks the game's own pathfinder rather than inventing a shape, so the demonstrated route respects
+# walls and furniture instead of pointing straight through them.
+func tutorial_demo_route() -> PackedVector2Array:
+	var out: PackedVector2Array = PackedVector2Array()
+	if player == null or not is_instance_valid(player):
+		return out
+	var start: Vector2i = player.board_pos
+	var best: Array = []
+	for radius in [4, 3, 5, 2]:
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if absi(dx) + absi(dy) != radius or dx == 0 or dy == 0:
+					continue
+				var q: Vector2i = start + Vector2i(dx, dy)
+				if not can_go_to(q):
+					continue
+				var path: Array = game.astar(start, q,
+					Callable(self, "calc_cost_to_move_player_to"), 0, start)
+				if path.size() >= 3:
+					best = path
+					break
+			if not best.is_empty():
+				break
+		if not best.is_empty():
+			break
+	if best.is_empty():
+		return out
+	var to_screen: Transform2D = player.get_global_transform_with_canvas() \
+		* player.get_global_transform().affine_inverse()
+	for cell in best:
+		out.append(to_screen * game.board_to_px(cell))
+	return _smoothed_demo(out)
+
+# Round the grid corners off so the trail curves the way a finger does.
+func _smoothed_demo(pts: PackedVector2Array) -> PackedVector2Array:
+	if pts.size() < 3:
+		return pts
+	var out: PackedVector2Array = PackedVector2Array()
+	out.append(pts[0])
+	for i in range(1, pts.size() - 1):
+		var a: Vector2 = pts[i - 1]
+		var b: Vector2 = pts[i]
+		var c: Vector2 = pts[i + 1]
+		out.append(a.lerp(b, 0.75))
+		out.append(b.lerp(c, 0.25))
+	out.append(pts[pts.size() - 1])
+	return out
+
 func can_go_to(p):
 	if !game.in_board(p, board_margin):
 		return false
@@ -912,6 +965,7 @@ func add_leak():
 			var cell = board[p.y][p.x]
 			cell.pipe.start_leak()
 			game.play_sound("swoosh")
+			game.tutorial_notify("leak_started")
 			return
 
 func _on_level_done_popup_closed():
@@ -1110,6 +1164,10 @@ func hamming_d_to_player(p: Vector2i) -> int:
 func create_actions_popup(_board_pos: Vector2i) -> void:
 	var d_to_player:int = hamming_d_to_player(_board_pos)
 	if d_to_player < 0 or d_to_player > 1:
+		# Tapping out of reach does nothing at all, which is the single most confusing thing in
+		# this game. Tell a running tutorial, so it can say why rather than leaving the player
+		# tapping a leak that ignores them.
+		game.tutorial_notify("tapped_too_far")
 		return
 
 	var cell = board[_board_pos.y][_board_pos.x]
@@ -1297,6 +1355,7 @@ func _on_action_pressed(event, rect: Control):
 					var action_texture = action_textures.get(new_action.name, [])
 					pipe.set_action(new_action.name, action_texture, new_action.level, new_action.overflow_level)
 					game.add_score_and_time(2,0)
+					game.tutorial_notify("tool_placed")
 		
 		sort_available_actions()
 		MainGlobals.swipe_was_drag = true
@@ -1346,6 +1405,7 @@ func _on_path_drawn(_path: Array[Vector2i]) -> void:
 	var path = game.get_player_path(player, _path, 9, Callable(self, "calc_cost_to_move_player_to"))
 	if path.size() > 0:
 		player.path = path.duplicate()
+		game.tutorial_notify("path_drawn")   # no-op outside tutorial mode
 
 func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: int, goal: Vector2i):
 	var isgoal = to == goal

@@ -741,7 +741,7 @@ func _draw_pass(mods: Array, allow_compound: bool = true) -> Dictionary:
 	var kb: String = ""
 	if op == "andnot" or op == "ornot":
 		# the right operand is already negated by the operator, so it must not be a
-		# negatively-labelled rule as well: "1 EYE AND NOT NO ANTENNAE" is unreadable
+		# negatively-labeled rule as well: "1 EYE AND NOT NO ANTENNAE" is unreadable
 		kb = _positive_rule_in(str(two[1]))
 		if kb == "":
 			op = "and" if op == "andnot" else "or"
@@ -829,7 +829,7 @@ func _assign_polarity() -> void:
 	_avoid_double_negatives()
 
 # Swapping the rule (rather than dropping the deny) keeps the requested deny rate intact; a usable
-# modality always has at least one positively-labelled rule, so the fallback is unreachable in
+# modality always has at least one positively-labeled rule, so the fallback is unreachable in
 # practice.
 func _avoid_double_negatives() -> void:
 	for i in _areas.size():
@@ -1228,6 +1228,11 @@ func _wander_target_for(al) -> Vector2:
 # An alien decides for itself to go in. Returns true if it committed.
 func _try_enter(al, now: float) -> bool:
 	if _areas.is_empty() or now < _entry_cooldown_ms:
+		return false
+	# While a tutorial step is asking the player to act on ONE named alien, further arrivals would
+	# keep changing the board under them — and the ring filling up behind their back turns a
+	# lesson into a penalty. Roaming carries on; only entering the gate is held.
+	if tutorial_hold_arrivals:
 		return false
 	# An alien that was just evicted (or gave up) marching straight back in looks like the drag
 	# failed, and the player cannot tell a correct release from a mistake.
@@ -1774,6 +1779,8 @@ func _score_mistake(al, now: float) -> void:
 # Drop into this area's inner ring. Correct when the alien matches the rule; a scored mistake
 # when it doesn't — but either way it goes in.
 func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
+	game.tutorial_notify("promoted_wrong" if is_mistake else "promoted_correct")
+	game.tutorial_notify("promoted")
 	_end_call_for(al)
 	_release_park(al)
 	if is_mistake:
@@ -1816,6 +1823,8 @@ func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
 # Drop out onto the open field. Correct when the alien does NOT match the rule; a scored mistake
 # when it does — but either way it is released and roams off from where it was dropped.
 func _send_to_field(al, now: float, is_mistake: bool) -> void:
+	game.tutorial_notify("evicted_wrong" if is_mistake else "evicted_correct")
+	game.tutorial_notify("evicted")
 	_end_call_for(al)
 	var home: int = al.area_idx
 	_release_park(al)
@@ -1873,6 +1882,16 @@ func _update_snaps(now: float) -> void:
 			if al.snap_end_state == AState.ROAM:
 				al.area_idx = -1
 				al.z_index = _next_z()
+			elif al.snap_end_state == AState.PARKED_OUTER:
+				# Report parking HERE, not when the snap starts. Until the snap finishes the alien
+				# is SNAPPING, and a promote/evict is only legal from PARKED_OUTER — so a tutorial
+				# told at snap-start would go looking for a parked alien and find none.
+				# No-ops outside tutorial mode. The match variant lets a step wait for the exact
+				# situation it is about to describe, so its wording cannot disagree with the screen.
+				_tutorial_last_parked = al
+				game.tutorial_notify("alien_parked_matching" if _gate_wants(al, al.area_idx)
+					else "alien_parked_mismatching")
+				game.tutorial_notify("alien_parked")
 
 # A promoted alien celebrates briefly, then fades and is recycled with fresh traits elsewhere.
 # That keeps the inner ring turning over, the population constant, and the trait mix fresh.
@@ -2132,6 +2151,13 @@ func new_game(from_scratch: bool = true) -> void:
 	calls_missed = 0
 	_clear_world()
 	_load_level(current_level_id)
+	# MUST come before _pick_rules() and the spawns below. _load_level has just read the level
+	# config, and everything the tutorial turns off — extra gates, NOT passes, compound passes —
+	# is baked in at _pick_rules() time. Running this afterwards, as it first did, left a NOT
+	# pass in play; and since _gate_wants() returns `matches != deny`, the coach then announced
+	# a blue alien as "matching" a GREEN pass.
+	if game.tutorial_mode:
+		_tutorial_setup()
 	_layout()
 	call_deferred("_layout")     # re-apply once the menu->level transition settles
 	_pick_rules()
@@ -2168,8 +2194,78 @@ func new_game(from_scratch: bool = true) -> void:
 	if priority_every_ms > 0.0:
 		body += "\nNOW BOARDING: the ringed alien must be\ndealt with before its ring runs out.\n"
 	body += "\nGates: %d\nPass comes down after: %s\nTime: %d s" % [num_areas, hide_txt, level_time_sec]
+	if game.tutorial_mode:
+		# The tutorial teaches all of this by doing it; the popup would make the player dismiss
+		# a wall of text before being taught it. (_tutorial_setup already ran, up in new_game.)
+		_on_game_popup_closed()
+		return
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, body)
 	intro.closed.connect(_on_game_popup_closed)
+
+# The alien that most recently parked at a gate. A tutorial step LOCKS this into its own local
+# reference at step entry (see aliens/scripts/tutorial.gd) rather than reading it live: every
+# later arrival overwrites it, so a live read made the spotlight hop to whichever alien had just
+# turned up — often one that DID match the pass, while the caption was still saying "this one does
+# not match".
+var _tutorial_last_parked = null
+
+# Set by a tutorial step that has asked the player to deal with one specific alien; see _try_enter.
+var tutorial_hold_arrivals: bool = false
+
+# --- Tutorial helpers --------------------------------------------------------------------------
+#
+# A tutorial step says "this one matches the pass — drag it in". Two things have to be true of the
+# alien it points at: it must genuinely be on the side of the pass the caption claims, and it must
+# be PARKED in the outer ring, because that is the only state a promote is legal from. Reading
+# `_tutorial_last_parked` and trusting it satisfied neither: if the wait step timed out, or the
+# alien had since walked off (park patience) or been reused by _recycle with fresh traits, the
+# coach ended up marking a non-matching alien standing out in the field and asking for a drag that
+# the rules would never allow.
+
+# The alien a "this one …" step should be about: still parked, and still on the claimed side of the
+# pass. Prefers the one that just arrived; otherwise any parked alien that fits. null if none.
+func tutorial_parked_alien(want_match: bool, prefer = null):
+	if prefer != null and is_instance_valid(prefer) 			and prefer.state == AState.PARKED_OUTER 			and _gate_wants(prefer, prefer.area_idx) == want_match:
+		return prefer
+	for al in _aliens:
+		if is_instance_valid(al) and al.state == AState.PARKED_OUTER 				and _gate_wants(al, al.area_idx) == want_match:
+			return al
+	return null
+
+# Send an alien of the required kind to the gate right now, so the step that waits for one is not
+# left to chance (and its timeout stays a safety net rather than the usual path).
+func tutorial_request_arrival(want_match: bool) -> void:
+	if _areas.is_empty():
+		return
+	if tutorial_parked_alien(want_match) != null:
+		return                      # one is already waiting
+	# Prefer an existing roamer, so the field does not fill up over the course of a tutorial.
+	var pick = null
+	for al in _aliens:
+		if is_instance_valid(al) and al.state == AState.ROAM:
+			pick = al
+			break
+	if pick == null:
+		_spawn_alien()
+		pick = _aliens[_aliens.size() - 1]
+	_force_pass(pick, _areas[0].get("pass", {}), _match_want(0, want_match))
+	# Straight to the ring: no entry roll, no arrival-mix veto, no cooldown.
+	if _reserve_park(0, pick, pick.NO_ANGLE):
+		pick.state = AState.SEEKING_SLOT
+		pick.area_idx = 0
+		pick.seek_start_ms = _last_now
+
+# One gate, pass always visible, no gate changes or priority calls: the tutorial teaches the core
+# promote/evict decision, and every one of those is an extra rule layered on top of it.
+func _tutorial_setup() -> void:
+	num_areas = 1
+	hide_after_ms = 0.0
+	gate_change_ms = 0.0
+	priority_every_ms = 0.0
+	compound_chance = 0.0
+	compound_ops = []
+	deny_chance = 0.0
+	_chip_lines = 1
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:

@@ -563,6 +563,108 @@ func create_board() -> void:
 	game.level_is_ready = true	
 	_start_playing()
 	MainGlobals.draw_path_mode = true
+	if game.tutorial_mode:
+		_tutorial_setup()
+
+# A route the dog could ACTUALLY walk, in screen coordinates, for the tutorial's drag demo.
+#
+# The first version drew a hand-written zig-zag of fixed offsets from the dog. It was wrong twice
+# over: it took no account of the board, so it happily pointed straight through the farm fence, and
+# being three equal straight segments it looked nothing like a finger drag. This asks the game's
+# own pathfinder for a real route to a real reachable cell, so what is demonstrated is a route the
+# dog would genuinely take.
+func tutorial_demo_route() -> PackedVector2Array:
+	var out: PackedVector2Array = PackedVector2Array()
+	if player == null or not is_instance_valid(player):
+		return out
+	var start: Vector2i = player.board_pos
+	# Prefer a destination that is off both axes, so the route bends instead of running ruler
+	# straight — a straight line does not read as something a finger drew.
+	var best: Array = []
+	for radius in [4, 3, 5, 2]:
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if absi(dx) + absi(dy) != radius or dx == 0 or dy == 0:
+					continue
+				var q: Vector2i = start + Vector2i(dx, dy)
+				var c: OneCell = bcell(q)
+				if c == null or not c.ispipe or c.has_agent:
+					continue
+				var path: Array = game.astar(start, q,
+					Callable(self, "calc_cost_to_move_player_to"), 0, start)
+				if path.size() >= 3:
+					best = path
+					break
+			if not best.is_empty():
+				break
+		if not best.is_empty():
+			break
+	if best.is_empty():
+		return out
+	# Board cells -> world pixels -> SCREEN. Everything on the board shares the player's parent
+	# space, so the player's own canvas transform converts all of them.
+	var to_screen: Transform2D = player.get_global_transform_with_canvas() \
+		* player.get_global_transform().affine_inverse()
+	for cell in best:
+		out.append(to_screen * game.board_to_px(cell))
+	return _smoothed_demo(out)
+
+# Round the corners off, so the trail curves the way a finger does rather than turning square
+# corners on the grid.
+func _smoothed_demo(pts: PackedVector2Array) -> PackedVector2Array:
+	if pts.size() < 3:
+		return pts
+	var out: PackedVector2Array = PackedVector2Array()
+	out.append(pts[0])
+	for i in range(1, pts.size() - 1):
+		var a: Vector2 = pts[i - 1]
+		var b: Vector2 = pts[i]
+		var c: Vector2 = pts[i + 1]
+		out.append(a.lerp(b, 0.75))
+		out.append(b.lerp(c, 0.25))
+	out.append(pts[pts.size() - 1])
+	return out
+
+# The tutorial asks the player to startle a stray back into the compound, so there has to BE a
+# stray. At the start of a level every sheep is still safely inside and the fence has only just
+# begun to fail, which would leave the player staring at an intact flock waiting for one to
+# wander out. Move a single sheep onto the open field so the lesson has a subject.
+func _tutorial_setup() -> void:
+	for agent in agents:
+		if agent.agent_type != 0 or agent.was_removed:
+			continue
+		var spot: Vector2i = _tutorial_field_spot(agent.board_pos)
+		if spot.x < 0:
+			continue
+		var from: OneCell = bcell(agent.board_pos)
+		if from != null:
+			from.has_agent = false
+			from.agent = null
+		agent.board_pos = spot
+		agent.position = game.board_to_px(spot)
+		agent.path.clear()
+		var to: OneCell = bcell(spot)
+		to.has_agent = true
+		to.agent = agent
+		return
+
+# An empty, walkable field cell OUTSIDE any room, as near the sheep's own pen as possible so the
+# stray reads as "one got out here" rather than as a sheep teleported across the map.
+func _tutorial_field_spot(near: Vector2i) -> Vector2i:
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_d: int = 1 << 30
+	for y in board.size():
+		for x in board[y].size():
+			var c: OneCell = board[y][x]
+			if c == null or not c.is_field or c.room_id >= 0 or c.has_agent:
+				continue
+			if not c.is_fillable():
+				continue
+			var d: int = (Vector2i(x, y) - near).length_squared()
+			if d < best_d:
+				best_d = d
+				best = Vector2i(x, y)
+	return best
 
 func close_to_corridor(p:Vector2i, dist:int):
 	for add_r in range(-dist,dist+1):
@@ -988,6 +1090,9 @@ func move_player_on_tick(force: bool):
 				game.play_sound("sheep" if agent.agent_type == 0 else "bark")
 				player.bark_towards(agent.position)
 				agent.mark_scared()
+				# No-ops outside tutorial mode.
+				game.tutorial_notify("scared_wolf" if agent.agent_type == 1 else "scared_sheep")
+				game.tutorial_notify("scared_one")
 				if agent.agent_type == 1:
 					agent.to_sheep = false
 					agent.trying_to_enter = false
@@ -1187,6 +1292,7 @@ func check_if_near_sheep(wolf):
 		if agent.agent_type == 0 and !game.level_is_done:
 			if bcell(agent.board_pos).room_id < 0 and (p - agent.board_pos).length_squared() < 1.1 and !is_wall_between(p, agent.board_pos) and !agent.eaten:
 				wolf.mark_eating(game.board_to_px(agent.board_pos))
+				game.tutorial_notify("sheep_eaten")
 				game.play_sound("sheep")
 				agent.mark_eaten(game.board_to_px(p))
 				game.add_score_and_time(-5,0)
@@ -1376,6 +1482,7 @@ func _on_path_drawn(_path: Array[Vector2i]) -> void:
 	var path = game.get_player_path(player, _path, 9, Callable(self, "calc_cost_to_move_player_to"))
 	if path.size() > 0:
 		player.path = path.duplicate()
+		game.tutorial_notify("path_drawn")
 
 func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: int, goal: Vector2i):
 	var isgoal = to == goal

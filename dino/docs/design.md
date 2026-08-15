@@ -145,6 +145,41 @@ on the game chooser. Implemented in `scripts/bottom_option_buttons.gd` (`reverse
   `main._on_level_show_main_menu` calls `$Level.stop_level()` so a half-shown card/answer
   never leaks into the next round.
 
+## Tutorial
+
+Dino is the first game with a coached tutorial (`dino/scripts/tutorial.gd`). See
+`docs/tutorials.md` for the framework; what is specific to Dino:
+
+- **Entry**: the chooser's "How to play" picker sets `MainGlobals.pending_tutorial`, and
+  `main.gd::_ready` consumes it via `take_pending_tutorial("dino")` and defers `start_tutorial`.
+- `start_tutorial` calls `game.begin_tutorial()` **before** `new_game()`. `new_game()` runs
+  `game.reset(true)` → `convert_ongoing_score_to_permanent()`, which would otherwise commit and
+  upload whatever unfinished real session the player had going.
+- `DinoG.starting_level_id` lives on the autoload, not on the `GenericGameUtil` instance, so it is
+  **not** covered by the tutorial snapshot. `start_tutorial` saves it into `_tutorial_saved_level`
+  and `_on_tutorial_done` puts it back — without that, taking a tutorial silently rewrites the
+  player's chosen starting level to 1.
+- **Hooks in `level.gd`** (all no-ops outside tutorial mode): `_show_next_card` emits
+  `card_shown` plus `card_shown_new` / `card_shown_seen`; `_register_answer` emits `answered`
+  plus `answered_correct` / `answered_wrong`.
+- **`_forced_picks`**: a normally-empty array of `"new"` / `"repeat"` consumed one per card at the
+  top of `_pick_next`. The lesson needs a card the player has demonstrably seen before, and the
+  adaptive picker would only get there by luck. `_tutorial_setup()` sets it to
+  `["new", "new", "repeat"]` and raises `card_time_ms` to 20 s, because the drain bar is being
+  *explained* and must not expire while the coach talks about it.
+- The level's own intro popup is **skipped** in tutorial mode — the tutorial teaches the same
+  things, and showing both makes the player dismiss a wall of text before being taught it.
+- **`_answered_without_buttons`** records how the current answer was given — set by `_try_swipe`
+  and by the arrow keys, cleared by the two button handlers and by every new card. It exists only
+  so the tutorial can tell the two input methods apart; `_register_answer` reports
+  `answered_without_buttons` / `answered_by_button` alongside the generic `answered`.
+- The lesson order follows what first-timers actually get wrong: "seen" meaning *this round*
+  first; then the **buttons**, which always work; then the **drag** as its own lesson the player
+  must actually perform (the step waits on `answered_without_buttons`, so tapping New again does
+  not satisfy it — a passing mention is what left players never discovering the gesture, and a
+  hesitant drag under the 60 px threshold does nothing at all, which the hint names); then the
+  drain bar as a deadline.
+
 ## Pending
 - `dino/art/game_screen_200.png` (the chooser tile) is not yet created. Until it exists the
   chooser logs a "Resource file not found" error and the Dino tile has no image. Decide the

@@ -16,6 +16,22 @@ var progress_tab_by_game: Dictionary = {}
 var chart_x_mode_by_game: Dictionary = {}  # game_key -> 0=date, 1=index
 var last_played_order: Array = []  # game folders in most-recently-played-first order
 
+# --- Tutorials ---
+# Set by the game chooser just before it launches a game, and consumed by that game's main.gd, to
+# say "start in tutorial mode instead of showing the menu". A one-shot handoff rather than a
+# parameter, because the chooser instantiates the game scene generically and has nowhere to pass
+# arguments. Lives here rather than in the per-game settings file, which tutorial mode cannot write.
+var pending_tutorial: String = ""
+# Whether the player has been offered a tutorial at least once (app-level, persisted in slot 14).
+var shown_tutorial_offer: bool = false
+# Game folders whose tutorial the player has finished, oldest first (persisted in slot 15). The
+# "How to play" list uses this to sort the OPPOSITE way to the game chooser: a tutorial you have
+# already done drops to the bottom, because the point of that list is what you have yet to learn.
+var tutorials_done: Array = []
+# The folder whose tutorial is running right now, so the runner can record completion without
+# every game having to pass its own name.
+var _running_tutorial: String = ""
+
 var visible_screens := {}
 
 var game := GenericGameUtil.new("Main", "main", 0,5,0)
@@ -171,7 +187,7 @@ func save_settings():
 	_save_last_profile_hint()
 	# Keep slot 1 reserved for backward compatibility with older settings files that
 	# stored a password there. New saves intentionally persist an empty string instead.
-	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name()])
+	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name(), shown_tutorial_offer, tutorials_done])
 	# var s:SavedGrylpaBrainSettings = SavedGrylpaBrainSettings.new()
 	# s.username = BE.stored_username
 	# s.email = BE.stored_email
@@ -232,6 +248,10 @@ func load_settings():
 	# An int here is a pre-release save that stored the index; ignore it and take the default.
 	if settings.size() > 13 and settings[13] is String:
 		game_font_idx = game_font_index_by_name(settings[13])
+	if settings.size() > 14:
+		shown_tutorial_offer = bool(settings[14])
+	if settings.size() > 15 and settings[15] is Array:
+		tutorials_done = settings[15]
 	apply_game_font()
 	# if !ResourceLoader.exists(settings_name):
 	# 	return
@@ -239,6 +259,34 @@ func load_settings():
 	# if s != null:
 	# 	BE.stored_username = s.username
 	# 	BE.stored_email = s.email
+
+# A game's main.gd calls this in _ready to find out whether it was launched for its tutorial.
+# One-shot: the flag is consumed, so re-entering the game normally afterwards plays normally.
+func take_pending_tutorial(folder: String) -> bool:
+	if pending_tutorial != folder:
+		return false
+	pending_tutorial = ""
+	_running_tutorial = folder
+	return true
+
+# For a tutorial started from inside the game (its own menu) rather than from the chooser, so
+# completion is recorded the same way either route is taken.
+func note_tutorial_started(folder: String) -> void:
+	_running_tutorial = folder
+
+# Called by TutorialRunner when a tutorial is played through to the end (not when it is abandoned).
+func mark_tutorial_done(completed: bool) -> void:
+	var folder: String = _running_tutorial
+	_running_tutorial = ""
+	if not completed or folder.is_empty():
+		return
+	tutorials_done.erase(folder)
+	tutorials_done.append(folder)        # most recently finished last
+	# Only persist when there is a real profile loaded to persist into. Saving before
+	# load_settings() would overwrite the stored profile with in-memory defaults, which
+	# save_settings() refuses anyway — this just avoids the error spam in probe trees.
+	if _settings_loaded:
+		save_settings()
 
 func do_after(t_sec, f):
 	var scene_tree: SceneTree = get_tree()

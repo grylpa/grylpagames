@@ -262,6 +262,7 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	# agent.hit.connect(on_agent_hit)
 	agent.remove_agent.connect(on_agent_remove_agent)
 	agents.append(agent)
+	game.tutorial_notify("walker_dispatched")   # no-op outside tutorial mode
 	agent.set_pos(game.board_to_px(p), direction)
 	if not $DispatchAudio.playing:
 		$DispatchAudio.play()
@@ -281,6 +282,7 @@ func on_clicked_door(pos: Vector2i):
 			board[pos.y][pos.x].door_type = newdir
 			$DoorAudio.stop()
 			$DoorAudio.play()
+			game.tutorial_notify("door_turned")   # no-op outside tutorial mode
 			break
 
 func can_go_to(p):
@@ -315,6 +317,7 @@ func tick():
 			if adj_tar_id >= 0:
 				game.dec_packet()
 				agent.mark_arrived()
+				game.tutorial_notify("delivered")
 				delivered_one.emit()
 				if !$DeliveryAudio.playing:
 					$DeliveryAudio.play()

@@ -51,6 +51,35 @@ func _ready() -> void:
 	game.progress_time_format = "%d"
 	game.progress_tab_name = "Error"
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
+
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("gorilla"):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real level with the real rules, scored by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://gorilla/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# starting_level lives on GorillaG, not the game util, so the snapshot does not cover it.
+	_tutorial_saved_level = GorillaG.starting_level
+	GorillaG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	if _tutorial_saved_level >= 0:
+		GorillaG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+	game.playing = false
+	game.level_is_ready = false
+	_refresh_menu()
+	show_main_menu()
 	game.scores_callback = Callable(self, "add_score_line_vals")
 
 func show_main_menu():

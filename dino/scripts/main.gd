@@ -78,6 +78,40 @@ func show_main_menu() -> void:
 	MainGlobals.update_bottom_bar(["help", "mute", "scores"])
 	MainGlobals.add_action_button(null)
 
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("dino"):
+		call_deferred("start_tutorial")
+
+# Runs the real level with the real rules, but scored by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+var _tutorial_saved_level: int = -1
+
+func start_tutorial() -> void:
+	var tut: Script = load("res://dino/scripts/tutorial.gd")
+	# Enter tutorial mode BEFORE new_game(). new_game() -> game.reset(true) ->
+	# convert_ongoing_score_to_permanent(), which would otherwise commit and upload whatever
+	# unfinished real session the player had going, as a side effect of taking a tutorial.
+	game.begin_tutorial()
+	# starting_level_id lives on DinoG, not on the game util, so it is not covered by the
+	# tutorial snapshot — save and restore it by hand or the tutorial silently rewrites the
+	# player's chosen starting level.
+	_tutorial_saved_level = DinoG.starting_level_id
+	DinoG.starting_level_id = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	# end_tutorial() has already restored the player's own session state by now; all that is left
+	# is to put back what lives outside it, stop the level, and hand them the menu.
+	if _tutorial_saved_level >= 0:
+		DinoG.starting_level_id = _tutorial_saved_level
+		_tutorial_saved_level = -1
+	game.playing = false
+	$Level.stop_level()
+	refresh_menu()
+	show_main_menu()
+
 func show_level() -> void:
 	get_viewport().gui_release_focus()
 	$Level.show()

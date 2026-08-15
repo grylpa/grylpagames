@@ -266,10 +266,24 @@ func new_game(_from_scratch: bool = true) -> void:
 	call_deferred("_layout")
 	_feedback.hide()
 
+	if game.tutorial_mode:
+		# The tutorial IS the intro, and it teaches the same things the popup states. Showing both
+		# would make the player dismiss a wall of text before being taught it.
+		_tutorial_setup()
+		_on_game_popup_closed()
+		return
+
 	# Storm-style intro popup (centered panel, tap anywhere to start). Play starts when
 	# it's closed. Sizes to its text, so keep short \n lines (no auto-wrap here).
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, _intro_text())
 	intro.closed.connect(_on_game_popup_closed)
+
+# A tutorial plays the real level, but with the pressure taken off: a long per-card deadline (the
+# bar is being EXPLAINED, so it must not expire while the coach talks about it) and a scripted
+# opening of new, new, repeat — which is the exact sequence the lesson needs.
+func _tutorial_setup() -> void:
+	card_time_ms = 20000.0
+	_forced_picks = ["new", "new", "repeat"]
 
 # Opens with what you are about to be shown, then the rule in full. Built as a line array rather
 # than one format string: the old version needed parentheses around the whole concatenation,
@@ -420,7 +434,37 @@ func _introduce_new():
 	_introduced.append(entry)
 	return entry
 
+# Tutorial support: a scripted run of picks, consumed one per card ("new" or "repeat"). The
+# tutorial has to be able to say "and NOW you see one you've already seen", which the adaptive
+# picker below would only get to by luck. Empty in normal play, so the picker is untouched.
+var _forced_picks: Array = []
+
+func _forced_pick(kind: String) -> Dictionary:
+	if kind == "new" or _introduced.is_empty():
+		var e = _introduce_new()
+		if e == null:
+			return {}
+		e["count"] += 1
+		_last_id = e["id"]
+		return {"entry": e, "was_seen": false}
+	# repeat: anything already introduced except the card just shown
+	var choices: Array = []
+	for c in _introduced:
+		if c["id"] != _last_id:
+			choices.append(c)
+	if choices.is_empty():
+		return {}
+	var pick_c: Dictionary = choices[game.rng.randi_range(0, choices.size() - 1)]
+	pick_c["count"] += 1
+	_last_id = pick_c["id"]
+	return {"entry": pick_c, "was_seen": true}
+
 func _pick_next() -> Dictionary:
+	if not _forced_picks.is_empty():
+		var forced: Dictionary = _forced_pick(String(_forced_picks.pop_front()))
+		if not forced.is_empty():
+			return forced
+		# could not honor it (folder exhausted) — fall through to the normal picker
 	var folder_has: bool = _total_folder_avail() > 0
 	# first card of the round is always new
 	if _introduced.is_empty():
@@ -506,9 +550,13 @@ func _show_next_card() -> void:
 	# leftover release (from the menu/popup/previous round) can't answer a fresh card
 	_pressing = false
 	_press_index = -2
+	_answered_without_buttons = false
 	phase = Phase.SHOW
 	_show_start_ms = game.game_time
 	_phase_start_ms = game.game_time
+	# No-op outside tutorial mode.
+	game.tutorial_notify("card_shown_seen" if _cur_was_seen else "card_shown_new")
+	game.tutorial_notify("card_shown")
 
 func _register_answer(said_seen) -> void:
 	# said_seen: true (right/"Seen"), false (left/"New"), or null (timed out)
@@ -545,6 +593,13 @@ func _register_answer(said_seen) -> void:
 	_animate_card_out(said_seen, timed_out)
 	phase = Phase.FEEDBACK
 	_phase_start_ms = game.game_time
+	# No-ops outside tutorial mode. "answered" fires however the answer went — a tutorial should
+	# move on when the player acts, not only when they get it right.
+	game.tutorial_notify("answered_correct" if correct else "answered_wrong")
+	if not timed_out:
+		game.tutorial_notify("answered_without_buttons" if _answered_without_buttons
+			else "answered_by_button")
+	game.tutorial_notify("answered")
 
 func _animate_card_out(said_seen, timed_out: bool) -> void:
 	if _card == null or not is_instance_valid(_card):
@@ -604,10 +659,17 @@ func _process(_dt: float) -> void:
 
 # --- Input (swipe) ----------------------------------------------------------
 
+# How the current answer was given. Only the tutorial reads it: it teaches the buttons and the
+# faster gesture as separate lessons, so it has to know which one the player actually used.
+# Arrow keys count as "without buttons" too — on desktop they are the same shortcut as a swipe.
+var _answered_without_buttons: bool = false
+
 func _on_new_pressed() -> void:
+	_answered_without_buttons = false
 	_register_answer(false)
 
 func _on_seen_pressed() -> void:
+	_answered_without_buttons = false
 	_register_answer(true)
 
 func _input(event: InputEvent) -> void:
@@ -616,9 +678,11 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		# keyboard: Left = new, Right = seen (matches swipe/buttons)
 		if event.keycode == KEY_LEFT:
+			_answered_without_buttons = true
 			_register_answer(false)
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_RIGHT:
+			_answered_without_buttons = true
 			_register_answer(true)
 			get_viewport().set_input_as_handled()
 		return
@@ -642,6 +706,7 @@ func _input(event: InputEvent) -> void:
 func _try_swipe(release_pos: Vector2) -> void:
 	var d: Vector2 = release_pos - _press_pos
 	if absf(d.x) >= _SWIPE_MIN and absf(d.x) > absf(d.y):
+		_answered_without_buttons = true
 		_register_answer(d.x > 0.0)  # right = seen, left = new
 		get_viewport().set_input_as_handled()
 

@@ -149,3 +149,28 @@ wolves/
     ├── target.gd              (unused)
     └── tube_animation.gd      (body segment, unused)
 ```
+
+## Tutorial
+
+Coached tutorial in `wolves/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+- **Entry**: as for the other games; `WolvesG.starting_level` is saved/restored by hand.
+- **Hooks in `level.gd`** (no-ops outside tutorial mode): `_on_path_drawn` emits `path_drawn`;
+  scaring emits `scared_one` plus `scared_sheep` / `scared_wolf`; a wolf reaching a sheep emits
+  `sheep_eaten`.
+- **`tutorial_demo_route()`** builds the demo path from the game's own pathfinder (`game.astar`
+  with `calc_cost_to_move_player_to`), then rounds the grid corners off. The first version was a
+  hand-written zig-zag of fixed offsets: it took no account of the board, so it pointed straight
+  through the farm fence, and three equal straight segments looked nothing like a finger drag.
+- **`demo_path`**: the tutorial animates a hand tracing that route and then the dog following the
+  same line, so the gesture is shown rather than described. "Trace a route" is an instruction players have had to act on
+  nowhere else in the app, and words alone were not getting it across.
+- **Keyboard is not step-by-step**: an arrow sets the dog walking that way until something stops
+  it. The tutorial said "a step at a time", which was wrong.
+- **Drawn-path movement**: wolves and storm are the only two games where
+  `MainGlobals.draw_path_mode` is on. Everywhere else in the app a finger drag is a flick, a swipe
+  answer, or a drag of an object — so this has to be taught explicitly, and the player draws one.
+- **`_tutorial_setup()`** moves a single sheep out onto the open field via `_tutorial_field_spot()`.
+  The tutorial asks the player to startle a stray back in, and at level start every sheep is still
+  safely inside with the fence only just beginning to fail — so without this the player waits in
+  front of an intact flock for a stray that may not come.

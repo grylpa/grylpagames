@@ -103,3 +103,30 @@ Coin base diameter is a fraction of screen width, so sizes scale with the screen
   only after the popup closes, so `_layout` never has to reposition an existing pile.
 - **Drag uses mouse events only** (both mouse↔touch emulations are on); the invisible catcher
   Control keeps the drag through release (Godot mouse-focus capture) even over the Pay button.
+
+## Tutorial
+
+Coached tutorial in `change/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+- **Entry**: `main.gd::_ready` consumes `MainGlobals.pending_tutorial` via `take_pending_tutorial("change")`
+  and defers `start_tutorial`, which calls `game.begin_tutorial()` **before** `new_game()` (that runs
+  `game.reset(true)` -> `convert_ongoing_score_to_permanent()`, which would commit the player's
+  unfinished real session). `ChangeG.starting_level_id` is saved/restored by hand — it lives on the
+  autoload, not on the `GenericGameUtil` instance, so the tutorial snapshot does not cover it.
+- **Hooks in `level.gd`** (all no-ops outside tutorial mode): `_show_board` emits `board_shown`;
+  `_drop_coin` emits `coin_in_tray` / `coin_out_of_tray`; `_resolve` emits `paid`, `paid_correct`,
+  `paid_wrong`.
+- **`_forced_boards`**: a normally-empty queue of fixed boards consumed one per round, taken from
+  `tutorial.gd::tutorial_boards()`. The coach names an exact amount ("put 35 cents in the tray"),
+  and only a fixed board can promise that amount is actually payable with the coins on screen. The
+  boards live in `tutorial.gd` next to the text that names them so the two cannot drift apart.
+- Board 1 is `overlap: none` so the coins are readable while the drag/tray/Pay loop is learned;
+  board 2 is `overlap: max` specifically to teach that coins hide underneath each other, and the
+  player **pays it unaided** — the piled board was previously only described across two frozen
+  talking steps, so they were shown a heap, told to dig through it, and never given a chance to
+  touch it. The tutorial now hands that board over as a real exercise.
+- The probe checks both factual claims the captions make about these boards: that each stated
+  target is reachable as a subset of the coins on the board, and that `overlap: max` genuinely
+  buries at least one coin (otherwise "there are more coins here than you can see" is false).
+- The level's intro popup is skipped in tutorial mode, and `board_time_ms` is stretched to 180 s
+  because the timeout bar is being explained rather than raced.

@@ -4,12 +4,6 @@ const CATEGORY_ORDER: Array = ["Brain twisters", "Attention & Speed", "Serenity"
 
 # [0]=folder, [1]=display_name, [2]=description, [3]=category, [4]=needs_login (optional bool)
 var games = [
-	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
-	["udbr",          "Udbr",           "Follow your breathing pattern",                          "Serenity"],
-	["crack",         "Crack the Safe", "Crack the safe with your breath",                        "Serenity"],
-	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
-	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
-
 	["aliens",        "Aliens",         "Work the spaceport gates",                               "Brain twisters"],
 	["sortingrobots", "Sorting Robots", "Sort items by hidden rules",                             "Brain twisters"],
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
@@ -19,8 +13,8 @@ var games = [
 
 	["ptbits",        "Ptbits",         "Push the balls into their baskets",  			          "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
-	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["couples",       "Couples",        "Find and the two identical cards",                       "Attention & Speed"],
+	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["didi",          "DIDI",           "Split attention",                                        "Attention & Speed"],
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Attention & Speed"],
 	["ddooo",         "DDOOO",          "Split attention",  									  "Attention & Speed"],
@@ -41,6 +35,12 @@ var games = [
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
 	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes"],
 
+	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
+	["udbr",          "Udbr",           "Follow your breathing pattern",                          "Serenity"],
+	["crack",         "Crack the Safe", "Crack the safe with your breath",                        "Serenity"],
+	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
+	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
+
 	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
 
 	["mmm",           "MMM",            "Explore and remember the room colors",                   "Memory & Navigation"],
@@ -51,6 +51,15 @@ var games = [
 	# ["matchws",       "Matchws",        "Learn new words",                                        "Language", true],
 
 ]
+
+# Games that have an authored coached tutorial ({folder}/scripts/tutorial.gd). The chooser lists
+# these in its "How to play" picker and badges their rows, so a player can tell which games have
+# one without entering each game to find out. Add a folder here as each tutorial is written —
+# see docs/tutorials.md for the recipe.
+var tutorials: Array = ["aliens", "change", "dino", "gorilla", "guidem", "storm", "udbr", "wolves"]
+
+func has_tutorial(folder: String) -> bool:
+	return folder in tutorials
 
 func move_to_top(folder: String):
 	for i in games.size():
