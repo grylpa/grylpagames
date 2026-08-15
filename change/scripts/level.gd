@@ -290,6 +290,13 @@ func new_game(_from_scratch: bool = true) -> void:
 	_feedback.hide()
 	_target_label.text = ""
 
+	if game.tutorial_mode:
+		# The tutorial teaches all of this by doing it; showing the popup too would make the
+		# player dismiss a wall of text before being taught it.
+		_tutorial_setup()
+		_on_game_popup_closed()
+		return
+
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
 		# parentheses required — `%` binds tighter than `+`
 		("Pay the exact amount by\ndragging coins into the tray,\nthen press Pay.\n\n" +
@@ -299,6 +306,13 @@ func new_game(_from_scratch: bool = true) -> void:
 			num_coins, _fmt_secs(board_time_ms / 1000.0), _fmt_secs(float(duration_sec))
 		])
 	intro.closed.connect(_on_game_popup_closed)
+
+# The boards come from tutorial.gd so the coins on screen and the amounts the coach names can
+# never drift apart. The per-board clock is stretched because the bar is being explained.
+func _tutorial_setup() -> void:
+	var tut: Script = load("res://change/scripts/tutorial.gd")
+	_forced_boards = tut.tutorial_boards()
+	board_time_ms = 180000.0
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:
@@ -338,8 +352,36 @@ func _show_board() -> void:
 	phase = Phase.SHOW
 	_show_start_ms = game.game_time
 	_phase_start_ms = game.game_time
+	game.tutorial_notify("board_shown")   # no-op outside tutorial mode
+
+# Tutorial support: a queue of fixed boards, consumed one per round. A tutorial has to be able to
+# say "you need 35 cents" and know that is actually solvable with the coins on screen, which a
+# random board cannot promise. Empty in normal play, so _build_board runs untouched.
+# Each entry: {"values": Array[float], "target": float, "overlap": String}
+var _forced_boards: Array = []
+
+func _build_forced_board(spec: Dictionary) -> void:
+	overlap_key = String(spec.get("overlap", overlap_key))
+	var values: Array = spec.get("values", [])
+	num_coins = values.size()
+	for v in values:
+		var val: float = float(v)
+		var di: int = DENOMS.find(val)
+		if di < 0:
+			di = 0
+		var rad: float = _coin_base_d * float(DENOM_REL[di]) * 0.5
+		var coin = COIN_SCRIPT.new()
+		add_child(coin)
+		coin.setup(val, rad)
+		_coins.append({"node": coin, "value": val, "radius": rad})
+	_target_amount = float(spec.get("target", 0.0))
+	_place_coins()
+	_update_target_label()
 
 func _build_board() -> void:
+	if not _forced_boards.is_empty():
+		_build_forced_board(_forced_boards.pop_front())
+		return
 	# pick denominations for every coin
 	var vidx: Array = []
 	for i in num_coins:
@@ -477,9 +519,11 @@ func _drop_coin() -> void:
 	if _in_basket(entry):
 		_snap_into_tray(entry)
 	var node = entry["node"]
+	var landed: bool = _in_basket(entry)
 	if is_instance_valid(node):
-		node.set_in_tray(_in_basket(entry))
+		node.set_in_tray(landed)
 	_drag_coin = null
+	game.tutorial_notify("coin_in_tray" if landed else "coin_out_of_tray")
 
 func _snap_into_tray(entry) -> void:
 	var node = entry["node"]
@@ -578,6 +622,9 @@ func _resolve(is_correct: bool, timed_out: bool, paid: float) -> void:
 	MainGlobals.global_update_hud()
 	phase = Phase.FEEDBACK
 	_phase_start_ms = game.game_time
+	if not timed_out:
+		game.tutorial_notify("paid_correct" if is_correct else "paid_wrong")
+		game.tutorial_notify("paid")
 
 # --- Frame update -----------------------------------------------------------
 

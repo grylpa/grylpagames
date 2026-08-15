@@ -454,6 +454,7 @@ func _process_kbd(delta: float) -> void:
 		_current_segment.clear()
 		_kbd_trace_last_ms = _elapsed_ms
 		game.add_score_and_time(0, 0, true)
+		game.tutorial_notify("breathing_started")   # no-op outside tutorial mode
 	var expected_slots: int = int(_elapsed_ms / _KEY_POLL_INTERVAL_MS)
 	while _key_poll.size() < expected_slots:
 		if up:
@@ -477,9 +478,11 @@ func _process_kbd(delta: float) -> void:
 	if up and not _kbd_prev_up:
 		_inhale_count += 1
 		_update_counts_label()
+		game.tutorial_notify("inhaled")
 	if dn and not _kbd_prev_dn:
 		_exhale_count += 1
 		_update_counts_label()
+		game.tutorial_notify("exhaled")
 	_kbd_prev_up = up
 	_kbd_prev_dn = dn
 

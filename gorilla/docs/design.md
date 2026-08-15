@@ -292,3 +292,46 @@ gorilla/
     ├── tube_animation.gd       (body segment, unused)
     └── peripheral_gorilla.gd   (pixel-space gorilla mover + the drawn gorilla itself)
 ```
+
+## Tutorial
+
+Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+- **Entry**: as for the other games; `GorillaG.starting_level` is saved/restored by hand.
+- **Hooks in `level.gd`** (no-ops outside tutorial mode): coin pickup emits `coin_taken`; a
+  peripheral spawn emits `gorilla_appeared`; `on_time_over` emits `answer_time`; `_on_answer_selected`
+  emits `answered`.
+- **`peripheral_gorilla.gd` now takes a `game` reference and returns early from `_process` when
+  `game.paused()`.** It ran on its own `_process` and ignored the pause entirely, so it kept
+  walking during any pause, popup or tutorial caption — walking clean off the edge, where
+  `exited_screen` deletes it. That made the tutorial point at a gorilla that was no longer there.
+  This was a real bug outside the tutorial too: the pause screen never stopped these figures.
+- Gorillas are spawned **on demand** by the tutorial (`tutorial_spawn_gorilla`), not on the level's
+  timed schedule: on the schedule one ran past while the coach was still talking about coins, and a
+  different one was held up later, which read as a gorilla appearing from nowhere. It prefers a
+  horizontal lane (the only kind phones get, and a vertical one held mid-lane sits oddly in the
+  middle of the screen edge) but falls back to any available side — insisting on horizontal on a
+  screen where the top/bottom bands do not fit produced no gorilla at all.
+- The **`player_steered`** hook exists because `GorillaG.always_moving` starts the player walking by
+  itself: a "collect a coin" step is satisfied by the game wandering into one, so the coach
+  congratulated the player for doing nothing. The movement step waits on a real steer, which is
+  only ever reachable from `_input`.
+- **`tutorial_show_a_monster()`** spawns one monster, far from the player, on the last teaching
+  step. Monsters are off for the whole tutorial (`num_inside_monsters = 0`) so nobody is killed
+  mid-lesson — but a player who is never shown one meets their first at full speed with no
+  warning, so the tutorial names and points at one while the game is frozen, then ends.
+- **`tutorial_hold_gorilla_midscreen()`** slides the live gorilla to the middle of its own lane.
+  A gorilla spawns fully off screen and crosses in a few seconds, so a player reading a caption
+  misses it entirely and never learns what to look for. The tutorial holds one still, frozen, and
+  spotlights it. This was the single biggest gap in the first version.
+- **`_tutorial_setup()`** forces `gorilla_spawn_times = [2.5, 9.0]`, and `new_game` sets
+  `num_inside_monsters = 0` in tutorial mode. The real schedule can leave the first gorilla until
+  well into the level, and being killed by a monster halfway through a lesson teaches nothing.
+- **Movement wording**: this game does NOT have the drawn-path movement wolves and storm use
+  (`MainGlobals.draw_path_mode` is never set here). A flick is converted to a single direction and
+  the player then keeps walking that way, so the tutorial says "flick in a direction", not
+  "draw a path". "Flick" on its own means nothing to most people either, so the caption says
+  "swipe quickly in the direction you want to go" and adds that you keep walking until you turn.
+- The step that waits for `gorilla_appeared` deliberately carries **no** spotlight — at the moment
+  it opens the gorilla does not exist yet, so it would point at bare ground. The spotlight is on
+  the following step, and the freeze holds the gorilla in place while the coach talks about it.

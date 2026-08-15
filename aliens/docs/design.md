@@ -647,3 +647,43 @@ bug where `_begin_drag` never assigned it, so in the actual game the alien froze
 instead of following it. Drive `_on_catcher_gui_input` end to end.
 
 Re-create it from this list if the simulation is changed.
+
+## Tutorial
+
+Coached tutorial in `aliens/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+- **Entry**: as for the other games — `take_pending_tutorial("aliens")`, `game.begin_tutorial()`
+  before `new_game()`, and `AliensG.starting_level_id` saved/restored by hand.
+- **Hooks in `level.gd`** (no-ops outside tutorial mode): parking in an outer ring emits
+  `alien_parked` plus `alien_parked_matching` / `alien_parked_mismatching`; `_accept_into_inner`
+  emits `promoted` (+`_correct`/`_wrong`); `_send_to_field` emits `evicted` (+`_correct`/`_wrong`).
+- **Parking is reported when the snap COMPLETES**, from `_update_snaps`, not when it starts.
+  `_start_snap` leaves the alien in `SNAPPING`; only `PARKED_OUTER` allows a promote or evict, so
+  a tutorial told at snap-start went looking for a parked alien and found none.
+- **Steps that name an alien VALIDATE it** via `tutorial_parked_alien(want_match, prefer)`: still
+  in `PARKED_OUTER`, and still on the claimed side of the pass. Trusting `_tutorial_last_parked`
+  blindly meant that if the wait step timed out, or the alien had wandered off on park patience,
+  or `_recycle` had reused that node with fresh traits, the coach marked a non-matching alien
+  standing out in the field and asked for a drag the rules would silently refuse.
+- **`tutorial_request_arrival(want_match)`** sends a suitable alien straight to the ring (no entry
+  roll, no arrival-mix veto), so the wait step resolves promptly instead of relying on chance —
+  which keeps its timeout a safety net rather than the usual path.
+- **Steps that say "this one" LOCK their alien.** `_tutorial_last_parked` is overwritten by every
+  later arrival, so reading it live made the spotlight hop from alien to alien while the caption
+  still described the first — landing on aliens that plainly *did* match during the "this one does
+  not match" step. Those steps capture the alien at step entry and also set
+  `tutorial_hold_arrivals`, which makes `_try_enter` refuse new gate entries until the player has
+  dealt with the one they were asked about. Roaming carries on; only entering the gate is held.
+- **The captions quote the live pass.** Every line that talks about matching reads
+  `_pass_label()` off the level through the step schema's Callable `text` form, so the caption and
+  the chip on screen cannot disagree.
+- The match/mismatch variants matter: the coach only starts talking once the exact situation it is
+  about to describe is on screen, so "this one matches the pass" can never be said about an alien
+  that doesn't. `_tutorial_last_parked` records which alien it was, so the spotlight finds it.
+- **`_tutorial_setup()` must run before `_pick_rules()`** — it is called from `new_game` right
+  after `_load_level()`. It first ran at the *end* of `new_game`, by which point the rules and the
+  world were already built, so it silently did nothing: a NOT pass stayed in play, and since
+  `_gate_wants()` returns `matches != deny`, the coach announced a blue alien as "matching" a
+  GREEN pass. It forces one gate, a permanently visible pass, and no gate changes,
+  priority calls, compound passes or NOT passes. Each of those is a layer on top of the core
+  promote/evict decision, which is all the tutorial teaches.

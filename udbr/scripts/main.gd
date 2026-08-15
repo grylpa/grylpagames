@@ -64,6 +64,35 @@ func _ready() -> void:
 	$Level.sig_session_done.connect(_on_level_session_done)
 	$Level.sig_show_main_menu.connect(_on_level_show_main_menu)
 
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("udbr"):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_guided: bool = false
+
+# The real session with the real input, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://udbr/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# guided_mode lives on UdbrG, not the game util, so the snapshot does not cover it. The
+	# tutorial teaches the gesture in FREE mode — a rhythm to keep up with on top of an input you
+	# have never used is one thing too many.
+	_tutorial_saved_guided = UdbrG.guided_mode
+	UdbrG.guided_mode = false
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	UdbrG.guided_mode = _tutorial_saved_guided
+	game.playing = false
+	game.level_is_ready = false
+	refresh_menu()
+	show_main_menu()
+
 func show_main_menu() -> void:
 	main_menu.show_continue_and_start_new(false)
 	main_menu.show()

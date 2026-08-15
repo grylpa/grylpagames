@@ -47,6 +47,10 @@ func _ready() -> void:
 		StormG.save_settings()		
 	game.show_scores_level = true
 	game.scores_callback = Callable(self, "add_score_line_vals")
+
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("storm"):
+		call_deferred("start_tutorial")
 	MainGlobals.path_tile_size = game.tile_size                                                                                                                                                                                                                                                 
 	MainGlobals.path_screen_offset = game.screen_offset                                                                                                                                                                                                                                         
 	MainGlobals.path_board_size = game.board_size      
@@ -169,6 +173,31 @@ func _input(event) -> void:
 		_on_level_pressed_esc()
 	else:
 		game.handle_event(event,$Level)
+
+var _tutorial_saved_level: int = -1
+
+# The real level with the real rules, scored by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://storm/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# starting_level lives on StormG, not the game util, so the snapshot does not cover it.
+	_tutorial_saved_level = StormG.starting_level
+	StormG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	if _tutorial_saved_level >= 0:
+		StormG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+	game.playing = false
+	game.level_is_ready = false
+	refresh_menu()
+	show_main_menu()
 
 func refresh_menu():
 	main_menu.update_val(1, StormG.starting_level)

@@ -77,3 +77,40 @@ Results panel shows **Again** (left) and **Done** (right) in an HBox. Panel has 
 
 `UdbrG.save_settings([duration_min])`:
 - `duration_min` (int, default 1): session length 1–15 minutes.
+
+## Tutorial
+
+Coached tutorial in `udbr/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+- **Entry**: as for the other games. `UdbrG.guided_mode` is saved, forced **off** for the tutorial,
+  and restored afterwards: a rhythm to keep up with, on top of an input the player has never used,
+  is one thing too many.
+- **Hooks in `level.gd`** (no-ops outside tutorial mode): the first input emits `breathing_started`;
+  the inhale/exhale counters emit `inhaled` / `exhaled`.
+- **The tutorial is all talking steps, deliberately** — the only one in the app that is. Udbr has
+  no discrete action to wait for, and the events it does emit are not trustworthy enough to
+  congratulate anyone on: `_inhale_count` increments the instant the up-latch engages, which a
+  single pixel of upward drag will do. Waiting on `inhaled` and then saying "that is one inhale"
+  told players they had done something they had not.
+- **How the input really works** (`scripts/main.gd` digitized-swipe branch + `_process_kbd`):
+  touching down sets an ANCHOR; `swipe_accum` measures displacement from it, not velocity. Holding
+  the finger *above* the anchor latches `is_in_digitized_swipe_up`; going more than 30px below
+  flips it. The flags are recomputed **only on drag events**, so stopping leaves the last direction
+  latched and the ball keeps traveling to the end of the lane. Direction is therefore *where the
+  finger is relative to where it went down*, not which way it is currently moving — and
+  "hold still to hold your breath" is wrong, which is what earlier versions of this tutorial said.
+- If udbr's input is ever reworked (a real hold state, a sensible movement threshold), this can
+  become a doing tutorial like the others: the `inhaled` / `exhaled` hooks in `level.gd` are
+  already in place.
+- **Guided mode is ONE ball**, moving by itself through `UdbrG.get_guided_durations()` (shown as
+  e.g. "4-2-6-2 s") with the label naming each phase. It is not a second ball racing the player's,
+  which is what the tutorial used to claim.
+- **The input is the lesson.** It is not a swipe: the finger goes down and STAYS down, and the
+  direction comes from how far it has moved since (`scripts/main.gd` digitized-swipe handling, 30px
+  hysteresis); lifting ends the breath. A flick does nothing at all, which is exactly what a player
+  who read the word "swipe" will try first. The steps wait on `inhaled` and `exhaled`, so the
+  tutorial only moves on once the gesture has genuinely been held in each direction.
+- The tutorial also says plainly that there is **no** fail state — with nothing ever correcting
+  them, a player doing it entirely wrong otherwise assumes the game is broken.
+- No spotlights: the swipe lane fills the screen, so highlighting it dims nothing and leaves the
+  caption nowhere to sit that is not on top of it.

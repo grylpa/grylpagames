@@ -18,6 +18,8 @@ var _list_desc_size: int = 20
 var _account_btn: Button = null
 var _account_status_dot: Panel = null
 var _about_btn: Button = null
+var _howto_btn: Button = null
+var _tutorial_picker = null
 var _about_icon: Control = null
 var _about_icon_d: float = 0.0
 var _about_pill_h: float = 0.0
@@ -191,6 +193,37 @@ func _create_about_button() -> void:
 	_about_btn.add_child(_about_icon)
 
 	vlabel.get_parent().add_child(_about_btn)
+
+	# "How to play" sits beside About, as a second pill in the same corner. Tutorials are an
+	# app-level affordance: a player has to be able to see which games will teach them WITHOUT
+	# entering each game first.
+	_tutorial_picker = load("res://scripts/tutorial_picker.gd").new()
+	add_child(_tutorial_picker)
+	_tutorial_picker.sig_start_tutorial.connect(_on_start_tutorial)
+
+	_howto_btn = Button.new()
+	_howto_btn.name = "HowToPlayButton"
+	_howto_btn.text = "How to play"
+	_howto_btn.add_theme_font_size_override("font_size", font_size)
+	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		_howto_btn.add_theme_color_override(state, _ICON_COLOR)
+	_howto_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_howto_btn.pressed.connect(_open_tutorial_picker)
+	# Its own styleboxes, all with the SAME content margins. Reusing About's hover box meant the
+	# button demanded a wider content area on hover than its fixed size allowed — the label was
+	# clipped and "How to play" became "How to pl". About's box reserves room for the (i) icon;
+	# this button has no icon.
+	var howto_pill: StyleBoxFlat = pill.duplicate() as StyleBoxFlat
+	howto_pill.content_margin_left = 18.0
+	var howto_hover: StyleBoxFlat = howto_pill.duplicate() as StyleBoxFlat
+	howto_hover.bg_color = pill_hover.bg_color
+	_howto_btn.add_theme_stylebox_override("normal", howto_pill)
+	_howto_btn.add_theme_stylebox_override("hover", howto_hover)
+	_howto_btn.add_theme_stylebox_override("pressed", howto_hover)
+	_howto_btn.add_theme_stylebox_override("focus", howto_pill)
+	_howto_btn.custom_minimum_size = Vector2(0, _about_pill_h)
+	vlabel.get_parent().add_child(_howto_btn)
+
 	call_deferred("_position_about_button")
 
 # The classic info mark: a filled disc with a dot and a stem, both symmetric about the disc's
@@ -210,6 +243,14 @@ func _position_about_button() -> void:
 		return
 	var sz: Vector2 = _about_btn.get_combined_minimum_size()
 	sz.y = max(sz.y, _about_pill_h)
+	# The two pills are stacked, so they share a width — a wider one over a narrower one reads as
+	# a mistake rather than as a pair.
+	var hsz: Vector2 = Vector2.ZERO
+	if _howto_btn != null:
+		hsz = _howto_btn.get_combined_minimum_size()
+		hsz.y = max(hsz.y, _about_pill_h)
+		sz.x = max(sz.x, hsz.x)
+		hsz.x = sz.x
 	_about_btn.size = sz
 	# Anchor to the bottom-right corner with small insets so the pill sits close
 	# to the corner (nudged right and down vs. the earlier larger margin).
@@ -225,6 +266,43 @@ func _position_about_button() -> void:
 	_about_btn.offset_top = _about_btn.offset_bottom - sz.y
 	if _about_icon != null:
 		_about_icon.position = Vector2(10.0, (sz.y - _about_icon_d) / 2.0)
+
+	# The How-to-play pill sits directly ABOVE About, same width, same right edge.
+	if _howto_btn != null:
+		_howto_btn.size = hsz
+		_howto_btn.anchor_left = 1.0
+		_howto_btn.anchor_top = 1.0
+		_howto_btn.anchor_right = 1.0
+		_howto_btn.anchor_bottom = 1.0
+		_howto_btn.offset_right = -margin_right
+		_howto_btn.offset_bottom = _about_btn.offset_top - 6.0
+		_howto_btn.offset_left = _howto_btn.offset_right - hsz.x
+		_howto_btn.offset_top = _howto_btn.offset_bottom - hsz.y
+
+func _open_tutorial_picker() -> void:
+	if _tutorial_picker != null:
+		_tutorial_picker.open()
+
+# The chooser cannot pass arguments to a game scene, so the request is handed over through
+# MainGlobals.pending_tutorial and consumed by that game's main.gd in _ready.
+func _on_start_tutorial(folder: String) -> void:
+	# The picker is a CanvasLayer, so it does NOT hide along with the chooser Control — it would
+	# float over the game. Close it here as well as in the row handler, so the invariant holds
+	# whichever way this is reached.
+	if _tutorial_picker != null:
+		_tutorial_picker.close()
+	var scene_path: String = "res://" + folder + "/scenes/main.tscn"
+	if not ResourceLoader.exists(scene_path):
+		return
+	var display_name: String = folder
+	for entry in MainCfg.games:
+		if String(entry[0]) == folder:
+			display_name = String(entry[1])
+			break
+	MainGlobals.pending_tutorial = folder
+	# Deliberately NOT _record_played: a tutorial is not a play session, and it should not
+	# reorder the player's most-recently-played list.
+	set_active_game(load(scene_path).instantiate(), display_name)
 
 func _open_about() -> void:
 	if _about_screen != null:

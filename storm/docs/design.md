@@ -97,3 +97,23 @@ storm/
     ├── player.gd
     └── hud.gd
 ```
+
+## Tutorial
+
+Coached tutorial in `storm/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+- **Entry**: as for the other games; `StormG.starting_level` is saved/restored by hand.
+- **Hooks in `level.gd`** (no-ops outside tutorial mode): `_on_path_drawn` emits `path_drawn`;
+  `add_leak` emits `leak_started`; `create_actions_popup` emits `tapped_too_far` when the tap is
+  out of reach; placing a tool emits `tool_placed`.
+- `tapped_too_far` exists because tapping a leak you are not standing next to does *nothing* — no
+  message, no sound. That silence is the most confusing thing in the game, and the hook lets the
+  coach explain it at the moment it happens rather than in the abstract.
+- **`demo_path`**: the tutorial animates a finger-trail starting at the player, the same as
+  wolves, so the drawn-path gesture is shown rather than described.
+- **Drawn-path movement**: storm and wolves are the only two games where
+  `MainGlobals.draw_path_mode` is on, so nothing a player has learned elsewhere suggests it. It is
+  taught early and the player has to draw one, because reaching a leak in time is the whole game.
+- The tutorial also states outright that the score starts at 100 and only falls — a number counting
+  down with no explanation reads as a bug or a timer.
+- The level's intro popup is skipped in tutorial mode.

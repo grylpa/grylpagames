@@ -148,9 +148,52 @@ func new_game(from_scratch: bool = true):
 	game.need_to_increase_level = false
 	in_answering_mode = false
 
+	if game.tutorial_mode:
+		num_inside_monsters = 0      # nothing may kill the player mid-lesson
 	create_board()
 	_plan_gorilla_spawns()
+	if game.tutorial_mode:
+		_tutorial_setup()
 	started_playing.emit()
+
+# Put one monster on the board, far from the player, purely so the tutorial can point at it. The
+# tutorial otherwise runs with num_inside_monsters = 0 — being killed halfway through a lesson
+# teaches nothing — but a player who is never shown a monster meets their first one unprepared,
+# which is exactly the complaint the tutorials exist to fix. Called on the LAST teaching step, so
+# it is seen and named but never gets a chance to reach anyone.
+func tutorial_show_a_monster() -> bool:
+	if not agents.is_empty():
+		return true
+	return _spawn_agent(0, true)
+
+# Slide the live gorilla to the middle of its own lane. A gorilla spawns fully OFF screen and the
+# coach's freeze stops it wherever it happens to be — which, at the moment it is first reported, is
+# still outside the visible area. Without this the tutorial talks about a gorilla the player never
+# actually sees, then unfreezes and lets it run off while they are still reading.
+func tutorial_hold_gorilla_midscreen() -> void:
+	for g in peripheral_gorillas:
+		if not is_instance_valid(g):
+			continue
+		var sr: Rect2 = g.screen_rect
+		if absf(g.velocity.x) >= absf(g.velocity.y):
+			g.position.x = sr.position.x + sr.size.x * 0.5
+		else:
+			g.position.y = sr.position.y + sr.size.y * 0.5
+		return
+
+# No automatic gorillas during a tutorial. On the timed schedule one ran past while the coach was
+# still talking about coins — wasted, and confusing when the lesson about them arrived later and a
+# DIFFERENT gorilla was suddenly held up. The tutorial asks for one exactly when it wants it.
+func _tutorial_setup() -> void:
+	gorilla_spawn_times = []
+	gorilla_spawn_index = 0
+	level_start_ms = MainGlobals.timems()
+
+# Called by the tutorial step that is about to talk about gorillas.
+func tutorial_spawn_gorilla() -> void:
+	if not peripheral_gorillas.is_empty():
+		return
+	_spawn_peripheral_gorilla(true)
 
 func create_board():
 	time_to_spawn_agent = 0
@@ -579,7 +622,10 @@ func _plan_gorilla_spawns():
 		gorilla_spawn_times.append(center + rng.randf_range(-travel_time * 0.4, travel_time * 0.4))
 	level_start_ms = MainGlobals.timems()
 
-func _spawn_peripheral_gorilla():
+# force_horizontal: the tutorial always wants a left/right runner. A vertical one held mid-lane
+# sits in the middle of the screen edge and reads oddly, and phones only ever get horizontal lanes
+# anyway, so the tutorial should teach the case everyone actually sees.
+func _spawn_peripheral_gorilla(force_horizontal: bool = false):
 	var play: Rect2 = _playfield_world_rect()
 	var ts: float = float(game.tile_size)
 	var bh: float = ts * GORILLA_TILES
@@ -618,6 +664,16 @@ func _spawn_peripheral_gorilla():
 			continue
 		if lo[s] <= hi[s]:
 			sides.append(s)
+	if force_horizontal:
+		# Prefer a left/right runner, but do NOT insist: on a screen where the top and bottom
+		# bands do not fit, insisting produced no gorilla at all — and the tutorial then sat
+		# waiting out its timeout for one that was never coming.
+		var horiz: Array[int] = []
+		for s2 in sides:
+			if s2 <= 1:
+				horiz.append(s2)
+		if not horiz.is_empty():
+			sides = horiz
 	if sides.is_empty():
 		return
 
@@ -648,6 +704,7 @@ func _spawn_peripheral_gorilla():
 		return
 
 	var g = peripheral_gorilla_scene.instantiate()
+	g.game = game            # so it stops when the game does (pause, popup, tutorial caption)
 	g.velocity = vel
 	g.screen_rect = sr
 	g.position = start_pos
@@ -658,6 +715,7 @@ func _spawn_peripheral_gorilla():
 	add_child(g)
 	peripheral_gorillas.append(g)
 	num_gorillas_spawned += 1
+	game.tutorial_notify("gorilla_appeared")   # no-op outside tutorial mode
 
 func _dist_from_agents_and_player(p: Vector2i) -> float:
 	var d: float = _dist_from_agents(p)
@@ -768,6 +826,9 @@ func _input(event: InputEvent) -> void:
 func _move_dir(dir: int):
 	if player == null:
 		return
+	# Only ever called from _input, so this is a real player action — unlike coin pickups, which
+	# happen on their own because the player is always walking (GorillaG.always_moving).
+	game.tutorial_notify("player_steered")
 	if not player.reached_target_pos and player.direction == dir:
 		return
 	player.need_to_move = true
@@ -868,6 +929,7 @@ func _move_player_on_tick(force: bool):
 			cell.pipe.remove_coin()
 			cell.pipe.set_rot(board)
 			coins.erase(player.board_pos)
+			game.tutorial_notify("coin_taken")   # no-op outside tutorial mode
 			if is_power_coin:
 				player.ate_power()
 			update_score.emit(coin_score)
@@ -955,6 +1017,7 @@ func on_time_over():
 	if in_answering_mode:
 		return
 	in_answering_mode = true
+	game.tutorial_notify("answer_time")
 	game.level_is_ready = false
 
 	if player != null:
@@ -991,6 +1054,7 @@ func _show_answer_popup():
 	$UILayer/AnswerOverlay.show()
 
 func _on_answer_selected(chosen: int, true_count: int):
+	game.tutorial_notify("answered")
 	$UILayer/AnswerOverlay.hide()
 	var error: int = abs(chosen - true_count)
 	game.add_correct_or_mistake(error, 1)

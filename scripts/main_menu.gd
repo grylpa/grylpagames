@@ -88,10 +88,44 @@ func set_game(_game):
 	%Title.text = game.name
 	if MainCfg.show_reset_scores:
 		_add_reset_scores_button()
+	_maybe_add_tutorial_button()
 	call_deferred("_ensure_full_width")
 
 func _ensure_full_width() -> void:
 	%OptionsFrame.custom_minimum_size.x = MainGlobals.screen_size.x - 40
+
+# "How to play" on the game's OWN menu, for a player who is already inside the game and should not
+# have to go back out to the chooser to find the tutorial.
+#
+# Whether this game has a tutorial is read off the host scene — if its main.gd defines
+# start_tutorial(), it has one. That means no game has to opt in, and a game that gains a tutorial
+# later gets the button for free.
+func _maybe_add_tutorial_button() -> void:
+	var host: Node = get_parent()
+	if host == null or not host.has_method("start_tutorial"):
+		return
+	var vbox: Node = %MarginStartNewGame.get_parent()
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_top", 12)
+	var btn: Button = Button.new()
+	btn.text = "How to play"
+	btn.add_theme_font_size_override("font_size", 24)
+	btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 1.0))
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(200, 0)
+	btn.pressed.connect(_on_tutorial_button_pressed)
+	margin.add_child(btn)
+	vbox.add_child(margin)
+
+func _on_tutorial_button_pressed() -> void:
+	var host: Node = get_parent()
+	if host == null or not host.has_method("start_tutorial"):
+		return
+	# Safe to run mid-session: begin_tutorial() snapshots the player's score, level and ongoing
+	# row, every write is suppressed while it runs, and end_tutorial() puts all of it back.
+	if game != null:
+		MainGlobals.note_tutorial_started(game.file_names_prefix)
+	host.call("start_tutorial")
 
 func _add_reset_scores_button() -> void:
 	var vbox: Node = %MarginStartNewGame.get_parent()

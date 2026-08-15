@@ -73,3 +73,30 @@ game.sig_lives_depleted.connect(on_lives_depleted)
 
 and implement on_lives_depleted
 
+
+--------------------------------------------------------------------------
+INSTRUCTIONS AND TUTORIAL
+
+Every game must set its instructions text in main.gd _ready:
+
+game.set_instructions("<Game Name>", "<what the player does, in 2-4 lines>")
+if not game.shown_instructions:
+	game.show_instructions(self)
+	<Game>G.save_settings()
+
+That text is the written reference. It is NOT enough on its own — players
+reported the games were unclear, which is why coached tutorials exist.
+
+To give the game a tutorial (the real game, coached, not scored), follow
+docs/tutorials.md. In short:
+  1. add game.tutorial_notify("...") at the points level.gd already makes a
+     decision (no-op outside tutorial mode)
+  2. write {game}/scripts/tutorial.gd with tutorial_level_id() + steps()
+  3. in main.gd: if MainGlobals.take_pending_tutorial("<folder>"):
+                     call_deferred("start_tutorial")
+     and call game.begin_tutorial() BEFORE new_game()
+  4. add the folder to MainCfg.tutorials in scripts/config.gd
+
+Eight games have one so far: aliens, change, dino, gorilla, guidem, storm,
+udbr, wolves - between them covering every input family, so there is almost
+always a worked example to copy.

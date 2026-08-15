@@ -17,6 +17,15 @@ var level_is_done := false
 var _reset_packets_left := 7
 var packets_left := _reset_packets_left
 var shown_instructions := false
+# TUTORIAL MODE. While this is true, nothing the player does may reach the scores — not the local
+# files, not the backend. Every write in this file is guarded on it (see `begin_tutorial`), which
+# is why no game's main.gd has to know about it: the 33 copies of the 60s autosave tick and every
+# save_score call site are covered at the choke point.
+var tutorial_mode: bool = false
+var _tutorial_snapshot: Dictionary = {}
+# Set by the tutorial overlay while it runs, so `tutorial_notify` can reach it. Untyped because
+# GenericGameUtil is a RefCounted and must not depend on a scene script.
+var tutorial_runner = null
 var sounds = {}
 var sounds_resource_list = {}
 var in_focus := true
@@ -292,6 +301,8 @@ func reset_local_scores() -> void:
 			DirAccess.remove_absolute(path)
 
 func _write_new_best_flag(v: bool) -> void:
+	if tutorial_mode:
+		return
 	var f = FileAccess.open(_new_best_flag_path(), FileAccess.WRITE)
 	if f:
 		f.store_8(1 if v else 0)
@@ -324,6 +335,9 @@ func read_ongoing_score():
 	return []
 
 func clear_ongoing_score():
+	# In a tutorial this would erase a real session that is still in progress.
+	if tutorial_mode:
+		return
 	stored_ongoing_score = []
 	# Log.dbg(name + ": clearing ongoing")
 	var save_path = get_ongoing_score_fname()
@@ -334,6 +348,8 @@ func clear_ongoing_score():
 		time_last_saved_ongoing_score = MainGlobals.timems()
 
 func save_ongoing_score(score_array:Array):
+	if tutorial_mode:
+		return
 	if not score_was_changed:
 		return
 	var save_path = get_ongoing_score_fname()
@@ -393,6 +409,11 @@ func read_scores():
 	return scores
 
 func save_settings(settings_array:Array, version:int=1):
+	# This file carries `times_run` and `shown_instructions` alongside the per-game settings, so a
+	# tutorial must not write it. The "player has seen the tutorial offer" flag is app-level, kept
+	# in MainGlobals.save_settings() instead.
+	if tutorial_mode:
+		return
 	var save_path = get_settings_fname()
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
 	if file:
@@ -447,6 +468,57 @@ func paused() -> bool:
 		_pause_start_ms = 0
 	return is_paused
 
+# --- Tutorial mode ----------------------------------------------------------
+#
+# A tutorial plays the REAL game, so it mutates the same in-memory session state a real run does.
+# Guarding the writes alone is not enough: the player may have a half-finished real session sitting
+# in memory (and in the ongoing-score file) when they go take a tutorial, and it has to come back
+# untouched. So begin/end snapshot and restore that state, and the guards make sure nothing leaked
+# to disk in between.
+#
+# `stored_ongoing_score` is the important one in the snapshot — the two
+# `convert_ongoing_score_to_permanent` call sites would otherwise commit and upload the player's
+# last unfinished real session as a side effect of entering or leaving a tutorial.
+const _TUTORIAL_SAVED_VARS: Array = [
+	"score", "score_was_changed", "times_run", "corrects", "mistakes",
+	"playing", "level_is_ready", "level_is_done", "need_to_increase_level",
+	"time_left_sec", "_reset_time_left_sec", "lives_left", "_reset_lives_val",
+	"packets_left", "_reset_packets_left", "game_over_on_time_out", "game_over_on_zero_score",
+	"_pause", "time_scale", "shown_instructions", "stored_ongoing_score",
+]
+
+func begin_tutorial() -> void:
+	if tutorial_mode:
+		return
+	_tutorial_snapshot = {}
+	for var_name: String in _TUTORIAL_SAVED_VARS:
+		_tutorial_snapshot[var_name] = get(var_name)
+	tutorial_mode = true
+
+func end_tutorial() -> void:
+	if not tutorial_mode:
+		return
+	# Clear the flag first: restoring is plain assignment, but anything that runs off the back of
+	# it should already see a normal game.
+	tutorial_mode = false
+	tutorial_runner = null
+	for var_name: String in _TUTORIAL_SAVED_VARS:
+		if _tutorial_snapshot.has(var_name):
+			set(var_name, _tutorial_snapshot[var_name])
+	_tutorial_snapshot = {}
+	playing = false
+
+# Games call this at their existing decision points (e.g. right after an answer is judged) to tell
+# a running tutorial that something happened. A no-op outside tutorial mode, so it is safe to leave
+# in the normal gameplay path.
+func tutorial_notify(event_name: String) -> void:
+	if not tutorial_mode or tutorial_runner == null:
+		return
+	if not is_instance_valid(tutorial_runner):
+		tutorial_runner = null
+		return
+	tutorial_runner.notify(event_name)
+
 func reset(from_scratch:bool):
 	playing = false
 	_pause = false
@@ -462,7 +534,10 @@ func reset(from_scratch:bool):
 		score_was_changed = false
 		reset_time_left()
 		time_scale = 1.0
-		times_run += 1
+		# times_run is stamped into every future score row and into the settings file, so a
+		# tutorial must not inflate it. (end_tutorial restores it too, belt and braces.)
+		if not tutorial_mode:
+			times_run += 1
 		corrects = 0
 		mistakes = 0
 		need_to_increase_level = false
@@ -611,6 +686,10 @@ func open_file_for_scores():
 	return null
 
 func convert_ongoing_score_to_permanent():
+	# Not gated on score_was_changed — this promotes a PRE-EXISTING ongoing row, so in a tutorial it
+	# would commit and upload the player's last unfinished real session.
+	if tutorial_mode:
+		return
 	if stored_ongoing_score:
 		var file = open_file_for_scores()
 		if file:
@@ -623,6 +702,9 @@ func convert_ongoing_score_to_permanent():
 		MainGlobals.sig_new_best_score.emit()
 
 func save_score(score_array:Array):
+	# Return before the clear_ongoing_score() below — a tutorial must leave that file alone.
+	if tutorial_mode:
+		return
 	if not score_was_changed:
 		clear_ongoing_score()
 		return
@@ -1025,6 +1107,14 @@ func set_instructions(title, text, _font_size := 0):
 	instructions_font_size = _font_size
 
 func show_instructions(parent):
+	# A game launched into its tutorial must not ALSO throw the text wall at the player. The
+	# tutorial is the instructions, and the two overlays fight for the screen: guidem showed the
+	# text first while the coach ran on underneath it, so by the time the popup was dismissed the
+	# tutorial was several steps in and appeared to end for no reason.
+	# The flag is deliberately NOT set here — if they skip the tutorial, the text is still owed
+	# to them the next time they come in normally.
+	if tutorial_mode or not MainGlobals.pending_tutorial.is_empty():
+		return
 	shown_instructions = true
 	var popup := instructions_scene.instantiate()
 	parent.add_child(popup)
