@@ -2,62 +2,84 @@ extends RefCounted
 
 # Udbr's coached tutorial. See docs/tutorials.md for the step schema.
 #
-# THIS ONE IS ALL TALKING STEPS, deliberately. Every other tutorial in the app waits for the player
-# to perform the action it just described. Udbr cannot: it has no discrete action to wait for, and
-# the events it does emit are not trustworthy enough to congratulate anybody on.
+# THE TEXT COMES FROM THE GAME'S OWN "I" INSTRUCTIONS SCREEN (udbr/scripts/main.gd), which is
+# accurate. Three earlier versions of this file were wrong because they described a model I had
+# derived myself from scripts/main.gd instead:
 #
-# How the input actually works (scripts/main.gd, digitized-swipe branch, + _process_kbd here):
-#   * Touching down sets an ANCHOR. `swipe_accum` measures displacement from that point, not
-#     velocity, and is reset on every new touch.
-#   * Hold your finger above the anchor and `is_in_digitized_swipe_up` latches on; below it (by
-#     more than a 30px hysteresis) it flips to down. So the direction is WHERE YOUR FINGER IS
-#     relative to where you put it down — not which way you are currently moving it.
-#   * The flags are only recomputed on DRAG events. Stop moving and the last direction stays
-#     latched, so the ball keeps traveling until it reaches the end of the lane. "Hold still to
-#     hold your breath" — which this tutorial used to say — is therefore wrong.
-#   * `_inhale_count` increments the instant the up-latch engages, which a single pixel of upward
-#     drag is enough to do. Waiting on `inhaled` and then announcing "that is one inhale" told
-#     players they had done something they had not.
+#   I read the hysteresis block (scripts/main.gd:311-321) but not _process_vertical_steps (:381),
+#   which does `swipe_accum.y -= sign(swipe_accum.y) * 50`. That makes swipe_accum a ROLLING
+#   displacement wrapping every 50px, not the absolute distance from where the finger landed. From
+#   that omission came an "anchor" model — direction decided by where your finger IS relative to
+#   where it touched down — which does not exist. With the wrap, continuing to slide upward keeps
+#   the up-latch engaged, which is exactly what the instructions screen says: swipe up WHILE
+#   inhaling.
 #
-# So the tutorial explains the anchor and leaves the doing to the session. If udbr's input is ever
-# reworked (a real hold state, a sensible movement threshold), this can become a doing tutorial
-# like the others — the `inhaled` / `exhaled` hooks in level.gd are already there.
+# So: keep this text in step with udbr/scripts/main.gd's set_instructions() — with ONE known
+# exception, confirmed by the user against the running game:
+#
+#   The instructions screen says "Keep touching while holding your breath between inhaling and
+#   exhaling." You do NOT have to. The finger only needs to be down while you are actually
+#   breathing IN or OUT; during a hold you can lift it off. That also matches the code: releasing
+#   clears both direction flags (scripts/main.gd:206-209) and the ball stops dead, which is what a
+#   hold should look like in the trace. Keeping the finger down instead leaves the last direction
+#   latched and the ball drifting until it clamps at the end of the lane.
+#
+# The instructions screen has not been changed — that is the user's copy to decide on.
+#
+# Captions are short on purpose. They are rendered in a narrow right-hand column
+# (runner.caption_side = "right" in main.gd), because the lane is vertical and centered and a
+# full-width caption at the bottom covers the ball.
 
 const LEVEL_ID: int = 1
 
 static func tutorial_level_id() -> int:
 	return LEVEL_ID
 
-static func steps(_level: Node, _game) -> Array:
+static func steps(level: Node, _game) -> Array:
+	# The live inhale counter, so step 4 points at the thing that just changed.
+	var counter_spot: Callable = func():
+		return level._inhale_label if level._inhale_label != null else null
+
 	return [
 		{
 			"title": "Up Down Breathe",
-			"text": "A breathing exercise. You breathe at your own pace, and the app follows your finger and measures how steady you were.",
+			"text": "Breathe at your own pace.\n\nYour finger follows your breath.",
 		},
 		{
-			"title": "The important bit",
-			"text": "Put your finger on the screen and LEAVE IT THERE for the whole session.\n\nWhere you first touch becomes your middle. Everything after that is measured from that spot.",
+			"text": "Touch the screen while you breathe.\n\nYour finger only needs to be down while you are actually breathing in or out.",
 		},
 		{
-			"text": "Hold your finger ABOVE that spot and the ball climbs — that is you breathing in.\n\nBring it BELOW and the ball falls — that is you breathing out.",
+			"text": "Breathe IN.\n\nSlide your finger UP as you do — all the way through the inhale.",
+			# Waits for the ball to reach the TOP, not for the direction latch. The latch engages
+			# within a frame of the first few pixels, so waiting on `inhaled` ended this step —
+			# and froze the screen for the next one — before the ball had visibly moved.
+			"await": {"event": "reached_top", "timeout": 120.0},
+			"hint_after": 12.0,
+			"hint": "Keep sliding upward, without lifting. On a keyboard, hold the UP arrow.",
 		},
 		{
-			"title": "You are not drawing",
-			"text": "You do not have to keep moving. Once you are above the middle the ball keeps rising on its own, and it keeps falling once you are below.\n\nSo it is one slow move up and one slow move down per breath, not constant stroking.",
+			"text": "That is one full inhale.\n\nNow lift your finger off while you hold your breath at the top.",
+			"spot": counter_spot,
 		},
 		{
-			"text": "Lift your finger and the session stops reading you, so keep it down from beginning to end.",
+			"text": "Put your finger back down and breathe OUT.\n\nSlide all the way back DOWN.",
+			"await": {"event": "reached_bottom", "timeout": 120.0},
+			"hint_after": 12.0,
+			"hint": "Keep sliding downward, still without lifting. On a keyboard, hold the DOWN arrow.",
 		},
 		{
-			"title": "Nothing to lose",
-			"text": "There is no way to fail here and nothing chasing you, so do not wait to be told you are doing it wrong — you will not be.\n\nAt the end you get your rhythm, how steady it was, and a trace of the whole session.",
+			"text": "All the way down.\n\nLift off again while you hold your breath at the bottom.",
 		},
 		{
-			"title": "The easier way in",
-			"text": "In the menu you can turn on a GUIDED session. The ball then moves by itself through a set pattern — something like 4-2-6-2 seconds — and the label names each part: Inhale, Hold, Exhale, Hold.\n\nYou just keep your finger on the ball and breathe with it. If this is your first time, start there.",
+			"title": "The rhythm",
+			"text": "In, hold, out, hold.\n\nFinger down while you breathe, off while you hold.",
 		},
 		{
-			"title": "Ready",
-			"text": "Finger down, and breathe.\n\nNothing you did here was recorded — your real session starts from the menu.",
+			"title": "Rather be led?",
+			"text": "In the menu, change Mode from Active to one of the Guided ones.\n\nThe ball then moves by itself — in, hold, out, hold, on a fixed count — and you just breathe with it .",
+		},
+		{
+			"title": "That is all of it",
+			"text": "Breathe like that until the time is up, and you will get your rhythm and how steady it was.",
 		},
 	]

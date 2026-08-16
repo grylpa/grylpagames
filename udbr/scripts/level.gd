@@ -471,7 +471,18 @@ func _process_kbd(delta: float) -> void:
 	elif dn:
 		target_vel = speed_dn
 	_kbd_vel = target_vel
+	var _was_y: float = _kbd_y_norm
 	_kbd_y_norm = clampf(_kbd_y_norm + _kbd_vel * delta, UdbrG.LANE_TOP_FRAC, UdbrG.LANE_BOT_FRAC)
+	# A COMPLETED inhale / exhale: the ball has traveled the whole lane and reached the end.
+	# `inhaled` / `exhaled` below fire on the direction LATCH, which engages within a frame or two
+	# of the first few pixels of drag — so a tutorial step waiting on those finished before the
+	# ball had visibly moved, and the next (talking) step then froze the screen. From the player's
+	# side that looks exactly like "the ball does not move at all with my swipe".
+	# No-ops outside tutorial mode.
+	if _kbd_y_norm <= UdbrG.LANE_TOP_FRAC + 0.001 and _was_y > UdbrG.LANE_TOP_FRAC + 0.001:
+		game.tutorial_notify("reached_top")
+	elif _kbd_y_norm >= UdbrG.LANE_BOT_FRAC - 0.001 and _was_y < UdbrG.LANE_BOT_FRAC - 0.001:
+		game.tutorial_notify("reached_bottom")
 	if _elapsed_ms - _kbd_trace_last_ms >= _KBD_TRACE_INTERVAL_MS:
 		_current_segment.append(Vector2(_elapsed_ms, _kbd_y_norm))
 		_kbd_trace_last_ms = _elapsed_ms

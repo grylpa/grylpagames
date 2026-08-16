@@ -70,20 +70,24 @@ static func steps(level: Node, _game) -> Array:
 			"text": "That is the steering. Your first job is to clear ALL the coins in the room.\n\nThe round ends when the last one is gone, or when the time runs out.",
 		},
 		{
-			# Ask for the gorilla here rather than letting the level's timed schedule produce one:
-			# on the schedule, one ran past while the coach was still on coins, and then a
-			# different one was held up later, which read as a gorilla appearing from nowhere.
-			"setup": func(): level.tutorial_spawn_gorilla(),
-			"title": "But there is a second job",
-			"text": "While you are doing that, gorillas walk past OUTSIDE the room.\n\nHere comes one now.",
-			"await": {"event": "gorilla_appeared", "timeout": 30.0},
-		},
-		{
-			# Hold it still and in view. Without this the coach describes a gorilla that has
-			# already run off the edge, and the player never learns what to look for.
-			"setup": func(): level.tutorial_hold_gorilla_midscreen(),
-			"title": "That is a gorilla",
-			"text": "The dark figure outside your wall. It is frozen so you can get a proper look — in the real game it walks straight past in seconds.",
+			# Spawn AND hold in one step, with no `await`.
+			#
+			# These were two steps: one that spawned a gorilla and waited for `gorilla_appeared`,
+			# and one that talked about it. But the spawn fires that event synchronously, so the
+			# waiting step was satisfied during its own setup and advanced immediately — displayed
+			# for zero frames, which is what made the stage numbers skip (6/13 then 8/13).
+			# The wait was pointless anyway: the gorilla exists the moment the setup returns.
+			#
+			# The gorilla is asked for here rather than left to the level's timed schedule because
+			# on the schedule one ran past while the coach was still talking about coins, and a
+			# different one was held up later — which read as a gorilla appearing from nowhere.
+			# Holding it mid-lane matters too: otherwise the coach describes one that has already
+			# run off the edge.
+			"setup": func():
+				level.tutorial_spawn_gorilla()
+				level.tutorial_hold_gorilla_midscreen(),
+			"title": "There is a second job",
+			"text": "While you are collecting, gorillas walk past OUTSIDE the room — like this one.\n\nIt is frozen so you can get a proper look. In the real game it walks straight past in seconds.",
 			"spot": gorilla_spot,
 			"spot_radius": 95.0,
 		},

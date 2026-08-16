@@ -110,7 +110,22 @@ buttons and a swipe; mentioning the swipe in passing meant players never discove
 now waits on `answered_without_buttons`, so tapping a button does not satisfy it — which requires
 the game to report *how* the answer was given, not just that it was.
 
-### Caption placement
+### Caption placement — side captions
+
+`caption_side` picks where the caption lives: `"auto"` (default, the full-width panel described
+below), or `"right"` / `"left"` for a narrow column pinned to that edge and vertically centred. Set
+it on the runner before `run()`, or per step with a `caption_side` key.
+
+Use a side caption when the game's action runs down the **middle** of the screen. udbr's lane is
+vertical and centred and the ball travels its whole height, so a full-width caption docked at the
+bottom sits on exactly what the player is meant to be watching. The column is `0.32` of screen
+width (min 150 px) — 218 px on a 680 px screen, against udbr's 180 px centred lane, so it clears
+it — and it keeps below the Skip button in the top-right corner.
+
+A narrow column wraps text much taller, so **side captions need short, imperative copy**. If a
+caption needs a paragraph, it probably wants `auto`.
+
+### Caption placement — auto
 
 The caption goes wherever there is actually room around the spotlight: below it if the gap fits,
 otherwise above it, otherwise flush against it in whichever gap is roomier. Flipping bottom→top
@@ -119,7 +134,27 @@ run) clips *both* ends, and the old fallback then chose the bottom regardless an
 thing it was pointing at. Keep step text short for spotlighted steps: on a 748px screen a
 230px caption leaves almost no gap to place it in.
 
-### Caption sizing (a trap worth knowing about)
+### Caption sizing (two traps, both about container minimums)
+
+The caption is a plain `Panel` and the three labels are positioned **by hand**, not by a
+`VBoxContainer` — a Container clamps itself to its children's combined minimum, and an
+auto-wrapping `Label` computes that minimum from whatever width it currently has. Early versions
+hit this twice: once putting the caption at y = −1952 with height 2644, and once inflating the
+label stack to 2223 px on the opening step.
+
+Height comes from `_label_height()`, which rebuilds it from **whole font lines**
+(`f.get_height(fs) + line_spacing` per line) rather than from
+`Font.get_multiline_string_size().y`. That call returns the *text's* extent, while a Label reserves
+a full line box per row — a couple of px per line, invisible in a wide caption, but it stacked up
+in udbr's narrow column until "tap to continue" hung below the balloon.
+
+One thing to know when checking this: labels are **top-aligned**, so `Control.size` on a label is
+not where the text ends. Godot's minimum-size cache updates a frame late, so a label's rect is
+often far taller than its text; the panel clips it and nothing shows. Measure
+`position.y + _label_height(...)`, which is what the probe now asserts for every step of every
+game.
+
+### Caption sizing (historical)
 
 The caption is a plain `Panel` whose height is computed with
 `Font.get_multiline_string_size()` — deliberately **not** a `PanelContainer` sized by
@@ -172,19 +207,40 @@ rather than dropping it. Gorilla's setup spawns the gorilla the step then waits 
 with setup running first, that notification landed while `_await_event` was still empty and the
 step sat out its full 30s timeout while the gorilla it had just created ran past and off screen.
 
-**Not every game can be a doing tutorial, and forcing it is worse than not.** Udbr is all talking
-steps. It has no discrete action to wait for, and the events it does emit fire on a single pixel of
-drag — so waiting on one and then saying "that is one inhale" told players they had done something
-they had not. Where a game cannot report an action *reliably*, explain and hand over rather than
-inventing a gate. The hooks stay in `level.gd` so it can become a doing tutorial if the input is
-ever reworked.
+**Don't number the steps.** The footer used to show "3/12" and the numbers skipped. Several steps
+exist only to unfreeze the game and wait for it to produce something ("here comes the first card",
+"here comes another pile"); they are satisfied within a frame or two and are never really seen, so
+the sequence ran 1, 3, 4, 6 … Counting frames-per-step cannot tell those apart from a genuine bug
+either. A numbering that skips is worse than none; if position ever needs showing, use a continuous
+progress bar.
 
-**Describe the input from the code that reads it, not from the game's own instructions.** Udbr's
-own text says "swipe up while inhaling", which produced three wrong tutorials in a row. What the
-code does is: touching down sets an anchor, direction comes from where the finger *is* relative to
-that anchor (30px hysteresis), and the flags update only on drag events — so stopping keeps the
-ball moving. Read `scripts/main.gd`'s input translation before writing a sentence about gestures.
+**A `setup` that satisfies its own `await` makes the step invisible.** It advances from inside
+`_enter_step`, so it is never current at a frame boundary. Gorilla had one: its setup spawned the
+gorilla and the step waited for `gorilla_appeared`. Fold such a step into the one that talks about
+the result — the wait is pointless when the setup is synchronous.
 
+**Wait on the event that means what the caption says.** udbr's tutorial asked for an inhale but
+waited on the direction *latch*, which trips a frame or two into the drag. The step therefore ended
+before the ball had moved, and the next talking step froze the board — 24 of 25 frames paused
+during a swipe, against 0 in normal play, which reads to the player as "the swipe does nothing".
+If the game only reports the *start* of an action, add a hook for its completion rather than
+pretending the start is the whole thing.
+
+**Force the tutorial's own level/mode, and check the override actually took.** A tutorial must not
+inherit whatever the player left the menu on. Every game overrides its starting level in
+`start_tutorial` and restores it in `_on_tutorial_done` — but udbr's override was
+`UdbrG.guided_mode = false`, and `guided_mode` is a **getter-only** computed property
+(`return selected_mode != 0`). The assignment silently did nothing and the tutorial ran in whatever
+Mode was selected. Set the underlying field (`selected_mode`), and assert the result rather than
+the assignment. Watch for anything else the menu controls that the tutorial can outlast, too:
+udbr's default session is 1 minute, short enough for the results panel to appear over the coach
+mid-lesson, so the tutorial raises `duration_min` and puts it back.
+
+**Trust the game's own instructions screen over a model you derive.** udbr took three wrong
+tutorials because I read `scripts/main.gd`'s hysteresis block but not `_process_vertical_steps`,
+which wraps `swipe_accum` every 50 px — so I invented an "anchor" model that does not exist, while
+the game's own "I" text ("swipe UP while inhaling") was correct all along. Read the input code to
+*understand* the text, not to replace it; where they disagree, find out why before writing a word.
 **Do not describe something the player cannot touch.** The coach FREEZES the board while it
 talks, so a talking step that says "drag the top coins aside to find the rest" is asking for
 something that is impossible until it stops talking. If a step tells the player to do something,
@@ -253,6 +309,18 @@ holds it still while the coach talks about it.
   persisted in the app-level settings (slot 14) — *not* in the per-game settings file, which
   tutorial mode cannot write.
 - **"How to play" pill** on the game chooser, beside About.
+- **Returning to the game's own menu ends the tutorial.** `main_menu._on_visibility_changed()`
+  calls `game.abort_tutorial()` when the menu becomes visible — the one place every game passes
+  through on its way back, so no game has to remember it. The coach lives on a `CanvasLayer` owned
+  by the game's main scene and does **not** hide with the level, so without this, pressing M
+  mid-tutorial left the balloon sitting on top of the menu.
+
+  The call is **deferred** on purpose: a game's back-to-menu handler usually calls
+  `show_main_menu()` and *then* runs its save path (dino: `_save_ongoing_score()` +
+  `convert_ongoing_score_to_permanent()`). Ending the tutorial synchronously would clear
+  `tutorial_mode` first and let those writes through, so quitting a tutorial could commit the
+  player's pending real session. Deferring keeps every write suppressed for the rest of that
+  handler.
 - **A way OUT, on every step.** The overlay carries a "Skip tutorial" button (top right) and ESC
   does the same. Without one, a tutorial opened by accident could only be escaped by backing out
   to the game chooser. Skipping goes through the ordinary abort path, so the player's session is

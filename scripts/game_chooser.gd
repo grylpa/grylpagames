@@ -275,7 +275,9 @@ func _position_about_button() -> void:
 		_howto_btn.anchor_right = 1.0
 		_howto_btn.anchor_bottom = 1.0
 		_howto_btn.offset_right = -margin_right
-		_howto_btn.offset_bottom = _about_btn.offset_top - 6.0
+		# Sits above the About pill. A wider gap on a phone, where both pills are much taller and
+		# the bottom edge is where the thumb lives.
+		_howto_btn.offset_bottom = _about_btn.offset_top - (22.0 if MainGlobals.is_mobile() else 6.0)
 		_howto_btn.offset_left = _howto_btn.offset_right - hsz.x
 		_howto_btn.offset_top = _howto_btn.offset_bottom - hsz.y
 

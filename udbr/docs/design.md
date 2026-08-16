@@ -87,24 +87,44 @@ Coached tutorial in `udbr/scripts/tutorial.gd`; see `docs/tutorials.md` for the 
   is one thing too many.
 - **Hooks in `level.gd`** (no-ops outside tutorial mode): the first input emits `breathing_started`;
   the inhale/exhale counters emit `inhaled` / `exhaled`.
-- **The tutorial is all talking steps, deliberately** — the only one in the app that is. Udbr has
-  no discrete action to wait for, and the events it does emit are not trustworthy enough to
-  congratulate anyone on: `_inhale_count` increments the instant the up-latch engages, which a
-  single pixel of upward drag will do. Waiting on `inhaled` and then saying "that is one inhale"
-  told players they had done something they had not.
-- **How the input really works** (`scripts/main.gd` digitized-swipe branch + `_process_kbd`):
-  touching down sets an ANCHOR; `swipe_accum` measures displacement from it, not velocity. Holding
-  the finger *above* the anchor latches `is_in_digitized_swipe_up`; going more than 30px below
-  flips it. The flags are recomputed **only on drag events**, so stopping leaves the last direction
-  latched and the ball keeps traveling to the end of the lane. Direction is therefore *where the
-  finger is relative to where it went down*, not which way it is currently moving — and
-  "hold still to hold your breath" is wrong, which is what earlier versions of this tutorial said.
-- If udbr's input is ever reworked (a real hold state, a sensible movement threshold), this can
-  become a doing tutorial like the others: the `inhaled` / `exhaled` hooks in `level.gd` are
-  already in place.
-- **Guided mode is ONE ball**, moving by itself through `UdbrG.get_guided_durations()` (shown as
-  e.g. "4-2-6-2 s") with the label naming each phase. It is not a second ball racing the player's,
-  which is what the tutorial used to claim.
+- **The tutorial text is taken from the game's own "I" instructions screen**
+  (`udbr/scripts/main.gd::set_instructions`), which is accurate. Three earlier versions were wrong
+  because they described a model derived from `scripts/main.gd` instead. The mistake: reading the
+  hysteresis block (`scripts/main.gd:311-321`) but **not** `_process_vertical_steps` (`:381`),
+  which does `swipe_accum.y -= sign(swipe_accum.y) * 50`. That makes `swipe_accum` a **rolling**
+  displacement wrapping every 50 px, not the absolute distance from where the finger landed — so
+  the "anchor" model (direction decided by where the finger *is* relative to touch-down) does not
+  exist. With the wrap, continuing to slide upward keeps the up-latch engaged, which is precisely
+  what the instructions say: *swipe UP while inhaling*. **If the tutorial and the instructions
+  screen ever disagree, the instructions screen is right.**
+- **The tutorial waits on `reached_top` / `reached_bottom`, not `inhaled` / `exhaled`.** The
+  inhale/exhale counters increment on the direction LATCH, which engages within a frame or two of
+  the first few pixels of drag. A step waiting on those finished before the ball had visibly moved,
+  and the next (talking) step then froze the screen — measured at 24 of 25 frames paused during a
+  swipe, versus 0 in normal play. From the player's side that is indistinguishable from "the ball
+  does not move at all with my swipe". The new hooks fire when the ball actually reaches the end of
+  the lane, i.e. a completed breath, so the gesture the tutorial asks for is the gesture it waits
+  for.
+- **The tutorial forces `selected_mode = 0` (Active), not `guided_mode = false`.** `guided_mode`
+  is a getter-only computed property (`return selected_mode != 0`), so assigning to it did nothing
+  and the tutorial ran in whatever Mode the menu was left on. It also raises `duration_min` to at
+  least 5, because the default 1-minute session is short enough for the results panel to appear
+  over the coach mid-lesson. Both live on `UdbrG`, outside the `GenericGameUtil` snapshot, so both
+  are saved and restored by hand in `start_tutorial` / `_on_tutorial_done`.
+- **Holding does NOT require keeping the finger down** — confirmed against the running game. The
+  finger only needs to be on the screen while actually breathing in or out; during a hold you can
+  lift it off. That matches the code: releasing clears both direction flags
+  (`scripts/main.gd:206-209`) and the ball stops dead, which is what a hold should look like in the
+  trace, whereas keeping the finger down leaves the last direction latched and the ball drifting
+  until it clamps. **The "I" instructions screen still says "Keep touching while holding your
+  breath", which contradicts this** — left alone, as it is the author's copy to decide on.
+- **The caption is a narrow right-hand column** (`runner.caption_side = "right"`, set in
+  `main.gd::start_tutorial`). The lane is vertical and centered and the ball travels its full
+  height, so the default full-width caption docked at the bottom covers the one thing the player is
+  meant to watch. The column is 32% of screen width against a 180 px (mobile) centered lane, and
+  the probe asserts on every step that the caption rect does not intersect the lane rect.
+- Because the column is narrow, **the captions are deliberately short and imperative** — one
+  instruction per step, no paragraphs.
 - **The input is the lesson.** It is not a swipe: the finger goes down and STAYS down, and the
   direction comes from how far it has moved since (`scripts/main.gd` digitized-swipe handling, 30px
   hysteresis); lifting ends the breath. A flick does nothing at all, which is exactly what a player
