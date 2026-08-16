@@ -508,6 +508,12 @@ func end_tutorial() -> void:
 	_tutorial_snapshot = {}
 	playing = false
 
+# End a running tutorial from outside it — used when the player leaves the level for the main menu.
+# Safe to call at any time: a no-op when nothing is running, and abort() is itself idempotent.
+func abort_tutorial() -> void:
+	if tutorial_runner != null and is_instance_valid(tutorial_runner):
+		tutorial_runner.abort()
+
 # Games call this at their existing decision points (e.g. right after an answer is judged) to tell
 # a running tutorial that something happened. A no-op outside tutorial mode, so it is safe to leave
 # in the normal gameplay path.

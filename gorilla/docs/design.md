@@ -306,6 +306,11 @@ Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for t
   walking during any pause, popup or tutorial caption — walking clean off the edge, where
   `exited_screen` deletes it. That made the tutorial point at a gorilla that was no longer there.
   This was a real bug outside the tutorial too: the pause screen never stopped these figures.
+- The spawn step has **no `await`**. It used to be two steps — one that spawned and waited for
+  `gorilla_appeared`, one that talked about it — but the spawn fires that event synchronously, so
+  the waiting step advanced from inside its own `_enter_step` and was displayed for zero frames.
+  That is what made the tutorial's stage numbers skip. Spawning and holding now happen in the
+  setup of the step that talks about the gorilla.
 - Gorillas are spawned **on demand** by the tutorial (`tutorial_spawn_gorilla`), not on the level's
   timed schedule: on the schedule one ran past while the coach was still talking about coins, and a
   different one was held up later, which read as a gorilla appearing from nowhere. It prefers a

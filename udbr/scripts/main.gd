@@ -31,7 +31,7 @@ func _ready() -> void:
 	game.set_instructions("Up Down Breathe",
 		"Swipe UP while inhaling.\n" +
 		"Swipe DOWN while exhaling.\n" +
-		"Keep touching while hold your breath between inhaling and exhaling.\n" +
+		"Keep touching while holding your breath between inhaling and exhaling.\n" +
 		"Keep a steady, continuous rhythm.\n" +
 		"When the session ends you'll see\n" +
 		"your consistency stats and a trace\n" +
@@ -68,7 +68,8 @@ func _ready() -> void:
 	if MainGlobals.take_pending_tutorial("udbr"):
 		call_deferred("start_tutorial")
 
-var _tutorial_saved_guided: bool = false
+var _tutorial_saved_mode: int = -1
+var _tutorial_saved_duration: int = -1
 
 # The real session with the real input, recorded by nobody: TutorialRunner puts the game into
 # tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
@@ -77,17 +78,33 @@ func start_tutorial() -> void:
 	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
 	# which would commit and upload the player's unfinished real session.
 	game.begin_tutorial()
-	# guided_mode lives on UdbrG, not the game util, so the snapshot does not cover it. The
-	# tutorial teaches the gesture in FREE mode — a rhythm to keep up with on top of an input you
-	# have never used is one thing too many.
-	_tutorial_saved_guided = UdbrG.guided_mode
-	UdbrG.guided_mode = false
+	# Force the ACTIVE (free) mode. Set `selected_mode`, not `guided_mode` — the latter is a
+	# getter-only computed property (`return selected_mode != 0`), so assigning to it silently did
+	# nothing and the tutorial ran in whatever Mode the menu happened to be left on.
+	# Free mode is what the tutorial teaches: a rhythm to keep up with, on top of an input you have
+	# never used, is one thing too many.
+	_tutorial_saved_mode = UdbrG.selected_mode
+	UdbrG.selected_mode = 0
+	# And give it room. The default session is 1 minute; the tutorial can outlast that, and the
+	# results panel appearing over the coach mid-lesson is not something the player can make sense
+	# of. Neither of these is covered by the GenericGameUtil snapshot, so both are restored by hand.
+	_tutorial_saved_duration = UdbrG.duration_min
+	UdbrG.duration_min = maxi(UdbrG.duration_min, 5)
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
+	# A narrow caption pinned to the right. The lane is vertical and centered and the ball travels
+	# its whole height, so the usual full-width caption docked at the bottom sits on top of the one
+	# thing the player is supposed to be watching.
+	runner.caption_side = "right"
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _on_tutorial_done(_completed: bool) -> void:
-	UdbrG.guided_mode = _tutorial_saved_guided
+	if _tutorial_saved_mode >= 0:
+		UdbrG.selected_mode = _tutorial_saved_mode
+		_tutorial_saved_mode = -1
+	if _tutorial_saved_duration >= 0:
+		UdbrG.duration_min = _tutorial_saved_duration
+		_tutorial_saved_duration = -1
 	game.playing = false
 	game.level_is_ready = false
 	refresh_menu()

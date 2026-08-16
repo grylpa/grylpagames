@@ -164,6 +164,21 @@ func _input(event):
 
 func _on_visibility_changed() -> void:
 	MainGlobals.set_visible("main_menu",visible)
+	# Showing the menu ends any running tutorial. The coach lives on a CanvasLayer owned by the
+	# game's main scene, so it does NOT hide with the level — pressing M mid-tutorial left the
+	# balloon sitting on top of the menu. This is the one place every game passes through on its
+	# way back, so no game has to remember to do it.
+	# Ending here is safe: abort() restores the player's session exactly as finishing would, and
+	# it is a no-op both when nothing is running and when the tutorial has just completed (which
+	# is itself what brought the menu back).
+	# DEFERRED on purpose. A game's "back to the menu" handler typically calls show_main_menu()
+	# and THEN runs its save path (dino: _save_ongoing_score + convert_ongoing_score_to_permanent).
+	# Ending the tutorial synchronously here would clear tutorial_mode first and let those writes
+	# through, so quitting a tutorial could commit the player's pending real session. Deferring
+	# keeps tutorial_mode true for the rest of that handler — every write stays suppressed — and
+	# the tutorial ends a frame later.
+	if visible and game != null:
+		game.call_deferred("abort_tutorial")
 
 func add_entry(_id, _name, _min_val, _max_val, _is_bool):
 	var lbl = entry_label_scene.instantiate()

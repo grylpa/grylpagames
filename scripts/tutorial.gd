@@ -33,7 +33,13 @@ const PANEL_MARGIN: float = 12.0
 const PAD_X: float = 18.0        # caption inner padding, left/right
 const PAD_Y: float = 14.0        # caption inner padding, top/bottom
 const VBOX_SEP: int = 6
-const MAX_PANEL_FRAC: float = 0.55   # caption never eats more than this much of the screen
+const MAX_PANEL_FRAC: float = 0.55       # caption never eats more than this much of the screen
+# A SIDE caption is a narrow column pinned to one edge, for games whose action runs down the middle
+# of the screen: udbr's lane is vertical and centered, and the ball travels its whole height, so a
+# full-width caption docked at the bottom sits on top of the very thing the player is watching.
+const SIDE_FRAC: float = 0.32            # of screen width
+const SIDE_MIN_W: float = 150.0
+const SIDE_MAX_FRAC: float = 0.80        # a narrow column wraps taller, so allow more height
 
 var _steps: Array = []
 var _idx: int = -1
@@ -42,7 +48,6 @@ var _game = null
 
 var _dim: Control = null
 var _panel: Panel = null
-var _vbox: VBoxContainer = null
 var _title_label: Label = null
 var _skip_btn: Button = null
 var _text_label: Label = null
@@ -58,6 +63,9 @@ var _await_timeout: float = 0.0
 var _finished: bool = false
 var _pulse: float = 0.0
 var _demo_pts: PackedVector2Array = PackedVector2Array()
+# "auto" (default) = the full-width panel, bottom or top. "right" / "left" = a narrow side column.
+# Set before run(); a step may override it with its own `caption_side` key.
+var caption_side: String = "auto"
 # A step's `setup` can cause the very event that step is waiting for — gorilla's setup spawns the
 # gorilla the step then waits to be told about. Events arriving during setup are parked here and
 # applied once the step is fully entered; otherwise they are dropped and the step waits forever
@@ -108,19 +116,26 @@ func _build() -> void:
 	sb.set_border_width_all(3)
 	sb.border_color = SPOT_COLOR
 	_panel.add_theme_stylebox_override("panel", sb)
+	# Backstop: nothing may render outside the balloon, whatever a label decides its minimum is.
+	_panel.clip_contents = true
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
 
-	_vbox = VBoxContainer.new()
-	_vbox.add_theme_constant_override("separation", VBOX_SEP)
-	_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.add_child(_vbox)
-	var vbox: VBoxContainer = _vbox
+	# NO container. A VBoxContainer clamps itself to its children's combined minimum size, and an
+	# auto-wrapping Label reports a minimum computed from whatever width it happens to have — so
+	# the box grew to 2223 px on the opening step and the footer ended up hanging below the
+	# balloon. The three labels are positioned by hand in _layout_panel from the same measurements
+	# that size the panel, which makes the layout exact and frame-independent.
+	var vbox: Control = _panel
 
 	_title_label = Label.new()
 	_title_label.add_theme_font_size_override("font_size", 30 if is_mob else 22)
 	_title_label.add_theme_color_override("font_color", SPOT_COLOR)
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Must wrap like the others. Without this a title wider than the caption ("Up Down Breathe" at
+	# 30px against a 182px side column) reports its full width as its MINIMUM, the VBox grows past
+	# the panel to satisfy it, and the text spills out to the right of the balloon.
+	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(_title_label)
 
@@ -251,14 +266,19 @@ func _resolve_text(v) -> String:
 	return String(v)
 
 func _update_footer() -> void:
+	# No "3/12" counter. Several steps exist only to unfreeze the game and wait for it to produce
+	# something ("here comes the first card", "here comes another pile"); they are satisfied within
+	# a frame or two and are never really seen, so the numbers ran 1, 3, 4, 6 … and looked broken.
+	# The count is not information the player needs, and any numbering that skips is worse than
+	# none. (A continuous progress bar would be the way to show position, if it is ever wanted.)
 	var parts: Array = []
-	if _steps.size() > 1:
-		parts.append("%d/%d" % [_idx + 1, _steps.size()])
 	if _blocking:
 		parts.append("tap to continue")
 	var line: String = "        ".join(parts)
 	if _hint_shown:
-		var hint: String = _resolve_text(_steps[_idx].get("hint", "Take your time — try it now."))
+		# No default text: every step that sets `hint_after` supplies its own `hint`, and a generic
+		# "take your time" nudge is worse than none — it tells the player nothing they do not know.
+		var hint: String = _resolve_text(_steps[_idx].get("hint", ""))
 		line = hint if line.is_empty() else hint + "\n" + line
 	_foot_label.text = line
 	_foot_label.visible = not line.is_empty()
@@ -498,25 +518,62 @@ func _draw_dim() -> void:
 
 # --- Caption placement ------------------------------------------------------
 
+# Which placement this step wants: its own `caption_side` if it has one, else the runner default.
+func _effective_side() -> String:
+	if _idx >= 0 and _idx < _steps.size():
+		var s = _steps[_idx].get("caption_side", "")
+		if s is String and not (s as String).is_empty():
+			return String(s)
+	return caption_side
+
 func _layout_panel() -> void:
 	if _panel == null:
 		return
 	var screen: Vector2 = Vector2(MainGlobals.screen_size)
 	# The app's own bottom bar sits below everything and must stay reachable.
 	var bottom_bar: float = 70.0 if MainGlobals.is_mobile() else 44.0
+	var side: String = _effective_side()
+	var is_side: bool = side == "right" or side == "left"
+
 	# Never let this go negative — a negative Rect2 size makes intersects() fail outright.
-	var avail_w: float = maxf(screen.x - 2.0 * PANEL_MARGIN, 1.0)
+	var avail_w: float
+	if is_side:
+		avail_w = clampf(maxf(screen.x * SIDE_FRAC, SIDE_MIN_W), 1.0,
+			maxf(screen.x - 2.0 * PANEL_MARGIN, 1.0))
+	else:
+		avail_w = maxf(screen.x - 2.0 * PANEL_MARGIN, 1.0)
 	var inner_w: float = maxf(avail_w - 2.0 * PAD_X, 1.0)
 	# Wrapping happens at inner_w, so pin the labels there before measuring at the same width.
 	for lbl: Label in [_title_label, _text_label, _foot_label]:
 		lbl.custom_minimum_size.x = inner_w
-	var panel_h: float = minf(_measured_height(inner_w), screen.y * MAX_PANEL_FRAC)
-	_vbox.position = Vector2(PAD_X, PAD_Y)
-	_vbox.size = Vector2(inner_w, maxf(panel_h - 2.0 * PAD_Y, 1.0))
+	var frac: float = SIDE_MAX_FRAC if is_side else MAX_PANEL_FRAC
+	var panel_h: float = minf(_measured_height(inner_w), screen.y * frac)
+	_place_labels(inner_w)
 
 	var low_limit: float = screen.y - bottom_bar - PANEL_MARGIN     # lowest the caption may reach
 	var bottom_y: float = low_limit - panel_h
 	var top_y: float = float(_game.header_height if _game != null else 60) + PANEL_MARGIN
+	if is_side:
+		# Keep clear of the Skip button, which lives in the top-right corner.
+		if side == "right" and _skip_btn != null:
+			top_y = maxf(top_y, _skip_btn.position.y + _skip_btn.size.y + 8.0)
+		panel_h = minf(panel_h, maxf(low_limit - top_y, 1.0))
+		var x_side: float = (screen.x - avail_w - PANEL_MARGIN) if side == "right" else PANEL_MARGIN
+		var y_side: float = top_y + maxf(low_limit - top_y - panel_h, 0.0) * 0.5
+		if _has_spot:
+			var here: Rect2 = Rect2(x_side, y_side, avail_w, panel_h)
+			if here.intersects(_spot_rect):
+				# Slide up or down within the column, whichever side of the spotlight has room.
+				var above: float = _spot_rect.position.y - top_y
+				var below: float = low_limit - _spot_rect.end.y
+				if below >= panel_h:
+					y_side = low_limit - panel_h
+				elif above >= panel_h:
+					y_side = _spot_rect.position.y - panel_h
+		_panel.position = Vector2(x_side, y_side)
+		_panel.size = Vector2(avail_w, panel_h)
+		return
+
 	var y: float = bottom_y
 	if _has_spot:
 		# Put the caption in whichever gap around the spotlight it actually fits in. Simply
@@ -541,6 +598,29 @@ func _layout_panel() -> void:
 # The caption's height, computed from the font rather than asked of a container. Font metrics are
 # available immediately, so the caption is correctly placed on the very first frame it appears —
 # no waiting for a layout pass, and nothing to clamp it to a bogus minimum.
+# Stack the labels top-down inside the panel using the same per-label heights the panel is sized
+# from, so what is drawn and what is reserved can never disagree.
+func _place_labels(inner_w: float) -> void:
+	# First pass: hand every label its WIDTH. Control.size is clamped to get_combined_minimum_size(),
+	# and an auto-wrapping Label computes that minimum from the width it currently has — so on the
+	# very first layout, when the labels are still zero-width, the clamp inflated one of them by
+	# 1175 px. Once the width is known the minimum is the real wrapped height and the clamp is a
+	# no-op.
+	for lbl: Label in [_title_label, _text_label, _foot_label]:
+		if lbl != null:
+			lbl.custom_minimum_size = Vector2(inner_w, 0)
+			lbl.size.x = inner_w
+	var y: float = PAD_Y
+	for lbl2: Label in [_title_label, _text_label, _foot_label]:
+		if lbl2 == null:
+			continue
+		var h: float = _label_height(lbl2, inner_w)
+		if h <= 0.0:
+			continue
+		lbl2.position = Vector2(PAD_X, y)
+		lbl2.size = Vector2(inner_w, h)
+		y += h + float(VBOX_SEP)
+
 func _measured_height(inner_w: float) -> float:
 	var total: float = 2.0 * PAD_Y
 	var shown: int = 0
@@ -562,6 +642,11 @@ func _label_height(lbl: Label, inner_w: float) -> float:
 	var fs: int = lbl.get_theme_font_size("font_size")
 	if fs <= 0:
 		fs = 16
-	# Measures exactly what an auto-wrapping Label will draw at this width, including the
-	# explicit \n line breaks the step texts use.
-	return f.get_multiline_string_size(lbl.text, HORIZONTAL_ALIGNMENT_CENTER, inner_w, fs).y
+	var ink: float = f.get_multiline_string_size(lbl.text, HORIZONTAL_ALIGNMENT_CENTER, inner_w, fs).y
+	# get_multiline_string_size returns the TEXT's extent; a Label reserves a whole font line per
+	# row — ascent + descent + the line_spacing theme constant. The difference is a couple of px
+	# per line, which is nothing in a wide caption but stacks up in a narrow column until
+	# "tap to continue" hangs below the balloon. Rebuild the height from whole lines instead.
+	var line_h: float = maxf(f.get_height(fs), 1.0)
+	var n_lines: float = maxf(1.0, round(ink / line_h))
+	return n_lines * (line_h + float(lbl.get_theme_constant("line_spacing")))
