@@ -471,6 +471,29 @@ pass arguments.
 
 ---
 
+## Running long
+
+**The level clock cannot run out.** `_hold_clock()` re-applies `TUTORIAL_MINUTES` every frame it
+falls more than 5s short, so the clock sits pinned at 30:00 rather than counting down from it —
+"30 minutes" is a floor, not a budget. Verified by forcing `time_left_sec` to 3 and then to 0
+mid-tutorial: both were back at 1800 within a frame, the tutorial ran on, and `level_is_done`
+stayed false.
+
+**A step's own `await` timeout is the thing that actually fires.** When it expires the runner just
+advances (verified: dino's 40s drag step moved on to the next step and the tutorial continued). A
+step whose `await` omits `timeout` waits indefinitely — dino's three "tap New/Seen" steps are the
+only ones like that, and they are safe because the game keeps dealing cards, so the player can
+always satisfy them. Skip and ESC are the way out regardless.
+
+**udbr is the exception, because its session length is its own.** The game clock is a 16-hour
+dummy, and the session ends after `duration_min` — 30 real minutes during a tutorial. A player who
+works through it slowly can genuinely reach the end of one, and `_on_level_session_done` writes
+`UdbrG.learned_*` and `has_user_session`, which the "User" mode preset is built from. `save_score`
+and `UdbrG.save_settings` are suppressed in tutorial mode, so nothing reached disk at that moment
+— but those two are plain in-memory globals, and the next legitimate save persisted the tutorial's
+breathing as the player's own pattern. Measured: `has_user_session false -> true`, learned pattern
+`[4000, 4000] -> [3210, 4300]`. The handler now returns early in tutorial mode.
+
 ## A global flag that kills breathing games
 
 Not a tutorial bug, but found while auditing one, and worth recording here because the audit is

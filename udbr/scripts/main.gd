@@ -143,6 +143,14 @@ func new_game(_from_scratch: bool = true) -> void:
 	_start_ambient_sound()
 
 func _on_level_session_done() -> void:
+	# A tutorial session must not become the player's own breathing pattern. The tutorial holds the
+	# session open for 30 minutes, so a player who works through it slowly can genuinely reach the
+	# end of one — and this handler writes UdbrG.learned_* and has_user_session, which the "User"
+	# mode preset is built from. save_score and UdbrG.save_settings are both suppressed in tutorial
+	# mode, but those two are plain in-memory globals: nothing hits disk here, and then the next
+	# legitimate save persists the tutorial's numbers as the player's pattern.
+	if game.tutorial_mode:
+		return
 	_did_per_level_save = true
 	game.save_score($Level.get_session_score(true, false))
 	var saved: bool = false

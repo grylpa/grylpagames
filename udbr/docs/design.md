@@ -134,3 +134,11 @@ Coached tutorial in `udbr/scripts/tutorial.gd`; see `docs/tutorials.md` for the 
   them, a player doing it entirely wrong otherwise assumes the game is broken.
 - No spotlights: the swipe lane fills the screen, so highlighting it dims nothing and leaves the
   caption nowhere to sit that is not on top of it.
+
+### Tutorial: reaching the end of a session
+
+The tutorial forces `duration_min = 30`, so a slow player can actually reach the end of a session
+while the coach is still running. `_on_level_session_done` now returns early in `tutorial_mode`:
+it writes `learned_*` and `has_user_session`, which the "User" mode preset is built from, and those
+are in-memory globals that a later legitimate save would persist — so a tutorial would quietly
+become the player's own breathing pattern.
