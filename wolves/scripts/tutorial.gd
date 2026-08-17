@@ -32,53 +32,41 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Wolves",
-			"text": "You are the dog guarding a sheep compound.",
+			"text": "You are the dog.\n\nKeep the sheep inside the compound.",
 		},
 		{
-			"text": "This is you.",
-			"spot": dog_spot,
-			"spot_radius": 70.0,
-		},
-		{
-			"title": "Drawing a path",
-			"text": "Here you can DRAW where you want the dog to go.\n\nPut your finger down and trace a route without lifting — like this — and let go. The dog walks the whole line on its own.",
+			"text": "Draw a route with your finger and the dog walks it — like this.\n\nArrow keys work too: one sets the dog going that way until something stops it.",
 			"spot": dog_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,
 		},
 		{
-			"text": "Your turn — trace a route across the ground.",
+			"text": "Trace a route by drawing it with your finger.",
 			"await": {"event": "path_drawn", "timeout": 60.0},
 			"demo_path": demo_path,
 			"hint_after": 10.0,
-			"hint": "Press down anywhere on the grass, drag along the route you want WITHOUT lifting your finger, then let go.",
-		},
-		{
-			"text": "That is how you get about, and it is much quicker than steering.\n\nThe arrow keys work too, but differently: an arrow sets the dog walking that way and it keeps going until something stops it.",
+			"hint": "Press down, drag along the route without lifting, then let go.",
 		},
 		{
 			"title": "The flock",
-			"text": "Sheep belong inside the compound. The fence is old, and pieces of it keep falling away — so sheep wander out through the gaps.\n\nA sheep that strays too far is gone for good.",
+			"text": "The fence keeps breaking, and sheep wander out through the gaps.\n\nA sheep that strays too far is gone for good.",
 		},
 		{
-			"title": "How you herd",
-			"text": "You never push a sheep.\n\nYou get CLOSE to it, the dog barks, and the sheep startles back where it belongs.",
+			"title": "Herding",
+			"text": "You never push a sheep. Get close, the dog barks, and the sheep runs back where it belongs.",
 		},
 		{
-			"text": "Go and startle a stray sheep back in — just walk up close to one.",
+			"text": "Try it. Walk up to a stray.",
 			"await": {"event": "scared_one", "timeout": 90.0},
 			"hint_after": 15.0,
-			"hint": "Draw a path that ends right next to a sheep that is outside the fence.",
+			"hint": "Draw a route ending right beside a sheep that is outside the fence.",
 		},
 		{
-			"text": "That is the whole job.",
-		},
-		{
-			"title": "And the wolves",
-			"text": "Wolves come for the flock. Get close and they run off the same way.\n\nBut if a wolf reaches a sheep before you do, that sheep is eaten — so it is worth heading them off early.",
+			"title": "Wolves",
+			"text": "Wolves come for the flock, and run off the same way if you get close.\n\nBut a wolf that reaches a sheep first eats it.",
 		},
 		{
 			"title": "Ready",
-			"text": "Watch the fence, not just the wolves. Most sheep are lost through the gaps.\n\nNothing you did here was scored — your real game starts from the menu.",
+			"text": "Watch the fence, not just the wolves. Most sheep are lost through the gaps.",
 		},
 	]

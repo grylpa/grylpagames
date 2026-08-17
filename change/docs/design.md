@@ -130,3 +130,29 @@ Coached tutorial in `change/scripts/tutorial.gd`; see `docs/tutorials.md` for th
   buries at least one coin (otherwise "there are more coins here than you can see" is false).
 - The level's intro popup is skipped in tutorial mode, and `board_time_ms` is stretched to 180 s
   because the timeout bar is being explained rather than raced.
+
+### Tutorial: caption placement
+
+The board fills the screen top to bottom — pile, tray, PAY — so a caption docked at the bottom sat
+on 94% of the tray on the very step that says to put coins in it, and the player could neither see
+the tray nor drag into it. `main.gd` passes all three rects as the runner's `keep_clear`, which
+pushes the caption into the band above the pile on player-action steps. Talking steps still dock
+low: the board is frozen there and nothing under the caption can be reached.
+
+### Tutorial: paying the named amount
+
+Three things stopped the coach's stated amount from being payable:
+
+- Step 4 says "drag **a** coin into the tray", and whatever the player dragged was still there when
+  step 6 said "put in exactly 35 cents". With the 5c in the tray, paying 25+10 came to 40c and was
+  rejected — the player followed the instruction exactly and was marked wrong. Step 6's `setup`
+  now calls `tutorial_clear_tray()`, and step 5 teaches dragging a coin back *out*.
+- The payment steps waited on `paid`, which `_resolve` fires for a wrong payment too, so pressing
+  PAY with anything in the tray advanced the coach to the next pile. They now wait on
+  `paid_correct`.
+- That could have hung, since a missed board is normally replaced. In `tutorial_mode` `_resolve`
+  pushes the board's spec back onto `_forced_boards`, so the same pile returns and the player
+  retries against the amount the caption still names.
+
+`_tutorial_setup()` also cuts `gap_ms` (1000 -> 200) and `feedback_ms` (1200 -> 500) so "Another
+pile." is not followed by a second of nothing. `_load_level` restores both.

@@ -2232,13 +2232,41 @@ func tutorial_parked_alien(want_match: bool, prefer = null):
 			return al
 	return null
 
-# Send an alien of the required kind to the gate right now, so the step that waits for one is not
-# left to chance (and its timeout stays a safety net rather than the usual path).
+# Free one place in the ring, WITHOUT scoring it against the player. _give_up() would do the job
+# but charges a mistake when the alien it evicts happens to match — during a tutorial the player
+# never touched it, so that would be a penalty for nothing.
+func _tutorial_make_room(except_al) -> bool:
+	for al in _aliens:
+		if al == except_al or not is_instance_valid(al) or al.state != AState.PARKED_OUTER:
+			continue
+		var home: int = al.area_idx
+		_end_call_for(al)
+		_release_park(al)
+		al.state = AState.LEAVING
+		al.area_idx = home
+		al.seek_start_ms = _last_now
+		_send_away_from(al, home, _last_now)
+		al.waypoints = _exit_waypoints(al, home)
+		return true
+	return false
+
+# Put an alien of the required kind at the gate. A tutorial step says "this one matches" and then
+# asks for a drag, so the arrival has to be guaranteed rather than hoped for: left to the normal
+# entry roll it might never come, or the ring might have no room for it, and the step would sit
+# out its timeout with nothing to point at.
 func tutorial_request_arrival(want_match: bool) -> void:
 	if _areas.is_empty():
 		return
-	if tutorial_parked_alien(want_match) != null:
-		return                      # one is already waiting
+	# Nobody else may take the place we are about to reserve.
+	tutorial_hold_arrivals = true
+	var already = tutorial_parked_alien(want_match)
+	if already != null:
+		# One of the right kind is ALREADY waiting, so the arrival event will never fire again.
+		# Report it now, or the step that waits for it would time out with the answer on screen.
+		_tutorial_last_parked = already
+		game.tutorial_notify("alien_parked_matching" if want_match else "alien_parked_mismatching")
+		game.tutorial_notify("alien_parked")
+		return
 	# Prefer an existing roamer, so the field does not fill up over the course of a tutorial.
 	var pick = null
 	for al in _aliens:
@@ -2249,11 +2277,15 @@ func tutorial_request_arrival(want_match: bool) -> void:
 		_spawn_alien()
 		pick = _aliens[_aliens.size() - 1]
 	_force_pass(pick, _areas[0].get("pass", {}), _match_want(0, want_match))
-	# Straight to the ring: no entry roll, no arrival-mix veto, no cooldown.
-	if _reserve_park(0, pick, pick.NO_ANGLE):
-		pick.state = AState.SEEKING_SLOT
-		pick.area_idx = 0
-		pick.seek_start_ms = _last_now
+	# Straight to the ring: no entry roll, no arrival-mix veto, no cooldown. If the ring is full,
+	# make room first — otherwise the reservation fails silently and nothing ever arrives.
+	if not _reserve_park(0, pick, pick.NO_ANGLE):
+		_tutorial_make_room(pick)
+		if not _reserve_park(0, pick, pick.NO_ANGLE):
+			return
+	pick.state = AState.SEEKING_SLOT
+	pick.area_idx = 0
+	pick.seek_start_ms = _last_now
 
 # One gate, pass always visible, no gate changes or priority calls: the tutorial teaches the core
 # promote/evict decision, and every one of those is an extra rule layered on top of it.

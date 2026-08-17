@@ -72,7 +72,10 @@ var _fb_font_big: int = 66    # short messages ("Correct!", "Too slow")
 var _fb_font_small: int = 40  # the longer two-line "You paid … / needed …" message
 
 const COIN_SCRIPT: GDScript = preload("res://change/scripts/coin.gd")
-const FEEDBACK_MS: float = 1200.0
+# How long the Correct!/Too slow banner stays up. A var, not a const, only so a tutorial can
+# shorten it; _load_level puts it back, so a tutorial can never leave real play running fast.
+const FEEDBACK_DEFAULT_MS: float = 1200.0
+var feedback_ms: float = FEEDBACK_DEFAULT_MS
 
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var wrong_audio = preload("res://art/sounds/swoosh.mp3")
@@ -313,6 +316,10 @@ func _tutorial_setup() -> void:
 	var tut: Script = load("res://change/scripts/tutorial.gd")
 	_forced_boards = tut.tutorial_boards()
 	board_time_ms = 180000.0
+	# The coach announces the next pile and then the player waits staring at nothing: the feedback
+	# banner and the inter-board gap both run first. 1200 + 1000 -> 500 + 200.
+	gap_ms = 200.0
+	feedback_ms = 500.0
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:
@@ -333,6 +340,7 @@ func _load_level(id: int) -> void:
 	var def: Dictionary = ChangeLevelConfig.get_level(id)
 	coin_size_key = str(def.get("coin_size", "med"))
 	board_time_ms = float(def.get("board_time_sec", 30.0)) * 1000.0
+	feedback_ms = FEEDBACK_DEFAULT_MS
 	gap_ms = float(def.get("gap_sec", 1.0)) * 1000.0
 	duration_sec = int(def.get("duration_sec", 60))
 	num_coins = maxi(2, int(def.get("num_coins", 6)))
@@ -359,6 +367,8 @@ func _show_board() -> void:
 # random board cannot promise. Empty in normal play, so _build_board runs untouched.
 # Each entry: {"values": Array[float], "target": float, "overlap": String}
 var _forced_boards: Array = []
+# The board currently on screen, so a tutorial can put it back and let the player try again.
+var _forced_current: Dictionary = {}
 
 func _build_forced_board(spec: Dictionary) -> void:
 	overlap_key = String(spec.get("overlap", overlap_key))
@@ -375,8 +385,26 @@ func _build_forced_board(spec: Dictionary) -> void:
 		coin.setup(val, rad)
 		_coins.append({"node": coin, "value": val, "radius": rad})
 	_target_amount = float(spec.get("target", 0.0))
+	_forced_current = spec
 	_place_coins()
 	_update_target_label()
+
+# Any coin left in the tray by an earlier lesson counts toward the next payment, which made the
+# coach's own instruction impossible to obey: after "drag a coin into the tray" put a 5c in there,
+# "put in exactly 35 cents" came to 40c and was rejected. The player pays exactly what they were
+# told and is marked wrong.
+func tutorial_clear_tray() -> void:
+	for entry in _coins:
+		if not _in_basket(entry):
+			continue
+		var node = entry["node"]
+		if not is_instance_valid(node):
+			continue
+		var rad: float = float(entry["radius"])
+		node.position = Vector2(
+			game.rng.randf_range(_pile_rect.position.x + rad, _pile_rect.end.x - rad),
+			game.rng.randf_range(_pile_rect.position.y + rad, _pile_rect.end.y - rad))
+		node.set_in_tray(false)
 
 func _build_board() -> void:
 	if not _forced_boards.is_empty():
@@ -622,6 +650,12 @@ func _resolve(is_correct: bool, timed_out: bool, paid: float) -> void:
 	MainGlobals.global_update_hud()
 	phase = Phase.FEEDBACK
 	_phase_start_ms = game.game_time
+	# In a tutorial a missed board comes back instead of being replaced. The lesson is "pay this
+	# exact amount"; swapping in a different pile the moment they get it wrong means the one thing
+	# the step is teaching never actually happens, and the caption is left naming an amount that no
+	# longer matches anything on screen.
+	if game.tutorial_mode and not is_correct and not _forced_current.is_empty():
+		_forced_boards.push_front(_forced_current)
 	if not timed_out:
 		game.tutorial_notify("paid_correct" if is_correct else "paid_wrong")
 		game.tutorial_notify("paid")
@@ -648,7 +682,7 @@ func _process(_dt: float) -> void:
 				_resolve(false, true, _basket_total())
 		Phase.FEEDBACK:
 			_bar_fill.visible = false
-			if now - _phase_start_ms >= FEEDBACK_MS:
+			if now - _phase_start_ms >= feedback_ms:
 				phase = Phase.GAP
 				_phase_start_ms = now
 				_feedback.hide()

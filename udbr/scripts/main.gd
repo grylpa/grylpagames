@@ -85,11 +85,13 @@ func start_tutorial() -> void:
 	# never used, is one thing too many.
 	_tutorial_saved_mode = UdbrG.selected_mode
 	UdbrG.selected_mode = 0
-	# And give it room. The default session is 1 minute; the tutorial can outlast that, and the
+	# And give it room. The default session is 1 minute; the tutorial easily outlasts that, and the
 	# results panel appearing over the coach mid-lesson is not something the player can make sense
-	# of. Neither of these is covered by the GenericGameUtil snapshot, so both are restored by hand.
+	# of. udbr runs on its own session length rather than the game clock the TutorialRunner sets,
+	# so it needs its own override. Neither of these is covered by the GenericGameUtil snapshot,
+	# so both are restored by hand.
 	_tutorial_saved_duration = UdbrG.duration_min
-	UdbrG.duration_min = maxi(UdbrG.duration_min, 5)
+	UdbrG.duration_min = 30
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
 	# A narrow caption pinned to the right. The lane is vertical and centered and the ball travels

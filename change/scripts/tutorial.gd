@@ -13,6 +13,16 @@ extends RefCounted
 # The boards are fixed here rather than left to the random generator, so the amount the coach
 # names and the coins actually on screen can never drift apart. level.gd pulls them via
 # tutorial_boards() in _tutorial_setup().
+#
+# Two things keep the named amount actually payable:
+#   - The payment steps wait for `paid_correct`, not `paid`. `paid` fires on a wrong payment too,
+#     so the coach sailed on to the next pile the moment the player pressed PAY with the wrong
+#     coins in — the amount it had just named never got paid at all.
+#   - The tray is emptied before the first payment step. Step 4 tells the player to drag A coin in;
+#     if that was the 5c, paying the named 35c came to 40c and was rejected. They followed the
+#     instruction exactly and were marked wrong.
+# level.gd re-queues a missed board during a tutorial, so waiting for `paid_correct` cannot hang:
+# the same pile comes back and the player tries again.
 
 const LEVEL_ID: int = 1
 
@@ -46,82 +56,60 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Change",
-			"text": "You are shown an amount to pay, and a handful of coins.\n\nYour job is to pay it exactly.",
+			"text": "You are shown an amount and a pile of coins.\n\nPay it exactly.",
 		},
 		{
-			"text": "Here is your first pile.",
+			"text": "Here is the first pile.",
 			"await": {"event": "board_shown", "timeout": 8.0},
 		},
 		{
-			"text": "This is the amount you have to pay.",
+			"text": "This is what you owe.",
 			"spot": func(): return level._target_label,
 		},
 		{
-			"text": "These are your coins. Each one shows what it is worth.",
-			"spot": pile_spot,
-		},
-		{
-			"text": "And this is the tray. Coins you drag in here are the ones you are paying with.",
+			"text": "Drag a coin into the tray.",
 			"spot": tray_spot,
-		},
-		{
-			"text": "Drag any coin into the tray now.",
-			"spot": pile_spot,
 			"await": {"event": "coin_in_tray", "timeout": 45.0},
 			"hint_after": 8.0,
-			"hint": "Press on a coin, drag it onto the tray, and let go.",
+			"hint": "Press a coin, drag it onto the tray, let go.",
 		},
 		{
-			"text": "See the glow around it? That means it counts.\n\nA coin only counts when its center is inside the tray.",
+			"text": "The glow means it counts.\n\nDrag it back out.",
 			"spot": tray_spot,
+			"await": {"event": "coin_out_of_tray", "timeout": 45.0},
+			"hint_after": 8.0,
+			"hint": "Drag it off the tray and the glow goes out.",
 		},
 		{
-			"title": "The catch",
-			"text": "There is no running total anywhere on screen, and there never will be.\n\nAdding the coins up yourself is the game.",
-		},
-		{
-			"text": "So: put exactly %s in the tray." % _money(BOARD1_TARGET),
-			"spot": tray_spot,
-		},
-		{
-			"text": "Then press PAY.",
+			"title": "No total",
+			"text": "Nothing on screen adds the tray up. Doing that yourself is the game.\n\nPut in exactly %s, then press PAY." % _money(BOARD1_TARGET),
+			"setup": func(): level.tutorial_clear_tray(),
 			"spot": func(): return level._pay_btn,
-			"await": {"event": "paid", "timeout": 90.0},
+			"await": {"event": "paid_correct", "timeout": 150.0},
 			"hint_after": 15.0,
-			"hint": "%s is %s and %s. Drag both in, then press PAY." % [
-				_money(BOARD1_TARGET), _money(BOARD1_VALUES[0]), _money(BOARD1_VALUES[1])],
+			"hint": "%s is %s and %s." % [_money(BOARD1_TARGET), _money(BOARD1_VALUES[0]),
+				_money(BOARD1_VALUES[1])],
 		},
 		{
-			"text": "PAY checks the tray against the amount. Exactly right scores; anything else does not.\n\nIf you got it wrong just now, no harm done — none of this is being recorded.",
-		},
-		{
-			"text": "Here comes another pile.",
+			"text": "Another pile.",
 			"await": {"event": "board_shown", "timeout": 12.0},
 		},
 		{
 			"title": "Look underneath",
-			"text": "This time the coins are heaped on top of each other.\n\nThere are more coins here than you can see.",
+			"text": "This one is heaped up. There are more coins here than you can see — drag the top ones aside.",
 			"spot": pile_spot,
 		},
 		{
-			"text": "This bar is your time for the pile. When it empties the pile is gone and counts as a miss.",
-			"spot": func(): return level._bar_track,
-		},
-		{
-			# The pile was previously only DESCRIBED, across two frozen talking steps — so the
-			# player was shown a heap they were told to dig through and then given no chance to
-			# touch it (the board is frozen while the coach talks). This hands it over: a real
-			# board, paid unaided, with coins that genuinely have to be moved aside to be found.
-			"text": "Your turn. Pay %s out of this pile — drag the top coins aside to see what is under them." % _money(BOARD2_TARGET),
+			"text": "Pay %s from this pile." % _money(BOARD2_TARGET),
 			"spot": pile_spot,
-			"await": {"event": "paid", "timeout": 150.0},
+			"await": {"event": "paid_correct", "timeout": 200.0},
 			"hint_after": 20.0,
-			"hint": "%s is %s, %s and %s. Two of them are buried — move the coins on top out of the way first, then press PAY." % [
-				_money(BOARD2_TARGET), _money(BOARD2_VALUES[0]), _money(BOARD2_VALUES[1]),
-				_money(BOARD2_VALUES[2])],
+			"hint": "%s is %s, %s and %s. Two are buried." % [_money(BOARD2_TARGET),
+				_money(BOARD2_VALUES[0]), _money(BOARD2_VALUES[1]), _money(BOARD2_VALUES[2])],
 		},
 		{
 			"title": "Ready",
-			"text": "That is the whole game. Each round gives you one fresh pile and one amount to make — pay it, and the next pile comes up.\n\nThey keep coming until the level timer at the top runs out.\n\nNothing you did here was scored; your real game starts from the menu.",
+			"text": "This bar is your time for the pile.\n\nOne fresh pile per round, until the level timer runs out.",
+			"spot": func(): return level._bar_track,
 		},
 	]

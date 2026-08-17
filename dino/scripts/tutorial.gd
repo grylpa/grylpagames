@@ -43,88 +43,47 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Dino",
-			"text": "Cards appear one at a time.\n\nEvery card asks you the same question: have I already seen this one?",
+			"text": "Cards come one at a time.\n\nEach one asks the same question: have I already seen this card in this round?",
 		},
 		{
-			"text": "Here comes the first card.",
+			"text": "Here is the first.",
 			"await": {"event": "card_shown", "timeout": 8.0},
 		},
 		{
-			"text": "This is the first card of the round, so you have not seen it yet. It is NEW.",
+			"text": "You have not seen it yet, so it is NEW.\n\nTap New.",
 			"spot": card_spot,
-		},
-		{
-			"text": "Answer with the New button.",
-			"spot": func(): return level._btn_new,
-		},
-		{
-			"text": "Go ahead — tap New.",
-			"spot": func(): return level._btn_new,
 			"await": "answered",
 			"hint_after": 5.0,
-			"hint": "Tap the New button at the bottom left.",
+			"hint": "The New button, bottom left.",
 		},
 		{
-			"text": "That is it. The first time a card appears, it is always new.",
-		},
-		{
-			"text": "Next card.",
-			"await": {"event": "card_shown", "timeout": 8.0},
-		},
-		{
-			"text": "A different dino. You have not seen this one either — New again.",
-			"spot": card_spot,
+			"text": "Another one you have not seen. Tap New again.",
 			"await": "answered",
 			"hint_after": 6.0,
-			"hint": "Tap New.",
+			"hint": "New, bottom left.",
 		},
 		{
-			"text": "Now watch this one carefully.",
-			"await": {"event": "card_shown", "timeout": 8.0},
-		},
-		{
-			"text": "This dino has already come up in this round.\n\nThat makes it SEEN.",
-			"spot": card_spot,
-		},
-		{
-			"text": "Answer with the Seen button.",
-			"spot": func(): return level._btn_seen,
+			"text": "This one has already come up in this round.\n\nSo it is SEEN.",
 			"await": "answered",
 			"hint_after": 6.0,
-			"hint": "Tap the Seen button at the bottom right.",
+			"hint": "The Seen button, bottom right.",
 		},
 		{
-			"title": "A faster way",
-			"text": "You do not have to reach for the buttons.\n\nYou can answer the card itself: drag it LEFT for new, RIGHT for seen.",
-		},
-		{
-			"text": "Here comes another card — try it with a drag this time.",
-			"await": {"event": "card_shown", "timeout": 8.0},
-		},
-		{
-			# Waits for a NON-button answer specifically, so the lesson is not satisfied by
-			# tapping New again. Generous timeout, because a first drag often falls under the
-			# 60px threshold and does nothing at all — which is the exact failure this teaches
-			# around, and the hint names it.
-			"text": "Drag the card sideways and let go.\n\nLeft if it is new, right if you have seen it.",
-			"spot": card_spot,
-			"await": {"event": "answered_without_buttons", "timeout": 40.0},
-			"hint_after": 7.0,
-			"hint": "Drag it a good distance before letting go — a small nudge does not count.",
-		},
-		{
-			"text": "That is the whole game: the two buttons, or a drag either way.",
-		},
-		{
-			"text": "This bar is your time for the current card.\n\nWhen it empties, the card counts as a miss — so answer before it runs out.",
+			"text": "This bar is your time for the card on screen. Answer before it empties.",
 			"spot": bar_spot,
 		},
 		{
-			"title": "One last thing",
-			"text": "SEEN means seen in THIS round.\n\nEvery new round starts with a clean memory, even if you have played these dinos a hundred times before.",
+			"text": "You can also answer the card itself: drag it LEFT for new, RIGHT for seen.\n\nTry a drag.",
+			"await": {"event": "answered_without_buttons", "timeout": 40.0},
+			"hint_after": 7.0,
+			"hint": "Drag it a good distance before letting go. A small nudge does not count.",
+		},
+		{
+			"title": "The catch",
+			"text": "SEEN means seen in THIS round.\n\nEvery round starts with a clean memory.",
 		},
 		{
 			"title": "Ready",
-			"text": "New cards keep coming until the round timer runs out, and more dinos join as you go.\n\nNothing you did here was scored — your real game starts from the menu.",
+			"text": "Cards keep coming until the timer runs out, and more dinos join as you go.",
 		},
 	]

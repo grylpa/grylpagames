@@ -31,6 +31,11 @@ static func _desc_fs() -> int:
 
 # The thumbnail is a fixed size, NOT derived from the row height — tying it to the row meant the
 # bigger mobile fonts inflated the icon to 200px and left no room for the text beside it.
+# The category sits beside the game name, so it wants to be quieter than the description that sits
+# under it — on a phone, where the fonts are much larger, the two being equal made it shout.
+static func _cat_fs() -> int:
+	return 26 if MainGlobals.is_mobile() else 14
+
 static func _icon_px() -> float:
 	return 110.0 if MainGlobals.is_mobile() else 46.0
 
@@ -252,6 +257,11 @@ func _populate() -> void:
 		var nm: Label = Label.new()
 		nm.text = display_name
 		nm.add_theme_font_size_override("font_size", _title_fs())
+		# TOP for both, with the category nudged down by the difference in ASCENT below. Centring
+		# the two line boxes (which is what VERTICAL_ALIGNMENT_CENTER does) lines up their boxes,
+		# not their text: a smaller font has a shorter ascent, so its baseline ends up higher and
+		# it reads as sitting above the name. Matching baselines is what looks aligned.
+		nm.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 		nm.add_theme_color_override("font_color", _ACCENT)
 		nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		title_row.add_child(nm)
@@ -259,11 +269,23 @@ func _populate() -> void:
 		if not category.is_empty():
 			var cat: Label = Label.new()
 			cat.text = category
-			cat.add_theme_font_size_override("font_size", _desc_fs())
+			cat.add_theme_font_size_override("font_size", _cat_fs())
 			cat.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
-			cat.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+			cat.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 			cat.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			title_row.add_child(cat)
+			cat.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			# Drop the category by however much taller the name's ascent is, so both sit on one
+			# baseline.
+			var nf: Font = nm.get_theme_font("font")
+			var drop: int = 0
+			if nf != null:
+				drop = maxi(0, int(round(nf.get_ascent(_title_fs()) - nf.get_ascent(_cat_fs()))))
+			var cat_wrap: MarginContainer = MarginContainer.new()
+			cat_wrap.add_theme_constant_override("margin_top", drop)
+			cat_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cat_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			title_row.add_child(cat_wrap)
+			cat_wrap.add_child(cat)
 
 		var ds: Label = Label.new()
 		ds.text = desc

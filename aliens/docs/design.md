@@ -665,9 +665,17 @@ Coached tutorial in `aliens/scripts/tutorial.gd`; see `docs/tutorials.md` for th
   blindly meant that if the wait step timed out, or the alien had wandered off on park patience,
   or `_recycle` had reused that node with fresh traits, the coach marked a non-matching alien
   standing out in the field and asked for a drag the rules would silently refuse.
-- **`tutorial_request_arrival(want_match)`** sends a suitable alien straight to the ring (no entry
-  roll, no arrival-mix veto), so the wait step resolves promptly instead of relying on chance —
-  which keeps its timeout a safety net rather than the usual path.
+- **`tutorial_request_arrival(want_match)`** *guarantees* the arrival rather than hoping for one,
+  because the step after it says "this one matches" and asks for a drag. It holds
+  `tutorial_hold_arrivals` so nobody else can take the place it is about to reserve; frees a slot
+  via `_tutorial_make_room()` if the ring is full (a plain `_reserve_park` failure was silent, and
+  nothing ever arrived); and if an alien of the required kind is **already** parked it reports the
+  arrival itself — otherwise the event has already been and gone and the waiting step sits out its
+  full timeout with the answer on screen.
+- `_tutorial_make_room()` deliberately does not reuse `_give_up()`: that charges a mistake when the
+  alien it evicts happens to match, and during a tutorial the player never touched it.
+- The waiting steps say only "one is on its way" — they used to announce *what kind* was coming,
+  which the player read seconds before any such alien existed or was marked.
 - **Steps that say "this one" LOCK their alien.** `_tutorial_last_parked` is overwritten by every
   later arrival, so reading it live made the spotlight hop from alien to alien while the caption
   still described the first — landing on aliens that plainly *did* match during the "this one does

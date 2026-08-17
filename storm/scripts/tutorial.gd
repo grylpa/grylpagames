@@ -33,60 +33,42 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Storm",
-			"text": "A storm is coming, and the roof is not what it was.\n\nYour job is to keep the water off your things.",
+			"text": "The roof leaks.\n\nKeep the water off your things.",
 		},
 		{
-			"text": "This is you.",
-			"spot": player_spot,
-			"spot_radius": 70.0,
-		},
-		{
-			"title": "Getting about",
-			"text": "You move by DRAWING a path.\n\nPut your finger down and trace where you want to go without lifting — like this — then let go. You walk the whole line on your own.",
+			"text": "Draw a route with your finger and you walk it — like this.\n\nArrow keys work too: one sets you going that way until something stops you.",
 			"spot": player_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,
 		},
 		{
-			"text": "Your turn — trace a route across the floor.",
+			"text": "Your turn. Trace a route.",
 			"await": {"event": "path_drawn", "timeout": 60.0},
 			"demo_path": demo_path,
 			"hint_after": 10.0,
-			"hint": "Press down anywhere on the floor, drag along the route you want WITHOUT lifting, then let go.",
+			"hint": "Press down, drag along the route without lifting, then let go.",
 		},
 		{
-			"text": "The arrow keys work too, but differently: an arrow sets you walking that way until something stops you.",
-		},
-		{
-			"text": "Good. Getting somewhere quickly is most of this game.",
-		},
-		{
-			"text": "Now let's wait for the roof to start leaking.",
+			"text": "Here comes the first leak.",
 			"await": {"event": "leak_started", "timeout": 40.0},
 		},
 		{
-			"title": "The catch",
-			"text": "There is water coming in.\n\nBut you cannot deal with a leak from across the room — you have to be standing right beside it.",
-		},
-		{
-			"text": "Walk over to a leak, then tap it.\n\nTapping one you are not next to does nothing at all — no message, nothing. That silence is the single most confusing thing in this game, so remember it.",
+			"title": "You must be beside it",
+			"text": "Tapping a leak from across the room does nothing at all — no message, no sound.\n\nWalk to it, tap it, and pick something to catch the water.",
 			"await": {"event": "tool_placed", "timeout": 120.0},
 			"hint_after": 20.0,
-			"hint": "Draw a path so you end up right next to the water, THEN tap it and pick something from the panel.",
+			"hint": "Draw a route ending right next to the water, THEN tap it.",
 		},
 		{
-			"text": "That is the loop: get there, tap, put something under it.",
+			"title": "Your score",
+			"text": "It starts at 100 and only falls. It is what is left of your belongings, not points you are earning.",
 		},
 		{
-			"title": "Your things",
-			"text": "Water that is not caught ruins whatever it lands on, and that is what costs you.\n\nYour score starts at 100 and only ever goes DOWN — it is what is left of your belongings, not points you are earning.",
-		},
-		{
-			"title": "One more thing",
-			"text": "Buckets fill up. A full one stops catching anything and the water starts getting through again.\n\nTap a full one to pick it up, carry it to a drain, and empty it there.",
+			"title": "Buckets fill",
+			"text": "A full one stops catching and the water gets through again.\n\nTap it, carry it to a drain, and empty it there.",
 		},
 		{
 			"title": "Ready",
-			"text": "Keep moving, and keep ahead of the leaks.\n\nNothing you did here was scored — your real game starts from the menu.",
+			"text": "Keep moving, and keep ahead of the leaks.",
 		},
 	]
