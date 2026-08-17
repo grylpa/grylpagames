@@ -27,7 +27,7 @@ static func steps(level: Node, _game) -> Array:
 	# it would land on aliens that plainly did match the pass during the "this one does not match"
 	# step. Steps that say "this one" therefore LOCK the alien at step entry and keep pointing at
 	# that one alone. `ctx` is captured by both lambdas, which is how the lock is shared.
-	var ctx: Dictionary = {"al": null}
+	var ctx: Dictionary = {"al": null, "want": true, "asked_ms": -100000}
 
 	# Lock the alien this step is about, VALIDATED: still parked in the ring, and still on the
 	# side of the pass the caption is about to claim. Trusting `_tutorial_last_parked` blindly
@@ -35,24 +35,81 @@ static func steps(level: Node, _game) -> Array:
 	# had wandered off, or _recycle had reused it with fresh traits — and the drag it then asked
 	# for was one the rules do not allow.
 	var lock_match: Callable = func() -> void:
+		ctx["want"] = true
+		ctx["asked_ms"] = -100000
 		ctx["al"] = level.tutorial_parked_alien(true, level._tutorial_last_parked)
 		level.tutorial_hold_arrivals = true      # no new arrivals until this one is dealt with
 	var lock_mismatch: Callable = func() -> void:
+		ctx["want"] = false
+		ctx["asked_ms"] = -100000
 		ctx["al"] = level.tutorial_parked_alien(false, level._tutorial_last_parked)
 		level.tutorial_hold_arrivals = true
+
+	# The player can always do the OPPOSITE of what the step asks: told to drag a matching alien
+	# into the ring, they drag it out instead. That leaves the step waiting on an event that can
+	# never arrive now, pointing at an alien which is no longer parked but wandering the field —
+	# and because arrivals are held for the duration of the step, nothing else can reach the ring
+	# either. So every frame: if the alien this step is about is no longer waiting at the gate,
+	# lock onto another of the same kind, and if there is none, send one.
+	var relock: Callable = func() -> void:
+		# Hands off while the player is holding an alien. A dragged alien is in DRAGGED state, not
+		# PARKED_OUTER, which reads exactly like "it left the gate" — so the frame was handed to a
+		# different alien mid-drag, while the player was still carrying the one it had marked.
+		# Whatever they do with it resolves the moment they let go, and this runs again then.
+		if level._drag_alien != null and is_instance_valid(level._drag_alien):
+			return
+		var al = ctx["al"]
+		if al != null and is_instance_valid(al) and al.state == level.AState.PARKED_OUTER 				and level._gate_wants(al, al.area_idx) == bool(ctx["want"]):
+			return
+		var replacement = level.tutorial_parked_alien(bool(ctx["want"]))
+		if replacement != null:
+			ctx["al"] = replacement
+			return
+		ctx["al"] = null
+		# Requesting spawns or re-routes an alien, so do not do it every frame while one walks over.
+		var now_ms: int = Time.get_ticks_msec()
+		if now_ms - int(ctx["asked_ms"]) < 1500:
+			return
+		ctx["asked_ms"] = now_ms
+		level.tutorial_request_arrival(bool(ctx["want"]))
 	var release_hold: Callable = func() -> void:
 		level.tutorial_hold_arrivals = false
 	# Send one of the required kind to the gate, so the wait step resolves promptly instead of
 	# relying on the arrival mix (and on its timeout).
+	var last_nudge: Dictionary = {"ms": -100000}
 	var want_match_arrival: Callable = func() -> void:
+		last_nudge["ms"] = Time.get_ticks_msec()
 		level.tutorial_request_arrival(true)
 	var want_mismatch_arrival: Callable = func() -> void:
+		last_nudge["ms"] = Time.get_ticks_msec()
 		level.tutorial_request_arrival(false)
+
+	# A requested arrival does not always make it: the walk can be interrupted, the alien recycled,
+	# the reservation lost. The wait step then sits out its full timeout with an empty ring, which
+	# is what "no alien enters the outer ring" looks like from the player's side. So ask again,
+	# occasionally, until one is actually waiting.
+	var nudge_for: Callable = func(want: bool) -> void:
+		if level.tutorial_parked_alien(want) != null:
+			return
+		var now_ms: int = Time.get_ticks_msec()
+		if now_ms - int(last_nudge["ms"]) < 4000:
+			return
+		last_nudge["ms"] = now_ms
+		level.tutorial_request_arrival(want)
+	var nudge_match: Callable = func() -> void:
+		nudge_for.call(true)
+	var nudge_mismatch: Callable = func() -> void:
+		nudge_for.call(false)
 
 	# The alien this step is talking about — the locked one, not whoever arrived most recently.
 	var locked_spot: Callable = func():
 		var al = ctx["al"]
 		if al == null or not is_instance_valid(al):
+			return null
+		# Not parked and not in the player's hand means it has wandered off, and the mark must not
+		# follow it. Being dragged is different: it is under their finger, and dropping the mark
+		# there looks like the game lost track of what they are carrying.
+		if al.state != level.AState.PARKED_OUTER and al != level._drag_alien:
 			return null
 		var r: float = float(al.radius) * 1.35
 		return Rect2(al.sim_pos - Vector2(r, r), Vector2(r, r) * 2.0)
@@ -108,11 +165,13 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"setup": want_match_arrival,
+			"tick": nudge_match,
 			"text": "One is on its way to the gate.",
 			"await": {"event": "alien_parked_matching", "timeout": 60.0},
 		},
 		{
 			"setup": lock_match,
+			"tick": relock,
 			"text": func(): return "This one matches %s.\n\nDrag it into the inner circle." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "promoted", "timeout": 60.0},
@@ -123,11 +182,13 @@ static func steps(level: Node, _game) -> Array:
 			"setup": func() -> void:
 				release_hold.call()
 				want_mismatch_arrival.call(),
+			"tick": nudge_mismatch,
 			"text": "Another one is on its way.",
 			"await": {"event": "alien_parked_mismatching", "timeout": 60.0},
 		},
 		{
 			"setup": lock_mismatch,
+			"tick": relock,
 			"text": func(): return "This one does not match %s.\n\nDrag it out to the open field." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "evicted", "timeout": 60.0},

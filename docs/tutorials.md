@@ -330,6 +330,32 @@ holds it still while the coach talks about it.
   `begin_tutorial()` snapshot, and a real game re-derives its clock from its level config on the
   next `new_game()` anyway. Verified per game by comparing a normal `new_game()` clock against one
   started right after a tutorial in the same session — identical for all eight.
+- **A step may carry a `tick` Callable**, run every frame while it is current. It exists so a game
+  can repair a situation the player has broken out from under a step. The player can always do the
+  opposite of what they are told: aliens says "this one matches — drag it into the inner circle",
+  and they drag it OUT. The step then waits on a `promoted` that can never come, its mark follows
+  the alien as it wanders the field, and because arrivals are held for the duration of the step
+  nothing can reach the ring either — a dead tutorial with a marker chasing an alien around.
+
+  aliens' two drag steps tick a `relock`: if the alien the step is about is no longer waiting at
+  the gate, lock onto another of the same kind, and if there is none, send one. Its two wait steps
+  tick a `nudge` that re-requests an arrival that never turned up (rate-limited to one request per
+  4 s, since requesting spawns or re-routes an alien).
+- **A `tick` must keep its hands off while the player is mid-gesture.** An alien being dragged is
+  in `DRAGGED` state, not `PARKED_OUTER`, which reads exactly like "it left the gate" — so aliens'
+  `relock` handed the frame to a different alien while the player was still carrying the one it
+  had marked. `relock` now returns immediately while `level._drag_alien` is set, and `locked_spot`
+  keeps resolving to an alien that is in the player's hand (only a *wandering* one is refused).
+  Whatever they do with it resolves the moment they let go, and the tick runs again then.
+- **A spotlight that stops resolving must erase its frame.** The per-frame redraw was requested
+  only while there WAS a spotlight, so when one resolved to nothing the last frame drawn stayed on
+  the canvas — dragging the marked alien out of the ring left its marker hanging in empty space.
+  The redraw is now also requested on the has-spot transition.
+- **The caption does not chase a moving spotlight.** It is repositioned only when the spotlight has
+  actually come to sit under it, and then not again for `SPOT_FOLLOW_COOLDOWN_MS` (700 ms).
+  Re-laying out on every change made the bubble jump across the screen frame by frame behind a
+  moving target. `locked_spot` in aliens also refuses to resolve to an alien that is not parked at
+  the gate, so the mark is never left on something walking away.
 - **A step must wait for the outcome it names, not for the button press.** change's payment steps
   waited on `paid`, which `_resolve` fires for a wrong payment as well — so pressing PAY with any
   coins in the tray completed the step, and the coach moved on to the next pile having never had

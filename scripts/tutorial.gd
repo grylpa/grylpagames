@@ -72,6 +72,9 @@ var _blocking: bool = true
 # be used, and the caption reads better docked low.
 var keep_clear: Array = []
 const KEEP_CLEAR_PAD: float = 6.0
+# How long the caption stays put after being moved out of the spotlight's way.
+const SPOT_FOLLOW_COOLDOWN_MS: int = 700
+var _moved_for_spot_ms: int = -100000
 var _step_elapsed: float = 0.0
 var _hint_shown: bool = false
 var _await_event: String = ""
@@ -253,6 +256,7 @@ func _enter_step(i: int) -> void:
 	_dim.mouse_filter = Control.MOUSE_FILTER_STOP if _blocking else Control.MOUSE_FILTER_IGNORE
 
 	_step_elapsed = 0.0
+	_moved_for_spot_ms = -100000
 	_hint_shown = false
 	_title_label.text = _resolve_text(step.get("title", ""))
 	_title_label.visible = not _title_label.text.is_empty()
@@ -400,6 +404,17 @@ func _process(dt: float) -> void:
 	if _finished or _idx < 0 or _idx >= _steps.size():
 		return
 	_hold_clock()
+	# `tick` runs every frame the step is current. It exists so a game can repair a situation the
+	# player has broken out from under a step: aliens' "drag this one IN" step is left pointing at
+	# an alien that the player dragged OUT instead, and has to get another one to the gate or the
+	# step waits forever on something that will never happen.
+	var step_now: Dictionary = _steps[_idx]
+	if step_now.has("tick"):
+		var tick_call: Callable = step_now["tick"]
+		if tick_call.is_valid():
+			tick_call.call()
+		if _finished or _idx < 0 or _idx >= _steps.size():
+			return
 	_step_elapsed += dt
 	_pulse += dt
 
@@ -416,10 +431,27 @@ func _process(dt: float) -> void:
 
 	# Re-evaluated every frame so the spotlight tracks a moving target.
 	var was: Rect2 = _spot_rect
+	var had_spot: bool = _has_spot
 	_update_spot()
-	if was != _spot_rect:
+	# Only move the caption when the spotlight has actually come to sit under it, and then not
+	# again for a moment. Re-laying out on every change made the caption chase a moving target
+	# across the screen — an alien dragged out of the ring wanders the field, and the bubble
+	# jumped after it frame by frame.
+	if was != _spot_rect and _has_spot:
+		var panel_rect: Rect2 = Rect2(_panel.position, _panel.size)
+		var hits: Rect2 = panel_rect.intersection(_spot_rect)
+		var overlapping: bool = hits.size.x > 0.0 and hits.size.y > 0.0
+		var now_ms: int = Time.get_ticks_msec()
+		if overlapping and now_ms - _moved_for_spot_ms >= SPOT_FOLLOW_COOLDOWN_MS:
+			_moved_for_spot_ms = now_ms
+			_layout_panel()
+	elif was != _spot_rect:
 		_layout_panel()
-	if _has_spot or not _demo_pts.is_empty():
+	# The frame going AWAY needs a redraw as much as one appearing: without this the last frame
+	# drawn stayed on the canvas after the spotlight resolved to nothing, so dragging the marked
+	# alien out of the ring left its marker hanging in empty space until something else happened
+	# to trigger a redraw.
+	if _has_spot or had_spot != _has_spot or not _demo_pts.is_empty():
 		_dim.queue_redraw()
 
 func _input(event: InputEvent) -> void:

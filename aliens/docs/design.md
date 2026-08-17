@@ -695,3 +695,25 @@ Coached tutorial in `aliens/scripts/tutorial.gd`; see `docs/tutorials.md` for th
   GREEN pass. It forces one gate, a permanently visible pass, and no gate changes,
   priority calls, compound passes or NOT passes. Each of those is a layer on top of the core
   promote/evict decision, which is all the tutorial teaches.
+
+### Tutorial: when the player does the opposite
+
+Told to drag a matching alien INTO the ring, a player may drag it out instead (and vice versa).
+Before this was handled, that left the step waiting on an event that could never fire, its mark
+tracking the alien as it wandered the field — the caption re-laid out every frame to dodge it, so
+the bubble jumped around with it — and `tutorial_hold_arrivals` kept anything else from reaching
+the ring, so the tutorial was simply stuck.
+
+While a drag is in progress the tick does nothing at all, and `locked_spot` still resolves to an
+alien held in the player's hand: `DRAGGED` is not `PARKED_OUTER`, so without that the frame was
+pulled off the alien they were carrying the moment they picked it up.
+
+Both drag steps now carry a `tick` (see `docs/tutorials.md`) that re-locks onto another parked
+alien of the same kind, or requests one if the ring is empty. `locked_spot` refuses to resolve to
+an alien that is not `PARKED_OUTER`, so the mark never follows one that is walking away.
+
+The two "one is on its way" steps tick a nudge that re-requests an arrival which never showed up.
+That path was observed failing intermittently in the headless harness — step 5 sitting out its
+full 60 s timeout with an empty ring — which is the same thing as "no alien enters the outer ring"
+from the player's side. The nudge covers the symptom; the underlying reason a requested arrival is
+occasionally lost has not been root-caused.
