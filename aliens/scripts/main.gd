@@ -85,14 +85,22 @@ func start_tutorial() -> void:
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _on_tutorial_done(_completed: bool) -> void:
-	if _tutorial_saved_level >= 0:
-		AliensG.starting_level_id = _tutorial_saved_level
-		_tutorial_saved_level = -1
+	_restore_tutorial_globals()
 	game.playing = false
 	$Level.stop_level()
 	refresh_menu()
 	show_main_menu()
 
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's
+# own _exit_tree does not invoke this callback — so without it the tutorial's stashed values
+# stayed applied to the player's real settings.
+func _restore_tutorial_globals() -> void:
+	if _tutorial_saved_level >= 0:
+		AliensG.starting_level_id = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))

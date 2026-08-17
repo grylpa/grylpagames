@@ -65,7 +65,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Buckets fill",
-			"text": "A full one stops catching and the water gets through again.\n\nTap it, carry it to a drain, and empty it there.",
+			"text": "A full one stops catching and the water gets through again.\n\nYou tap it, carry it to a drain, and empty it there.",
 		},
 		{
 			"title": "Ready",

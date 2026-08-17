@@ -341,6 +341,21 @@ holds it still while the coach talks about it.
   the gate, lock onto another of the same kind, and if there is none, send one. Its two wait steps
   tick a `nudge` that re-requests an arrival that never turned up (rate-limited to one request per
   4 s, since requesting spawns or re-routes an alien).
+- **A step that asks for an action must BE a doing step.** A talking step freezes the board and
+  swallows the next press, so an instruction in its text cannot be obeyed — and the press that
+  begins the attempt dismisses the step instead. Obeying the coach is what skips it. change's
+  "look underneath" step said "drag the top ones aside" while frozen; it now waits on `coin_moved`
+  (fired by `_drop_coin` wherever the coin lands, so shifting the heap counts as much as dropping
+  into the tray). storm's bucket step was teaching a rule about a situation not on screen, so it
+  describes the action rather than commanding it.
+
+  The harness fails any talking step whose text opens a clause with a board verb (drag, tap, press,
+  swipe, draw, trace, walk, put, pay). Two things that check has to get right, both learned by
+  seeding the bug back in: it splits on em-dashes and semicolons, not just sentence ends (the
+  original instruction hung off an em-dash and a first-word-of-sentence test sailed past it), and
+  it exempts steps with a `demo_path` (those show a gesture rather than ask for one) and the
+  opening step (no board exists yet, so "Pay it exactly" is the goal, not an instruction). "Lift"
+  is deliberately not a board verb — releasing a finger works fine while the board is frozen.
 - **A `tick` must keep its hands off while the player is mid-gesture.** An alien being dragged is
   in `DRAGGED` state, not `PARKED_OUTER`, which reads exactly like "it left the gate" — so aliens'
   `relock` handed the frame to a different alien while the player was still carrying the one it
@@ -455,6 +470,26 @@ them without entering each one to find out. The chooser hands the request over t
 pass arguments.
 
 ---
+
+## A global flag that kills breathing games
+
+Not a tutorial bug, but found while auditing one, and worth recording here because the audit is
+what surfaced it. `MainGlobals.popup_open` is global and sticky, and while it is set
+`scripts/main.gd::_process` blanks the digitized-swipe flags every frame — which silently kills
+exactly the games driven by them (udbr, mother, crack; river is commented out of the game list)
+and no others. Two owners set it: `ReauthPopup`, shown when the session expires after the app has
+been sitting idle, and storm's action panel. `ReauthPopup` cleared it only from its two buttons, so
+any other way of that popup going away left every breathing game dead until the app was restarted;
+it now clears on `_exit_tree`.
+
+storm's panel was NOT implicated and is deliberately left alone. It clears the flag via
+`popup_hide` plus two explicit calls. A `tree_exiting` guard was tried there and reverted: the
+replace-an-open-panel path calls `queue_free()` on the old popup and then sets the flag for the new
+one, and since `queue_free` defers deletion to the end of the frame, the old node's `tree_exiting`
+would fire afterwards and clear the flag while a panel was genuinely open.
+
+Measured: with the popup up, a swipe gives 0/15 frames flagged and a frozen ball; after it is
+freed, 15/15 and the ball moves.
 
 ## Verifying a tutorial
 

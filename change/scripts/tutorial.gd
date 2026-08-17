@@ -98,6 +98,9 @@ static func steps(level: Node, _game) -> Array:
 			"title": "Look underneath",
 			"text": "This one is heaped up. There are more coins here than you can see — drag the top ones aside.",
 			"spot": pile_spot,
+			"await": {"event": "coin_moved", "timeout": 60.0},
+			"hint_after": 10.0,
+			"hint": "Press a coin on top of the heap and pull it clear.",
 		},
 		{
 			"text": "Pay %s from this pile." % _money(BOARD2_TARGET),
