@@ -552,6 +552,9 @@ func _drop_coin() -> void:
 		node.set_in_tray(landed)
 	_drag_coin = null
 	game.tutorial_notify("coin_in_tray" if landed else "coin_out_of_tray")
+	# Fires wherever the coin ended up. A tutorial step that just wants "the player moved a coin"
+	# — shifting the top of the pile to see what is under it — should not care which.
+	game.tutorial_notify("coin_moved")
 
 func _snap_into_tray(entry) -> void:
 	var node = entry["node"]

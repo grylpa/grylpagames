@@ -109,13 +109,22 @@ func start_tutorial() -> void:
 func _on_tutorial_done(_completed: bool) -> void:
 	# end_tutorial() has already restored the player's own session state by now; all that is left
 	# is to put back what lives outside it, stop the level, and hand them the menu.
-	if _tutorial_saved_level >= 0:
-		DinoG.starting_level_id = _tutorial_saved_level
-		_tutorial_saved_level = -1
+	_restore_tutorial_globals()
 	game.playing = false
 	$Level.stop_level()
 	refresh_menu()
 	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke the done callback — so without this the tutorial's starting level
+# stayed applied to the player's real settings.
+func _restore_tutorial_globals() -> void:
+	if _tutorial_saved_level >= 0:
+		DinoG.starting_level_id = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 
 func show_level() -> void:
 	get_viewport().gui_release_focus()

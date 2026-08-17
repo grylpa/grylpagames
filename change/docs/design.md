@@ -139,6 +139,13 @@ the tray nor drag into it. `main.gd` passes all three rects as the runner's `kee
 pushes the caption into the band above the pile on player-action steps. Talking steps still dock
 low: the board is frozen there and nothing under the caption can be reached.
 
+### Tutorial: the "look underneath" step
+
+It says "drag the top ones aside", so it has to be a doing step. As a talking step the board was
+frozen: the drag could not happen, and the press that began it dismissed the caption — so trying to
+do what the coach asked skipped straight to the payment step. It now waits on `coin_moved`, which
+`_drop_coin` fires wherever the coin ends up.
+
 ### Tutorial: paying the named amount
 
 Three things stopped the coach's stated amount from being payable:

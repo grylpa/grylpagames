@@ -321,9 +321,10 @@ func _advance() -> void:
 #
 # Debounced rather than filtered by event type: dropping InputEventScreenTouch outright would leave
 # the tutorial undismissable on any device where mouse emulation is off. The twin lands in the same
-# frame or the next; 350 ms swallows it and is far below the gap between two taps a reader makes on
-# purpose.
-const TAP_DEBOUNCE_MS: int = 350
+# frame or the next, so the window only has to cover ~2 frames — keep it tight. It was 350 ms,
+# which is long enough to swallow a real second press from a player tapping quickly; nothing needs
+# that much, and on a touch device a swallowed press reads as the screen having gone dead.
+const TAP_DEBOUNCE_MS: int = 120
 var _last_tap_ms: int = -100000
 
 func _tap_advance() -> void:
