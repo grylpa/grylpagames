@@ -62,6 +62,6 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "Every car to a green exit, and no crashes.",
+			"text": "Steer every car to a green exit, and no crashes.",
 		},
 	]
