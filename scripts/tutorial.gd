@@ -34,6 +34,12 @@ const PAD_X: float = 18.0        # caption inner padding, left/right
 const PAD_Y: float = 14.0        # caption inner padding, top/bottom
 const VBOX_SEP: int = 6
 const MAX_PANEL_FRAC: float = 0.55       # caption never eats more than this much of the screen
+# A tutorial runs on the real level, so it inherits that level's clock — a minute or so in most
+# games. Reading the captions and doing the exercises easily outlasts it, and the level ending
+# mid-lesson drops a "level complete" popup over the coach. Give it far more room than any
+# tutorial needs; end_tutorial() puts the player's own clock back afterwards (time_left_sec and
+# _reset_time_left_sec are both in the snapshot).
+const TUTORIAL_MINUTES: int = 30
 # A SIDE caption is a narrow column pinned to one edge, for games whose action runs down the middle
 # of the screen: udbr's lane is vertical and centered, and the ball travels its whole height, so a
 # full-width caption docked at the bottom sits on top of the very thing the player is watching.
@@ -56,6 +62,16 @@ var _foot_label: Label = null
 var _spot_rect: Rect2 = Rect2()
 var _has_spot: bool = false
 var _blocking: bool = true
+
+# Rects the caption must not sit on while the player is playing: the controls the step is telling
+# them to use. Set per game before run() — each entry is a Callable returning a Rect2, a Control,
+# or null. A coach bubble that covers the tray you are told to drag coins into, or the New/Seen
+# buttons you are told to press, makes the step impossible to carry out.
+#
+# Honored on player-action steps only. On a talking step the game is frozen, nothing underneath can
+# be used, and the caption reads better docked low.
+var keep_clear: Array = []
+const KEEP_CLEAR_PAD: float = 6.0
 var _step_elapsed: float = 0.0
 var _hint_shown: bool = false
 var _await_event: String = ""
@@ -90,6 +106,7 @@ func run(parent: Node, steps: Array, game_util, on_done: Callable = Callable()) 
 			_game.begin_tutorial()
 		_game.tutorial_runner = self
 	_build()
+	_hold_clock()
 	_enter_step(0)
 
 func _build() -> void:
@@ -286,6 +303,32 @@ func _update_footer() -> void:
 func _advance() -> void:
 	_enter_step(_idx + 1)
 
+# One physical tap arrives as TWO events. Godot's Input layer synthesizes a mouse button from a
+# screen touch (input_devices/pointing/emulate_mouse_from_touch, on by default) and a screen touch
+# from a mouse button (pointing/emulate_touch_from_mouse=true in project.godot) — so on every
+# platform, one tap reaches _on_dim_input twice. accept_event() does not help: it ends propagation
+# of the event it is called on, not of the twin that follows.
+#
+# That cost a step every time two talking steps were adjacent: the tap dismissing the first also
+# dismissed the second. gorilla (steps 4-7 all talking) and wolves (7-8) simply never showed their
+# last step — the tutorial ended on the tap that was meant to reveal it. Steps followed by a
+# player-action step were spared, because _blocking goes false and the twin is dropped below, which
+# is why the loss looked arbitrary rather than systematic.
+#
+# Debounced rather than filtered by event type: dropping InputEventScreenTouch outright would leave
+# the tutorial undismissable on any device where mouse emulation is off. The twin lands in the same
+# frame or the next; 350 ms swallows it and is far below the gap between two taps a reader makes on
+# purpose.
+const TAP_DEBOUNCE_MS: int = 350
+var _last_tap_ms: int = -100000
+
+func _tap_advance() -> void:
+	var now: int = Time.get_ticks_msec()
+	if now - _last_tap_ms < TAP_DEBOUNCE_MS:
+		return
+	_last_tap_ms = now
+	_advance()
+
 # A game reports that something happened, via game.tutorial_notify("...").
 func notify(event_name: String) -> void:
 	if _finished:
@@ -336,9 +379,27 @@ func _set_frozen(frozen: bool) -> void:
 
 # --- Per-frame --------------------------------------------------------------
 
+# Keep the level clock topped up for as long as the tutorial runs.
+#
+# Setting it once is not enough: several games (wolves, storm) have a new_game() that awaits a
+# frame, so the level applies its OWN level time after run() has already set ours — they were left
+# on a 120 s clock. Re-applying also covers a level that resets the clock part-way through.
+# end_tutorial() restores the player's own values afterwards; both time_left_sec and
+# _reset_time_left_sec are in the snapshot, and a real game re-derives its clock from its level
+# config on the next new_game() regardless.
+func _hold_clock() -> void:
+	if _game == null:
+		return
+	var want: int = TUTORIAL_MINUTES * 60
+	if _game.time_left_sec >= want - 5:
+		return
+	_game.set_reset_time_left(want)
+	_game.set_time_left(0, TUTORIAL_MINUTES, 0)
+
 func _process(dt: float) -> void:
 	if _finished or _idx < 0 or _idx >= _steps.size():
 		return
+	_hold_clock()
 	_step_elapsed += dt
 	_pulse += dt
 
@@ -372,7 +433,7 @@ func _input(event: InputEvent) -> void:
 	if not _blocking:
 		return
 	if event.is_action_pressed("ui_accept"):
-		_advance()
+		_tap_advance()
 		get_viewport().set_input_as_handled()
 
 func _on_dim_input(event: InputEvent) -> void:
@@ -381,7 +442,7 @@ func _on_dim_input(event: InputEvent) -> void:
 	var tapped: bool = (event is InputEventMouseButton and event.pressed) \
 		or (event is InputEventScreenTouch and event.pressed)
 	if tapped:
-		_advance()
+		_tap_advance()
 		_dim.accept_event()
 
 # --- Spotlight --------------------------------------------------------------
@@ -574,26 +635,67 @@ func _layout_panel() -> void:
 		_panel.size = Vector2(avail_w, panel_h)
 		return
 
-	var y: float = bottom_y
-	if _has_spot:
-		# Put the caption in whichever gap around the spotlight it actually fits in. Simply
-		# flipping bottom->top is not enough: a target near the middle of the screen (a gorilla
-		# held mid-lane on a vertical run, say) clips BOTH ends, and the old fallback then chose
-		# bottom regardless and sat on top of the very thing it was pointing at.
-		var gap_above: float = _spot_rect.position.y - top_y
-		var gap_below: float = low_limit - _spot_rect.end.y
-		if gap_below >= panel_h:
-			y = bottom_y
-		elif gap_above >= panel_h:
-			y = _spot_rect.position.y - PANEL_MARGIN - panel_h
-		elif gap_above >= gap_below:
-			# Neither gap fits: take the roomier one and sit flush against the spotlight, so the
-			# overlap is as small as the screen allows rather than as large.
-			y = maxf(top_y, _spot_rect.position.y - panel_h)
-		else:
-			y = minf(bottom_y, _spot_rect.end.y)
+	var y: float = _best_y(_obstacles(), top_y, low_limit, panel_h, bottom_y, avail_w)
 	_panel.position = Vector2(PANEL_MARGIN, y)
 	_panel.size = Vector2(avail_w, panel_h)
+
+# Everything the caption should stay off: the spotlight always (pointing at something and then
+# covering it is the one thing a coach must never do), plus `keep_clear` while the player is
+# playing.
+func _obstacles() -> Array:
+	var out: Array = []
+	if _has_spot:
+		out.append(_spot_rect)
+	if _blocking:
+		return out
+	for entry in keep_clear:
+		var target = entry
+		if target is Callable:
+			if not (target as Callable).is_valid():
+				continue
+			target = (target as Callable).call()
+		if target == null:
+			continue
+		var rect: Rect2 = _rect_for(target, DEFAULT_SPOT_RADIUS)
+		if rect.size.x > 0.0 and rect.size.y > 0.0:
+			out.append(rect.grow(KEEP_CLEAR_PAD))
+	return out
+
+# Where to dock a full-width caption so it covers as little as possible of what matters.
+#
+# Candidates are the natural bottom dock plus, for each obstacle, flush above and flush below it;
+# the winner is whichever overlaps the obstacles least, ties going to the lowest (captions read
+# better near the bottom, and that is where every tutorial started out). The panel is never
+# shrunk to fit — a clipped instruction is worse than an overlapping one.
+#
+# This replaced a spotlight-only rule that only ever flipped bottom->top. It could not express
+# "clear of the spotlight AND clear of the tray", which is what change needs on the step that says
+# to put coins in the tray, and it sat on the tray 94%% of the time.
+func _best_y(obstacles: Array, top_y: float, low_limit: float, panel_h: float,
+		bottom_y: float, panel_w: float) -> float:
+	if obstacles.is_empty():
+		return bottom_y
+	var lowest: float = maxf(low_limit - panel_h, top_y)
+	var cands: Array = [clampf(bottom_y, top_y, lowest), top_y]
+	for r in obstacles:
+		var rect: Rect2 = r
+		cands.append(clampf(rect.position.y - PANEL_MARGIN - panel_h, top_y, lowest))
+		cands.append(clampf(rect.end.y + PANEL_MARGIN, top_y, lowest))
+	var best_y: float = cands[0]
+	var best_cost: float = INF
+	for c in cands:
+		var cy: float = c
+		var here: Rect2 = Rect2(PANEL_MARGIN, cy, maxf(panel_w, 1.0), panel_h)
+		var cost: float = 0.0
+		for r2 in obstacles:
+			var ov: Rect2 = here.intersection(r2)
+			if ov.size.x > 0.0 and ov.size.y > 0.0:
+				cost += ov.get_area()
+		# Ties go to the lower position.
+		if cost < best_cost - 0.5 or (absf(cost - best_cost) <= 0.5 and cy > best_y):
+			best_cost = cost
+			best_y = cy
+	return best_y
 
 # The caption's height, computed from the font rather than asked of a container. Font metrics are
 # available immediately, so the caption is correctly placed on the very first frame it appears —

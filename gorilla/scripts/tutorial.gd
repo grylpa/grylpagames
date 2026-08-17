@@ -44,81 +44,41 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Gorilla",
-			"text": "You are inside a walled room, and the floor is covered in coins.",
+			"text": "You are in a walled room with coins all over the floor.\n\nCollect every one of them.",
 		},
 		{
-			"text": "This is you.",
+			"text": "This is you. You walk by yourself, and keep going the same way until you turn.",
 			"spot": player_spot,
 			"spot_radius": 70.0,
 		},
 		{
-			"title": "You are already walking",
-			"text": "Notice you did not have to start. You walk by yourself, and you keep going in the same direction until you turn.\n\nWalking over a coin picks it up.",
-			"spot": player_spot,
-			"spot_radius": 70.0,
-		},
-		{
-			# Waits for a real steer, not a coin. The player is ALWAYS walking
-			# (GorillaG.always_moving), so a "collect a coin" step gets satisfied by the game
-			# wandering into one on its own — and the coach then congratulates you for nothing.
-			"text": "So all you do is steer. Swipe in a direction — a short, fast drag anywhere on the screen — and you turn that way. Arrow keys work too.\n\nTry turning now.",
+			"text": "Swipe in a direction to turn that way. Arrow keys do the same.\n\nTry it.",
 			"await": {"event": "player_steered", "timeout": 60.0},
 			"hint_after": 10.0,
-			"hint": "A quick swipe up, down, left or right — or tap an arrow key.",
+			"hint": "A quick swipe up, down, left or right.",
 		},
 		{
-			"text": "That is the steering. Your first job is to clear ALL the coins in the room.\n\nThe round ends when the last one is gone, or when the time runs out.",
-		},
-		{
-			# Spawn AND hold in one step, with no `await`.
-			#
-			# These were two steps: one that spawned a gorilla and waited for `gorilla_appeared`,
-			# and one that talked about it. But the spawn fires that event synchronously, so the
-			# waiting step was satisfied during its own setup and advanced immediately — displayed
-			# for zero frames, which is what made the stage numbers skip (6/13 then 8/13).
-			# The wait was pointless anyway: the gorilla exists the moment the setup returns.
-			#
-			# The gorilla is asked for here rather than left to the level's timed schedule because
-			# on the schedule one ran past while the coach was still talking about coins, and a
-			# different one was held up later — which read as a gorilla appearing from nowhere.
-			# Holding it mid-lane matters too: otherwise the coach describes one that has already
-			# run off the edge.
 			"setup": func():
 				level.tutorial_spawn_gorilla()
 				level.tutorial_hold_gorilla_midscreen(),
-			"title": "There is a second job",
-			"text": "While you are collecting, gorillas walk past OUTSIDE the room — like this one.\n\nIt is frozen so you can get a proper look. In the real game it walks straight past in seconds.",
-			"spot": gorilla_spot,
-			"spot_radius": 95.0,
-		},
-		{
-			"text": "Gorillas like that one are what you have to COUNT.\n\nThey only ever walk along the edges, outside the wall, and only one at a time.",
+			"title": "The second job",
+			"text": "Gorillas walk past outside the wall — like this one.\n\nCount them. They only ever pass along the edges, one at a time.",
 			"spot": gorilla_spot,
 			"spot_radius": 95.0,
 		},
 		{
 			"title": "Two things at once",
-			"text": "So: clear every coin, and keep a running count of the gorillas.\n\nThe coins pull your eyes into the middle of the room. The gorillas only ever appear round the outside. That is the whole difficulty.",
+			"text": "Clear the coins, and keep count.\n\nThe coins hold your eyes in the middle of the room; the gorillas only ever appear round the outside.",
 		},
 		{
-			"text": "When the coins are gone or the time is up, you will be asked how many gorillas went past.\n\nGet the number right and you take a bonus.",
-		},
-		{
-			# Monsters are off for the whole tutorial so nobody is killed mid-lesson, but a player
-			# who has never been shown one meets their first at full speed with no warning.
 			"setup": func(): level.tutorial_show_a_monster(),
-			"title": "One thing you have been spared",
-			"text": "This is a monster. In a real round there are some of these in the room with you, and they chase you.",
-			"spot": monster_spot,
-			"spot_radius": 60.0,
-		},
-		{
-			"text": "Let one catch you and it costs you a life. They have been switched off for this tutorial — from now on they will not be.",
+			"title": "Monsters",
+			"text": "Monsters share the room and chase you. Being caught costs a life.",
 			"spot": monster_spot,
 			"spot_radius": 60.0,
 		},
 		{
 			"title": "Ready",
-			"text": "Collect, and count.\n\nNothing you did here was scored — your real game starts from the menu.",
+			"text": "When the coins are gone, or the time is up, you are asked how many gorillas went past.\n\nGet it right for a bonus.",
 		},
 	]

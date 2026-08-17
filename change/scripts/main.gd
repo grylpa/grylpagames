@@ -82,6 +82,14 @@ func start_tutorial() -> void:
 	ChangeG.starting_level_id = tut.tutorial_level_id()
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
+	# The board fills the screen: pile, then tray, then PAY. A caption docked at the bottom sat on
+	# 94%% of the tray on the step that says to put coins in it, so it could be neither seen nor
+	# dragged into. Listing all three pushes the caption into the band above the pile.
+	runner.keep_clear = [
+		func(): return $Level._pile_rect,
+		func(): return $Level._basket_rect,
+		func(): return $Level._pay_btn,
+	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _on_tutorial_done(_completed: bool) -> void:

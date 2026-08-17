@@ -30,14 +30,14 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Guidem",
-			"text": "Cars drive out onto the roads.\n\nYour job is to get every one of them to a green exit.",
+			"text": "Cars drive out on their own.\n\nGet every one of them to a green exit.",
 		},
 		{
-			"text": "Here comes the first car. It drives on its own, and it never stops.",
+			"text": "Here comes the first. It never stops.",
 			"await": {"event": "walker_dispatched", "timeout": 30.0},
 		},
 		{
-			"text": "You steer them with the doors at the junctions. Tap this one.",
+			"text": "You steer them with the doors at the junctions.\n\nTap this one.",
 			"spot": door_spot,
 			"spot_radius": 60.0,
 			"await": {"event": "door_turned", "timeout": 60.0},
@@ -45,7 +45,7 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Tap directly on the door.",
 		},
 		{
-			"text": "Tap it again — a door has three positions and cycles round them, so keep tapping until it points where you want.",
+			"text": "Again — a door cycles through three positions, so keep tapping until it points where you want.",
 			"spot": door_spot,
 			"spot_radius": 60.0,
 			"await": {"event": "door_turned", "timeout": 60.0},
@@ -53,15 +53,15 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Tap the same door once more.",
 		},
 		{
-			"title": "Work ahead of them",
-			"text": "Since the cars never stop, set the door a car is heading FOR — not the one it is already on.",
+			"title": "Work ahead",
+			"text": "Set the door a car is heading FOR, not the one it is already on.",
 		},
 		{
 			"title": "Keep them apart",
-			"text": "Two cars that run into each other crash, and it costs you.\n\nWith several on the road at once, that is the real difficulty: a door set right for one car may send the next one into it.",
+			"text": "Two cars that run into each other crash, and it costs you.\n\nA door set right for one car can send the next one into it.",
 		},
 		{
 			"title": "Ready",
-			"text": "Every car to a green exit, and no crashes.\n\nNothing you did here was scored — your real game starts from the menu.",
+			"text": "Every car to a green exit, and no crashes.",
 		},
 	]

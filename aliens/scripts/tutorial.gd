@@ -92,81 +92,55 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Aliens",
-			"text": "You are working a spaceport gate.\n\nAliens wander about outside, and you decide which of them get to board.",
+			"text": "You work a spaceport gate.\n\nAliens queue up at it, and you decide who boards.",
 		},
 		{
-			"text": func(): return "This is the gate's PASS. Right now it says:\n\n%s\n\nOnly aliens that match it may board." % pass_text.call(),
+			"text": func(): return "This is the gate's pass: %s.\n\nOnly aliens that match it may board." % pass_text.call(),
 			"spot": pass_spot,
 		},
 		{
-			"text": "This is the gate. Aliens walk up to the outer ring on their own and wait there for you.",
+			"text": "Aliens walk into the outer ring by themselves and wait there.",
 			"spot": gate_spot,
 		},
 		{
-			"text": "And this inner circle is the ship. Nothing gets in here except by your hand.",
+			"text": "The inner circle is the ship. Nothing gets in except by your hand.",
 			"spot": inner_spot,
 		},
 		{
-			"text": "Let's wait for someone to come up to the gate.",
-			"await": {"event": "alien_parked", "timeout": 30.0},
-		},
-		{
-			"text": "There. This one is waiting on your decision.",
-			"spot": parked_spot,
-		},
-		{
-			"text": func(): return "Look it over, and look at the pass: %s." % pass_text.call(),
-			"spot": pass_spot,
-		},
-		{
-			"title": "The decision",
-			"text": func(): return "Compare the alien with the pass — %s.\n\nDoes it match? Drag it INTO the inner circle.\nDoes it not? Drag it OUT to the open field." % pass_text.call(),
-		},
-		{
 			"setup": want_match_arrival,
-			"text": "Let's wait for one the pass accepts.",
+			"text": "One is on its way to the gate.",
 			"await": {"event": "alien_parked_matching", "timeout": 60.0},
 		},
 		{
 			"setup": lock_match,
-			"text": func(): return "This one matches the pass — %s.\n\nDrag it into the inner circle." % pass_text.call(),
+			"text": func(): return "This one matches %s.\n\nDrag it into the inner circle." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "promoted", "timeout": 60.0},
 			"hint_after": 8.0,
-			"hint": "Press on the alien and drag it to the middle of the gate.",
+			"hint": "Press the alien and drag it to the middle of the gate.",
 		},
 		{
-			"setup": release_hold,
-			"text": "Aboard. That is one correct call.",
-		},
-		{
-			"setup": want_mismatch_arrival,
-			"text": "Now let's wait for one it does not.",
+			"setup": func() -> void:
+				release_hold.call()
+				want_mismatch_arrival.call(),
+			"text": "Another one is on its way.",
 			"await": {"event": "alien_parked_mismatching", "timeout": 60.0},
 		},
 		{
 			"setup": lock_mismatch,
-			"text": func(): return "This one does NOT match %s.\n\nDrag it out to the open field." % pass_text.call(),
+			"text": func(): return "This one does not match %s.\n\nDrag it out to the open field." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "evicted", "timeout": 60.0},
 			"hint_after": 8.0,
-			"hint": "Drag it right out of the rings, anywhere on the open ground.",
+			"hint": "Drag it clear of the rings, onto the open ground.",
 		},
 		{
 			"setup": release_hold,
 			"title": "Both count",
-			"text": "Turning the wrong alien away scores exactly as much as boarding the right one.\n\nLeaving it standing there scores nothing at all.",
-		},
-		{
-			"text": "Which matters, because the outer ring only holds a few.\n\nWhile it is full, every alien that walks up is turned away — and each one of those costs you.",
-			"spot": gate_spot,
-		},
-		{
-			"title": "Later on",
-			"text": "As you go up the levels the pass comes down after a few seconds and you have to hold it in your head.\n\nWith two gates, an alien is only ever judged against the gate it walked into.",
+			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nLeaving it in the ring scores nothing — and while the ring is full, everyone who walks up is turned away and costs you.",
 		},
 		{
 			"title": "Ready",
-			"text": "Keep the ring moving until the timer runs out.\n\nNothing you did here was scored — your real game starts from the menu.",
+			"text": "Later the pass comes down after a few seconds and you have to remember it, and a second gate opens.",
 		},
 	]

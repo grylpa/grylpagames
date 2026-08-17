@@ -174,3 +174,9 @@ Coached tutorial in `wolves/scripts/tutorial.gd`; see `docs/tutorials.md` for th
   The tutorial asks the player to startle a stray back in, and at level start every sheep is still
   safely inside with the fence only just beginning to fail — so without this the player waits in
   front of an intact flock for a stray that may not come.
+
+### Tutorial: the last step
+
+Steps 7 and 8 are adjacent talking steps, so wolves lost its final caption to the shared runner's
+double-advance (one tap arrived as both a touch and a synthesized mouse event). 5 of 8 steps
+reached the screen. Fixed in `scripts/tutorial.gd` (`_tap_advance`); see `docs/tutorials.md`.

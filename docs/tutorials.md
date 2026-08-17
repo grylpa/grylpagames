@@ -252,6 +252,16 @@ a relationship ("pay 60 cents", "there are more coins than you can see"), the pr
 against the board: that the target is a reachable subset of the coins present, and that the pile
 really does bury one. Prose is where tutorials go stale.
 
+**Do not describe a thing before the player can see it.** A step that waits for something should
+say only that it is waiting; the description belongs on the step where the thing is on screen and
+marked. Aliens announced "now one the pass does not accept" and then left that sentence up for
+however long it took such an alien to walk in.
+
+**A promised arrival has to be guaranteed, not likely.** If a step says "this one matches, drag it
+in", something must actually be there. Aliens reserves the slot, holds off other arrivals, makes
+room if the ring is full, and reports the arrival itself if one of the required kind is already
+parked — otherwise the event fired before the step opened and the step waits out its timeout.
+
 **Validate the thing you name — do not just remember it.** Locking a reference is not enough if
 the game can change what that reference *is*. Aliens locked the alien that had just parked, but by
 the time the player acted it could have wandered off on park patience, or been reused by `_recycle`
@@ -309,6 +319,72 @@ holds it still while the coach talks about it.
   persisted in the app-level settings (slot 14) — *not* in the per-game settings file, which
   tutorial mode cannot write.
 - **"How to play" pill** on the game chooser, beside About.
+- **The level clock is held at 30 minutes** for the duration of a tutorial
+  (`TutorialRunner.TUTORIAL_MINUTES`). A tutorial runs on the real level, so it inherits that
+  level's clock — 40-120 s in most games — and reading the captions easily outlasts it, dropping a
+  "level complete" popup over the coach. It is re-applied each frame rather than set once: wolves'
+  and storm's `new_game()` await a frame, so the level applies its own level time *after* `run()`
+  has already set ours, and they were left on 120 s.
+
+  It cannot leak into real play. `time_left_sec` and `_reset_time_left_sec` are both in the
+  `begin_tutorial()` snapshot, and a real game re-derives its clock from its level config on the
+  next `new_game()` anyway. Verified per game by comparing a normal `new_game()` clock against one
+  started right after a tutorial in the same session — identical for all eight.
+- **A step must wait for the outcome it names, not for the button press.** change's payment steps
+  waited on `paid`, which `_resolve` fires for a wrong payment as well — so pressing PAY with any
+  coins in the tray completed the step, and the coach moved on to the next pile having never had
+  the amount it just named paid. They now wait on `paid_correct`, and `change/level.gd` re-queues a
+  missed board while `tutorial_mode` is on, so the same pile comes back and the lesson can actually
+  be completed rather than the caption being left naming an amount nothing on screen is asking for.
+- **State a lesson leaves behind must not break the next one.** change's step 4 says "drag *a* coin
+  into the tray". A player who dragged the 5c still had it there when step 6 said "put in exactly
+  35 cents" — they added 25+10, the tray held 40c, and they were marked wrong for following the
+  instruction exactly. The tray is now emptied by step 6's `setup`, and step 5 teaches dragging a
+  coin back out — a mechanic the tutorial never mentioned, without which a player who mis-adds has
+  no way to correct it.
+- **The board must not lag the caption.** A tutorial announces the next card or pile the instant
+  the previous answer lands, while the board is still showing its feedback banner and then waiting
+  out the inter-round gap — so the thing the caption is talking about turns up a second later and
+  the tutorial reads as hung. dino's tutorial cuts `gap_ms` 800 -> 150 and `feedback_ms` 700 ->
+  250 (measured 1.57 s -> 0.58 s from caption to card); change cuts 1000 -> 200 and 1200 -> 500.
+  `feedback_ms` is a var only for this, and `_load_level` restores `FEEDBACK_DEFAULT_MS`, so real
+  play never inherits the tutorial's pacing — verified per game by comparing a normal `new_game()`
+  against one started right after a tutorial in the same session.
+- **The caption must not cover the controls the step tells you to use.** `TutorialRunner.keep_clear`
+  is a per-game list of Callables returning a Rect2, a Control, or null; set it before `run()`.
+  Those rects are treated as obstacles when the caption is placed — together with the spotlight,
+  which always counts, because pointing at something and then covering it is the one thing a coach
+  must never do.
+
+  Honored on **player-action steps only**. On a talking step the game is frozen, nothing underneath
+  can be used, and the caption reads better docked low.
+
+  Placement (`_best_y`) tries the natural bottom dock plus flush-above and flush-below each
+  obstacle, and takes whichever overlaps least, ties going to the lowest. The panel is never shrunk
+  to fit: a clipped instruction is worse than an overlapping one. This replaced a spotlight-only
+  rule that could only flip bottom->top, and so could not express "clear of the spotlight AND clear
+  of the tray" — change's caption sat on 94%% of the tray on the step telling the player to put
+  coins in it, and dino's sat on the New/Seen buttons on every step telling them to press one.
+
+  Currently set by change (pile, tray, PAY) and dino (both answer buttons). Measured clear on both
+  desktop and mobile metrics; the harness fails any player-action step whose caption overlaps a
+  keep-clear zone.
+- **One tap must advance exactly one step.** Godot delivers a single tap as *two* events: the
+  Input layer synthesizes a mouse button from a screen touch
+  (`input_devices/pointing/emulate_mouse_from_touch`, on by default) and a screen touch from a
+  mouse button (`pointing/emulate_touch_from_mouse=true` in `project.godot`). `_on_dim_input`
+  accepts both, so every tap fired it twice, and `accept_event()` does not help — it ends
+  propagation of the event it is called on, not of the twin that follows.
+
+  The cost was a lost step wherever two talking steps sat next to each other: the tap dismissing
+  the first also dismissed the second. gorilla showed 4 of its 7 steps and never reached its
+  ending; wolves showed 5 of 8. Steps followed by a player-action step were spared, because
+  `_blocking` goes false and the twin is dropped — which is why the loss looked random rather than
+  systematic, and why it surfaced as "the last step isn't shown".
+
+  Fixed by `_tap_advance()`, which debounces input-driven advances by `TAP_DEBOUNCE_MS` (350 ms).
+  Debounced rather than filtered by event type: dropping `InputEventScreenTouch` outright would
+  leave the tutorial undismissable wherever mouse emulation is off.
 - **Returning to the game's own menu ends the tutorial.** `main_menu._on_visibility_changed()`
   calls `game.abort_tutorial()` when the menu becomes visible — the one place every game passes
   through on its way back, so no game has to remember it. The coach lives on a `CanvasLayer` owned

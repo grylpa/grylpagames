@@ -340,3 +340,12 @@ Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for t
 - The step that waits for `gorilla_appeared` deliberately carries **no** spotlight — at the moment
   it opens the gorilla does not exist yet, so it would point at bare ground. The spotlight is on
   the following step, and the freeze holds the gorilla in place while the coach talks about it.
+
+### Tutorial: the last step
+
+gorilla's tutorial ends with four talking steps in a row (4-7), which made it the loudest victim of
+a bug in the shared runner: one tap was delivered as both a touch and a synthesized mouse event, so
+each tap advanced two steps and the tutorial ended on the tap meant to reveal its final caption.
+Only 4 of 7 steps ever reached the screen. Fixed in `scripts/tutorial.gd` (`_tap_advance`,
+debounced); see `docs/tutorials.md`. Nothing in this game changed — but adjacent talking steps are
+what expose that class of bug, so keep the harness check that every step is displayed.

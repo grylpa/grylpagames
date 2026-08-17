@@ -77,7 +77,10 @@ var _press_pos: Vector2 = Vector2.ZERO
 var _press_index: int = -2
 const _SWIPE_MIN: float = 60.0
 
-const FEEDBACK_MS: float = 700.0
+# How long the Correct!/Too slow banner stays up. A var, not a const, only so a tutorial can
+# shorten it; _load_level puts it back, so a tutorial can never leave real play running fast.
+const FEEDBACK_DEFAULT_MS: float = 700.0
+var feedback_ms: float = FEEDBACK_DEFAULT_MS
 
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var wrong_audio = preload("res://art/sounds/swoosh.mp3")
@@ -284,6 +287,13 @@ func new_game(_from_scratch: bool = true) -> void:
 func _tutorial_setup() -> void:
 	card_time_ms = 20000.0
 	_forced_picks = ["new", "new", "repeat"]
+	# "Here is the first." followed by most of a second of blank screen reads as the tutorial
+	# having hung. The gap exists to pace real play; a coach pointing at a card needs it short.
+	# The feedback banner is the bigger half of that wait: the coach says "another one, tap New
+	# again" the moment the previous answer lands, while the board is still showing "Correct!",
+	# so the card it is talking about turned up a full second later. 700 + 700 -> 250 + 150.
+	gap_ms = 150.0
+	feedback_ms = 250.0
 
 # Opens with what you are about to be shown, then the rule in full. Built as a line array rather
 # than one format string: the old version needed parentheses around the whole concatenation,
@@ -343,6 +353,7 @@ func _load_level(id: int) -> void:
 	var def: Dictionary = DinoLevelConfig.get_level(id)
 	card_size_key = str(def.get("card_size", "med"))
 	card_time_ms = float(def.get("card_time_sec", 5.0)) * 1000.0
+	feedback_ms = FEEDBACK_DEFAULT_MS
 	gap_ms = float(def.get("gap_sec", 0.7)) * 1000.0
 	start_cards = maxi(1, int(def.get("start_cards", 3)))
 	new_after = maxi(1, int(def.get("new_after", 2)))
@@ -648,7 +659,7 @@ func _process(_dt: float) -> void:
 				_register_answer(null)
 		Phase.FEEDBACK:
 			_bar_fill.visible = false
-			if now - _phase_start_ms >= FEEDBACK_MS:
+			if now - _phase_start_ms >= feedback_ms:
 				phase = Phase.GAP
 				_phase_start_ms = now
 				_feedback.hide()

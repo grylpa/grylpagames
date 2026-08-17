@@ -99,6 +99,11 @@ func start_tutorial() -> void:
 	DinoG.starting_level_id = tut.tutorial_level_id()
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
+	# "Tap New" is not a step you can carry out through a caption sitting on the button.
+	runner.keep_clear = [
+		func(): return $Level._btn_new,
+		func(): return $Level._btn_seen,
+	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _on_tutorial_done(_completed: bool) -> void:

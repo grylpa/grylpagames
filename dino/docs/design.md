@@ -184,3 +184,19 @@ Dino is the first game with a coached tutorial (`dino/scripts/tutorial.gd`). See
 - `dino/art/game_screen_200.png` (the chooser tile) is not yet created. Until it exists the
   chooser logs a "Resource file not found" error and the Dino tile has no image. Decide the
   thumbnail source (a dino image, or a custom tile).
+
+### Tutorial: caption placement
+
+The answer buttons sit at the bottom, where the caption used to dock — so "Tap New" was printed
+over the New button. `main.gd` passes `_btn_new` and `_btn_seen` as the runner's `keep_clear`, so
+on player-action steps the caption moves off them. Talking steps still dock low; the board is
+frozen and the buttons are not in use.
+
+### Tutorial: pacing
+
+The coach names the next card the moment the previous answer lands, but the board still had to show
+its feedback banner (700 ms) and then wait out `gap_ms` (800 ms) before the card appeared — so the
+caption referred to something that turned up a second and a half later, which reads as a hang.
+`_tutorial_setup()` cuts these to 150 ms and 250 ms; measured caption-to-card 1.57 s -> 0.58 s.
+`feedback_ms` is a var only so the tutorial can shorten it, and `_load_level` restores
+`FEEDBACK_DEFAULT_MS`, so real play keeps its own pacing.
