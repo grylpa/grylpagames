@@ -31,7 +31,7 @@ func _ready() -> void:
 	game.sig_game_is_done.connect(on_game_is_done)
 	game.sig_add_life.connect(on_add_life)
 
-	game.set_instructions("Mmm", 
+	game.set_instructions("Mind Palace", 
 		"Welcome to your new mansion!\n\n" +
 		"Explore the rooms of your mansion and pick up all coins from all rooms.\n" + 
 		"Remember each room color.\n" + 

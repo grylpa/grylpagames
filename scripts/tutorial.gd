@@ -81,6 +81,9 @@ var _await_event: String = ""
 var _await_timeout: float = 0.0
 var _finished: bool = false
 var _pulse: float = 0.0
+# How long one breath of the spotlight takes, and how far its halo travels before fading out.
+const SPOT_PULSE_SEC: float = 1.6
+const SPOT_HALO_PX: float = 16.0
 var _demo_pts: PackedVector2Array = PackedVector2Array()
 # "auto" (default) = the full-width panel, bottom or top. "right" / "left" = a narrow side column.
 # Set before run(); a step may override it with its own `caption_side` key.
@@ -605,9 +608,20 @@ func _draw_dim() -> void:
 		_dim.draw_rect(Rect2(0, hole.position.y, hole.position.x, hole.size.y), DIM_COLOR)
 		_dim.draw_rect(Rect2(hole.end.x, hole.position.y, full.size.x - hole.end.x, hole.size.y),
 			DIM_COLOR)
-	var alpha: float = 0.55 + 0.45 * absf(sin(_pulse * 3.0))
-	var ring: Color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, alpha)
-	_dim.draw_rect(hole, ring, false, 3.0)
+	# The frame has to pull the eye by itself. A caption saying "this is your money" is usually at
+	# the other end of the screen from the thing it names, and a steady 3px outline that only dips
+	# to 55% opacity does not read as "look over here" — players kept reading the words without
+	# ever finding what they pointed at.
+	#
+	# So: the frame breathes between faint and solid over SPOT_PULSE_SEC, thickening as it
+	# brightens, and a second ring expands out of it and fades away — the standard attention pulse.
+	# Slow on purpose; a fast blink next to a caption you are trying to read is worse than none.
+	var cyc: float = fmod(_pulse, SPOT_PULSE_SEC) / SPOT_PULSE_SEC        # 0..1, sawtooth
+	var breathe: float = 0.5 + 0.5 * sin(_pulse * TAU / SPOT_PULSE_SEC)   # 0..1, smooth
+	var ring: Color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 0.3 + 0.7 * breathe)
+	_dim.draw_rect(hole, ring, false, 3.0 + 2.0 * breathe)
+	var halo: Color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, (1.0 - cyc) * 0.45)
+	_dim.draw_rect(hole.grow(SPOT_HALO_PX * cyc), halo, false, 2.0)
 	_draw_demo_path()
 
 # --- Caption placement ------------------------------------------------------

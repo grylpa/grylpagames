@@ -168,6 +168,27 @@ caption is correctly placed on the very first frame, with no layout pass to wait
 
 ## Games covered
 
+**taxi** (8 steps). The longest instruction text in the app — eight numbered rules, almost none of
+them observable. Teaches money-as-score first, then select-then-send on a real fare, then fuel with
+a tank staged low by `level.tutorial_drain_taxi()`.
+
+Three things are specific to taxi and worth copying when a game keeps state of its own:
+
+- **Its saved game is outside `GenericGameUtil`.** `main.gd::save_game_state()` writes a whole
+  board through `SaveManager` every 30 s, so none of the tutorial write-guards cover it; it now
+  returns early in `tutorial_mode`. Verified by planting a saved game and running a tutorial with
+  the save interval forced to 100 ms: without the guard the player's level-5 board is replaced by
+  the tutorial's level-1 city, with it the file is byte-identical afterwards.
+- **Rules that would bite a slow reader are suspended, not hidden.** A parked taxi empties its tank
+  in 60 s and a customer gives up after 30 s; both are stashed and restored around the tutorial, so
+  a player reading at their own pace does not have the fleet strand itself or the fare walk off
+  mid-lesson. The final step still tells them both rules exist.
+- **Customers arrive on demand** (`tutorial_hold_dispatch` + `tutorial_request_customer()`), rather
+  than every 5 s on the level-1 timer.
+
+`_restore_tutorial_globals()` is called from `_on_tutorial_done` AND `_exit_tree`, and it puts the
+player's own saved state back into the level so Continue still resumes their game.
+
 | Game | Input family | The thing it exists to fix |
 |---|---|---|
 | `dino` | discrete swipe / two buttons | "seen" means *this round*; the drain bar is a deadline |
@@ -362,6 +383,12 @@ holds it still while the coach talks about it.
   had marked. `relock` now returns immediately while `level._drag_alien` is set, and `locked_spot`
   keeps resolving to an alien that is in the player's hand (only a *wandering* one is refused).
   Whatever they do with it resolves the moment they let go, and the tick runs again then.
+- **The spotlight pulses.** A caption naming something ("this is your money") is usually at the
+  other end of the screen from the thing it names, and a steady outline does not read as "look
+  here" — players read the words without ever finding the target. The frame breathes between 0.30
+  and 1.00 opacity over `SPOT_PULSE_SEC` (1.6 s), thickening 3→5 px as it brightens, and throws a
+  second ring that expands `SPOT_HALO_PX` and fades. Slow on purpose: a fast blink beside text you
+  are trying to read is worse than none.
 - **A spotlight that stops resolving must erase its frame.** The per-frame redraw was requested
   only while there WAS a spotlight, so when one resolved to nothing the last frame drawn stayed on
   the canvas — dragging the marked alien out of the ring left its marker hanging in empty space.
