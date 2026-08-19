@@ -368,6 +368,24 @@ holds it still while the coach talks about it.
   got the instructions screen. dino had the call inside `show_main_menu()`, which `_ready` invokes
   early, so it broke exactly this way. Checking line numbers is not enough; check the enclosing
   FUNCTION.
+- **A delayed call outlives the tutorial.** Anything scheduled with `do_after`, a Timer or a tween
+  fires on its own clock, and a second later the player may have finished the tutorial — so a guard
+  that reads `tutorial_mode` at fire time sees false and lets the thing through. Decide at SCHEDULE
+  time and capture the answer. mmm's "Round 1 of Level 1 completed" reached the player twice this
+  way. The harness now waits after every tutorial and fails if any panel (a visible node with
+  `set_title`/`set_text`) has appeared.
+- **Never let the game free-run when it matters to the step.** If a caption is talking about
+  something, that something must not be moving, expiring, or about to be replaced while it is read.
+  Every game needs its own version of this: taxi freezes fuel and the customer's patience, didi
+  holds the round until the player taps, Sorting Robots stops both belts once the framed item is in
+  view, Mind Palace halts the player before talking about the floor they are standing on. Timeouts
+  and clocks get pushed out of reach and restored afterwards.
+
+  A related trap: an object that ENTERS from off-screen is usually behind something else for its
+  first moments. Sorting Robots frames an item while it is still above the belt, so the frame sat
+  on the rule label and read as though the RULE were being framed. Wait for the thing to reach its
+  place before pointing at it — the level runs the belts on until the item clears the label, then
+  stops them and reports `window_settled`.
 - **A step with no title and no text shows no caption.** Some steps exist only to wait for the game
   to reach a state — didi holds its round until the player taps, then needs a step that simply waits
   for the flash — and a filler line ("here it comes") appears for a moment and reads as a glitch.

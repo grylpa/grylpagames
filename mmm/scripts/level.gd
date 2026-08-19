@@ -220,7 +220,15 @@ func _check_if_all_rooms_answered():
 			return false
 	# game.play_sound("delivery")
 	_record_answer_time()
-	MainGlobals.do_after(1, func(): level_is_done(true))
+	# Decided HERE, not inside level_is_done: this is deferred by a second, and by the time it fires
+	# the player has usually tapped through the closing caption and the tutorial has ended — so a
+	# guard that reads tutorial_mode at that moment sees false and shows the panel anyway. That is
+	# exactly how "Round 1 of Level 1 completed" kept appearing after the tutorial.
+	var during_tutorial: bool = game.tutorial_mode
+	MainGlobals.do_after(1, func():
+		if during_tutorial:
+			return
+		level_is_done(true))
 	return true
 
 func _record_answer_time():
@@ -826,6 +834,10 @@ func _tutorial_setup() -> void:
 	# "you will be asked what color each room was", not "pick it out of a dozen you never saw".
 	num_rooms = 2
 	num_distracting_colors = 0
+	# No bricks either. They are harmless — they only block a tile — but the tutorial never
+	# mentions them, and an unexplained object in a room the coach is talking about is one more
+	# thing for a first-timer to wonder about. _apply_level puts the count back for real play.
+	num_bricks_per_room = 0
 
 # --- spotlight helpers. Rooms and coins are board coordinates, not nodes, so they are converted to
 # SCREEN space here; the runner takes a Rect2 as already being in screen space.
@@ -883,20 +895,29 @@ func tutorial_halt_player() -> void:
 	if player != null and is_instance_valid(player):
 		player.path.clear()
 
-func tutorial_floor_patch_rect() -> Rect2:
-	if player == null or not is_instance_valid(player):
+# The ROOM still waiting for an answer. Used only to keep the caption off it; nothing is drawn on
+# it (framing a room was tried and rejected, see docs/design.md).
+#
+# The whole room, not just its color strip: with the rooms stacked vertically, dodging the strip
+# alone moved the caption straight onto the room it belonged to — 67%% of it covered — and the
+# player could not see which room they were being asked about.
+#
+# Only while answering. During the walk there are no answers pending, and reserving a whole room
+# then left the caption nowhere to stand but on the player.
+func tutorial_unanswered_room_rect() -> Rect2:
+	if not in_answring_mode:
 		return Rect2()
-	var p: Vector2i = player.board_pos
-	var rid: int = bcell(p).room_id
-	if rid < 0:
+	# Only once ONE room is left. While several are still open the player can start with whichever
+	# they can see, so reserving one of them means nothing — and with two rooms filling the map, a
+	# full-width caption cannot clear both anyway.
+	var pending: Array = []
+	for rid in rooms.size():
+		if not answered_rooms.get(rid, false):
+			pending.append(rid)
+	if pending.size() != 1:
 		return Rect2()
-	# Just the tile underfoot. A 3x3 patch is ~170px in the middle of the screen, which left the
-	# caption nowhere to stand — it ended up covering the very floor it was pointing at. The floor
-	# is one flat color, so one tile says it just as well.
-	return _screen_rect_for_cells(p, p)
+	return tutorial_room_rect(int(pending[0]))
 
-# During the answer phase EVERY room gets its own palette at once, so a caption saying "this room"
-# names nothing. This is the room still waiting for an answer, for the coach to mark.
 func tutorial_coin_rect() -> Rect2:
 	for p in coins.keys():
 		return _screen_rect_for_cells(p, p)
@@ -927,6 +948,12 @@ func add_moving_agents():
 					break
 
 func add_bomb_agents():
+	# Setting num_bomb_agents_to_add to 0 does NOT mean "no bombs": nloops divides by it, and the
+	# "have I placed enough?" check happens AFTER the first one is placed — so a count of 0 still
+	# left exactly one bomb on the board, usually in the first room. Hazards are off for the
+	# tutorial, so leave outright.
+	if tutorial_no_movers:
+		return
 	var n = 0
 	var nloops = int((rooms.size() + num_bomb_agents_to_add - 1.0) / num_bomb_agents_to_add)
 	for i in range(nloops):
@@ -1171,6 +1198,12 @@ func level_is_done(didwin: bool):
 		"didwin": int(didwin),
 	})
 	start_dispatch = false
+	# A tutorial round ends the same way a real one does, but none of the celebration belongs here:
+	# the coach still has its closing caption to show, and a "Level 1 completed" panel lands on top
+	# of it. Every branch below ends in a popup, so leave before any of them. Nothing is lost —
+	# scoring and level progression are suppressed in tutorial_mode anyway.
+	if game.tutorial_mode:
+		return
 	if didwin:
 		var time_from_start_s = (MainGlobals.timems() - time_started_level_ms) / 1000
 		var score_add = min(5, 60 - time_from_start_s)

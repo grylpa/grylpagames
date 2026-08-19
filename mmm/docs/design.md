@@ -56,6 +56,40 @@ what the test will be *before* the first coin, and points at the floor while say
 
 Specific to this game:
 
+- **The step that sends the player to the second room marks nothing.** The other room is off camera
+  (the view is zoomed to the player), so a marker on it lands off screen. Marking the corridor mouth
+  instead was tried and reverted: the doorway is often not visible either, so a marker floating at
+  the edge of the room is more confusing than the plain instruction to follow the corridor.
+- **The tutorial answers BOTH rooms.** The round is not over until every room has been named, so
+  stopping after one would leave the player having seen most of a process rather than all of it.
+  The caption keeps clear of the room still to be answered — the whole ROOM, not just its color
+  strip: with the rooms stacked vertically, dodging the strip alone put the caption straight onto
+  its room, 67% of it covered, and the player could not see which room was being asked about. Only
+  while `in_answring_mode`, and only once ONE room is left — while several are open the player can
+  start with whichever they can see, and a full-width caption cannot clear two rooms at once.
+- **No end-of-round panel.** Two guards, because one is not enough. `level_is_done()` returns early
+  in tutorial_mode — every branch of it ends in a popup ("Level 1 completed", "Well done!", "Oh
+  no!"). But `_check_if_all_rooms_answered()` schedules that call with `do_after(1)`, and a second
+  later the player has usually tapped through the closing caption, the tutorial has ended and
+  tutorial_mode is false again — so the guard inside sees nothing to suppress and the panel appears
+  anyway. The flag is therefore also captured at SCHEDULE time, while the tutorial is still up.
+  Scoring and level progression are suppressed in tutorial mode regardless.
+- **Nothing on the floor is marked.** Markers here are screen-space rects over a camera-followed
+  world, so anything captured at the wrong instant is off screen and anything recomputed every
+  instant wanders after the player. The rule that works: pin the first value that lands on screen,
+  then hold it — and only use a marker where the thing is reliably in view. Only two things are ever
+  marked: the player on the movement step, and the coin in the first room. Floor markers were tried
+  in both rooms and removed — a marker on the tile underfoot reads as the "this is you" frame
+  shrinking, one beside the player points at nothing being asked for, and the floor being discussed
+  is the whole room anyway.
+- **The tutorial castle is empty apart from the coins.** No bombs, no enemies, no bricks. Note that
+  `num_bomb_agents_to_add = 0` is NOT enough on its own: `add_bomb_agents()` divides by it and only
+  checks "have I placed enough?" AFTER placing one, so a count of zero is a division by zero on a
+  path that can still leave a bomb. The function returns early instead.
+  There are three places an agent could come from: `add_bomb_agents()` and `add_moving_agents()`
+  at board build, both guarded, and `_on_agent_dispatch_timer_timeout()` during play — which cannot
+  fire here, because `start_dispatch` is never set true in this game (only ever false). No guard is
+  needed there, and adding one would imply a path that does not exist.
 - **Hazards are switched off** (`num_bomb_agents_to_add = 0`, `tutorial_no_movers`). Being killed
   mid-lesson would end the round and teach nothing.
 - **The smallest possible castle**: level 1's two rooms, and `num_distracting_colors` forced to 0,

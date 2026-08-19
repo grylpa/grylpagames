@@ -370,6 +370,8 @@ func _process(delta: float) -> void:
 		_init_belts()
 		return
 	_scroll_belts(delta)
+	if game.tutorial_mode:
+		_tutorial_settle_window()
 	if window_open and not _showing_feedback:
 		if window_target_item != null and is_instance_valid(window_target_item):
 			var h: float = _containers()[window_belt].size.y
@@ -389,7 +391,37 @@ func _process(delta: float) -> void:
 		if next_window_timer <= 0.0 and rounds_done < num_rounds_per_level:
 			_open_window()
 
+# --- tutorial: hold the belts once the framed item is in view --------------
+#
+# _open_window() deliberately frames an item that is still ABOVE the belt, so the frame slides in
+# from the top with it. During a tutorial that puts the frame over the rule label for its first
+# moments, and it reads as though the RULE is being framed. Worse, the belts keep moving while the
+# player is reading the caption.
+#
+# So in tutorial mode the belts run on only until the framed item has cleared the rule label, and
+# then everything stops until the judgment is made.
+var tutorial_hold_belts: bool = false
+
+# -1 = no preference (normal play). 0 or 1 makes the next framed item one that must be LEFT or
+# TAKEN, so the tutorial can guarantee the player meets both answers.
+var tutorial_want_truth: int = -1
+
+func _tutorial_settle_window() -> void:
+	if tutorial_hold_belts or not window_open:
+		return
+	if window_panel == null or not is_instance_valid(window_panel):
+		return
+	var lbl: Control = tutorial_rule_label(window_belt)
+	var clear_y: float = 0.0
+	if lbl != null and is_instance_valid(lbl):
+		clear_y = lbl.global_position.y + lbl.size.y + 6.0
+	if window_panel.global_position.y >= clear_y:
+		tutorial_hold_belts = true
+		game.tutorial_notify("window_settled")
+
 func _scroll_belts(delta: float) -> void:
+	if tutorial_hold_belts:
+		return
 	for si in 2:
 		var container: Control = _containers()[si]
 		var h: float = container.size.y
@@ -458,6 +490,8 @@ func _open_window() -> void:
 		need_truth = 1
 	elif _shown_no < _shown_yes:
 		need_truth = 0
+	if tutorial_want_truth >= 0:
+		need_truth = tutorial_want_truth
 	var target_y: float = -item_h * 0.5
 	var best_entry: Variant = null
 	var best_dist: float = INF
@@ -475,9 +509,10 @@ func _open_window() -> void:
 		if (need_truth == -1 or int(t) == need_truth) and dist < best_dist:
 			best_dist = dist
 			best_entry = entry
-	if best_entry == null:
+	if best_entry == null and tutorial_want_truth < 0:
 		best_entry = any_entry
 	if best_entry == null:
+		# Nothing of the required kind is entering yet; look again shortly.
 		next_window_timer = 0.3
 		return
 	window_belt = si
@@ -502,8 +537,50 @@ func _open_window() -> void:
 	container.add_child(panel)
 	window_panel = panel
 	window_open = true
+	game.tutorial_notify("window_opened")   # no-op outside tutorial mode
 	window_timer = window_duration
 	round_start_ms = game.game_time
+
+# --- tutorial staging -------------------------------------------------------
+
+func _tutorial_setup() -> void:
+	tutorial_hold_belts = false
+	tutorial_want_truth = -1
+	# No clock on the judgment and no automatic vanishing: both happen when the coach says so.
+	# Judging against a 3 s window while reading a caption is not a fair introduction, and the
+	# labels disappearing mid-explanation would land as a glitch rather than as the lesson.
+	window_duration = 100000.0
+	rounds_before_hide = 100000
+
+# The frame, for the coach to point at.
+func tutorial_window_panel() -> Control:
+	return window_panel if window_panel != null and is_instance_valid(window_panel) else null
+
+# Which belt the framed item is on, and that belt's rule as written on its label.
+func tutorial_window_belt() -> int:
+	return window_belt
+
+func tutorial_rule_text(belt: int) -> String:
+	if current_pair.size() < 2 or belt < 0 or belt > 1:
+		return ""
+	return _u(current_pair[belt].get("label", ""))
+
+func tutorial_belt_name(belt: int) -> String:
+	return "left" if belt == 0 else "right"
+
+# Whether the framed item actually satisfies its belt's rule, so the coach can say which way to
+# swipe rather than leaving a first-timer to guess on the very first one.
+func tutorial_window_truth() -> bool:
+	return window_target_truth
+
+func tutorial_rule_label(belt: int) -> Control:
+	return %LeftRuleLabel if belt == 0 else %RightRuleLabel
+
+# The lesson the game is really about, on cue instead of six rounds in.
+func tutorial_hide_labels_now() -> void:
+	labels_hidden = true
+	_hide_labels()
+	game.tutorial_notify("labels_hidden")
 
 func _discard_window() -> void:
 	window_open = false
@@ -584,6 +661,9 @@ func _load_level(id: int) -> void:
 	scroll_speed = float(def.get("belt_spd", 75))
 	_level_rules_pool = def.get("rules", ["digit", "square"]).duplicate()
 	_pick_pair_from_pool()
+	if game.tutorial_mode:
+		# After the level values are read, so it overrides them rather than being overwritten.
+		_tutorial_setup()
 	game.level_label_changed("Level " + str(def.get("name", id)))
 
 # True if the two rule keys can be confused (an item could satisfy both), so they must never be
@@ -629,6 +709,8 @@ func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
 func _evaluate_answer(user_picks_up: bool) -> void:
 	if not window_open or _showing_feedback or game.paused() or game.level_is_done:
 		return
+	# Judgment made: let the belts run again until the next item settles.
+	tutorial_hold_belts = false
 	window_open = false
 	# correct pick-up → a robot claw yanks the item off the nearest side (left belt→left, right→right)
 	if user_picks_up and user_picks_up == window_target_truth \
@@ -714,6 +796,8 @@ func _score_answer(user_picks_up: bool, is_timeout: bool) -> void:
 	var is_right: bool = not is_timeout and (user_picks_up == window_target_truth)
 	total_rounds += 1
 	rounds_done += 1
+	game.tutorial_notify("judged_right" if is_right else "judged_wrong")   # no-ops outside tutorial
+	game.tutorial_notify("judged")
 	if is_right:
 		total_corrects += 1
 		times_to_answer.append(float(elapsed))
