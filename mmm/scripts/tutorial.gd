@@ -27,13 +27,6 @@ static func steps(level: Node, _game) -> Array:
 	# Captured when the step opens rather than recomputed every frame: the marker is in screen
 	# space, and the camera is still gliding after the player stops, so a live rect drifts under a
 	# caption that is standing still.
-	var ctx: Dictionary = {"floor": Rect2()}
-	var hold_floor: Callable = func() -> void:
-		level.tutorial_halt_player()
-		ctx["floor"] = level.tutorial_floor_patch_rect()
-	var floor_spot: Callable = func():
-		var r: Rect2 = ctx["floor"]
-		return r if r.size.x > 0.0 else null
 	var coin_spot: Callable = func():
 		var r: Rect2 = level.tutorial_coin_here_rect()
 		return r if r.size.x > 0.0 else null
@@ -52,10 +45,9 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "A swipe up, down, left or right.",
 		},
 		{
-			"setup": hold_floor,
+			"setup": func() -> void: level.tutorial_halt_player(),
 			"title": "The part nobody expects",
 			"text": "Look at this room's floor color.\n\nWhen the coins are gone you will be shown the map and asked, room by room, which color each one was. You cannot come back to check.",
-			"spot": floor_spot,
 		},
 		{
 			"text": "Take the coin.",
@@ -73,9 +65,12 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Follow the corridor out of this room.",
 		},
 		{
-			"setup": hold_floor,
+			# NO marker. A patch of floor beside the player points at nothing they are being asked
+			# to do, and the coin — the thing they ARE being asked for — is usually off screen when
+			# this step opens, since they have just walked in and the room is bigger than the view.
+			# By now they have taken one coin already and know what to do with the next.
+			"setup": func() -> void: level.tutorial_halt_player(),
 			"text": "This floor is a different color. Remember this one too, and take its coin.",
-			"spot": floor_spot,
 			"await": "coin_taken",
 			"hint_after": 15.0,
 			"hint": "Walk onto the coin in this room.",
@@ -92,7 +87,13 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "The swatches are drawn on the room itself.",
 		},
 		{
+			"text": "That room is named and its floor has filled in.\n\nNow the other one — the round is not over until every room has been answered.",
+			"await": {"event": "room_answered", "timeout": 180.0},
+			"hint_after": 20.0,
+			"hint": "Tap the other room's strip, then its color.",
+		},
+		{
 			"title": "Ready",
-			"text": "Now do the same for the other room. The round ends once every room has been named.\n\nLater levels give you more rooms to hold, and the strips start including colors that were never in the castle — so elimination will not save you.\n\nBombs sit in the rooms and enemies patrol them. Touching either one ends the round at once.",
+			"text": "That is a full round.\n\nLater levels give you more rooms to hold, and the strips start including colors that were never in the castle — so elimination will not save you.\n\nBombs sit in the rooms and enemies patrol them. Touching either one ends the round at once.",
 		},
 	]

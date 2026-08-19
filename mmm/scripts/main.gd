@@ -70,6 +70,8 @@ func start_tutorial() -> void:
 	# most of the screen, and listing it just forces the caption into the least-bad overlap anyway.
 	runner.keep_clear = [
 		func(): return _rect_or_null($Level.tutorial_coin_here_rect()),
+		# So the caption steps aside instead of sitting on the room still to be answered.
+		func(): return _rect_or_null($Level.tutorial_unanswered_room_rect()),
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
