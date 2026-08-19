@@ -60,6 +60,91 @@ func _ready() -> void:
 	var _saved_level_state = load_game_state()
 	$Level.set_state(_saved_level_state)
 	main_menu.show_continue_and_start_new(_saved_level_state != null and _saved_level_state.size() > 0)
+
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("taxi"):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+var _tutorial_saved_idle_sec: float = -1.0
+var _tutorial_saved_tiles: int = -1
+var _tutorial_saved_giveup_ms: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd — and save_game_state()
+# below refuses to run, which is the part GenericGameUtil cannot cover.
+func start_tutorial() -> void:
+	var tut: Script = load("res://taxi/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# starting_level lives on TaxiG, not the game util, so the tutorial snapshot does not cover it.
+	_tutorial_saved_level = TaxiG.starting_level
+	TaxiG.starting_level = tut.tutorial_level_id()
+	# A parked taxi with its motor running empties in 60 seconds. That is the real game and the
+	# tutorial says so out loud — but a player reading the captions at their own pace would have
+	# the whole fleet strand itself mid-lesson, teaching the rule by taking their taxis away. Idle
+	# burn is effectively switched off for the duration; the fuel step stages a low tank explicitly
+	# (level.tutorial_drain_taxi) so there is still something real to point at.
+	# Fuel does not move at all during a tutorial: the tank is set low once, on purpose, and then
+	# stays there however long the player takes. Idle burn alone was not enough — driving to the
+	# pump burns by the tile, so a slow player could still strand the very taxi the lesson is
+	# about, and a stranded taxi cannot even be tapped.
+	_tutorial_saved_idle_sec = TaxiG.time_to_empty_fuel_tank_on_idle_sec
+	TaxiG.time_to_empty_fuel_tank_on_idle_sec = 100000.0
+	_tutorial_saved_tiles = TaxiG.num_tiles_for_empty_fuel_tank
+	TaxiG.num_tiles_for_empty_fuel_tank = 100000000
+	# Same reasoning for the fare itself: a customer gives up after 30 seconds, so the one the
+	# coach just told the player to collect could walk off while they are still reading. The last
+	# step tells them this happens; it must not happen TO them here.
+	_tutorial_saved_giveup_ms = TaxiG.time_for_customer_to_give_up_ms
+	TaxiG.time_for_customer_to_give_up_ms = 100000000
+	# Teach on a fresh city, not on top of whatever game they had going. set_state() is used
+	# directly rather than clear_saved(), which would write the empty state to disk.
+	$Level.set_state({})
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# "Tap the taxi, then the pump" needs BOTH visible: the spotlight can only mark one, so the
+	# other goes in keep_clear. Honored on player-action steps only, which is exactly where the
+	# player has to reach them.
+	runner.keep_clear = [
+		func(): return $Level.tutorial_any_taxi(),
+		func(): return $Level.tutorial_gas_station(),
+		func(): return $Level.tutorial_active_customer(),
+		func(): return $Level.tutorial_active_sender(),
+		func(): return $Level.tutorial_active_receiver(),
+	]
+	runner.run(self, tut.steps($Level, game, self), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback — so without it the tutorial's starting level, and the
+# emptied level state, would stay applied to the player's real game.
+func _restore_tutorial_globals() -> void:
+	$Level.tutorial_restore()
+	if _tutorial_saved_giveup_ms > 0:
+		TaxiG.time_for_customer_to_give_up_ms = _tutorial_saved_giveup_ms
+		_tutorial_saved_giveup_ms = -1
+	if _tutorial_saved_idle_sec > 0.0:
+		TaxiG.time_to_empty_fuel_tank_on_idle_sec = _tutorial_saved_idle_sec
+		_tutorial_saved_idle_sec = -1.0
+	if _tutorial_saved_tiles > 0:
+		TaxiG.num_tiles_for_empty_fuel_tank = _tutorial_saved_tiles
+		_tutorial_saved_tiles = -1
+	if _tutorial_saved_level >= 0:
+		TaxiG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+		# Put their own game back in front of the level, so Continue still resumes it.
+		var saved = load_game_state()
+		if saved != null:
+			$Level.set_state(saved)
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 	
 func show_main_menu():
 	var _saved_level_state = load_game_state()
@@ -226,6 +311,12 @@ func check_buy_taxi_button():
 var _last_saved_state := {"stub": "initial_diffferent_value"}
 
 func save_game_state():
+	# Taxi is the only game that persists a whole mid-game board, through SaveManager rather than
+	# GenericGameUtil — so none of the tutorial write-guards in generic_game_util.gd cover it. The
+	# periodic tick save alone would overwrite the player's real game with the tutorial's city
+	# within 30 seconds of starting one.
+	if game.tutorial_mode:
+		return
 	if !game.playing or game.paused():
 		return
 	var level_state = $Level.get_state()

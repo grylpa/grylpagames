@@ -114,6 +114,10 @@ func new_game(from_scratch=true):
 	game.need_to_increase_level = false
 	time_last_dispatch = -10000
 	pos_last_dispatch = Vector2i(-1,-1)
+	if game.tutorial_mode:
+		# BEFORE create_board: that is what places the taxis and sets the life count from
+		# num_of_taxis, so the tutorial's fleet size has to be decided first.
+		_tutorial_setup()
 	create_board(force_new_taxis_and_stations)
 	# $HUD.new_game()
 	started_playing.emit()
@@ -643,7 +647,152 @@ func add_mission(p, dir):
 
 var time_last_dispatch = -10000
 var pos_last_dispatch = Vector2i(-1,-1)
+# While a tutorial runs, customers arrive only when the coach asks for one. On the level-1 timer a
+# customer turns up every 5 s, which buries a lesson in arrivals it never asked for and leaves the
+# board in a state the next step cannot talk about.
+var tutorial_hold_dispatch: bool = false
+
+# Everything the automatic dispatch does, on demand. Returns false if the city had no free start
+# tile to use, so a caller can try again rather than assume a customer is now waiting.
+func tutorial_request_customer() -> bool:
+	var shuffled_idx: Array = range(0, agent_start_positions.size())
+	shuffled_idx.shuffle()
+	for idx in shuffled_idx:
+		var p = agent_start_positions[idx]
+		var dir = agent_start_directions[idx]
+		if board[p.y][p.x].agent != null:
+			continue
+		var t = find_closest_target(p, false)
+		if t == null or t.is_receiver or t.is_sender:
+			continue
+		add_mission(p, dir)
+		time_last_dispatch = game.game_time
+		pos_last_dispatch = p
+		return true
+	return false
+
+# A tank the fuel lesson can actually point at. Left near empty rather than empty: out_of_gas
+# latches and that taxi is stranded for good, which is the thing being taught, not demonstrated on
+# the player's own taxi mid-lesson.
+func tutorial_drain_taxi(taxi, level_frac: float = 0.3) -> void:
+	if taxi == null or not is_instance_valid(taxi):
+		return
+	taxi.set_fuel_level(level_frac)
+	taxi.disp_gas_level()
+
+# A taxi that is doing nothing: no fare, nobody aboard, not already heading for a pump. The fuel
+# lesson has to use one of these. Draining whichever taxi came first could hit the one still
+# delivering the fare from the previous step, which then burns the little fuel it was left with and
+# strands mid-street — out_of_gas taxis cannot even be tapped, so the lesson became impossible.
+func tutorial_idle_taxi():
+	for t in taxis:
+		if not is_instance_valid(t) or t.out_of_gas:
+			continue
+		if t.transaction_id >= 0 or t.going_to_fill_gas:
+			continue
+		if t.passangers.size() > 0:
+			continue
+		return t
+	return null
+
+# The fare's counterparts, so the coach can keep its caption off them: who is waiting, where they
+# were picked up, and where they are going.
+func tutorial_waiting_customer():
+	for a in agents:
+		if is_instance_valid(a) and not a.is_taxi and a.assigned_to_taxi == null:
+			return a
+	return null
+
+func tutorial_active_customer():
+	for a in agents:
+		if is_instance_valid(a) and not a.is_taxi:
+			return a
+	return null
+
+func tutorial_active_sender():
+	for t in targets:
+		if is_instance_valid(t) and t.is_sender:
+			return t
+	return null
+
+func tutorial_active_receiver():
+	for t in targets:
+		if is_instance_valid(t) and t.is_receiver:
+			return t
+	return null
+
+# Traffic jams are rule 3 of the game and the tutorial does not teach them until the very end — so
+# a taxi blocked by another one mid-fare simply deadlocks the lesson, and the player has to work
+# out for themselves that they must select the blocker and drive it away. Here the coach clears it
+# instead: whatever is sitting on the next tile gets sent somewhere else, using the game's own
+# dispatch, so the jam resolves the way it would if a player had done it.
+# Returns true when something was actually moved.
+func tutorial_unblock() -> bool:
+	for t in taxis:
+		if not is_instance_valid(t) or t.out_of_gas or not t.is_blocked:
+			continue
+		var idx: int = find_agent_path_index(t)
+		if idx < 0 or idx + 1 >= t.path.size():
+			continue
+		var q = t.path[idx + 1]
+		var blocker = board[q.y][q.x].agent
+		if blocker == null or not is_instance_valid(blocker) or blocker == t:
+			continue
+		if not blocker.is_taxi or blocker.out_of_gas or blocker.transaction_id >= 0:
+			continue
+		var idxs: Array = range(0, agent_start_positions.size())
+		idxs.shuffle()
+		for i in idxs:
+			var p = agent_start_positions[i]
+			if board[p.y][p.x].agent != null:
+				continue
+			if p == q or p == t.board_pos:
+				continue
+			var path = send_taxi_to(blocker, p)
+			if path.size() > 1:
+				return true
+	return false
+
+# A taxi the coach can point at or keep its caption off. Skips stranded ones: they cannot be
+# tapped at all (on_taxi_pressed returns early when out_of_gas).
+func tutorial_any_taxi():
+	for t in taxis:
+		if is_instance_valid(t) and not t.out_of_gas:
+			return t
+	return null
+
+# The nearest gas station to a taxi, for the step that says to send it refuelling.
+func tutorial_gas_station():
+	for t in targets:
+		if t.is_gas_station:
+			return t
+	return null
+
+# increase_difficulty() only resets num_of_taxis on level 1, so a tutorial that leaves it at 1
+# hands the player a one-taxi city on their next real game. Stashed here and put back by
+# tutorial_restore(), which main.gd calls on both exit paths.
+var _tutorial_saved_num_taxis: int = -1
+
+func tutorial_restore() -> void:
+	if _tutorial_saved_num_taxis >= 0:
+		num_of_taxis = _tutorial_saved_num_taxis
+		_tutorial_saved_num_taxis = -1
+	tutorial_hold_dispatch = false
+
+func _tutorial_setup() -> void:
+	tutorial_hold_dispatch = true
+	if _tutorial_saved_num_taxis < 0:
+		_tutorial_saved_num_taxis = num_of_taxis
+	# ONE taxi. can_go_to() only refuses a tile occupied by another taxi, so a single taxi cannot
+	# be blocked by anything — customers do not block. A jam mid-fare deadlocked the lesson: the
+	# player had to work out for themselves that they must select the blocker and drive it away,
+	# which is rule 3 and is not taught until the very end. One taxi also makes "this is one of
+	# your taxis" unambiguous, and it is the same taxi for the fare, the fuel and the pump.
+	num_of_taxis = 1
+
 func _on_agent_dispatch_timer_timeout() -> void:
+	if tutorial_hold_dispatch:
+		return
 	if start_dispatch and !game.paused():
 		var tm = game.game_time
 		if tm - time_last_dispatch >= time_between_dispatches_ms:
@@ -759,6 +908,7 @@ func finish_pick_up(taxi, agent):
 	taxi.dropoff_pos = agent.dropoff_pos
 	agent.set_rot(taxi.direction)
 	score_picked_passenger()
+	game.tutorial_notify("picked_up")           # no-op outside tutorial mode
 	agent.being_carried = true
 	taxi.passangers.append(agent)
 	agent.position = Vector2.ZERO
@@ -836,6 +986,7 @@ func on_taxi_pressed(taxi):
 			if a.is_selected and a != taxi:
 				a.set_selected(false)
 		taxi.set_selected(true)
+		game.tutorial_notify("taxi_selected")   # no-op outside tutorial mode
 
 func on_agent_pressed(agent):
 	# Log.dbg("pressed agent at ", agent.board_pos)
@@ -860,6 +1011,7 @@ func move_taxi_to_agent(taxi, agent):
 	var end = taxi.goal_pos[0]
 	if start == end:
 		taxi.goal_pos.pop_front()
+		game.tutorial_notify("customer_assigned")   # no-op outside tutorial mode
 		pick_up(taxi,agent)
 		return
 	var path = send_taxi_to(taxi,end)
@@ -879,6 +1031,11 @@ func move_taxi_to_agent(taxi, agent):
 		if added_to_goals > 1:
 			taxi.goal_pos.pop_back()
 	taxi.set_selected(false)
+
+	# Only once the assignment has actually stuck: above, a taxi with no route to the customer has
+	# its transaction rolled back, and a coach told to wait for the pickup would wait forever.
+	if path.size() > 1:
+		game.tutorial_notify("customer_assigned")   # no-op outside tutorial mode
 
 	draw_path(path)	
 	return path
@@ -993,6 +1150,7 @@ func send_taxi_to(taxi, _board_pos):
 
 func score_delivered_passenger():	
 	game.add_score_and_time(200,10)	
+	game.tutorial_notify("delivered")           # no-op outside tutorial mode
 
 func score_moved_one_pos():
 	game.add_score_and_time(-2,0)
@@ -1041,6 +1199,7 @@ func on_clicked_target(target):
 			if taxi != null:
 				taxi.going_to_fill_gas = true
 				send_taxi_to(taxi, target.dropoff_pos)
+				game.tutorial_notify("sent_to_gas")   # no-op outside tutorial mode
 		elif target.is_sender:
 			for a in agents:
 				if !a.is_taxi and a.transaction_id == target.transaction_id:
@@ -1085,6 +1244,7 @@ func check_taxi(taxi):
 func on_finished_filling_gas(_taxi, percentage_filled):
 	var full_tank_price = 100
 	game.add_score_and_time(ceili(-full_tank_price * percentage_filled), 0)
+	game.tutorial_notify("gas_filled")   # no-op outside tutorial mode
 	# Log.dbg("done filling gas")
 
 func buy_taxi():

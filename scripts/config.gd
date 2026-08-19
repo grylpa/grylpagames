@@ -43,7 +43,7 @@ var games = [
 
 	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
 
-	["mmm",           "MMM",            "Explore and remember the room colors",                   "Memory & Navigation"],
+	["mmm",           "Mind Palace",    "Explore and remember the room colors",                   "Memory & Navigation"],
 	["lightsout",     "Lights Out",     "Remember your path, goal, and obstacles",                "Memory & Navigation"],
 	["deliverem",     "Deliverem",      "Remember the delivery order",                            "Memory & Navigation"],
 	["delemfp",       "Delem FP",       "Deliver packets in order while zoomed in",               "Memory & Navigation"],
@@ -56,7 +56,7 @@ var games = [
 # these in its "How to play" picker and badges their rows, so a player can tell which games have
 # one without entering each game to find out. Add a folder here as each tutorial is written —
 # see docs/tutorials.md for the recipe.
-var tutorials: Array = ["aliens", "change", "dino", "gorilla", "guidem", "storm", "udbr", "wolves"]
+var tutorials: Array = ["aliens", "change", "dino", "gorilla", "guidem", "storm", "taxi", "udbr", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials
