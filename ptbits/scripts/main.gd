@@ -59,6 +59,52 @@ func _ready() -> void:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	# MUST stay at the end of _ready, after show_instructions above: that call's suppression guard
+	# asks whether a tutorial is pending, so consuming the flag earlier lets the text wall through.
+	if MainGlobals.take_pending_tutorial("ptbits"):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://ptbits/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# starting_level lives on PtbitsG, not the game util, so the snapshot does not cover it.
+	_tutorial_saved_level = PtbitsG.starting_level_id
+	PtbitsG.starting_level_id = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The caption must not sit on the tools the player is being asked to drag, nor on the ball
+	# they are steering.
+	runner.keep_clear = [
+		func(): return $Level.tutorial_tool_rect(0),
+		func(): return $Level.tutorial_tool_rect(1),
+		func(): return Rect2($Level.tutorial_ball_pos() - Vector2(40, 40), Vector2(80, 80)) if $Level.tutorial_has_ball() else null,
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	if is_instance_valid($Level):
+		$Level.tutorial_hold_spawn = false
+	if _tutorial_saved_level >= 0:
+		PtbitsG.starting_level_id = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
+
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))

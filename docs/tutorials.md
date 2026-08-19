@@ -84,7 +84,7 @@ Each step is a Dictionary:
 | `hint_after` | seconds of no progress before `hint` is appended to the caption |
 | `hint` | the nudge line |
 | `setup` | `Callable` run before the step, to stage the situation the step needs to teach. It may cause the very event the step waits for — that is recognized, not lost |
-| `demo_path` | `Callable` returning screen points; the overlay traces them with a moving dot, to *show* a gesture instead of describing it |
+| `demo_path` | `Callable` returning screen points; the overlay traces them with a drawn pointing hand, then walks a dot along the same route, to *show* a gesture instead of describing it |
 
 Steps with no `await` freeze the game and dim everything but the spotlight. Steps with an `await`
 let the player play: no dim, just a pulsing outline, and input passes straight through.
@@ -99,7 +99,12 @@ gate *wanted* an alien that did not match. The captions now read the live pass o
 (`_pass_label`) and quote it in every line that talks about matching, so caption and screen cannot
 disagree. If a caption asserts something about the game state, prefer reading that state.
 
-**Show a gesture you cannot name.** `demo_path` animates a finger-trail over the board. Drawn-path
+**Show a gesture you cannot name.** `demo_path` animates a pointing hand over the board, then a dot
+walking the same route — the gesture, then its effect, in that order. The hand is drawn as a
+polygon (`_HAND_SHAPE`), not typeset from an emoji, so it does not depend on a font being installed
+and cannot be rendered as a blank box. It was two stacked rectangles once, which at that size read
+as a featureless blob — indistinguishable from the dot that follows it, so the sequence did not
+come across at all. Drawn-path
 movement (`wolves`, `storm`) exists nowhere else in the app, so "trace a route" is an instruction
 players have never had to act on; the trail demonstrates it while the caption explains it. Words
 like "flick" are worth expanding too — gorilla says "swipe quickly in the direction you want to

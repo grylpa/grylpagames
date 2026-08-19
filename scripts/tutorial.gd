@@ -597,21 +597,40 @@ func _draw_demo_path() -> void:
 		_dim.draw_circle(pos, 11.0, SPOT_COLOR, true, -1.0, true)
 		_dim.draw_arc(pos, 16.0, 0.0, TAU, 24, Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 0.5), 2.0, true)
 
-# A simple pointing hand, drawn rather than typeset so it does not depend on an emoji font being
-# present (and cannot be resized into a blob by one).
+# A pointing hand: a closed fist with the index finger extended, fingertip ON the point being
+# traced. Drawn rather than typeset so it does not depend on an emoji font being installed (and
+# cannot be resized into a blob by one).
+#
+# It was two stacked rectangles, which at ~14px read as a featureless blob — indistinguishable from
+# the dot that follows it, so the "you swipe, then it walks" sequence did not come across.
+#
+# Outline of a hand pointing UP, in local units, fingertip at the origin and the wrist below it.
+# Down the left: finger, knuckle, thumb, heel of the palm. Along the bottom: the wrist. Up the
+# right: the folded fingers as three bumps. Closed with a rounded fingertip.
+const _HAND_SHAPE: Array = [
+	Vector2(-3.5, 0.0), Vector2(-3.5, 13.0),          # index finger, left edge
+	Vector2(-8.5, 13.5), Vector2(-11.5, 19.0),        # knuckle and thumb
+	Vector2(-9.5, 26.0), Vector2(-7.5, 32.0),
+	Vector2(-5.5, 37.0), Vector2(5.5, 37.0),          # heel and wrist
+	Vector2(8.5, 32.0), Vector2(9.5, 25.0),           # folded fingers, three bumps
+	Vector2(8.5, 19.0), Vector2(5.5, 14.5),
+	Vector2(3.5, 13.0), Vector2(3.5, 0.0),            # index finger, right edge
+	Vector2(0.0, -3.0),                               # rounded tip
+]
+const _HAND_SCALE: float = 1.25
+
 func _draw_hand(at: Vector2) -> void:
-	var ink: Color = Color(1, 1, 1, 0.95)
-	var edge: Color = Color(0.1, 0.1, 0.1, 0.9)
-	# palm
-	var palm: Rect2 = Rect2(at + Vector2(-7.0, -2.0), Vector2(14.0, 15.0))
-	_dim.draw_rect(palm, ink, true)
-	_dim.draw_rect(palm, edge, false, 1.5)
-	# index finger, pointing up at the path
-	var finger: Rect2 = Rect2(at + Vector2(-3.0, -15.0), Vector2(6.0, 15.0))
-	_dim.draw_rect(finger, ink, true)
-	_dim.draw_rect(finger, edge, false, 1.5)
-	# contact point
-	_dim.draw_circle(at + Vector2(0.0, -15.0), 4.0, SPOT_COLOR, true, -1.0, true)
+	var ink: Color = Color(1, 1, 1, 0.97)
+	var edge: Color = Color(0.08, 0.08, 0.08, 0.9)
+	var pts: PackedVector2Array = PackedVector2Array()
+	for v in _HAND_SHAPE:
+		pts.append(at + Vector2(v) * _HAND_SCALE)
+	_dim.draw_colored_polygon(pts, ink)
+	var closed: PackedVector2Array = pts.duplicate()
+	closed.append(pts[0])
+	_dim.draw_polyline(closed, edge, 1.6, true)
+	# the point of contact, on the path itself
+	_dim.draw_circle(at, 3.5, SPOT_COLOR, true, -1.0, true)
 
 func _draw_dim() -> void:
 	var full: Rect2 = Rect2(Vector2.ZERO, _dim.size)

@@ -109,7 +109,7 @@ Coached tutorial in `storm/scripts/tutorial.gd`; see `docs/tutorials.md` for the
 - `tapped_too_far` exists because tapping a leak you are not standing next to does *nothing* — no
   message, no sound. That silence is the most confusing thing in the game, and the hook lets the
   coach explain it at the moment it happens rather than in the abstract.
-- **`demo_path`**: the tutorial animates a finger-trail starting at the player, the same as
+- **`demo_path`**: the tutorial animates a pointing hand tracing a route from the player, the same as
   wolves, so the drawn-path gesture is shown rather than described.
 - **Drawn-path movement**: storm and wolves are the only two games where
   `MainGlobals.draw_path_mode` is on, so nothing a player has learned elsewhere suggests it. It is
