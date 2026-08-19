@@ -362,6 +362,22 @@ holds it still while the coach talks about it.
   the gate, lock onto another of the same kind, and if there is none, send one. Its two wait steps
   tick a `nudge` that re-requests an arrival that never turned up (rate-limited to one request per
   4 s, since requesting spawns or re-routes an alien).
+- **`take_pending_tutorial()` belongs at the END of `_ready`, after `show_instructions`.** The
+  suppression guard in `show_instructions()` asks "is a tutorial pending for me?", so consuming the
+  flag earlier empties it and the text wall appears anyway — the player asked for the tutorial and
+  got the instructions screen. dino had the call inside `show_main_menu()`, which `_ready` invokes
+  early, so it broke exactly this way. Checking line numbers is not enough; check the enclosing
+  FUNCTION.
+- **A step with no title and no text shows no caption.** Some steps exist only to wait for the game
+  to reach a state — didi holds its round until the player taps, then needs a step that simply waits
+  for the flash — and a filler line ("here it comes") appears for a moment and reads as a glitch.
+  Give such a step no words and the panel stays hidden.
+- **The step that has just opened ignores taps for `STEP_SETTLE_MS`.** The tap that completes a
+  doing step arrives twice (touch plus the synthesized mouse event): the first goes to the game and
+  satisfies the step, the second lands on the dim of the step that just opened and dismisses it.
+  `TAP_DEBOUNCE_MS` cannot catch that pair, because the first half never went through the overlay.
+  In Mind Palace this took the player from answering a color straight to the main menu, on mobile
+  only — where the synthesized event actually reaches the overlay.
 - **A step that asks for an action must BE a doing step.** A talking step freezes the board and
   swallows the next press, so an instruction in its text cannot be obeyed — and the press that
   begins the attempt dismisses the step instead. Obeying the coach is what skips it. change's

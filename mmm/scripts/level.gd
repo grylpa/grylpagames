@@ -890,10 +890,10 @@ func tutorial_floor_patch_rect() -> Rect2:
 	var rid: int = bcell(p).room_id
 	if rid < 0:
 		return Rect2()
-	var r = rooms[rid]
-	var lo: Vector2i = Vector2i(maxi(p.x - 1, r.position.x), maxi(p.y - 1, r.position.y))
-	var hi: Vector2i = Vector2i(mini(p.x + 1, r.end.x - 1), mini(p.y + 1, r.end.y - 1))
-	return _screen_rect_for_cells(lo, hi)
+	# Just the tile underfoot. A 3x3 patch is ~170px in the middle of the screen, which left the
+	# caption nowhere to stand — it ended up covering the very floor it was pointing at. The floor
+	# is one flat color, so one tile says it just as well.
+	return _screen_rect_for_cells(p, p)
 
 # During the answer phase EVERY room gets its own palette at once, so a caption saying "this room"
 # names nothing. This is the room still waiting for an answer, for the coach to mark.

@@ -259,11 +259,18 @@ func _enter_step(i: int) -> void:
 	_dim.mouse_filter = Control.MOUSE_FILTER_STOP if _blocking else Control.MOUSE_FILTER_IGNORE
 
 	_step_elapsed = 0.0
+	_step_opened_ms = Time.get_ticks_msec()
 	_moved_for_spot_ms = -100000
 	_hint_shown = false
 	_title_label.text = _resolve_text(step.get("title", ""))
 	_title_label.visible = not _title_label.text.is_empty()
 	_text_label.text = _resolve_text(step.get("text", ""))
+	# A step with nothing to say shows no caption at all. Some steps exist only to WAIT for the
+	# game to reach a state — didi holds its round until the player taps, then needs a step that
+	# simply waits for the flash — and a filler line like "here it comes" appears for a moment and
+	# reads as a glitch. With no title and no text, the panel stays hidden and the player just sees
+	# the game.
+	_panel.visible = not (_title_label.text.is_empty() and _text_label.text.is_empty())
 	_update_footer()
 	_update_spot()
 	_update_demo_path()
@@ -330,8 +337,22 @@ func _advance() -> void:
 const TAP_DEBOUNCE_MS: int = 120
 var _last_tap_ms: int = -100000
 
+# A step that has only just opened ignores taps for this long. The tap that COMPLETES a doing step
+# is delivered twice (touch + the mouse event synthesized from it): the first goes to the game and
+# satisfies the step, the second arrives after the next step has opened and lands on its dim, which
+# dismisses it instantly. The debounce above cannot catch that pair, because the first half never
+# went through the overlay at all.
+#
+# In Mind Palace this took the player straight from answering a color to the main menu — the
+# closing step was opened and dismissed by the two halves of one tap — and only on mobile, where
+# the synthesized event actually reaches the overlay.
+const STEP_SETTLE_MS: int = 250
+var _step_opened_ms: int = -100000
+
 func _tap_advance() -> void:
 	var now: int = Time.get_ticks_msec()
+	if now - _step_opened_ms < STEP_SETTLE_MS:
+		return
 	if now - _last_tap_ms < TAP_DEBOUNCE_MS:
 		return
 	_last_tap_ms = now

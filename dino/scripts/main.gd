@@ -55,6 +55,14 @@ func _ready() -> void:
 		game.show_instructions(self)
 		DinoG.save_settings()
 
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	#
+	# This MUST come after show_instructions above, and must not live in show_main_menu(): _ready
+	# calls that early, so consuming the flag there emptied it before show_instructions ran, and its
+	# "am I about to be a tutorial?" guard then let the text wall through on a first run.
+	if MainGlobals.take_pending_tutorial("dino"):
+		call_deferred("start_tutorial")
+
 	main_menu.show_continue_and_start_new(false)
 	game.scores_callback = Callable(self, "add_score_line_vals")
 	game.show_scores_level = true
@@ -77,10 +85,6 @@ func show_main_menu() -> void:
 	# normal theme on the menu screen; the reversed theme is only used on the level screen
 	MainGlobals.update_bottom_bar(["help", "mute", "scores"])
 	MainGlobals.add_action_button(null)
-
-	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
-	if MainGlobals.take_pending_tutorial("dino"):
-		call_deferred("start_tutorial")
 
 # Runs the real level with the real rules, but scored by nobody: TutorialRunner puts the game into
 # tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.

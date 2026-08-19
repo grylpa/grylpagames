@@ -118,6 +118,11 @@ func new_game(from_scratch: bool = true) -> void:
 	ambient_audios.shuffle()
 	game.add_sound(self, "ambient", ambient_audios[0], true)
 	game.play_sound("ambient")
+	if game.tutorial_mode:
+		# The tutorial teaches all of this by doing it, and a wall of level numbers in front of the
+		# coach is the first thing the player would have to dismiss.
+		_on_game_popup_closed()
+		return
 	var lvl: Dictionary = DidiLevelConfig.get_level(level)
 	game.show_game_popup(self, "Level %d" % level,
 		"Center: %d ms\nPeriph flash: %d ms\nTimeout: %.1f s\nRounds: %d" % [
@@ -141,6 +146,48 @@ func _load_cfg(increase: bool = false) -> void:
 	_num_options = lvl["num_options"]
 	_num_corrects_for_next_level = lvl["rounds"]
 	_time_to_consider_fail_ms = lvl["time_to_consider_fail"]
+	if game.tutorial_mode:
+		# After the level values are read, so it overrides them rather than being overwritten.
+		_tutorial_setup()
+
+# --- tutorial staging -------------------------------------------------------
+
+# Set by the tutorial for its final step; cleared when the tutorial ends.
+var tutorial_only_correct_taps: bool = false
+
+# Holds the round at the gate. "Watch the center" is worth nothing if the shape has already come
+# and gone by the time the player has read it — so the coach holds the round until they say they
+# are ready, and only then lets it run.
+var tutorial_hold_round: bool = false
+
+# The one agent that is both the right shape AND in the right direction.
+func tutorial_correct_agent():
+	for a in _answer_agents:
+		if is_instance_valid(a) and a.is_correct:
+			return a
+	return null
+
+func _tutorial_setup() -> void:
+	# The answer clock is 6 s at level 1, which is right for play and absurd for someone reading a
+	# caption. game_time does not advance while a caption is up, but the moment they start looking
+	# for the answer it does, and a first-timer needs longer than six seconds.
+	_time_to_consider_fail_ms = 10000000
+
+# The shape the round is about, while it is still lit.
+func tutorial_model_agent():
+	return _model_agent if _model_agent != null and is_instance_valid(_model_agent) else null
+
+# The dot, while it is still lit.
+func tutorial_periph_agent():
+	return _periph_agent if _periph_agent != null and is_instance_valid(_periph_agent) else null
+
+# A decoy: the model's shape sitting in a direction the dot did NOT flash. This is the trap the
+# tutorial has to name out loud, so it needs to be able to point at one.
+func tutorial_decoy_agent():
+	for a in _answer_agents:
+		if is_instance_valid(a) and a.is_correct_shape and not a.is_correct_direction:
+			return a
+	return null
 
 func _clear_round_state() -> void:
 	_answer_active = false
@@ -178,8 +225,13 @@ func _process(_delta: float) -> void:
 	if game.paused() or not game.level_is_ready:
 		return
 	if _need_to_show_model and game.game_time >= _time_to_show_model_ms:
-		_need_to_show_model = false
-		_spawn_model()
+		if tutorial_hold_round:
+			# Held: keep the round pending so it starts the moment the coach lets it, rather than
+			# firing the instant the player dismisses a caption they have not finished reading.
+			_time_to_show_model_ms = game.game_time + 100.0
+		else:
+			_need_to_show_model = false
+			_spawn_model()
 	if _need_to_show_periph and game.game_time >= _time_to_show_periph_ms:
 		_need_to_show_periph = false
 		_spawn_periph_flash()
@@ -212,6 +264,7 @@ func _spawn_model() -> void:
 	agent.need_to_remove_agent.connect(_on_model_removed)
 	_model_agent = agent
 	game.play_sound("dispatch")
+	game.tutorial_notify("model_shown")   # no-op outside tutorial mode
 	# Schedule periph flash shortly after model appears
 	_need_to_show_periph = true
 	_time_to_show_periph_ms = game.game_time + 150.0
@@ -242,6 +295,7 @@ func _spawn_periph_flash() -> void:
 	var c: Color = game.next_color()
 	agent.set_colors([c, c])
 	agent.scale *= 0.55
+	game.tutorial_notify("periph_shown")   # no-op outside tutorial mode
 	agent.need_to_remove_agent.connect(func(_a):
 		if is_instance_valid(_a):
 			_a.queue_free()
@@ -279,6 +333,7 @@ func _dispatch_answer_stage() -> void:
 		var has_correct_shape: bool = dir_idx in correct_shape_dirs
 		_spawn_answer_cluster(dir_idx, has_correct_shape)
 
+	game.tutorial_notify("answer_ready")   # no-op outside tutorial mode
 	_timer_arc.position = game.board_to_px(Vector2i(3, 3))
 	_timer_arc.radius = game.tile_size * 0.25
 	_timer_arc.progress = 1.0
@@ -381,6 +436,12 @@ func _spawn_answer_cluster(dir_idx: int, has_correct_shape: bool) -> void:
 func _on_answer_agent_pressed(agent) -> void:
 	if not _answer_active or game.paused() or game.level_is_done:
 		return
+	# While the tutorial is asking for one particular shape, anything else is simply ignored: no
+	# score, no partial credit, no round ending. A first-timer who taps the wrong thing here should
+	# get another go at the thing being explained, not a penalty and a fresh round.
+	if tutorial_only_correct_taps and not agent.is_correct:
+		game.play_sound("swoosh")
+		return
 	var elapsed_ms: float = game.game_time - _answer_start_game_time
 	var board_pos: Vector2i = agent.board_pos
 
@@ -392,6 +453,7 @@ func _on_answer_agent_pressed(agent) -> void:
 		game.play_sound("delivery")
 		_flash_at(board_pos, true)
 		_show_score_popup(board_pos, "+" + str(score_to_add), true)
+		game.tutorial_notify("answered_right")   # no-op outside tutorial mode
 		num_corrects_in_level_so_far += 1
 	elif agent.is_correct_direction:
 		# Correct direction, wrong shape — partial credit

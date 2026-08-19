@@ -176,7 +176,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot": locked_spot,
 			"await": {"event": "promoted", "timeout": 60.0},
 			"hint_after": 8.0,
-			"hint": "Press the alien and drag it to the middle of the gate.",
+			"hint": "Press the alien and drag it to the center of the gate.",
 		},
 		{
 			"setup": func() -> void:

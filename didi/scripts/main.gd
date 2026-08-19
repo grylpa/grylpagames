@@ -54,6 +54,51 @@ func _ready() -> void:
 		game.progress_level_names[lvl["id"]] = DidiLevelConfig.level_header(lvl["id"])
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("didi"):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://didi/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# starting_level lives on DidiG, not the game util, so the snapshot does not cover it.
+	_tutorial_saved_level = DidiG.starting_level
+	DidiG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The caption must not cover the shape it is talking about, the dot, or the decoy it points at —
+	# and the dot in particular can flash anywhere around the board.
+	runner.keep_clear = [
+		func(): return $Level.tutorial_model_agent(),
+		func(): return $Level.tutorial_periph_agent(),
+		func(): return $Level.tutorial_decoy_agent(),
+		func(): return $Level.tutorial_correct_agent(),
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	$Level.tutorial_only_correct_taps = false
+	$Level.tutorial_hold_round = false
+	if _tutorial_saved_level >= 0:
+		DidiG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
+
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
