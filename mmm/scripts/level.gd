@@ -178,6 +178,7 @@ func _input(event) -> void:
 func move_dir(dir):
 	if player == null or !game.level_is_ready:
 		return
+	game.tutorial_notify("player_moved")   # no-op outside tutorial mode
 	player.path.clear()
 
 	next_player_dir = dir
@@ -237,6 +238,10 @@ func mean_time_to_answer_ms() -> int:
 
 func answered(correct: bool):
 	if correct:
+		# Only a CORRECT answer moves the coach on. A wrong pick leaves the palette open and the
+		# room unnamed, so the player should stay on the step and try again rather than be told
+		# "now do the other room" while this one is still unanswered.
+		game.tutorial_notify("room_answered")   # no-op outside tutorial mode
 		game.add_score_and_time(1,5)
 		game.add_correct_or_mistake(1,0)
 		game.play_sound("delivery")
@@ -616,6 +621,9 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 
 
 func create_board() -> void:
+	if game.tutorial_mode:
+		# BEFORE create_rooms() below reads num_rooms, and before the hazard counts are used.
+		_tutorial_setup()
 	# rng = RandomNumberGenerator.new()
 	# rng.seed = 1110
 
@@ -807,7 +815,105 @@ func create_player_camera(player_camscale):
 	if game_cam != null:
 		game_cam.enabled = false
 
+# Nothing hunts the player during a tutorial. Being killed mid-lesson ends the round outright
+# (check_agent_collisions -> mark_hit -> level_is_done(false)) and teaches nothing but frustration.
+var tutorial_no_movers: bool = false
+
+func _tutorial_setup() -> void:
+	tutorial_no_movers = true
+	num_bomb_agents_to_add = 0
+	# The smallest castle the game can make, and a palette with no decoy colors in it: the lesson is
+	# "you will be asked what color each room was", not "pick it out of a dozen you never saw".
+	num_rooms = 2
+	num_distracting_colors = 0
+
+# --- spotlight helpers. Rooms and coins are board coordinates, not nodes, so they are converted to
+# SCREEN space here; the runner takes a Rect2 as already being in screen space.
+func _screen_rect_for_cells(p0: Vector2i, p1: Vector2i) -> Rect2:
+	if not game.in_board(p0) or not game.in_board(p1):
+		return Rect2()
+	var c0 = board[p0.y][p0.x]
+	var c1 = board[p1.y][p1.x]
+	if c0.pipe == null or c1.pipe == null:
+		return Rect2()
+	var t: Transform2D = get_viewport().get_canvas_transform()
+	var a: Vector2 = t * c0.pipe.global_position
+	var b: Vector2 = t * c1.pipe.global_position
+	# Tile positions are points, so a single cell came out as a zero-size rect and the frame drawn
+	# round it was 20px — smaller than the coin inside it, which reads as a rendering glitch rather
+	# than as "look here". Grow by half a tile on each side so one cell frames one tile.
+	# Tile size from the camera, NOT from a neighbouring tile: add_coins() puts some coins on a
+	# room's edge, where the tile to the right is a wall with no pipe to measure against. That made
+	# the frame collapse to a fixed 8px inset there, so the same marker came out about two tiles
+	# wide in the middle of a room and about one on its edge.
+	var half: float = game.tile_size * t.get_scale().x * 0.5
+	var lo: Vector2 = Vector2(minf(a.x, b.x), minf(a.y, b.y)) - Vector2(half, half)
+	return Rect2(lo, (b - a).abs() + Vector2(half, half) * 2.0).grow(6.0)
+
+func tutorial_room_rect(room_id: int) -> Rect2:
+	if room_id < 0 or room_id >= rooms.size():
+		return Rect2()
+	var r = rooms[room_id]
+	return _screen_rect_for_cells(r.position, r.end - Vector2i(1, 1))
+
+# The room the player is standing in, so a caption about "this room" points at the right one.
+func tutorial_current_room() -> int:
+	if player == null or not is_instance_valid(player):
+		return -1
+	return bcell(player.board_pos).room_id
+
+func tutorial_current_room_rect() -> Rect2:
+	return tutorial_room_rect(tutorial_current_room())
+
+# A room that has not been entered yet — where the coach sends them next.
+func tutorial_unvisited_room_rect() -> Rect2:
+	for rid in rooms.size():
+		if not visited_rooms.has(rid):
+			return tutorial_room_rect(rid)
+	return Rect2()
+
+# A PATCH of floor beside the player, not the whole room. A room rect is most of the screen, so a
+# caption cannot get out of its way — it ended up sitting on the very floor it was telling the
+# player to look at.
+# Movement is continuous: one swipe and you keep going. So a step that says "look at THIS room"
+# has to stop the player first, or the freeze catches them halfway down a corridor and the caption
+# is talking about a floor they have already left.
+func tutorial_halt_player() -> void:
+	next_player_dir = -1
+	if player != null and is_instance_valid(player):
+		player.path.clear()
+
+func tutorial_floor_patch_rect() -> Rect2:
+	if player == null or not is_instance_valid(player):
+		return Rect2()
+	var p: Vector2i = player.board_pos
+	var rid: int = bcell(p).room_id
+	if rid < 0:
+		return Rect2()
+	var r = rooms[rid]
+	var lo: Vector2i = Vector2i(maxi(p.x - 1, r.position.x), maxi(p.y - 1, r.position.y))
+	var hi: Vector2i = Vector2i(mini(p.x + 1, r.end.x - 1), mini(p.y + 1, r.end.y - 1))
+	return _screen_rect_for_cells(lo, hi)
+
+# During the answer phase EVERY room gets its own palette at once, so a caption saying "this room"
+# names nothing. This is the room still waiting for an answer, for the coach to mark.
+func tutorial_coin_rect() -> Rect2:
+	for p in coins.keys():
+		return _screen_rect_for_cells(p, p)
+	return Rect2()
+
+# The coin in the room the player is in, if there is one — better to point at that than at whichever
+# coin happens to come first in the dictionary.
+func tutorial_coin_here_rect() -> Rect2:
+	var here: int = tutorial_current_room()
+	for p in coins.keys():
+		if here >= 0 and bcell(p).room_id == here:
+			return _screen_rect_for_cells(p, p)
+	return tutorial_coin_rect()
+
 func add_moving_agents():
+	if tutorial_no_movers:
+		return
 	var n := 0
 	for r in rooms:
 		var candidates = [r.position, r.position + Vector2i(r.size.x-1,0), r.position + Vector2i(0,r.size.y-1), r.position + Vector2i(r.size.x-1,r.size.y-1)]
@@ -901,6 +1007,7 @@ func move_player_on_tick(force:bool = false):
 	if cell.pipe != null and cell.pipe.has_coin >= 0:
 		game.add_score_and_time(cell.pipe.has_coin, 0)
 		game.play_sound("delivery")
+		game.tutorial_notify("coin_taken")   # no-op outside tutorial mode
 		cell.pipe.has_coin = -1
 		cell.pipe.set_rot(board)
 		coins.erase(player.board_pos)
@@ -1135,6 +1242,8 @@ func add_player_at(p: Vector2i, direction: int):
 	player.set_color(color)
 
 func mark_visited_room(room_id):
+	if room_id >= 0 and not visited_rooms.has(room_id):
+		game.tutorial_notify("room_entered")   # no-op outside tutorial mode
 	visited_rooms[room_id] = true
 
 func add_player():
@@ -1193,6 +1302,7 @@ func on_player_remove_player(_arrived: bool):
 		colors_for_popup = rndn.duplicate()
 		for room_id in range(rooms.size()):
 			create_color_selection_popup(room_id, true)
+		game.tutorial_notify("map_shown")   # no-op outside tutorial mode
 	else:	
 		level_is_done(false)
 	# if player != null:
@@ -1423,7 +1533,23 @@ func _on_color_rect_input(event, rect: Control):
 			answered(true)
 			_close_popup()
 		else:
+			_flash_wrong(rect)
 			answered(false)
+
+# Say NO where the player is looking — at the swatch they just tapped. The score ticking down at
+# the top of the screen is easy to miss entirely, and was the only sign that a pick was wrong.
+func _flash_wrong(rect: Control) -> void:
+	if rect == null or not is_instance_valid(rect):
+		return
+	var back: Color = rect.modulate
+	rect.modulate = Color(1.0, 0.25, 0.25, 1.0)
+	var tw: Tween = MainGlobals.make_tween()
+	tw.tween_property(rect, "modulate", back, 0.45)
+	var start_x: float = rect.position.x
+	var shake: Tween = MainGlobals.make_tween()
+	shake.tween_property(rect, "position:x", start_x - 5.0, 0.05)
+	shake.tween_property(rect, "position:x", start_x + 5.0, 0.09)
+	shake.tween_property(rect, "position:x", start_x, 0.05)
 
 func _close_popup():
 	popup.hide()
