@@ -45,6 +45,52 @@ func _ready() -> void:
 	game.progress_level_pos = 6
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 	game.progress_time_pos = 7
+
+	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	if MainGlobals.take_pending_tutorial("mmm"):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://mmm/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# starting_level lives on MmmG, not the game util, so the snapshot does not cover it.
+	_tutorial_saved_level = MmmG.starting_level
+	MmmG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The caption must not cover the room being talked about, the coin it says to take, or the
+	# answer swatches at the end — all of which sit wherever the castle put them.
+	# The floor patch being talked about and the coin being pointed at. NOT whole rooms: a room is
+	# most of the screen, and listing it just forces the caption into the least-bad overlap anyway.
+	runner.keep_clear = [
+		func(): return _rect_or_null($Level.tutorial_coin_here_rect()),
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _rect_or_null(r: Rect2):
+	return r if r.size.x > 0.0 and r.size.y > 0.0 else null
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	$Level.tutorial_no_movers = false
+	if _tutorial_saved_level >= 0:
+		MmmG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 	# MainGlobals.path_tile_size = game.tile_size                                                                                                                                                                                                                                                 
 	# MainGlobals.path_screen_offset = game.screen_offset                                                                                                                                                                                                                                         
 	# MainGlobals.path_board_size = game.board_size      
