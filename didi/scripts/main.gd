@@ -37,7 +37,7 @@ func _ready() -> void:
 	$Level.started_playing.connect(_on_level_started_playing)
 
 	var ins_font_sz: int = 36 if MainGlobals.is_mobile() else 22
-	game.set_instructions("DIDI",		
+	game.set_instructions("Pinpoint",		
 		"A shape flashes briefly at the center and a dot flashes somewhere else.\n" +
 		"Then, find the location where the dot flashed and tap the shape that appeared in the center.",
 		ins_font_sz)
