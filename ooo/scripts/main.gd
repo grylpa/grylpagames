@@ -34,7 +34,7 @@ func _ready() -> void:
 	$Level.started_playing.connect(_on_level_started_playing)
 
 	var _ins_font_sz = 36 if MainGlobals.is_mobile() else 22
-	game.set_instructions("OOO", 
+	game.set_instructions("Lineup", 
 		"You will briefly see an image.\n" + 
 		"After some time, you will see a few images.\n" + 
 		"Out of these, you need to select the matching image \n" + 

@@ -31,7 +31,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "DIDI",
+			"title": "Pinpoint",
 			"text": "Two things flash, one after the other. You need both of them, and both are gone before you answer.",
 		},
 		{

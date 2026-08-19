@@ -38,7 +38,7 @@ func _ready() -> void:
 	# sig_periph_active is connected via main.tscn scene connection
 
 	var _ins_font_sz = 36 if MainGlobals.is_mobile() else 22
-	game.set_instructions("DDOOO",
+	game.set_instructions("Witness",
 		"A shape briefly flashes at the center AND a dot flashes in one of 8 directions.\n" +
 		"Remember both!\n" +
 		"First pick the matching center shape from the alternatives.\n" +

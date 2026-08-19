@@ -2,7 +2,7 @@ extends Node
 
 var starting_level: int = 1
 
-var game: GenericGameUtil = GenericGameUtil.new("DIDI", "didi", 0, 2, 0, 0)
+var game: GenericGameUtil = GenericGameUtil.new("Pinpoint", "didi", 0, 2, 0, 0)
 
 func init_globals() -> void:
 	game.init_sizes()
