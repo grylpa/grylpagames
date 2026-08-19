@@ -67,7 +67,7 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Walk onto it.",
 		},
 		{
-			"text": "One room remembered. Now find the other one, through the corridor.",
+			"text": "One room done. Remember its color!\n\nNow find the other one, through the corridor.",
 			"await": "room_entered",
 			"hint_after": 15.0,
 			"hint": "Follow the corridor out of this room.",

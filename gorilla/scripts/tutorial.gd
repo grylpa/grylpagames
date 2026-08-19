@@ -68,7 +68,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Two things at once",
-			"text": "Clear the coins, and keep count.\n\nThe coins hold your eyes in the middle of the room; the gorillas only ever appear round the outside.",
+			"text": "Clear the coins, and keep count.\n\nThe coins hold your eyes in the center of the room; the gorillas only ever appear round the outside.",
 		},
 		{
 			"setup": func(): level.tutorial_show_a_monster(),

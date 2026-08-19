@@ -131,10 +131,37 @@ func set_pos(p, dir):
 		return
 	position = p
 			
+# How long a taxi takes to swing round to a new heading. Kept well under the time it takes to cross
+# a tile, so the turn reads as a turn and not as a delay.
+const TURN_TIME_SEC: float = 0.12
+
+# The angle the head is DRAWN at. `angles[0]` stays the logical heading — the body segments trail
+# off it — while this one is tweened, so a taxi rounding a corner swings instead of snapping.
+var _head_angle: float = 0.0
+var _head_angle_set: bool = false
+var _turn_tween: Tween = null
+
 func set_rot(dir):
 	direction = dir
 	angles[0] = dir * PI/2
+	_turn_head_to(angles[0])
 	set_rots()
+
+func _turn_head_to(target: float) -> void:
+	if not _head_angle_set:
+		# First heading of this taxi's life: no turn to animate, just face that way.
+		_head_angle = target
+		_head_angle_set = true
+		return
+	if _turn_tween != null and _turn_tween.is_valid():
+		_turn_tween.kill()
+	# Shortest way round, so a right turn from "up" does not unwind three quarters of a circle.
+	var to: float = _head_angle + wrapf(target - _head_angle, -PI, PI)
+	if absf(to - _head_angle) < 0.01:
+		_head_angle = to
+		return
+	_turn_tween = MainGlobals.make_tween()
+	_turn_tween.tween_property(self, "_head_angle", to, TURN_TIME_SEC)
 
 var time_set_target_pos := 0.0
 
@@ -162,6 +189,10 @@ var _last_process_game_time := 0.0
 func _process(_delta: float) -> void:
 	if game.paused():
 		return
+	# The turn tween moves _head_angle; the sprite only picks it up when set_rots() happens to run,
+	# which is not every frame — so a standing taxi snapped to its new heading instead of swinging.
+	if _head_angle_set:
+		$Head.rotation = _head_angle
 
 	var now = game.game_time
 	if is_taxi:
@@ -241,7 +272,12 @@ func find_closest_dist(dist):
 	return idx
 			
 func set_rots():
-	$Head.rotation = angles[0]
+	# Drawn from _head_angle, not angles[0]: this runs every frame while moving, and reading the
+	# logical heading here would snap the head back and undo the turn tween.
+	if not _head_angle_set:
+		_head_angle = angles[0]
+		_head_angle_set = true
+	$Head.rotation = _head_angle
 	for i in nbody_parts:
 		bodies[i].rotation = angles[i+1]
 	

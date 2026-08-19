@@ -43,6 +43,13 @@ board is cut by (10, 6) tiles. `game.max_board_size` grows with the level even w
   `time_idle_ms / time_to_empty_fuel_tank_on_idle_sec` while stopped — so a parked taxi with its
   motor running still drains. At zero, `out_of_gas` latches and that taxi never moves again.
 
+## Turning
+
+`agent.gd::set_rot()` keeps `angles[0]` as the logical heading (the body segments trail off it) and
+tweens a separate `_head_angle` that the sprite is drawn from, over `TURN_TIME_SEC` (0.12 s) and
+always the short way round. `_process` applies it every frame: `set_rots()` does not run on a
+standing taxi, so applying it only there left a stopped taxi snapping to its new heading.
+
 ## Saved game
 
 Taxi is the only game with a full mid-game save: `main.gd::save_game_state()` writes

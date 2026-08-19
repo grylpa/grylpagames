@@ -163,10 +163,11 @@ static func steps(level: Node, game, main: Node) -> Array:
 			"hint": "Nothing to do — it fills itself.",
 		},
 		{
-			"title": "Ready",
+			"title": "Two more things",
 			"text": "Customers give up if they wait too long, so do not leave one waiting.\n\nAnd taxis cannot drive through each other: if yours is stuck behind another, tap the one in front and send it somewhere out of the way.",
 		},
 		{
+			"title": "Ready",
 			"text": "This buys another taxi, once you can afford one.",
 			"spot": buy_spot,
 		},
