@@ -84,6 +84,11 @@ var times_to_answer: Array = []
 
 var _phys_frozen: bool = false
 
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# The coach spawns every ball itself: a ball arriving on the spawn timer in the middle of a
+# lesson is exactly the "game free-running when it matters" the tutorial must not do.
+var tutorial_hold_spawn: bool = false
+
 var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var wrong_audio = preload("res://art/sounds/swoosh.mp3")
 
@@ -146,6 +151,13 @@ func new_game(_from_scratch: bool = true) -> void:
 	_spawn_accum = spawn_interval * 0.4  # first ball drops fairly soon
 	_phys_frozen = false
 	queue_redraw()
+	if game.tutorial_mode:
+		# No "Level 1 — sort 6 balls" popup in front of the coach's first caption, and no waiting
+		# on a button the tutorial never mentions: start play right away.
+		_tutorial_setup()
+		game.level_is_ready = true
+		started_playing.emit()
+		return
 	# Pre-level popup: tell the player what to expect. Play (and the countdown) only
 	# start once it's closed, via _on_game_popup_closed (didi/storm pattern).
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
@@ -419,8 +431,8 @@ func _circle_points(r: float, n: int) -> PackedVector2Array:
 
 # --- Balls ------------------------------------------------------------------
 
-func _spawn_ball() -> void:
-	var color_id: int = randi() % num_colors
+func _spawn_ball(force_color: int = -1, at_x: float = -1.0) -> void:
+	var color_id: int = force_color if force_color >= 0 and force_color < num_colors else randi() % num_colors
 	var ball: RigidBody2D = BALL_SCRIPT.new()
 	ball.set("max_speed", MAX_BALL_SPEED)
 	ball.gravity_scale = gravity_scale
@@ -463,11 +475,14 @@ func _spawn_ball() -> void:
 		min_x = play_left + 130.0
 		max_x = play_right - 130.0
 	var sx: float = randf_range(min_x, max_x)
+	if at_x >= 0.0:
+		sx = clampf(at_x, min_x, max_x)
 	ball.global_position = Vector2(sx, play_top + ball_radius + 4.0)
 
 	add_child(ball)
 	_balls.append(ball)
 	spawned_count += 1
+	game.tutorial_notify("ball_spawned")   # no-op outside tutorial mode
 
 func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
 	if not is_instance_valid(ball):
@@ -485,11 +500,13 @@ func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
 		game.add_score_and_time(15 + speed_bonus, 0)
 		game.add_correct_or_mistake(1, 0)
 		game.play_sound("correct")
+		game.tutorial_notify("ball_scored")
 	else:
 		var penalty: int = mini(5, game.score)
 		game.add_score_and_time(-penalty, 0)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("wrong")
+		game.tutorial_notify("ball_missed")
 		_flash_miss(ball.global_position)
 	MainGlobals.global_update_hud()
 	ball.queue_free()
@@ -577,7 +594,7 @@ func _process(delta: float) -> void:
 		return
 
 	# spawn
-	if spawned_count < rounds and _balls.size() < max_active:
+	if not tutorial_hold_spawn and spawned_count < rounds and _balls.size() < max_active:
 		_spawn_accum += delta
 		if _spawn_accum >= spawn_interval:
 			_spawn_accum = 0.0
@@ -647,6 +664,14 @@ func _grab_at(pos: Vector2) -> AnimatableBody2D:
 			best = t
 	return best
 
+# Single entry point for picking a tool up, so the tutorial notify covers touch and mouse alike.
+func _begin_drag(t: AnimatableBody2D, index: int, pos: Vector2) -> void:
+	_dragging_tool = t
+	_drag_index = index
+	_drag_target = pos
+	_bring_tool_to_front(t)
+	game.tutorial_notify("tool_grabbed")
+
 func _bring_tool_to_front(t: AnimatableBody2D) -> void:
 	# raise the grabbed tool above the other tools; it stays there after it's dropped
 	if _tools_layer != null and is_instance_valid(t) and t.get_parent() == _tools_layer:
@@ -661,10 +686,7 @@ func _input(event: InputEvent) -> void:
 			if _dragging_tool == null:
 				var t: AnimatableBody2D = _grab_at(event.position)
 				if t != null:
-					_dragging_tool = t
-					_drag_index = event.index
-					_drag_target = event.position
-					_bring_tool_to_front(t)
+					_begin_drag(t, event.index, event.position)
 		elif event.index == _drag_index:
 			_dragging_tool = null
 			_drag_index = -1
@@ -674,10 +696,7 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			var tm: AnimatableBody2D = _grab_at(event.position)
 			if tm != null:
-				_dragging_tool = tm
-				_drag_index = -1
-				_drag_target = event.position
-				_bring_tool_to_front(tm)
+				_begin_drag(tm, -1, event.position)
 		else:
 			if _drag_index == -1:
 				_dragging_tool = null
@@ -779,3 +798,100 @@ func pct_correct() -> int:
 
 func tick() -> void:
 	pass
+
+# --- tutorial staging -------------------------------------------------------
+
+func _tutorial_setup() -> void:
+	# Every ball comes from the coach (tutorial_ensure_ball), never from the spawn timer.
+	tutorial_hold_spawn = true
+	# The tutorial must never trip level completion: _resolve_ball ends the level as soon as
+	# `rounds` balls have resolved, which would drop a "Level 1 completed" popup on top of the
+	# coach. The player buckets two balls here and may miss a few more retrying.
+	rounds = 1000000
+
+# Let go of whatever the player was holding. While the coach talks the game is paused, so _input
+# never sees the finger lift — without this the tool would lurch to the last touch point the moment
+# play resumes.
+func tutorial_release_drag() -> void:
+	_dragging_tool = null
+	_drag_index = -1
+
+# Spawn one ball of a named color, dead center of the spawn band so it is reachable and is not
+# already above a bucket. Called from a step's setup or its per-frame tick.
+func tutorial_spawn_ball(color_id: int) -> void:
+	var cx: float = (_spawn_min_x + _spawn_max_x) * 0.5
+	_spawn_ball(color_id, cx)
+
+# Keep exactly one ball of this color in play: used as a step `tick`, so a ball that is missed or
+# wedged while the player is still learning is quietly replaced instead of stalling the step.
+func tutorial_ensure_ball(color_id: int) -> void:
+	for b in _balls:
+		if is_instance_valid(b):
+			return
+	tutorial_spawn_ball(color_id)
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func _tool_of(color_id: int) -> AnimatableBody2D:
+	if color_id < 0 or color_id >= _tools.size():
+		return null
+	var t = _tools[color_id]
+	return t if t is AnimatableBody2D and is_instance_valid(t) else null
+
+# The whole tool: disc at the top, loop handle at the bottom.
+func tutorial_tool_rect(color_id: int) -> Rect2:
+	var t: AnimatableBody2D = _tool_of(color_id)
+	if t == null:
+		return Rect2()
+	var c: Vector2 = t.get_global_transform_with_canvas().origin
+	var half_w: float = tool_radius + 8.0
+	var top: float = c.y - tool_radius - 8.0
+	var bot: float = c.y + grab_offset + loop_radius + 8.0
+	return Rect2(c.x - half_w, top, half_w * 2.0, bot - top)
+
+# Just the ring the player must actually take hold of — the disc is not a grab point, and framing
+# the whole tool while saying "grab it here" would point at the wrong half of it.
+func tutorial_tool_loop(color_id: int) -> Vector2:
+	var t: AnimatableBody2D = _tool_of(color_id)
+	if t == null:
+		return Vector2.ZERO
+	return t.get_global_transform_with_canvas() * Vector2(0.0, grab_offset)
+
+func tutorial_basket_rect(color_id: int) -> Rect2:
+	if color_id < 0 or color_id >= _basket_polys.size():
+		return Rect2()
+	var poly = _basket_polys[color_id]
+	if not (poly is PackedVector2Array) or (poly as PackedVector2Array).size() < 4:
+		return Rect2()
+	var lo: Vector2 = Vector2(1e9, 1e9)
+	var hi: Vector2 = Vector2(-1e9, -1e9)
+	for pt in (poly as PackedVector2Array):
+		lo = lo.min(pt)
+		hi = hi.max(pt)
+	return Rect2(lo, hi - lo)
+
+# All the baskets at once, for "these are the baskets".
+func tutorial_all_baskets_rect() -> Rect2:
+	var res: Rect2 = Rect2()
+	for i in num_colors:
+		var r: Rect2 = tutorial_basket_rect(i)
+		if r.size.x <= 0.0:
+			continue
+		res = r if res.size.x <= 0.0 else res.merge(r)
+	return res
+
+func tutorial_ball_pos() -> Vector2:
+	for b in _balls:
+		if is_instance_valid(b):
+			return (b as Node2D).get_global_transform_with_canvas().origin
+	return Vector2.ZERO
+
+func tutorial_has_ball() -> bool:
+	for b in _balls:
+		if is_instance_valid(b):
+			return true
+	return false
+
+# The strip along the floor a ball is lost through.
+func tutorial_floor_rect() -> Rect2:
+	return Rect2(play_left, play_bottom - 46.0, play_right - play_left, 46.0)
