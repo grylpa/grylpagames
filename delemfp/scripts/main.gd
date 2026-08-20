@@ -80,6 +80,12 @@ func start_tutorial() -> void:
 		func(): return $Level.tutorial_bottom_button("ClueButton"),
 		func(): return $Level.tutorial_bottom_button("ZoomButton"),
 	]
+	# The dispatcher's order line lives on the HUD (CanvasLayer 1) while the overlay dims from 120,
+	# so without this it spends the whole tutorial unreadable except on the one step that points at
+	# it — and part of learning the game is learning WHERE the order appears.
+	runner.never_dim = [
+		func(): return $Level.tutorial_dispatch_label(),
+	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _on_tutorial_done(_completed: bool) -> void:

@@ -8,7 +8,7 @@ extends RefCounted
 #      of nowhere.
 #   2. A gorilla runs the whole way across in a few seconds. A player who is reading a caption
 #      misses it entirely and has no idea what they were meant to be looking at — so the tutorial
-#      does NOT rely on catching one in flight. It holds one still in the middle of its lane
+#      does NOT rely on catching one in flight. It holds one still in the center of its lane
 #      (level.tutorial_hold_gorilla_midscreen) and points at it while the game is frozen.
 #   3. Monsters. They are switched off for the whole tutorial (num_inside_monsters = 0) so nobody
 #      is killed halfway through a lesson — but a player who is never shown one meets their first

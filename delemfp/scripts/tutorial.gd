@@ -31,6 +31,17 @@ static func tutorial_level_id() -> int:
 	return LEVEL_ID
 
 static func steps(level: Node, _game) -> Array:
+	# 1.5 tiles across, so a frame names ONE thing rather than swallowing a cluster of junctions.
+	#
+	# Two sizes, because this tutorial spans the zoom: steps before the countdown see the whole
+	# yard at 1x, and everything after it is viewed through create_camera()'s 2x camera, where a
+	# tile is twice as wide on screen. Using the far value throughout would draw a postage stamp
+	# once the view closes in.
+	#
+	# spot_pad is zeroed on each of these: the runner adds its default 10px pad ON TOP of the
+	# radius, which is what turns an intended 1.5 tiles into more.
+	var r_far: float = maxf(12.0, level.game.tile_size * 0.75)
+	var r_near: float = r_far * 2.0
 	var truck: Callable = func():
 		var p: Vector2 = level.tutorial_agent_pos()
 		return null if p == Vector2.ZERO else p
@@ -48,7 +59,8 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"text": "And this is your truck. It carries one packet per delivery, nose to tail.",
 			"spot": truck,
-			"spot_radius": 70.0,
+			"spot_radius": r_far,
+			"spot_pad": 0.0,
 		},
 		{
 			# The whole game, in one caption. Read the numbers off the truck itself so the text
@@ -75,7 +87,8 @@ static func steps(level: Node, _game) -> Array:
 			"title": func(): return "Dock %d first" % level.tutorial_next_dock_id(),
 			"text": "Pull up alongside it — you cannot drive in.",
 			"spot": func(): return level.tutorial_next_dock_pos(),
-			"spot_radius": 55.0,
+			"spot_radius": r_far,
+			"spot_pad": 0.0,
 		},
 		{
 			# The countdown is started here but the game is PAUSED while this caption is up, and
@@ -91,7 +104,8 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"text": func(): return "Trace the route to dock %d in your head.\n\nYou cannot move yet — the truck is locked until the countdown ends." % level.tutorial_next_dock_id(),
 			"spot": func(): return level.tutorial_next_dock_pos(),
-			"spot_radius": 55.0,
+			"spot_radius": r_far,
+			"spot_pad": 0.0,
 			"await": {"event": "zoomed_in", "timeout": 60.0},
 		},
 		{
@@ -102,7 +116,8 @@ static func steps(level: Node, _game) -> Array:
 			"title": "The view closes in",
 			"text": "From here you only see what is around your truck.\n\nIt is parked for a moment — two things first.",
 			"spot": truck,
-			"spot_radius": 46.0,
+			"spot_radius": r_near,
+			"spot_pad": 0.0,
 		},
 		{
 			"setup": func(): level.tutorial_mark_step(),
@@ -139,7 +154,8 @@ static func steps(level: Node, _game) -> Array:
 			"title": "Now you drive",
 			"text": func(): return "Swipe, or use the arrow keys, to set which way it turns next. It keeps going otherwise, and turns by itself at a dead end.\n\nTake it to dock %d." % level.tutorial_next_dock_id(),
 			"spot": truck,
-			"spot_radius": 60.0,
+			"spot_radius": r_near,
+			"spot_pad": 0.0,
 			"await": {"event": "packet_delivered", "timeout": 300.0},
 			"hint_after": 25.0,
 			"hint": "Drive right past the dock — you don't turn into it. Zoom out if you lose your bearings.",
@@ -155,7 +171,8 @@ static func steps(level: Node, _game) -> Array:
 					return "One down. Now dock %d, and the run is finished." % nxt
 				return "One down, %d to go. Dock %d is next." % [left, nxt],
 			"spot": truck,
-			"spot_radius": 60.0,
+			"spot_radius": r_near,
+			"spot_pad": 0.0,
 			"await": {"event": "packet_delivered", "timeout": 300.0},
 			"hint_after": 30.0,
 			"hint": "Use Clue and Zoom if you need them — they cost, but being lost costs more.",

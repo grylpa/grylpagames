@@ -724,6 +724,34 @@ door to door while the player was trying to tap it. The fix is almost always to 
 thing for that step rather than to chase it with the frame; pinning the target is a weaker
 second-best, and is redundant once the motion is held.
 
+**A tutorial has to survive the player getting it WRONG — that is when they most need it to keep
+going.** Three separate dead ends in Lineup, Glimpse and Witness all came from protecting the
+correct path and leaving the wrong one stranded: a wrong pick clears the board (so a static freeze
+means no next round ever arrives), and a wrong direction dot ends the question and clears every
+button (so a step waiting for "the right answer" waits on things that no longer exist). Wait on an
+event that fires on ANY answer, and say what happened in a reactive caption.
+
+**Hand the caption placer several small obstacles, not one merged box.** Glimpse's candidates ring
+the board, so their bounding box is most of the screen: as one rect the constraint is unsatisfiable
+and the caption lands straight on them. Listed individually, the empty middle of the board becomes
+obvious and the caption goes there. Measured: 2 of 2 candidates covered before, 0 of 2 after.
+
+**"The timer runs on game_time, which excludes paused time" protects the TALKING steps only.**
+An action step is unpaused by design — that is what makes it an action step — so anything with a
+deadline still expires while the player decides. Lineup, Glimpse and Witness all needed an explicit
+`tutorial_freeze_board()` on top of their game_time timers, and I skipped it on all three because
+the game_time detail made the problem look solved.
+
+**But do not freeze through a step that is WAITING for the board to advance.** Lineup's lineup only
+appears once the model times out; freezing across that await deadlocked the tutorial until the
+step's own 60s timeout fired, and then it carried on with an empty board. Freeze the talking steps
+and the decision steps; release for the awaits that need the game to progress.
+
+**A frame around SEVERAL things needs more clear space than one around a single thing.** Building a
+multi-option rect from one bare tile per option, while every single-option frame is 1.5 tiles, made
+it hug their outlines. Give each enclosed item ~1.4x the single-option box; measured, that moves an
+option's center-to-frame-edge from 0.5 to 1.15 tiles.
+
 **A per-round deadline has to be held for the whole tutorial, not just the talking steps.** A
 caption freezes `game.game_time` and with it any deadline measured against it — but the doing
 steps run unpaused, and that is exactly where a first-timer is slow, because they are being asked

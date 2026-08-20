@@ -3,11 +3,11 @@ extends CanvasLayer
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe := false
+	var ispipe: bool = false
 	var agent = null
 	var pipe
 
-var max_difficulty := 8
+var max_difficulty: int = 8
 var board: Array
 var agents = []              # main question agents (model + alternatives)
 var periph_dir_buttons: Array = []  # 8 direction Area2D buttons during periph question
@@ -15,34 +15,34 @@ var periph_flash_agent = null
 var pipes = []               # main game pipe nodes
 var agent_start_positions = []
 var agent_start_directions = []
-var level := 0
+var level: int = 0
 
-var agent_time_to_hide_model_ms := 2000
-var agent_time_to_hide_alternatives_ms := 2500
-var agent_time_to_show_alternatives_after_model := 500
-var agent_time_to_show_model_after_alternatives := 500
+var agent_time_to_hide_model_ms: int = 2000
+var agent_time_to_hide_alternatives_ms: int = 2500
+var agent_time_to_show_alternatives_after_model: int = 500
+var agent_time_to_show_model_after_alternatives: int = 500
 
 var agent_model_color = null
-var agent_model_texture_idx := 0
-var agent_can_use_two_colors := 0
-var agent_same_color_for_alts := 0
-var agent_use_same_color_for_all := 0
-var agent_use_same_shape_for_alternatives := 0
-var num_alternatives := 2
-var num_corrects_for_next_level := 5
-var num_corrects_in_level_so_far := 0
+var agent_model_texture_idx: int = 0
+var agent_can_use_two_colors: int = 0
+var agent_same_color_for_alts: int = 0
+var agent_use_same_color_for_all: int = 0
+var agent_use_same_shape_for_alternatives: int = 0
+var num_alternatives: int = 2
+var num_corrects_for_next_level: int = 5
+var num_corrects_in_level_so_far: int = 0
 
-var times_to_answer := []
+var times_to_answer: Array = []
 
 # Peripheral mechanic
 var periph_dir_idx: int = -1        # direction index 0-7; -1 = no flash this round
-var periph_time_visible_ms := 800
-var periph_question_time_limit_ms := 4000
-var periph_question_active := false
-var time_shown_periph_question_ms := 0.0
-var periph_need_to_show_flash := false
-var periph_time_to_show_flash_ms := 0.0
-var pending_main_correct := false   # center was correct; awaiting periph resolution
+var periph_time_visible_ms: int = 800
+var periph_question_time_limit_ms: int = 4000
+var periph_question_active: bool = false
+var time_shown_periph_question_ms: float = 0.0
+var periph_need_to_show_flash: bool = false
+var periph_time_to_show_flash_ms: float = 0.0
+var pending_main_correct = false   # center was correct; awaiting periph resolution
 
 # 8 directions: up, down, left, right, TL, TR, BL, BR
 const DIR_POSITIONS: Array = [
@@ -59,11 +59,11 @@ const DIR_POSITIONS: Array = [
 @export var pipe_scene: PackedScene = load("res://ddooo/scenes/pipe.tscn")
 @export var agent_scene: PackedScene = load("res://ddooo/scenes/agent.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
 
-var ambient_audios := [
+var ambient_audios = [
 	preload("res://art/sounds/ocean-waves-2.mp3"),
 	preload("res://art/sounds/ocean-waves-3.mp3"),
 	preload("res://art/sounds/ocean-waves-4.mp3")
@@ -92,6 +92,7 @@ func _on_game_popup_closed() -> void:
 		started_playing.emit()
 
 func new_game(from_scratch = true):
+	_tutorial_board = game.tutorial_mode
 	sig_periph_active.emit(false)
 	game.level_is_ready = false
 	if from_scratch:
@@ -106,6 +107,11 @@ func new_game(from_scratch = true):
 	game.play_sound("ambient")
 	# Show level-start info popup; game begins when user dismisses it
 	var lvl: Dictionary = DdoooLevelConfig.get_level(level)
+	if game.tutorial_mode:
+		# No "Level 1" wall in front of the coach's opening caption — the tutorial IS that
+		# explanation, one beat at a time.
+		_on_game_popup_closed()
+		return
 	game.show_game_popup(self, "Level %d" % level,
 		"Center visible: %d ms\nPeriphery flash: %d ms" % [lvl["center_ms"], lvl["periph_ms"]])
 
@@ -124,7 +130,7 @@ func add_pipe(p):
 
 func add_agent_pos_dir(p):
 	var q = p
-	var dir := 0
+	var dir: int = 0
 	if p.x == 0: q.x += 1
 	if p.x == game.board_size.x - 1:
 		q.x -= 1
@@ -139,7 +145,16 @@ func add_agent_pos_dir(p):
 	agent_start_directions.append(dir)
 	return q
 
-var model_pos := Vector2i(3, 3)
+var model_pos: Vector2i = Vector2i(3, 3)
+
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# Whether the board on screen was built FOR a tutorial. Captured at board-creation time: a level
+# can be completed after the coach has finished, when tutorial_mode has already gone false.
+var _tutorial_board: bool = false
+# Freezes the board for a lesson: nothing times out, no new model/lineup is dispatched, and the
+# direction question's own time limit stops running. The tutorial's ACTION steps run unpaused, so
+# game_time alone does not protect them.
+var tutorial_hold_board: bool = false
 
 func create_board() -> void:
 	board.clear()
@@ -204,7 +219,7 @@ func create_board() -> void:
 	create_camera(min(6.0, 1.0 / game.get_board_part_of_width()))
 	# game.level_is_ready is set in _on_game_popup_closed, not here
 
-var next_agent_id := 1
+var next_agent_id: int = 1
 var use_same_shape = false
 var use_same_color = false
 var pos_last_dispatch = Vector2i(-1, -1)
@@ -328,12 +343,14 @@ func _dispatch_periph_flash() -> void:
 		periph_flash_agent = null
 	)
 	periph_flash_agent = agent
+	game.tutorial_notify("periph_flashed")
 
 func _dispatch_periph_question() -> void:
 	for p in pipes:
 		p.hide()
 	for dir_idx in 8:
 		periph_dir_buttons.append(_create_dir_button(dir_idx))
+	game.tutorial_notify("dirs_shown")
 
 func _create_dir_button(dir_idx: int) -> Area2D:
 	var center_px: Vector2 = game.board_to_px(game.get_board_center())
@@ -375,17 +392,26 @@ func _on_dir_button_pressed(dir_idx: int) -> void:
 		game.play_sound("delivery")
 	else:
 		game.play_sound("swoosh")
+	game.tutorial_notify("dir_right" if is_correct else "dir_wrong")
+	# ANY answer ends the direction question — _finish_periph_question clears every button and
+	# resets periph_dir_idx. A coached step waiting only for "dir_right" is then left waiting on
+	# dots that no longer exist.
+	game.tutorial_notify("dir_answered")
 	_flash_at(DIR_POSITIONS[dir_idx], is_correct)
 	_show_score_popup(DIR_POSITIONS[dir_idx], "+1" if is_correct else "-1", is_correct)
 	_finish_periph_question(is_correct, false)
 
-var need_to_show_alternatives := false
-var time_to_show_alternatives_ms := 0.0
-var need_to_show_model := false
-var time_to_show_model_ms := 0.0
-var time_shown_alternatives_ms := 0.0
+var need_to_show_alternatives: bool = false
+var time_to_show_alternatives_ms: float = 0.0
+var need_to_show_model: bool = false
+var time_to_show_model_ms: float = 0.0
+var time_shown_alternatives_ms: float = 0.0
 
 func _process(_delta: float) -> void:
+	if tutorial_hold_board:
+		# also keep the direction question's deadline the same distance away
+		time_shown_periph_question_ms = game.game_time
+		return
 	if not game.paused() and not game.level_is_done and game.level_is_ready:
 		if need_to_show_alternatives and game.game_time > time_to_show_alternatives_ms:
 			need_to_show_alternatives = false
@@ -393,9 +419,11 @@ func _process(_delta: float) -> void:
 			for _i in range(num_alternatives - 1):
 				_dispatch_new_main_agent(false, false)
 			time_shown_alternatives_ms = game.game_time
+			game.tutorial_notify("alts_shown")   # no-op outside a tutorial
 		if need_to_show_model and game.game_time > time_to_show_model_ms:
 			need_to_show_model = false
 			_dispatch_new_main_agent(true, false)
+			game.tutorial_notify("model_shown")
 		if periph_need_to_show_flash and game.game_time > periph_time_to_show_flash_ms:
 			periph_need_to_show_flash = false
 			_dispatch_periph_flash()
@@ -454,15 +482,17 @@ func on_main_agent_pressed(agent):
 		game.add_score_and_time(score_to_add, 15)
 		game.play_sound("delivery")
 		pending_main_correct = true
+		game.tutorial_notify("shape_right")
 		_flash_at(agent.board_pos, true)
 		_show_score_popup(agent.board_pos, "+" + str(score_to_add), true)
 	else:
 		game.add_score_and_time(-1, -5)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("swoosh")
+		game.tutorial_notify("shape_wrong")
 		_flash_at(agent.board_pos, false)
 		_show_score_popup(agent.board_pos, "-1", false)
-	var ntries := 0
+	var ntries: int = 0
 	while agents.size() > 0 and ntries < 100:
 		on_main_agent_removed(agents[0])
 		ntries += 1
@@ -520,6 +550,10 @@ func _on_level_done_popup_closed():
 	sig_level_is_done.emit(true)
 
 func level_is_done(didwin: bool):
+	if game.tutorial_mode or _tutorial_board:
+		# A level-done popup landing on the coach's closing caption is the failure mmm taught us to
+		# guard against; _tutorial_board keeps it holding once tutorial_mode has gone false.
+		return
 	game.level_is_done = true
 	game.sig_level_is_done.emit(didwin)
 	game.stop_sound("ambient")
@@ -560,8 +594,8 @@ func increase_difficulty(increase = true):
 	num_corrects_for_next_level = lvl["rounds"]
 	game.init_sizes()
 
-const FEEDBACK_OK_TEXT_COLOR := Color(0.3, 1.0, 0.3)
-const FEEDBACK_BAD_TEXT_COLOR := Color(1.0, 0.4, 0.4)
+const FEEDBACK_OK_TEXT_COLOR: Color = Color(0.3, 1.0, 0.3)
+const FEEDBACK_BAD_TEXT_COLOR: Color = Color(1.0, 0.4, 0.4)
 
 func _flash_at(board_pos: Vector2i, is_correct: bool) -> void:
 	var rect = ColorRect.new()
@@ -611,7 +645,7 @@ func mean_time_to_answer_ms() -> int:
 	var N = times_to_answer.size()
 	if N == 0:
 		return min(9999, 2 * agent_time_to_hide_alternatives_ms)
-	var s := 0
+	var s: int = 0
 	for t in times_to_answer:
 		s += t
 	return roundi(float(s) / N)
@@ -635,3 +669,105 @@ func create_camera(camscale):
 	agent_cam.enabled = true
 	agent_cam.set_anchor_mode(Camera2D.ANCHOR_MODE_DRAG_CENTER)
 	agent_cam.set_offset(game.board_to_px(game.get_board_center()))
+
+# --- tutorial staging -------------------------------------------------------
+#
+# No freeze work is needed: every timeout here is measured in game.game_time (the agents' own, the
+# peripheral flash, and the direction question's limit in _process), and game_time excludes paused
+# time — so a caption holds whatever is on screen.
+
+const DIR_NAMES: Array = ["up", "down", "left", "right",
+	"top-left", "top-right", "bottom-left", "bottom-right"]
+
+func _screen_of(n) -> Vector2:
+	if n == null or not is_instance_valid(n):
+		return Vector2.ZERO
+	return (n as Node2D).get_global_transform_with_canvas().origin
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func tutorial_model():
+	for a in agents:
+		if is_instance_valid(a) and a.is_model:
+			return a
+	return null
+
+func tutorial_model_pos() -> Vector2:
+	return _screen_of(tutorial_model())
+
+func tutorial_has_model() -> bool:
+	return tutorial_model() != null
+
+# The peripheral flash itself, while it is on screen.
+func tutorial_periph_pos() -> Vector2:
+	return _screen_of(periph_flash_agent)
+
+func tutorial_has_periph() -> bool:
+	return periph_flash_agent != null and is_instance_valid(periph_flash_agent)
+
+# Which way the flash was, in words, so a caption can say it rather than leaving the player to
+# work out what "direction 5" means.
+func tutorial_periph_dir_name() -> String:
+	if periph_dir_idx < 0 or periph_dir_idx >= DIR_NAMES.size():
+		return ""
+	return String(DIR_NAMES[periph_dir_idx])
+
+func tutorial_has_candidates() -> bool:
+	for a in agents:
+		if is_instance_valid(a) and not a.is_model:
+			return true
+	return false
+
+# The candidates sit in a row, so the rect enclosing them is compact enough to frame.
+func tutorial_candidates_rect() -> Rect2:
+	var res: Rect2 = Rect2()
+	for a in agents:
+		if not is_instance_valid(a) or a.is_model:
+			continue
+		# Each option gets the SAME box a single-option frame would get (tutorial_frame_radius,
+		# 1.5 on-screen tiles). Building this from one bare tile each made the merged rect hug the
+		# options' outlines, so a frame around two of them looked painted on.
+		# 1.4x the single-option box. A frame around SEVERAL things needs more clear space than
+		# one around a single thing, or it reads as painted onto their outlines — measured at 0.85
+		# tiles from an option's center to the frame edge before this, i.e. about a third of a tile
+		# of daylight past each one.
+		var c: Vector2 = _screen_of(a)
+		var fr: float = tutorial_frame_radius() * 1.4
+		var r: Rect2 = Rect2(c - Vector2(fr, fr), Vector2(fr, fr) * 2.0)
+		res = r if res.size.x <= 0.0 else res.merge(r)
+	return res
+
+func tutorial_correct_candidate_pos() -> Vector2:
+	for a in agents:
+		if is_instance_valid(a) and not a.is_model and a.is_correct:
+			return _screen_of(a)
+	return Vector2.ZERO
+
+func tutorial_dirs_active() -> bool:
+	return periph_question_active and not periph_dir_buttons.is_empty()
+
+# The direction button matching the flash — for the coach to point at, once it has already told
+# the player which way it was.
+func tutorial_correct_dir_pos() -> Vector2:
+	if periph_dir_idx < 0 or periph_dir_idx >= periph_dir_buttons.size():
+		return Vector2.ZERO
+	return _screen_of(periph_dir_buttons[periph_dir_idx])
+
+# 1.5 board tiles on screen. The camera zooms (create_camera), so the visible tile is
+# tile_size * zoom.
+func tutorial_frame_radius() -> float:
+	var z: float = 1.0
+	if agent_cam != null and is_instance_valid(agent_cam):
+		z = agent_cam.zoom.x
+	return maxf(12.0, game.tile_size * z * 0.75)
+
+# Freeze everything on screen: agents stop counting down, no new ones arrive, and the direction
+# question cannot expire.
+func tutorial_freeze_board(hold: bool) -> void:
+	tutorial_hold_board = hold
+	for a in agents:
+		if is_instance_valid(a):
+			a.tutorial_hold = hold
+	if periph_flash_agent != null and is_instance_valid(periph_flash_agent):
+		periph_flash_agent.tutorial_hold = hold
+

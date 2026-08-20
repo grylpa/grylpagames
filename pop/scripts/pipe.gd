@@ -2,7 +2,7 @@ extends Area2D
 
 signal pipe_pressed(_board_pos)
 
-var board_pos := Vector2i.ZERO
+var board_pos = Vector2i.ZERO
 
 func _ready() -> void:
 	# var rng = RandomNumberGenerator.new()

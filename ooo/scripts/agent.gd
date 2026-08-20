@@ -5,14 +5,14 @@ signal need_to_remove_agent(agent)
 signal agent_pressed(agent)
 
 var board_pos: Vector2i
-var time_created_ms := 0.0
-var color := [Color(1,1,1,1),Color(1,1,1,1)]
-var time_to_hide_ms := 2000
-var is_correct := false
-var is_model := false
-var id := 0
-var timed_out := false
-var texture_idx := 0
+var time_created_ms: float = 0.0
+var color = [Color(1,1,1,1),Color(1,1,1,1)]
+var time_to_hide_ms: int = 2000
+var is_correct: bool = false
+var is_model: bool = false
+var id: int = 0
+var timed_out: bool = false
+var texture_idx: int = 0
 
 var game:GenericGameUtil
 var shader_material_lr: ShaderMaterial = null
@@ -65,7 +65,17 @@ func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> voi
 	if event.is_action_pressed("lclick"):
 		agent_pressed.emit(self)
 
+# Held by the coach so it cannot time out mid-lesson. A tutorial's ACTION steps run unpaused —
+# that is the whole point of them — so "the timeout is measured in game_time, which excludes paused
+# time" only protects the TALKING steps. While the player is deciding, or reading a caption that
+# does not pause, the model or the lineup would expire and the board reset under them.
+var tutorial_hold: bool = false
+
 func _process(_delta: float) -> void:
+	if tutorial_hold:
+		# Keep the deadline the same distance away for as long as the hold lasts.
+		time_created_ms = game.game_time
+		return
 	var tm = game.game_time
 	if tm - time_created_ms >= time_to_hide_ms:
 		%SpriteLR.visible = false

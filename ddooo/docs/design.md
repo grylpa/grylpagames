@@ -250,3 +250,35 @@ Game begins only when the player dismisses the popup (`sig_game_popup_closed` �
 | `Level.started_playing` | level → main | restart HUD timer |
 | `game.sig_game_is_done` | GenericGameUtil → main | game over |
 | `game.sig_level_is_done` | GenericGameUtil → main | save ongoing score |
+
+## Tutorial
+
+`ddooo/scripts/tutorial.gd` (12 steps), entry `ddooo/scripts/main.gd::start_tutorial()`, level 1.
+
+One event, two questions — and the second one is the thing a first-timer never sees coming. While
+they are looking at the center shape, a dot flashes at the edge 150ms later and is gone in under a
+second. Nothing warns them, and then they are asked which way it was. So the coach **names the
+second question while the flash is still on screen**, and says which direction it was, so the first
+round is winnable rather than a demonstration of failure.
+
+Specific to this game:
+
+- **`tutorial_periph_dir_name()` puts the direction in words** ("top-left"), so a caption can say
+  it instead of leaving the player to interpret an index.
+- **No freeze work is needed.** Every timeout here — the agents', the peripheral flash, and the
+  direction question's limit in `_process` — is measured in `game.game_time`, which excludes paused
+  time. The harness checks both the agent count and the flash's survival across a caption.
+- **The direction step is descriptive; the ask is on the step after it.** A talking step freezes
+  the board, so an instruction there cannot be obeyed and the attempt just dismisses the caption.
+- **Both answers must be given correctly.** The steps wait on `shape_right` and `dir_right`, not on
+  "an answer happened" — waiting on the latter let a player finish the tutorial without ever
+  getting either question right. But a wrong answer must not strand them either: a wrong shape
+  still lets the round play out, and a wrong dot ends the direction question and clears every
+  button. So both captions are **reactive** and walk the player through the fresh round that
+  follows, and the freeze follows the BOARD STATE rather than the step — held while there is
+  something to answer, released whenever the board is empty, or the next round could never arrive.
+- `_tutorial_board` guards level completion, not `tutorial_mode`.
+- Events: `model_shown`, `periph_flashed`, `alts_shown`, `shape_right`, `shape_wrong`,
+  `dirs_shown`, `dir_right`, `dir_wrong`.
+- Points for the coach: `tutorial_model_pos`, `tutorial_periph_pos`, `tutorial_candidates_rect`,
+  `tutorial_correct_dir_pos`.

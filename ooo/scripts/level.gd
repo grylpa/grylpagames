@@ -3,42 +3,50 @@ extends CanvasLayer
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe := false
+	var ispipe: bool = false
 	var agent = null
 	var pipe
 
-var max_difficulty := 8	
+var max_difficulty: int = 8	
 var board: Array
 var agents = []
 var pipes = []
 var agent_start_positions = []
 var agent_start_directions = []
 var time_increased_difficulty_ms = 0
-var level := 0
-var agent_time_to_hide_model_ms := 2000
-var agent_time_to_hide_alternatives_ms := 2000
-var agent_time_to_show_alternatives_after_model := 1000
-var agent_time_to_show_model_after_alternatives := 1000
+var level: int = 0
+var agent_time_to_hide_model_ms: int = 2000
+var agent_time_to_hide_alternatives_ms: int = 2000
+var agent_time_to_show_alternatives_after_model: int = 1000
+var agent_time_to_show_model_after_alternatives: int = 1000
 
 var agent_model_color = null
-var agent_model_texture_idx := 0
-var agent_can_use_two_colors := 0
-var agent_use_same_color_for_all := 0
-var agent_use_same_shape_for_alternatives := 0
-var num_alternatives := 2
-var num_corrects_for_next_level := 5
-var num_corrects_in_level_so_far := 0
+var agent_model_texture_idx: int = 0
+var agent_can_use_two_colors: int = 0
+var agent_use_same_color_for_all: int = 0
+var agent_use_same_shape_for_alternatives: int = 0
+var num_alternatives: int = 2
+var num_corrects_for_next_level: int = 5
 
-var times_to_answer := []
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# Whether the board on screen was built FOR a tutorial. Captured at board-creation time: a level
+# can be completed after the coach has finished, when tutorial_mode has already gone false.
+var _tutorial_board: bool = false
+# Freezes the board for a lesson: nothing times out, and no new model or lineup is dispatched.
+# The tutorial's ACTION steps run unpaused, so game_time alone does not protect them.
+var tutorial_hold_board: bool = false
+var num_corrects_in_level_so_far: int = 0
+
+var times_to_answer: Array = []
 
 @export var pipe_scene: PackedScene = load("res://ooo/scenes/pipe.tscn")
 @export var agent_scene: PackedScene = load("res://ooo/scenes/agent.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
 
-var ambient_audios := [ 
+var ambient_audios = [ 
 	preload("res://art/sounds/ocean-waves-2.mp3"), 
 	preload("res://art/sounds/ocean-waves-3.mp3"), 
 	preload("res://art/sounds/ocean-waves-4.mp3")
@@ -58,6 +66,7 @@ func _ready() -> void:
 	game.add_sound(self, "swoosh", swoosh_audio)
 
 func new_game(from_scratch=true):
+	_tutorial_board = game.tutorial_mode
 	game.level_is_ready = false
 	if from_scratch:
 		level = OooG.starting_level
@@ -91,7 +100,7 @@ func add_pipe(p):
 
 func add_agent_pos_dir(p):
 	var q = p
-	var dir := 0
+	var dir: int = 0
 	if p.x == 0: q.x += 1
 	if p.x == game.board_size.x - 1: 
 		q.x -= 1
@@ -107,7 +116,7 @@ func add_agent_pos_dir(p):
 	# add_pipe(q)
 	return q
 
-var model_pos := Vector2i(3,1)
+var model_pos: Vector2i = Vector2i(3,1)
 
 func create_board() -> void:
 	board.clear()
@@ -160,7 +169,7 @@ func create_board() -> void:
 	game.level_is_ready = true
 
 
-var next_agent_id := 1
+var next_agent_id: int = 1
 func add_agent_at(p: Vector2i, direction: int, color, is_model = false, is_correct = false):
 	var agent = agent_scene.instantiate()
 	if is_model:
@@ -185,10 +194,11 @@ func add_agent_at(p: Vector2i, direction: int, color, is_model = false, is_corre
 	agents.append(agent)
 	agent.set_pos(game.board_to_px(p), direction)
 	agent.set_colors(color)
+	game.tutorial_notify("model_shown" if is_model else "candidate_shown")   # no-op outside a tutorial
 	return agent
 			
-var last_major_tick := 0.0
-var last_one_sec_tick := 0.0
+var last_major_tick: float = 0.0
+var last_one_sec_tick: float = 0.0
 
 func tick():
 	if game.level_is_done or !game.level_is_ready or game.paused():
@@ -198,6 +208,10 @@ func _on_level_done_popup_closed():
 	sig_level_is_done.emit(true)
 
 func level_is_done(didwin: bool):	
+	if game.tutorial_mode or _tutorial_board:
+		# A level-done popup landing on the coach's closing caption is the failure mmm taught us to
+		# guard against; _tutorial_board keeps it holding once tutorial_mode has gone false.
+		return
 	game.level_is_done = true
 	game.sig_level_is_done.emit(didwin)
 	game.stop_sound("ambient")
@@ -358,15 +372,17 @@ func _dispatch_new_agent(is_model=false, is_correct=false):
 		if got_p:
 			pos_last_dispatch = p
 
-var need_to_show_alternatives := false
-var time_to_show_alternatives_ms := 0.0
+var need_to_show_alternatives: bool = false
+var time_to_show_alternatives_ms: float = 0.0
 
-var need_to_show_model := false
-var time_to_show_model_ms := 0.0
+var need_to_show_model: bool = false
+var time_to_show_model_ms: float = 0.0
 
-var time_shown_alternatives_ms := 0.0
+var time_shown_alternatives_ms: float = 0.0
 
 func _process(_delta: float) -> void:
+	if tutorial_hold_board:
+		return
 	if not game.paused() and not game.level_is_done and game.level_is_ready:
 		if need_to_show_alternatives and game.game_time > time_to_show_alternatives_ms:
 			need_to_show_alternatives = false
@@ -374,6 +390,7 @@ func _process(_delta: float) -> void:
 			for i in range(num_alternatives - 1):
 				_dispatch_new_agent(false, false)
 			time_shown_alternatives_ms = game.game_time
+			game.tutorial_notify("lineup_shown")
 		if need_to_show_model and game.game_time > time_to_show_model_ms:
 			need_to_show_model = false
 			_dispatch_new_agent(true, false)
@@ -408,13 +425,15 @@ func on_agent_pressed(agent):
 			game.add_correct_or_mistake(1,0)
 			num_corrects_in_level_so_far += 1
 			game.play_sound("delivery")
+			game.tutorial_notify("answered_right")
 			if num_corrects_in_level_so_far >= num_corrects_for_next_level:
 				level_is_done(true)
 		else:
 			game.add_score_and_time(-1,-5)
 			game.add_correct_or_mistake(0,1)
 			game.play_sound("swoosh")
-		var ntries := 0
+			game.tutorial_notify("answered_wrong")
+		var ntries: int = 0
 		while agents.size() > 0 and ntries < 100:
 			on_agent_need_to_remove_agent(agents[0])
 			ntries += 1
@@ -448,7 +467,7 @@ func mean_time_to_answer_ms() -> int:
 	var N = times_to_answer.size()
 	if N == 0:
 		return min(9999, 2 * agent_time_to_hide_alternatives_ms)
-	var s := 0
+	var s: int = 0
 	for t in times_to_answer:
 		s += t
 	return roundi(float(s) / N)
@@ -459,3 +478,76 @@ func _add_time_to_answer_ms(t_ms: int):
 	times_to_answer.append(t_ms)
 	while times_to_answer.size() > 10:
 		times_to_answer.remove_at(0)
+
+# --- tutorial staging -------------------------------------------------------
+#
+# No freeze work is needed: an agent's own timeout is measured in game.game_time (see agent.gd),
+# which excludes paused time — so a caption holds the model, and later the lineup, on screen.
+
+func _screen_of(n) -> Vector2:
+	if n == null or not is_instance_valid(n):
+		return Vector2.ZERO
+	return (n as Node2D).get_global_transform_with_canvas().origin
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func tutorial_model():
+	for a in agents:
+		if is_instance_valid(a) and a.is_model:
+			return a
+	return null
+
+func tutorial_model_pos() -> Vector2:
+	return _screen_of(tutorial_model())
+
+func tutorial_has_model() -> bool:
+	return tutorial_model() != null
+
+# The candidate that matches the model — the one the player has to find.
+func tutorial_correct_pos() -> Vector2:
+	for a in agents:
+		if is_instance_valid(a) and not a.is_model and a.is_correct:
+			return _screen_of(a)
+	return Vector2.ZERO
+
+func tutorial_has_lineup() -> bool:
+	for a in agents:
+		if is_instance_valid(a) and not a.is_model:
+			return true
+	return false
+
+# All the candidates at once, for "one of these is the one you saw".
+func tutorial_lineup_rect() -> Rect2:
+	var res: Rect2 = Rect2()
+	for a in agents:
+		if not is_instance_valid(a) or a.is_model:
+			continue
+		# Each option gets the SAME box a single-option frame would get (tutorial_frame_radius,
+		# 1.5 on-screen tiles). Building this from one bare tile each made the merged rect hug the
+		# options' outlines, so a frame around two of them looked painted on.
+		# 1.4x the single-option box. A frame around SEVERAL things needs more clear space than
+		# one around a single thing, or it reads as painted onto their outlines — measured at 0.85
+		# tiles from an option's center to the frame edge before this, i.e. about a third of a tile
+		# of daylight past each one.
+		var c: Vector2 = _screen_of(a)
+		var fr: float = tutorial_frame_radius() * 1.4
+		var r: Rect2 = Rect2(c - Vector2(fr, fr), Vector2(fr, fr) * 2.0)
+		res = r if res.size.x <= 0.0 else res.merge(r)
+	return res
+
+# 1.5 tiles AS DRAWN. This game's camera zooms hard — create_camera(min(6.0, ...)) — so the board
+# tile_size is nothing like the on-screen tile size, and using it produced frames far too small to
+# see. Multiply by the camera's zoom.
+func tutorial_frame_radius() -> float:
+	var z: float = 1.0
+	if agent_cam != null and is_instance_valid(agent_cam):
+		z = agent_cam.zoom.x
+	return maxf(12.0, game.tile_size * z * 0.75)
+
+# Freeze everything on screen: existing agents stop counting down, and no new ones arrive.
+func tutorial_freeze_board(hold: bool) -> void:
+	tutorial_hold_board = hold
+	for a in agents:
+		if is_instance_valid(a):
+			a.tutorial_hold = hold
+
