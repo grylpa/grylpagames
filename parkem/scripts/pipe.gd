@@ -1,7 +1,7 @@
 extends Area2D
 
-var board_pos := Vector2i.ZERO
-var blocked := false
+var board_pos = Vector2i.ZERO
+var blocked: bool = false
 
 func _ready() -> void:
 	# var rng = RandomNumberGenerator.new()

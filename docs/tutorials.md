@@ -642,6 +642,18 @@ name it. A pause-aware countdown can even be frozen *on screen* while the coach 
 `game.paused()` stops the HUD timer — so the explanation and the thing explained are visible
 together.
 
+**When a frame "does not appear", check whether the thing it is looked up FROM is still alive.**
+Parkem's spot and hatch accessors both start from the creature, and the creature's give-up timer
+ran on the WALL clock — so it expired while the player read a caption, vanished, and every frame
+derived from it silently resolved to nothing. Three separate-looking complaints ("it disappears
+while I read", "which door is open?", "no frame") were one bug. Fix the clock, not the accessors.
+
+**A frame can be correctly placed and still show the player nothing.** Nearly every hatch in
+parkem starts OPEN, and an open one is flat tube furniture — so the frame was right and the player
+saw an empty rectangle. Where the thing being pointed at is not visually obvious, the caption has
+to name what is inside the frame. (The door counts in the level data were enough to work this out;
+no need to look at the art.)
+
 **When picking "one of these" to point at, pick one that is wholly on screen.** Monkey C's item
 spotlight took the item furthest down the belt, which is usually half off its end — the spotlight
 landed at y=792 on a 788px overlay. Choose from the middle of the region and require the candidate

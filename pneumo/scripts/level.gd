@@ -8,12 +8,23 @@ var rng = RandomNumberGenerator.new()
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe := false
-	var door_type := -1
-	var has_agent := false
-	var istarget := false
+	var ispipe: bool = false
+	var door_type: int = -1
+	var has_agent: bool = false
+	var istarget: bool = false
 	
-var start_dispatch := false
+var start_dispatch: bool = false
+
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# Whether the board on screen was built FOR a tutorial. Captured at board-creation time: a win can
+# be reported after the coach has finished, when tutorial_mode has already gone false.
+var _tutorial_board: bool = false
+# Holds the dispatcher, so a second capsule does not arrive behind a caption about the first — and
+# cannot collide with it while the player is still being told what a collision costs.
+var tutorial_hold_dispatch: bool = false
+# Stops the capsules dead. The door steps are ACTION steps, so the game is unpaused and a capsule
+# would glide on — off the very door the coach is pointing at — while the player looks for it.
+var tutorial_hold_capsules: bool = false
 var time_between_dispatches_ms = 5000
 var board: Array
 var agents = []
@@ -29,7 +40,7 @@ var agent_start_positions = []
 var agent_start_directions = []
 var time_started_level_ms = 0
 var time_increased_difficulty_ms = 0
-var level := 0
+var level: int = 0
 var num_more_packets = 0
 var max_speed_scale = 1.0
 @export var pipe_scene: PackedScene = load("res://pneumo/scenes/pipe.tscn")
@@ -38,12 +49,12 @@ var max_speed_scale = 1.0
 @export var door_scene: PackedScene = load("res://pneumo/scenes/door.tscn")
 @export var target_scene: PackedScene = load("res://pneumo/scenes/target.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
-var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
-var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var door_audio = preload("res://art/sounds/door-open-sound-1.mp3")
+var motor_audio = preload("res://art/sounds/car-ambient-driving.ogg")
+var explosion_audio = preload("res://art/sounds/car-crash-1.mp3")
+var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -66,6 +77,7 @@ func _ready() -> void:
 	$SwooshAudio.stream = swoosh_audio
 
 func new_game(from_scratch=true):
+	_tutorial_board = game.tutorial_mode
 	game.level_is_ready = false
 	if from_scratch:
 		level = PneumoG.starting_level
@@ -78,8 +90,9 @@ func new_game(from_scratch=true):
 	time_increased_difficulty_ms = time_started_level_ms
 	# $HUD.new_game()
 	started_playing.emit()
-	BE.upsert_game_state("Pneumo", 
-		{"state":"new","starting_level": level, "num_packets": PneumoG.num_packets})
+	if not game.tutorial_mode:
+		BE.upsert_game_state("Pneumo", 
+			{"state":"new","starting_level": level, "num_packets": PneumoG.num_packets})
 	if !$MotorAudio.playing:
 		$MotorAudio.play()
 
@@ -119,7 +132,7 @@ func add_target(p, id, show_id=false):
 	targets.append(target)
 	target_positions.append(p)
 	var q = p
-	var dir := 0
+	var dir: int = 0
 	if p.x == 0: q.x += 1
 	if p.x == game.board_size.x - 1: 
 		q.x -= 1
@@ -243,6 +256,8 @@ func create_board() -> void:
 					door.door_pressed.connect(on_clicked_door)
 					doors.append(door)					
 					
+	if game.tutorial_mode:
+		_tutorial_setup()
 	start_dispatch = true
 	game.create_fill_screen_camera(self)
 	game.level_is_ready = true
@@ -257,7 +272,7 @@ func find_closest_target(p):
 			target = t
 	return target
 
-var next_agent_id := 1
+var next_agent_id: int = 1
 func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	var agent = agent_scene.instantiate()
 	agent.body_ids = range(1, PneumoG.num_packets+1+num_more_packets)
@@ -297,6 +312,8 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	if !$DispatchAudio.playing:
 		$DispatchAudio.play()
 			
+	game.tutorial_notify("capsule_sent")   # no-op outside tutorial mode
+
 func reset_sender_receiver(transaction_id):
 	for t in targets:
 		if t.transaction_id == transaction_id:
@@ -312,6 +329,7 @@ func on_clicked_door(pos: Vector2i):
 			board[pos.y][pos.x].door_type = newdir
 			$DoorAudio.stop()
 			$DoorAudio.play()
+			game.tutorial_notify("door_turned")   # no-op outside tutorial mode
 			break
 
 func can_go_to(p):
@@ -332,6 +350,8 @@ func all_agents_done():
 var last_major_tick_ms = -10000.0
 func tick():
 	if game.level_is_done:
+		return
+	if tutorial_hold_capsules:
 		return
 	var now = MainGlobals.timems()
 	# if now - last_major_tick_ms < game.major_tick_time_ms * game.time_scale:
@@ -364,6 +384,7 @@ func tick():
 				agent.mark_arrived()
 				if !$DeliveryAudio.playing:
 					$DeliveryAudio.play()
+				game.tutorial_notify("delivered")
 				delivered_one.emit()
 				if game.packets_left == 0:
 					level_is_done(true)
@@ -456,6 +477,11 @@ func _on_level_done_popup_closed():
 func level_is_done(didwin: bool):
 	game.level_is_done = true
 	$MotorAudio.stop()	
+	if game.tutorial_mode or _tutorial_board:
+		# A level-done popup landing on (or just after) the coach's closing caption is the failure
+		# mmm taught us to guard against; _tutorial_board is what makes it hold once the coach has
+		# finished and tutorial_mode has gone false.
+		return
 	BE.send_event("level_done", "Pneumo", {
 		"level": level,
 		"didwin": int(didwin),
@@ -534,6 +560,8 @@ func increase_difficulty(increase=true):
 var time_last_dispatch = -10000
 var pos_last_dispatch = Vector2i(-1,-1)
 func _on_agent_dispatch_timer_timeout() -> void:
+	if tutorial_hold_dispatch:
+		return
 	if start_dispatch and !game.paused():
 		var tm = MainGlobals.timems()
 		if tm - time_last_dispatch >= time_between_dispatches_ms:
@@ -601,6 +629,7 @@ func check_agent_collisions():
 							a2.mark_hit()
 							if !$ExplosionAudio.playing:
 								$ExplosionAudio.play()
+							game.tutorial_notify("capsules_collided")
 							collision.emit()
 							MainGlobals.do_after(2, func(): 
 								reset_sender_receiver(tid1)
@@ -646,3 +675,82 @@ func on_clicked_target(target_id, _target_board_pos):
 
 func on_time_over():
 	$MotorAudio.stop()
+
+# --- tutorial staging -------------------------------------------------------
+
+func _tutorial_setup() -> void:
+	tutorial_hold_dispatch = false
+
+# Freeze every capsule where it is, including any dispatched later.
+func tutorial_freeze_capsules(hold: bool) -> void:
+	tutorial_hold_capsules = hold
+	for a in agents:
+		if is_instance_valid(a):
+			a.tutorial_hold = hold
+
+# Stop new capsules arriving while the coach is talking about the one already in the tubes.
+func tutorial_hold_new_capsules(hold: bool) -> void:
+	tutorial_hold_dispatch = hold
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func _screen_of(n) -> Vector2:
+	if n == null or not is_instance_valid(n):
+		return Vector2.ZERO
+	return (n as Node2D).get_global_transform_with_canvas().origin
+
+func tutorial_capsule():
+	for a in agents:
+		if is_instance_valid(a) and not a.arrived and not a.was_hit:
+			return a
+	return null
+
+func tutorial_capsule_pos() -> Vector2:
+	return _screen_of(tutorial_capsule())
+
+func tutorial_has_capsule() -> bool:
+	return tutorial_capsule() != null
+
+# The receiver this capsule is FOR — matched by transaction_id, read off the board so the caption
+# cannot disagree with where it actually has to go.
+func tutorial_receiver():
+	var a = tutorial_capsule()
+	if a == null:
+		return null
+	for t in targets:
+		if is_instance_valid(t) and t.is_receiver and t.transaction_id == a.transaction_id:
+			return t
+	return null
+
+func tutorial_receiver_pos() -> Vector2:
+	return _screen_of(tutorial_receiver())
+
+# The next door along the capsule's current heading — the one worth turning. Falls back to the
+# nearest, so the coach always has something real to point at.
+func tutorial_next_door_pos() -> Vector2:
+	var a = tutorial_capsule()
+	if a == null or doors.is_empty():
+		return Vector2.ZERO
+	var p: Vector2i = a.board_pos
+	var step: Vector2i = Vector2i(game.DirArray[int(a.direction)])
+	for _i in 40:
+		p += step
+		if not game.in_board(p):
+			break
+		for d in doors:
+			if is_instance_valid(d) and d.board_pos == p:
+				return _screen_of(d)
+	var best = null
+	var best_d: float = 1e9
+	for d2 in doors:
+		if not is_instance_valid(d2):
+			continue
+		var dist: float = Vector2(d2.board_pos - a.board_pos).length()
+		if dist < best_d:
+			best_d = dist
+			best = d2
+	return _screen_of(best)
+
+func tutorial_has_door() -> bool:
+	return tutorial_next_door_pos() != Vector2.ZERO
+

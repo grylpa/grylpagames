@@ -1,9 +1,9 @@
 extends Node
 
-var num_packets := 0
-var starting_level := 1
+var num_packets: int = 0
+var starting_level: int = 1
 
-var game := GenericGameUtil.new("Parkem", "parkem", 0,5,0)
+var game = GenericGameUtil.new("Parkem", "parkem", 0,5,0)
 
 func init_globals():
 	game.init_sizes()
