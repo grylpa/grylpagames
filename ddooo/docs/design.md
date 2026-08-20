@@ -253,7 +253,7 @@ Game begins only when the player dismisses the popup (`sig_game_popup_closed` �
 
 ## Tutorial
 
-`ddooo/scripts/tutorial.gd` (12 steps), entry `ddooo/scripts/main.gd::start_tutorial()`, level 1.
+`ddooo/scripts/tutorial.gd` (11 steps), entry `ddooo/scripts/main.gd::start_tutorial()`, level 1.
 
 One event, two questions — and the second one is the thing a first-timer never sees coming. While
 they are looking at the center shape, a dot flashes at the edge 150ms later and is gone in under a
@@ -270,7 +270,16 @@ Specific to this game:
   time. The harness checks both the agent count and the flash's survival across a caption.
 - **The direction step is descriptive; the ask is on the step after it.** A talking step freezes
   the board, so an instruction there cannot be obeyed and the attempt just dismisses the caption.
-- **Both answers must be given correctly.** The steps wait on `shape_right` and `dir_right`, not on
+- **The shape step waits on `dirs_after_right`**, an event that exists only for the coach. It needs
+  two facts at once, and no other event carries both: the shape was right, AND the direction
+  buttons now exist. `shape_right` fires a few lines before they are built, so the caption that
+  points at one opened with nothing to frame and laid itself out over the very dots it describes;
+  plain `dirs_shown` fires for a **wrong** shape too — the direction question is asked either way —
+  which let the player through without ever matching a shape. `_dispatch_periph_question()`
+  therefore emits `dirs_after_right` / `dirs_after_wrong`, split on `pending_main_correct`. (An
+  in-between step that only waited for the buttons was worse still: its await was satisfied inside
+  `_enter_step`, so it showed for zero frames and its number was skipped in the footer.)
+- **Both answers must be given correctly.** The steps wait on `dirs_after_right` and `dir_right`, not on
   "an answer happened" — waiting on the latter let a player finish the tutorial without ever
   getting either question right. But a wrong answer must not strand them either: a wrong shape
   still lets the round play out, and a wrong dot ends the direction question and clears every
@@ -279,6 +288,6 @@ Specific to this game:
   something to answer, released whenever the board is empty, or the next round could never arrive.
 - `_tutorial_board` guards level completion, not `tutorial_mode`.
 - Events: `model_shown`, `periph_flashed`, `alts_shown`, `shape_right`, `shape_wrong`,
-  `dirs_shown`, `dir_right`, `dir_wrong`.
+  `dirs_shown`, `dirs_after_right`, `dirs_after_wrong`, `dir_right`, `dir_wrong`.
 - Points for the coach: `tutorial_model_pos`, `tutorial_periph_pos`, `tutorial_candidates_rect`,
   `tutorial_correct_dir_pos`.

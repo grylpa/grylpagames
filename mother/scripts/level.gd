@@ -792,7 +792,7 @@ func _current_phase_label() -> String:
 #
 # Two earlier attempts failed here, and the reason the second one failed is worth keeping:
 #
-#   1. `draw_polyline` at constant width with a pale stripe down the CENTRE. A centred stripe reads
+#   1. `draw_polyline` at constant width with a pale stripe down the CENTER. A centered stripe reads
 #      as a racing stripe rather than a rounded form, and a constant-width line with round caps
 #      reads as a cable — the two snakes looked like a logic-analyzer timing diagram.
 #   2. A hand-built tapered polygon ribbon. `draw_colored_polygon` triangulates through

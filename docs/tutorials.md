@@ -118,13 +118,13 @@ the game to report *how* the answer was given, not just that it was.
 ### Caption placement — side captions
 
 `caption_side` picks where the caption lives: `"auto"` (default, the full-width panel described
-below), or `"right"` / `"left"` for a narrow column pinned to that edge and vertically centred. Set
+below), or `"right"` / `"left"` for a narrow column pinned to that edge and vertically centered. Set
 it on the runner before `run()`, or per step with a `caption_side` key.
 
 Use a side caption when the game's action runs down the **middle** of the screen. udbr's lane is
-vertical and centred and the ball travels its whole height, so a full-width caption docked at the
+vertical and centered and the ball travels its whole height, so a full-width caption docked at the
 bottom sits on exactly what the player is meant to be watching. The column is `0.32` of screen
-width (min 150 px) — 218 px on a 680 px screen, against udbr's 180 px centred lane, so it clears
+width (min 150 px) — 218 px on a 680 px screen, against udbr's 180 px centered lane, so it clears
 it — and it keeps below the Skip button in the top-right corner.
 
 A narrow column wraps text much taller, so **side captions need short, imperative copy**. If a
@@ -244,6 +244,23 @@ progress bar.
 `_enter_step`, so it is never current at a frame boundary. Gorilla had one: its setup spawned the
 gorilla and the step waited for `gorilla_appeared`. Fold such a step into the one that talks about
 the result — the wait is pointless when the setup is synchronous.
+
+**But do not just delete such a step — check what its await was guaranteeing.** Witness had one
+between "you got the shape" and the caption pointing at a direction button, and removing it moved
+the caption onto `shape_right`, which the level fires *before* it builds those buttons. The step
+then opened with nothing to frame and placed itself over the dots it was describing. The fix is to
+wait on an event that means the thing exists, not to drop the wait. A caption is laid out ONCE, at
+entry, from the spotlight it can resolve at that instant — a target that only appears a frame later
+is a target the placer never saw.
+
+The obvious replacement was wrong too, and in a way no spotlight check would ever catch: the
+"buttons are up" event fires for a **wrong** answer as well, because Witness asks the direction
+question either way. Waiting on it let a player through without ever matching a shape, and lost the
+"that was not the shape" caption. When no existing event carries everything the step needs, add one
+that does — `dirs_after_right` / `dirs_after_wrong`, split on the flag the level already keeps —
+rather than settling for the event that is merely close. And check the wrong-answer path in the
+harness: the probe now taps a deliberately wrong shape and fails if the step advances or the
+caption says nothing about it.
 
 **Wait on the event that means what the caption says.** udbr's tutorial asked for an inhale but
 waited on the direction *latch*, which trips a frame or two into the drag. The step therefore ended

@@ -89,7 +89,13 @@ static func steps(level: Node, _game) -> Array:
 				if level.tutorial_dirs_active():
 					return "That was not the shape.\n\nFinish the round by picking a direction, and we will go again."
 				return "Watch for the next shape in the center — and the flash at the edge.",
-			"await": {"event": "shape_right", "timeout": 300.0},
+			# Needs TWO facts, so it waits on the event that carries both: the shape was right,
+			# and the direction buttons now exist. "shape_right" fires a few lines before they are
+			# built, so the next caption — which points at one — would open with nothing to frame
+			# and lay itself out over the very dots it describes. Plain "dirs_shown" fires for a
+			# WRONG shape too, since the direction question is asked either way, and would let the
+			# player through without ever matching a shape.
+			"await": {"event": "dirs_after_right", "timeout": 300.0},
 			"hint_after": 15.0,
 			"hint": "Same shape, same color as the one that was in the center.",
 		},
@@ -97,10 +103,10 @@ static func steps(level: Node, _game) -> Array:
 			# Descriptive only: the board is frozen while a caption is up, so an instruction here
 			# cannot be obeyed and the attempt just dismisses the step. The ask is on the next one.
 			#
-			# There is deliberately no wait-step before this one. Answering the shape fires
-			# shape_right AND dirs_shown in the same call chain, so a step waiting on dirs_shown is
-			# satisfied the instant it opens — displayed for zero frames, and its number skipped in
-			# the footer.
+			# There is deliberately no wait-step before this one: it would be satisfied the instant
+			# it opened (the whole chain runs in one call) — displayed for zero frames, with its
+			# number skipped in the footer. The previous step's await carries the guarantee
+			# instead: by the time this caption opens, the buttons it points at exist.
 			"setup": func(): level.tutorial_freeze_board(true),
 			"title": "Now the direction",
 			"text": func():
