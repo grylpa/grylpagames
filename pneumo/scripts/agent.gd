@@ -9,17 +9,17 @@ var board_pos: Vector2i
 var direction: int
 var target_position: Vector2
 var starting_position: Vector2
-var time_from_start_to_target_ms := 0
-var set_target_once := false
-var arrived := false
-var was_hit := false
-var agent_type := 1
-var agent_id := 0
-var last_major_tick_ms := -10000
-var speed_scale := 1.0
-var is_moving := false
-var transaction_id := -1
-var time_created_ms := 0
+var time_from_start_to_target_ms: int = 0
+var set_target_once: bool = false
+var arrived: bool = false
+var was_hit: bool = false
+var agent_type: int = 1
+var agent_id: int = 0
+var last_major_tick_ms: int = -10000
+var speed_scale: float = 1.0
+var is_moving: bool = false
+var transaction_id: int = -1
+var time_created_ms: int = 0
 
 var nbody_parts = 0
 var bodies = []
@@ -101,7 +101,7 @@ func set_pos(p, dir):
 		return
 	position = p
 			
-var time_set_target_pos := MainGlobals.timems()
+var time_set_target_pos = MainGlobals.timems()
 
 func set_target_pos(p):
 	target_position = p
@@ -111,7 +111,24 @@ func set_target_pos(p):
 	set_target_once = true
 	time_created_ms = MainGlobals.timems()
 	
+# Held still by the coach for a step that is about something ELSE — the doors. Behaves exactly
+# like a pause for this capsule: every clock is suspended, so nothing ages while it waits.
+var tutorial_hold: bool = false
+var _last_process_ms: int = MainGlobals.timems()
+
 func _process(_delta: float) -> void:
+	# Both clocks in here are the WALL clock: the auto-start delay and the tile-to-tile
+	# interpolation. Neither stops when the game pauses, so a capsule kept gliding through a help
+	# screen, a popup or a tutorial caption. Pushing both baselines forward by the paused (or held)
+	# duration suspends it exactly where it is and resumes it without a jump.
+	var now_ms: int = MainGlobals.timems()
+	if tutorial_hold or (game != null and game.paused()):
+		var paused_for: int = now_ms - _last_process_ms
+		time_created_ms += paused_for
+		time_set_target_pos += paused_for
+		_last_process_ms = now_ms
+		return
+	_last_process_ms = now_ms
 	if MainGlobals.timems() - time_created_ms > game.time_to_auto_start_moving_ms:
 		is_moving = true
 		sig_agent_started_moving.emit(transaction_id)
@@ -175,7 +192,7 @@ func remove_body_if_first(id):
 	var idx = body_ids.find(id)
 	return remove_body(id) if idx == 0 else false
 		
-var _pending_remove_ids := {}
+var _pending_remove_ids: Dictionary = {}
 func remove_body(id):
 	if id in _pending_remove_ids:
 		return

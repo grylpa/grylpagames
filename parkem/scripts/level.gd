@@ -8,16 +8,28 @@ var rng = RandomNumberGenerator.new()
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe := false
-	var door_type := -1
-	var has_agent := false
-	var istarget := false
-	var isbomb := false
+	var ispipe: bool = false
+	var door_type: int = -1
+	var has_agent: bool = false
+	var istarget: bool = false
+	var isbomb: bool = false
 	var target
 	var pipe
 	
-var allow_show_path := false
-var start_dispatch := false
+var allow_show_path: bool = false
+
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# Whether the board on screen was built FOR a tutorial. Captured at board-creation time, not read
+# at call time: creatures are removed from a tween callback, so the win lands after the coach has
+# finished and tutorial_mode has already gone false.
+var _tutorial_board: bool = false
+# Holds the dispatcher, so a second creature does not wander in behind a caption about the first.
+var tutorial_hold_dispatch: bool = false
+# Stops the creatures dead. The hatch steps are ACTION steps, so the game is unpaused and the
+# creature would drive on — and drive off the hatch the coach is pointing at — while the player is
+# still looking for it.
+var tutorial_hold_creatures: bool = false
+var start_dispatch: bool = false
 var time_between_dispatches_ms = 5000
 var board: Array
 var agents = []
@@ -34,12 +46,12 @@ var agent_start_positions = []
 var agent_start_directions = []
 var time_started_level_ms = 0
 var time_increased_difficulty_ms = 0
-var level := 0
+var level: int = 0
 var num_more_packets = 0
 var max_speed_scale = 1.0
-var num_parking_types := 3
-var num_bombs_to_use := 3
-var num_blocks := 20
+var num_parking_types: int = 3
+var num_bombs_to_use: int = 3
+var num_blocks: int = 20
 
 var dict_tran_id_to_target = {}
 
@@ -50,13 +62,13 @@ var dict_tran_id_to_target = {}
 @export var target_scene: PackedScene = load("res://parkem/scenes/target.tscn")
 @export var bomb_scene: PackedScene = load("res://scenes/bomb_scene.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var parked_audio := preload("res://art/sounds/bump-sound-7.mp3")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
-var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
-var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var parked_audio = preload("res://art/sounds/bump-sound-7.mp3")
+var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var door_audio = preload("res://art/sounds/door-open-sound-1.mp3")
+var motor_audio = preload("res://art/sounds/car-ambient-driving.ogg")
+var explosion_audio = preload("res://art/sounds/car-crash-1.mp3")
+var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -81,6 +93,7 @@ func _ready() -> void:
 	$SwooshAudio.stream = swoosh_audio
 
 func new_game(from_scratch=true):
+	_tutorial_board = game.tutorial_mode
 	game.level_is_ready = false
 	if from_scratch:
 		level = ParkemG.starting_level
@@ -93,8 +106,9 @@ func new_game(from_scratch=true):
 	time_increased_difficulty_ms = time_started_level_ms
 	# $HUD.new_game()
 	started_playing.emit()
-	BE.upsert_game_state("Parkem", 
-		{"state":"new","starting_level": level, "num_packets": ParkemG.num_packets})
+	if not game.tutorial_mode:
+		BE.upsert_game_state("Parkem",
+			{"state":"new","starting_level": level, "num_packets": ParkemG.num_packets})
 	if !$MotorAudio.playing:
 		$MotorAudio.play()
 
@@ -135,7 +149,7 @@ func add_target(p, id, show_id=false):
 	targets.append(target)
 	target_positions.append(p)
 	var q = p
-	var dir := 0
+	var dir: int = 0
 	if p.x == 0: q.x += 1
 	if p.x == game.board_size.x - 1: 
 		q.x -= 1
@@ -225,11 +239,11 @@ func create_board() -> void:
 	# transaction_ids.shuffle()
 
 	dict_tran_id_to_target = {}
-	var found_targets := 0
+	var found_targets: int = 0
 	var minx = 1000
 	var miny = 1000
 	var receivers = []
-	var retries := 0
+	var retries: int = 0
 	while found_targets < num_parking_types and retries < 1000:
 		retries += 1
 		var trans_id = found_targets
@@ -289,9 +303,9 @@ func create_board() -> void:
 	num_blocks = 10 if MainGlobals.is_mobile() else 20
 	var th_blocks_on_sides = 2 if MainGlobals.is_mobile() else 10
 	retries = 0
-	var nblocks := num_blocks
-	var mar := 2
-	var mar_in := 4
+	var nblocks = num_blocks
+	var mar: int = 2
+	var mar_in: int = 4
 	var block_pos = []
 	while nblocks > 0 and retries < 1000:
 		retries += 1
@@ -306,7 +320,7 @@ func create_board() -> void:
 				row = game.rng.randi_range(mar+1,game.board_size.y-2-mar) | 1
 				col = game.rng.randi_range(0,1) * (game.board_size.x-1 - 2*mar) + mar
 
-			var all_far := true
+			var all_far: bool = true
 			for _p in block_pos:
 				if _p.distance_to(Vector2i(col,row)) < 2:
 					all_far = false
@@ -343,6 +357,8 @@ func create_board() -> void:
 					add_door_at(p, door_type)	
 										
 	start_dispatch = true
+	if game.tutorial_mode:
+		_tutorial_setup()
 	game.create_fill_screen_camera(self)
 	game.level_is_ready = true
 
@@ -380,7 +396,7 @@ func find_closest_non_allocated_target(p):
 				target = t
 	return target
 
-var next_agent_id := 1
+var next_agent_id: int = 1
 func add_agent_at(p: Vector2i, direction: int):
 	var agent = agent_scene.instantiate()
 	agent.body_ids = range(1, ParkemG.num_packets+1+num_more_packets)
@@ -423,6 +439,8 @@ func add_agent_at(p: Vector2i, direction: int):
 # 		if t.transaction_id == transaction_id:
 # 			t.reset_sender_receiver()
 
+	game.tutorial_notify("agent_dispatched")   # no-op outside tutorial mode
+
 func on_door_type_changed(pos: Vector2i):
 	for i in doors.size():
 		var door = doors[i]
@@ -443,6 +461,7 @@ func on_clicked_door(pos: Vector2i):
 			board[pos.y][pos.x].door_type = newdir
 			$DoorAudio.stop()
 			$DoorAudio.play()
+			game.tutorial_notify("door_turned")   # no-op outside tutorial mode
 			break
 	# for agent in agents:
 	# 	agent.path = find_agent_path(agent)
@@ -464,7 +483,7 @@ func all_agents_done():
 	return true
 	
 func find_agent_path_index(agent):
-	var idx := -1
+	var idx: int = -1
 	for i in range(agent.path.size()):
 		if agent.board_pos.distance_to(agent.path[i]) == 0:
 			idx = i
@@ -476,6 +495,8 @@ func find_agent_path_index(agent):
 var last_major_tick_ms = -10000.0
 func tick():
 	if game.level_is_done:
+		return
+	if tutorial_hold_creatures:
 		return
 	var now = MainGlobals.timems()
 	last_major_tick_ms = now
@@ -506,9 +527,9 @@ func tick():
 				var door_type = board[p.y][p.x].door_type
 				var q = p + vdir
 				var path_idx = find_agent_path_index(agent)
-				var need_to_refind_path := false
+				var need_to_refind_path: bool = false
 				var path_q:Vector2i
-				var path_dir := -1
+				var path_dir: int = -1
 				if path_idx >= 0 and path_idx < agent.path.size()-1:
 					path_q = agent.path[path_idx+1]
 					path_dir = game.dt_to_dir(path_q - agent.board_pos)
@@ -601,6 +622,10 @@ func _on_level_done_popup_closed():
 func level_is_done(didwin: bool):
 	game.level_is_done = true
 	$MotorAudio.stop()	
+	if game.tutorial_mode or _tutorial_board:
+		# The win arrives from a creature's removal tween, which lands after the coach has finished
+		# — so checking tutorial_mode alone is too late and the level-done popup gets through.
+		return
 	BE.send_event("level_done", "Parkem", {
 		"level": level,
 		"didwin": int(didwin),
@@ -688,6 +713,8 @@ func increase_difficulty(increase=true):
 var time_last_dispatch = -10000
 var pos_last_dispatch = Vector2i(-1,-1)
 func _on_agent_dispatch_timer_timeout() -> void:
+	if tutorial_hold_dispatch:
+		return
 	if start_dispatch and !game.paused():
 		var tm = MainGlobals.timems()
 		if tm - time_last_dispatch >= time_between_dispatches_ms:
@@ -722,9 +749,12 @@ func on_agent_remove_agent(agent_id, arrived):
 				game.dec_packet()
 				if !$DeliveryAudio.playing:
 					$DeliveryAudio.play()
+				game.tutorial_notify("creature_stopped")
 				delivered_one.emit()
 				if game.packets_left == 0:
 					level_is_done(true)
+			else:
+				game.tutorial_notify("creature_parked")
 			break
 
 func check_agent_collisions():
@@ -832,3 +862,90 @@ func _on_agent_timeout(_agent):
 	pass
 	# game.add_score_and_time(5, 10)
 	# $DeliveryAudio.play()
+
+# --- tutorial staging -------------------------------------------------------
+
+func _tutorial_setup() -> void:
+	# Level 1 asks for ten creatures turned away; the lesson needs one, plus one to finish on.
+	game.set_num_packets(2)
+	tutorial_hold_dispatch = false
+
+# Freeze every creature where it stands, including any dispatched later.
+func tutorial_freeze_creatures(hold: bool) -> void:
+	tutorial_hold_creatures = hold
+	for a in agents:
+		if is_instance_valid(a):
+			a.tutorial_hold = hold
+
+# Stop new creatures arriving while the coach is talking about the one already here.
+func tutorial_hold_new_creatures(hold: bool) -> void:
+	tutorial_hold_dispatch = hold
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func _screen_of(n) -> Vector2:
+	if n == null or not is_instance_valid(n):
+		return Vector2.ZERO
+	return (n as Node2D).get_global_transform_with_canvas().origin
+
+func tutorial_creature():
+	for a in agents:
+		if is_instance_valid(a) and not a.arrived and not a.was_hit:
+			return a
+	return null
+
+func tutorial_creature_pos() -> Vector2:
+	return _screen_of(tutorial_creature())
+
+func tutorial_has_creature() -> bool:
+	return tutorial_creature() != null
+
+# The parking spot the creature on screen is heading for — read off the board, so the caption
+# cannot disagree with where it is actually going.
+# The parking spot a creature is heading FOR — its receiver.
+#
+# Matching on transaction_id alone is not enough: add_agent_at() also stamps that id on the target
+# nearest the spawn and marks it the SENDER, so the first match in `targets` is often the place the
+# creature came FROM. "That is the spot it is heading for" then pointed at its source.
+func tutorial_spot_pos() -> Vector2:
+	var a = tutorial_creature()
+	if a == null:
+		return Vector2.ZERO
+	for t in targets:
+		if is_instance_valid(t) and t.is_receiver and t.transaction_id == a.transaction_id:
+			return _screen_of(t)
+	return Vector2.ZERO
+
+# The next door along the creature's own path: the one worth tapping. Falls back to the nearest
+# door so the coach always has something real to point at.
+func tutorial_next_door_pos() -> Vector2:
+	var a = tutorial_creature()
+	if a == null or doors.is_empty():
+		return Vector2.ZERO
+	if a.path != null:
+		for step in a.path:
+			var cell: Vector2i = Vector2i(step)
+			# Skip the creature's own cell: a hatch underneath it is hidden BY it, so the frame
+			# looks like it is pointing at the creature, or at nothing.
+			if cell == a.board_pos:
+				continue
+			for d in doors:
+				if is_instance_valid(d) and d.board_pos == cell:
+					return _screen_of(d)
+	var best = null
+	var best_d: float = 1e9
+	for d2 in doors:
+		if not is_instance_valid(d2):
+			continue
+		var dist: float = Vector2(d2.board_pos - a.board_pos).length()
+		if dist < best_d:
+			best_d = dist
+			best = d2
+	return _screen_of(best)
+
+func tutorial_has_door() -> bool:
+	return tutorial_next_door_pos() != Vector2.ZERO
+
+func tutorial_packets_left() -> int:
+	return game.packets_left
+

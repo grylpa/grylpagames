@@ -1,6 +1,6 @@
 extends Area2D
 
-var board_pos := Vector2i.ZERO
+var board_pos = Vector2i.ZERO
 
 func _ready() -> void:
 	# var rng = RandomNumberGenerator.new()

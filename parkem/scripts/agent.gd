@@ -11,18 +11,18 @@ var board_pos: Vector2i
 var direction: int
 var target_position: Vector2
 var starting_position: Vector2
-var time_from_start_to_target_ms := 0
-var set_target_once := false
-var arrived := false
-var was_hit := false
-var agent_type := 1
-var agent_id := 0
-var last_major_tick_ms := -10000
-var speed_scale := 1.0
-var is_moving := false
-var transaction_id := -1
-var time_created_ms := 0
-var signalled_timeout := false
+var time_from_start_to_target_ms: int = 0
+var set_target_once: bool = false
+var arrived: bool = false
+var was_hit: bool = false
+var agent_type: int = 1
+var agent_id: int = 0
+var last_major_tick_ms: int = -10000
+var speed_scale: float = 1.0
+var is_moving: bool = false
+var transaction_id: int = -1
+var time_created_ms: int = 0
+var signalled_timeout: bool = false
 
 var path:Array[Vector2i] = []
 var nbody_parts = 0
@@ -36,7 +36,7 @@ var angles = []
 var body_ids = [1,2,3]
 var body_scene: PackedScene = load("res://parkem/scenes/tube_animation.tscn")
 
-var color := Color(1,1,1,1)
+var color = Color(1,1,1,1)
 var isready = false
 
 var game:GenericGameUtil
@@ -107,7 +107,7 @@ func set_pos(p, dir):
 		return
 	position = p
 			
-var time_set_target_pos := MainGlobals.timems()
+var time_set_target_pos = MainGlobals.timems()
 
 func set_target_pos(p):
 	target_position = p
@@ -117,7 +117,28 @@ func set_target_pos(p):
 	set_target_once = true
 	# time_created_ms = MainGlobals.timems()
 	
+# Held still by the coach for a step that is about something ELSE — the hatches. Behaves exactly
+# like a pause for this creature: every clock is suspended, so nothing ages while it waits.
+var tutorial_hold: bool = false
+var _last_process_ms: int = MainGlobals.timems()
+
 func _process(_delta: float) -> void:
+	# EVERY clock in here is the wall clock: the give-up timer, the auto-start delay and the
+	# tile-to-tile interpolation. None of them stop when the game pauses, so a creature kept
+	# ticking through a help screen, a popup or a tutorial caption — and gave up and vanished
+	# while the player was still reading about it, taking its parking spot and its hatch (both
+	# looked up FROM the creature) off the screen with it.
+	#
+	# Pushing all three baselines forward by the paused duration suspends the creature exactly
+	# where it is and resumes it without a jump.
+	var now_ms: int = MainGlobals.timems()
+	if tutorial_hold or (game != null and game.paused()):
+		var paused_for: int = now_ms - _last_process_ms
+		time_created_ms += paused_for
+		time_set_target_pos += paused_for
+		_last_process_ms = now_ms
+		return
+	_last_process_ms = now_ms
 	var now = MainGlobals.timems()
 	if !signalled_timeout and now >= time_created_ms + life_time_ms:
 		mark_timeout()
@@ -184,7 +205,7 @@ func remove_body_if_first(id):
 	var idx = body_ids.find(id)
 	return remove_body(id) if idx == 0 else false
 		
-var _pending_remove_ids := {}
+var _pending_remove_ids: Dictionary = {}
 func remove_body(id):
 	if id in _pending_remove_ids:
 		return

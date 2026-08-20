@@ -38,7 +38,58 @@ func _ready() -> void:
 	if !game.shown_instructions:
 		game.show_instructions(self)
 		ParkemG.save_settings()		
+	_maybe_start_tutorial()
 	
+# Teach instead of showing the menu when the player asked for the tutorial from the
+# chooser's "How to play", OR when this is their first ever run of this game.
+func _maybe_start_tutorial() -> void:
+	if MainGlobals.take_pending_tutorial("parkem") \
+			or MainGlobals.take_auto_tutorial("parkem", game.shown_instructions):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://parkem/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	_tutorial_saved_level = ParkemG.starting_level
+	ParkemG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# Only the creature. The spot and the door are each the SPOTLIGHT's subject on their own step,
+	# and the spotlight already outweighs keep_clear 8:1 — listing them here as well just hands the
+	# placer three scattered small zones to satisfy at once with a full-width caption, which on a
+	# busy board is impossible, so it ends up burying one of them completely.
+	runner.keep_clear = [
+		func(): return _rect_or_null($Level.tutorial_creature_pos(), 34.0),
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _rect_or_null(p: Vector2, r: float):
+	return null if p == Vector2.ZERO else Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	_on_level_show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	if is_instance_valid($Level):
+		$Level.tutorial_hold_dispatch = false
+		$Level.tutorial_freeze_creatures(false)
+	if _tutorial_saved_level >= 0:
+		ParkemG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
+
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()
