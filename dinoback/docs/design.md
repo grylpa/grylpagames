@@ -239,3 +239,46 @@ No CLI test pipeline. Everything below was checked with temporary headless probe
 
 **Not verified: how any of it looks.** Headless has no renderer. The shape multipliers, glyph
 sizing, plate contrast and card sizes all need an eyeball in the editor.
+
+## Tutorial
+
+`dinoback/scripts/tutorial.gd` (12 steps), entry `dinoback/scripts/main.gd::start_tutorial()`,
+level 1 (1-back, four shapes, one color). See `docs/tutorials.md` for the step schema.
+
+What a first-timer gets wrong, and what the tutorial does about it:
+
+- **They play it as Dino** — "have I seen this card?". With a pool of four, every card is one they
+  have seen, so familiarity answers nothing. The tutorial says this outright, and says it *late*,
+  once the player has answered a match and a non-match and can feel what the question really is.
+- **The priming cards.** The first N cards have nothing to compare against: answers are refused and
+  the buttons are dimmed, which reads as a broken game unless someone explains it first.
+- **The bar is a deadline.** No answer scores like a wrong one.
+
+Specific to this game:
+
+- **No freeze work was needed.** `_can_play()` requires `not game.paused()`, and the card deadline
+  is measured in `game.game_time`, which excludes paused time — so a caption stops the stream and
+  the countdown bar together. Verified by seeding: removing `not game.paused()` from `_can_play()`
+  breaks the run (the harness catches it as a step ending on its timeout).
+- **`tutorial_force_target`** (1 = match, 0 = non-match, -1 = normal) short-circuits the
+  `target_rate`/`lure_rate` roll in `_next_trial`, so a clean match and a clean non-match are each
+  taught on demand instead of whenever the generator obliges.
+- **`tutorial_hold_cards` is defensive, not load-bearing.** Removing it does not break the run —
+  the pause already stops `_process` on every talking step. It is kept to close the window between
+  an answer being registered and the next caption pausing the game, which on a slow device could
+  in principle be long enough to deal a card.
+- `new_game()` skips the "Level 1 / N = 1 / MATCH = same shape as…" intro popup in tutorial_mode:
+  the tutorial *is* that explanation, delivered one beat at a time.
+- `_level_done()` returns early in tutorial_mode, so `duration_sec` running out mid-lesson cannot
+  drop a level-completed popup on the coach.
+- **The captions on card steps are deliberately short.** A "big" card is ~427px tall on a 748px
+  screen, leaving only ~150px of clear space above it; a longer caption has nowhere to go that does
+  not bury the card it is pointing at.
+- **No talking step says "swipe".** The board is frozen while a caption is up, so an instruction
+  there cannot be obeyed — and the player's attempt just dismisses the step. Every swipe
+  instruction lives on the action step that accepts it.
+- Events reported to the coach: `card_shown`, `priming_card`, `scored_card`, `target_card`,
+  `plain_card`, `answered`, `answered_right`, `answered_wrong` — all `game.tutorial_notify`,
+  no-ops outside tutorial mode.
+- Points for the coach, all in screen coordinates: `tutorial_card_rect`, `tutorial_bar_rect`,
+  `tutorial_buttons_rect`.

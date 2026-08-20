@@ -110,5 +110,52 @@ Same 9 modalities as other games: `digit`, `square`, `even_odd`, `vowel`, `prime
 - **Demo gating**: the question screen only appears once every belt has demonstrated **≥3 picked-up (yes)** and **≥2 left (no)** items (`_yes_per_belt`/`_no_per_belt`), so the rule is always inferable. The window-opening candidate check (`_open_demo_window`) uses the **same** condition, otherwise the demo stalls at `min_examples` and the belt scrolls forever. Item selection is biased toward the still-needed answer so it converges.
 - **No ambiguous options**: `_build_options` drops any distractor listed in `_CONFUSABLE_WITH[correct_key]` — e.g. a filled ■ is also a square, so "filled"/"hollow" are never offered when the rule is "square" (and "square" isn't offered when the rule is filled/hollow). Extend the map for other overlaps.
 - **Window slides in from the top**: `_open_demo_window` opens on an **entering** item (`item_y < 0`), so the highlight slides in gradually with it (clip_contents). It never marks mid-entry — the mark waits for `_mark_top` (which is ≥ 0, i.e. fully inside). Item selection is biased toward the still-needed answer (gating), which keeps the yes/no spread balanced.
-- **Claw pickup** (`_claw_pull`): on a correct pick-up the **actual item** (removed from `belt_items`, reparented into a flyer with `reparent(flyer, true)` so it looks exactly as on the belt) is gripped by a `claw.gd` arm and yanked off the **nearest** side. On pick-up the item is first **popped to 1.18× over 0.14s** (TRANS_BACK ease-out, so it slightly overshoots — reading as the claw closing and lifting it off the belt) and only **then** yanked off the side over 0.55s. The flyer's origin is set to the item's **centre** so the pop grows it in place; with the origin at (0,0) the scale-up would drag the item toward the canvas corner. Durations live in `_GRAB_TIME` / `_PULL_TIME` / `_GRAB_SCALE` (single-belt → right; belt 0 → left, belt 1 → right). The highlight **rectangle is kept** around it (border reparented too, fill set transparent, ✓/✗ removed) so nothing covers the item, and it **moves the whole time** (no freeze/hold).
+- **Claw pickup** (`_claw_pull`): on a correct pick-up the **actual item** (removed from `belt_items`, reparented into a flyer with `reparent(flyer, true)` so it looks exactly as on the belt) is gripped by a `claw.gd` arm and yanked off the **nearest** side. On pick-up the item is first **popped to 1.18× over 0.14s** (TRANS_BACK ease-out, so it slightly overshoots — reading as the claw closing and lifting it off the belt) and only **then** yanked off the side over 0.55s. The flyer's origin is set to the item's **center** so the pop grows it in place; with the origin at (0,0) the scale-up would drag the item toward the canvas corner. Durations live in `_GRAB_TIME` / `_PULL_TIME` / `_GRAB_SCALE` (single-belt → right; belt 0 → left, belt 1 → right). The highlight **rectangle is kept** around it (border reparented too, fill set transparent, ✓/✗ removed) so nothing covers the item, and it **moves the whole time** (no freeze/hold).
 - **Layout**: `LeftSide`/`RightSide` fill their screen halves (rule label spans the half); each belt keeps its width but is `size_flags_horizontal = 4` (shrink-center) so its center sits at ~w/4 and ~3w/4. Rule labels reserve a 2-line height (like sortingrobots) so a 1- vs 2-line rule doesn't shift a belt down.
+
+## Tutorial
+
+`monkeyc/scripts/tutorial.gd` (12 steps), entry `monkeyc/scripts/main.gd::start_tutorial()`,
+level 1. See `docs/tutorials.md` for the step schema.
+
+What a first-timer gets wrong, and what the tutorial does about it:
+
+- **They do not realize there is a hidden rule.** The robot picking things up reads as scenery
+  until the question arrives out of nowhere. The first caption names the game as a guessing game
+  before anything moves.
+- **Every item is a PAIR and the rule applies to only one half.** Nothing on screen says so, and
+  working out which half matters is most of the game. Step 3 points at one item and says it.
+- **The ✓/✗ appears BEFORE the robot acts** (`robot_answer_time`, 5.8s on level 1). Players read
+  the pull as the decision and miss the mark. The ✓ caption says the answer always comes first.
+
+Specific to this game:
+
+- **No belt freeze is needed.** `_process` returns early on `game.paused()`, so a talking step
+  stops the belts, the window and the ✓/✗ timing together.
+- **But that same early return means the belts are never filled while the coach talks.**
+  `_init_belts()` normally runs on the first `_process` tick; `new_game()` therefore calls it
+  directly in tutorial_mode, or the tutorial points at "one of these items" on an empty belt.
+- **The window step waits for `window_ready`, not `window_opened`.** `_open_demo_window` picks an
+  item still ENTERING (`item_y < 0`) so the highlight slides in with it — but the belt is
+  `clip_contents`, so at that instant the panel is above the visible belt and there is nothing on
+  screen to point at. "It picked one" framed empty space outside the belt. `window_ready` fires
+  from `_process` the first frame the item is inside, and returns immediately afterwards in
+  tutorial_mode so the ✓/✗ cannot land in that same frame (`_mark_top` is 0 on easy levels, where
+  `robot_answer_time` exceeds the run-in).
+- **`tutorial_window_rect()` is clipped to the belt**, so it can only ever return the part of the
+  highlight the player can actually see; off the belt it returns nothing rather than a rect over
+  empty space.
+- **`tutorial_force_truth` picks the next verdict** (1 = will be taken, 0 = will be left),
+  overriding the `need_truth` gating in `_open_demo_window`. That is how one ✓ and then one ✗ are
+  taught back to back instead of whenever the shuffle obliges. Cleared for the free-watching step.
+- **`_ask_all_rules` returns early in tutorial_mode after the first round.** Otherwise it starts
+  another round, or calls `_level_done()` and drops a level-completed popup over the coach's
+  closing caption.
+- Events reported to the coach: `window_opened`, `item_marked`, `marked_yes`, `marked_no`,
+  `item_resolved`, `question_shown`, `question_answered` — all `game.tutorial_notify`, no-ops
+  outside tutorial mode.
+- **`tutorial_an_item_rect()` picks the item nearest the MIDDLE of the belt**, and only one lying
+  fully inside it. Taking the item furthest down instead put the spotlight at y=792 on a 788px
+  overlay — below the screen entirely — because the lowest item is often half off the belt's end.
+- Points for the coach, all in screen coordinates: `tutorial_belt_rect`, `tutorial_window_rect`,
+  `tutorial_an_item_rect`, `tutorial_question_rect`.

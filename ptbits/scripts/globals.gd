@@ -4,7 +4,9 @@ extends Node
 # (swappable) ball texture used by the physics balls.
 
 var starting_level_id: int = 1
-var game: GenericGameUtil = GenericGameUtil.new("Ptbits", "ptbits", 0, 1, 0)
+# The display name is "Nudge"; the second argument is file_names_prefix, which names every
+# scores/settings/ongoing-score file under user:// — it must stay "ptbits" through any rename.
+var game: GenericGameUtil = GenericGameUtil.new("Nudge", "ptbits", 0, 1, 0)
 
 # --- Ball texture -----------------------------------------------------------
 # The ball is drawn with a texture so an artist can swap it later. A texture is

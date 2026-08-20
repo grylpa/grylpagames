@@ -612,3 +612,92 @@ that never landed — 67 button presses reported where 3 had happened.
 
 Use a throwaway `file_names_prefix` in any probe that writes, so it can never touch a real game's
 save files.
+
+**The caption weighs its own spotlight above everything else.** `_best_y` scores candidate
+positions by how much they overlap; the spotlight's overlap is multiplied by `SPOT_COST_WEIGHT`
+(8x) and `keep_clear` zones count 1x. Equal weighting is wrong because the spotlight is usually
+*also* one of the keep-clear zones — the thing being pointed at is normally the thing to be used —
+so the same pixels get counted twice and the placer will sit on the subject of its own caption to
+spare some other zone. Delem FP hit exactly that.
+
+**`keep_clear` is for what the player must READ or PRESS, not for everything on screen.** Listing
+scenery there just gives the placer contradictory demands, and it will satisfy them by covering
+something that matters. If a thing is only meant to be *seen*, make it the step's `spot` instead.
+
+**`keep_clear` applies on talking steps too, not only when the player has the controls.** It began
+as "what must stay reachable", but a caption that buries the thing the coach is describing is just
+as broken when the board is frozen — Delem FP's caption sat squarely on the truck while telling the
+player to work a route out from it. The spotlight weighting above is what stops this from pushing a
+caption onto its own spotlight instead.
+
+**Teach the state the game actually has.** Delem FP's first tutorial taught steering on the open
+board because it read better — but zoomed out the game freezes the truck by design, and its printed
+instructions say "You cannot move while zoomed out". The lesson demonstrated a state that does not
+exist. If a sequence feels awkward to teach, walk the real one more slowly; do not invent a
+friendlier one.
+
+**An unexplained freeze reads as a broken game.** Delem FP's five-second countdown was originally
+skipped, which left a gap between the map and the zoom with no reason given. Show the mechanism and
+name it. A pause-aware countdown can even be frozen *on screen* while the coach points at it —
+`game.paused()` stops the HUD timer — so the explanation and the thing explained are visible
+together.
+
+**When picking "one of these" to point at, pick one that is wholly on screen.** Monkey C's item
+spotlight took the item furthest down the belt, which is usually half off its end — the spotlight
+landed at y=792 on a 788px overlay. Choose from the middle of the region and require the candidate
+to be fully inside it.
+
+**A zone can appear after the caption has been placed.** The opening caption is laid out before
+the game has finished building its board, so at that instant there is nothing to avoid — and the
+board then materializes underneath it. mmm's intro caption sat squarely on the coin this way while
+sixteen clean positions were available. `_follow_keep_clear()` re-places the caption when a zone
+comes to sit under it, using the same discipline as the spotlight follow: only when properly buried
+(>50%, since a clipped corner is not worth a jump) and never more often than
+`SPOT_FOLLOW_COOLDOWN_MS`, or the caption chases the board around the screen.
+
+**A step must never be a dead end, and a step that depends on a control outside the game's own
+scene is the one most likely to become one.** The app's bottom bar belongs to the root scene, not
+to the game, so a game's tutorial cannot fully account for it. Where a step waits on one of those,
+give it a `tick` that performs the action itself after ~20s: the player still sees what the control
+does, and a press that never lands cannot strand them. Steps that wait on the game's own board do
+not need this — the harness covers those.
+
+**An instruction must appear on a step where the game accepts it RIGHT NOW — not one step early.**
+Three separate things can refuse an action: the caption's own freeze (a talking step), a
+game-specific hold the tutorial itself applied, and a game state that forbids it by design. Delem FP
+hit all three: the steering instruction sat on the talking step that parked the truck, and later the
+delivery step could open during zoom_unzoom()'s 4-second look, when movement is refused anyway. A
+player who follows an instruction and gets nothing concludes the controls are broken — and keeps
+trying, so they do not tap to continue either. Worth an explicit harness check per game: find the
+captions that name a control, and assert the game would honor it at that moment.
+
+**Never ask for an action the game will not accept yet.** Delem FP told the player to "go — find
+the way to dock 4" while the truck was still frozen for the countdown. If a step is a look-and-
+remember beat, word it as one, and say plainly why they cannot move.
+
+**A global signal may have more than one sender, and the other one may not be paused.** The app
+root carries its own spare `GenericGameHUD` alongside the game's. Its `game` is null, so every
+`if game and game.paused()` guard inside it is dead and it keeps running under a tutorial caption.
+Delem FP's countdown froze on screen while that hidden twin counted to zero in real time and fired
+`sig_global_countdown_finished`, zooming the camera in with a 5 still showing. When a step depends
+on something reaching a state, watch the thing the PLAYER can see, not a signal that anyone may
+emit.
+
+**Unpause means the whole game is running, including whatever moves by itself.** A step that waits
+on a button press is not a talking step: the board is live. Delem FP's truck drove off during the
+Zoom and Clue lessons and could deliver a packet no step was waiting for — and since the runner
+holds exactly one pending event, that spent delivery left the final step waiting forever. Park the
+self-moving parts for any step that is not about them.
+
+**Read counts from a source that has already settled.** A value mid-animation is not the value.
+Delem FP's packet list shrinks from a tween callback ~0.5s after delivery, so the coach read the
+old count and said "one down, 2 to go" with two packets total.
+
+**A game whose actor moves on a hand-rolled interpolation does not stop when the game pauses.**
+Tweens and timers do; a `_process` that lerps between two points does not. Delem FP's truck drove
+on under captions until `agent._process` learned to push its move's start time forward by the
+paused duration — which suspends it mid-tile and resumes it without a jump.
+
+**Anything gated on `not game.paused()` will never fire during a talking step.** Delem FP's truck
+is dispatched by a timer with that guard, so it simply never arrived while the coach was talking
+about it. If a tutorial needs something a paused-gated timer produces, produce it directly.

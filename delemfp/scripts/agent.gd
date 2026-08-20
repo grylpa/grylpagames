@@ -74,13 +74,27 @@ func set_target_pos(p):
 	target_position = p
 	starting_position = position
 	time_set_target_pos = MainGlobals.timems()
-	time_from_start_to_target_ms = DelemfpG.game.time_scale * \
-		DelemfpG.game.major_tick_time_ms * p.distance_to(position) / DelemfpG.game.tile_size
+	# maxf: a zero-length move would divide by zero in _process (sf = dt/0), and 0 * INF is NaN —
+	# which lands straight in `position` and takes the whole level's screen geometry with it.
+	time_from_start_to_target_ms = maxf(1.0, DelemfpG.game.time_scale * \
+		DelemfpG.game.major_tick_time_ms * p.distance_to(position) / DelemfpG.game.tile_size)
 	set_target_once = true
 	return time_from_start_to_target_ms
 	
 var last_pos := Vector2.ZERO
+var _last_process_ms: int = MainGlobals.timems()
+
 func _process(_delta: float) -> void:
+	# The truck slides between tiles on a hand-rolled interpolation, not a Tween, so nothing stops
+	# it when the game pauses: it would keep gliding through a help screen, a popup or a tutorial
+	# caption. Pushing the move's start time forward by the paused duration suspends it mid-tile
+	# and resumes it without the jump a naive early-return would cause.
+	var now_ms: int = MainGlobals.timems()
+	if DelemfpG.game.paused():
+		time_set_target_pos += now_ms - _last_process_ms
+		_last_process_ms = now_ms
+		return
+	_last_process_ms = now_ms
 	if position == last_pos:
 		if $Tail.is_playing():
 			$Tail.stop()

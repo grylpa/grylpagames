@@ -36,7 +36,7 @@ func _ready() -> void:
 	$Help.set_texts({"N": "New game", "M": "Main menu"})
 	$Help.close_help.connect(_on_help_close_help)
 
-	game.set_instructions("Ptbits",
+	game.set_instructions("Nudge",
 		"Colored balls fall from the top.\n" +
 		"Drag a tool with your finger.\n" +
 		"A tool only pushes balls of its own color —\n" +

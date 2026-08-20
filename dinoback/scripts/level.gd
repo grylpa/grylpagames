@@ -56,6 +56,14 @@ var _cur_is_target: bool = false
 var _cur_priming: bool = false
 var _answered: bool = false
 
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# The coach chooses whether the next scored card WILL be a match, so "this one matches" and "this
+# one does not" can each be taught on demand rather than whenever the generator obliges.
+# 1 = force a match, 0 = force a non-match, -1 = leave it to target_rate/lure_rate.
+var tutorial_force_target: int = -1
+# Hold the stream between cards, so a caption can be read without the next card arriving behind it.
+var tutorial_hold_cards: bool = false
+
 # --- ui (built in code) ---
 var _bg: TextureRect = null
 var _instruction: Label = null
@@ -265,6 +273,14 @@ func new_game(_from_scratch: bool = true) -> void:
 	call_deferred("_layout")
 	_feedback.hide()
 
+	if game.tutorial_mode:
+		# No "Level 1 / N = 1 / MATCH = same shape as..." wall in front of the coach's first
+		# caption — the tutorial IS that explanation, delivered one beat at a time.
+		_tutorial_setup()
+		_layout()
+		game.level_is_ready = true
+		started_playing.emit()
+		return
 	# Intro popup (centered panel, tap anywhere to start). Play starts when it closes. It sizes to
 	# its text, so keep short \n lines — there is no auto-wrap here.
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, _intro_text())
@@ -529,7 +545,7 @@ func _break_match(t: Dictionary, ref: Dictionary) -> Dictionary:
 			out["item"] = _other_item(int(ref["item"]))
 	return out
 
-# A neighbouring position (N-1 or N+1 back). Repeating THAT card is the classic n-back lure: it
+# A neighboring position (N-1 or N+1 back). Repeating THAT card is the classic n-back lure: it
 # feels exactly like a hit and is the main reason a 3-back is hard rather than merely slow.
 func _lure_ref(i: int):
 	var cands: Array = []
@@ -545,6 +561,13 @@ func _next_trial() -> Dictionary:
 	if i < n_back:
 		return _random_trial()          # priming: nothing to match against yet
 	var ref: Dictionary = _seq[i - n_back]
+	if tutorial_force_target == 1:
+		return _make_match(ref)
+	if tutorial_force_target == 0:
+		var forced: Dictionary = _random_trial()
+		if _rule_match(forced, ref):
+			forced = _break_match(forced, ref)
+		return forced
 	if game.rng.randf() < target_rate:
 		return _make_match(ref)
 	# a non-match, optionally dressed up as a near miss
@@ -619,6 +642,10 @@ func _show_next_card() -> void:
 	phase = Phase.SHOW
 	_show_start_ms = game.game_time
 	_phase_start_ms = game.game_time
+	game.tutorial_notify("card_shown")   # no-op outside tutorial mode
+	game.tutorial_notify("priming_card" if _cur_priming else "scored_card")
+	if not _cur_priming:
+		game.tutorial_notify("target_card" if _cur_is_target else "plain_card")
 
 # Priming cards are shown for a shorter beat than a scored card: there is nothing to decide, only
 # something to memorize, and a full card_time of staring at card 1 of 3 is dead air.
@@ -690,6 +717,8 @@ func _register_answer(said_match) -> void:
 			_feedback.text = "Wrong"
 		_feedback.add_theme_color_override("font_color", Color(0.9, 0.3, 0.25, 1.0))
 	_feedback.show()
+	game.tutorial_notify("answered")
+	game.tutorial_notify("answered_right" if correct else "answered_wrong")
 	MainGlobals.global_update_hud()
 	_animate_card_out(said_match, timed_out)
 	phase = Phase.FEEDBACK
@@ -745,6 +774,8 @@ func _process(_dt: float) -> void:
 	match phase:
 		Phase.IDLE:
 			_bar_fill.visible = false
+			if tutorial_hold_cards:
+				return
 			_show_next_card()
 		Phase.SHOW:
 			var span: float = _prime_ms() if _cur_priming else card_time_ms
@@ -771,6 +802,8 @@ func _process(_dt: float) -> void:
 				_feedback.hide()
 		Phase.GAP:
 			_bar_fill.visible = false
+			if tutorial_hold_cards:
+				return
 			if now - _phase_start_ms >= gap_ms:
 				_show_next_card()
 
@@ -825,6 +858,10 @@ func _on_time_over() -> void:
 	_level_done(true)
 
 func _level_done(didwin: bool) -> void:
+	if game.tutorial_mode:
+		# The level's duration_sec running out mid-lesson would drop a level-completed popup on
+		# top of the coach. A tutorial ends when the coach says so.
+		return
 	if game.level_is_done:
 		return
 	game.level_is_done = true
@@ -873,3 +910,57 @@ func _fmt_secs(s: float) -> String:
 
 func tick() -> void:
 	pass
+
+# --- tutorial staging -------------------------------------------------------
+#
+# No freeze work is needed: _can_play() requires `not game.paused()`, and the card deadline is
+# measured in game.game_time, which excludes paused time. A caption stops the stream AND the timer
+# bar together.
+
+func _tutorial_setup() -> void:
+	tutorial_force_target = -1
+	tutorial_hold_cards = false
+
+# Let the stream run again after a caption has held it between cards.
+func tutorial_release_cards() -> void:
+	tutorial_hold_cards = false
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func tutorial_card_rect() -> Rect2:
+	if _card == null or not is_instance_valid(_card):
+		return Rect2()
+	var w: float = _card.card_width() if _card.has_method("card_width") else 160.0
+	var h: float = _card.card_height()
+	var c: Vector2 = (_card as Node2D).get_global_transform_with_canvas().origin
+	return Rect2(c.x - w * 0.5, c.y, w, h)
+
+func tutorial_has_card() -> bool:
+	return _card != null and is_instance_valid(_card)
+
+# The countdown bar: the deadline a first-timer does not know exists.
+func tutorial_bar_rect() -> Rect2:
+	if _bar_track == null or not is_instance_valid(_bar_track):
+		return Rect2()
+	return _bar_track.get_global_rect()
+
+func tutorial_buttons_rect() -> Rect2:
+	if _btn_no == null or not is_instance_valid(_btn_no):
+		return Rect2()
+	var r: Rect2 = _btn_no.get_global_rect()
+	if _btn_match != null and is_instance_valid(_btn_match):
+		r = r.merge(_btn_match.get_global_rect())
+	return r
+
+# True while the card on screen is one of the priming cards (no answer accepted).
+func tutorial_is_priming() -> bool:
+	return _cur_priming
+
+# Whether the card on screen matches the one n_back ago — so a caption can say which it is instead
+# of leaving the player to find out by being wrong.
+func tutorial_is_target() -> bool:
+	return _cur_is_target
+
+func tutorial_n_back() -> int:
+	return n_back
+

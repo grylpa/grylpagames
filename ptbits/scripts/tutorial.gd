@@ -1,8 +1,8 @@
 extends RefCounted
 
-# Ptbits' coached tutorial. See docs/tutorials.md for the step schema.
+# Nudge's coached tutorial. See docs/tutorials.md for the step schema.
 #
-# What a first-time Ptbits player actually gets wrong, in order of damage:
+# What a first-time Nudge player actually gets wrong, in order of damage:
 #   1. They try to drag the tool by its colored disc — the part that looks like the handle. The
 #      grab point is the ring BELOW it (level._grab_at), deliberately, so the finger stays off the
 #      disc and out of the ball's way. A player who never finds it concludes the tool is scenery.
@@ -29,7 +29,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Ptbits",
+			"title": "Nudge",
 			"text": "Colored balls fall from the top.\n\nEvery ball belongs in the basket of its own color.",
 		},
 		{
