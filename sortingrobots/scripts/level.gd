@@ -738,7 +738,7 @@ func _claw_pull(to_right: bool) -> void:
 	var item_size: Vector2 = item.size
 	if item_size.x < 1.0 or item_size.y < 1.0:
 		item_size = Vector2(item_h, item_h)
-	# The flyer's ORIGIN sits at the item's centre so scaling it grows the item in place; with the
+	# The flyer's ORIGIN sits at the item's center so scaling it grows the item in place; with the
 	# origin at (0,0) the scale-up would drag the item toward the canvas corner instead.
 	var item_center: Vector2 = item_gpos + item_size * 0.5
 	var flyer: Node2D = Node2D.new()

@@ -192,7 +192,7 @@ DRAGGED / SNAPPING / FADING`.
 - **Wedge escape.** A band between a ring and a screen edge can be narrower than an alien, and the
   field clamp undoes the radial keep-out every frame — a permanent trap. `_slide_out_of_wedge`
   moves such an alien *along* the ring toward the open middle, and a pinched alien is also
-  retargeted at the field centre so it walks itself free instead of being shoved back.
+  retargeted at the field center so it walks itself free instead of being shoved back.
 - A seeker that cannot squeeze into a crowded ring gives up after `SEEK_TIMEOUT_MS` (3.5 s) and
   visibly wanders off **away from that ring**, which reads as changing its mind rather than being
   stuck. Standing still for 6 s looked like a bug even though the watchdog would have freed it.
@@ -548,7 +548,7 @@ never leaks whether the alien matches the rule.
 
 ## Layout
 
-Areas sit in the screen **CORNERS** (`CORNER_SIGNS`, order TL → BR → TR → BL): one area centres in
+Areas sit in the screen **CORNERS** (`CORNER_SIGNS`, order TL → BR → TR → BL): one area centers in
 the field, two take **opposing** corners, three or four fill the rest. Corners keep the middle of
 the field open as one contiguous roaming space and put the two rings as far apart as possible.
 

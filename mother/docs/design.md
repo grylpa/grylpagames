@@ -57,7 +57,7 @@ There is deliberately **no dark outline** anywhere.
 
 Two earlier approaches failed, and the second failure is the one to remember:
 
-1. `draw_polyline` at constant width plus a pale stripe **down the centre** — a centred stripe
+1. `draw_polyline` at constant width plus a pale stripe **down the center** — a centered stripe
    reads as a racing stripe, and a constant-width line with round caps reads as a cable.
 2. A hand-built tapered polygon ribbon. **`draw_colored_polygon` triangulates through `Geometry2D`,
    which fails and draws NOTHING on a self-intersecting polygon** — and an offset ribbon

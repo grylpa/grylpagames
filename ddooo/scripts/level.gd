@@ -351,6 +351,11 @@ func _dispatch_periph_question() -> void:
 	for dir_idx in 8:
 		periph_dir_buttons.append(_create_dir_button(dir_idx))
 	game.tutorial_notify("dirs_shown")
+	# The same moment, split by whether the SHAPE was right. A coached step needs both facts at
+	# once: the direction buttons now exist (so a caption can point at one), AND the player earned
+	# this round. "shape_right" alone fires before the buttons are built; "dirs_shown" alone fires
+	# for a wrong shape too, since the direction question is asked either way.
+	game.tutorial_notify("dirs_after_right" if pending_main_correct else "dirs_after_wrong")
 
 func _create_dir_button(dir_idx: int) -> Area2D:
 	var center_px: Vector2 = game.board_to_px(game.get_board_center())
