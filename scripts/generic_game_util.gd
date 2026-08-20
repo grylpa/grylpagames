@@ -1135,11 +1135,14 @@ func show_instructions(parent, automatic: bool = true):
 		if MainCfg.has_tutorial(file_names_prefix):
 			return
 	shown_instructions = true
-	var popup := instructions_scene.instantiate()
+	var popup = instructions_scene.instantiate()
 	parent.add_child(popup)
 	popup.set_font_size(instructions_font_size)
 	popup.set_title(instructions_title)
 	popup.set_text(instructions_text)
+	# A game with a tutorial offers it right here, under its own text. The chooser's "How to play"
+	# picker is gone, so this and the game's main menu are the two ways back to a tutorial.
+	popup.offer_tutorial(parent, self)
 
 func handle_event(event, parent):
 	if MainGlobals.ignore_keyboard_actions:

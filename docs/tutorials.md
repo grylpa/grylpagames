@@ -392,11 +392,27 @@ holds it still while the coach talks about it.
 
 ## Entry points
 
-- **First run after install** — `scripts/main.gd::_offer_tutorials_when_idle()` opens the picker
-  once the opening flow (guest name, login) is done. Gated on `MainGlobals.shown_tutorial_offer`,
-  persisted in the app-level settings (slot 14) — *not* in the per-game settings file, which
-  tutorial mode cannot write.
-- **"How to play" pill** on the game chooser, beside About.
+- **First run of a game that has one** — it teaches instead of showing the menu, via
+  `take_auto_tutorial()` in that game's `_ready`. This is the entry point that matters: a new
+  player never has to go looking.
+- **"How to play" on the game's own main menu** (`main_menu.gd::_maybe_add_tutorial_button`).
+- **"Interactive tutorial" on the instructions screen** (`instructions_popup.gd::offer_tutorial`), under the
+  game's own text — where a player goes when they have forgotten how something works.
+
+Both of those read whether a game HAS a tutorial off the scene: if its `main.gd` defines
+`start_tutorial()`, it has one. No game opts in, and a game that gains a tutorial later gets both
+buttons for free.
+
+**Retired: the chooser's "How to play" picker** (`scripts/tutorial_picker.gd`, its pill beside
+About, and `main.gd::_offer_tutorials_when_idle`). It existed so a player could see at a glance
+which games would teach them without entering each one — worth a screen when a handful of games had
+tutorials, worth nothing at 26 of 34, where the answer is "almost all of them". It was also a
+second copy of the chooser's game list, kept in visual sync by hand, and a new player never reached
+it because the first run of a game starts its tutorial anyway. `MainGlobals.pending_tutorial` and
+`take_pending_tutorial()` remain as the way to request a tutorial when ENTERING a game from
+outside; nothing sets the flag today, and every game still consumes it harmlessly.
+`MainGlobals.shown_tutorial_offer` is likewise vestigial — settings are a positional array, so slot
+14 cannot be dropped.
 - **The level clock is held at 30 minutes** for the duration of a tutorial
   (`TutorialRunner.TUTORIAL_MINUTES`). A tutorial runs on the real level, so it inherits that
   level's clock — 40-120 s in most games — and reading the captions easily outlasts it, dropping a

@@ -52,10 +52,11 @@ var games = [
 
 ]
 
-# Games that have an authored coached tutorial ({folder}/scripts/tutorial.gd). The chooser lists
-# these in its "How to play" picker and badges their rows, so a player can tell which games have
-# one without entering each game to find out. Add a folder here as each tutorial is written —
-# see docs/tutorials.md for the recipe.
+# Games that have an authored coached tutorial ({folder}/scripts/tutorial.gd). This drives the
+# automatic first-run tutorial and the suppression of the instructions wall for those games; the
+# two buttons that offer a tutorial (the game's main menu and its instructions screen) instead test
+# whether the game's main.gd defines start_tutorial(). Add a folder here as each tutorial is
+# written — see docs/tutorials.md for the recipe.
 var tutorials: Array = ["aliens", "bucketmadness", "change", "couples", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
