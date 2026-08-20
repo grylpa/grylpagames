@@ -59,10 +59,12 @@ func _ready() -> void:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
-	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	# Teach instead of showing the menu when the player asked for the tutorial from the
+	# chooser's "How to play", OR when this is their first ever run of this game.
 	# MUST stay at the end of _ready, after show_instructions above: that call's suppression guard
 	# asks whether a tutorial is pending, so consuming the flag earlier lets the text wall through.
-	if MainGlobals.take_pending_tutorial("ptbits"):
+	if MainGlobals.take_pending_tutorial("ptbits") \
+			or MainGlobals.take_auto_tutorial("ptbits", game.shown_instructions):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_level: int = -1

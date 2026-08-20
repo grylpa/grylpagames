@@ -647,6 +647,12 @@ spotlight took the item furthest down the belt, which is usually half off its en
 landed at y=792 on a 788px overlay. Choose from the middle of the region and require the candidate
 to be fully inside it.
 
+**Anything the player must read off the HUD needs `never_dim`.** A game's HUD sits on a low
+CanvasLayer and the overlay dims from 120, so HUD text is unreadable on every talking step except
+the one whose spotlight lands on it. Deliverem's dispatcher line ("Deliver to 2,3") was invisible
+for the whole tutorial that way. Registering it in `runner.never_dim` keeps it at full brightness
+throughout — which also teaches WHERE that information lives, part of learning the game.
+
 **A zone can appear after the caption has been placed.** The opening caption is laid out before
 the game has finished building its board, so at that instant there is nothing to avoid — and the
 board then materializes underneath it. mmm's intro caption sat squarely on the coin this way while
@@ -654,6 +660,16 @@ sixteen clean positions were available. `_follow_keep_clear()` re-places the cap
 comes to sit under it, using the same discipline as the spotlight follow: only when properly buried
 (>50%, since a clipped corner is not worth a jump) and never more often than
 `SPOT_FOLLOW_COOLDOWN_MS`, or the caption chases the board around the screen.
+
+**The overlay must keep swallowing input for the settle window after a step change, not only
+while a caption is up.** One physical tap is two events (a touch plus the mouse event synthesized
+from it). The first half dismisses the caption; the step advances to a doing step; the overlay
+drops to MOUSE_FILTER_IGNORE — and the second half lands on the board. In Couples, dismissing the
+"Picked up" caption with a tap that happened to sit over a card registered as choosing that card.
+`_apply_dim_filter()` keeps the overlay at STOP while `Time.get_ticks_msec() - _step_opened_ms <
+STEP_SETTLE_MS`, and it must be called AFTER `_step_opened_ms` is updated — applying it first
+measures the window against the step that just ended, which is always long past, so the guard
+never engages.
 
 **A step must never be a dead end, and a step that depends on a control outside the game's own
 scene is the one most likely to become one.** The app's bottom bar belongs to the root scene, not
@@ -682,6 +698,19 @@ Delem FP's countdown froze on screen while that hidden twin counted to zero in r
 `sig_global_countdown_finished`, zooming the camera in with a 5 still showing. When a step depends
 on something reaching a state, watch the thing the PLAYER can see, not a signal that anyone may
 emit.
+
+**A spotlight derived from a moving thing's position will chase it.** Deliverem framed "the next
+door ahead of the truck", recomputed every frame — so as the truck drove, the frame hopped from
+door to door while the player was trying to tap it. The fix is almost always to stop the moving
+thing for that step rather than to chase it with the frame; pinning the target is a weaker
+second-best, and is redundant once the motion is held.
+
+**A per-round deadline has to be held for the whole tutorial, not just the talking steps.** A
+caption freezes `game.game_time` and with it any deadline measured against it — but the doing
+steps run unpaused, and that is exactly where a first-timer is slow, because they are being asked
+to do something for the first time. Couples gives 6s per board; being told to find the pair and
+then losing the board to the clock teaches nothing. Keep the timer bar visible but held, so the
+step that explains it still has something to point at.
 
 **Unpause means the whole game is running, including whatever moves by itself.** A step that waits
 on a button press is not a talking step: the board is live. Delem FP's truck drove off during the

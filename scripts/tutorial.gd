@@ -256,10 +256,14 @@ func _enter_step(i: int) -> void:
 			setup_call.call()
 	_entering = false
 	_set_frozen(_blocking)
-	_dim.mouse_filter = Control.MOUSE_FILTER_STOP if _blocking else Control.MOUSE_FILTER_IGNORE
 
 	_step_elapsed = 0.0
+	# BEFORE _apply_dim_filter(): the filter's settle window is measured from this timestamp, so
+	# applying it first computes "settling" against the step that just ended — which is always long
+	# past, so the overlay dropped out of the way instantly and the second half of the dismissing
+	# tap went straight through to the board.
 	_step_opened_ms = Time.get_ticks_msec()
+	_apply_dim_filter()
 	_moved_for_spot_ms = -100000
 	_hint_shown = false
 	_title_label.text = _resolve_text(step.get("title", ""))
@@ -349,6 +353,22 @@ var _last_tap_ms: int = -100000
 const STEP_SETTLE_MS: int = 250
 var _step_opened_ms: int = -100000
 
+# The overlay swallows input while a caption is up, and gets out of the way on a doing step. But
+# it must ALSO keep swallowing for the settle window after a step change, because one physical tap
+# is two events (a touch and the mouse event synthesized from it, or vice versa): the first half
+# dismisses the caption, the step advances to a doing step, the overlay drops out of the way — and
+# the second half lands on the board. In Couples that read as tapping a card, so dismissing "Picked
+# up" counted as choosing a wrong card.
+#
+# STEP_SETTLE_MS is the same window that stops the second half from advancing two steps at once;
+# this is the same problem seen from the game's side rather than the overlay's.
+func _apply_dim_filter() -> void:
+	if _dim == null:
+		return
+	var settling: bool = Time.get_ticks_msec() - _step_opened_ms < STEP_SETTLE_MS
+	_dim.mouse_filter = Control.MOUSE_FILTER_STOP if (_blocking or settling) \
+		else Control.MOUSE_FILTER_IGNORE
+
 func _tap_advance() -> void:
 	var now: int = Time.get_ticks_msec()
 	if now - _step_opened_ms < STEP_SETTLE_MS:
@@ -426,6 +446,7 @@ func _hold_clock() -> void:
 	_game.set_time_left(0, TUTORIAL_MINUTES, 0)
 
 func _process(dt: float) -> void:
+	_apply_dim_filter()
 	if _finished or _idx < 0 or _idx >= _steps.size():
 		return
 	_hold_clock()
@@ -676,17 +697,14 @@ func _draw_dim() -> void:
 	if not _has_spot:
 		# On a doing step we must not dim — the player is looking at the board and playing on it.
 		if _blocking:
-			_dim.draw_rect(full, DIM_COLOR)
+			for r in dim_rects(full, _holes()):
+				_dim.draw_rect(r, DIM_COLOR)
 		_draw_demo_path()
 		return
 	var hole: Rect2 = _spot_rect
 	if _blocking:
-		# Four rects around the hole, so the spotlighted thing stays at full brightness.
-		_dim.draw_rect(Rect2(0, 0, full.size.x, hole.position.y), DIM_COLOR)
-		_dim.draw_rect(Rect2(0, hole.end.y, full.size.x, full.size.y - hole.end.y), DIM_COLOR)
-		_dim.draw_rect(Rect2(0, hole.position.y, hole.position.x, hole.size.y), DIM_COLOR)
-		_dim.draw_rect(Rect2(hole.end.x, hole.position.y, full.size.x - hole.end.x, hole.size.y),
-			DIM_COLOR)
+		for r in dim_rects(full, _holes()):
+			_dim.draw_rect(r, DIM_COLOR)
 	# The frame has to pull the eye by itself. A caption saying "this is your money" is usually at
 	# the other end of the screen from the thing it names, and a steady 3px outline that only dips
 	# to 55% opacity does not read as "look over here" — players kept reading the words without
@@ -702,6 +720,71 @@ func _draw_dim() -> void:
 	var halo: Color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, (1.0 - cyc) * 0.45)
 	_dim.draw_rect(hole.grow(SPOT_HALO_PX * cyc), halo, false, 2.0)
 	_draw_demo_path()
+
+# Regions that stay at full brightness on EVERY talking step, not just the one that points at
+# them. A game's HUD is at a low CanvasLayer and the overlay is at 120, so anything the player is
+# supposed to be reading off the HUD — Delem FP and Deliverem's dispatcher line, "Deliver to 2,3" —
+# spends the whole tutorial under the dim, unreadable, except on the single step whose spotlight
+# happens to fall on it. Part of learning the game is learning WHERE that information appears.
+#
+# Same accepted types as `spot` and `keep_clear`: Callables returning a Rect2, a Control, or null.
+var never_dim: Array = []
+
+# Everything that must stay bright: the spotlight, plus the always-clear regions.
+func _holes() -> Array:
+	var out: Array = []
+	if _has_spot:
+		out.append(_spot_rect)
+	for entry in never_dim:
+		var target = entry
+		if target is Callable:
+			if not (target as Callable).is_valid():
+				continue
+			target = (target as Callable).call()
+		if target == null:
+			continue
+		var r: Rect2 = _rect_for(target, DEFAULT_SPOT_RADIUS)
+		if r.size.x > 0.0 and r.size.y > 0.0:
+			out.append(r.grow(4.0))
+	return out
+
+# The dim, as a set of rectangles that covers `full` except for the holes.
+#
+# It CANNOT be painted as one rect with the holes cleared afterwards: the dim is a translucent
+# color composited over the game, so drawing transparent pixels on top of it changes nothing.
+# The holes have to be left unpainted in the first place. Slicing on every hole edge and skipping
+# the cells that land inside a hole handles any number of holes; the old code special-cased
+# exactly one (four rects around it), which is the same result when there is only the spotlight.
+static func dim_rects(full: Rect2, holes: Array) -> Array:
+	if holes.is_empty():
+		return [full]
+	var xs: Array = [full.position.x, full.end.x]
+	var ys: Array = [full.position.y, full.end.y]
+	for h in holes:
+		var r: Rect2 = h
+		for v in [r.position.x, r.end.x]:
+			if v > full.position.x and v < full.end.x and not (v in xs):
+				xs.append(v)
+		for v2 in [r.position.y, r.end.y]:
+			if v2 > full.position.y and v2 < full.end.y and not (v2 in ys):
+				ys.append(v2)
+	xs.sort()
+	ys.sort()
+	var out: Array = []
+	for i in range(xs.size() - 1):
+		for j in range(ys.size() - 1):
+			var cell: Rect2 = Rect2(xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j])
+			if cell.size.x <= 0.0 or cell.size.y <= 0.0:
+				continue
+			var c: Vector2 = cell.get_center()
+			var inside: bool = false
+			for h2 in holes:
+				if (h2 as Rect2).has_point(c):
+					inside = true
+					break
+			if not inside:
+				out.append(cell)
+	return out
 
 # --- Caption placement ------------------------------------------------------
 

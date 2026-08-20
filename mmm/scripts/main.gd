@@ -46,8 +46,10 @@ func _ready() -> void:
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 	game.progress_time_pos = 7
 
-	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
-	if MainGlobals.take_pending_tutorial("mmm"):
+	# Teach instead of showing the menu when the player asked for the tutorial from the
+	# chooser's "How to play", OR when this is their first ever run of this game.
+	if MainGlobals.take_pending_tutorial("mmm") \
+			or MainGlobals.take_auto_tutorial("mmm", game.shown_instructions):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_level: int = -1

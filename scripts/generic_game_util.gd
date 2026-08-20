@@ -144,7 +144,7 @@ var PALETTE_PAUL_TOL: Array[Color] = [
 	Color("#FFAABB"), # Pink
 	Color("#99DDFF"), # Light Cyan
 	Color("#44BB99"), # Pear Green
-	Color("#BBCC33"), # Olive
+	Color("#808000"), # Olive  (was #BBCC33: only dE2000 13.5 from Yellow, i.e. the same color)
 	Color("#AAAA00"), # Ochre
 	Color("#DDDDDD"), # Light Gray
 	Color("#0077BB"), # Blue
@@ -167,6 +167,12 @@ var simple_colors: Array[Color] = [
 	Color("#8000ff")  # Violet
 ]
 
+# Agent/room colors. Two of these can end up side by side — several trucks out at once in
+# deliverem, adjacent rooms in mmm/gorilla/storm/wolves — so every pair has to be tellable apart.
+# Measured with CIEDE2000, where under ~20 reads as "similar" and under ~12 as "the same color".
+# The closest remaining pairs are Orange/Brown 20.3, Purple/Magenta 21.1, Blue/Purple 21.8: all
+# distinguishable, all in a related hue family. Pushing higher means giving up recognizable colors
+# for grays and neons, so it stops here.
 var colors: Array[Color] = [
 	Color("#e6194b"), # Red
 	Color("#3cb44b"), # Green
@@ -1120,6 +1126,11 @@ func show_instructions(parent):
 	# The flag is deliberately NOT set here — if they skip the tutorial, the text is still owed
 	# to them the next time they come in normally.
 	if tutorial_mode or not MainGlobals.pending_tutorial.is_empty():
+		return
+	# First run of a game that has a tutorial: it teaches instead, so the text wall would land on
+	# top of the coach. `file_names_prefix` is the game's folder name for every game (it is what
+	# names its save files), which is what MainCfg.tutorials is keyed by.
+	if MainGlobals.will_auto_tutorial(file_names_prefix, shown_instructions):
 		return
 	shown_instructions = true
 	var popup := instructions_scene.instantiate()

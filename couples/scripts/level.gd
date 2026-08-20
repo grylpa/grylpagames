@@ -182,6 +182,14 @@ func new_game(_from_scratch: bool = true) -> void:
 	call_deferred("_layout")  # re-apply once the menu->level transition settles (see dino)
 	_feedback.hide()
 
+	if game.tutorial_mode:
+		# No "Find the two matching cards / Grid 2 x 2 / Board time..." wall in front of the
+		# coach's first caption — the tutorial IS that explanation, one beat at a time.
+		tutorial_no_deadline = true
+		_layout()
+		game.level_is_ready = true
+		started_playing.emit()
+		return
 	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
 		# parentheses required — `%` binds tighter than `+`
 		("Find the two\nmatching cards\nand tap them.\n\n" +
@@ -234,6 +242,7 @@ func _show_board() -> void:
 	phase = Phase.SHOW
 	_show_start_ms = game.game_time
 	_phase_start_ms = game.game_time
+	game.tutorial_notify("board_shown")   # no-op outside tutorial mode
 
 func _build_board() -> void:
 	var cells: int = nc * nr
@@ -395,9 +404,11 @@ func _on_card_tapped(idx: int) -> void:
 	if _selected < 0:
 		_selected = idx
 		_highlight(idx, true)
+		game.tutorial_notify("card_selected")
 	elif _selected == idx:
 		_highlight(idx, false)
 		_selected = -1
+		game.tutorial_notify("card_deselected")
 	else:
 		var is_match: bool = int(_cards[_selected]["img_idx"]) == int(_cards[idx]["img_idx"])
 		if is_match:
@@ -434,6 +445,9 @@ func _resolve(is_correct: bool, timed_out: bool) -> void:
 		_feedback.text = "Too slow" if timed_out else "Wrong"
 		_feedback.add_theme_color_override("font_color", Color(0.9, 0.3, 0.25, 1.0))
 	_feedback.show()
+	_tutorial_last_right = is_correct
+	game.tutorial_notify("answered")
+	game.tutorial_notify("answered_right" if is_correct else "answered_wrong")
 	MainGlobals.global_update_hud()
 	phase = Phase.FEEDBACK
 	_phase_start_ms = game.game_time
@@ -461,12 +475,21 @@ func _process(_dt: float) -> void:
 			_bar_fill.visible = false
 			_show_board()
 		Phase.SHOW:
-			var frac: float = clampf(1.0 - (now - _show_start_ms) / show_time_ms, 0.0, 1.0)
-			_bar_fill.visible = true
-			_bar_fill.size = Vector2(_bar_full_w * frac, _bar_h)
-			_bar_fill.color = Color(0.9, 0.3, 0.25, 1.0).lerp(Color(0.3, 0.8, 0.4, 1.0), frac)
-			if now - _show_start_ms >= show_time_ms:
-				_resolve(false, true)
+			if tutorial_no_deadline:
+				# A tutorial must not lose a board out from under the lesson. The board clock is
+				# only 6s on level 1 and the doing steps run unpaused, so a first-timer hunting
+				# for the pair times out mid-explanation. The bar stays on screen, held full, so
+				# the step that points at it still has something to point at.
+				_bar_fill.visible = true
+				_bar_fill.size = Vector2(_bar_full_w, _bar_h)
+				_bar_fill.color = Color(0.3, 0.8, 0.4, 1.0)
+			else:
+				var frac: float = clampf(1.0 - (now - _show_start_ms) / show_time_ms, 0.0, 1.0)
+				_bar_fill.visible = true
+				_bar_fill.size = Vector2(_bar_full_w * frac, _bar_h)
+				_bar_fill.color = Color(0.9, 0.3, 0.25, 1.0).lerp(Color(0.3, 0.8, 0.4, 1.0), frac)
+				if now - _show_start_ms >= show_time_ms:
+					_resolve(false, true)
 		Phase.FEEDBACK:
 			_bar_fill.visible = false
 			if now - _phase_start_ms >= FEEDBACK_MS:
@@ -500,6 +523,9 @@ func _on_time_over() -> void:
 	_level_done(true)
 
 func _level_done(didwin: bool) -> void:
+	if game.tutorial_mode:
+		# duration_sec running out mid-lesson would drop a level-completed popup on the coach.
+		return
 	if game.level_is_done:
 		return
 	game.level_is_done = true
@@ -546,3 +572,76 @@ func _fmt_secs(s: float) -> String:
 
 func tick() -> void:
 	pass
+
+# --- tutorial staging -------------------------------------------------------
+#
+# No freeze work is needed for the CAPTIONS: _can_play() requires `not game.paused()`, and the
+# board deadline is measured in game.game_time, which excludes paused time — so a caption stops
+# the board, the timeout bar and the gap between boards together.
+#
+# The doing steps are a different matter: those run unpaused, and level 1 gives only 6s per board.
+# A first-timer being told to find the matching pair can easily spend longer than that, and losing
+# the board to a timeout in the middle of the lesson teaches nothing.
+var tutorial_no_deadline: bool = false
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func tutorial_has_board() -> bool:
+	return not _cards.is_empty() and phase == Phase.SHOW
+
+func tutorial_grid_rect() -> Rect2:
+	var res: Rect2 = Rect2()
+	for entry in _cards:
+		var r: Rect2 = entry["rect"]
+		if r.size.x <= 0.0:
+			continue
+		res = r if res.size.x <= 0.0 else res.merge(r)
+	return res
+
+# The card the player has currently picked up, so the coach can talk about the selection.
+func tutorial_selected_rect() -> Rect2:
+	if _selected < 0 or _selected >= _cards.size():
+		return Rect2()
+	return _cards[_selected]["rect"]
+
+func tutorial_has_selection() -> bool:
+	return _selected >= 0
+
+# The OTHER half of the pair — the one still to be tapped once the player has picked one up.
+# Reads the board, not the tutorial's assumptions, so it cannot disagree with what is on screen.
+func tutorial_twin_rect() -> Rect2:
+	if _selected < 0 or _selected >= _cards.size():
+		return Rect2()
+	var want: int = int(_cards[_selected]["img_idx"])
+	for i in _cards.size():
+		if i != _selected and int(_cards[i]["img_idx"]) == want:
+			return _cards[i]["rect"]
+	return Rect2()
+
+# Whether the card the player picked up is actually one of the matching pair.
+func tutorial_selection_is_pair() -> bool:
+	return _selected >= 0 and _target_cells.has(int(_cards[_selected]["cell"]))
+
+# Both halves of the answer, for the step that explains a wrong guess.
+func tutorial_pair_rect() -> Rect2:
+	var res: Rect2 = Rect2()
+	for entry in _cards:
+		if not _target_cells.has(int(entry["cell"])):
+			continue
+		var r: Rect2 = entry["rect"]
+		res = r if res.size.x <= 0.0 else res.merge(r)
+	return res
+
+# Whether the board just resolved was answered correctly, so the coach can react to what actually
+# happened rather than assuming the player got it right.
+var _tutorial_last_right: bool = false
+
+func tutorial_last_was_right() -> bool:
+	return _tutorial_last_right
+
+# The countdown bar: the deadline a first-timer does not know exists.
+func tutorial_bar_rect() -> Rect2:
+	if _bar_track == null or not is_instance_valid(_bar_track):
+		return Rect2()
+	return _bar_track.get_global_rect()
+

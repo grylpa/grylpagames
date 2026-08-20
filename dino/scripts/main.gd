@@ -55,12 +55,14 @@ func _ready() -> void:
 		game.show_instructions(self)
 		DinoG.save_settings()
 
-	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
+	# Teach instead of showing the menu when the player asked for the tutorial from the
+	# chooser's "How to play", OR when this is their first ever run of this game.
 	#
 	# This MUST come after show_instructions above, and must not live in show_main_menu(): _ready
 	# calls that early, so consuming the flag there emptied it before show_instructions ran, and its
 	# "am I about to be a tutorial?" guard then let the text wall through on a first run.
-	if MainGlobals.take_pending_tutorial("dino"):
+	if MainGlobals.take_pending_tutorial("dino") \
+			or MainGlobals.take_auto_tutorial("dino", game.shown_instructions):
 		call_deferred("start_tutorial")
 
 	main_menu.show_continue_and_start_new(false)

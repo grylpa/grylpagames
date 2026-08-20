@@ -99,3 +99,50 @@ come from `CouplesG.dino_texture(idx)`, loaded from the **shared** `res://art/di
   immediately deselect the card (net nothing). Mouse-button-only covers mouse and touch
   (same reason weris cards only handle mouse). Each card has a transparent `Control` hit-area
   (`gui_input`) rather than manual hit-testing in `_input`.
+
+## Tutorial
+
+`couples/scripts/tutorial.gd` (9 steps), entry `couples/scripts/main.gd::start_tutorial()`,
+level 1 (2x2). See `docs/tutorials.md` for the step schema.
+
+What a first-timer gets wrong:
+
+- **They read it as a memory game** — turn cards over and remember. It is not: every card is face
+  up the whole time, exactly one picture appears twice, and everything else appears once. The
+  first caption says that before a board is even dealt.
+- **Tapping is two-stage.** The first tap picks a card up, the second commits the pair; a second
+  tap on the *same* card puts it back down rather than confirming it. A player who taps once and
+  sees the card grow does not necessarily know a second tap is expected.
+- **The bar is a deadline.** Running out scores like a wrong pair.
+
+Specific to this game:
+
+- **Every caption reads the board rather than assuming it.** `tutorial_twin_rect()` finds the
+  matching card *from the one the player picked up*, and `tutorial_selection_is_pair()` says
+  whether that pick was part of the answer at all — so the coach reacts to a wrong first tap
+  instead of talking past it, and the closing caption reads `tutorial_last_was_right()` rather
+  than assuming success.
+- **The board deadline is held for the whole tutorial** (`tutorial_no_deadline`). Level 1 gives
+  only 6s per board, and the doing steps run unpaused — a first-timer being told to find the
+  matching pair can easily take longer, and losing the board to a timeout mid-explanation teaches
+  nothing. The bar stays on screen, held full and green, so the step that points at it still has
+  something to point at. Verified: dithering 12s (twice the deadline) loses no board, while a real
+  round still times out normally.
+- **No freeze work was needed.** `_can_play()` requires `not game.paused()`, but the real
+  protection is that the board deadline is measured in `game.game_time`, which excludes paused
+  time. Removing the `paused()` term from `_can_play()` does *not* break anything, because every
+  phase comparison in `_process` reads that same frozen clock.
+- `new_game()` skips the "Find the two matching cards / Grid 2 x 2 / Board time…" intro popup in
+  tutorial_mode, and `_level_done()` returns early so `duration_sec` running out mid-lesson cannot
+  drop a level-completed popup on the coach.
+- **A dismiss-tap cannot reach the cards.** The cards' hit areas are Controls with `gui_input`,
+  and one physical tap is two events: dismissing the "Picked up" caption with a tap that happened
+  to sit over a card used to register as choosing that card. Fixed in the shared runner — the
+  overlay stays at MOUSE_FILTER_STOP through `STEP_SETTLE_MS` after a step change.
+- **The "picked up" step is descriptive only.** The board is frozen while a caption is up, so an
+  instruction there cannot be obeyed — the player's tap just dismisses the step. Anything to DO
+  lives on the following action step.
+- Events reported to the coach: `board_shown`, `card_selected`, `card_deselected`, `answered`,
+  `answered_right`, `answered_wrong` — all `game.tutorial_notify`, no-ops outside tutorial mode.
+- Points for the coach, all in screen coordinates: `tutorial_grid_rect`, `tutorial_selected_rect`,
+  `tutorial_twin_rect`, `tutorial_pair_rect`, `tutorial_bar_rect`.

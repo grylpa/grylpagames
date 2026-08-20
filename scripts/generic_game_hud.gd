@@ -70,9 +70,18 @@ func reminder(text, autohide=true):
 		$ReminderTimer.start()
 	return $Reminder.visible		
 		
-func dispatch(text, autohide=true):
+# `col` tints the line in the color of whatever it is about — the truck a delivery list belongs
+# to, for instance. Games with several actors on screen at once need it to say WHICH one the order
+# is for; the clue list has always done this (see reminder()), and the dispatch line reading a
+# fixed yellow made the two disagree. Omit it and the line keeps the theme color, as before.
+var _dispatch_default_col = null
+
+func dispatch(text, autohide=true, col=null):
+	if _dispatch_default_col == null:
+		_dispatch_default_col = $Dispatch.get_theme_color("font_color")
 	$Reminder.visible = false
 	$Dispatch.text = text
+	$Dispatch.add_theme_color_override("font_color", col if col != null else _dispatch_default_col)
 	$Dispatch.show()
 	if autohide:
 		$DispatchTimer.start()		

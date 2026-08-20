@@ -7,18 +7,18 @@ const DirArray = [Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0), Vector2i(0,-1)]
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe := false
-	var door_type := -1
-	var has_agent := false
-	var istarget := false
+	var ispipe: bool = false
+	var door_type: int = -1
+	var has_agent: bool = false
+	var istarget: bool = false
 	
-var times_to_answer := []
-var _round_start_ms := 0
+var times_to_answer: Array = []
+var _round_start_ms: int = 0
 
-var start_dispatch := false
+var start_dispatch: bool = false
 var time_between_dispatches_ms = 5000
 var board: Array
-var ntargets := 7
+var ntargets: int = 7
 var agents = []
 var targets = []
 var target_positions = []
@@ -30,6 +30,17 @@ var agent_positions = []
 var time_started_level = 0
 var num_more_packets = 0
 var num_more_agents = 0
+
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# The dispatch timer refuses to fire while game.paused(), and a coached tutorial is paused for
+# every caption — so the coach dispatches the truck itself instead of waiting for the timer.
+var tutorial_hold_dispatch: bool = false
+# Stops the trucks between ticks. The door lesson is an ACTION step, so the game is unpaused and
+# the truck would drive on while the player hunts for the door being pointed at.
+var tutorial_hold_trucks: bool = false
+# The door the coach is pointing at, pinned. Without this the target is recomputed from the truck's
+# heading every frame, so the frame hops from door to door as it drives.
+var tutorial_locked_door: Vector2i = Vector2i(-1, -1)
 var level: int = 1
 
 @export var player_scene: PackedScene = load("res://deliverem/scenes/player.tscn")
@@ -39,16 +50,16 @@ var level: int = 1
 @export var door_scene: PackedScene = load("res://deliverem/scenes/door.tscn")
 @export var target_scene: PackedScene = load("res://deliverem/scenes/target.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
-var motor_audio := preload("res://art/sounds/engine-pulling-something.mp3")
+var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var door_audio = preload("res://art/sounds/door-open-sound-1.mp3")
+var motor_audio = preload("res://art/sounds/engine-pulling-something.mp3")
 
 var player
 
 signal game_over(didwin:bool)
 signal started_playing
-signal new_packet_message(text, isdispatch)
+signal new_packet_message(text, isdispatch, col)
 signal show_reminder(text)
 signal sig_level_is_done(didwin:bool)
 # signal update_score_time(add_score, add_time)
@@ -73,14 +84,19 @@ func _ready() -> void:
 func new_game(from_scratch=true):
 	if from_scratch:
 		level = DeliveremG.starting_level
+	if game.tutorial_mode:
+		_tutorial_setup()
 	increase_difficulty(false)
 	time_last_dispatch = -10000
 	player.reset()
 	create_board()
 	time_started_level = MainGlobals.timems()
+	if game.tutorial_mode:
+		tutorial_dispatch_now()
 	started_playing.emit()
-	BE.upsert_game_state("Deliverem", 
-		{"state":"new","level": level, "num_agents": DeliveremG.num_agents, "num_packets": DeliveremG.num_packets})
+	if not game.tutorial_mode:
+		BE.upsert_game_state("Deliverem", 
+			{"state":"new","level": level, "num_agents": DeliveremG.num_agents, "num_packets": DeliveremG.num_packets})
 
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
@@ -289,7 +305,7 @@ func create_board() -> void:
 	start_dispatch = true
 		
 func _record_answer_time():
-	var t := MainGlobals.timems() - _round_start_ms
+	var t = MainGlobals.timems() - _round_start_ms
 	if t > 0 and t < 60000:
 		times_to_answer.append(t)
 		while times_to_answer.size() > 20:
@@ -297,7 +313,7 @@ func _record_answer_time():
 
 func mean_time_to_answer_ms() -> int:
 	if times_to_answer.is_empty(): return 9999
-	var s := 0
+	var s: int = 0
 	for t in times_to_answer: s += t
 	return roundi(float(s) / times_to_answer.size())
 
@@ -310,16 +326,22 @@ func add_agent_at(p: Vector2i, direction: int):
 	possibles.shuffle()
 	agent.body_ids = possibles.slice(0, DeliveremG.num_packets+num_more_packets)
 	var text = "Deliver to " + ",".join(agent.body_ids)
-	new_packet_message.emit(text, true)
 	add_child(agent)
 	agents.append(agent)
 	agent.set_pos(game.board_to_px(p), direction)
+	# AFTER add_child: agent.color is assigned in the agent's _ready(), so announcing the order
+	# any earlier sends a null color and the line falls back to the theme's fixed yellow.
+	# Carrying the truck's own color is what says WHICH truck an order belongs to when several
+	# are out at once — the clue list has always been color-coded this way.
+	new_packet_message.emit(text, true, agent.color)
+	game.tutorial_notify("agent_dispatched")   # no-op outside tutorial mode
 	if not $DispatchAudio.playing:
 		$DispatchAudio.play()
 	if not $MotorAudio.playing:
 		MainGlobals.do_after(0.5, func(): $MotorAudio.play())
 	
 func display_reminder():
+	game.tutorial_notify("reminder_shown")
 	var text = []
 	for agent in agents:
 		text.append([",".join(agent.body_ids), agent.color])
@@ -330,9 +352,14 @@ func display_reminder():
 	show_reminder.emit(text)
 		
 func on_clicked_door(pos: Vector2i):
+	# A door is an Area2D and its input is not pause-gated, so without this a click lands while a
+	# caption, the help screen or a popup is up — and during a tutorial it would satisfy the very
+	# step that is still explaining what doors are.
+	if game.paused() or not game.playing:
+		return
 	#if board[pos.y][pos.x].has_agent:
 		#return
-	var any_changed := false
+	var any_changed: bool = false
 	for i in doors.size():
 		var door = doors[i]
 		if door.board_pos == pos:
@@ -345,6 +372,7 @@ func on_clicked_door(pos: Vector2i):
 			break
 	if any_changed:
 		$DoorAudio.play()
+		game.tutorial_notify("door_turned")
 
 func can_go_to(p):
 	var cond = game.in_board(p) and board[p.y][p.x].ispipe
@@ -368,11 +396,15 @@ var last_major_tick_ms = -10000.0
 func tick():
 	if game.level_is_done:
 		return
+	if tutorial_hold_trucks:
+		return
 	var t = MainGlobals.timems()
 	if t - last_major_tick_ms < game.major_tick_time_ms * game.time_scale:
 		return
 	last_major_tick_ms = t
 	if all_agents_done():
+		if game.tutorial_mode:
+			return
 		level_is_done(true)
 		return
 	for agent in agents:
@@ -386,6 +418,7 @@ func tick():
 			if _removed_body_part:
 				$DeliveryAudio.play()
 				game.delivered_one()
+				game.tutorial_notify("packet_delivered")
 				if agent.body_ids.is_empty():
 					_record_answer_time()
 		if game.in_board(p):
@@ -523,3 +556,164 @@ func _on_agent_dispatch_timer_timeout() -> void:
 		
 func on_time_over():
 	$MotorAudio.stop()
+
+# --- tutorial staging -------------------------------------------------------
+
+func _tutorial_setup() -> void:
+	# A smaller yard than the real level 1: four docks instead of seven, so the maze the player is
+	# asked to read is a yard rather than a wall of pipes.
+	ntargets = 4
+	tutorial_hold_dispatch = true
+
+# _on_agent_dispatch_timer_timeout() only dispatches while the game is UNPAUSED, and a coached
+# tutorial is paused for every caption — so left to the timer the truck would not appear until the
+# first step that hands control back, several captions after the coach starts pointing at it.
+func tutorial_dispatch_now() -> void:
+	if not agents.is_empty() or agent_positions.is_empty():
+		return
+	add_agent_at(agent_positions[0], 1)
+	start_dispatch = false
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func tutorial_agent():
+	for a in agents:
+		if is_instance_valid(a):
+			return a
+	return null
+
+func tutorial_agent_pos() -> Vector2:
+	var a = tutorial_agent()
+	if a == null:
+		return Vector2.ZERO
+	return (a as Node2D).get_global_transform_with_canvas().origin
+
+# The dock the truck must visit NEXT — the head of its queue, and the only one that will take
+# anything. Skips ids whose removal is still animating (see delemfp: body_ids does not shrink
+# until final_remove_body runs from a tween callback, ~0.5s after the delivery).
+func tutorial_next_dock_id() -> int:
+	var a = tutorial_agent()
+	if a == null:
+		return -1
+	for id in a.body_ids:
+		if not (id in a._pending_remove_ids):
+			return int(id)
+	return -1
+
+func tutorial_packets_left() -> int:
+	var a = tutorial_agent()
+	if a == null:
+		return 0
+	return maxi(0, a.body_ids.size() - a._pending_remove_ids.size())
+
+func tutorial_dock_pos(dock_id: int) -> Vector2:
+	for i in targets.size():
+		if is_instance_valid(targets[i]) and int(targets[i].id) == dock_id:
+			return (targets[i] as Node2D).get_global_transform_with_canvas().origin
+	return Vector2.ZERO
+
+func tutorial_next_dock_pos() -> Vector2:
+	return tutorial_dock_pos(tutorial_next_dock_id())
+
+# ONE dock, for "this is a dock". Framing all four spans practically the whole screen, which
+# tells the player nothing and leaves the caption nowhere to sit that does not overlap it.
+func tutorial_a_dock_id() -> int:
+	var best: int = -1
+	for t in targets:
+		if not is_instance_valid(t):
+			continue
+		if best < 0 or int(t.id) < best:
+			best = int(t.id)
+	return best
+
+func tutorial_all_docks_rect() -> Rect2:
+	var res: Rect2 = Rect2()
+	for t in targets:
+		if not is_instance_valid(t):
+			continue
+		var c: Vector2 = (t as Node2D).get_global_transform_with_canvas().origin
+		var r: Rect2 = Rect2(c - Vector2(26, 26), Vector2(52, 52))
+		res = r if res.size.x <= 0.0 else res.merge(r)
+	return res
+
+# The door the truck will reach next along its current heading — the one the player would actually
+# want to turn. Falls back to the nearest door, so the coach always has something real to point at.
+func tutorial_next_door_pos() -> Vector2:
+	if tutorial_locked_door.x >= 0:
+		for d in doors:
+			if is_instance_valid(d) and d.board_pos == tutorial_locked_door:
+				return (d as Node2D).get_global_transform_with_canvas().origin
+	var a = tutorial_agent()
+	if a == null or doors.is_empty():
+		return Vector2.ZERO
+	var p: Vector2i = a.board_pos
+	var step: Vector2i = Vector2i(DirArray[int(a.direction)])
+	for _i in 40:
+		p += step
+		if not game.in_board(p):
+			break
+		for d in doors:
+			if is_instance_valid(d) and d.board_pos == p:
+				return (d as Node2D).get_global_transform_with_canvas().origin
+	var best = null
+	var best_d: float = 1e9
+	for d in doors:
+		if not is_instance_valid(d):
+			continue
+		var dist: float = Vector2(d.board_pos - a.board_pos).length()
+		if dist < best_d:
+			best_d = dist
+			best = d
+	return (best as Node2D).get_global_transform_with_canvas().origin if best != null else Vector2.ZERO
+
+# Pin the door the coach will talk about, so the frame stays where it was put.
+func tutorial_lock_next_door() -> void:
+	tutorial_locked_door = Vector2i(-1, -1)
+	var a = tutorial_agent()
+	if a == null:
+		return
+	var p: Vector2i = a.board_pos
+	var step: Vector2i = Vector2i(DirArray[int(a.direction)])
+	for _i in 40:
+		p += step
+		if not game.in_board(p):
+			break
+		for d in doors:
+			if is_instance_valid(d) and d.board_pos == p:
+				tutorial_locked_door = p
+				return
+	# nothing straight ahead: pin the nearest door instead, so there is always a real target
+	var best_d: float = 1e9
+	for d2 in doors:
+		if not is_instance_valid(d2):
+			continue
+		var dist: float = Vector2(d2.board_pos - a.board_pos).length()
+		if dist < best_d:
+			best_d = dist
+			tutorial_locked_door = d2.board_pos
+
+func tutorial_unlock_door() -> void:
+	tutorial_locked_door = Vector2i(-1, -1)
+
+func tutorial_has_door() -> bool:
+	return tutorial_next_door_pos() != Vector2.ZERO
+
+# The HUD line the dispatcher wrote the order on ("Deliver to 3,1"). Set by main.start_tutorial;
+# the level has no HUD of its own.
+var tutorial_hud: Node = null
+
+func tutorial_dispatch_label() -> Control:
+	if tutorial_hud == null or not is_instance_valid(tutorial_hud):
+		return null
+	var lbl = tutorial_hud.get_node_or_null("Dispatch")
+	return lbl if lbl is Control and (lbl as Control).is_visible_in_tree() else null
+
+func tutorial_hide_dispatch() -> void:
+	var lbl = tutorial_dispatch_label()
+	if lbl != null:
+		lbl.hide()
+
+func tutorial_bottom_button(node_name: String) -> Control:
+	var b = get_tree().root.find_child(node_name, true, false)
+	return b if b is Control and (b as Control).is_visible_in_tree() else null
+
