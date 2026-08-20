@@ -68,9 +68,14 @@ var _blocking: bool = true
 # or null. A coach bubble that covers the tray you are told to drag coins into, or the New/Seen
 # buttons you are told to press, makes the step impossible to carry out.
 #
-# Honored on player-action steps only. On a talking step the game is frozen, nothing underneath can
-# be used, and the caption reads better docked low.
+# Set it on the RUNNER (`runner.keep_clear = [...]` in the game's main.gd) for zones that hold for
+# the whole tutorial, or per STEP (`"keep_clear": [...]`) for zones that only matter to that step.
+# A step that names its own list replaces the runner's for as long as it is up; a step that does
+# not, inherits it.
 var keep_clear: Array = []
+# The runner-level list, kept so a per-step list can be a temporary override rather than a
+# permanent one.
+var _base_keep_clear: Array = []
 const KEEP_CLEAR_PAD: float = 6.0
 # How long the caption stays put after being moved out of the spotlight's way.
 const SPOT_FOLLOW_COOLDOWN_MS: int = 700
@@ -111,6 +116,7 @@ func run(parent: Node, steps: Array, game_util, on_done: Callable = Callable()) 
 		if not _game.tutorial_mode:
 			_game.begin_tutorial()
 		_game.tutorial_runner = self
+	_base_keep_clear = keep_clear.duplicate()
 	_build()
 	_hold_clock()
 	_enter_step(0)
@@ -245,6 +251,10 @@ func _enter_step(i: int) -> void:
 
 	# Talking steps freeze the game and eat input; doing steps let the player play underneath.
 	_blocking = _await_event.is_empty()
+
+	# Zones this step in particular must not be covered by, falling back to the runner-wide list.
+	var step_clear = step.get("keep_clear", null)
+	keep_clear = (step_clear as Array) if step_clear is Array else _base_keep_clear
 
 	# `setup` stages the situation this step needs to teach (force the next card to repeat, spawn
 	# the gorilla to point at, send an alien to the gate).

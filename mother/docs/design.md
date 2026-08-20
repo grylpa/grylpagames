@@ -320,6 +320,61 @@ Index 1: `selected_preset` (index into `GUIDED_PRESETS`)
 
 Presets (seconds): `[4,1,4,1]`, `[6,1,6,1]`, `[4,4,4,4]`, `[2,1,2,1]`.
 
+## Tutorial
+
+`mother/scripts/tutorial.gd` (12 steps), entry `mother/scripts/main.gd::start_tutorial()`, forced
+into **Guided 4-1-4-1** (`selected_mode = 2`) with `duration_min = 30`. Both are restored in
+`_on_tutorial_done` and in `_exit_tree`, since neither is part of the `GenericGameUtil` snapshot.
+
+**Shape: introduce her, send her away, bring her back.** The game asks for one thing — keep your
+head level with hers — but learning an unfamiliar control *while* keeping up with a rhythm is one
+thing too many, and with her on screen every fumbled movement is also a failure to match her. So
+the mother is introduced, then hidden (`tutorial_set_mother_visible(false)`); the player learns the
+three things they can do — up, down, hold — each on its own step, judged only on their own
+movement; then she comes back and the final ask is a few seconds of trying to go with her, on a
+30-second timeout. That last step is a try, not a test: a player who cannot hold a whole breath
+level with her yet still finishes, and the closing caption reads the live state and says so.
+
+Two things a first-timer does not work out alone, and both get their own caption: **your finger
+never has to touch the snake** (players poke at the moving head otherwise), and **a hold is
+performed by doing nothing** — stop moving, lift off. The hold is the action nobody performs unless
+asked, which is why it gets a step to itself.
+
+Specific to this game:
+
+- **Forcing Guided is not optional.** Active mode has no mother on screen at all, so every caption
+  in the tutorial would describe something that is not there. The User preset is built from the
+  player's own past sessions, which a first-timer has none of.
+- **`_on_level_session_done` returns early in `tutorial_mode`.** The tutorial holds the session open
+  for 30 minutes, so a slow player can genuinely reach the end of one, and the Active branch writes
+  `MotherG.learned_*` / `has_user_session` — plain in-memory globals that `save_settings`'s
+  tutorial-mode guard does not cover, so the *next* legitimate save would persist the tutorial's
+  numbers as the player's own breathing pattern.
+- **Freezing is free here.** `_process` returns early on `game.paused()`, so a caption stops the
+  mother, the scroll and the session clock together, and nothing jumps when it closes. The harness
+  asserts both her y and the phase name are unchanged across a caption.
+- **The heads are positioned in `new_game()`, not only in `_process`.** They are made visible there,
+  and a tutorial caption that opens on the first frame freezes `_process` — so without it both
+  heads sit at the origin, in the top-left corner, for as long as the coach is talking. That is
+  what "declares a spotlight but nothing resolved" meant on the first run.
+- **Latches are seeded from the starting position** in `new_game()`, not cleared to false: the child
+  starts *below* the mother's band, so a false latch reports "reached the bottom" on frame one.
+- **The solo events must not depend on where she is**, since she is not on screen when they are
+  taught. `moved_up` / `moved_down` are judged against a baseline the step's `setup` stamps
+  (`tutorial_mark_move_baseline()`), and `held` needs `TUT_HOLD_MS` (1.2 s) within `TUT_STILL_PX`
+  (6 px) — with slack for the settle, because releasing does not stop the child dead: the velocity
+  lerps out over a few tenths of a second.
+- Events: `moved_up`, `moved_down`, `held`, `reached_top`, `reached_bottom`, `with_mother`,
+  `cycle_followed`. The last needs unbroken proximity (`TUT_WITH_PX`, 40 px) for a full cycle, and
+  any drift restarts it — the only one a single lucky swipe cannot earn.
+- **`_tutorial_watch()` runs outside the guided branch of `_process`.** It used to be called from
+  inside it with `mother_y` passed in, which would have stopped the three solo events firing the
+  moment she was hidden.
+- Points for the coach: `tutorial_mother_pos`, `tutorial_child_pos`, `tutorial_head_radius`,
+  `tutorial_phase_label`, `tutorial_goal_label`, plus `tutorial_phase_name` /
+  `tutorial_is_with_mother` / `tutorial_follow_progress` for captions that read the live state
+  instead of asserting one.
+
 ## Key Pitfalls
 
 - `_analyze_trace()` needs at least ~2 complete breathing cycles to detect the period

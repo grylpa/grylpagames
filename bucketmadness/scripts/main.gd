@@ -58,6 +58,52 @@ func _ready() -> void:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
+	# Teach instead of showing the menu when the player asked for the tutorial from the chooser's
+	# "How to play", OR when this is their first ever run of this game.
+	if MainGlobals.take_pending_tutorial("bucketmadness") \
+			or MainGlobals.take_auto_tutorial("bucketmadness", game.shown_instructions):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://bucketmadness/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# Level 1's rules pool is exactly [digit, square], so the tutorial gets a fixed, readable pair
+	# instead of whichever two the player's own starting level would shuffle up. starting_level_id
+	# is not part of the GenericGameUtil snapshot, so it is restored by hand.
+	_tutorial_saved_level = BucketMadnessG.starting_level_id
+	BucketMadnessG.starting_level_id = tut.tutorial_level_id()
+	new_game()
+	# Hold every item in mid-air once it is low enough to see. Landing answers "dumpster" for the
+	# player and scores it, so without this a caption costs them the round it is talking about.
+	$Level.tutorial_hold_fall = true
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	$Level.tutorial_hold_fall = false
+	_restore_tutorial_globals()
+	game.playing = false
+	game.level_is_ready = false
+	refresh_menu()
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback — so without it the player's starting level stays
+# overwritten with the tutorial's.
+func _restore_tutorial_globals() -> void:
+	if _tutorial_saved_level >= 0:
+		BucketMadnessG.starting_level_id = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
+
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))

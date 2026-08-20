@@ -84,6 +84,7 @@ Each step is a Dictionary:
 | `hint_after` | seconds of no progress before `hint` is appended to the caption |
 | `hint` | the nudge line |
 | `setup` | `Callable` run before the step, to stage the situation the step needs to teach. It may cause the very event the step waits for — that is recognized, not lost |
+| `keep_clear` | zones this step's caption must try not to cover — same accepted types as `spot`, in a list. Overrides `runner.keep_clear` for the length of the step; omit to inherit it |
 | `demo_path` | `Callable` returning screen points; the overlay traces them with a drawn pointing hand, then walks a dot along the same route, to *show* a gesture instead of describing it |
 
 Steps with no `await` freeze the game and dim everything but the spotlight. Steps with an `await`
@@ -204,6 +205,8 @@ player's own saved state back into the level so Continue still resumes their gam
 | `storm` | drawn path + tap-tile | you must be standing NEXT to a leak; the score counts down from 100 |
 | `guidem` | tap junction doors | the walkers never stop, so you set the road up ahead of them |
 | `udbr` | held drag (breathing) | it is not a swipe — the finger stays down; there is no fail state |
+| `mother` | held drag (breathing, guided) | your finger never touches the snake; a hold is performed by doing nothing |
+| `bucketmadness` | swipe to one of three targets | an item is two objects, only one can match; the rules fade out and still apply |
 
 Between them these cover every input family in the app, so a new tutorial almost always has a
 worked example to copy. Two things worth knowing before writing the next one:
@@ -268,6 +271,38 @@ before the ball had moved, and the next talking step froze the board — 24 of 2
 during a swipe, against 0 in normal play, which reads to the player as "the swipe does nothing".
 If the game only reports the *start* of an action, add a hook for its completion rather than
 pretending the start is the whole thing.
+
+**Teach the control before the rhythm — send the guide away to do it.** Mother Snake introduces the
+mother, then hides her (`tutorial_set_mother_visible(false)`) while the player learns the three
+movements on an empty screen, then brings her back for the matching ask. With her on screen those
+steps ask for two things at once, and every fumbled movement is also a failure to match her. The
+events for the solo section have to be judged on the player's own movement against a baseline the
+step stamps — anything measured against the guide stops working the moment the guide is hidden.
+
+**`keep_clear` is per step as well as per runner.** It began as a runner-wide property set in a
+game's main.gd (`runner.keep_clear = [...]`), and a step-level `"keep_clear": [...]` was silently
+ignored for as long as that was the only form — the zones read as documented, did nothing, and the
+caption went on covering the board. A step's own list now replaces the runner's for as long as that
+step is up; a step without one inherits it.
+
+**Zones are how a caption learns where NOT to go, and the default is the bottom.** Bucket Madness's
+captions docked at the bottom, directly on the two rule labels and the three buckets — in a game
+whose whole point is holding those rules in your head. Declaring them pushed every caption above
+the fall area. If a game has something the player must be able to re-read at any moment, name it.
+
+**Audit every clock, not just the obvious one.** "Does the board freeze?" is really "does each of
+the things that can move or expire freeze?", and they are rarely all in one place. Bucket Madness
+paused its falling item and still had three: a preview countdown on a `SceneTreeTimer` that
+*abandoned itself* when it noticed the pause (leaving no item and nothing that would ever spawn
+one), a 0.7 s real-time feedback flash, and a second Tween for the slide into the bucket. Grep the
+level for `create_timer`, `create_tween`, `Time.` and `timems()` and account for every hit. A wait
+written as `while game.game_time < until: await process_frame` is pause-aware for free, because
+`game_time` already excludes paused time.
+
+**A harness that dismisses captions instantly cannot see any of this.** The probe taps a talking
+step within a frame or two — no player does. It now sits on Bucket Madness's opening caption for
+three seconds, the way a reader would, and then requires that an item actually arrives; that is the
+check that caught the abandoned countdown, and the run passed without it.
 
 **Force the tutorial's own level/mode, and check the override actually took.** A tutorial must not
 inherit whatever the player left the menu on. Every game overrides its starting level in
