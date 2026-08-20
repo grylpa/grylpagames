@@ -9,20 +9,20 @@ var board_pos: Vector2i
 var direction: int
 var target_position: Vector2
 var starting_position: Vector2
-var time_from_start_to_target_ms := 0
-var set_target_once := false
-var arrived := false
-var was_hit := false
-var agent_type := 1
-var agent_id := 0
-var last_major_tick_ms := -10000
-var speed_scale := 1.0
-var is_moving := false
-var transaction_id := -1
-var time_created_ms := 0
+var time_from_start_to_target_ms: float = 0.0
+var set_target_once: bool = false
+var arrived: bool = false
+var was_hit: bool = false
+var agent_type: int = 1
+var agent_id: int = 0
+var last_major_tick_ms: int = -10000
+var speed_scale: float = 1.0
+var is_moving: bool = false
+var transaction_id: int = -1
+var time_created_ms: int = 0
 
-var is_really_moving := false
-var is_automoving_agent := false
+var is_really_moving: bool = false
+var is_automoving_agent: bool = false
 var nbody_parts = 0
 var bodies = []
 var time_back_positions = []
@@ -104,7 +104,7 @@ func set_pos(p, dir):
 		return
 	position = p
 			
-var time_set_target_pos := MainGlobals.timems()
+var time_set_target_pos = MainGlobals.timems()
 
 func set_target_pos(p):
 	target_position = p
@@ -183,7 +183,7 @@ func remove_body_if_first(id):
 	var idx = body_ids.find(id)
 	return remove_body(id) if idx == 0 else false
 		
-var _pending_remove_ids := {}		
+var _pending_remove_ids: Dictionary = {}		
 func remove_body(id):
 	if id in _pending_remove_ids:
 		return

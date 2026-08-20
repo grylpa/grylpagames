@@ -18,13 +18,13 @@ var game: GenericGameUtil
 # each level 3 times before increasing difficulty
 
 class OneCell:
-	var ispipe := false
-	var door_type := -1
-	var has_agent := false
-	var istarget := false
+	var ispipe: bool = false
+	var door_type: int = -1
+	var has_agent: bool = false
+	var istarget: bool = false
 	
 var rounds_per_level: int = 3
-var start_dispatch := false
+var start_dispatch: bool = false
 var time_between_dispatches_ms = 5000
 var board: Array
 var agents = []
@@ -46,14 +46,28 @@ var num_more_packets = 0
 var player = null
 var max_speed_scale = 1.0
 var next_player_dir = -1
-var time_to_hide := 0
-var lights_are_off := false
-var play_start_sound := true
-var last_level_was_a_win := true
-var times_to_answer := []
-var _round_start_ms := 0
+var time_to_hide: int = 0
+var lights_are_off: bool = false
+var play_start_sound: bool = true
+var last_level_was_a_win: bool = true
+var times_to_answer: Array = []
+var _round_start_ms: int = 0
 
-var num_bomb_agents_to_add := 3
+var num_bomb_agents_to_add: int = 3
+
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# The lights normally go out on a 5-second timer. During a tutorial the coach decides when: a
+# player still reading the first caption must not be plunged into the dark mid-sentence.
+var tutorial_hold_lights: bool = false
+# Whether the board currently on screen was built FOR a tutorial. Captured when the board is made,
+# not read at call time: the win is reported from the player's arrival animation callback, which
+# lands after the coach has finished and tutorial_mode has already gone false — so a
+# `if game.tutorial_mode` guard there is checked too late and the round-complete popup gets
+# through anyway. (mmm taught us this one.)
+var _tutorial_board: bool = false
+# Bombs already walked into during a lesson, so the bang and the flash happen once each rather
+# than on every tick the player spends standing beside one.
+var _tutorial_bombs_hit: Dictionary = {}
 @export var pipe_scene: PackedScene = load("res://lightsout/scenes/pipe.tscn")
 @export var empty_scene: PackedScene = load("res://lightsout/scenes/empty_space.tscn")
 @export var agent_scene: PackedScene = load("res://lightsout/scenes/agent.tscn")
@@ -61,11 +75,11 @@ var num_bomb_agents_to_add := 3
 @export var target_scene: PackedScene = load("res://lightsout/scenes/target.tscn")
 @export var player_scene: PackedScene = load("res://lightsout/scenes/player.tscn")
 
-var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
-var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
-var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
-var delivered_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var start_audio := preload("res://art/sounds/click-2.mp3")
+var explosion_audio = preload("res://art/sounds/car-crash-1.mp3")
+var motor_audio = preload("res://art/sounds/car-ambient-driving.ogg")
+var feet_audio = preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
+var delivered_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var start_audio = preload("res://art/sounds/click-2.mp3")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -132,6 +146,8 @@ func reset():
 	num_more_packets = 0
 
 func new_game(from_scratch=true):
+	_tutorial_board = game.tutorial_mode
+	_tutorial_bombs_hit.clear()
 	reset()
 	if from_scratch:
 		level = LightsG.starting_level
@@ -146,9 +162,10 @@ func new_game(from_scratch=true):
 	time_started_level_ms = MainGlobals.timems()
 	time_increased_difficulty_ms = time_started_level_ms
 	started_playing.emit()
-	BE.upsert_game_state("Lightsout",
-		{"state":"new","level": level, "round_in_level": round_in_level,
-		"num_packets": LightsG.num_packets})
+	if not game.tutorial_mode:
+		BE.upsert_game_state("Lightsout",
+			{"state":"new","level": level, "round_in_level": round_in_level,
+			"num_packets": LightsG.num_packets})
 
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
@@ -169,6 +186,10 @@ func _input(event) -> void:
 func move_dir(dir):
 	if player == null or !game.level_is_ready:
 		return
+	if tutorial_hold_lights and !lights_are_off:
+		# The coach has not put the lights out yet, so a stray swipe must not do it for them.
+		return
+	game.tutorial_notify("player_moved")
 	if !lights_are_off:
 		_start_playing()
 		MainGlobals.global_start_countdown(-1)
@@ -181,6 +202,7 @@ func move_dir(dir):
 			tick(true)
 
 func _start_playing():
+	game.tutorial_notify("lights_off")   # no-op outside tutorial mode
 	if play_start_sound:
 		play_start_sound = false
 		if $StartAudio != null:
@@ -222,7 +244,7 @@ func add_target(p, id, show_id=false):
 	targets.append(target)
 	target_positions.append(p)
 	var q = p
-	var dir := 0
+	var dir: int = 0
 	if p.x == 0: q.x += 1
 	if p.x == game.board_size.x - 1: 
 		q.x -= 1
@@ -354,8 +376,8 @@ func create_board() -> void:
 
 	add_player()				
 
-	var ntarget_bombs := 0
-	var ntries := 0
+	var ntarget_bombs: int = 0
+	var ntries: int = 0
 	while ntarget_bombs < 1 and ntries < 100:
 		ntries += 1
 		for target in targets:
@@ -368,8 +390,14 @@ func create_board() -> void:
 
 	add_random_static_agents()
 
-	time_to_hide = MainGlobals.timems() + 5000
-	MainGlobals.global_start_countdown(5)
+	if game.tutorial_mode:
+		# No countdown and no auto-hide: the coach shows the board, names what is on it, and only
+		# then turns the lights out.
+		tutorial_hold_lights = true
+		time_to_hide = 0
+	else:
+		time_to_hide = MainGlobals.timems() + 5000
+		MainGlobals.global_start_countdown(5)
 
 	create_camera(min(2.0, 1.0 / game.get_board_part_of_width(), 1.0 / game.get_board_part_of_height()))
 	game.level_is_ready = true
@@ -410,14 +438,19 @@ func find_path_to_target():
 
 	
 func add_random_static_agents():
+	if game.tutorial_mode:
+		# The lesson is about the lights, the target and the bombs. Other movers are never
+		# mentioned, and one wandering into the player kills them — a hazard the player was not
+		# taught, ending a step that is waiting for them to walk somewhere.
+		return
 	var n = num_bomb_agents_to_add
 	# var n := int((game.board_size.x - 7) / 2)
-	var retries := 1000
+	var retries: int = 1000
 	for i in n:
-		var allocated := false
+		var allocated: bool = false
 		while !allocated and retries > 0:
 			retries -= 1
-			var p := Vector2i(randi_range(3,game.board_size.x-3), randi_range(2,game.board_size.y-3))
+			var p = Vector2i(randi_range(3,game.board_size.x-3), randi_range(2,game.board_size.y-3))
 			if !board[p.y][p.x].has_agent:
 				var t = find_closest_target(p)
 				if t.transaction_id == player.transaction_id and t.is_receiver:
@@ -491,9 +524,9 @@ func find_farthest_target(p:Vector2i):
 	# 		target = t
 	# return target
 
-var next_agent_id := 1
+var next_agent_id: int = 1
 func _record_answer_time():
-	var t := MainGlobals.timems() - _round_start_ms
+	var t = MainGlobals.timems() - _round_start_ms
 	if t > 0 and t < 60000:
 		times_to_answer.append(t)
 		while times_to_answer.size() > 20:
@@ -501,7 +534,7 @@ func _record_answer_time():
 
 func mean_time_to_answer_ms() -> int:
 	if times_to_answer.is_empty(): return 9999
-	var s := 0
+	var s: int = 0
 	for t in times_to_answer: s += t
 	return roundi(float(s) / times_to_answer.size())
 
@@ -589,13 +622,34 @@ func check_player_on_target(q):
 				$DeliveredAudio.play()
 				player.mark_arrived()
 				_record_answer_time()
+				game.tutorial_notify("delivered")
 				delivered_one.emit()
 				return true
 			elif !target.is_receiver and !target.is_sender and target.is_bomb:
 				time_to_hide = 0
-				turn_lights_on()
+				if not game.tutorial_mode:
+					turn_lights_on()
+				if game.tutorial_mode:
+					# In a real round a bomb ends it: mark_hit() starts an animation whose callback
+					# FREES the player, stranding whatever step waits on them. So the lesson lets
+					# them walk on.
+					#
+					# It must return FALSE, not true: move_player_on_tick() treats true as "stop
+					# here", and since the player is still standing beside the bomb it would get
+					# true again on every following tick — the player could never move again.
+					if not _tutorial_bombs_hit.has(target):
+						_tutorial_bombs_hit[target] = true
+						game.tutorial_notify("hit_bomb")
+						$ExplosionAudio.play()
+						# A FLASH, not a reveal. In a real round the lights come up because the run
+						# is over; here it continues, so leaving them on would hand the player the
+						# whole board and end the memory task.
+						turn_lights_on()
+						MainGlobals.do_after(0.35, turn_lights_off)
+					return false
+				game.tutorial_notify("hit_bomb")
+				$ExplosionAudio.play()
 				collision.emit()
-				$ExplosionAudio.play()				
 				player.mark_hit()
 				return true
 	return false
@@ -799,6 +853,11 @@ func level_is_done(didwin: bool):
 	game.level_is_done = true
 	$MotorAudio.stop()
 	$FeetAudio.stop()
+	if game.tutorial_mode or _tutorial_board:
+		# "Round 1 of Level 1 completed" landing on (or just after) the coach's closing caption is
+		# the failure mmm taught us to guard against. _tutorial_board is what makes this hold: the
+		# win arrives from a tween callback, by which time tutorial_mode is already false.
+		return
 	BE.send_event("level_done", "Lightsout", {
 		"level": level,
 		"round_in_level": round_in_level,
@@ -879,7 +938,7 @@ func add_player_at(p: Vector2i, direction: int):
 
 func add_player():
 	var shuffled_idx = range(0, agent_start_positions.size())
-	var ntries_center := 3
+	var ntries_center: int = 3
 	for i in range(ntries_center):
 		shuffled_idx.shuffle()
 		var idx = shuffled_idx[0]
@@ -959,6 +1018,11 @@ func check_agent_collisions():
 		if d_p_to_a < 0.5:
 			turn_lights_on()
 			a1.mark_hit()
+			if game.tutorial_mode:
+				# Same reason as the bomb: player.mark_hit() starts an animation whose callback
+				# FREES the player, stranding whatever step is waiting on them.
+				game.tutorial_notify("hit_agent")
+				return
 			collision.emit()
 			player.mark_hit()
 			if not $ExplosionAudio.playing:
@@ -1025,6 +1089,7 @@ func turn_lights_off():
 	lights_are_off = true
 
 func show_clue():
+	game.tutorial_notify("clue_used")
 	turn_lights_on()
 	MainGlobals.do_after(0.1, turn_lights_off)
 	update_score.emit(-1)
@@ -1048,3 +1113,68 @@ func on_time_over():
 
 func on_lives_depleted():
 	turn_lights_on()
+
+# --- tutorial staging -------------------------------------------------------
+
+# Put the lights out on the coach's word rather than on the 5-second timer.
+func tutorial_lights_out() -> void:
+	tutorial_hold_lights = false
+	if not lights_are_off:
+		_start_playing()
+
+# True once the player has walked into a bomb during this lesson, so the coach can say so instead
+# of leaving them to wonder why nothing happened.
+func tutorial_bomb_was_hit() -> bool:
+	return not _tutorial_bombs_hit.is_empty()
+
+func tutorial_lights_are_off() -> bool:
+	return lights_are_off
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func _screen_of(n) -> Vector2:
+	if n == null or not is_instance_valid(n):
+		return Vector2.ZERO
+	return (n as Node2D).get_global_transform_with_canvas().origin
+
+func tutorial_player_pos() -> Vector2:
+	return _screen_of(player)
+
+func tutorial_has_player() -> bool:
+	return player != null and is_instance_valid(player)
+
+# The one target this run is FOR: the receiver carrying the player's transaction.
+func tutorial_goal_target():
+	if player == null or not is_instance_valid(player):
+		return null
+	for t in targets:
+		if is_instance_valid(t) and t.is_receiver and t.transaction_id == player.transaction_id:
+			return t
+	return null
+
+func tutorial_goal_pos() -> Vector2:
+	return _screen_of(tutorial_goal_target())
+
+# Any bomb, so the coach can point at one concrete example rather than describing them.
+func tutorial_bomb_pos() -> Vector2:
+	var best = null
+	var best_d: float = 1e9
+	for t in targets:
+		if not is_instance_valid(t) or not t.is_bomb:
+			continue
+		if player != null and is_instance_valid(player):
+			var d: float = Vector2(t.board_pos - player.board_pos).length()
+			if d < best_d:
+				best_d = d
+				best = t
+		elif best == null:
+			best = t
+	return _screen_of(best)
+
+func tutorial_has_bomb() -> bool:
+	return tutorial_bomb_pos() != Vector2.ZERO
+
+func tutorial_bottom_button(node_name: String) -> Control:
+	var b = get_tree().root.find_child(node_name, true, false)
+	return b if b is Control and (b as Control).is_visible_in_tree() else null
+

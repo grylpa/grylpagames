@@ -10,15 +10,15 @@ var target_position: Vector2
 var starting_position: Vector2
 var time_from_start_to_target_ms:float = 0
 # var abs_time_supposed_to_reach_target_ms := 0
-var set_target_once := false
-var arrived := false
-var was_hit := false
-var last_major_tick_ms := -10000
-var speed_scale := 1.0
-var is_moving := false
-var transaction_id := -1
-var reached_target_pos := true
-var is_really_moving := false
+var set_target_once: bool = false
+var arrived: bool = false
+var was_hit: bool = false
+var last_major_tick_ms: int = -10000
+var speed_scale: float = 1.0
+var is_moving: bool = false
+var transaction_id: int = -1
+var reached_target_pos: bool = true
+var is_really_moving: bool = false
 
 var nbody_parts = 0
 var bodies = []
@@ -31,9 +31,9 @@ var angles = []
 var body_ids = []
 var body_scene: PackedScene = load("res://lightsout/scenes/tube_animation.tscn")
 
-var color := Color(1,1,1,1)
+var color = Color(1,1,1,1)
 var isready = false
-var _pending_speed_scale_to_use := -1.0;
+var _pending_speed_scale_to_use = -1.0;
 
 var game:GenericGameUtil
 
@@ -95,7 +95,7 @@ func set_pos(p, dir):
 		return
 	position = p
 			
-var time_set_target_pos := MainGlobals.timems()
+var time_set_target_pos = MainGlobals.timems()
 
 func set_target_pos(p):
 	if reached_target_pos and _pending_speed_scale_to_use > 0:
@@ -123,7 +123,7 @@ func set_target_pos(p):
 func set_new_speed_scale(new_scale):
 	_pending_speed_scale_to_use = new_scale
 
-var time_to_turn_feet_off := 0
+var time_to_turn_feet_off: int = 0
 
 func _process(_delta: float) -> void:
 	if time_to_turn_feet_off > 0 and MainGlobals.timems() > time_to_turn_feet_off and is_really_moving:
@@ -203,7 +203,7 @@ func remove_body_if_first(id):
 	var idx = body_ids.find(id)
 	return remove_body(id) if idx == 0 else false
 		
-var _pending_remove_ids := {}
+var _pending_remove_ids: Dictionary = {}
 func remove_body(id):
 	if id in _pending_remove_ids:
 		return

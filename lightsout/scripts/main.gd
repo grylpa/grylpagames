@@ -43,6 +43,56 @@ func _ready() -> void:
 	game.progress_level_pos = 6
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
+	# Teach instead of showing the menu when the player asked for the tutorial from the
+	# chooser's "How to play", OR when this is their first ever run of this game.
+	if MainGlobals.take_pending_tutorial("lightsout") \
+			or MainGlobals.take_auto_tutorial("lightsout", game.shown_instructions):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://lightsout/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	_tutorial_saved_level = LightsG.starting_level
+	LightsG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The caption must stay off the player, their target and the bomb being pointed at.
+	# Tight radii on purpose: three small zones scattered over a full board already leave the
+	# caption little room, and asking for generous clearance around each only guarantees it buries
+	# one of them.
+	runner.keep_clear = [
+		func(): return _rect_or_null($Level.tutorial_player_pos(), 30.0),
+		func(): return _rect_or_null($Level.tutorial_goal_pos(), 30.0),
+		func(): return _rect_or_null($Level.tutorial_bomb_pos(), 30.0),
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _rect_or_null(p: Vector2, r: float):
+	return null if p == Vector2.ZERO else Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	_on_level_show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	if is_instance_valid($Level):
+		$Level.tutorial_hold_lights = false
+	if _tutorial_saved_level >= 0:
+		LightsG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
+
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()

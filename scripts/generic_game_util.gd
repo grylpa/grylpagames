@@ -1118,20 +1118,22 @@ func set_instructions(title, text, _font_size := 0):
 	instructions_title = title
 	instructions_font_size = _font_size
 
-func show_instructions(parent):
-	# A game launched into its tutorial must not ALSO throw the text wall at the player. The
-	# tutorial is the instructions, and the two overlays fight for the screen: guidem showed the
-	# text first while the coach ran on underneath it, so by the time the popup was dismissed the
-	# tutorial was several steps in and appeared to end for no reason.
-	# The flag is deliberately NOT set here — if they skip the tutorial, the text is still owed
-	# to them the next time they come in normally.
-	if tutorial_mode or not MainGlobals.pending_tutorial.is_empty():
+func show_instructions(parent, automatic: bool = true):
+	# `automatic` = the first-run popup a game fires from its _ready. Pressing I or using the help
+	# menu passes false and always gets the text.
+	#
+	# A game that HAS a tutorial never shows this automatically — not on the first run (the
+	# tutorial runs instead) and not on any run after (the tutorial already taught it, and a wall
+	# of text afterwards is just a repeat). For those games the text is reachable on demand only.
+	# `file_names_prefix` is the game's folder name for every game — it is what names its save
+	# files — which is what MainCfg.tutorials is keyed by.
+	if tutorial_mode:
 		return
-	# First run of a game that has a tutorial: it teaches instead, so the text wall would land on
-	# top of the coach. `file_names_prefix` is the game's folder name for every game (it is what
-	# names its save files), which is what MainCfg.tutorials is keyed by.
-	if MainGlobals.will_auto_tutorial(file_names_prefix, shown_instructions):
-		return
+	if automatic:
+		if not MainGlobals.pending_tutorial.is_empty():
+			return
+		if MainCfg.has_tutorial(file_names_prefix):
+			return
 	shown_instructions = true
 	var popup := instructions_scene.instantiate()
 	parent.add_child(popup)
@@ -1147,7 +1149,9 @@ func handle_event(event, parent):
 	elif event.is_action_pressed("slower"):
 		time_scale = min(4, time_scale * 2.0)
 	elif event.is_action_pressed("instructions"):
-		show_instructions(parent)
+		# Asked for explicitly, so it always shows — the suppression below is only about the
+		# automatic first-run popup.
+		show_instructions(parent, false)
 	elif event.is_action_pressed("esc"):
 		sig_esc_pressed.emit()
 	elif event.is_action_pressed("lost_focus"):
