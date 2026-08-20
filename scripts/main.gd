@@ -60,31 +60,6 @@ func _ready() -> void:
 	if _should_force_guest_name() and not MainGlobals.has_named_guest():
 		$LoginScreen.show_guest_name_only()
 
-	# First run after install: offer a tutorial straight away. Players who never go looking for
-	# instructions are exactly the ones who find the games unclear, so the offer has to come to
-	# them. Shown once — after that it lives behind "How to play" in the chooser.
-	if not MainGlobals.shown_tutorial_offer and MainCfg.single_game.is_empty():
-		_offer_tutorials_when_idle()
-
-# The opening flow (guest name, login) owns the screen first, and LoginScreen does not register
-# with MainGlobals.set_visible, so wait for it explicitly rather than racing it.
-func _offer_tutorials_when_idle() -> void:
-	var waited: float = 0.0
-	while waited < 120.0:
-		await get_tree().create_timer(0.5).timeout
-		waited += 0.5
-		if MainGlobals.active_game != null:
-			return  # they already dived into a game — do not interrupt
-		if not $GameChooser.visible or $LoginScreen.visible:
-			continue
-		if MainGlobals.any_screen_visible():
-			continue
-		MainGlobals.shown_tutorial_offer = true
-		MainGlobals.save_settings()
-		$GameChooser._open_tutorial_picker()
-		return
-
-	# call_deferred("_on_session_expired")
 
 func _should_force_guest_name() -> bool:
 	return not MainCfg.use_BE or MainCfg.is_anonymous_user

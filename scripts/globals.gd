@@ -23,6 +23,10 @@ var last_played_order: Array = []  # game folders in most-recently-played-first 
 # arguments. Lives here rather than in the per-game settings file, which tutorial mode cannot write.
 var pending_tutorial: String = ""
 # Whether the player has been offered a tutorial at least once (app-level, persisted in slot 14).
+# Vestigial: the app used to open a "How to play" picker on the first run after install. That
+# picker is gone — a game with a tutorial now runs it automatically the first time it is opened.
+# The flag stays because settings are a POSITIONAL array and slot 14 cannot be reused or dropped
+# without shifting everything after it.
 var shown_tutorial_offer: bool = false
 # Game folders whose tutorial the player has finished, oldest first (persisted in slot 15). The
 # "How to play" list uses this to sort the OPPOSITE way to the game chooser: a tutorial you have
