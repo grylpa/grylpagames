@@ -57,10 +57,62 @@ func _ready() -> void:
 	for lvl in DdoooLevelConfig.LEVELS:
 		game.progress_level_names[lvl["id"]] = DdoooLevelConfig.level_header(lvl["id"])
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
+	_maybe_start_tutorial()
 
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
+
+# Teach instead of showing the menu when the player asked for the tutorial from the
+# chooser's "How to play", OR when this is their first ever run of this game.
+func _maybe_start_tutorial() -> void:
+	if MainGlobals.take_pending_tutorial("ddooo") \
+			or MainGlobals.take_auto_tutorial("ddooo", game.shown_instructions):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://ddooo/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	_tutorial_saved_level = DdoooG.starting_level
+	DdoooG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The caption must stay off the center shape, the peripheral flash, and the row of candidates.
+	runner.keep_clear = [
+		func():
+			var p: Vector2 = $Level.tutorial_model_pos()
+			return null if p == Vector2.ZERO else Rect2(p - Vector2(28, 28), Vector2(56, 56)),
+		func():
+			var p: Vector2 = $Level.tutorial_periph_pos()
+			return null if p == Vector2.ZERO else Rect2(p - Vector2(28, 28), Vector2(56, 56)),
+		func():
+			var r: Rect2 = $Level.tutorial_candidates_rect()
+			return null if r.size.x <= 0.0 else r,
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	_on_level_show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	if is_instance_valid($Level):
+		$Level.tutorial_freeze_board(false)
+	if _tutorial_saved_level >= 0:
+		DdoooG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 
 func show_main_menu():
 	main_menu.show_continue_and_start_new(false)

@@ -86,3 +86,28 @@ See `rlmadness/docs/design.md` → "Shared system changes" for details on:
 - Chart tab design and x-axis toggle
 - `score_was_changed` save gate
 - Monotonic mode, % Correct column
+
+## Tutorial
+
+`ooo/scripts/tutorial.gd` (8 steps), entry `ooo/scripts/main.gd::start_tutorial()`, level 1.
+
+What a first-timer gets wrong:
+
+- **They do not realize the first shape is the question.** It appears alone for about a second and
+  vanishes; someone still working out what they are looking at has already missed it, and the
+  lineup that follows means nothing.
+- **They look for the wrong kind of match.** At level 1 every candidate is the same SHAPE and only
+  the color differs; later levels invert that. So "the one you saw" has to be taken literally on
+  both axes.
+- **They take their time.** Score starts at 100 and only falls; a fast correct pick is worth more.
+
+Specific to this game:
+
+- **No freeze work is needed.** Agent timeouts are measured in `game.game_time` (see `agent.gd`),
+  which excludes paused time, so a caption holds the model and later the lineup on screen. Verified
+  rather than assumed — the harness has a freeze check that would catch a regression.
+- The "tap the match" caption is **reactive**: a wrong pick clears the board and starts a fresh
+  round, which is baffling in silence.
+- `_tutorial_board` guards level completion, not `tutorial_mode`.
+- Events: `model_shown`, `candidate_shown`, `lineup_shown`, `answered_right`, `answered_wrong`.
+- Points for the coach: `tutorial_model_pos`, `tutorial_lineup_rect`, `tutorial_correct_pos`.

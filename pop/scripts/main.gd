@@ -50,10 +50,73 @@ func _ready() -> void:
 	game.progress_time_pos = POS_SCORE_MEAN_TIME_MS
 	game.progress_pct_pos = POS_SCORE_PCT_CORRECT
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
+	_maybe_start_tutorial()
 	
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
+
+# Teach instead of showing the menu when the player asked for the tutorial from the
+# chooser's "How to play", OR when this is their first ever run of this game.
+func _maybe_start_tutorial() -> void:
+	if MainGlobals.take_pending_tutorial("pop") \
+			or MainGlobals.take_auto_tutorial("pop", game.shown_instructions):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_level: int = -1
+
+# The real game with the real rules, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://pop/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	_tutorial_saved_level = PopG.starting_level
+	PopG.starting_level = tut.tutorial_level_id()
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The caption must stay off the flash while it is being memorized, and off the candidates the
+	# player is comparing against it.
+	# Each candidate listed separately, NOT as one merged rect. They ring the board, so their
+	# bounding box is most of the screen and asking the placer to avoid it is unsatisfiable — the
+	# caption then lands right on them. Individually they leave the middle of the board free, which
+	# is where the caption belongs. Level 1 shows two; the spare entries cost nothing when absent.
+	runner.keep_clear = [
+		func():
+			var p: Vector2 = $Level.tutorial_model_pos()
+			return null if p == Vector2.ZERO else Rect2(p - Vector2(30, 30), Vector2(60, 60)),
+		func():
+			var r: Rect2 = $Level.tutorial_candidate_rect_at(0)
+			return null if r.size.x <= 0.0 else r,
+		func():
+			var r: Rect2 = $Level.tutorial_candidate_rect_at(1)
+			return null if r.size.x <= 0.0 else r,
+		func():
+			var r: Rect2 = $Level.tutorial_candidate_rect_at(2)
+			return null if r.size.x <= 0.0 else r,
+		func():
+			var r: Rect2 = $Level.tutorial_candidate_rect_at(3)
+			return null if r.size.x <= 0.0 else r,
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	_on_level_show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback, so the stashed level would stay applied.
+func _restore_tutorial_globals() -> void:
+	if is_instance_valid($Level):
+		$Level.tutorial_freeze_board(false)
+	if _tutorial_saved_level >= 0:
+		PopG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 
 func show_main_menu():
 	main_menu.show_continue_and_start_new(false)
@@ -139,9 +202,9 @@ func _on_hud_help_button_pressed() -> void:
 func _on_hud_start_game() -> void:
 	new_game(true)
 
-var POS_SCORE_DIFFICULTY := 6
-var POS_SCORE_MEAN_TIME_MS := 7
-var POS_SCORE_PCT_CORRECT := 8
+var POS_SCORE_DIFFICULTY: int = 6
+var POS_SCORE_MEAN_TIME_MS: int = 7
+var POS_SCORE_PCT_CORRECT: int = 8
 func get_game_score(_didwin, _wasaborted):
 	var last_level = $Level.level
 	if $Level.num_corrects_in_level_so_far == 0:

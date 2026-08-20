@@ -29,7 +29,7 @@ static func steps(level: Node, _game) -> Array:
 	# replaced on every turn, so capturing it once would spotlight a freed node.
 	# The card is a Node2D anchored at its TOP-CENTER (shared/scripts/card.gd), so its own
 	# width/height are needed to build the box — the runner's default radius would spotlight a
-	# small circle in the middle of it.
+	# small circle in the center of it.
 	var card_spot: Callable = func():
 		var c = level._card
 		if c == null or not is_instance_valid(c):

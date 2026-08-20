@@ -11,3 +11,6 @@ dbbackup/
 *.keystore
 .vscode/
 export_presets.cfg
+
+# Throwaway tutorial test harness, regenerated per session
+probe_tut.*

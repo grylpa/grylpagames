@@ -86,3 +86,24 @@ See `rlmadness/docs/design.md` → "Shared system changes" for details on:
 - Chart tab design and x-axis toggle
 - `score_was_changed` save gate
 - Monotonic mode, % Correct column
+
+## Tutorial
+
+`pop/scripts/tutorial.gd` (7 steps), entry `pop/scripts/main.gd::start_tutorial()`, level 1.
+
+Glimpse is Lineup played at the edge of vision, and the difference IS the lesson: in Lineup the
+shape to remember always appears in the same place, so you can stare at it. Here it flashes at any
+point around the rim, and `_dispatch_new_agent` then places the candidates more than four tiles
+away. The mistake is watching one spot.
+
+Specific to this game:
+
+- **The candidate step carries no frame.** The rect enclosing candidates scattered around the rim
+  measured 433x433px — most of the screen. A frame that size names nothing and leaves the caption
+  nowhere to sit that is not on top of it, which the harness caught as "caption covers its own
+  spotlight". The words carry that step instead, and the lineup is not in `keep_clear` either.
+- **`tutorial_frame_radius()` accounts for the camera zoom** (`tile_size * zoom * 0.75`), because
+  this game calls `create_camera()`; the board tile size is not the on-screen tile size.
+- **No freeze work is needed** — timeouts run on `game.game_time`.
+- `_tutorial_board` guards level completion, not `tutorial_mode`.
+- Events: `model_shown`, `candidate_shown`, `lineup_shown`, `answered_right`, `answered_wrong`.
