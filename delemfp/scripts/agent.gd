@@ -4,8 +4,8 @@ var board_pos: Vector2i
 var direction: int
 var target_position: Vector2
 var starting_position: Vector2
-var time_from_start_to_target_ms := 0
-var set_target_once := false
+var time_from_start_to_target_ms: float = 0.0
+var set_target_once: bool = false
 
 var nbody_parts = 0
 var bodies = []
@@ -68,7 +68,7 @@ func set_pos(p, dir):
 		return
 	position = p
 			
-var time_set_target_pos := MainGlobals.timems()
+var time_set_target_pos: int = MainGlobals.timems()
 
 func set_target_pos(p):
 	target_position = p
@@ -81,7 +81,7 @@ func set_target_pos(p):
 	set_target_once = true
 	return time_from_start_to_target_ms
 	
-var last_pos := Vector2.ZERO
+var last_pos: Vector2 = Vector2.ZERO
 var _last_process_ms: int = MainGlobals.timems()
 
 func _process(_delta: float) -> void:
@@ -193,7 +193,7 @@ func remove_body_if_first(id):
 	var idx = body_ids.find(id)
 	return remove_body(id) if idx == 0 else false
 		
-var _pending_remove_ids := {}
+var _pending_remove_ids: Dictionary = {}
 func remove_body(id):
 	if id in _pending_remove_ids:
 		return

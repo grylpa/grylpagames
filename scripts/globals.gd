@@ -28,6 +28,10 @@ var shown_tutorial_offer: bool = false
 # "How to play" list uses this to sort the OPPOSITE way to the game chooser: a tutorial you have
 # already done drops to the bottom, because the point of that list is what you have yet to learn.
 var tutorials_done: Array = []
+# Games whose tutorial has been auto-started on the player's first run. Recorded on the ATTEMPT,
+# not on completion — mark_tutorial_done() only records a finished run, so tracking completion
+# alone would relaunch the tutorial every session for anyone who skipped it.
+var tutorials_auto_shown: Array = []
 # The folder whose tutorial is running right now, so the runner can record completion without
 # every game having to pass its own name.
 var _running_tutorial: String = ""
@@ -187,7 +191,7 @@ func save_settings():
 	_save_last_profile_hint()
 	# Keep slot 1 reserved for backward compatibility with older settings files that
 	# stored a password there. New saves intentionally persist an empty string instead.
-	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name(), shown_tutorial_offer, tutorials_done])
+	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name(), shown_tutorial_offer, tutorials_done, tutorials_auto_shown])
 	# var s:SavedGrylpaBrainSettings = SavedGrylpaBrainSettings.new()
 	# s.username = BE.stored_username
 	# s.email = BE.stored_email
@@ -252,6 +256,8 @@ func load_settings():
 		shown_tutorial_offer = bool(settings[14])
 	if settings.size() > 15 and settings[15] is Array:
 		tutorials_done = settings[15]
+	if settings.size() > 16 and settings[16] is Array:
+		tutorials_auto_shown = settings[16]
 	apply_game_font()
 	# if !ResourceLoader.exists(settings_name):
 	# 	return
@@ -267,6 +273,32 @@ func take_pending_tutorial(folder: String) -> bool:
 		return false
 	pending_tutorial = ""
 	_running_tutorial = folder
+	return true
+
+# A game that HAS a tutorial teaches on the player's first run, instead of throwing the wall of
+# instruction text at them. Both halves of that decision have to agree — generic_game_util's
+# show_instructions() asks first (peek), then the game's main.gd claims it (take) — so this is
+# split in two rather than being one call with a side effect.
+#
+# `has_played_before` is the game util's `shown_instructions`, which read_settings() also sets
+# true whenever a scores file exists: someone who has already played is not shown a tutorial they
+# never asked for.
+func will_auto_tutorial(folder: String, has_played_before: bool) -> bool:
+	if has_played_before or folder.is_empty():
+		return false
+	if not MainCfg.has_tutorial(folder):
+		return false
+	return not (folder in tutorials_auto_shown) and not (folder in tutorials_done)
+
+# One-shot: claims the auto-tutorial for this game, forever. Skipping it still counts as shown,
+# so it does not reappear on the next launch.
+func take_auto_tutorial(folder: String, has_played_before: bool) -> bool:
+	if not will_auto_tutorial(folder, has_played_before):
+		return false
+	tutorials_auto_shown.append(folder)
+	_running_tutorial = folder
+	if _settings_loaded:
+		save_settings()
 	return true
 
 # For a tutorial started from inside the game (its own menu) rather than from the chooser, so

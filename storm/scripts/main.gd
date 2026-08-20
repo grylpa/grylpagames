@@ -48,8 +48,10 @@ func _ready() -> void:
 	game.show_scores_level = true
 	game.scores_callback = Callable(self, "add_score_line_vals")
 
-	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
-	if MainGlobals.take_pending_tutorial("storm"):
+	# Teach instead of showing the menu when the player asked for the tutorial from the
+	# chooser's "How to play", OR when this is their first ever run of this game.
+	if MainGlobals.take_pending_tutorial("storm") \
+			or MainGlobals.take_auto_tutorial("storm", game.shown_instructions):
 		call_deferred("start_tutorial")
 	MainGlobals.path_tile_size = game.tile_size                                                                                                                                                                                                                                                 
 	MainGlobals.path_screen_offset = game.screen_offset                                                                                                                                                                                                                                         

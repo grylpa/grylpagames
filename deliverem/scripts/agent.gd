@@ -4,10 +4,10 @@ var board_pos: Vector2i
 var direction: int
 var target_position: Vector2
 var starting_position: Vector2
-var time_from_start_to_target_ms := 0
-var set_target_once := false
-var can_move := true
-var time_created := MainGlobals.timems()
+var time_from_start_to_target_ms: float = 0.0
+var set_target_once: bool = false
+var can_move: bool = true
+var time_created: int = MainGlobals.timems()
 
 var nbody_parts = 0
 var bodies = []
@@ -71,7 +71,7 @@ func set_pos(p, dir):
 		return
 	position = p
 			
-var time_set_target_pos := MainGlobals.timems()
+var time_set_target_pos: int = MainGlobals.timems()
 
 func set_target_pos(p):
 	target_position = p
@@ -80,9 +80,22 @@ func set_target_pos(p):
 	time_from_start_to_target_ms = DeliveremG.game.major_tick_time_ms
 	set_target_once = true
 	
+var _last_process_ms: int = MainGlobals.timems()
+
 func _process(_delta: float) -> void:
 	if !DeliveremG.game.playing or !can_move:
 		return
+	# The truck slides between tiles on a hand-rolled interpolation against the WALL clock, not a
+	# Tween, so nothing stops it when the game pauses: it would keep gliding through a help screen,
+	# a popup or a tutorial caption — straight past the dock the caption is talking about. Pushing
+	# the move's start time forward by the paused duration suspends it mid-tile and resumes it
+	# without the jump a naive early-return would cause.
+	var now_ms: int = MainGlobals.timems()
+	if DeliveremG.game.paused():
+		time_set_target_pos += now_ms - _last_process_ms
+		_last_process_ms = now_ms
+		return
+	_last_process_ms = now_ms
 	if set_target_once:
 		var dv = target_position - starting_position
 		# if dv.length() < 1e-3:
@@ -158,7 +171,7 @@ func remove_body_if_first(id):
 	var idx = body_ids.find(id)
 	return remove_body(id) if idx == 0 else false
 		
-var _pending_remove_ids := {}		
+var _pending_remove_ids: Dictionary = {}		
 func remove_body(id):
 	if id in _pending_remove_ids:
 		return

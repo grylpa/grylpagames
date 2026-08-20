@@ -64,8 +64,10 @@ func _ready() -> void:
 	$Level.sig_session_done.connect(_on_level_session_done)
 	$Level.sig_show_main_menu.connect(_on_level_show_main_menu)
 
-	# Launched from the chooser's "How to play"? Then teach instead of showing the menu.
-	if MainGlobals.take_pending_tutorial("udbr"):
+	# Teach instead of showing the menu when the player asked for the tutorial from the
+	# chooser's "How to play", OR when this is their first ever run of this game.
+	if MainGlobals.take_pending_tutorial("udbr") \
+			or MainGlobals.take_auto_tutorial("udbr", game.shown_instructions):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_mode: int = -1

@@ -3,18 +3,18 @@ extends CanvasLayer
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe := false
-	var has_agent := false
-	var istarget := false
+	var ispipe: bool = false
+	var has_agent: bool = false
+	var istarget: bool = false
 	
-var times_to_answer := []
-var _round_start_ms := 0
+var times_to_answer: Array = []
+var _round_start_ms: int = 0
 
-var halt := false
-var start_dispatch := false
+var halt: bool = false
+var start_dispatch: bool = false
 var time_between_dispatches_ms = 5000
 var board: Array
-var ntargets := 7
+var ntargets: int = 7
 var agents = []
 var targets = []
 var target_positions = []
@@ -41,9 +41,9 @@ var _tutorial_countdown_seen: bool = false
 @export var agent_scene: PackedScene = load("res://delemfp/scenes/agent.tscn")
 @export var target_scene: PackedScene = load("res://delemfp/scenes/target.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var motor_audio := preload("res://art/sounds/engine-pulling-something.mp3")
+var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
+var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+var motor_audio = preload("res://art/sounds/engine-pulling-something.mp3")
 
 signal game_over(didwin:bool)
 signal started_playing
@@ -282,7 +282,7 @@ func create_board() -> void:
 
 	start_dispatch = true
 		
-var time_to_start_camera := -1
+var time_to_start_camera: int = -1
 
 func _process(_delta: float) -> void:
 	if time_to_start_camera > 0 and MainGlobals.timems() >= time_to_start_camera:
@@ -314,7 +314,7 @@ func _tutorial_watch_countdown() -> void:
 		create_camera()
 
 func _record_answer_time():
-	var t := MainGlobals.timems() - _round_start_ms
+	var t = MainGlobals.timems() - _round_start_ms
 	if t > 0 and t < 60000:
 		times_to_answer.append(t)
 		while times_to_answer.size() > 20:
@@ -322,7 +322,7 @@ func _record_answer_time():
 
 func mean_time_to_answer_ms() -> int:
 	if times_to_answer.is_empty(): return 9999
-	var s := 0
+	var s: int = 0
 	for t in times_to_answer: s += t
 	return roundi(float(s) / times_to_answer.size())
 
