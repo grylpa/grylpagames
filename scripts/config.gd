@@ -11,7 +11,7 @@ var games = [
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
-	["ptbits",        "Ptbits",         "Push the balls into their baskets",  			          "Attention & Speed"],
+	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
 	["couples",       "Couples",        "Find and the two identical cards",                       "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
@@ -56,7 +56,7 @@ var games = [
 # these in its "How to play" picker and badges their rows, so a player can tell which games have
 # one without entering each game to find out. Add a folder here as each tutorial is written —
 # see docs/tutorials.md for the recipe.
-var tutorials: Array = ["aliens", "change", "didi", "dino", "gorilla", "guidem", "mmm", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "wolves"]
+var tutorials: Array = ["aliens", "change", "delemfp", "didi", "dino", "dinoback", "gorilla", "guidem", "mmm", "monkeyc", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials

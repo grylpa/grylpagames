@@ -472,12 +472,51 @@ func _process(dt: float) -> void:
 			_layout_panel()
 	elif was != _spot_rect:
 		_layout_panel()
+	_follow_keep_clear()
 	# The frame going AWAY needs a redraw as much as one appearing: without this the last frame
 	# drawn stayed on the canvas after the spotlight resolved to nothing, so dragging the marked
 	# alien out of the ring left its marker hanging in empty space until something else happened
 	# to trigger a redraw.
 	if _has_spot or had_spot != _has_spot or not _demo_pts.is_empty():
 		_dim.queue_redraw()
+
+# A keep_clear zone can appear AFTER the caption has been placed. The opening caption is laid out
+# before the game has finished building its board, so at that moment there is nothing to avoid —
+# and the board then materializes underneath it. mmm's intro caption sat on the coin this way,
+# while sixteen clean positions were available.
+#
+# Same discipline as the spotlight follow above: only when a zone has actually come to sit under
+# the caption, only if it is properly buried (a clipped corner is not worth a jump), and never more
+# often than the cooldown allows — a caption that re-places itself every frame chases the board
+# around the screen.
+const KEEP_CLEAR_REFLOW_FRAC: float = 0.5
+
+func _follow_keep_clear() -> void:
+	if keep_clear.is_empty():
+		return
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _moved_for_spot_ms < SPOT_FOLLOW_COOLDOWN_MS:
+		return
+	var panel_rect: Rect2 = Rect2(_panel.position, _panel.size)
+	for entry in keep_clear:
+		var target = entry
+		if target is Callable:
+			if not (target as Callable).is_valid():
+				continue
+			target = (target as Callable).call()
+		if target == null:
+			continue
+		var zone: Rect2 = _rect_for(target, DEFAULT_SPOT_RADIUS)
+		if zone.size.x <= 0.0 or zone.size.y <= 0.0:
+			continue
+		var ov: Rect2 = panel_rect.intersection(zone)
+		if ov.size.x <= 0.0 or ov.size.y <= 0.0:
+			continue
+		if ov.get_area() / maxf(zone.get_area(), 1.0) < KEEP_CLEAR_REFLOW_FRAC:
+			continue
+		_moved_for_spot_ms = now_ms
+		_layout_panel()
+		return
 
 func _input(event: InputEvent) -> void:
 	if _finished:
@@ -729,12 +768,23 @@ func _layout_panel() -> void:
 # Everything the caption should stay off: the spotlight always (pointing at something and then
 # covering it is the one thing a coach must never do), plus `keep_clear` while the player is
 # playing.
+# Covering the spotlight is worse than covering a keep-clear zone, so it costs more per pixel.
+# Without this the two are weighed equally, and since the spotlight is usually ALSO one of the
+# keep-clear zones (the thing being pointed at is normally the thing to be used), the same area
+# gets counted twice and the placer will happily sit on the subject of its own caption to spare
+# some other zone. Delem FP hit this: the caption docked across the top of the dock it was
+# sending the truck to, because moving off it would have covered the truck instead.
+const SPOT_COST_WEIGHT: float = 8.0
+
 func _obstacles() -> Array:
 	var out: Array = []
 	if _has_spot:
-		out.append(_spot_rect)
-	if _blocking:
-		return out
+		out.append({"rect": _spot_rect, "weight": SPOT_COST_WEIGHT})
+	# keep_clear counts on TALKING steps too, not just when the player has the controls. It began
+	# as "what must stay reachable", but a caption that buries the thing the coach is describing is
+	# just as broken when the board is frozen — Delem FP's caption sat squarely on the truck while
+	# telling the player to work out a route from it. Weighting (above) is what keeps this from
+	# pushing a caption onto its own spotlight instead.
 	for entry in keep_clear:
 		var target = entry
 		if target is Callable:
@@ -745,7 +795,7 @@ func _obstacles() -> Array:
 			continue
 		var rect: Rect2 = _rect_for(target, DEFAULT_SPOT_RADIUS)
 		if rect.size.x > 0.0 and rect.size.y > 0.0:
-			out.append(rect.grow(KEEP_CLEAR_PAD))
+			out.append({"rect": rect.grow(KEEP_CLEAR_PAD), "weight": 1.0})
 	return out
 
 # Where to dock a full-width caption so it covers as little as possible of what matters.
@@ -765,7 +815,7 @@ func _best_y(obstacles: Array, top_y: float, low_limit: float, panel_h: float,
 	var lowest: float = maxf(low_limit - panel_h, top_y)
 	var cands: Array = [clampf(bottom_y, top_y, lowest), top_y]
 	for r in obstacles:
-		var rect: Rect2 = r
+		var rect: Rect2 = r["rect"]
 		cands.append(clampf(rect.position.y - PANEL_MARGIN - panel_h, top_y, lowest))
 		cands.append(clampf(rect.end.y + PANEL_MARGIN, top_y, lowest))
 	var best_y: float = cands[0]
@@ -775,9 +825,9 @@ func _best_y(obstacles: Array, top_y: float, low_limit: float, panel_h: float,
 		var here: Rect2 = Rect2(PANEL_MARGIN, cy, maxf(panel_w, 1.0), panel_h)
 		var cost: float = 0.0
 		for r2 in obstacles:
-			var ov: Rect2 = here.intersection(r2)
+			var ov: Rect2 = here.intersection(r2["rect"])
 			if ov.size.x > 0.0 and ov.size.y > 0.0:
-				cost += ov.get_area()
+				cost += ov.get_area() * float(r2["weight"])
 		# Ties go to the lower position.
 		if cost < best_cost - 0.5 or (absf(cost - best_cost) <= 0.5 and cy > best_y):
 			best_cost = cost

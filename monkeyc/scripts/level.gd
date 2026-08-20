@@ -63,6 +63,12 @@ var _no_per_belt: Array = [0, 0]   # left (unmatched) demos per belt; need >=2 b
 var _demo_log: Array = [[], []]
 
 # Question phase
+# --- tutorial staging (all inert outside tutorial_mode) ---------------------
+# The coach chooses whether the next judged item will be a pick-up or a leave, so ✓ and ✗ can each
+# be taught on demand instead of waiting for the shuffle to produce one.
+var tutorial_force_truth: int = -1
+var _tutorial_window_entered: bool = false
+
 var _question_phase: bool = false
 var _question_answered: bool = false
 var _question_start_time: float = 0.0
@@ -520,6 +526,18 @@ func _process(delta: float) -> void:
 				_discard_window()
 				next_window_timer = 0.3
 			else:
+				# The window deliberately opens on an item still ENTERING (item_y < 0) so the
+				# highlight slides in with it — but the belt clips its contents, so until the item
+				# is inside there is nothing on screen to point at. A coach told about the window
+				# at `window_opened` framed empty space above the belt.
+				if not _tutorial_window_entered and item_y >= 0.0:
+					_tutorial_window_entered = true
+					game.tutorial_notify("window_ready")
+					if game.tutorial_mode:
+						# Let the coach talk about the framed item before the ✓/✗ lands on it.
+						# _mark_top can be 0 (robot_answer_time is longer than the run-in on easy
+						# levels), so without this the answer appears in this very frame.
+						return
 				# show the ✓/✗ answer at _mark_top, then take/leave the item at _take_top (always
 				# within h/2..3h/4). robot_answer_time sets how far apart those two points are.
 				if not _window_marked and item_y >= _mark_top:
@@ -551,9 +569,11 @@ func _open_demo_window() -> void:
 		need_truth = 1
 	elif _no_per_belt[si] < 2:
 		need_truth = 0
+	if tutorial_force_truth >= 0:
+		need_truth = tutorial_force_truth
 	# open the window on an item still ENTERING from the top so the highlight slides in gradually
 	# with it (clip_contents hides it while above the belt); the robot then reacts once the item
-	# reaches the belt centre (see _process), never mid-entry
+	# reaches the belt center (see _process), never mid-entry
 	var target_y: float = -item_h * 0.5
 	var best_entry: Variant = null
 	var best_dist: float = INF
@@ -596,6 +616,8 @@ func _open_demo_window() -> void:
 	container.add_child(panel)
 	window_panel = panel
 	window_open = true
+	_tutorial_window_entered = false
+	game.tutorial_notify("window_opened")   # no-op outside tutorial mode
 	# the robot TAKES the item when it's between h/2 and 3h/4; the ✓/✗ answer appears
 	# robot_answer_time earlier (clamped so it never shows before the item is fully inside)
 	var take_center: float = rng.randf_range(h * 0.5, h * 0.75)
@@ -639,6 +661,8 @@ func _mark_item() -> void:
 				sb.border_color = Color(1.0, 0.35, 0.0)
 				sb.bg_color = Color(1.0, 0.15, 0.0, 0.2)
 		window_panel.add_child(indicator)
+	game.tutorial_notify("item_marked")
+	game.tutorial_notify("marked_yes" if picks_up else "marked_no")
 
 # Take (pull) or leave the item once it reaches _take_top (within the h/2..3h/4 band).
 func _take_item() -> void:
@@ -659,6 +683,7 @@ func _take_item() -> void:
 		_claw_pull(to_right)
 	_discard_window()
 	_showing_demo_action = false
+	game.tutorial_notify("item_resolved")
 	if game.level_is_done:
 		return
 	var all_done: bool = true
@@ -694,7 +719,7 @@ func _claw_pull(to_right: bool) -> void:
 	var item_size: Vector2 = item.size
 	if item_size.x < 1.0 or item_size.y < 1.0:
 		item_size = Vector2(item_h, item_h)
-	# The flyer's ORIGIN sits at the item's centre so scaling it grows the item in place; with the
+	# The flyer's ORIGIN sits at the item's center so scaling it grows the item in place; with the
 	# origin at (0,0) the scale-up would drag the item toward the canvas corner instead.
 	var item_center: Vector2 = item_gpos + item_size * 0.5
 	var flyer: Node2D = Node2D.new()
@@ -739,6 +764,10 @@ func _ask_all_rules() -> void:
 	_question_phase = false
 	rounds_done += 1
 	_update_avg_label()
+	if game.tutorial_mode:
+		# One round is the whole lesson. Starting another (or ending the level, which drops a
+		# "level completed" popup) would land on top of the coach's closing caption.
+		return
 	if rounds_done >= num_rounds_per_level:
 		_level_done()
 	else:
@@ -802,6 +831,7 @@ func _ask_for_rule(belt_idx: int) -> void:
 	_question_answered = false
 	_question_start_time = game.game_time
 	waiting_for_input = true
+	game.tutorial_notify("question_shown")
 	while not _question_answered:
 		await get_tree().process_frame
 	times_to_answer.append(game.game_time - _question_start_time)
@@ -840,6 +870,7 @@ func _on_option_pressed(chosen_key: String, correct_key: String, vbox: VBoxConta
 				# only the green/red marks show the result. Interaction is already blocked by
 				# waiting_for_input, so no need to disable.
 				btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	game.tutorial_notify("question_answered")
 	await get_tree().create_timer(1.0).timeout
 	_question_answered = true
 
@@ -917,10 +948,17 @@ func new_game(from_scratch: bool = true) -> void:
 	var right_side: Node = _containers()[1].get_parent().get_parent()
 	if right_side != null:
 		right_side.visible = num_belts == 2
+	if game.tutorial_mode:
+		_tutorial_setup()
 	game.level_is_ready = true
 	started_playing.emit()
 	set_process(true)
 	await get_tree().process_frame
+	if game.tutorial_mode and not belt_initialized:
+		# The belts are normally filled by the first _process tick, but _process returns early on
+		# game.paused() and the coach's opening captions pause the game — so without this the belt
+		# is still empty when the tutorial points at "one of these items".
+		_init_belts()
 	_demo_phase = true
 
 func _load_level(id: int) -> void:
@@ -1023,3 +1061,77 @@ func pct_correct() -> int:
 
 func tick() -> void:
 	pass
+
+# --- tutorial staging -------------------------------------------------------
+#
+# The belts need no explicit freeze: _process returns early on game.paused(), so a talking step
+# stops the belts, the window and the ✓/✗ timing all by itself.
+
+func _tutorial_setup() -> void:
+	tutorial_force_truth = -1
+
+# --- things for the coach to point at (all in SCREEN coordinates) -----------
+
+func tutorial_belt_rect() -> Rect2:
+	var c: Control = _containers()[0]
+	return c.get_global_rect() if c != null and is_instance_valid(c) else Rect2()
+
+# The visible part of the highlight the robot puts on the item it is about to judge.
+#
+# The belt is clip_contents, so a panel whose item is still entering (or already leaving) is
+# partly or entirely off it. Returning the raw panel rect framed empty space above the belt.
+func tutorial_window_rect() -> Rect2:
+	if window_panel == null or not is_instance_valid(window_panel) or not window_open:
+		return Rect2()
+	var r: Rect2 = window_panel.get_global_rect()
+	if window_belt >= 0:
+		var c: Control = _containers()[window_belt]
+		if c != null and is_instance_valid(c):
+			r = r.intersection(c.get_global_rect())
+	if r.size.x <= 0.0 or r.size.y <= 0.0:
+		return Rect2()
+	return r
+
+# An item to point at for "each of these is a PAIR of things". Picks the one nearest the MIDDLE of
+# the belt, not the one furthest down: the lowest item is often half off the end of the belt, and
+# the spotlight then lands below the screen entirely.
+func tutorial_an_item_rect() -> Rect2:
+	var container: Control = _containers()[0]
+	if container == null or not is_instance_valid(container):
+		return Rect2()
+	var mid: float = container.size.y * 0.5
+	var best: Control = null
+	var best_d: float = INF
+	for entry in belt_items[0]:
+		var c: Control = entry["ctrl"]
+		if not is_instance_valid(c):
+			continue
+		# fully inside the belt, top and bottom
+		if c.position.y < 0.0 or c.position.y + item_h > container.size.y:
+			continue
+		var d: float = absf(c.position.y + item_h * 0.5 - mid)
+		if d < best_d:
+			best_d = d
+			best = c
+	return best.get_global_rect() if best != null else Rect2()
+
+func tutorial_window_is_open() -> bool:
+	return window_open and window_panel != null and is_instance_valid(window_panel)
+
+# Whether the item under the window will be taken (✓) or left (✗), so the caption can say which
+# without waiting to be told.
+func tutorial_window_truth() -> bool:
+	return window_target_truth
+
+# The multiple-choice panel, so the caption can stay off the options.
+func tutorial_question_rect() -> Rect2:
+	if question_panel == null or not is_instance_valid(question_panel):
+		return Rect2()
+	for c in question_panel.get_children():
+		if c is VBoxContainer:
+			return (c as VBoxContainer).get_global_rect()
+	return Rect2()
+
+func tutorial_question_open() -> bool:
+	return question_panel != null and is_instance_valid(question_panel)
+

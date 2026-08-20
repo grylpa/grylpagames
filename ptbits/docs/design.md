@@ -1,4 +1,7 @@
-# Ptbits — design
+# Nudge — design
+
+Display name **Nudge**; the folder, the autoloads (`PtbitsG`, `PtbitsLevelConfig`) and the
+`file_names_prefix` stay `ptbits` — that prefix names every saved score and settings file.
 
 Colored balls fall into a walled arena. Down each side sits a basket, one per color. You drag a
 **tool** — a disc on a stick — and push each ball up and over into the basket of its own color,

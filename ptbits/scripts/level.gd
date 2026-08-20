@@ -1,6 +1,6 @@
 extends Node2D
 
-# Ptbits gameplay.
+# Nudge gameplay.
 #
 # Colored balls (RigidBody2D) fall slowly from the top. The player drags
 # color-matching "tools" (AnimatableBody2D paddles) to physically push a ball
