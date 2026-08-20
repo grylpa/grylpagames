@@ -56,7 +56,7 @@ var games = [
 # these in its "How to play" picker and badges their rows, so a player can tell which games have
 # one without entering each game to find out. Add a folder here as each tutorial is written —
 # see docs/tutorials.md for the recipe.
-var tutorials: Array = ["aliens", "change", "couples", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "wolves"]
+var tutorials: Array = ["aliens", "bucketmadness", "change", "couples", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials

@@ -130,13 +130,13 @@ Level (CanvasLayer, script=level.gd)
 │       │   ├── FallArea (Control, unique, clip_contents=true, min-h=320)
 │       │   ├── BucketsRow (HBoxContainer, sep=8)
 │       │   │   ├── LeftBucketSide (VBoxContainer, expand)
-│       │   │   │   ├── LeftBucketBox (PanelContainer, min-h=70, yellow border)
+│       │   │   │   ├── (bucket TextureRect, inserted at index 0 at runtime)
 │       │   │   │   └── LeftRuleLabel (Label, unique, min-h=52, font=18, autowrap)
 │       │   │   ├── CenterBucketSide (same structure)
-│       │   │   │   ├── CenterBucketBox
+│       │   │   │   ├── (dumpster TextureRect, inserted at index 0 at runtime)
 │       │   │   │   └── DumpsterLabel (Label, unique, "♻ Dumpster")
 │       │   │   └── RightBucketSide (same structure)
-│       │   │       ├── RightBucketBox
+│       │   │       ├── (bucket TextureRect, inserted at index 0 at runtime)
 │       │   │       └── RightRuleLabel (Label, unique, min-h=52, font=18, autowrap)
 │       └── BottomSpacer (expands)
 └── FeedbackLabel (Label, unique, fullscreen anchors, font=60, α=0 initially)
@@ -158,6 +158,64 @@ is deleted on the first round. The `Level` CanvasLayer root is the correct host,
 
 `FeedbackLabel` keeps the symbol font because it genuinely renders `✓`/`✗`. Do not "fix" its
 height with a negative `line_spacing` — keep it out of the container flow instead.
+
+## Tutorial
+
+`bucketmadness/scripts/tutorial.gd` (13 steps), entry `bucketmadness/scripts/main.gd::start_tutorial()`,
+forced to **level 1** (`starting_level_id`, restored in `_on_tutorial_done` and `_exit_tree`) because
+level 1's pool is exactly `[digit, square]` — a fixed, readable pair rather than whichever two the
+player's own starting level would shuffle up.
+
+It teaches the two things the instruction text leaves out: that an item is **two objects, only one
+of which can ever match a rule** (the other is generated to fail), and that **the rule labels fade
+away after a few rounds** — met cold, that reads as the game breaking.
+
+Specific to this game:
+
+- **The fall is a Tween, and landing is an ANSWER.** `_on_fall_reached_bottom` evaluates "dumpster"
+  on the player's behalf and scores it, so a caption that outlasts the fall costs them the round it
+  is talking about. `tutorial_hold_fall` holds each item in mid-air for the whole tutorial — but
+  only once it has dropped `TUT_HOLD_FRAC` (45%) of the way. Pausing it where it spawns would
+  freeze it *above* the trapezoid, where `FallArea.clip_contents` hides it entirely, and the
+  caption would be framing nothing. The last caption says plainly that items fall from here on.
+- **Every clock in this level had to be made pause-aware, not just the fall.** Three were not:
+  - `_run_preview()` counted down on a `SceneTreeTimer` and **abandoned itself** the moment it saw
+    `game.paused()`. `new_game()` then reached `_next_round()` while still paused, and that returned
+    early too — so no item dropped and *nothing would ever call it again*. A player who read the
+    opening caption for more than a second got a tutorial waiting forever for an item that was not
+    coming. Both now wait the pause out (`_wait_ms`, measured in `game_time`, which excludes paused
+    time; `_next_round` loops until unpaused).
+  - The ✓/✗ flash and the gap before the next round ran on a real-time 0.7 s timer, so the feedback
+    a caption might be describing vanished while it was being read.
+  - The slide into the chosen bucket is a second Tween (`_slide_tween`), and a Tween ignores
+    `game.paused()` unless something stops it. It is paused alongside the fall now.
+- **`_input` now returns early on `game.paused()`.** The item hangs mid-fall behind a help screen,
+  a "return to menu?" dialog or a caption; without the guard an arrow key pressed over any of them
+  lands in a bucket. This is a real-play fix, not only a tutorial one.
+- **The buckets have no scene names.** `_setup_bucket_images()` builds the three `TextureRect`s at
+  runtime, so they are kept in `_bucket_images` (board order `[left, dumpster, right]`) for the
+  coach to point at. The `LeftBucketBox` / `CenterBucketBox` names this document used to describe
+  do not exist in `level.tscn`.
+- **The caption is kept off the buckets and the rule labels** by per-step `keep_clear` zones (the
+  two rule labels, the three bucket pictures, and the item). Docked at the bottom by default it sat
+  squarely on all of them, so once the step that read a rule out had passed, the rule was no longer
+  on screen to check against — in a game whose whole point is holding those rules in your head.
+  With the zones declared, every caption places itself above the fall area instead. The harness
+  asserts the outcome directly: no caption may overlap the rules row or the buckets row.
+- **`item_ready`, not `item_dropped`, is what a caption waits for.** `item_dropped` fires as the
+  round starts, with the item still a full item-height ABOVE the fall area where `clip_contents`
+  hides it; a step opening on it framed empty space above the trapezoid. `item_ready` fires from
+  `_process` when the item reaches the hold line, once per round.
+- **It is two buckets and a dumpster, not three buckets** — and the dumpster is in the middle of a
+  row, which is what "middle" is for.
+- **Captions read the live rule text** (`tutorial_rule_text`, `tutorial_matching_rule`,
+  `tutorial_bucket_name`) rather than naming "digits" and "squares", since a pool is a pool.
+- Events: `item_dropped`, `item_ready`, `answered_right`, `answered_wrong`. Both asks wait on `answered_right`,
+  so a wrong swipe keeps the step and the next item is another chance — the caption turns into
+  "Here comes another one" while the board is empty.
+- Points for the coach: `tutorial_item_rect`, `tutorial_left_bucket` / `tutorial_dumpster` /
+  `tutorial_right_bucket`, `tutorial_left_rule_label` / `tutorial_right_rule_label`,
+  `tutorial_rules_row`, `tutorial_avg_label`.
 
 ## Key Pitfalls
 

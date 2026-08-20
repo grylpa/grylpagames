@@ -62,7 +62,7 @@ const VIGNETTE_MAX_A: float = 0.26
 
 # --- Head shape ---------------------------------------------------------------------------------
 # The head is DRAWN, not a sprite. It used to be head1/2/3-4x.png — a white ellipse with a black
-# border and two eyes, tinted to the body colour. An ellipse cannot be made snake-like by any
+# border and two eyes, tinted to the body color. An ellipse cannot be made snake-like by any
 # transform: scale/rotation/skew are affine, so they map a rectangle to a parallelogram and can
 # never produce a taper. Squashing the quad narrower at the nose would squash the BORDER with it,
 # giving an outline thick at the base and thin at the snout.
@@ -133,7 +133,7 @@ const CHILD_START_DROP: float = 60.0 # child starts this far below the mother's 
 
 # The child's body starts at a visible length and lengthens SLOWLY. It used to start at zero and
 # reach full length in ~12 s, driven straight off how much history existed — so for the first
-# seconds of every session the tail was visibly stretching, and the pattern had to renormalise
+# seconds of every session the tail was visibly stretching, and the pattern had to renormalize
 # continuously while it did.
 # The heads swing round over time rather than snapping to the current direction. The body's turn
 # is eased (smootherstep), so a head that tracked the instantaneous tangent looked mechanical
@@ -151,7 +151,7 @@ const BAND_PX: float = 12.0          # spacing of the dark bands along the body
 const BAND_DARK: float = 0.82        # how dark a band gets, as a multiplier
 const BAND_MAX: int = 56             # cap on bands, so the gradient stays a sane size
 const TAIL_SOLID: float = 0.82       # gradient offset at which the tail dissolve begins
-# Slither: a lateral undulation travelling down the body toward the tail.
+# Slither: a lateral undulation traveling down the body toward the tail.
 #
 # VERTICAL displacement ONLY, and that is the whole design. An earlier attempt displaced each
 # point along its LOCAL NORMAL; at a turn that normal rotates through nearly 180 deg between
@@ -222,6 +222,15 @@ var _rt_ms: int = 0
 
 var active_mode: bool = false
 var _computed_phases: Array = [0.0, 0.0, 0.0, 0.0]
+
+# Tutorial latches — see the tutorial hooks at the bottom of this file.
+var _tut_in_top: bool = false
+var _tut_in_bot: bool = false
+var _tut_with_since_ms: float = -1.0
+var _tut_base_y: float = 0.0
+var _tut_still_ref_y: float = 0.0
+var _tut_still_since_ms: float = -1.0
+var tutorial_mother_hidden: bool = false
 
 @onready var _canvas: Control = $MotherCanvas
 @onready var _timer_label: Label = $SessionOverlay/TimerLabel
@@ -597,8 +606,17 @@ func new_game() -> void:
 	_trace_last_ms = 0.0
 	_key_poll = []
 	_computed_phases = [0.0, 0.0, 0.0, 0.0]
+	# From the starting position, not from false: the child starts BELOW the mother's band, so a
+	# latch cleared to false reports "reached the bottom" on the first frame of the session.
+	_tut_in_top = _child_y <= _m_top_y + TUT_BAND_PX
+	_tut_in_bot = _child_y >= _m_bot_y - TUT_BAND_PX
+	_tut_with_since_ms = -1.0
+	_tut_base_y = _child_y
+	_tut_still_ref_y = _child_y
+	_tut_still_since_ms = -1.0
+	tutorial_mother_hidden = false
 	# In ACTIVE mode the only snake on screen is the PLAYER's own trail, so it wears the child's
-	# head and colours. It used to wear the mother's, which made Active mode look like Guided mode
+	# head and colors. It used to wear the mother's, which made Active mode look like Guided mode
 	# with the mother missing — the single most confusing thing about this game.
 	_sprite_child.visible = true
 	_sprite_mother.visible = not active_mode
@@ -607,6 +625,13 @@ func new_game() -> void:
 	else:
 		var d_g: Array = MotherG.get_guided_durations()
 		_goal_label.text = "Goal: %s – %s – %s – %s" % [_fv_ms(d_g[0]), _fv_ms(d_g[1]), _fv_ms(d_g[2]), _fv_ms(d_g[3])]
+	# Place both heads NOW rather than leaving them at the origin until the first _process. They
+	# are made visible on the line above, so without this they spend a frame in the top-left
+	# corner — and a tutorial caption that opens on the very first frame freezes _process, so they
+	# would stay there for as long as the coach is talking.
+	_sprite_child.position = Vector2(_head_x, _child_y)
+	if not active_mode:
+		_sprite_mother.position = Vector2(_head_x, _phase_y_at(0.0, _m_top_y, _m_bot_y))
 	game.level_is_ready = true
 	game.playing = true
 	$SessionOverlay.show()
@@ -691,6 +716,8 @@ func _process(delta: float) -> void:
 		_child_angle = lerp_angle(_child_angle, atan2(child_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
 		_sprite_child.rotation = _child_angle
 		_sprite_child.position = Vector2(_head_x, _child_y)
+
+	_tutorial_watch()
 
 	var rem_s: int = int(maxf(0.0, _duration_ms - _elapsed_ms) / 1000.0)
 	_timer_label.text = "%d:%02d" % [rem_s / 60, rem_s % 60]
@@ -843,13 +870,13 @@ func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
 # Banding and the tail dissolve, baked into one Gradient.
 #
 # NOTE Line2D.gradient REPLACES default_color rather than multiplying it, so everything about the
-# body's colour has to live in here — an earlier version set the pulse brightness on
+# body's color has to live in here — an earlier version set the pulse brightness on
 # default_color, where it was silently ignored. The per-frame brightness now rides on `modulate`,
 # which does multiply.
-# The dorsal stripe gets a CONSTANT colour, not the body's banding. Sharing the banded gradient
+# The dorsal stripe gets a CONSTANT color, not the body's banding. Sharing the banded gradient
 # made the stripe's dark stops (value 0.72) come out darker than the body's lit regions (0.88), so
 # along the length the spine alternated between lighter and darker than the body it sits on and
-# cancelled itself out. Only the tail dissolve is kept, so it fades with the body it rides on.
+# canceled itself out. Only the tail dissolve is kept, so it fades with the body it rides on.
 func _build_plain_gradient(col: Color) -> Gradient:
 	var g: Gradient = Gradient.new()
 	g.offsets = PackedFloat32Array([0.0, TAIL_SOLID, 1.0])
@@ -941,11 +968,11 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	ln.modulate = Color(m, m, m, 1.0)
 	st.modulate = ln.modulate
 
-	# Bands are spaced in PIXELS, but gradient offsets are normalised over the line — so the band
+	# Bands are spaced in PIXELS, but gradient offsets are normalized over the line — so the band
 	# count has to track the body's length, or the spacing would stretch as the child grows.
 	#
 	# Measured against ARC length it changed ~19 times per 700 frames, because the arc lengthens
-	# and shortens as the breath steepens the path. Every change renormalises the offsets and
+	# and shortens as the breath steepens the path. Every change renormalizes the offsets and
 	# shifts EVERY band a little, which would read as the pattern crawling. The HORIZONTAL span is
 	# the stable proxy: constant for the mother, monotonically growing for the child, so the count
 	# settles and stops churning.
@@ -1048,7 +1075,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 	# --- Mother body ---
 	if active_mode:
 		# Active mode: no guide exists, so the one body drawn is the PLAYER's own trail — child
-		# colours and child width, matching the head above.
+		# colors and child width, matching the head above.
 		if _history_count > 4:
 			var reliable_px_a: float = minf(minf(
 				float(_history_count - 4) * HISTORY_INTERVAL_MS * _scroll_px_per_ms,
@@ -1076,7 +1103,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 		# That inserts and drops points as the transitions scroll past, so the point count changed
 		# every frame — which jittered the texture, the joints and (before it was arc-length based)
 		# the slither, all worst at the turns. The child already used a snapped time grid for
-		# exactly this reason: snapping the sample TIMES keeps each vertex's neighbours constant
+		# exactly this reason: snapping the sample TIMES keeps each vertex's neighbors constant
 		# frame to frame, so the whole body scrolls smoothly instead of resampling under itself.
 		# The transition vertices are not missed: `_phase_y_at` uses smootherstep, which is C2, so
 		# there is no corner at a phase boundary that needs a vertex placed on it.
@@ -1450,3 +1477,140 @@ func _on_again_pressed() -> void:
 
 func _on_done_pressed() -> void:
 	sig_show_main_menu.emit()
+
+# --- Tutorial hooks -------------------------------------------------------------------------
+#
+# The coach needs three things from the level: where the two heads are, so it can point at them;
+# which part of the breath the mother is in, so a caption can say something TRUE about what is on
+# screen at that moment; and word from the level when the player has actually done what was asked.
+#
+# Nothing here runs outside a tutorial except the three cheap comparisons in `_tutorial_watch` —
+# `game.tutorial_notify` is a no-op when `tutorial_mode` is false.
+
+const TUT_WITH_PX: float = 40.0   # how close to the mother counts as "with her"
+const TUT_BAND_PX: float = 30.0   # how near her top / bottom extreme counts as reaching it
+const TUT_MOVE_PX: float = 70.0   # travel from the baseline that counts as a deliberate move
+const TUT_STILL_PX: float = 6.0   # drift allowed while holding
+const TUT_HOLD_MS: float = 1200.0 # how long still counts as a hold
+
+func _cycle_ms() -> float:
+	var d: Array = MotherG.get_guided_durations()
+	return d[0] + d[1] + d[2] + d[3]
+
+# Heads are Node2Ds under a CanvasLayer, so they are resolved to screen space here rather than in
+# the tutorial, which has no business knowing that.
+# Take the mother off the screen entirely — body, head and the phase label that describes her —
+# so the player can learn the control without a rhythm to keep up with at the same time. Her clock
+# keeps running underneath, so when she comes back she is where she should be rather than resuming
+# from a standstill.
+func tutorial_set_mother_visible(vis: bool) -> void:
+	tutorial_mother_hidden = not vis
+	if _sprite_mother != null and is_instance_valid(_sprite_mother):
+		_sprite_mother.visible = vis and not active_mode
+	for ln in [_l_mother, _l_mother_sh, _l_mother_st]:
+		if ln != null and is_instance_valid(ln):
+			(ln as Line2D).visible = vis and not active_mode
+	if _phase_label != null:
+		_phase_label.visible = vis
+
+# The player's own movement, judged against wherever they were when the step began — nothing to do
+# with the mother, because these three steps are taught with her off the screen.
+func tutorial_mark_move_baseline() -> void:
+	_tut_base_y = _child_y
+	_tut_still_ref_y = _child_y
+	_tut_still_since_ms = -1.0
+
+func tutorial_mother_pos() -> Vector2:
+	if active_mode or _sprite_mother == null or not is_instance_valid(_sprite_mother):
+		return Vector2.ZERO
+	return _sprite_mother.get_global_transform_with_canvas().origin
+
+func tutorial_child_pos() -> Vector2:
+	if _sprite_child == null or not is_instance_valid(_sprite_child):
+		return Vector2.ZERO
+	return _sprite_child.get_global_transform_with_canvas().origin
+
+# A frame about a head and a little around it. MOTHER_W has moved 18 → 30 → 80 → 30 over this
+# game's life, so this is a share of it rather than a pixel count.
+func tutorial_head_radius() -> float:
+	return maxf(26.0, MOTHER_W * 1.5)
+
+func tutorial_phase_label() -> Control:
+	return _phase_label
+
+func tutorial_goal_label() -> Control:
+	return _goal_label
+
+# "inhale", "hold" or "exhale" — from the same clock the mother is drawn from, so a caption cannot
+# describe a rise while the screen shows her sinking.
+func tutorial_phase_name() -> String:
+	if active_mode:
+		return ""
+	var d: Array = MotherG.get_guided_durations()
+	var cycle: float = _cycle_ms()
+	if cycle <= 0.0:
+		return ""
+	var t: float = fmod(_elapsed_ms, cycle)
+	if t < 0.0:
+		t += cycle
+	if t < d[0]:
+		return "inhale"
+	if t < d[0] + d[1]:
+		return "hold"
+	if t < d[0] + d[1] + d[2]:
+		return "exhale"
+	return "hold"
+
+func tutorial_is_with_mother() -> bool:
+	if active_mode:
+		return false
+	return absf(_child_y - _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)) <= TUT_WITH_PX
+
+# How much of a whole breath the player has stayed level with her, 0..1 — so the caption can show
+# progress instead of leaving them guessing how long "one whole breath" is.
+func tutorial_follow_progress() -> float:
+	if _tut_with_since_ms < 0.0:
+		return 0.0
+	return clampf((_elapsed_ms - _tut_with_since_ms) / maxf(1.0, _cycle_ms()), 0.0, 1.0)
+
+func _tutorial_watch() -> void:
+	# The three things the player can DO, judged on their own movement. These are taught with the
+	# mother hidden, so none of them may depend on where she is.
+	if _child_y <= _tut_base_y - TUT_MOVE_PX:
+		game.tutorial_notify("moved_up")
+	elif _child_y >= _tut_base_y + TUT_MOVE_PX:
+		game.tutorial_notify("moved_down")
+	# A hold is the one action performed by doing nothing, which is why it needs its own step and
+	# its own settling allowance: releasing does not stop the child dead, the velocity lerps out
+	# over a few tenths of a second.
+	if absf(_child_y - _tut_still_ref_y) > TUT_STILL_PX:
+		_tut_still_ref_y = _child_y
+		_tut_still_since_ms = _elapsed_ms
+	elif _tut_still_since_ms >= 0.0 and _elapsed_ms - _tut_still_since_ms >= TUT_HOLD_MS:
+		_tut_still_since_ms = _elapsed_ms
+		game.tutorial_notify("held")
+	if active_mode or tutorial_mother_hidden:
+		return
+	var mother_y: float = _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)
+	# Her extremes, latched on ENTRY so each arrival reports once rather than every frame the
+	# player sits there.
+	var at_top: bool = _child_y <= _m_top_y + TUT_BAND_PX
+	if at_top and not _tut_in_top:
+		game.tutorial_notify("reached_top")
+	_tut_in_top = at_top
+	var at_bot: bool = _child_y >= _m_bot_y - TUT_BAND_PX
+	if at_bot and not _tut_in_bot:
+		game.tutorial_notify("reached_bottom")
+	_tut_in_bot = at_bot
+	# Staying with her. This is the only thing the game actually asks of the player, and the only
+	# event here that a single lucky swipe cannot earn: the proximity has to hold UNBROKEN for a
+	# whole cycle, and any drift starts the clock over.
+	if absf(_child_y - mother_y) <= TUT_WITH_PX:
+		if _tut_with_since_ms < 0.0:
+			_tut_with_since_ms = _elapsed_ms
+			game.tutorial_notify("with_mother")
+		elif _elapsed_ms - _tut_with_since_ms >= _cycle_ms():
+			_tut_with_since_ms = _elapsed_ms
+			game.tutorial_notify("cycle_followed")
+	else:
+		_tut_with_since_ms = -1.0

@@ -51,6 +51,56 @@ func _ready() -> void:
 	$Level.sig_session_done.connect(_on_level_session_done)
 	$Level.sig_show_main_menu.connect(_on_level_show_main_menu)
 
+	# Teach instead of showing the menu when the player asked for the tutorial from the chooser's
+	# "How to play", OR when this is their first ever run of this game.
+	if MainGlobals.take_pending_tutorial("mother") \
+			or MainGlobals.take_auto_tutorial("mother", game.shown_instructions):
+		call_deferred("start_tutorial")
+
+var _tutorial_saved_mode: int = -1
+var _tutorial_saved_duration: int = -1
+
+# The real session with the real input, recorded by nobody: TutorialRunner puts the game into
+# tutorial_mode, which suppresses every write in generic_game_util.gd until the tutorial ends.
+func start_tutorial() -> void:
+	var tut: Script = load("res://mother/scripts/tutorial.gd")
+	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
+	# which would commit and upload the player's unfinished real session.
+	game.begin_tutorial()
+	# Guided 4-1-4-1. Active mode has no mother at all, which makes every caption meaningless, and
+	# the User preset is built from sessions a first-timer has not had yet. Neither this nor the
+	# duration below is part of the GenericGameUtil snapshot, so both are restored by hand.
+	_tutorial_saved_mode = MotherG.selected_mode
+	MotherG.selected_mode = 2
+	# The default session is one minute; the tutorial outlasts that easily, and the results panel
+	# opening over the coach mid-lesson is not something a player can make sense of.
+	_tutorial_saved_duration = MotherG.duration_min
+	MotherG.duration_min = 30
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	game.level_is_ready = false
+	refresh_menu()
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback — so without it the stashed values stay applied to the
+# player's real settings.
+func _restore_tutorial_globals() -> void:
+	if _tutorial_saved_mode >= 0:
+		MotherG.selected_mode = _tutorial_saved_mode
+		_tutorial_saved_mode = -1
+	if _tutorial_saved_duration >= 0:
+		MotherG.duration_min = _tutorial_saved_duration
+		_tutorial_saved_duration = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
+
 func show_main_menu() -> void:
 	main_menu.show_continue_and_start_new(false)
 	main_menu.show()
@@ -73,6 +123,14 @@ func new_game() -> void:
 	$Level.new_game()
 
 func _on_level_session_done() -> void:
+	# A tutorial session must not become the player's own breathing pattern. It holds the session
+	# open for 30 minutes, so a player working through it slowly can genuinely reach the end of
+	# one — and the Active branch below writes MotherG.learned_* and has_user_session, which the
+	# "User" mode preset is built from. save_score and MotherG.save_settings are both suppressed in
+	# tutorial mode, but those are plain in-memory globals: nothing hits disk here, and then the
+	# next legitimate save persists the tutorial's numbers as the player's own pattern.
+	if game.tutorial_mode:
+		return
 	_did_per_level_save = true
 	if MotherG.guided_mode:
 		game.save_score($Level.get_session_score(true, false))

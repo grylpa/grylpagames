@@ -15,6 +15,9 @@ var correct_bucket: int = 0
 
 var fall_item_node: Control = null
 var fall_tween: Tween = null
+# The answered item's slide into its bucket. Kept so it can be paused with everything else — a
+# Tween runs on its own clock and ignores game.paused() unless something stops it.
+var _slide_tween: Tween = null
 var item_answered: bool = false
 
 var round_start_ms: float = 0.0
@@ -60,6 +63,10 @@ var _bucket_tex: Texture2D = preload("res://bucketmadness/art/bucket_open_2.png"
 var _dumpster_tex: Texture2D = preload("res://bucketmadness/art/dumpster_half_open.png")
 
 var _trap_poly: Polygon2D = null
+# The three bucket pictures, in board order [left, dumpster, right]. They are built at runtime by
+# _setup_bucket_images and have no scene names, so anything wanting to point at a bucket — the
+# tutorial — needs them kept here.
+var _bucket_images: Array = []
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _primes: Array = [2, 3, 5, 7, 11, 13, 17, 19, 23]
 var _non_primes: Array = [1, 4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24, 25]
@@ -135,9 +142,20 @@ func _update_trapezoid() -> void:
 	])
 
 func _process(_delta: float) -> void:
+	# "item_dropped" fires the moment a round starts, when the item is still one full item-height
+	# ABOVE the fall area — clipped, invisible, and nothing a caption can point at. This is the
+	# event that means it has arrived somewhere the player can see it.
+	if not _tut_notified_ready and _tutorial_should_hold():
+		_tut_notified_ready = true
+		game.tutorial_notify("item_ready")
+	if _slide_tween != null and is_instance_valid(_slide_tween):
+		if game.paused():
+			_slide_tween.pause()
+		else:
+			_slide_tween.play()
 	if fall_tween == null:
 		return
-	if game.paused():
+	if game.paused() or _tutorial_should_hold():
 		fall_tween.pause()
 	else:
 		fall_tween.play()
@@ -159,6 +177,7 @@ func _setup_bucket_images() -> void:
 		_tr.custom_minimum_size = Vector2(0, min_heights[i])
 		sides[i].add_child(_tr)
 		sides[i].move_child(_tr, 0)
+		_bucket_images.append(_tr)
 
 # --- Modality building (same as rlmadness) ---
 
@@ -361,10 +380,22 @@ func _run_preview() -> void:
 	var secs: int = roundi(preview_time)
 	for i in secs:
 		%AvgTimeLabel.text = "Starting in %d..." % (secs - i)
-		await get_tree().create_timer(1.0).timeout
-		if game.level_is_done or game.paused():
+		await _wait_ms(1000.0)
+		if game.level_is_done:
 			break
 	%AvgTimeLabel.text = "Average time : —"
+
+# A wait measured in game_time, which excludes paused time. A plain SceneTreeTimer does not stop
+# for a help screen, a "return to menu?" dialog or a tutorial caption — and this countdown used to
+# ABANDON itself when it noticed the game had paused, which meant `_next_round()` was then reached
+# while still paused and returned without dropping anything. No countdown, no first item, and
+# nothing that would ever call it again.
+func _wait_ms(ms: float) -> void:
+	var until: float = game.game_time + ms
+	while game.game_time < until:
+		await get_tree().process_frame
+		if game.level_is_done or not is_inside_tree():
+			return
 
 func _load_level(id: int) -> void:
 	var def: Dictionary = BucketMadnessLevelConfig.get_level(id)
@@ -427,7 +458,13 @@ func _clear_fall_area() -> void:
 	%FeedbackLabel.modulate.a = 0.0
 
 func _next_round() -> void:
-	if game.level_is_done or game.paused():
+	# Wait the pause out rather than returning: nothing else would call this again, so a round
+	# skipped here is a board that never refills.
+	while game.paused():
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+	if game.level_is_done:
 		return
 
 	if rounds_done >= rounds_before_hide and not labels_hidden:
@@ -487,6 +524,8 @@ func _next_round() -> void:
 
 	round_start_ms = game.game_time
 	waiting_for_input = true
+	_tut_notified_ready = false
+	game.tutorial_notify("item_dropped")   # no-op outside tutorial mode
 
 func _on_fall_reached_bottom() -> void:
 	fall_tween = null  # prevent _process from restarting it
@@ -530,6 +569,7 @@ func _evaluate_answer(bucket: int) -> void:
 		%FeedbackLabel.modulate = Color.RED
 
 	%FeedbackLabel.modulate.a = 1.0
+	game.tutorial_notify("answered_right" if is_right else "answered_wrong")
 
 	# Animate item to selected bucket
 	if fall_item_node != null and is_instance_valid(fall_item_node):
@@ -538,11 +578,11 @@ func _evaluate_answer(bucket: int) -> void:
 		var w: float = max(fall_area.size.x, 300.0)
 		var fracs: Array = [0.1, 0.5, 0.9]
 		var target_x: float = w * fracs[bucket] - item_w * 0.5
-		var slide_tween: Tween = create_tween().set_parallel(true)
-		slide_tween.tween_property(fall_item_node, "position:x", target_x, 0.3)
-		slide_tween.tween_property(fall_item_node, "position:y", h + 20.0, 0.35)
+		_slide_tween = create_tween().set_parallel(true)
+		_slide_tween.tween_property(fall_item_node, "position:x", target_x, 0.3)
+		_slide_tween.tween_property(fall_item_node, "position:y", h + 20.0, 0.35)
 
-	await get_tree().create_timer(0.7).timeout
+	await _wait_ms(700.0)
 	%FeedbackLabel.modulate.a = 0.0
 
 	if game.level_is_done:
@@ -577,6 +617,11 @@ func _hide_labels() -> void:
 	%RightRuleLabel.modulate.a = 0.0
 
 func _input(event: InputEvent) -> void:
+	# A frozen board must not answer. The item hangs mid-fall behind a help screen, a "return to
+	# menu?" dialog or a tutorial caption, and without this an arrow key pressed over any of them
+	# lands in a bucket.
+	if game.paused():
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_swipe_start = event.position
@@ -633,3 +678,97 @@ func pct_correct() -> int:
 
 func tick() -> void:
 	pass
+
+# --- Tutorial hooks -------------------------------------------------------------------------
+#
+# The item falls on a Tween, and a tutorial must not let it land while the coach is mid-sentence:
+# reaching the bottom answers "dumpster" on the player's behalf and scores it. So the tutorial
+# holds the item in mid-air — but only AFTER it has fallen far enough to be seen. Pausing it where
+# it spawns would freeze it above the trapezoid, where `clip_contents` hides it completely, and the
+# caption would be pointing at nothing.
+
+var tutorial_hold_fall: bool = false
+var _tut_notified_ready: bool = false
+
+const TUT_HOLD_FRAC: float = 0.45   # share of the fall at which a held item stops
+
+func _tutorial_hold_y() -> float:
+	var h: float = max(%FallArea.size.y, 280.0)
+	return (h - item_h - 30.0) * TUT_HOLD_FRAC
+
+func _tutorial_should_hold() -> bool:
+	if not tutorial_hold_fall or fall_item_node == null or not is_instance_valid(fall_item_node):
+		return false
+	return fall_item_node.position.y >= _tutorial_hold_y()
+
+# True once the item is on screen and hanging — what a caption should wait for before it starts
+# describing "these two objects".
+func tutorial_item_is_held() -> bool:
+	return _tutorial_should_hold()
+
+func tutorial_has_item() -> bool:
+	return waiting_for_input and fall_item_node != null and is_instance_valid(fall_item_node)
+
+func tutorial_item_rect() -> Rect2:
+	if fall_item_node == null or not is_instance_valid(fall_item_node):
+		return Rect2()
+	return fall_item_node.get_global_rect()
+
+# Buckets and their labels, for the coach to point at. These are the scene's own nodes, so a frame
+# lands on what the player is actually looking at rather than on a guessed rectangle.
+func _bucket_image(idx: int) -> Control:
+	if idx < 0 or idx >= _bucket_images.size() or not is_instance_valid(_bucket_images[idx]):
+		return null
+	return _bucket_images[idx]
+
+func tutorial_left_bucket() -> Control:
+	return _bucket_image(0)
+
+func tutorial_dumpster() -> Control:
+	return _bucket_image(1)
+
+func tutorial_right_bucket() -> Control:
+	return _bucket_image(2)
+
+func tutorial_left_rule_label() -> Control:
+	return %LeftRuleLabel
+
+func tutorial_right_rule_label() -> Control:
+	return %RightRuleLabel
+
+func tutorial_avg_label() -> Control:
+	return %AvgTimeLabel
+
+func tutorial_rules_row() -> Rect2:
+	var l: Rect2 = %LeftRuleLabel.get_global_rect()
+	return l.merge(%RightRuleLabel.get_global_rect())
+
+func tutorial_buckets_row() -> Rect2:
+	var l: Control = _bucket_image(0)
+	var r: Control = _bucket_image(2)
+	if l == null or r == null:
+		return Rect2()
+	return l.get_global_rect().merge(r.get_global_rect())
+
+# 0 = left bucket, 1 = dumpster, 2 = right bucket — the same indices the input maps to.
+func tutorial_correct_bucket() -> int:
+	return correct_bucket
+
+func tutorial_bucket_name(bucket: int) -> String:
+	if bucket == 0:
+		return "left bucket"
+	if bucket == 2:
+		return "right bucket"
+	return "dumpster"
+
+# The rule the current item matches, in the game's own words, or "" when it matches neither and
+# belongs in the dumpster. Read live so a caption can never claim the wrong rule.
+func tutorial_matching_rule() -> String:
+	if current_pair.size() < 2 or active_category == 2:
+		return ""
+	return _u(current_pair[0 if active_category == 0 else 1].get("label", ""))
+
+func tutorial_rule_text(side: int) -> String:
+	if current_pair.size() < 2:
+		return ""
+	return _u(current_pair[clampi(side, 0, 1)].get("label", ""))
