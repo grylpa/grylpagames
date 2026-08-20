@@ -861,10 +861,17 @@ func _layout_panel() -> void:
 	var low_limit: float = screen.y - bottom_bar - PANEL_MARGIN     # lowest the caption may reach
 	var bottom_y: float = low_limit - panel_h
 	var top_y: float = float(_game.header_height if _game != null else 60) + PANEL_MARGIN
+	# Keep clear of the Skip button in the top-right corner. It is NOT decoration: it draws over
+	# the caption and takes input in its own right, while a talking step is dismissed by tapping
+	# ANYWHERE — so a caption reaching under it turns "tap to continue" into "quit the tutorial"
+	# for anyone who taps the top-right of the bubble. A full-width caption spans the button's
+	# columns by definition, so it always has to be pushed below; a side caption only when it is
+	# the right-hand column. The default top_y is header (60) + margin (12) = 72 against a button
+	# at 66..97, so every top-placed caption in the app overlapped it: eight tutorials, sixteen
+	# steps.
+	if _skip_btn != null and (not is_side or side == "right"):
+		top_y = maxf(top_y, _skip_btn.position.y + _skip_btn.size.y + 8.0)
 	if is_side:
-		# Keep clear of the Skip button, which lives in the top-right corner.
-		if side == "right" and _skip_btn != null:
-			top_y = maxf(top_y, _skip_btn.position.y + _skip_btn.size.y + 8.0)
 		panel_h = minf(panel_h, maxf(low_limit - top_y, 1.0))
 		var x_side: float = (screen.x - avail_w - PANEL_MARGIN) if side == "right" else PANEL_MARGIN
 		var y_side: float = top_y + maxf(low_limit - top_y - panel_h, 0.0) * 0.5

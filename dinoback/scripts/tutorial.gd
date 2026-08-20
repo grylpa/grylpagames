@@ -41,11 +41,15 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_hold_cards = true,
 			"title": func(): return "%d back" % level.tutorial_n_back(),
+			# Deliberately ONE short line. Step 1 already stated the rule, so this step only has to
+			# say why the first card is a freebie. The card is 427 px of a 748 px screen, which leaves
+			# about 119 px of clear space above it — a caption any taller has nowhere to go and
+			# ends up sitting on the card it is describing.
 			"text": func():
 				var n: int = level.tutorial_n_back()
 				if n == 1:
-					return "Each card is compared with the one before it.\n\nThis is the first — just remember it."
-				return "Each card is compared with the one %d earlier.\n\nThe first %d have nothing behind them. Remember them." % [n, n],
+					return "Nothing to compare this one with yet — just remember it."
+				return "The first %d cards have nothing behind them. Remember them." % n,
 			"spot": card_spot,
 			"spot_pad": 6.0,
 		},

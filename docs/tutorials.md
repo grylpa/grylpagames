@@ -290,6 +290,19 @@ captions docked at the bottom, directly on the two rule labels and the three buc
 whose whole point is holding those rules in your head. Declaring them pushed every caption above
 the fall area. If a game has something the player must be able to re-read at any moment, name it.
 
+**The Skip button is a live control, and a full-width caption reaches under it.** `top_y` is the
+header (60) plus the margin (12) = 72; the Skip button occupies 66-97. Every top-placed caption in
+the app therefore overlapped it — sixteen steps across eight tutorials — and since a talking step is
+dismissed by tapping ANYWHERE, a tap on the top-right of the bubble quit the tutorial instead of
+advancing it. `_layout_panel` now pushes any caption that spans those columns below the button. The
+harness asserts it for every step of every game.
+
+**Pushing a caption down can land it on its own spotlight.** Fixing the above moved dinoback's card
+caption 33 px down, onto the card it was framing. That game's card is 427 px of a 748 px screen,
+which leaves about 119 px of clear space above it — so the caption there has to be one short line,
+and the text was cut to fit rather than the check relaxed. Captions are sized by their content;
+where the board is big, that is a budget, not a preference.
+
 **Audit every clock, not just the obvious one.** "Does the board freeze?" is really "does each of
 the things that can move or expire freeze?", and they are rarely all in one place. Bucket Madness
 paused its falling item and still had three: a preview countdown on a `SceneTreeTimer` that
@@ -647,6 +660,30 @@ would fire afterwards and clear the flag while a panel was genuinely open.
 
 Measured: with the popup up, a swipe gives 0/15 frames flagged and a frozen ball; after it is
 freed, 15/15 and the ball moves.
+
+## When the harness says "stuck", find out whose fault it is
+
+The probe drives each game with a heuristic, and a heuristic that gives up looks exactly like a
+tutorial that has stalled: the step never advances, the run times out, and the failure names the
+step. Twice now the answer was the harness.
+
+deliverem's delivery step "stalled" in two consecutive 26-game sweeps and passed on its own. The
+capture that settled it printed the truck's position six times over two seconds:
+
+```
+DLV TRAIL ["(8,1)/3", "(8,1)/3", "(8,2)/1", "(8,2)/1", "(8,1)/3", "(8,1)/3"]
+```
+
+The truck was bouncing between two cells — it turns around at the top edge, and the door at (8,2)
+sends it straight back. Ordinary game state, which a player breaks by turning that door. The probe
+could not: it only ever turned the next door AHEAD of the truck, and while bouncing there is either
+no door on that ray or the door it picks is one the truck never reaches. It now recognizes a
+two-cell loop and turns the door the truck keeps hitting, rate-limited, because each tap cycles a
+door and three taps put it back.
+
+**Print the state before theorizing.** The first capture gave only `next_door=(-1,-1)`, which was
+consistent with both "the truck is parked" (a real bug that would strand a player) and "my scan is
+too naive". The trail is what distinguished them, and it cost one more reproduction to get.
 
 ## Verifying a tutorial
 
