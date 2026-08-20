@@ -671,6 +671,13 @@ STEP_SETTLE_MS`, and it must be called AFTER `_step_opened_ms` is updated — ap
 measures the window against the step that just ended, which is always long past, so the guard
 never engages.
 
+**A game that has a tutorial never shows its instruction text automatically.** The tutorial IS
+the instructions, delivered one beat at a time — so the wall of text is suppressed on the first run
+(where the tutorial runs instead) and on every run after (where it would just be a repeat of what
+the tutorial already taught). It stays reachable on demand: pressing I, or the help menu, calls
+`show_instructions(parent, false)` and always gets the text. Games with no tutorial are unchanged —
+the wall shows once, on first run, as it always did.
+
 **A step must never be a dead end, and a step that depends on a control outside the game's own
 scene is the one most likely to become one.** The app's bottom bar belongs to the root scene, not
 to the game, so a game's tutorial cannot fully account for it. Where a step waits on one of those,

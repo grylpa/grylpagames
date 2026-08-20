@@ -292,6 +292,33 @@ func _enter_step(i: int) -> void:
 # time — the actual rule on the gate, the amount being asked for, the color that came up. Getting
 # that wrong is worse than saying nothing: aliens once announced "this one matches" over an alien
 # that plainly did not match the pass on screen.
+# A caption whose `title` or `text` is a Callable is re-read every frame, so it can REACT to what
+# the player just did instead of being fixed when the step opened. Lights Out needs this: walking
+# into a bomb during the lesson is survivable, but saying nothing about it leaves the player
+# wondering why they were sent back — the caption changes to name what happened.
+#
+# Only a string that actually CHANGED triggers a relayout, or the caption would be re-measured and
+# re-placed every frame for no reason.
+func _refresh_live_text() -> void:
+	if _idx < 0 or _idx >= _steps.size():
+		return
+	var step: Dictionary = _steps[_idx]
+	var changed: bool = false
+	if step.get("title", "") is Callable:
+		var t: String = _resolve_text(step["title"])
+		if t != _title_label.text:
+			_title_label.text = t
+			_title_label.visible = not t.is_empty()
+			changed = true
+	if step.get("text", "") is Callable:
+		var x: String = _resolve_text(step["text"])
+		if x != _text_label.text:
+			_text_label.text = x
+			changed = true
+	if changed:
+		_panel.visible = not (_title_label.text.is_empty() and _text_label.text.is_empty())
+		_layout_panel()
+
 func _resolve_text(v) -> String:
 	if v is Callable:
 		if not v.is_valid():
@@ -447,6 +474,7 @@ func _hold_clock() -> void:
 
 func _process(dt: float) -> void:
 	_apply_dim_filter()
+	_refresh_live_text()
 	if _finished or _idx < 0 or _idx >= _steps.size():
 		return
 	_hold_clock()

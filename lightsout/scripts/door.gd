@@ -2,7 +2,7 @@ extends Area2D
 
 signal door_pressed(p)
 
-var rot_idx := 0
+var rot_idx: int = 0
 
 var board_pos: Vector2i
 

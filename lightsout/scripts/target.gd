@@ -2,13 +2,13 @@ extends Area2D
 
 signal target_pressed(target_id, board_pos)
 
-var id := 1
-var is_receiver := false
-var is_sender := false
+var id: int = 1
+var is_receiver: bool = false
+var is_sender: bool = false
 var color
 var board_pos: Vector2i
-var transaction_id := -1
-var is_bomb := false
+var transaction_id: int = -1
+var is_bomb: bool = false
 
 func _ready() -> void:
 	pass # Replace with function body.
