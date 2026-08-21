@@ -13,19 +13,42 @@ func _ready() -> void:
 func set_board_pos(p):
 	board_pos = p
 
+# The same rate the capsules' heads turn at (agent.gd::TURN_SPEED), which is taxi's: a right angle
+# in 0.12 s. A door that snaps between its two diagonals gives no sense of having been moved, and
+# it is the one thing in this game the player operates directly.
+const TURN_SPEED: float = PI * 0.5 / 0.12
+
+var _target_rot: float = 0.0
+var _turning: bool = false
+
 func set_rot(_rot_idx):
+	# The LOGIC changes at once — rot_idx is what routes a capsule — and only the drawing eases,
+	# the same split the agents use for their heads.
+	var was_diagonal: bool = rot_idx != 0
 	rot_idx = _rot_idx
-	rotation = PI / 2.0 if rot_idx == 2 else 0.0
+	_target_rot = PI / 2.0 if rot_idx == 2 else 0.0
 	if rot_idx == 0:
 		$DoorOpen.show()
 		$DoorDiag.hide()
 	else:
 		$DoorOpen.hide()
 		$DoorDiag.show()
-	
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(_delta: float) -> void:
-	pass		
+	# Swinging from one diagonal to the other is the same flap moving, so it is worth animating.
+	# Coming from OPEN swaps to a different sprite, where a rotation would just look like a glitch.
+	_turning = was_diagonal and rot_idx != 0
+	if not _turning:
+		rotation = _target_rot
+
+func _process(delta: float) -> void:
+	if not _turning:
+		return
+	var diff: float = wrapf(_target_rot - rotation, -PI, PI)
+	var step: float = TURN_SPEED * delta
+	if absf(diff) <= step:
+		rotation = _target_rot
+		_turning = false
+	else:
+		rotation += signf(diff) * step
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event.is_action_pressed("lclick"):

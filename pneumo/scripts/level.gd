@@ -426,20 +426,25 @@ func tick():
 					vdir = game.DirArray[dir]
 					q = p + vdir
 				agent.direction = dir
+				# Tile CENTERS, with no diagonal offset. The old ±tile/4 nudge at a door put the
+				# capsule off the row it was traveling along, so it ran at odd angles between
+				# doors and every corner became three joints instead of one.
 				var new_agent_pos = game.board_to_px(q)
 				var cell = board[q.y][q.x]
-				var d = int(game.tile_size/4.0)
+				# What the door in q will do to this capsule when it arrives, worked out HERE so
+				# the agent can take the whole corner as one arc through the door tile instead of
+				# turning on the spot. Same rules as the deflection above, applied to `dir` — the
+				# direction it will be traveling in when it gets there.
+				var turn_dir: int = -1
 				if cell.door_type == 1:
-					if dir == 0 or dir == 3:
-						new_agent_pos += Vector2(-d,d)
-					elif dir == 2 or dir == 1:
-						new_agent_pos += Vector2(d,-d)
+					turn_dir = (dir + 1) % 4 if (dir == 0 or dir == 2) else (dir + 3) % 4
 				elif cell.door_type == 2:
-					if dir == 0 or dir == 1:
-						new_agent_pos += Vector2(-d,-d)
-					elif dir == 2 or dir == 3:
-						new_agent_pos += Vector2(d,d)
-				agent.set_target_pos(new_agent_pos)
+					turn_dir = (dir + 3) % 4 if (dir == 0 or dir == 2) else (dir + 1) % 4
+				# Only if it can actually leave that way; otherwise it will bounce, and a rounded
+				# corner into a wall would just be a wrong prediction drawn on screen.
+				if turn_dir >= 0 and not can_go_to(q + Vector2i(game.DirArray[turn_dir])):
+					turn_dir = -1
+				agent.set_target_pos(new_agent_pos, turn_dir)
 				agent.board_pos = q
 				board[q.y][q.x].has_agent = true
 				board[p.y][p.x].has_agent = false			
