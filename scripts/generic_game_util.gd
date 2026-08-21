@@ -1251,6 +1251,15 @@ func stop_sound(_name: String):
 	if sounds.has(_name):
 		sounds[_name].stop()
 
+# Every registered sound, silenced. A tutorial calls this when it ends: several games start an
+# ambient loop from new_game() (gorilla's rumble, storm's rain, taxi's motor), and finishing or
+# skipping a tutorial used to leave it playing on and on over the main menu.
+func stop_all_sounds() -> void:
+	for key in sounds:
+		var s = sounds[key]
+		if s != null and is_instance_valid(s):
+			s.stop()
+
 func set_sound_volume(_name: String, volume_db: float):
 	if sounds.has(_name):
 		sounds[_name].volume_db = volume_db
