@@ -457,6 +457,10 @@ func _finish(completed: bool) -> void:
 	MainGlobals.mark_tutorial_done(completed)
 	if _game != null:
 		_game.tutorial_runner = null
+		# Silence whatever the tutorial's own session started. Several games kick off an ambient
+		# loop in new_game(), and the tutorial runs a real session — so completing it, or hitting
+		# Skip, left that loop running underneath the main menu.
+		_game.stop_all_sounds()
 		# Restore the real session BEFORE the callback, so whoever resumes the game sees the
 		# player's own state rather than the tutorial's.
 		_game.end_tutorial()
@@ -472,6 +476,7 @@ func _exit_tree() -> void:
 	_set_frozen(false)
 	if not _finished and _game != null:
 		_game.tutorial_runner = null
+		_game.stop_all_sounds()
 		_game.end_tutorial()
 		_finished = true
 
