@@ -139,6 +139,10 @@ func set_pos(p, dir):
 	hide_hand()
 	direction = dir
 	angles[0] = dir * PI/2
+	if not _head_angle_set:
+		# The heading it is BORN with is not a turn either.
+		_head_angle = angles[0]
+		_head_angle_set = true
 	set_rots()
 	if !isready:
 		return
@@ -176,6 +180,8 @@ var time_to_turn_feet_off := 0
 var last_pos := Vector2.ZERO
 var velocity := Vector2.ZERO
 func _process(_delta: float) -> void:
+	_ease_head_angle(_delta)
+	$Head.rotation = _head_angle
 	if has_power and MainGlobals.timems() - time_started_power > DURATION_TO_STOP_POWER:
 		stop_power()
 
@@ -248,7 +254,7 @@ func find_closest_dist(dist):
 	return idx
 			
 func set_rots():
-	$Head.rotation = angles[0]
+	$Head.rotation = _head_angle if _head_angle_set else angles[0]
 	for i in nbody_parts:
 		bodies[i].rotation = angles[i+1]
 	
@@ -393,3 +399,33 @@ func set_board_pos(q:Vector2i, board):
 	board[p.y][p.x].has_agent = false
 	board[q.y][q.x].has_agent = true
 	board_pos = q
+
+# --- Turning ---------------------------------------------------------------------------------
+#
+# `angles[0]` is the LOGICAL heading, recomputed every frame from the direction of travel — and at
+# a corner that direction changes between one frame and the next, so drawing the head straight off
+# it made it snap round in a single frame. `_head_angle` is what the head is DRAWN at: it chases
+# the logical heading at a constant rate, so a corner reads as a turn. The body segments are
+# unaffected; they trail off `angles`, not off this.
+#
+# The rate is taxi's: a right angle in 0.12 s. Constant rather than proportional, because a
+# proportional ease takes a share of the remaining angle per frame and so swallows the whole turn
+# at once when a frame runs long.
+const TURN_SPEED: float = PI * 0.5 / 0.12
+
+var _head_angle: float = 0.0
+var _head_angle_set: bool = false
+
+func _ease_head_angle(delta: float) -> void:
+	if not _head_angle_set:
+		# The first heading of its life is not a turn — face that way, do not spin into it.
+		_head_angle = angles[0]
+		_head_angle_set = true
+		return
+	# Shortest way round, so a right turn from "up" does not unwind three quarters of a circle.
+	var diff: float = wrapf(angles[0] - _head_angle, -PI, PI)
+	var step: float = TURN_SPEED * delta
+	if absf(diff) <= step:
+		_head_angle = angles[0]
+	else:
+		_head_angle += signf(diff) * step
