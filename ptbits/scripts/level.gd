@@ -516,22 +516,27 @@ func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
 		_level_done(true)
 
 func _flash_miss(pos: Vector2) -> void:
-	# a fading red ✗ so a vanished ball reads clearly as a miss
-	var lbl: Label = Label.new()
-	lbl.text = "✗"
-	lbl.add_theme_font_size_override("font_size", 56)
-	lbl.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
-	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
-	lbl.z_index = 60
+	# A DRAWN cross, not the "✗" character. The UI font is Open Sans (MainGlobals
+	# .get_system_sans_font), which has no U+2717, so whether anything appeared came down to
+	# whether the device happened to have a symbol font to fall back on — on one that does not,
+	# a lost ball flashed an empty box. Two strokes cost nothing and always look the same.
+	var mark: Node2D = Node2D.new()
+	mark.z_index = 60
 	var fx: float = clampf(pos.x, play_left + 24.0, play_right - 24.0)
 	var fy: float = clampf(pos.y, play_top + 24.0, play_bottom - 44.0)
-	lbl.position = Vector2(fx - 18.0, fy - 32.0)
-	add_child(lbl)
+	mark.position = Vector2(fx, fy)
+	mark.modulate = Color(1.0, 0.35, 0.35)
+	mark.draw.connect(func() -> void:
+		var r: float = 17.0
+		var w: float = 6.0
+		mark.draw_line(Vector2(-r, -r), Vector2(r, r), Color.WHITE, w, true)
+		mark.draw_line(Vector2(-r, r), Vector2(r, -r), Color.WHITE, w, true))
+	add_child(mark)
 	var tw: Tween = create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(lbl, "modulate:a", 0.0, 0.75)
-	tw.tween_property(lbl, "position:y", lbl.position.y - 44.0, 0.75)
-	tw.chain().tween_callback(lbl.queue_free)
+	tw.tween_property(mark, "modulate:a", 0.0, 0.75)
+	tw.tween_property(mark, "position:y", mark.position.y - 44.0, 0.75)
+	tw.chain().tween_callback(mark.queue_free)
 
 # --- Frame updates ----------------------------------------------------------
 
