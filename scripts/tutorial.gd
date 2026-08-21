@@ -81,6 +81,7 @@ const KEEP_CLEAR_PAD: float = 6.0
 const SPOT_FOLLOW_COOLDOWN_MS: int = 700
 var _moved_for_spot_ms: int = -100000
 var _step_elapsed: float = 0.0
+var _diag_ticks: int = 0
 var _hint_shown: bool = false
 var _await_event: String = ""
 var _await_timeout: float = 0.0
@@ -352,6 +353,20 @@ func _update_footer() -> void:
 		# "take your time" nudge is worse than none — it tells the player nothing they do not know.
 		var hint: String = _resolve_text(_steps[_idx].get("hint", ""))
 		line = hint if line.is_empty() else hint + "\n" + line
+	# TEMPORARY DIAGNOSTIC — remove once the mobile taxi stall is understood. On a DOING step the
+	# game must be running; if it is paused, the board is frozen and the step can never be
+	# satisfied. game.paused() is four things OR'd together, so this says which one is true.
+	if not _blocking and _game != null and _game.paused():
+		var why: Array = []
+		if bool(_game.get("_pause")):
+			why.append("_pause")
+		if MainGlobals.any_screen_visible():
+			why.append("screens:" + ",".join(MainGlobals.visible_screens.keys()))
+		if not bool(_game.get("in_focus")):
+			why.append("no focus")
+		if not bool(_game.get("playing")):
+			why.append("not playing")
+		line = "FROZEN: " + ("  ".join(why) if not why.is_empty() else "?")
 	_foot_label.text = line
 	_foot_label.visible = not line.is_empty()
 
@@ -512,6 +527,13 @@ func _process(dt: float) -> void:
 			_hint_shown = true
 			_update_footer()
 			_layout_panel()
+
+	# TEMPORARY DIAGNOSTIC — keep the FROZEN readout current; the footer is otherwise only rebuilt
+	# when a step changes or a hint appears.
+	if not _blocking and _game != null:
+		_diag_ticks += 1
+		if _diag_ticks % 20 == 0:
+			_update_footer()
 
 	# Re-evaluated every frame so the spotlight tracks a moving target.
 	var was: Rect2 = _spot_rect
