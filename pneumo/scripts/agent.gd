@@ -51,7 +51,8 @@ func _ready() -> void:
 	angles.append(0)
 	nbody_parts = body_ids.size()
 	tail_dist_back = body_dist * nbody_parts + head_dist
-	z_index = 10
+	# Starts BEHIND the gates and rises above them once it has left the mouth (see _rise_above).
+	z_index = Z_IN_GATE
 	$Skeleton.z_index = z_index-10
 	# var dsc = (1.0 - 0.4) / nbody_parts
 	for i in nbody_parts:
@@ -95,6 +96,8 @@ func set_type(_agent_type):
 	
 func set_pos(p, dir):
 	direction = dir
+	_spawn_pos = p
+	_emerged = false
 	angles[0] = dir * PI/2
 	if not _head_angle_set:
 		# The heading a capsule is BORN with is not a turn — face that way at once, or it swings
@@ -150,11 +153,90 @@ var _arc_frac: float = 0.0               # share of THIS leg spent on the straig
 var _arc_half: int = 0                   # 0 = no arc, 1 = first half of one, 2 = second half
 var _legs_done: int = 0                  # how many targets this capsule has been given
 
-# A door sitting right at a thrower's mouth is the one place the full-tile radius is wrong: the arc
-# would start at the capsule's spawn point, so it would leave the thrower already curving —
-# crossing the door before it turns. On its FIRST leg a capsule therefore gets a half-tile radius,
-# which buys it half a tile of straight exit and still clears the door's center by 0.2 tiles.
-const FIRST_LEG_RADIUS_FRAC: float = 0.5
+# --- Bouncing off a wrong receiver ----------------------------------------------------------
+#
+# A capsule that arrives somewhere it cannot go is sent back the way it came. Turning round on the
+# spot read as a mistake rather than as an impact, so it now takes the hit: it COMPRESSES along the
+# axis it was traveling, holds for an instant, then springs back out and leaves in the other
+# direction. The squash is drawn only — `direction` has already been reversed by the level, and the
+# level's tick keeps its own time.
+const BOUNCE_SQUASH: float = 0.55        # how far it compresses, as a share of its length
+const BOUNCE_BULGE: float = 0.5          # how much of that it gives back across the axis
+const BOUNCE_IN_MS: float = 90.0         # compressing, held in place
+const BOUNCE_OUT_MS: float = 130.0       # springing back out, moving again
+
+var _bounce_ms: float = -1.0
+var _bounce_axis: Vector2 = Vector2.RIGHT
+var _bounce_last_ms: float = 0.0
+var _bounce_flipped: bool = false
+
+# Called by the level the moment it turns a capsule back.
+func start_bounce(axis: Vector2) -> void:
+	_bounce_ms = MainGlobals.timems()
+	_bounce_flipped = false
+	_bounce_axis = Vector2(absf(axis.x), absf(axis.y))
+	if _bounce_axis == Vector2.ZERO:
+		_bounce_axis = Vector2.RIGHT
+
+# 0 while it is not bouncing, otherwise how far through the squash it is, 0..1.
+func _bounce_phase() -> float:
+	if _bounce_ms < 0.0:
+		return 0.0
+	var t: float = MainGlobals.timems() - _bounce_ms
+	if t >= BOUNCE_IN_MS + BOUNCE_OUT_MS:
+		_bounce_ms = -1.0
+		scale = Vector2.ONE
+		return 0.0
+	if t < BOUNCE_IN_MS:
+		return (t / BOUNCE_IN_MS) * 0.5
+	return 0.5 + ((t - BOUNCE_IN_MS) / BOUNCE_OUT_MS) * 0.5
+
+func _apply_bounce_squash(phase: float) -> void:
+	# The head is turned round AT the moment of deepest compression, in one frame, while the
+	# capsule is squashed flat and nothing about its shape says which way it is pointing. Eased
+	# the usual way it swept a visible 180 degree pirouette, which reads as a decision rather than
+	# as an impact.
+	if not _bounce_flipped and phase >= 0.5:
+		_bounce_flipped = true
+		angles[0] = float(direction) * PI / 2.0
+		_head_angle = angles[0]
+		_head_angle_set = true
+		set_rots()
+		# The head's three frames carry a line across the capsule, and turning the sprite 180
+		# degrees throws that line to the opposite position — a jump, right at the moment the
+		# player is watching. Mirroring the frame index (0<->2, 1 stays) puts the line back where
+		# it was, so the flip is invisible in the artwork as well as in the pose.
+		var frames: SpriteFrames = $Head.sprite_frames
+		if frames != null and frames.get_frame_count($Head.animation) == 3:
+			$Head.frame = 2 - $Head.frame
+	# One smooth in-and-out: fully compressed at the half way point.
+	var amount: float = sin(phase * PI)
+	var along: float = 1.0 - (1.0 - BOUNCE_SQUASH) * amount
+	var across: float = 1.0 + (1.0 - BOUNCE_SQUASH) * amount * BOUNCE_BULGE
+	if _bounce_axis.x > 0.5:
+		scale = Vector2(along, across)
+	else:
+		scale = Vector2(across, along)
+
+# A capsule's FIRST leg is the one place there is not enough room: it starts at a cell center, so a
+# door directly in front leaves exactly one tile of run-up, and an arc needs a full radius of that
+# before the door's center. At the full tile it would curve from the instant it appeared; at 0.75
+# it runs a quarter tile straight out of the gate first and still clears the door's center by 0.31
+# tiles, against 0.41 on an ordinary turn.
+const FIRST_LEG_RADIUS_FRAC: float = 0.75
+
+# Gates (senders and receivers) are drawn at z 100. A capsule waiting in a gate's mouth sits BELOW
+# them so it looks like it is coming from inside; once it is clear of the mouth it rises above, so
+# that arriving at a receiver — and bouncing off the wrong one — happens in plain view.
+const Z_IN_GATE: int = 90
+const Z_ON_BOARD: int = 110
+# A capsule is dispatched a whole tile clear of its gate, so only its tail overlaps: a third of a
+# tile of travel is enough to be free of the sprite. Any longer and it stays behind the gate after
+# it has visibly left, which is what "most of it is hidden" looked like.
+const EMERGED_FRAC: float = 0.33
+
+var _spawn_pos: Vector2 = Vector2.ZERO
+var _emerged: bool = false
 
 func set_target_pos(p, turn_dir: int = -1):
 	if _arc_half == 1:
@@ -186,7 +268,6 @@ func set_target_pos(p, turn_dir: int = -1):
 		var u_out: Vector2 = Vector2(game.DirArray[turn_dir]).normalized()
 		# A right angle and nothing else: this is the only shape a door makes.
 		if u_out != Vector2.ZERO and absf(u_in.dot(u_out)) < 0.01:
-			var frac: float = FIRST_LEG_RADIUS_FRAC if _legs_done == 0 else TURN_RADIUS_FRAC
 			# The radius is CAPPED by the run-up actually available, not demanded of it. A capsule
 			# halts a fraction short of each target — legs measure about 39.3 px against a 40 px
 			# tile — so a guard that insisted on a full tile of run-up refused to plan any arc at
@@ -194,6 +275,7 @@ func set_target_pos(p, turn_dir: int = -1):
 			# what a capsule bounced back off a wrong receiver did on its way back through the
 			# door it came in by.
 			var leg_len: float = position.distance_to(p)
+			var frac: float = FIRST_LEG_RADIUS_FRAC if _legs_done == 0 else TURN_RADIUS_FRAC
 			var r: float = minf(game.tile_size * frac, leg_len)
 			if r >= game.tile_size * 0.2:
 				_arc_a = p - u_in * r
@@ -234,6 +316,19 @@ func _process(delta: float) -> void:
 		_last_process_ms = now_ms
 		return
 	_last_process_ms = now_ms
+	var bphase: float = _bounce_phase()
+	if bphase > 0.0:
+		_apply_bounce_squash(bphase)
+		if bphase < 0.5:
+			# Compressing: it has stopped dead against whatever it hit. Push the leg's clock
+			# forward so the move it is about to make does not lose the time.
+			time_set_target_pos += now_ms - _bounce_last_ms
+			_bounce_last_ms = now_ms
+			_ease_head_angle(delta)
+			$Head.rotation = _head_angle
+			return
+	_bounce_last_ms = now_ms
+	_rise_above_gate_once_clear()
 	_ease_head_angle(delta)
 	$Head.rotation = _head_angle
 	if MainGlobals.timems() - time_created_ms > game.time_to_auto_start_moving_ms:
@@ -440,3 +535,18 @@ func _ease_head_angle(delta: float) -> void:
 		_head_angle = angles[0]
 	else:
 		_head_angle += signf(diff) * step
+
+# A capsule is drawn behind the gates while it is still in the mouth of one, and in front of them
+# once it has left. Raising it a fixed distance after dispatch, rather than on the first movement,
+# keeps it hidden for exactly as long as it overlaps the gate's own sprite.
+func _rise_above_gate_once_clear() -> void:
+	if _emerged:
+		return
+	if position.distance_to(_spawn_pos) < game.tile_size * EMERGED_FRAC:
+		return
+	_emerged = true
+	z_index = Z_ON_BOARD
+	$Skeleton.z_index = z_index - 10
+	for i in bodies.size():
+		if is_instance_valid(bodies[i]):
+			bodies[i].z_index = z_index - i - 1
