@@ -64,6 +64,17 @@ func _ready() -> void:
 
 func set_pos(p, dir):
 	direction = dir
+	# `angles` is filled in _ready, and the level does add_child() before this — but a caller that
+	# ever reversed that order would index an empty array here.
+	if not _head_angle_set and angles.size() > 0:
+		# The heading a truck is DISPATCHED with is not a turn. Without this the drawn angle was
+		# first seeded from `angles[0]`, which is 0 (east) until the truck has actually moved — so
+		# a truck that is dispatched facing DOWN (direction 1, the only direction the level uses)
+		# spent its first moment pointing right, and then swung.
+		angles[0] = dir * PI / 2.0
+		_head_angle = angles[0]
+		_head_angle_set = true
+		$Head.rotation = _head_angle
 	if !isready:
 		return
 	position = p
@@ -84,7 +95,7 @@ func set_target_pos(p):
 var last_pos: Vector2 = Vector2.ZERO
 var _last_process_ms: int = MainGlobals.timems()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# The truck slides between tiles on a hand-rolled interpolation, not a Tween, so nothing stops
 	# it when the game pauses: it would keep gliding through a help screen, a popup or a tutorial
 	# caption. Pushing the move's start time forward by the paused duration suspends it mid-tile
@@ -95,6 +106,8 @@ func _process(_delta: float) -> void:
 		_last_process_ms = now_ms
 		return
 	_last_process_ms = now_ms
+	_ease_head_angle(delta)
+	$Head.rotation = _head_angle
 	if position == last_pos:
 		if $Tail.is_playing():
 			$Tail.stop()
@@ -181,7 +194,7 @@ func find_closest_dist(dist):
 	return idx
 			
 func set_rots():
-	$Head.rotation = angles[0]
+	$Head.rotation = _head_angle if _head_angle_set else angles[0]
 	$Tail.rotation = angles[-1]
 	for i in nbody_parts:
 		bodies[i].rotation = angles[i+1]
@@ -231,3 +244,36 @@ func final_remove_body(id):
 		_pending_remove_ids.erase(id)
 		return true
 	return false
+
+# --- Turning ---------------------------------------------------------------------------------
+#
+# `angles[0]` is the LOGICAL heading, recomputed every frame from the direction of travel — and at
+# a corner the direction of travel changes between one frame and the next, so drawing the head
+# straight off it made the truck snap round. `_head_angle` is what the head is DRAWN at: it
+# chases the logical heading instead of matching it, so a corner reads as a turn.
+#
+# Taxi does the same thing with a 0.12 s tween in `set_rot`, which works there because the heading
+# only changes when the taxi is told to turn. Here it is re-derived every frame, and restarting a
+# tween every frame means it never arrives — so this eases per frame instead. The body segments are
+# unaffected: they trail off `angles`, not off this.
+# A CONSTANT angular speed, not a proportional ease: taxi tweens its head over a fixed 0.12 s, and
+# matching that here means the swing looks the same in both games and can never exceed this rate,
+# however long a frame runs.
+const TURN_SPEED: float = PI * 0.5 / 0.12   # a right angle in 0.12 s
+
+var _head_angle: float = 0.0
+var _head_angle_set: bool = false
+
+func _ease_head_angle(delta: float) -> void:
+	if not _head_angle_set:
+		# First heading of this truck's life: face that way, do not spin into it.
+		_head_angle = angles[0]
+		_head_angle_set = true
+		return
+	# Shortest way round, so a right turn from "up" does not unwind three quarters of a circle.
+	var diff: float = wrapf(angles[0] - _head_angle, -PI, PI)
+	var step: float = TURN_SPEED * delta
+	if absf(diff) <= step:
+		_head_angle = angles[0]
+	else:
+		_head_angle += signf(diff) * step

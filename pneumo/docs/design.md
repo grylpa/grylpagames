@@ -92,3 +92,37 @@ Specific to this game:
   all `game.tutorial_notify`, no-ops outside tutorial mode.
 - Points for the coach, all in screen coordinates: `tutorial_capsule_pos`,
   `tutorial_receiver_pos`, `tutorial_next_door_pos`.
+
+## Doors swing
+
+`door.gd::set_rot()` changes `rot_idx` — which is what routes a capsule — at once, and eases only
+the drawing, the same split the capsules use for their heads. It turns at the same `TURN_SPEED`
+(PI/2 per 0.12 s), so a door and a capsule move at one rate.
+
+**Only the diagonal-to-diagonal transition is animated.** The three states are open, one diagonal,
+the other; open uses `$DoorOpen` and both diagonals use `$DoorDiag` at rotation 0 or PI/2. Swinging
+between the two diagonals is the same flap moving, so it is worth animating; arriving from open
+swaps to a different sprite, where rotating would read as a glitch rather than as a movement.
+
+## Turning
+
+The capsule's head is drawn from `_head_angle`, which chases the logical heading rather than
+matching it. `angles[0]` stays the heading everything else derives from — the body segments trail
+off it — and is re-derived every frame from the direction of travel; at a corner that flips between
+one frame and the next, and a head drawn straight off it snapped round in a single frame (measured:
+188 rad/s, the whole turn in one frame).
+
+`_ease_head_angle()` moves the drawn angle at a **constant** `TURN_SPEED` of PI/2 per 0.12 s — the
+same swing taxi gets from its 0.12 s tween, so the two games look alike. Constant rate rather than
+a proportional ease, because a proportional one takes a share of the remaining angle per frame and
+so takes the whole turn at once when a frame runs long; this one cannot exceed its rate whatever
+the frame time. Always the short way round (`wrapf(diff, -PI, PI)`), so a right turn from "up" does
+not unwind three quarters of a circle.
+
+Two details that were wrong first time:
+
+- **Ease every frame, not only while the body is sliding.** Called from inside the movement branch,
+  a heading change while the capsule was at rest still snapped.
+- **The first heading of a capsule's life is not a turn.** `_head_angle_set` seeds the drawn angle
+  outright the first time it is known, in `set_rot()` as well as on the first eased frame — otherwise it swings into place in full view as it
+  appears.

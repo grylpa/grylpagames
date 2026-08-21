@@ -96,6 +96,11 @@ func set_type(_agent_type):
 func set_pos(p, dir):
 	direction = dir
 	angles[0] = dir * PI/2
+	if not _head_angle_set:
+		# The heading a capsule is BORN with is not a turn — face that way at once, or it swings
+		# into place in full view the moment it appears.
+		_head_angle = angles[0]
+		_head_angle_set = true
 	set_rots()
 	if !isready:
 		return
@@ -103,20 +108,120 @@ func set_pos(p, dir):
 			
 var time_set_target_pos = MainGlobals.timems()
 
-func set_target_pos(p):
+# --- One arc through the door ------------------------------------------------------------------
+#
+# The capsule runs dead straight — horizontal or vertical, never anything else — right up to
+# `TURN_RADIUS` short of the door's center, takes ONE quarter-arc through the door tile, and leaves
+# straight along the new axis. The leg deliberately ENDS past the door center, at the far end of
+# the arc, so the next leg is a plain axis-aligned run to the next tile center.
+#
+# Two earlier attempts are worth remembering, because both looked wrong in ways the numbers did
+# not show at first:
+#   1. Curving the WHOLE leg (control point a tile away) took the capsule off the straight run
+#      entirely and set it oscillating.
+#   2. Rounding each joint of the level's own three-leg turn — it used to aim at a point offset a
+#      quarter tile DIAGONALLY inside the door — gave three small arcs curving alternate ways: a
+#      harsh turn, a correction back, then another. The offsets are gone from level.gd now, which
+#      is what makes a single arc possible.
+#
+# The level says a turn is coming (`turn_dir`) when it sets the target, one tick BEFORE the capsule
+# reaches the door, because an arc has to begin before the corner.
+# Of a tile, the arc's reach either side of the door's center. At 1.0 the turn is a single quarter
+# circle from one tile center to the next, which is as wide as the geometry allows: it passes
+# 0.414 tiles from the door's center (a circular arc of radius R clears the corner it rounds by
+# 0.414 R), so a capsule swings around the flap rather than over it, and two capsules turning at
+# the same door from opposite sides keep about 0.83 tiles between their paths.
+const TURN_RADIUS_FRAC: float = 1.0
+
+# The arc is deliberately split across the TWO legs of the turn — into the door and out of it —
+# rather than crammed into one. Each leg then carries half of it and is the same length as the
+# other, so the capsule holds one speed all the way round. Packed into a single leg (the first
+# attempt at this) the leg into the door was 1.49 tiles and the one out of it 0.15, both given a
+# tick apiece: the capsule sprinted through the turn and then crawled.
+#
+# A CIRCLE, not a Bezier: constant curvature is what makes the whole thing read as one movement.
+# A quadratic Bezier bends hardest in its middle — the "harsh, then correcting" look — and passes
+# closer to the corner (0.354 R) for the same reach.
+var _arc_center: Vector2 = Vector2.ZERO
+var _arc_from: Vector2 = Vector2.ZERO    # the arc's start, relative to its center
+var _arc_sweep: float = 0.0              # +/- PI/2 for the whole turn; each leg takes half
+var _arc_a: Vector2 = Vector2.ZERO       # where the straight run ends and the arc begins
+var _arc_frac: float = 0.0               # share of THIS leg spent on the straight part
+var _arc_half: int = 0                   # 0 = no arc, 1 = first half of one, 2 = second half
+var _legs_done: int = 0                  # how many targets this capsule has been given
+
+# A door sitting right at a thrower's mouth is the one place the full-tile radius is wrong: the arc
+# would start at the capsule's spawn point, so it would leave the thrower already curving —
+# crossing the door before it turns. On its FIRST leg a capsule therefore gets a half-tile radius,
+# which buys it half a tile of straight exit and still clears the door's center by 0.2 tiles.
+const FIRST_LEG_RADIUS_FRAC: float = 0.5
+
+func set_target_pos(p, turn_dir: int = -1):
+	if _arc_half == 1:
+		# Second half of a turn already under way: finish the arc, then run straight at whatever
+		# the level has just asked for. The capsule is standing at the arc's midpoint.
+		_legs_done += 1
+		_arc_half = 2
+		_arc_from = position - _arc_center
+		var radius: float = _arc_from.length()
+		var half_len: float = absf(_arc_sweep) * 0.5 * radius
+		# The straight run afterwards is measured from where the ARC ENDS, not from where the
+		# capsule is standing now. Measuring it from here counted the arc's own chord as straight
+		# line as well, so the capsule finished the turn half way through the leg and then stood
+		# still for the rest of it.
+		var arc_end: Vector2 = _arc_center + _arc_from.rotated(_arc_sweep * 0.5)
+		var out_len: float = arc_end.distance_to(p)
+		_arc_frac = half_len / maxf(half_len + out_len, 0.001)
+		target_position = p
+		starting_position = position
+		time_set_target_pos = MainGlobals.timems()
+		time_from_start_to_target_ms = game.major_tick_time_ms
+		set_target_once = true
+		time_created_ms = MainGlobals.timems()
+		return
+	_arc_half = 0
+	_arc_frac = 0.0
+	var u_in: Vector2 = (p - position).normalized()
+	if turn_dir >= 0 and u_in != Vector2.ZERO:
+		var u_out: Vector2 = Vector2(game.DirArray[turn_dir]).normalized()
+		# A right angle and nothing else: this is the only shape a door makes.
+		if u_out != Vector2.ZERO and absf(u_in.dot(u_out)) < 0.01:
+			var frac: float = FIRST_LEG_RADIUS_FRAC if _legs_done == 0 else TURN_RADIUS_FRAC
+			# The radius is CAPPED by the run-up actually available, not demanded of it. A capsule
+			# halts a fraction short of each target — legs measure about 39.3 px against a 40 px
+			# tile — so a guard that insisted on a full tile of run-up refused to plan any arc at
+			# all, and those capsules went straight over the door and turned on the spot. That is
+			# what a capsule bounced back off a wrong receiver did on its way back through the
+			# door it came in by.
+			var leg_len: float = position.distance_to(p)
+			var r: float = minf(game.tile_size * frac, leg_len)
+			if r >= game.tile_size * 0.2:
+				_arc_a = p - u_in * r
+				_arc_center = _arc_a + u_out * r
+				_arc_from = _arc_a - _arc_center
+				_arc_sweep = (PI * 0.5) * signf(u_in.cross(u_out))
+				_arc_half = 1
+				# This leg is: straight run, then the FIRST half of the arc. Time is split by
+				# length so the speed does not change at the joint.
+				var straight_len: float = position.distance_to(_arc_a)
+				var half_len: float = r * PI * 0.25
+				_arc_frac = straight_len / maxf(straight_len + half_len, 0.001)
+				# It ends at the arc's midpoint; the next leg picks the arc up from there.
+				p = _arc_center + _arc_from.rotated(_arc_sweep * 0.5)
+	_legs_done += 1
 	target_position = p
 	starting_position = position
 	time_set_target_pos = MainGlobals.timems()
 	time_from_start_to_target_ms = game.major_tick_time_ms
 	set_target_once = true
 	time_created_ms = MainGlobals.timems()
-	
+
 # Held still by the coach for a step that is about something ELSE — the doors. Behaves exactly
 # like a pause for this capsule: every clock is suspended, so nothing ages while it waits.
 var tutorial_hold: bool = false
 var _last_process_ms: int = MainGlobals.timems()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Both clocks in here are the WALL clock: the auto-start delay and the tile-to-tile
 	# interpolation. Neither stops when the game pauses, so a capsule kept gliding through a help
 	# screen, a popup or a tutorial caption. Pushing both baselines forward by the paused (or held)
@@ -129,6 +234,8 @@ func _process(_delta: float) -> void:
 		_last_process_ms = now_ms
 		return
 	_last_process_ms = now_ms
+	_ease_head_angle(delta)
+	$Head.rotation = _head_angle
 	if MainGlobals.timems() - time_created_ms > game.time_to_auto_start_moving_ms:
 		is_moving = true
 		sig_agent_started_moving.emit(transaction_id)
@@ -141,7 +248,26 @@ func _process(_delta: float) -> void:
 			var sf = dt / float(time_from_start_to_target_ms * game.time_scale / speed_scale)
 			var v = dv * sf
 			var last = position
-			position = starting_position + v
+			if _arc_half == 1:
+				if sf < _arc_frac:
+					# Straight in, along the axis, up to where the arc begins.
+					position = starting_position.lerp(_arc_a, sf / _arc_frac)
+				else:
+					# First half of the sweep, ending at the arc's midpoint.
+					var t1: float = (sf - _arc_frac) / maxf(1.0 - _arc_frac, 0.001)
+					position = _arc_center + _arc_from.rotated(_arc_sweep * 0.5 * t1)
+			elif _arc_half == 2:
+				if sf < _arc_frac:
+					# Second half of the sweep, out of the turn.
+					var t2: float = sf / maxf(_arc_frac, 0.001)
+					position = _arc_center + _arc_from.rotated(_arc_sweep * 0.5 * t2)
+				else:
+					# Straight out along the new axis.
+					var arc_end: Vector2 = _arc_center + _arc_from.rotated(_arc_sweep * 0.5)
+					position = arc_end.lerp(target_position,
+						(sf - _arc_frac) / maxf(1.0 - _arc_frac, 0.001))
+			else:
+				position = starting_position + v
 			angles[0] = last.angle_to_point(position)
 			if Vector2i(target_position) != Vector2i(starting_position):
 				time_back_positions.push_back(position.round())
@@ -181,7 +307,7 @@ func find_closest_dist(dist):
 	return idx
 			
 func set_rots():
-	$Head.rotation = angles[0]
+	$Head.rotation = _head_angle if _head_angle_set else angles[0]
 	for i in nbody_parts:
 		bodies[i].rotation = angles[i+1]
 	
@@ -281,3 +407,36 @@ func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> voi
 
 func _on_body_input_event() -> void:
 	agent_pressed.emit(transaction_id, board_pos)
+
+# --- Turning ---------------------------------------------------------------------------------
+#
+# `angles[0]` is the LOGICAL heading, recomputed every frame from the direction of travel — and at
+# a corner the direction of travel changes between one frame and the next, so drawing the head
+# straight off it made the capsule snap round. `_head_angle` is what the head is DRAWN at: it
+# chases the logical heading instead of matching it, so a corner reads as a turn.
+#
+# Taxi does the same thing with a 0.12 s tween in `set_rot`, which works there because the heading
+# only changes when the taxi is told to turn. Here it is re-derived every frame, and restarting a
+# tween every frame means it never arrives — so this eases per frame instead. The body segments are
+# unaffected: they trail off `angles`, not off this.
+# A CONSTANT angular speed, not a proportional ease: taxi tweens its head over a fixed 0.12 s, and
+# matching that here means the swing looks the same in both games and can never exceed this rate,
+# however long a frame runs.
+const TURN_SPEED: float = PI * 0.5 / 0.12   # a right angle in 0.12 s
+
+var _head_angle: float = 0.0
+var _head_angle_set: bool = false
+
+func _ease_head_angle(delta: float) -> void:
+	if not _head_angle_set:
+		# First heading of this capsule's life: face that way, do not spin into it.
+		_head_angle = angles[0]
+		_head_angle_set = true
+		return
+	# Shortest way round, so a right turn from "up" does not unwind three quarters of a circle.
+	var diff: float = wrapf(angles[0] - _head_angle, -PI, PI)
+	var step: float = TURN_SPEED * delta
+	if absf(diff) <= step:
+		_head_angle = angles[0]
+	else:
+		_head_angle += signf(diff) * step
