@@ -290,6 +290,11 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	# agent.hit.connect(on_agent_hit)
 	agent.remove_agent.connect(on_agent_remove_agent)
 	agents.append(agent)
+	# At the cell's center, on the board — where the capsule is mostly OUT of the gate with just
+	# its tail overlapping. The agent draws itself behind the gates until it is clear (see
+	# Z_IN_GATE), so that tail is hidden by the gate rather than drawn on top of it. Dispatching it
+	# half a tile further back was tried, to buy the first turn more run-up: it put most of the
+	# capsule inside the gate, which is not what a capsule about to be thrown should look like.
 	agent.set_pos(game.board_to_px(p), direction)
 	var sender = find_closest_target(p)
 	var receiver = null
@@ -422,9 +427,13 @@ func tick():
 				vdir = game.DirArray[dir]
 				q = p + vdir
 				if !can_go_to(q):
+					# Nowhere to go — a wrong receiver, or a wall. It comes back the way it came,
+					# and takes the impact: the agent compresses along the axis it was traveling
+					# and springs out again rather than simply turning round on the spot.
 					dir = (origdir + 2) % 4
 					vdir = game.DirArray[dir]
 					q = p + vdir
+					agent.start_bounce(Vector2(game.DirArray[origdir]))
 				agent.direction = dir
 				# Tile CENTERS, with no diagonal offset. The old ±tile/4 nudge at a door put the
 				# capsule off the row it was traveling along, so it ran at odd angles between

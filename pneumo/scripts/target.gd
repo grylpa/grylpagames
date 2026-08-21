@@ -35,9 +35,15 @@ func set_receiver(_is_receiver: bool, _color: Color, _transaction_id: int):
 	transaction_id = _transaction_id
 	$TargetText.text = str(transaction_id)
 	is_receiver = _is_receiver
-	$TargetText.visible = is_receiver
+	# The pairing is COLOR-coded; the transaction number is internal bookkeeping and is never
+	# shown. Same as taxi and parkem. The text is still assigned, so it is there in the remote
+	# inspector when a mismatch has to be traced.
+	$TargetText.visible = false
 	if is_receiver:
 		is_sender = false
+	# receiver-w-circle-4x.png carries the circle itself (the plain receiver art did not, which is
+	# why an activated gate used to lose its circle and arrow), so the base sprite is swapped out
+	# rather than layered under. Same art and same swap as wolves, storm, mmm and lightsout.
 	$TargetImage.visible = !is_receiver
 	$ReceiverImage.visible = is_receiver
 	color = _color
@@ -47,7 +53,7 @@ func set_sender(_is_sender: bool, _color: Color, _transaction_id: int):
 	transaction_id = _transaction_id
 	$TargetText.text = str(transaction_id)
 	is_sender = _is_sender
-	$TargetText.visible = is_sender
+	$TargetText.visible = false
 	if is_sender:
 		is_receiver = false
 	$TargetImage.visible = !is_sender
