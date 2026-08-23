@@ -31,6 +31,7 @@ func _ready() -> void:
 
 	MainGlobals.sig_generic_game_hud_show.connect(on_sig_generic_game_hud_show)
 	MainGlobals.sig_path_clear.connect(_clear_path)
+	MainGlobals.sig_reset_swipe.connect(_on_reset_swipe)
 	# screen_size_to_use.y -= 40
 	# screen_size_to_use.y = MainGlobals.header_height + screen_size_to_use.x
 	MainGlobals.init_globals(screen_size_to_use)
@@ -184,7 +185,7 @@ var swipe_dir: Vector2 = Vector2.ZERO
 # device, whatever its report or frame rate.
 #
 # The deadzone is a share of screen HEIGHT rather than a pixel count, so it does not change with
-# resolution or DPI either. Below it the last direction stays latched, which is the behaviour these
+# resolution or DPI either. Below it the last direction stays latched, which is the behavior these
 # games already had while a finger was held still — a breath hold keeps its direction.
 # The window is long enough to average out jitter and the deadzone small enough for a SLOW breath:
 # an inhale covering a third of the screen over five seconds moves about 0.13% of screen height per
@@ -203,8 +204,21 @@ const DSW_FLIP_FRAC: float = 0.005
 # The finger that owns the gesture. Everything else is ignored: a palm, the edge of a hand, or a
 # gesture-navigation phone reporting a second contact used to end the swipe on ITS release and
 # clear both flags while the real finger was still down.
-var _dsw_index: int = -1
-var _dsw_samples: Array = []   # [[time_ms, y], ...], newest last, trimmed to the window
+# A touch can be taken away without ever sending its release: an Android system gesture, the
+# notification shade, the recents switcher. `swipe_active` then stays true, the finger stays
+# claimed, and _update_digitized_swipe keeps LATCHING the last direction, so the breathing games
+# stop answering the finger until the game is restarted. A sample timeout cannot catch it, because
+# a finger held still legitimately sends no drag events either. The touch action can: touch is
+# emulated from the mouse on desktop, so this holds on both platforms.
+const DSW_LOST_TOUCH_MS: int = 250
+var _dsw_lost_ms: int = 0
+
+
+# One sample stream per finger, keyed by touch index: {index: [[time_ms, y], ...]}. The breathing
+# games are index-agnostic on purpose -- any number of fingers may be down, and whichever one is
+# actually moving drives the ball. Owning the gesture with a single index is what let a finger
+# whose release the OS swallowed lock the game out for good.
+var _dsw_streams: Dictionary = {}
 
 var _drawn_path: Array[Vector2i] = []
 var _path_last_board_pos: Vector2i = Vector2i(-1, -1)
@@ -217,29 +231,54 @@ func _process(_delta:float) -> void:
 	if not MainGlobals.swipe_active or MainGlobals.popup_open:
 		MainGlobals.is_in_digitized_swipe_up = false
 		MainGlobals.is_in_digitized_swipe_dn = false
-		_dsw_index = -1
-		_dsw_samples.clear()
+		_dsw_streams.clear()
+		_dsw_lost_ms = 0
 		return
+	# We think a gesture is running but no finger is actually down: the release went missing.
+	if not Input.is_action_pressed("touch"):
+		if _dsw_lost_ms == 0:
+			_dsw_lost_ms = MainGlobals.timems()
+		elif MainGlobals.timems() - _dsw_lost_ms > DSW_LOST_TOUCH_MS:
+			MainGlobals.is_in_digitized_swipe_up = false
+			MainGlobals.is_in_digitized_swipe_dn = false
+			MainGlobals.swipe_active = false
+			_dsw_streams.clear()
+			_dsw_lost_ms = 0
+			return
+	else:
+		_dsw_lost_ms = 0
 	if MainGlobals.digitized_swipe_mode:
 		_update_digitized_swipe()
 
 # Which way the finger has moved over the last DSW_WINDOW_MS. Called every frame while a finger is
 # down, so a still finger keeps whatever direction it had and a moving one updates immediately.
 func _update_digitized_swipe() -> void:
-	if _dsw_samples.size() < 2:
+	if _dsw_streams.is_empty():
 		return
 	var now_ms: int = MainGlobals.timems()
-	var newest: Array = _dsw_samples[-1]
-	# The oldest sample still inside the window; if the finger has been still, that is an old one
-	# and the displacement comes out at zero, which is exactly right.
-	var oldest: Array = _dsw_samples[0]
-	for s2 in _dsw_samples:
-		if now_ms - int(s2[0]) <= DSW_WINDOW_MS:
-			oldest = s2
-			break
-	if now_ms - int(newest[0]) > DSW_WINDOW_MS * 2:
-		return   # nothing new for a while: hold whatever it had, do not re-decide from stale data
-	var dy: float = float(newest[1]) - float(oldest[1])
+	var dy: float = 0.0
+	var have: bool = false
+	# Whichever finger is moving most drives the direction. A finger held still contributes a
+	# displacement of zero, so it cannot fight the one doing the work, and a stale stream (a
+	# finger that went away without a release) ages out of the window and contributes nothing.
+	for key in _dsw_streams:
+		var st: Array = _dsw_streams[key]
+		if st.size() < 2:
+			continue
+		var newest: Array = st[-1]
+		if now_ms - int(newest[0]) > DSW_WINDOW_MS * 2:
+			continue   # nothing new for a while: do not re-decide from stale data
+		var oldest: Array = st[0]
+		for s2 in st:
+			if now_ms - int(s2[0]) <= DSW_WINDOW_MS:
+				oldest = s2
+				break
+		var d: float = float(newest[1]) - float(oldest[1])
+		if not have or absf(d) > absf(dy):
+			dy = d
+			have = true
+	if not have:
+		return
 	var h: float = float(MainGlobals.screen_size.y)
 	var deadzone: float = maxf(1.0, h * DSW_DEADZONE_FRAC)
 	var flip: float = maxf(deadzone * 2.0, h * DSW_FLIP_FRAC)
@@ -261,12 +300,18 @@ func _update_digitized_swipe() -> void:
 	MainGlobals.is_in_digitized_swipe_up = dy < 0.0
 	MainGlobals.is_in_digitized_swipe_dn = not MainGlobals.is_in_digitized_swipe_up
 
-func _dsw_note(y: float) -> void:
+func _on_reset_swipe() -> void:
+	_dsw_streams.clear()
+	_dsw_lost_ms = 0
+
+func _dsw_note(idx: int, y: float) -> void:
 	var now_ms: int = MainGlobals.timems()
-	_dsw_samples.append([now_ms, y])
+	var st: Array = _dsw_streams.get(idx, [])
+	st.append([now_ms, y])
 	# Keep one sample older than the window so a slow drag always has something to compare against.
-	while _dsw_samples.size() > 2 and now_ms - int(_dsw_samples[1][0]) > DSW_WINDOW_MS:
-		_dsw_samples.remove_at(0)
+	while st.size() > 2 and now_ms - int(st[1][0]) > DSW_WINDOW_MS:
+		st.remove_at(0)
+	_dsw_streams[idx] = st
 
 func _input(event: InputEvent) -> void:
 	if MainGlobals.popup_open:
@@ -281,6 +326,7 @@ func _input(event: InputEvent) -> void:
 				_path_line.modulate.a = 1.0
 				_raw_swipe_pts = PackedVector2Array([event.position])
 				_path_line.points = _raw_swipe_pts
+				_path_apply_contrast()
 				_drawn_path = []
 				_path_last_board_pos = Vector2i(-1, -1)
 				MainGlobals.swipe_active = true
@@ -293,21 +339,20 @@ func _input(event: InputEvent) -> void:
 			swipe_did_step = false
 			swipe_start_pos = event.position
 			swipe_dir = Vector2.ZERO
-			if MainGlobals.digitized_swipe_mode and _dsw_index < 0:
-				_dsw_index = event.index
-				_dsw_samples = []
-				_dsw_note(event.position.y)
-				# Start neutral. The direction is LATCHED while the finger is still, so without
-				# this a new touch inherits the direction of the previous one and the ball sets off
-				# on its own before the finger has moved anywhere.
-				MainGlobals.is_in_digitized_swipe_up = false
-				MainGlobals.is_in_digitized_swipe_dn = false
+			if MainGlobals.digitized_swipe_mode:
+				# Only the FIRST finger down starts from neutral; a second one joining must not
+				# wipe the direction the first has already set.
+				if _dsw_streams.is_empty():
+					MainGlobals.is_in_digitized_swipe_up = false
+					MainGlobals.is_in_digitized_swipe_dn = false
+				_dsw_streams.erase(event.index)
+				_dsw_note(event.index, event.position.y)
 		else:
 			if MainGlobals.draw_path_mode:
 				if MainGlobals.swipe_active:
 					MainGlobals.sig_path_drawn.emit(_drawn_path.duplicate())
 				_path_fade_tween = create_tween()
-				_path_fade_tween.tween_property(_path_line, "modulate:a", 0.0, 0.6)
+				_path_fade_tween.tween_property(_path_line, "modulate:a", 0.0, MainGlobals.path_fade_sec)
 				_path_fade_tween.tween_callback(func() -> void:
 					_path_line.points = PackedVector2Array())
 				_drawn_path = []
@@ -330,16 +375,17 @@ func _input(event: InputEvent) -> void:
 								MainGlobals.sim_action(action)
 						MainGlobals.sim_action("stop")
 
-			# In digitized mode only the finger that started the gesture can end it.
-			if MainGlobals.digitized_swipe_mode and _dsw_index >= 0 and event.index != _dsw_index:
-				return
+			# ANY finger coming up ends the gesture, whichever one it is. This used to be "only the
+			# finger that started it may end it", which is precisely what let a phantom owner --
+			# a finger whose release the OS swallowed -- block every later release for good.
+			# The price is that a stray second finger lifting drops a hold in progress; the next
+			# drag re-claims it, so the cost is one small movement.
 			MainGlobals.swipe_active = false
 			swipe_accum = Vector2.ZERO
 			swipe_axis = 0
 			swipe_did_step = false
 			swipe_dir = Vector2.ZERO
-			_dsw_index = -1
-			_dsw_samples.clear()
+			_on_reset_swipe()
 
 	elif event is InputEventScreenDrag and MainGlobals.swipe_active:
 		MainGlobals.swipe_was_drag = true
@@ -347,14 +393,12 @@ func _input(event: InputEvent) -> void:
 			# Position only, and only from the finger that owns the gesture. No accumulator, no
 			# axis lock: a breathing game has one axis, and a sideways wobble at the start of a
 			# drag used to lock the gesture to horizontal and keep it there.
-			if _dsw_index < 0:
-				_dsw_index = event.index
-			if event.index == _dsw_index:
-				_dsw_note(event.position.y)
+			_dsw_note(event.index, event.position.y)
 			return
 		if MainGlobals.draw_path_mode:
 			_raw_swipe_pts.append(event.position)
 			_path_line.points = _raw_swipe_pts
+			_path_apply_contrast()
 			_path_extend(event.position)
 			return
 		swipe_accum += event.relative
@@ -396,19 +440,56 @@ func _input(event: InputEvent) -> void:
 		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), MainGlobals.mute)
 
 
+# Screen-space touch position to a board cell, accounting for camera zoom and pan.
+func _path_board_pos(px_pos: Vector2) -> Vector2i:
+	var tile_f: float = float(MainGlobals.path_tile_size)
+	if tile_f <= 0.0:
+		return Vector2i(-1, -1)
+	var world_pos: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * px_pos
+	var off: Vector2 = Vector2(MainGlobals.path_screen_offset) \
+		+ Vector2(0.0, float(MainGlobals.header_height))
+	var bp: Vector2i = Vector2i((world_pos - off) / tile_f)
+	var bs: Vector2i = MainGlobals.path_board_size
+	if bs != Vector2i.ZERO:
+		bp.x = clampi(bp.x, 0, bs.x - 1)
+		bp.y = clampi(bp.y, 0, bs.y - 1)
+	return bp
+
+# Recolor the drawn path so it stays legible over whatever it crosses. A game that sets
+# MainGlobals.path_color_probe says what color each cell is; every stop of the line's gradient
+# then becomes black or white, whichever the cell underneath is further from. Without a probe the
+# line keeps the overlay's own color, so no other game is affected.
+const PATH_GRADIENT_STOPS: int = 24
+
+func _path_apply_contrast() -> void:
+	if not MainGlobals.path_color_probe.is_valid():
+		_path_line.gradient = null
+		return
+	var n: int = _path_line.points.size()
+	if n < 2:
+		_path_line.gradient = null
+		return
+	var stops: int = mini(PATH_GRADIENT_STOPS, n)
+	var g: Gradient = Gradient.new()
+	g.offsets = PackedFloat32Array()
+	g.colors = PackedColorArray()
+	var offs: PackedFloat32Array = PackedFloat32Array()
+	var cols: PackedColorArray = PackedColorArray()
+	for i in range(stops):
+		var t: float = float(i) / float(stops - 1)
+		var idx: int = int(round(t * float(n - 1)))
+		var under = MainGlobals.path_color_probe.call(_path_board_pos(_path_line.points[idx]))
+		offs.append(t)
+		cols.append(MainGlobals.contrasting_ink(under))
+	g.offsets = offs
+	g.colors = cols
+	_path_line.gradient = g
+
 func _path_extend(px_pos: Vector2) -> void:
 	var tile_f: float = float(MainGlobals.path_tile_size)
 	if tile_f <= 0.0:
 		return
-	# Convert screen-space touch position to world/canvas space (accounts for camera zoom/pan)
-	var world_pos: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * px_pos
-	var off: Vector2 = Vector2(MainGlobals.path_screen_offset) + Vector2(0.0, float(MainGlobals.header_height))
-	var new_bp: Vector2i = Vector2i((world_pos - off) / tile_f)
-
-	var bs: Vector2i = MainGlobals.path_board_size
-	if bs != Vector2i.ZERO:
-		new_bp.x = clampi(new_bp.x, 0, bs.x - 1)
-		new_bp.y = clampi(new_bp.y, 0, bs.y - 1)
+	var new_bp: Vector2i = _path_board_pos(px_pos)
 
 	if _path_last_board_pos == Vector2i(-1, -1):
 		_path_last_board_pos = new_bp

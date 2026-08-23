@@ -541,6 +541,7 @@ func reset(from_scratch:bool):
 	_total_paused_ms = 0
 	_pause_start_ms = 0
 	MainGlobals.kill_active_tweens()
+	MainGlobals.reset_swipe_state()
 	if from_scratch:
 		score = initial_score
 		score_was_changed = false

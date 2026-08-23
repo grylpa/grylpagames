@@ -4,6 +4,40 @@
 
 A time-pressure management game. A storm is battering your old house and the roof is leaking. You must protect your belongings by placing containers and duct tape under leaks, emptying filled containers at drains, and preventing water from overflowing onto the floor.
 
+## The drawn path
+
+The path the player drags is the shared `PathOverlay/PathLine` in `scenes/main.tscn`. Its own color
+is a fixed orange, which disappeared over the warmer room floors.
+
+The line also fades fast here: `storm/scripts/main.gd` sets `MainGlobals.path_fade_sec = 0.18`
+against the 0.6 default. The path is laid out in SCREEN space, and storm's camera follows the
+player, so the board slides out from under the line the moment the finger lifts and it stops
+describing the route that was asked for. It is a confirmation of the gesture, not a marker.
+Measured: gone 200 ms after release, against 617 ms at the default. Wolves keeps the default
+deliberately -- it always uses the whole-board camera, never scrolls, so its line stays meaningful.
+
+`storm/scripts/level.gd::path_color_at(bp)` reports what color a board cell is -- a room floor is
+painted `color_by_index(room_id).lightened(0.5)` in `pipe.gd`, so the path is told exactly that --
+and `main.gd` registers it as `MainGlobals.path_color_probe` when the level is shown. The overlay
+then gives the line a `Gradient` whose stops are black or white, whichever the cell underneath is
+further from by Rec.709 luma. Games that set no probe keep the plain orange, and the chooser clears
+the probe on every game switch so one game's cannot leak into the next.
+
+Measured, and worth knowing before changing the palette: every one of the 13 room colors comes out
+light after `.lightened(0.5)` (luma 0.62 to 1.00), so today the ink is dark on all of them. Cells
+with no room fall back to light, which is right for both things the path can cross -- the marble
+corridor tile is luma 0.79 and the brick walls 0.40 to 0.58, and dark ink reads on all of it. The
+per-cell machinery only starts doing visible work if a genuinely dark floor is ever introduced.
+
+## Corridor floor
+
+The corridor tile is the `PipeImageNoDir` sprite in `scenes/pipe.tscn`, shown by `pipe.gd` for a
+cell with no directional pipe art. It uses the shared `res://art/marble_tile.png`, the same light
+marble mind palace uses, rather than `art/pipe_no_dir.png`.
+
+Only four games have this node at all -- mmm, storm, gorilla and wolves. The other ten games with a
+`pipe.tscn` have no corridor floor: their pipe is a directional tube or road.
+
 ## Game Flow
 
 1. An intro popup describes the round (room count, storm duration)

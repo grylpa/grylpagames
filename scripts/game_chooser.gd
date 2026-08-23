@@ -435,6 +435,8 @@ func _record_played(game_folder: String):
 func set_active_game(scene, game_name):
 	MainGlobals.digitized_swipe_mode = false
 	MainGlobals.draw_path_mode = false
+	MainGlobals.path_color_probe = Callable()
+	MainGlobals.path_fade_sec = 0.6
 	MainGlobals.add_action_button(null)
 	if game_name in dict_game_name_to_needs_login and !BE.logged_in:
 		return

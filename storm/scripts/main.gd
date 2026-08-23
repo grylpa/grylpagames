@@ -56,6 +56,9 @@ func _ready() -> void:
 	MainGlobals.path_tile_size = game.tile_size                                                                                                                                                                                                                                                 
 	MainGlobals.path_screen_offset = game.screen_offset                                                                                                                                                                                                                                         
 	MainGlobals.path_board_size = game.board_size      
+	# Storm's camera follows the player, so the board slides out from under the drawn line
+	# the instant it is released. It is a confirmation of the gesture, not a marker.
+	MainGlobals.path_fade_sec = 0.18
 	$Blackout.hide()
 	$Level.sig_blackout.connect(on_show_blackout)
 	
@@ -70,6 +73,7 @@ func show_level():
 	$Level.show()
 	main_menu.hide()
 	MainGlobals.draw_path_mode = true
+	MainGlobals.path_color_probe = $Level.path_color_at
 	MainGlobals.update_bottom_bar(["help","fast","slow","mute"])
 
 func new_game(from_scratch=true):
