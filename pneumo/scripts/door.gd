@@ -13,10 +13,15 @@ func _ready() -> void:
 func set_board_pos(p):
 	board_pos = p
 
-# The same rate the capsules' heads turn at (agent.gd::TURN_SPEED), which is taxi's: a right angle
-# in 0.12 s. A door that snaps between its two diagonals gives no sense of having been moved, and
-# it is the one thing in this game the player operates directly.
-const TURN_SPEED: float = PI * 0.5 / 0.12
+# A right angle in 0.035 s -- about two frames at 60 fps.
+#
+# Deliberately NOT the capsule heads' rate (agent.gd::TURN_SPEED, 0.12 s). Only one of the three
+# taps animates at all: open->diagonal and diagonal->open swap sprites and are instant, so a
+# diagonal->diagonal swing that took 0.12 s was the odd one out, and it lagged behind its own
+# logic. `rot_idx` routes a capsule the instant the door is tapped, so a long swing left a window
+# where the door sent capsules one way while still drawn pointing the other. Keep this short
+# enough to read as a flick rather than a movement.
+const TURN_SPEED: float = PI * 0.5 / 0.035
 
 var _target_rot: float = 0.0
 var _turning: bool = false

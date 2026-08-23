@@ -77,6 +77,30 @@ watching. Frame `i` sits at angle `PI*i/n`, and the mirrored configuration is an
 `agent.gd` steps to `posmod(-frame, n)`. That formula is derived from this frame layout: change
 the layout and the flip has to be re-derived.
 
+## Colors and transaction ids
+
+**Palette index 10 is never handed out here.** `#004d33`, deep yellowish green, measures
+rgb(0.00,0.30,0.20) against this game's own background at rgb(0.00,0.32,0.11) -- a distance of 0.17
+when the next nearest palette color is 0.88 away, so a capsule wearing it nearly vanishes.
+`main.gd` sets `game.skip_color_idxs = [10]` and `GenericGameUtil.next_color()` steps over it,
+leaving 12 colors.
+
+Colors are comfortably sufficient: measured at level 9, the peak was **5 concurrent transactions**
+against 13 colors, and no frame ever had two live receivers wearing the same color. Worth knowing
+if dispatch rates are ever raised, though: level 9 has 48 targets, so up to 24 concurrent
+transactions is possible in principle, which would exceed the palette.
+
+**Transaction ids come from a counter that only ever goes up, and is deliberately not reset between
+levels.** They used to be drawn from a shuffled pool of `ntargets` ids cycled by index, so an id
+could in principle be live twice at once -- and `reset_sender_receiver(id)` clears EVERY target
+holding that id, two seconds after a delivery. A capsule still in flight could then have its
+receiver wiped by an unrelated delivery, after which the freed target was picked up by the next
+transaction and changed color mid-flight. Note this is a *reasoned* mechanism, not one that has
+been reproduced: a headless run at level 9 issued only 10 ids from a pool of 48, so the cursor
+never wrapped. The counter is kept because a unique id cannot alias whatever the cause turns out to
+be, and it removes at its root the crash that came from a stale cursor indexing a shorter pool
+after level 9 then level 1.
+
 ## The capsule train
 
 A capsule is a head plus one tube per packet it carries (five at level 9), with `Skeleton` drawn
@@ -190,8 +214,14 @@ Specific to this game:
 ## Doors swing
 
 `door.gd::set_rot()` changes `rot_idx` — which is what routes a capsule — at once, and eases only
-the drawing, the same split the capsules use for their heads. It turns at the same `TURN_SPEED`
-(PI/2 per 0.12 s), so a door and a capsule move at one rate.
+the drawing, the same split the capsules use for their heads.
+
+**The swing is deliberately much faster than the capsules' `TURN_SPEED`:** PI/2 per 0.035 s, about
+two frames, against the heads' 0.12 s. It used to match the heads, which made it the odd one out,
+because only one of the three taps animates at all — see below. Worse, it lagged its own logic: a
+tap routes capsules the new way immediately, so a 0.12 s swing left a window where the door sent a
+capsule one way while still drawn pointing the other. Measured at 60 fps: 133 ms then, 50 ms now,
+against 0 ms for the other two taps.
 
 **Only the diagonal-to-diagonal transition is animated.** The three states are open, one diagonal,
 the other; open uses `$DoorOpen` and both diagonals use `$DoorDiag` at rotation 0 or PI/2. Swinging

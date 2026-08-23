@@ -9,6 +9,10 @@ var lives_tex: Texture2D = preload("res://art/tube-1-4x.png")
 
 func _ready() -> void:
 	game = PneumoG.game
+	# Palette index 10 (#004d33, deep yellowish green) sits almost on top of this game's own
+	# background (measured rgb 0.00,0.30,0.20 against 0.00,0.32,0.11 -- a distance of 0.17 when
+	# the next nearest color is 0.88), so a capsule wearing it is nearly invisible.
+	game.skip_color_idxs = [10]
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
 	PneumoG.load_settings()

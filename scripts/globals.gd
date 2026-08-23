@@ -388,11 +388,36 @@ func cap_first_word(s) -> String:
 		return s[0].to_upper() + s.substr(1)
 	return s
 
+# Actions fired in code (a flick that steers, a bottom-bar button, a help-screen shortcut).
+#
+# An InputEventAction press LATCHES the action: Input.is_action_pressed() keeps reporting it until
+# something sends the matching release, and nothing here ever did. One flick steering a capsule
+# "up" in pneumo therefore left "up" held down for the rest of the session, and the breathing
+# games -- the only ones that poll `Input.is_action_pressed("up")` every frame -- then read a
+# permanent up no matter what the finger did. Playing pneumo and switching to udbr or mother is
+# exactly how it showed up.
+#
+# The release goes out on the NEXT frame, not immediately: late enough that _input handlers and
+# is_action_just_pressed() still see the press, early enough that it cannot leak into another game.
+var _sim_action_held: Array = []
+
 func sim_action(act):
 	var e = InputEventAction.new()
 	e.action = act
 	e.pressed = true
 	Input.parse_input_event(e)
+	if not _sim_action_held.has(act):
+		_sim_action_held.append(act)
+
+func _process(_delta: float) -> void:
+	if _sim_action_held.is_empty():
+		return
+	for a in _sim_action_held:
+		var r = InputEventAction.new()
+		r.action = a
+		r.pressed = false
+		Input.parse_input_event(r)
+	_sim_action_held.clear()
 
 func YN(b: bool):
 	return "Yes" if b else "No"
