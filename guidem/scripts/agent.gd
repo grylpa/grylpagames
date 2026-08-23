@@ -43,7 +43,7 @@ func _ready() -> void:
 	%Tail.modulate = color
 	%Tail.play("TailWheels")
 	$Head.play("HeadEyes")
-	$Skeleton.modulate = color.darkened(0.7)
+	$Skeleton.modulate = color.darkened(0.1)
 	$Skeleton.add_point(Vector2.ZERO)
 	angles.append(0)
 	angles.append(0)
@@ -77,7 +77,7 @@ func set_id(_id):
 func set_color(_color):
 	color = _color
 	$Head.set_modulate(color)
-	$Skeleton.modulate = color.darkened(0.7)
+	$Skeleton.modulate = color.darkened(0.1)
 	%Tail.modulate = color
 	for body in bodies:
 		body.modulate = color
