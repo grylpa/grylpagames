@@ -1,62 +1,471 @@
 [gd_scene format=3 uid="uid://cfowiqyh33w3r"]
 
-[ext_resource type="Texture2D" uid="uid://bcj15mpwwwxpy" path="res://art/head1-4x.png" id="1_5d76n"]
-[ext_resource type="Texture2D" uid="uid://b4lmbjtr8ysa" path="res://art/bomb1-vig-4x.png" id="1_wgfrt"]
-[ext_resource type="Texture2D" uid="uid://dd30vw63fidb2" path="res://art/head2-4x.png" id="2_5e82f"]
-[ext_resource type="Texture2D" uid="uid://f2ik687ture4" path="res://art/bomb2-vig-4x.png" id="2_x3bps"]
-[ext_resource type="Texture2D" uid="uid://cjhhxd61fyery" path="res://art/head3-4x.png" id="3_fx28w"]
-[ext_resource type="Texture2D" uid="uid://6dppw8e267at" path="res://art/bomb3-vig-4x.png" id="3_qo88t"]
 [ext_resource type="Script" uid="uid://dsfj7duy155k4" path="res://scripts/head_anim.gd" id="4_5e82f"]
-[ext_resource type="Texture2D" uid="uid://d0sm04luji16j" path="res://art/enemy_head1.png" id="4_qo88t"]
-[ext_resource type="Texture2D" uid="uid://dn8t5y07luo7a" path="res://art/tube-1-4x.png" id="4_ygtqf"]
-[ext_resource type="Texture2D" uid="uid://dtdixkdd80257" path="res://art/tube-2-4x.png" id="5_fi1vj"]
-[ext_resource type="Texture2D" uid="uid://b1e0ft7myfeof" path="res://art/enemy_head2.png" id="5_wqlnt"]
-[ext_resource type="Texture2D" uid="uid://c15g187m68afd" path="res://art/enemy_head3.png" id="6_gqkja"]
-[ext_resource type="Texture2D" uid="uid://cmgc0l2ooyyyv" path="res://art/tube-3-4x.png" id="6_tp7jc"]
 [ext_resource type="Texture2D" uid="uid://bk8c6atvto4j1" path="res://art/taxi-clean-1.png" id="7_ie8nf"]
 [ext_resource type="Texture2D" uid="uid://lga7hhhu6dpm" path="res://art/enemy-body2.png" id="7_vc5kd"]
 [ext_resource type="Texture2D" uid="uid://qb353hoqdff6" path="res://art/enemy-body3.png" id="8_dytfm"]
 [ext_resource type="Texture2D" uid="uid://bn7na0s5dfyxw" path="res://art/taxi-clean-2.png" id="8_wgfrt"]
 [ext_resource type="Texture2D" uid="uid://cf2hqruegwstb" path="res://art/enemy-body4.png" id="9_i35co"]
-[ext_resource type="Texture2D" uid="uid://bcard3p02fhjk" path="res://art/sheep1-4x.png" id="18_ra0cd"]
-[ext_resource type="Texture2D" uid="uid://4k2re5wlxya7" path="res://art/sheep2-4x.png" id="19_uxgfd"]
-[ext_resource type="Texture2D" uid="uid://ce6dnlm8wksmu" path="res://art/sheep3-4x.png" id="20_73vi0"]
+[ext_resource type="Texture2D" uid="uid://cj81sbov21syn" path="res://art/sheep_sway.png" id="18_sheepsway"]
+[ext_resource type="Texture2D" uid="uid://c1ukj1qckljnw" path="res://art/bomb_crackle.png" id="bomb_crackle"]
+[ext_resource type="Texture2D" uid="uid://b130d7o1joeri" path="res://art/enemy_head_sway.png" id="sway_enemy"]
+[ext_resource type="Texture2D" uid="uid://b6er7jfh6qurj" path="res://art/player_head_sway.png" id="sway_player"]
+
+[sub_resource type="AtlasTexture" id="BombCrackle_00"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(0, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_01"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(128, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_02"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(256, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_03"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(384, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_04"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(0, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_05"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(128, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_06"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(256, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_07"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(384, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_08"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(0, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_09"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(128, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_10"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(256, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="BombCrackle_11"]
+atlas = ExtResource("bomb_crackle")
+region = Rect2(384, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_00"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(0, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_01"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(128, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_02"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(256, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_03"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(384, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_04"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(512, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_05"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(640, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_06"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(0, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_07"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(128, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_08"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(256, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_09"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(384, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_10"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(512, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_11"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(640, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_12"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(0, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_13"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(128, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_14"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(256, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_15"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(384, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_16"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(512, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_17"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(640, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_18"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(0, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_19"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(128, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_20"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(256, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_21"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(384, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_22"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(512, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="EnemySway_23"]
+atlas = ExtResource("sway_enemy")
+region = Rect2(640, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_00"]
+atlas = ExtResource("sway_player")
+region = Rect2(0, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_01"]
+atlas = ExtResource("sway_player")
+region = Rect2(128, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_02"]
+atlas = ExtResource("sway_player")
+region = Rect2(256, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_03"]
+atlas = ExtResource("sway_player")
+region = Rect2(384, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_04"]
+atlas = ExtResource("sway_player")
+region = Rect2(512, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_05"]
+atlas = ExtResource("sway_player")
+region = Rect2(640, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_06"]
+atlas = ExtResource("sway_player")
+region = Rect2(0, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_07"]
+atlas = ExtResource("sway_player")
+region = Rect2(128, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_08"]
+atlas = ExtResource("sway_player")
+region = Rect2(256, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_09"]
+atlas = ExtResource("sway_player")
+region = Rect2(384, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_10"]
+atlas = ExtResource("sway_player")
+region = Rect2(512, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_11"]
+atlas = ExtResource("sway_player")
+region = Rect2(640, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_12"]
+atlas = ExtResource("sway_player")
+region = Rect2(0, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_13"]
+atlas = ExtResource("sway_player")
+region = Rect2(128, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_14"]
+atlas = ExtResource("sway_player")
+region = Rect2(256, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_15"]
+atlas = ExtResource("sway_player")
+region = Rect2(384, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_16"]
+atlas = ExtResource("sway_player")
+region = Rect2(512, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_17"]
+atlas = ExtResource("sway_player")
+region = Rect2(640, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_18"]
+atlas = ExtResource("sway_player")
+region = Rect2(0, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_19"]
+atlas = ExtResource("sway_player")
+region = Rect2(128, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_20"]
+atlas = ExtResource("sway_player")
+region = Rect2(256, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_21"]
+atlas = ExtResource("sway_player")
+region = Rect2(384, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_22"]
+atlas = ExtResource("sway_player")
+region = Rect2(512, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="PlayerSway_23"]
+atlas = ExtResource("sway_player")
+region = Rect2(640, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_00"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(0, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_01"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(128, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_02"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(256, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_03"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(384, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_04"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(512, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_05"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(640, 0, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_06"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(0, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_07"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(128, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_08"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(256, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_09"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(384, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_10"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(512, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_11"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(640, 128, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_12"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(0, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_13"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(128, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_14"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(256, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_15"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(384, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_16"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(512, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_17"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(640, 256, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_18"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(0, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_19"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(128, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_20"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(256, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_21"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(384, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_22"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(512, 384, 128, 128)
+
+[sub_resource type="AtlasTexture" id="SheepSway_23"]
+atlas = ExtResource("18_sheepsway")
+region = Rect2(640, 384, 128, 128)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_3ykj6"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("1_wgfrt")
+"texture": SubResource("BombCrackle_00")
 }, {
 "duration": 1.0,
-"texture": ExtResource("2_x3bps")
+"texture": SubResource("BombCrackle_01")
 }, {
 "duration": 1.0,
-"texture": ExtResource("3_qo88t")
+"texture": SubResource("BombCrackle_02")
 }, {
 "duration": 1.0,
-"texture": ExtResource("2_x3bps")
+"texture": SubResource("BombCrackle_03")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_04")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_05")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_06")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_07")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_08")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_09")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("BombCrackle_11")
 }],
-"loop": true,
+"loop": 1,
 "name": &"Bomb",
-"speed": 5.0
+"speed": 30.0
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("4_qo88t")
+"texture": SubResource("EnemySway_00")
 }, {
 "duration": 1.0,
-"texture": ExtResource("5_wqlnt")
+"texture": SubResource("EnemySway_01")
 }, {
 "duration": 1.0,
-"texture": ExtResource("6_gqkja")
+"texture": SubResource("EnemySway_02")
 }, {
 "duration": 1.0,
-"texture": ExtResource("5_wqlnt")
+"texture": SubResource("EnemySway_03")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_04")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_05")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_06")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_07")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_08")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_09")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_11")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_12")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_13")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_14")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_15")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_16")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_17")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_18")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_19")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_20")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_21")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_22")
+}, {
+"duration": 1.0,
+"texture": SubResource("EnemySway_23")
 }],
-"loop": true,
+"loop": 1,
 "name": &"Enemy",
-"speed": 5.0
+"speed": 60.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -71,26 +480,86 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("9_i35co")
 }],
-"loop": true,
+"loop": 1,
 "name": &"EnemyBody",
 "speed": 5.0
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("1_5d76n")
+"texture": SubResource("PlayerSway_00")
 }, {
 "duration": 1.0,
-"texture": ExtResource("2_5e82f")
+"texture": SubResource("PlayerSway_01")
 }, {
 "duration": 1.0,
-"texture": ExtResource("3_fx28w")
+"texture": SubResource("PlayerSway_02")
 }, {
 "duration": 1.0,
-"texture": ExtResource("2_5e82f")
+"texture": SubResource("PlayerSway_03")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_04")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_05")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_06")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_07")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_08")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_09")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_11")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_12")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_13")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_14")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_15")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_16")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_17")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_18")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_19")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_20")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_21")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_22")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_23")
 }],
-"loop": true,
+"loop": 1,
 "name": &"HeadEyes",
-"speed": 5.0
+"speed": 30.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -99,61 +568,167 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("8_wgfrt")
 }],
-"loop": true,
+"loop": 1,
 "name": &"HeadTaxi",
 "speed": 5.0
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("4_ygtqf")
+"texture": SubResource("SheepSway_00")
 }, {
 "duration": 1.0,
-"texture": ExtResource("5_fi1vj")
+"texture": SubResource("SheepSway_01")
 }, {
 "duration": 1.0,
-"texture": ExtResource("6_tp7jc")
+"texture": SubResource("SheepSway_02")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_03")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_04")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_05")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_06")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_07")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_08")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_09")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_11")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_12")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_13")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_14")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_15")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_16")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_17")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_18")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_19")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_20")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_21")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_22")
+}, {
+"duration": 1.0,
+"texture": SubResource("SheepSway_23")
 }],
-"loop": true,
-"name": &"HeadTube",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("18_ra0cd")
-}, {
-"duration": 1.0,
-"texture": ExtResource("19_uxgfd")
-}, {
-"duration": 1.0,
-"texture": ExtResource("20_73vi0")
-}, {
-"duration": 1.0,
-"texture": ExtResource("19_uxgfd")
-}],
-"loop": true,
+"loop": 1,
 "name": &"Sheep",
-"speed": 5.0
+"speed": 30.0
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("1_5d76n")
+"texture": SubResource("PlayerSway_00")
 }, {
 "duration": 1.0,
-"texture": ExtResource("2_5e82f")
+"texture": SubResource("PlayerSway_01")
 }, {
 "duration": 1.0,
-"texture": ExtResource("3_fx28w")
+"texture": SubResource("PlayerSway_02")
 }, {
 "duration": 1.0,
-"texture": ExtResource("2_5e82f")
+"texture": SubResource("PlayerSway_03")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_04")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_05")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_06")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_07")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_08")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_09")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_11")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_12")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_13")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_14")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_15")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_16")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_17")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_18")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_19")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_20")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_21")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_22")
+}, {
+"duration": 1.0,
+"texture": SubResource("PlayerSway_23")
 }],
-"loop": true,
+"loop": 1,
 "name": &"circular",
-"speed": 5.0
+"speed": 30.0
 }]
 
 [node name="HeadAnim" type="AnimatedSprite2D" unique_id=409008772]
 scale = Vector2(0.25, 0.25)
 sprite_frames = SubResource("SpriteFrames_3ykj6")
-animation = &"Sheep"
+animation = &"Enemy"
 script = ExtResource("4_5e82f")

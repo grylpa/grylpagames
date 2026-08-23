@@ -25,10 +25,14 @@ static func steps(level: Node, _game) -> Array:
 	var frame_r: float = maxf(12.0, level.game.tile_size * 0.75)
 	var creature: Callable = func():
 		var p: Vector2 = level.tutorial_creature_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 	var door: Callable = func():
 		var p: Vector2 = level.tutorial_next_door_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 
 	return [
 		{
@@ -49,7 +53,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "And that is the spot it is heading for — its own color. Let it park and you have lost that one.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_spot_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": frame_r,
 			"spot_pad": 0.0,
 		},

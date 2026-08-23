@@ -27,9 +27,8 @@ func _ready() -> void:
 	$Help.close_help.connect(_on_help_close)
 
 	game.set_instructions("Breathe",
-		"Tap once per breath.\n" +
-		"Try to keep a steady rhythm.\n" +
-		"Tap at the end of each exhale.\n" +
+		"Tap once at the end of each exhale.\n" +
+		"Try to keep a steady rhythm.\n" +	
 		"When the session ends you'll see\n" +
 		"your consistency stats.",
 		36 if MainGlobals.is_mobile() else 22)

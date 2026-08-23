@@ -1,28 +1,185 @@
 [gd_scene format=3 uid="uid://ba2sm0qvwsfsq"]
 
 [ext_resource type="Script" uid="uid://7kekstde5l6o" path="res://pneumo/scripts/agent.gd" id="1_cfvitj"]
-[ext_resource type="Texture2D" uid="uid://ddxcii23kvr0q" path="res://pneumo/art/agent_head2.png" id="7_cyh6bc"]
-[ext_resource type="Texture2D" uid="uid://3ljm1g5wh1b6" path="res://pneumo/art/agent_head1.png" id="8_cq8k53"]
-[ext_resource type="Texture2D" uid="uid://c6ma4y5bpqe4p" path="res://pneumo/art/agent_head3.png" id="9_co862i"]
+[ext_resource type="Texture2D" path="res://pneumo/art/agent_head_slot.png" id="7_headslot"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tu7kf"]
 size = Vector2(40, 40)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_00"]
+atlas = ExtResource("7_headslot")
+region = Rect2(0, 0, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_01"]
+atlas = ExtResource("7_headslot")
+region = Rect2(30, 0, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_02"]
+atlas = ExtResource("7_headslot")
+region = Rect2(60, 0, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_03"]
+atlas = ExtResource("7_headslot")
+region = Rect2(90, 0, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_04"]
+atlas = ExtResource("7_headslot")
+region = Rect2(120, 0, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_05"]
+atlas = ExtResource("7_headslot")
+region = Rect2(150, 0, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_06"]
+atlas = ExtResource("7_headslot")
+region = Rect2(0, 25, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_07"]
+atlas = ExtResource("7_headslot")
+region = Rect2(30, 25, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_08"]
+atlas = ExtResource("7_headslot")
+region = Rect2(60, 25, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_09"]
+atlas = ExtResource("7_headslot")
+region = Rect2(90, 25, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_10"]
+atlas = ExtResource("7_headslot")
+region = Rect2(120, 25, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_11"]
+atlas = ExtResource("7_headslot")
+region = Rect2(150, 25, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_12"]
+atlas = ExtResource("7_headslot")
+region = Rect2(0, 50, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_13"]
+atlas = ExtResource("7_headslot")
+region = Rect2(30, 50, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_14"]
+atlas = ExtResource("7_headslot")
+region = Rect2(60, 50, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_15"]
+atlas = ExtResource("7_headslot")
+region = Rect2(90, 50, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_16"]
+atlas = ExtResource("7_headslot")
+region = Rect2(120, 50, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_17"]
+atlas = ExtResource("7_headslot")
+region = Rect2(150, 50, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_18"]
+atlas = ExtResource("7_headslot")
+region = Rect2(0, 75, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_19"]
+atlas = ExtResource("7_headslot")
+region = Rect2(30, 75, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_20"]
+atlas = ExtResource("7_headslot")
+region = Rect2(60, 75, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_21"]
+atlas = ExtResource("7_headslot")
+region = Rect2(90, 75, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_22"]
+atlas = ExtResource("7_headslot")
+region = Rect2(120, 75, 30, 25)
+
+[sub_resource type="AtlasTexture" id="HeadSlot_23"]
+atlas = ExtResource("7_headslot")
+region = Rect2(150, 75, 30, 25)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_cmj3ns"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("8_cq8k53")
+"texture": SubResource("HeadSlot_00")
 }, {
 "duration": 1.0,
-"texture": ExtResource("7_cyh6bc")
+"texture": SubResource("HeadSlot_01")
 }, {
 "duration": 1.0,
-"texture": ExtResource("9_co862i")
+"texture": SubResource("HeadSlot_02")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_03")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_04")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_05")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_06")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_07")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_08")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_09")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_11")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_12")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_13")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_14")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_15")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_16")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_17")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_18")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_19")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_20")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_21")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_22")
+}, {
+"duration": 1.0,
+"texture": SubResource("HeadSlot_23")
 }],
 "loop": true,
 "name": &"HeadEyes",
-"speed": 5.0
+"speed": 40.0
 }]
 
 [node name="Agent" type="Area2D" unique_id=577717104 groups=["agents"]]

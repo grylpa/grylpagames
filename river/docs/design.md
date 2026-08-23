@@ -91,7 +91,18 @@ Index 1: `selected_preset` (index into GUIDED_PRESETS)
 
 ## Character
 
-Head + body sprites from `wolves/art/player_head{1-3}.png` and `wolves/art/player_body{1-3}.png`, both at `CHAR_SCALE = 1.6`. Body is centered slightly below `_char_y`, head slightly above. When walking on a bank the body cycles through all 3 frames at 6fps. In the river the body is static (frame 0) and the head blinks slowly via a 4-frame cycle.
+A single head sprite, `_sprite_head`, at `HEAD_SCALE = 0.22`. There is no body sprite, and
+river does not load any image of its own.
+
+The head is an instance of the shared `res://scenes/head_anim.tscn` playing `HeadEyes`, the
+same animation every other game's player uses. River previously built the sway by hand — it
+held `[head1, head2, head3, head2]` in `_head_textures` and swapped `_sprite_head.texture`
+every frame from `int(_anim_time * 3.5) % 4` — which was the last copy of the old 3-image
+sway left in the project. The shared animation carries its own 24-frame sway, so the texture
+list, `_head_frame` and `_anim_time` are all gone.
+
+The sprite is still positioned and rotated from code: `rotation = atan2(_char_vel_y,
+_scroll_px_per_ms * 1000.0)` so the head tilts into its movement.
 
 ## Visual Effects
 

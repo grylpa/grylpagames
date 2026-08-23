@@ -33,6 +33,5 @@ size_flags_vertical = 3
 mouse_filter = 1
 color = Color(0, 0, 0, 0.25098)
 
-[node name="AmbientAudio" type="AudioStreamPlayer2D" parent="." unique_id=1178584226]
 
 [connection signal="timeout" from="CountupTimer" to="." method="_on_countup_timer_timeout"]

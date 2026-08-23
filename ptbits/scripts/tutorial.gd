@@ -90,10 +90,11 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "The blue tool, by its ring — the red one goes right through this ball.",
 		},
 		{
+			# No spotlight. It framed the strip of floor a ball is lost through — which is empty
+			# space with nothing in it, so the ring read as pointing at nothing at all. The
+			# sentence says the whole thing on its own.
 			"title": "Don't drop them",
 			"text": "A ball that reaches the floor is lost, and costs you points.",
-			"spot": func(): return level.tutorial_floor_rect(),
-			"spot_pad": 4.0,
 		},
 		{
 			"title": "Ready",

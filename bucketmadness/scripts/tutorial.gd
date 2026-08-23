@@ -28,7 +28,9 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var item_spot: Callable = func():
 		var r: Rect2 = level.tutorial_item_rect()
-		return null if r.size.x <= 0.0 else r
+		if r.size.x <= 0.0:
+			return null
+		return r
 	# The three buckets and the two rule labels are the board. Handing the placer each one
 	# separately beats one merged box: it can slip a caption between them.
 	var board_clear: Array = [

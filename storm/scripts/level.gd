@@ -152,6 +152,19 @@ func _ready() -> void:
 	MainGlobals.sig_path_drawn.connect(_on_path_drawn)  
 	
 func reset():
+	# Every one of these is a baseline in game_time, and game_time RESTARTS at zero on each round
+	# (main.gd -> game.reset() -> _game_start_ms = now). Carried over from the round before, they
+	# sit far in the future: "now - last_time_added_leak" stays negative for the whole round, so
+	# no leak, blackout or water drop ever fires again. That is the "no new leaks after the first
+	# round" bug.
+	last_time_added_leak = 0.0
+	next_duration_for_leak_ms = 1000.0
+	last_time_showed_blackout = 0.0
+	next_blackout_duration_s = 10.0
+	last_time_played_water_drop = 0.0
+	next_water_drop_duration_s = 5.0
+	last_major_tick_ms = -10000.0
+
 	round_items_lost = 0
 	next_player_dir = -1
 	play_start_sound_once = true

@@ -96,10 +96,14 @@ func start_tutorial() -> void:
 	runner.keep_clear = [
 		func():
 			var r: Rect2 = $Level.tutorial_card_rect()
-			return null if r.size.x <= 0.0 else r,
+			if r.size.x <= 0.0:
+				return null
+			return r,
 		func():
 			var r: Rect2 = $Level.tutorial_buttons_rect()
-			return null if r.size.x <= 0.0 else r,
+			if r.size.x <= 0.0:
+				return null
+			return r,
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 

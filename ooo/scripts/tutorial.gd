@@ -37,7 +37,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Remember it — the shape and its color.\n\nIn a real round it is on screen for about a second.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_model_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": frame_r,
 			"spot_pad": 0.0,
 		},
@@ -52,7 +54,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "One of these is the one you saw. The others are near misses.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_lineup_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 10.0,
 		},
 		{

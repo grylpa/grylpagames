@@ -26,6 +26,13 @@ var _last_tap_ms: float = -9999.0  # debounce: ignore duplicate events from same
 var _rhythm_interval_ms: float = 0.0   # median-trimmed estimate from all taps
 var _display_rhythm_ms: float = 9000.0 # smoothly lerped period used for animation
 var _breath_phase: float = 0.0         # normalized [0,1); 0 = tap moment
+# The big circle used to start breathing along with the player once four taps had established a
+# rhythm. Turned OFF: people followed the animation instead of their own breath, which is the one
+# thing this game must not do. Everything else is untouched — the circle is still drawn (static),
+# each tap still throws its expanding ring, and the rhythm is still measured and scored exactly as
+# before. Set this back to true to bring the animation back.
+const BREATH_ANIMATION: bool = false
+
 var _anim_active: bool = false         # stays false until first tap
 var _amplitude_factor: float = 0.0         # target: ramps from 1/3 at tap 4 to 1.0 at tap 8
 var _display_amp_factor: float = 0.0      # smoothly lerped toward _amplitude_factor
@@ -172,7 +179,7 @@ func _register_tap(tap_pos: Vector2) -> void:
 		game.add_score_and_time(0, 0, true)
 	_update_rhythm()
 	var n: int = _tap_times_ms.size()
-	if n == 4:
+	if n == 4 and BREATH_ANIMATION:
 		_anim_active = true
 		_breath_phase = 0.0
 		_display_rhythm_ms = _rhythm_interval_ms

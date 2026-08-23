@@ -74,7 +74,9 @@ func start_tutorial() -> void:
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _rect_or_null(p: Vector2, r: float):
-	return null if p == Vector2.ZERO else Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
+	if p == Vector2.ZERO:
+		return null
+	return Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
 
 func _on_tutorial_done(_completed: bool) -> void:
 	_restore_tutorial_globals()

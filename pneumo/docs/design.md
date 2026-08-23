@@ -45,6 +45,100 @@ Two outcomes:
 - **Collided** — `check_agent_collisions()` marks both capsules hit, plays the explosion, and two
   seconds later resets both transactions so they have to be sent again.
 
+## Capsule head
+
+`scenes/agent.tscn` carries its own `SpriteFrames` named `HeadEyes` — pneumo does **not** use the
+shared `scenes/head_anim.tscn`. The art is `art/agent_head_slot.png`, a 24-frame sheet of 30x25
+cells generated from the original `agent_head1/2/3.png`.
+
+The picture is a white capsule with a black line across it (the line is black, not a hole in the
+sprite). The line is placed as if it were painted on a cylinder turning about its long axis: its
+position follows `sin(theta)` and how squarely it faces us follows `cos(theta)`, so it sweeps
+across, fades as it reaches the silhouette, and passes round the back. Two lines sit 180 degrees
+apart, so as one rolls off an edge the other is already fading in on the far edge — the roll never
+jumps and never reverses.
+
+**The line is snapped to a whole row.** Placing it at sub-pixel positions and spreading one row's
+worth of darkness across two rows by coverage looks correct on paper but flickers: the peak
+darkness rises and falls frame to frame, so the line appears to change thickness. Snapping keeps
+it exactly one pixel thick in every frame; the roll still reads as smooth because the *fade* is
+what varies continuously, not the geometry.
+Because the two lines are half a turn apart, **half** a turn already returns the capsule to the
+same picture, so the 24 frames span `theta` from 0 to PI. A full turn would repeat every frame
+twice and roll at double speed.
+
+The extremes (rows 6 and 18) and the cycle length are the ones the original three frames had:
+`speed = 40` against the `speed_scale = 0.5` that `agent.gd` sets gives one traverse per 1.2 s,
+the same cadence as the old 3-frame version, but at 20 fps instead of 2.5.
+
+**The bounce flip depends on this.** When a capsule reverses, `start_bounce()` turns the sprite
+180 degrees, which would throw the line to the mirrored row — a jump exactly when the player is
+watching. Frame `i` sits at angle `PI*i/n`, and the mirrored configuration is angle `-i`, so
+`agent.gd` steps to `posmod(-frame, n)`. That formula is derived from this frame layout: change
+the layout and the flip has to be re-derived.
+
+## The capsule train
+
+A capsule is a head plus one tube per packet it carries (five at level 9), with `Skeleton` drawn
+through them. The tubes come from `scenes/tube_animation.tscn`.
+
+**Z order — everything here is RELATIVE.** A child's effective z is the agent's plus its own, and
+the agent sits at `Z_IN_GATE` 90 / `Z_ON_BOARD` 110, so a child written as `z_index - i - 1` came
+out at 179, not 89. Measured effective values, which are the ones that matter:
+
+| | effective z |
+|---|---|
+| `Skeleton` | 70 |
+| tubes | 89, 88, 87, 86, 85 |
+| head | 91 (from the scene's `z_index = 1`) |
+| dispatcher | 100 |
+
+The head keeps the 1 the scene gives it — that is what holds it under the dispatchers. `Skeleton`
+is a flat `-20` (it used to be `z_index - 10`, effective 170, drawing over the head *and* the
+dispatchers) and tube *i* is `-(i+1)` (it used to be `z_index - i - 1`, effective 179, drawing over
+the dispatchers). Setting the head to `z_index` instead is wrong: it lands at 180 and the whole
+train covers the dispatchers.
+
+**The bounce squashes `$Head` along the head's OWN axis.** `scale` is applied in the head's
+rotated frame and the head faces the way it is going, so its local +x is the direction of travel:
+compress local x, bulge local y, and the squash lines up with the impact whichever way the tube
+runs. Picking the axis from `_bounce_axis` -- a WORLD vector -- and applying it to a rotated child
+was wrong, because at 90 degrees local x is world y, so the compression came out across the tube
+instead of along it. Measured: 382 of 435 squash frames compressed the wrong world axis; now 0.
+
+**It squashes `$Head`, never the agent.** `scale` on the agent scales every child's
+*position* too, and the tubes are placed at offsets read off the trail -- so on each impact the
+whole train telescoped in towards the head. Measured with five packets: 170 px of train collapsing
+to about 21 px. An empty capsule looked fine, which is why it only showed up with packets.
+
+**The tubes use the same 24-frame rolling animation as the head** (`art/agent_body_slot.png`),
+staggered a third of a cycle apart with `((i+2) % 3) * 8`; a third of 24 frames is 8, which is what
+the old `(i+2)%3` did over 3.
+
+**The trail.** `time_back_positions` stores raw (unrounded) positions, and
+`pos_back_along_trail(dist)` returns the point exactly `dist` back, interpolating inside the
+segment it lands in. **It measures from the head's live `position`, not from the newest
+recorded sample.** A sample is only appended when the tile target changes, so on the frames in
+between the newest sample is stale and every follower lands at the wrong offset, snapping back
+the next frame: the lead tube's gap was breathing between 33.5 and 34.0 px while the head
+advanced smoothly. Anchored to the head it holds 34.0 exactly. `back_total_len` is only advanced when a sample is actually appended.
+
+**`next_transaction_id_idx` is reset wherever `transaction_ids` is rebuilt.** The list is rebuilt
+per level from `ntargets`; a cursor left at the previous level's position indexes past the end of a
+shorter list, which crashed `add_agent_at()` on playing level 9 and then level 1.
+
+**The dispatch stays on the `GameTick` timer.** Unlike delemfp and deliverem, `tick()` here does
+**not** gate itself on `major_tick_time_ms` -- the check at the top is commented out -- so calling
+it every frame runs the whole body three times as often and makes the capsules jerky even on
+level 1. Do not move it to `_process` without restoring that gate first.
+
+## Known, measured, unfixed
+
+Measured at level 9 with five packets over ~1400 frames: the lead tube still steps backwards
+**twice**, by up to 0.67 px (it was 6 times at up to 1.02 px before the lookup was anchored to the
+head). The head never does. Whether the two that remain are genuine bounce reversals rather than
+jitter is not settled.
+
 ## Difficulty
 
 `increase_difficulty()`: level 1 is 3 packets on an 11x11 board, one capsule every 5s, speed 1.0.

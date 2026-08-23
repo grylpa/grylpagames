@@ -44,7 +44,9 @@ static func steps(level: Node, _game) -> Array:
 	var r_near: float = r_far * 2.0
 	var truck: Callable = func():
 		var p: Vector2 = level.tutorial_agent_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 
 	return [
 		{

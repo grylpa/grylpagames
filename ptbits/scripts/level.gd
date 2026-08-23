@@ -896,7 +896,3 @@ func tutorial_has_ball() -> bool:
 		if is_instance_valid(b):
 			return true
 	return false
-
-# The strip along the floor a ball is lost through.
-func tutorial_floor_rect() -> Rect2:
-	return Rect2(play_left, play_bottom - 46.0, play_right - play_left, 46.0)

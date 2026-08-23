@@ -20,6 +20,5 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 texture = ExtResource("2_trw0c")
 
-[node name="AmbientAudio" type="AudioStreamPlayer2D" parent="." unique_id=973116371]
 
 [connection signal="timeout" from="ShowCardsTimer" to="." method="_on_show_cards_timer_timeout"]

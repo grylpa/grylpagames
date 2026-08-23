@@ -88,7 +88,9 @@ func start_tutorial() -> void:
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _rect_or_null(p: Vector2, r: float):
-	return null if p == Vector2.ZERO else Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
+	if p == Vector2.ZERO:
+		return null
+	return Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
 
 func _on_tutorial_done(_completed: bool) -> void:
 	_restore_tutorial_globals()
@@ -139,8 +141,6 @@ func _on_level_started_playing() -> void:
 
 func _on_game_tick_timeout() -> void:
 	game.tick_game_time()
-	if game.playing and not game.paused():
-		$Level.tick()
 	if game.time_since_saved_ongoing_score_sec() >= 60:
 		_save_ongoing_score()
 
@@ -216,6 +216,18 @@ func on_game_is_done(_didwin:bool, _wasaborted:bool):
 
 func _save_ongoing_score():
 	game.save_ongoing_score(get_game_score(false, false))
+
+
+# The board's dispatch has to be checked every frame, not on the 0.05 s GameTick timer.
+# `tick()` already gates itself on `major_tick_time_ms * time_scale`, so calling it more often
+# changes no cadence -- but on the timer, a fire landing just short of the deadline (599.6 ms of
+# a 600 ms leg) failed the gate and the next chance was a whole 50 ms later. The agent finished
+# its tile and stood still for three frames at 60 fps before the next tile was handed to it,
+# which is the intermittent jump players saw on a straight run. Measured in delemfp: 12-13 frozen
+# frames per 228 in bursts of 3, down to none.
+func _process(_delta: float) -> void:
+	if game != null and game.playing and not game.paused():
+		$Level.tick()
 
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:

@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://c38jubcfptdif"]
 
+[ext_resource type="Script" path="res://scripts/line_backing.gd" id="bk_line"]
 [ext_resource type="Script" uid="uid://uhu4h8hwr4ch" path="res://delemfp/scripts/agent.gd" id="1_aatnaxia"]
 [ext_resource type="Texture2D" uid="uid://bexoqxkwkx83i" path="res://art/agent_tail1.png" id="3_yr61f"]
 [ext_resource type="Texture2D" uid="uid://bhtqci78f0gsr" path="res://art/agent_tail2.png" id="4_2dfpd"]
@@ -21,7 +22,7 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("5_46tbp")
 }],
-"loop": true,
+"loop": 1,
 "name": &"TailWheelsFP",
 "speed": 5.0
 }]
@@ -35,13 +36,19 @@ metadata/_edit_group_ = true
 [node name="AgentShape" type="CollisionShape2D" parent="." unique_id=528397807]
 shape = SubResource("RectangleShape2D_tu7kf")
 
-[node name="Skeleton" type="Line2D" parent="." unique_id=1860061549]
+[node name="SkeletonBK" type="Line2D" parent="." unique_id=1860061549]
+z_index = -10
+width = 7.0
+default_color = Color(0, 0, 0, 1)
+script = ExtResource("bk_line")
+follows = NodePath("../Skeleton")
+
+[node name="Skeleton" type="Line2D" parent="." unique_id=1383709972]
 width = 5.0
 
 [node name="Head" parent="." unique_id=1940202276 instance=ExtResource("5_okhvd")]
 z_index = 1
 animation = &"HeadEyes"
-frame_progress = 0.0
 
 [node name="Tail" type="AnimatedSprite2D" parent="." unique_id=2118284027]
 visible = false

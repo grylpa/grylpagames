@@ -99,7 +99,8 @@ The `game` GenericGameUtil is initialized with `(16, 0, 0)` — 16 hours — so 
    - Triggers expanding ring animation centerd on the circle
    - Increments displayed breath count
    - First tap sets `game.score_was_changed = true`
-   - From tap 4 onwards: rhythm animation activates; amplitude ramps from 1/3 to full over taps 4–8
+   - From tap 4 onwards: the rhythm animation *would* activate — **currently switched off**, see
+     "Why the animation is off" below
 5. When elapsed time ≥ duration: session ends automatically
    - `_compute_stats()` runs analysis
    - `game.score = _consistency_score()` — saved to leaderboard
@@ -112,9 +113,27 @@ The `game` GenericGameUtil is initialized with `(16, 0, 0)` — 16 hours — so 
 
 ---
 
+## Why the animation is off
+
+`const BREATH_ANIMATION: bool = false` in `level.gd`. The circle no longer breathes; it is drawn at
+its resting size for the whole session.
+
+**Players followed the circle instead of their own breath.** The animation starts on the fourth tap,
+once the app has worked out a rhythm — and from that moment it is a pacer on screen, which is the
+one thing this game must not provide. The whole measurement is "how steady is *your* breathing", so
+anything that hands the player a rhythm to copy invalidates the number it then reports.
+
+Everything else is unchanged and deliberately so: the circle is still drawn (static), every tap
+still throws its expanding ring, and the rhythm is still measured, scored and shown in the results.
+The flag gates exactly one assignment — `_anim_active = true` at tap 4 — and every other piece of
+animation machinery below still exists and is still correct; it simply never runs.
+
+Set the flag back to `true` to restore the old behaviour.
+
 ## Breathing Circle Animation
 
-Driven by rhythm detected from taps. State lives in `level.gd`; `tap_area.gd` reads it via `get_tap_draw_state()` and draws each frame.
+**Not currently active** — see above. Driven by rhythm detected from taps. State lives in
+`level.gd`; `tap_area.gd` reads it via `get_tap_draw_state()` and draws each frame.
 
 ### Rhythm Detection (`_update_rhythm`)
 
@@ -131,7 +150,8 @@ A smoothly lerped `_display_rhythm_ms` (lerp rate 0.5/s) tracks the target; at a
 
 ### Animation Start
 
-Activates on the 4th tap. Phase resets to 0 (= tap moment). `_display_rhythm_ms` snaps (not lerps) to the current estimate.
+Gated on `BREATH_ANIMATION`, which is false — so this never happens at present. When enabled it
+activates on the 4th tap. Phase resets to 0 (= tap moment). `_display_rhythm_ms` snaps (not lerps) to the current estimate.
 
 ### Breath Cycle (`_compute_breath_value`)
 

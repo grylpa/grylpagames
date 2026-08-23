@@ -53,18 +53,28 @@ func _ready() -> void:
 	tail_dist_back = body_dist * nbody_parts + head_dist
 	# Starts BEHIND the gates and rises above them once it has left the mouth (see _rise_above).
 	z_index = Z_IN_GATE
-	$Skeleton.z_index = z_index-10
+	# z_index is RELATIVE here, so a child's effective z is the agent's plus its own. The
+	# head keeps the 1 the scene gives it (effective 91 in the gate), which is what keeps it
+	# under the dispatchers at 100. The skeleton used to be set to z_index-10, i.e. 80
+	# relative -- effective 170, straight over the head and over the dispatchers. It has to
+	# be NEGATIVE to sit under the train without lifting anything else.
+	$Skeleton.z_index = -20
 	# var dsc = (1.0 - 0.4) / nbody_parts
 	for i in nbody_parts:
 		var body = body_scene.instantiate()
 		var anim = body.get_node("animation")
 		body.mouse_click.connect(_on_body_input_event)
 		anim.play("main")
-		anim.frame = (i+2)%3
+		# Stagger each tube a third of a cycle apart, as the old 3-frame animation did with
+		# (i+2)%3. The sheet is 24 frames now, so a third of it is 8.
+		anim.frame = ((i+2) % 3) * 8
 		# anim.speed_scale = 1.0 - dsc * (i + 1)
 		anim.speed_scale = 0.5
 		body.modulate = color
-		body.z_index = z_index-i-1
+		# Relative, like the head: -(i+1) puts tube i just behind the head (effective 89, 88,
+		# ...) and still above the skeleton. The old z_index-i-1 was 89 RELATIVE, i.e.
+		# effective 179, which drew the tubes over the dispatchers at 100.
+		body.z_index = -(i+1)
 		add_child(body)
 		bodies.append(body)
 		body.hide()
@@ -185,7 +195,7 @@ func _bounce_phase() -> float:
 	var t: float = MainGlobals.timems() - _bounce_ms
 	if t >= BOUNCE_IN_MS + BOUNCE_OUT_MS:
 		_bounce_ms = -1.0
-		scale = Vector2.ONE
+		$Head.scale = Vector2.ONE
 		return 0.0
 	if t < BOUNCE_IN_MS:
 		return (t / BOUNCE_IN_MS) * 0.5
@@ -202,21 +212,32 @@ func _apply_bounce_squash(phase: float) -> void:
 		_head_angle = angles[0]
 		_head_angle_set = true
 		set_rots()
-		# The head's three frames carry a line across the capsule, and turning the sprite 180
-		# degrees throws that line to the opposite position — a jump, right at the moment the
-		# player is watching. Mirroring the frame index (0<->2, 1 stays) puts the line back where
-		# it was, so the flip is invisible in the artwork as well as in the pose.
+		# The head's frames roll a line around the capsule, and turning the sprite 180 degrees
+		# throws that line to the opposite position — a jump, right at the moment the player is
+		# watching. Frame i sits at angle 2*PI*i/n around the capsule, so the mirrored pose is
+		# angle -i; stepping there puts the line back where it was and hides the flip in the
+		# artwork as well as in the pose.
 		var frames: SpriteFrames = $Head.sprite_frames
-		if frames != null and frames.get_frame_count($Head.animation) == 3:
-			$Head.frame = 2 - $Head.frame
+		if frames != null:
+			var nframes: int = frames.get_frame_count($Head.animation)
+			if nframes > 0:
+				$Head.frame = posmod(-$Head.frame, nframes)
 	# One smooth in-and-out: fully compressed at the half way point.
 	var amount: float = sin(phase * PI)
 	var along: float = 1.0 - (1.0 - BOUNCE_SQUASH) * amount
 	var across: float = 1.0 + (1.0 - BOUNCE_SQUASH) * amount * BOUNCE_BULGE
-	if _bounce_axis.x > 0.5:
-		scale = Vector2(along, across)
-	else:
-		scale = Vector2(across, along)
+	# Squash the HEAD, not the agent. `scale` on the agent scales every child's position too, so
+	# with packets aboard the whole train telescoped in towards the head on every impact -- the
+	# tubes are placed at offsets read off the trail, and scaling the parent shrinks those
+	# offsets. Empty capsules looked fine, which is why it only showed up with packets.
+	# `scale` is in the head's OWN frame, and the head is rotated to face the way it is going, so
+	# its local +x is always the direction of travel. Compress local x and bulge local y and the
+	# squash lines up with the impact whichever way the tube runs.
+	#
+	# Choosing the axis from `_bounce_axis` (a WORLD vector) and applying it to a rotated child was
+	# wrong: at 90 degrees local x is world y, so the compression came out across the tube instead
+	# of along it. Measured over 435 squash frames, 382 of them compressed the wrong world axis.
+	$Head.scale = Vector2(along, across)
 
 # A capsule's FIRST leg is the one place there is not enough room: it starts at a cell center, so a
 # door directly in front leaves exactly one tile of run-up, and an arc needs a full radius of that
@@ -365,19 +386,23 @@ func _process(delta: float) -> void:
 				position = starting_position + v
 			angles[0] = last.angle_to_point(position)
 			if Vector2i(target_position) != Vector2i(starting_position):
-				time_back_positions.push_back(position.round())
-			if time_back_positions.size() > 1:
-				back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
+				time_back_positions.push_back(position)   # raw: rounding the trail to whole pixels
+				# makes the segment lengths alternate and the tubes wobble half a pixel a frame
+				# Only count a segment when one was actually appended. Adding this every frame
+				# inflated the running total on frames with no new sample, which over-trimmed
+				# the trail from the front and made the followers lurch.
+				if time_back_positions.size() > 1:
+					back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
 			while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
 				back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
 				time_back_positions.pop_front()
-			var idx
+			var trail_pos
 			#for i in range(nbody_parts-1,-1,-1):
 			for i in bodies.size():
-				idx = find_closest_dist(i * body_dist + head_dist)
-				if idx >= 0:
+				trail_pos = pos_back_along_trail(i * body_dist + head_dist)
+				if trail_pos != null:
 					last = bodies[i].position
-					bodies[i].position = time_back_positions[idx] - position
+					bodies[i].position = trail_pos - position
 					bodies[i].show()
 					while $Skeleton.get_point_count() < i+2:
 						$Skeleton.add_point(Vector2.ZERO)
@@ -389,17 +414,31 @@ func _process(delta: float) -> void:
 				
 			set_rots()
 
-func find_closest_dist(dist):
-	if time_back_positions.size() == 0:
-		return -1
-	var idx = -1
-	var sum = 0
-	for i in range(time_back_positions.size()-2,-1,-1):
-		sum += (time_back_positions[i] - time_back_positions[i+1]).length()
-		if sum >= dist:
-			idx = i
-			break
-	return idx
+# Returns the point exactly `dist` back along the recorded trail, interpolating inside the segment
+# it lands in, or null when the trail is not yet that long.
+#
+# This used to return the index of the first sample at least `dist` back and the caller parked the
+# tube on that sample, so between index steps the sample stood still while the capsule drove on and
+# then jumped a whole sample forward -- a sawtooth as large as the distance covered in a frame.
+func pos_back_along_trail(dist):
+	if time_back_positions.is_empty():
+		return null
+	# Measure from where the head is RIGHT NOW, not from the newest recorded sample. A sample is
+	# only appended when the tile target changes, so on the frames in between the newest sample is
+	# stale and every follower comes out at the wrong offset, snapping back the next frame. That
+	# showed up as the lead tube's gap breathing between 33.5 and 34.0 px while the head advanced
+	# smoothly -- a sub-pixel jerk backwards every few frames.
+	var sum: float = 0.0
+	var b: Vector2 = position
+	for i in range(time_back_positions.size()-1, -1, -1):
+		var a: Vector2 = time_back_positions[i]
+		var seg: float = (a - b).length()
+		if sum + seg >= dist:
+			var t: float = 0.0 if seg <= 0.0001 else (dist - sum) / seg
+			return b.lerp(a, t)
+		sum += seg
+		b = a
+	return null
 			
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]
@@ -546,7 +585,7 @@ func _rise_above_gate_once_clear() -> void:
 		return
 	_emerged = true
 	z_index = Z_ON_BOARD
-	$Skeleton.z_index = z_index - 10
+	$Skeleton.z_index = -20
 	for i in bodies.size():
 		if is_instance_valid(bodies[i]):
-			bodies[i].z_index = z_index - i - 1
+			bodies[i].z_index = -(i+1)

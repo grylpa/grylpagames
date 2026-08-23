@@ -35,16 +35,13 @@ var _key_poll: Array = []
 const KEY_POLL_INTERVAL_MS_R: float = 50.0
 
 var _phase_grid: GridContainer
-var _anim_time: float = 0.0
-var _head_frame: int = 0
 var _screen_h: float = 788.0
 var _screen_w: float = 680.0
 var _top_y: float = 65.0
 var _bot_y: float = 723.0
 var _scroll_px_per_ms: float = 0.04
 
-var _head_textures: Array = []
-var _sprite_head: Sprite2D
+var _sprite_head: AnimatedSprite2D
 
 var _ripple_seeds: Array = []
 var _tuft_seeds: Array = []
@@ -67,19 +64,14 @@ func _ready() -> void:
 	_top_y = float(MainGlobals.header_height) + 40.0
 	_bot_y = _screen_h - 40.0
 
-	_head_textures = [
-		load("res://art/head1-4x.png"),
-		load("res://art/head2-4x.png"),
-		load("res://art/head3-4x.png"),
-		load("res://art/head2-4x.png"),
-	]
-
-	_sprite_head = Sprite2D.new()
-	_sprite_head.texture = _head_textures[0]
+	# The shared head animation, the same one every other game's player uses. It carries its own
+	# 24-frame sway, so nothing here has to swap textures by hand.
+	_sprite_head = load("res://scenes/head_anim.tscn").instantiate()
 	_sprite_head.scale = Vector2(HEAD_SCALE, HEAD_SCALE)
 	_sprite_head.z_index = 2
 	_sprite_head.visible = false
 	add_child(_sprite_head)
+	_sprite_head.play("HeadEyes")
 
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 7331
@@ -225,8 +217,6 @@ func new_game() -> void:
 	_elapsed_ms = 0.0
 	_session_complete = false
 	_walking = false
-	_anim_time = 0.0
-	_head_frame = 0
 	_char_vel_y = 0.0
 	_cycles_completed = 0
 	_prev_phase_idx = 0
@@ -251,7 +241,6 @@ func _process(delta: float) -> void:
 		return
 
 	_elapsed_ms += delta * 1000.0
-	_anim_time += delta
 
 	# Cycle counter: count each completed inhale→hold→exhale→hold cycle
 	var _dc: Array = RiverG.get_guided_durations()
@@ -324,8 +313,6 @@ func _process(delta: float) -> void:
 	var raw_vel: float = (_char_y - prev_char_y) / maxf(delta, 0.001)
 	_char_vel_y = lerpf(_char_vel_y, raw_vel, delta * 8.0)
 
-	_head_frame = int(_anim_time * 3.5) % 4
-	_sprite_head.texture = _head_textures[_head_frame]
 	_sprite_head.rotation = atan2(_char_vel_y, _scroll_px_per_ms * 1000.0)
 	_sprite_head.position = Vector2(_char_x, _char_y)
 

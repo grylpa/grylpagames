@@ -87,13 +87,19 @@ func start_tutorial() -> void:
 	runner.keep_clear = [
 		func():
 			var p: Vector2 = $Level.tutorial_model_pos()
-			return null if p == Vector2.ZERO else Rect2(p - Vector2(28, 28), Vector2(56, 56)),
+			if p == Vector2.ZERO:
+				return null
+			return Rect2(p - Vector2(28, 28), Vector2(56, 56)),
 		func():
 			var p: Vector2 = $Level.tutorial_periph_pos()
-			return null if p == Vector2.ZERO else Rect2(p - Vector2(28, 28), Vector2(56, 56)),
+			if p == Vector2.ZERO:
+				return null
+			return Rect2(p - Vector2(28, 28), Vector2(56, 56)),
 		func():
 			var r: Rect2 = $Level.tutorial_candidates_rect()
-			return null if r.size.x <= 0.0 else r,
+			if r.size.x <= 0.0:
+				return null
+			return r,
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 

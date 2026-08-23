@@ -208,10 +208,20 @@ func _save_ongoing_score():
 
 func _on_game_tick_timeout() -> void:
 	game.tick_game_time()
-	if game.playing and not game.paused():
-		$Level.tick()
 	if game.time_since_saved_ongoing_score_sec() >= 60:
 		_save_ongoing_score()
+
+
+# The board's dispatch has to be checked every frame, not on the 0.05 s GameTick timer.
+# `tick()` already gates itself on `major_tick_time_ms * time_scale`, so calling it more often
+# changes no cadence -- but on the timer, a fire landing just short of the deadline (599.6 ms of
+# a 600 ms leg) failed the gate and the next chance was a whole 50 ms later. The agent finished
+# its tile and stood still for three frames at 60 fps before the next tile was handed to it,
+# which is the intermittent jump players saw on a straight run. Measured in delemfp: 12-13 frozen
+# frames per 228 in bursts of 3, down to none.
+func _process(_delta: float) -> void:
+	if game != null and game.playing and not game.paused():
+		$Level.tick()
 
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:

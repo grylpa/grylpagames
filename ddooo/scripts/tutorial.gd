@@ -36,7 +36,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "A shape appears in the center. Remember it — shape and color.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_model_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": level.tutorial_frame_radius(),
 			"spot_pad": 0.0,
 		},
@@ -56,7 +58,9 @@ static func steps(level: Node, _game) -> Array:
 				return "While you were looking at the center, a dot flashed out at the edge — %s, this time.\n\nYou will be asked which way it was." % d,
 			"spot": func():
 				var p: Vector2 = level.tutorial_periph_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": level.tutorial_frame_radius(),
 			"spot_pad": 0.0,
 		},
@@ -70,7 +74,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "One of these is the shape you saw in the center.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_candidates_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 10.0,
 		},
 		{
@@ -116,7 +122,9 @@ static func steps(level: Node, _game) -> Array:
 				return "These eight dots are the directions.\n\nThe flash was %s, and that one is framed." % d,
 			"spot": func():
 				var p: Vector2 = level.tutorial_correct_dir_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": level.tutorial_frame_radius(),
 			"spot_pad": 0.0,
 		},

@@ -18,7 +18,13 @@ var _hidden_temporarily := false
 
 func popup_text(text_title: String, text: String, vcenter:bool, top_px := 80.0) -> void:
 	_hidden_temporarily = true
-	hide()
+	# The scene starts HIDDEN (scenes/popup_text.tscn). It used to start visible, so add_child()
+	# put a visible Window into the tree — Godot hooked it up to its transient parent there and
+	# then — and the hide()/popup() below re-did that hookup from a different state, which is what
+	# logged "disconnect a nonexistent connection ... focus_entered" followed by "already
+	# connected" every time any game opened this popup.
+	if visible:
+		hide()
 	# The scene's 36px font makes the popup too big on desktop; shrink it there (mobile is
 	# fine as-is). The popup sizes to the content, so this shrinks the whole panel.
 	var fs: int = 36 if MainGlobals.is_mobile() else 26
@@ -151,7 +157,10 @@ func _add_inside_catcher() -> void:
 
 func _on_catcher_gui_input(event: InputEvent) -> void:
 	if (event is InputEventMouseButton and event.pressed) or (event is InputEventScreenTouch and event.pressed):
-		hide()
+		# Both halves of one tap arrive (touch, and the mouse button synthesized from it), so the
+		# second one would hide a popup that is already hidden.
+		if visible:
+			hide()
 
 
 func _ensure_blocker() -> void:

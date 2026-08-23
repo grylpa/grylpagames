@@ -23,14 +23,9 @@ grow_vertical = 2
 texture = ExtResource("4_3h76h")
 stretch_mode = 1
 
-[node name="DispatchAudio" type="AudioStreamPlayer2D" parent="." unique_id=1508892419]
 
-[node name="DeliveryAudio" type="AudioStreamPlayer2D" parent="." unique_id=1605263403]
 
-[node name="ExplosionAudio" type="AudioStreamPlayer2D" parent="." unique_id=480293810]
 
-[node name="DoorAudio" type="AudioStreamPlayer2D" parent="." unique_id=567333474]
 
-[node name="MotorAudio" type="AudioStreamPlayer2D" parent="." unique_id=958325801]
 
 [connection signal="timeout" from="AgentDispatchTimer" to="." method="_on_agent_dispatch_timer_timeout"]

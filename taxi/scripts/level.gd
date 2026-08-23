@@ -1206,6 +1206,38 @@ func on_clicked_target(target):
 					on_agent_pressed(a)
 					return
 
+# TEMPORARY DIAGNOSTIC — see taxi/scripts/tutorial.gd. Reports why a taxi with a job is not
+# advancing: tick() moves one only when it is unblocked, standing ON its own path, and the next
+# cell of that path is drivable.
+func tutorial_assigned_taxi():
+	for t in taxis:
+		if is_instance_valid(t) and t.transaction_id >= 0:
+			return t
+	return null
+
+func tutorial_taxi_state(taxi) -> String:
+	var idx: int = find_agent_path_index(taxi)
+	var bits: Array = []
+	bits.append("blocked=%s" % str(taxi.is_blocked))
+	bits.append("gas=%.0f%%" % (float(taxi.fuel_level) * 100.0))
+	bits.append("path=%d idx=%d" % [taxi.path.size(), idx])
+	if idx < 0:
+		bits.append("NOT ON ITS PATH")
+	elif idx + 1 >= taxi.path.size():
+		bits.append("AT PATH END")
+	else:
+		var q = taxi.path[idx + 1]
+		var cell = board[q.y][q.x]
+		var why: String = "ok"
+		if not cell.ispipe:
+			why = "no road"
+		elif cell.istarget and cell.target.transaction_id != taxi.transaction_id:
+			why = "another job's gate"
+		elif cell.agent != null and cell.agent.is_taxi:
+			why = "another taxi"
+		bits.append("next %s: %s" % [str(q), why])
+	return "  ".join(bits)
+
 func check_taxi(taxi):
 	if !taxi.is_taxi:
 		return

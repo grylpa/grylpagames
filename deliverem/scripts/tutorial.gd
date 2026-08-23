@@ -22,10 +22,14 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var truck: Callable = func():
 		var p: Vector2 = level.tutorial_agent_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 	var door: Callable = func():
 		var p: Vector2 = level.tutorial_next_door_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 
 	return [
 		{
@@ -38,7 +42,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": func(): return "Numbered docks sit around the edge of the yard — this is dock %d. The truck reaches them along the roads." % level.tutorial_a_dock_id(),
 			"spot": func():
 				var p: Vector2 = level.tutorial_dock_pos(level.tutorial_a_dock_id())
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": 55.0,
 		},
 		{
@@ -68,7 +74,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Pull up alongside it — you cannot drive in.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_next_dock_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": 55.0,
 		},
 		{

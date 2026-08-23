@@ -1209,10 +1209,10 @@ func tick(force: bool = false):
 							var cell = bcell(p)
 							if cell.is_outside:
 								agent.trying_to_enter = true
-								print("wolf had no mode. set to trying_to_enter")
+								# print("wolf had no mode. set to trying_to_enter")
 							else:
 								agent.to_sheep = true
-								print("wolf had no mode. set to to_sheep")
+								# print("wolf had no mode. set to to_sheep")
 
 						if agent.scared:
 							if !find_path_to_closest_opening(agent, false, false):

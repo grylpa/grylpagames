@@ -1254,6 +1254,13 @@ func stop_sound(_name: String):
 # Every registered sound, silenced. A tutorial calls this when it ends: several games start an
 # ambient loop from new_game() (gorilla's rumble, storm's rain, taxi's motor), and finishing or
 # skipping a tutorial used to leave it playing on and on over the main menu.
+# Whether a registered sound is currently playing. Games used to ask their own AudioStreamPlayer
+# node this ("if not $MotorAudio.playing: play()"); with the sound in the shared registry they ask
+# here instead.
+func is_sound_playing(_name: String) -> bool:
+	var s = sounds.get(_name, null)
+	return s != null and is_instance_valid(s) and s.playing
+
 func stop_all_sounds() -> void:
 	for key in sounds:
 		var s = sounds[key]

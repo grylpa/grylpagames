@@ -24,10 +24,14 @@ static func steps(level: Node, _game) -> Array:
 	var frame_r: float = maxf(12.0, level.game.tile_size * 0.75)
 	var capsule: Callable = func():
 		var p: Vector2 = level.tutorial_capsule_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 	var door: Callable = func():
 		var p: Vector2 = level.tutorial_next_door_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 
 	return [
 		{
@@ -48,7 +52,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "This is the receiver it belongs to. Any other one will simply ignore it.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_receiver_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": frame_r,
 			"spot_pad": 0.0,
 		},
