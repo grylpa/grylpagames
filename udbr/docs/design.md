@@ -4,6 +4,48 @@
 
 A breathing-awareness game. The player swipes their finger up while inhaling and down while exhaling, or uses arrow keys (UP=inhale, DOWN=exhale, no key=hold). Measures consistency of rhythm and analyses phase durations using autocorrelation + phase-folding at session end.
 
+
+### A lost touch used to kill the swipe for good
+
+`MainGlobals.is_in_digitized_swipe_up` / `_dn` are *latched*: `_update_digitized_swipe()` holds the
+last direction while the finger is still, because a finger held motionless sends no drag events and
+holding still is meaningful here. The breathing games then **poll** those flags every frame
+(`udbr/scripts/level.gd:448`, and the same in river, crack and mother).
+
+That makes them the only games that can get stuck. A touch can be taken away without ever sending
+its release -- an Android system gesture, the notification shade, the recents switcher. When that
+happens `MainGlobals.swipe_active` stays true, the finger stays claimed in `_dsw_index`, and the
+latched direction is never cleared, so the game behaves as though a finger were held down forever.
+Every other drag game escapes this because its gesture is one-shot: gorilla fires `sim_action` at
+release, wolves and storm emit `sig_path_drawn` at release, and a lost release costs them one
+gesture rather than all of them.
+
+**The swipe handling is index-agnostic.** `scripts/main.gd` keeps one sample stream per touch
+index, `_dsw_streams = {index: [[time_ms, y], ...]}`, and the direction each frame comes from
+whichever stream has moved most inside `DSW_WINDOW_MS`. Any number of fingers may be down: a finger
+held still contributes a displacement of zero so it cannot fight the one doing the work, and a
+finger that joins part way through does not reset the direction the first one set (only the first
+finger down starts from neutral).
+
+That is also the cure for the bug that used to lock these games out. There was a single owning
+index, and when a release went missing the OS still believed that finger was down, so it never
+handed out its index again -- every later touch arrived as index 1, 2, ... and the owner check
+rejected all of them, the drags *and* the release that would have cleared the claim. The game then
+sat reading the phantom's latched direction until the app restarted. With no owner there is nothing
+to be a phantom of: a stale stream simply ages out of the window and stops contributing.
+
+Note what does **not** work as a safety net: cross-checking `Input.is_action_pressed("touch")`.
+That state is built from the same events, so a lost release leaves it stuck pressed too, and the
+check compares a signal against itself.
+
+Two further resets, deliberately overlapping:
+
+- **Any finger coming up ends the gesture and clears every stream.** Simple and total. The price is
+  that lifting a stray second finger drops a hold in progress; the next drag starts it again.
+- **`GenericGameUtil.reset()` calls `MainGlobals.reset_swipe_state()`**, so every level start drops
+  whatever survived. `reset()` sets `playing = false`, so it only runs at a boundary and never
+  interrupts a real gesture. A backstop, not a fix: it bounds how long anything can live.
+
 ## File Structure
 
 ```

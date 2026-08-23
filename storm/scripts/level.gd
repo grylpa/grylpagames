@@ -251,6 +251,17 @@ func _start_playing():
 func _process(_delta: float) -> void:
 	pass
 	
+# The color under a board cell, for the drawn-path overlay. The floor of a room is painted
+# `color_by_index(room_id).lightened(0.5)` in pipe.gd, so the path is told the same thing and
+# picks black or white against it -- a fixed orange line vanished over the warmer rooms.
+func path_color_at(bp: Vector2i) -> Color:
+	if bp.x < 0 or bp.y < 0 or bp.y >= board.size() or bp.x >= board[bp.y].size():
+		return Color(1, 1, 1)
+	var rid: int = board[bp.y][bp.x].room_id
+	if rid < 0:
+		return Color(1, 1, 1)
+	return game.color_by_index(rid).lightened(0.5)
+
 func add_pipe(p, room_id := -1):
 	if board[p.y][p.x].ispipe:
 		if room_id >= 0:

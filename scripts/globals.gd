@@ -47,6 +47,16 @@ const LAST_PROFILE_HINT_PATH := "user://last_profile_key.txt"
 
 var active_game = null
 var popup_open: bool = false
+
+# Emitted when a half-finished gesture must be dropped. scripts/main.gd owns the per-finger state
+# (which index claimed the gesture, its samples), so it listens for this rather than exposing them.
+signal sig_reset_swipe
+
+# Optional hook a game may set so the drawn path can be colored against what it is drawn over:
+# takes a board Vector2i and returns the color of that cell. Left unset, the path keeps the
+# overlay's own color. Cleared whenever a game is activated, so one game's probe cannot leak
+# into the next.
+var path_color_probe: Callable = Callable()
 var scores_last_synced_ts: int = 0
 var user_file_key: String = "guest"
 # save_settings() writes the WHOLE settings array and the profile hint from whatever is in memory.
@@ -69,6 +79,10 @@ var draw_path_mode: bool:
 var path_tile_size: int = 40
 var path_screen_offset: Vector2i = Vector2i.ZERO
 var path_board_size: Vector2i = Vector2i.ZERO
+# How long the drawn path takes to fade once the finger lifts. The line is laid out in SCREEN
+# space, so in a game whose view scrolls it stops describing the route almost at once and should
+# go quickly; where the whole board is on screen it stays meaningful and can linger.
+var path_fade_sec: float = 0.6
 
 var is_in_digitized_swipe_up:bool = false
 var is_in_digitized_swipe_dn:bool = false
@@ -471,6 +485,21 @@ func array_max(arr: Array):
 
 var version:String: 
 	get: return ProjectSettings.get_setting("application/config/version")
+
+# Drop any gesture in progress. Called at the start of every level, so a claim that somehow
+# outlived its finger -- a release the OS never delivered -- cannot survive past the level it
+# happened in, whatever else it slips through.
+# Black or white, whichever stands out more against `c`. Rec.709 luma, so a yellow room counts as
+# light even though its blue channel is low.
+func contrasting_ink(c: Color) -> Color:
+	var luma: float = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+	return Color(0.06, 0.06, 0.06) if luma > 0.5 else Color(0.97, 0.97, 0.97)
+
+func reset_swipe_state() -> void:
+	swipe_active = false
+	is_in_digitized_swipe_up = false
+	is_in_digitized_swipe_dn = false
+	sig_reset_swipe.emit()
 
 func set_popup_open(is_open: bool):
 	swipe_active = false
