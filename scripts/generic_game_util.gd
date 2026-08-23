@@ -667,7 +667,15 @@ func is_corner(p, width=1):
 func color_by_index(i):
 	return colors[i % colors.size()]
 
+# Palette entries this game must never hand out, by index. A game sets it when one of the shared
+# colors is too close to its own background to be read as a distinct thing.
+var skip_color_idxs: Array = []
+
 func next_color():
+	var guard: int = 0
+	while skip_color_idxs.has(next_color_idx) and guard < colors.size():
+		next_color_idx = (next_color_idx + 1) % colors.size()
+		guard += 1
 	var c = colors[next_color_idx]
 	next_color_idx = (next_color_idx + 1) % colors.size()
 	return c

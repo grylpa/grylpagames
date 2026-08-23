@@ -5,6 +5,30 @@
 A breathing-awareness game. The player swipes their finger up while inhaling and down while exhaling, or uses arrow keys (UP=inhale, DOWN=exhale, no key=hold). Measures consistency of rhythm and analyses phase durations using autocorrelation + phase-folding at session end.
 
 
+### The one that actually stopped the swipes
+
+Symptom: after playing another game the breathing game behaves as though "up" is held down for
+ever. It is not the swipe code at all -- `Input.is_action_pressed("up")` really is stuck true.
+
+`MainGlobals.sim_action()` fires an `InputEventAction` with `pressed = true` and nothing in the
+project ever sent the matching release (the only `pressed = false` in the codebase was a commented
+out line in `help.gd`). An action press LATCHES: `Input.is_action_pressed()` keeps reporting it
+until released. So one flick steering a capsule "up" in pneumo left "up" held for the rest of the
+session, and the breathing games are the only ones that poll `Input.is_action_pressed("up")` every
+frame -- everything else consumes directions as `event.is_action_pressed(...)` inside `_input`, a
+one-shot that does not care. Play pneumo, change game, and the ball rises on its own.
+
+`sim_action()` now queues the action and `MainGlobals._process()` sends the release on the next
+frame. Measured, with and without:
+
+| | `_input` gets the press | `is_action_just_pressed` | `is_action_pressed` after 5 frames |
+|---|---|---|---|
+| before | yes | yes | **still true** |
+| after | yes | yes | false |
+
+Both ways of consuming an action still work; only the latch is gone. Real keyboard holds are
+untouched, because a real key sends a real release.
+
 ### A lost touch used to kill the swipe for good
 
 `MainGlobals.is_in_digitized_swipe_up` / `_dn` are *latched*: `_update_digitized_swipe()` holds the

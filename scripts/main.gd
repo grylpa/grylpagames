@@ -365,7 +365,7 @@ func _input(event: InputEvent) -> void:
 					var ax: float = abs(d.x)
 					var ay: float = abs(d.y)
 
-					if !MainGlobals.digitized_swipe_mode:
+					if !MainGlobals.digitized_swipe_mode and _steering_allowed():
 						if ax >= flick_threshold or ay >= flick_threshold:
 							if ax >= ay:
 								var action: String = actions[0][(d.x > 0.0) as int]
@@ -438,6 +438,15 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed("mute"):
 		MainGlobals.mute = !MainGlobals.mute
 		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), MainGlobals.mute)
+
+
+# Screen-space touch position to a board cell, accounting for camera zoom and pan.
+# Steering actions are meaningless while the chooser is up -- and worse than meaningless: dragging
+# its scrollable list to reach a game further down used to fire a direction action through the
+# flick path, which latched (see MainGlobals.sim_action) and left the next breathing game reading
+# a permanent "up".
+func _steering_allowed() -> bool:
+	return not $GameChooser.visible
 
 
 # Screen-space touch position to a board cell, accounting for camera zoom and pan.
@@ -523,7 +532,7 @@ func _path_extend(px_pos: Vector2) -> void:
 func _process_horizontal_steps() -> bool:
 	var did_step := false
 	while abs(swipe_accum.x) >= min_swipe_distance:
-		if !MainGlobals.digitized_swipe_mode:
+		if !MainGlobals.digitized_swipe_mode and _steering_allowed():
 			var action: String = actions[0][(swipe_accum.x > 0.0) as int]
 			MainGlobals.sim_action(action)
 		swipe_accum.x -= sign(swipe_accum.x) * min_swipe_distance
@@ -533,7 +542,7 @@ func _process_horizontal_steps() -> bool:
 func _process_vertical_steps() -> bool:
 	var did_step := false
 	while abs(swipe_accum.y) >= min_swipe_distance:
-		if !MainGlobals.digitized_swipe_mode:
+		if !MainGlobals.digitized_swipe_mode and _steering_allowed():
 			var action: String = actions[1][(swipe_accum.y > 0.0) as int]
 			MainGlobals.sim_action(action)
 		swipe_accum.y -= sign(swipe_accum.y) * min_swipe_distance

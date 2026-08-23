@@ -34,8 +34,13 @@ var target_lobbies = []
 var pipes = []
 var empties = []
 var doors = []
-var transaction_ids = []
-var next_transaction_id_idx = 0
+# Transaction ids are handed out from a counter that only ever goes up, and is deliberately NOT
+# reset between levels. They used to come from a shuffled pool of `ntargets` ids cycled by index,
+# which meant an id could be live twice at once -- and `reset_sender_receiver(id)` clears EVERY
+# target holding that id, two seconds after a delivery. A capsule still in flight could therefore
+# have its receiver wiped by someone else's delivery, after which the freed target was picked up by
+# the next transaction and changed color while the original capsule was still on the board.
+var next_transaction_id: int = 1
 var agent_start_positions = []
 var agent_start_directions = []
 var time_started_level_ms = 0
@@ -210,12 +215,6 @@ func create_board() -> void:
 		add_target(Vector2i(col,game.board_size.y-1), targetids[targetidx], show_ids)
 		targetidx += 1
 
-	transaction_ids = range(1, ntargets+1)
-	transaction_ids.shuffle()
-	# The cursor into it has to restart with the list. A level with fewer targets than the
-	# one before rebuilds a shorter array, and a cursor left at the old level's position
-	# indexes past the end the next time a capsule is dispatched (level 9 then level 1).
-	next_transaction_id_idx = 0
 
 	for row in range(1,game.board_size.y-1):
 		for col in range(1,game.board_size.x-1):
@@ -265,10 +264,20 @@ func create_board() -> void:
 	game.create_fill_screen_camera(self)
 	game.level_is_ready = true
 		
-func find_closest_target(p):
+# The closest target to `p`. With only_free the search skips targets that are already the sender
+# or receiver of a live transaction.
+#
+# Dispatch MUST use only_free. It used to take simply the closest target as the new sender, which
+# could be the live RECEIVER of a capsule still in flight: set_sender() then overwrote that
+# target's transaction id and marking, so the capsule's id matched no receiver any more and it
+# could never be delivered, and the gate fell back to plain unassigned once the new transaction
+# ended. That is a blue capsule watching its receiver go orange while it is still on the board.
+func find_closest_target(p, only_free: bool = false):
 	var d = 100
 	var target
 	for t in targets:
+		if only_free and (t.is_sender or t.is_receiver):
+			continue
 		var this_d = t.board_pos.distance_to(p)
 		if this_d < d:
 			d = this_d
@@ -299,7 +308,7 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	# half a tile further back was tried, to buy the first turn more run-up: it put most of the
 	# capsule inside the gate, which is not what a capsule about to be thrown should look like.
 	agent.set_pos(game.board_to_px(p), direction)
-	var sender = find_closest_target(p)
+	var sender = find_closest_target(p, true)
 	var receiver = null
 	var taridxs = range(0, targets.size())
 	taridxs.shuffle()
@@ -307,10 +316,10 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 		var t = targets[i]
 		if t.board_pos != sender.board_pos and !t.is_receiver and !t.is_sender:
 			receiver = t
-	if receiver != null:
+	if receiver != null and sender != null:
 		var color = game.next_color()
-		var transaction_id = transaction_ids[next_transaction_id_idx]
-		next_transaction_id_idx = (next_transaction_id_idx + 1) % transaction_ids.size()
+		var transaction_id = next_transaction_id
+		next_transaction_id += 1
 		receiver.set_receiver(true, color, transaction_id)
 		sender.set_sender(true, color, transaction_id)
 		sender.modulate = Color(1,1,1,1)
