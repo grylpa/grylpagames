@@ -7,6 +7,37 @@ through a rotated door is deflected ninety degrees. The whole yard is visible th
 `delemfp` is the same idea played through a zoomed camera locked on the truck; this is the
 full-board version. The two games share a skeleton but not a single file — each has its own copy.
 
+## Movement, the trail and the skeleton
+
+The head drives itself tile to tile; the followers (packets/cars) and the tail trail behind it, and
+`Skeleton` is a `Line2D` drawn through all of them. Three things here are deliberate, and undoing
+any of them brings back a visible stutter.
+
+**The trail stores raw positions.** `time_back_positions` used to store `position.round()`. Whole
+pixel samples make the segment lengths alternate, so a follower reading a distance off the trail
+wobbles about half a pixel every frame. At low speed that quantization was the whole of the jitter.
+
+**`pos_back_along_trail(dist)` interpolates.** It returns the point exactly `dist` back along the
+trail, interpolating inside the segment it lands in, and `null` while the trail is shorter than
+`dist`. It replaced `find_closest_dist()`, which returned the *index* of the first sample at least
+`dist` back; the caller parked the follower on that sample, so between index steps the sample stood
+still while the head drove on and then jumped a whole sample forward -- a sawtooth as large as the
+distance covered in a frame (5.5 px at speed).
+
+**The board's dispatch runs from `_process`, not the `GameTick` timer.** `tick()` gates itself on
+`major_tick_time_ms * time_scale`, so calling it every frame changes no cadence. On the 0.05 s
+timer it did change one: a fire landing just short of the deadline (599.6 ms into a 600 ms leg)
+failed the gate, and the next chance was a whole 50 ms later, so the agent finished its tile and
+stood still for three frames at 60 fps before being handed the next one. That was the intermittent
+jump on a straight run. Measured in delemfp: 12-13 frozen frames per 228 in bursts of 3, down to 5
+in bursts of 1.
+
+**`SkeletonBK`** is a second, thicker, black `Line2D` behind `Skeleton` giving the train an outline.
+It carries `res://scripts/line_backing.gd` and mirrors `Skeleton`'s points and `z_index` every
+frame, so **no game code touches it**. It is the earlier sibling, which is what puts it behind at
+equal `z_index`. Do not add, move or remove its points by hand: that duplicates every skeleton call
+and drifts out of sync the moment one is missed.
+
 ## Files
 
 ```

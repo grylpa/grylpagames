@@ -7,6 +7,34 @@ room by room, **what color that room's floor was**. Right answers score, wrong o
 The name in the chooser and in game is "Mind Palace"; the folder and `file_names_prefix` stay `mmm`,
 because every scores/settings file on disk is named after that prefix.
 
+## Bomb art
+
+Bombs use the `Bomb` animation in the shared `scenes/head_anim.tscn`, which mmm, lightsout, storm,
+wolves and gorilla all draw from — a change here shows up in all of them.
+
+The art is `art/bomb_crackle.png`, 12 frames of 128x128 generated from `bomb1-vig-4x.png`. It is
+deliberately **grayscale**, because each game tints it (`modulate = Color(0.5, 0, 0)` for target
+bombs), so the fuse can only be told apart from the ball by brightness and shape, never by hue.
+
+The original art read as "a worm coming out of a ball": the cord was a fat, evenly wide tube that
+was actually *brighter* (peak 247) than the flame blob on its end (143), and the only part the
+three frames animated was a large, dim, round puff detached to the upper right. The replacement
+drops the puff, redraws the cord as a tapered fuse that is dimmer than the flame, and puts a
+necked, flickering teardrop flame with crackle sparks at the cord's real tip.
+
+Everything is contoured. The ball carries a near-black outline all the way round (10..40
+luminance on its edge) so it reads on light and dark backgrounds alike, and the fuse, the flame
+and the sparks are outlined to match — about 2 px, against the ball's 4-6 px, since they are much
+thinner shapes. The fuse stops at the dome rather than being drawn into it, so its two side
+outlines meet the ball's own contour instead of cutting a channel through the bright dome. Sparks
+sitting right at the top edge of the frame are the one place the ring cannot close (about three
+pixels per frame).
+
+The frame is fixed at 128x128 and every game positions the sprite by that footprint, so the only
+way to make the fuse and flame read at play size was to give them more of the frame: the ball is
+scaled to 84% and sat on the bottom, which takes the headroom above it from 38% of the ball's
+height to 66%. The sprite's footprint is unchanged, so nothing moves in any game.
+
 ## Files
 
 ```

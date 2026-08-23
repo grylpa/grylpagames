@@ -163,19 +163,23 @@ func _process(delta: float) -> void:
 			position = starting_position + v
 			angles[0] = last.angle_to_point(position)
 			if Vector2i(target_position) != Vector2i(starting_position):
-				time_back_positions.push_back(position.round())
-			if time_back_positions.size() > 1:
-				back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
+				time_back_positions.push_back(position)   # raw: rounding the trail to whole pixels
+				# makes the segment lengths alternate and the followers wobble half a pixel a frame
+				# Only count a segment when one was actually appended. Adding this every frame
+				# inflated the running total on frames with no new sample, which over-trimmed
+				# the trail from the front and made the followers lurch.
+				if time_back_positions.size() > 1:
+					back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
 			while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
 				back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
 				time_back_positions.pop_front()
-			var idx
+			var trail_pos
 			#for i in range(nbody_parts-1,-1,-1):
 			for i in bodies.size():
-				idx = find_closest_dist(i * body_dist + head_dist)
-				if idx >= 0:
+				trail_pos = pos_back_along_trail(i * body_dist + head_dist)
+				if trail_pos != null:
 					last = bodies[i].position
-					bodies[i].position = time_back_positions[idx] - position
+					bodies[i].position = trail_pos - position
 					bodies[i].show()
 					while $Skeleton.get_point_count() < i+2:
 						$Skeleton.add_point(Vector2.ZERO)
@@ -186,18 +190,38 @@ func _process(delta: float) -> void:
 			# 	angles[-1] = $Skeleton.get_point_position(nbody_parts+1).angle_to_point($Skeleton.get_point_position(nbody_parts))
 				
 			set_rots()
+		# The leg ended between two frames, so the head is parked a fraction of a tile short
+		# until the board hands it the next one. Finish the tile instead of standing still:
+		# it can only ever move forward, and by less than one frame of travel.
+		elif not was_hit:
+			position = target_position
 
-func find_closest_dist(dist):
-	if time_back_positions.size() == 0:
-		return -1
-	var idx = -1
-	var sum = 0
-	for i in range(time_back_positions.size()-2,-1,-1):
-		sum += (time_back_positions[i] - time_back_positions[i+1]).length()
-		if sum >= dist:
-			idx = i
-			break
-	return idx
+# Returns the point exactly `dist` back along the recorded trail, interpolating inside the segment
+# it lands in, or null when the trail is not yet that long.
+#
+# This used to return the index of the first recorded sample at least `dist` back, and the caller
+# parked the follower on that sample. Between index steps the sample is fixed while the head drives
+# on, so the follower slid backwards, then jumped a whole sample forward when the index finally
+# stepped -- a sawtooth as large as the distance covered per frame.
+func pos_back_along_trail(dist):
+	if time_back_positions.is_empty():
+		return null
+	# Measure from where the head is RIGHT NOW, not from the newest recorded sample. A sample is
+	# only appended when the tile target changes, so on the frames in between the newest sample is
+	# stale and every follower comes out at the wrong offset, snapping back the next frame. That
+	# showed up as the lead tube's gap breathing between 33.5 and 34.0 px while the head advanced
+	# smoothly -- a sub-pixel jerk backwards every few frames.
+	var sum: float = 0.0
+	var b: Vector2 = position
+	for i in range(time_back_positions.size()-1, -1, -1):
+		var a: Vector2 = time_back_positions[i]
+		var seg: float = (a - b).length()
+		if sum + seg >= dist:
+			var t: float = 0.0 if seg <= 0.0001 else (dist - sum) / seg
+			return b.lerp(a, t)
+		sum += seg
+		b = a
+	return null
 			
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]

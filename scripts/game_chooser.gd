@@ -288,6 +288,8 @@ func create_grid():
 		_build_categorized_grid()
 	else:
 		for g in MainCfg.games:
+			if not MainCfg.runs_on_this_platform(g):
+				continue
 			var game_folder: String = g[0]
 			var game_name: String = g[1]
 			var game_desc: String = g[2]
@@ -325,7 +327,9 @@ func add_game(game_path, game_name, game_desc, needs_login, list_mode):
 	var btn
 	var desc
 
-	var texture_stem = "game_screen_full.png" if MainCfg.single_game else "game_screen_200.png"
+	# Every game ships a 200px tile. The full-size variants only ever existed for three games
+	# and have been removed, so a single-game build shows the same image as the chooser grid.
+	var texture_stem = "game_screen_200.png"
 	var texture_path = "res://" + game_path + "/art/" + texture_stem
 	if list_mode:
 		var line_w_desc = preload("res://scenes/game_select_list_mode_line.tscn").instantiate()
@@ -486,7 +490,7 @@ func _build_categorized_grid() -> void:
 	for cat in sorted_cats:
 		var cat_games: Array = []
 		for g in MainCfg.games:
-			if g.size() > 3 and g[3] == cat:
+			if g.size() > 3 and g[3] == cat and MainCfg.runs_on_this_platform(g):
 				cat_games.append(g)
 		if cat_games.is_empty():
 			continue
@@ -506,7 +510,7 @@ func _build_categorized_grid() -> void:
 func _cat_recent_index(cat: String, lpo: Array) -> int:
 	var best: int = 999999
 	for g in MainCfg.games:
-		if g.size() > 3 and g[3] == cat:
+		if g.size() > 3 and g[3] == cat and MainCfg.runs_on_this_platform(g):
 			var idx: int = lpo.find(g[0])
 			if idx != -1 and idx < best:
 				best = idx

@@ -36,10 +36,14 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var mother_spot: Callable = func():
 		var p: Vector2 = level.tutorial_mother_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 	var child_spot: Callable = func():
 		var p: Vector2 = level.tutorial_child_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 	# Both heads are worth keeping out from under the caption even when only one is being pointed
 	# at — they are the only two things on screen that matter, and they move.
 	var heads_clear: Array = [mother_spot, child_spot]

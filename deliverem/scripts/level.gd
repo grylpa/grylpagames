@@ -72,12 +72,11 @@ func _ready() -> void:
 	player = player_scene.instantiate()
 	add_child(player)
 
-	$DoorAudio.stream = door_audio
-	$MotorAudio.stream = motor_audio
-	motor_audio.loop = true
+	game.add_sound(self, "door", door_audio, false)
+	game.add_sound(self, "motor", motor_audio, true)
 
-	$DispatchAudio.stream = dispatch_audio
-	$DeliveryAudio.stream = delivery_audio
+	game.add_sound(self, "dispatch", dispatch_audio, false)
+	game.add_sound(self, "delivery", delivery_audio, false)
 
 	# new_game()
 	
@@ -104,7 +103,7 @@ func _input(event) -> void:
 	if event.is_action_pressed("reminder") or event.is_action_pressed("clue"):
 		display_reminder()
 	elif event.is_action_pressed("mainmenu"):
-		$MotorAudio.stop()
+		game.stop_sound("motor")
 	
 func add_pipe(p):
 	board[p.y][p.x].ispipe = true
@@ -335,10 +334,10 @@ func add_agent_at(p: Vector2i, direction: int):
 	# are out at once — the clue list has always been color-coded this way.
 	new_packet_message.emit(text, true, agent.color)
 	game.tutorial_notify("agent_dispatched")   # no-op outside tutorial mode
-	if not $DispatchAudio.playing:
-		$DispatchAudio.play()
-	if not $MotorAudio.playing:
-		MainGlobals.do_after(0.5, func(): $MotorAudio.play())
+	if not game.is_sound_playing("dispatch"):
+		game.play_sound("dispatch")
+	if not game.is_sound_playing("motor"):
+		MainGlobals.do_after(0.5, func(): game.play_sound("motor"))
 	
 func display_reminder():
 	game.tutorial_notify("reminder_shown")
@@ -371,7 +370,7 @@ func on_clicked_door(pos: Vector2i):
 			any_changed = true
 			break
 	if any_changed:
-		$DoorAudio.play()
+		game.play_sound("door")
 		game.tutorial_notify("door_turned")
 
 func can_go_to(p):
@@ -389,7 +388,7 @@ func all_agents_done():
 	for agent in agents:
 		if agent.body_ids.size() > 0:
 			return false
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 	return true
 	
 var last_major_tick_ms = -10000.0
@@ -416,7 +415,7 @@ func tick():
 		if adj_tar_id >= 0:
 			_removed_body_part = agent.remove_body_if_first(adj_tar_id)
 			if _removed_body_part:
-				$DeliveryAudio.play()
+				game.play_sound("delivery")
 				game.delivered_one()
 				game.tutorial_notify("packet_delivered")
 				if agent.body_ids.is_empty():
@@ -490,7 +489,7 @@ func _on_level_done_popup_closed():
 
 func level_is_done(didwin: bool):
 	game.level_is_done = true
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 	BE.send_event("level_done", "Deliverem", {
 		"level": level,
 		"didwin": int(didwin),
@@ -555,7 +554,7 @@ func _on_agent_dispatch_timer_timeout() -> void:
 				start_dispatch = false
 		
 func on_time_over():
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 
 # --- tutorial staging -------------------------------------------------------
 

@@ -67,14 +67,13 @@ func _ready() -> void:
 	level = PneumoG.starting_level
 	increase_difficulty(false)
 
-	$DoorAudio.stream = door_audio
-	$MotorAudio.stream = motor_audio
-	motor_audio.loop = true
+	game.add_sound(self, "door", door_audio, false)
+	game.add_sound(self, "motor", motor_audio, true)
 
-	$DispatchAudio.stream = dispatch_audio
-	$DeliveryAudio.stream = delivery_audio
-	$ExplosionAudio.stream = explosion_audio
-	$SwooshAudio.stream = swoosh_audio
+	game.add_sound(self, "dispatch", dispatch_audio, false)
+	game.add_sound(self, "delivery", delivery_audio, false)
+	game.add_sound(self, "explosion", explosion_audio, false)
+	game.add_sound(self, "swoosh", swoosh_audio, false)
 
 func new_game(from_scratch=true):
 	_tutorial_board = game.tutorial_mode
@@ -93,14 +92,14 @@ func new_game(from_scratch=true):
 	if not game.tutorial_mode:
 		BE.upsert_game_state("Pneumo", 
 			{"state":"new","starting_level": level, "num_packets": PneumoG.num_packets})
-	if !$MotorAudio.playing:
-		$MotorAudio.play()
+	if !game.is_sound_playing("motor"):
+		game.play_sound("motor")
 
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return
 	if event.is_action_pressed("mainmenu"):
-		$MotorAudio.stop()
+		game.stop_sound("motor")
 
 func _process(_delta: float) -> void:
 	check_agent_collisions()
@@ -213,6 +212,10 @@ func create_board() -> void:
 
 	transaction_ids = range(1, ntargets+1)
 	transaction_ids.shuffle()
+	# The cursor into it has to restart with the list. A level with fewer targets than the
+	# one before rebuilds a shorter array, and a cursor left at the old level's position
+	# indexes past the end the next time a capsule is dispatched (level 9 then level 1).
+	next_transaction_id_idx = 0
 
 	for row in range(1,game.board_size.y-1):
 		for col in range(1,game.board_size.x-1):
@@ -314,8 +317,8 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 		receiver.modulate = Color(1,1,1,1)
 		agent.transaction_id = transaction_id
 		agent.set_color(color)
-	if !$DispatchAudio.playing:
-		$DispatchAudio.play()
+	if !game.is_sound_playing("dispatch"):
+		game.play_sound("dispatch")
 			
 	game.tutorial_notify("capsule_sent")   # no-op outside tutorial mode
 
@@ -332,8 +335,8 @@ func on_clicked_door(pos: Vector2i):
 			var newdir = (current + 1) % 3
 			door.set_rot(newdir)
 			board[pos.y][pos.x].door_type = newdir
-			$DoorAudio.stop()
-			$DoorAudio.play()
+			game.stop_sound("door")
+			game.play_sound("door")
 			game.tutorial_notify("door_turned")   # no-op outside tutorial mode
 			break
 
@@ -387,8 +390,8 @@ func tick():
 				var aid = agent.transaction_id
 				MainGlobals.do_after(2, func(): reset_sender_receiver(aid))
 				agent.mark_arrived()
-				if !$DeliveryAudio.playing:
-					$DeliveryAudio.play()
+				if !game.is_sound_playing("delivery"):
+					game.play_sound("delivery")
 				game.tutorial_notify("delivered")
 				delivered_one.emit()
 				if game.packets_left == 0:
@@ -490,7 +493,7 @@ func _on_level_done_popup_closed():
 
 func level_is_done(didwin: bool):
 	game.level_is_done = true
-	$MotorAudio.stop()	
+	game.stop_sound("motor")	
 	if game.tutorial_mode or _tutorial_board:
 		# A level-done popup landing on (or just after) the coach's closing caption is the failure
 		# mmm taught us to guard against; _tutorial_board is what makes it hold once the coach has
@@ -641,8 +644,8 @@ func check_agent_collisions():
 							var tid2 = a2.transaction_id
 							a1.mark_hit()
 							a2.mark_hit()
-							if !$ExplosionAudio.playing:
-								$ExplosionAudio.play()
+							if !game.is_sound_playing("explosion"):
+								game.play_sound("explosion")
 							game.tutorial_notify("capsules_collided")
 							collision.emit()
 							MainGlobals.do_after(2, func(): 
@@ -654,7 +657,7 @@ func on_agent_started_moving(transaction_id):
 	activate_transaction(transaction_id)
 	
 func activate_transaction(transaction_id):
-	$SwooshAudio.play()
+	game.play_sound("swoosh")
 	var receiver = null
 	var sender = null
 	for t in targets:
@@ -688,7 +691,7 @@ func on_clicked_target(target_id, _target_board_pos):
 		activate_transaction(target.transaction_id)
 
 func on_time_over():
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 
 # --- tutorial staging -------------------------------------------------------
 
@@ -767,4 +770,3 @@ func tutorial_next_door_pos() -> Vector2:
 
 func tutorial_has_door() -> bool:
 	return tutorial_next_door_pos() != Vector2.ZERO
-

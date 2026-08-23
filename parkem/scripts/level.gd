@@ -82,15 +82,14 @@ func _ready() -> void:
 	level = ParkemG.starting_level
 	increase_difficulty(false)
 
-	$DoorAudio.stream = door_audio
-	$MotorAudio.stream = motor_audio
-	motor_audio.loop = true
+	game.add_sound(self, "door", door_audio, false)
+	game.add_sound(self, "motor", motor_audio, true)
 
-	$DispatchAudio.stream = dispatch_audio
-	$DeliveryAudio.stream = delivery_audio
-	$ParkedAudio.stream = parked_audio
-	$ExplosionAudio.stream = explosion_audio
-	$SwooshAudio.stream = swoosh_audio
+	game.add_sound(self, "dispatch", dispatch_audio, false)
+	game.add_sound(self, "delivery", delivery_audio, false)
+	game.add_sound(self, "parked", parked_audio, false)
+	game.add_sound(self, "explosion", explosion_audio, false)
+	game.add_sound(self, "swoosh", swoosh_audio, false)
 
 func new_game(from_scratch=true):
 	_tutorial_board = game.tutorial_mode
@@ -109,8 +108,8 @@ func new_game(from_scratch=true):
 	if not game.tutorial_mode:
 		BE.upsert_game_state("Parkem",
 			{"state":"new","starting_level": level, "num_packets": ParkemG.num_packets})
-	if !$MotorAudio.playing:
-		$MotorAudio.play()
+	if !game.is_sound_playing("motor"):
+		game.play_sound("motor")
 
 # func _input(event) -> void:
 # 	if MainGlobals.ignore_keyboard_actions:
@@ -424,8 +423,8 @@ func add_agent_at(p: Vector2i, direction: int):
 	agent.transaction_id = transaction_id
 	agent.set_color(color)
 	agent.speed_scale = (max_speed_scale - 0.8) * transaction_id / (num_parking_types - 1) + 0.8
-	if !$DispatchAudio.playing:
-		$DispatchAudio.play()
+	if !game.is_sound_playing("dispatch"):
+		game.play_sound("dispatch")
 
 	agent.path = find_agent_path(agent)
 	if agent.path.size() > 1:
@@ -459,8 +458,8 @@ func on_clicked_door(pos: Vector2i):
 				newdir = 1
 			door.set_rot(newdir,4000)
 			board[pos.y][pos.x].door_type = newdir
-			$DoorAudio.stop()
-			$DoorAudio.play()
+			game.stop_sound("door")
+			game.play_sound("door")
 			game.tutorial_notify("door_turned")   # no-op outside tutorial mode
 			break
 	# for agent in agents:
@@ -517,8 +516,8 @@ func tick():
 				MainGlobals.sig_global_update_hud.emit()
 				delivered_transaction(agent.transaction_id)
 				agent.mark_arrived()
-				if !$ParkedAudio.playing:
-					$ParkedAudio.play()
+				if !game.is_sound_playing("parked"):
+					game.play_sound("parked")
 				continue
 			if game.in_board(p):
 				var dir = agent.direction
@@ -621,7 +620,7 @@ func _on_level_done_popup_closed():
 
 func level_is_done(didwin: bool):
 	game.level_is_done = true
-	$MotorAudio.stop()	
+	game.stop_sound("motor")	
 	if game.tutorial_mode or _tutorial_board:
 		# The win arrives from a creature's removal tween, which lands after the coach has finished
 		# — so checking tutorial_mode alone is too late and the level-done popup gets through.
@@ -747,8 +746,8 @@ func on_agent_remove_agent(agent_id, arrived):
 			agents.remove_at(i)
 			if not arrived:
 				game.dec_packet()
-				if !$DeliveryAudio.playing:
-					$DeliveryAudio.play()
+				if !game.is_sound_playing("delivery"):
+					game.play_sound("delivery")
 				game.tutorial_notify("creature_stopped")
 				delivered_one.emit()
 				if game.packets_left == 0:
@@ -763,8 +762,8 @@ func check_agent_collisions():
 		if !a1.was_hit and !a1.arrived:
 			if board[a1.board_pos.y][a1.board_pos.x].isbomb:
 				a1.mark_hit()
-				if !$ExplosionAudio.playing:
-					$ExplosionAudio.play()
+				if !game.is_sound_playing("explosion"):
+					game.play_sound("explosion")
 				collision.emit()
 			for j in agents.size():
 				if i != j:
@@ -774,15 +773,15 @@ func check_agent_collisions():
 						if d < game.tile_size/4.0:
 							a1.mark_hit()
 							a2.mark_hit()
-							if !$ExplosionAudio.playing:
-								$ExplosionAudio.play()
+							if !game.is_sound_playing("explosion"):
+								game.play_sound("explosion")
 							collision.emit()
 
 func on_agent_started_moving(transaction_id):	
 	activate_transaction(transaction_id)
 	
 func activate_transaction(transaction_id):
-	$SwooshAudio.play()
+	game.play_sound("swoosh")
 	for t in targets:
 		if t.transaction_id == transaction_id:
 			# if t.is_receiver:
@@ -806,7 +805,7 @@ func on_clicked_target(target_id, _target_board_pos):
 		activate_transaction(target.transaction_id)
 
 func on_time_over():
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 
 func draw_path(path):
 	if !allow_show_path:
@@ -861,7 +860,7 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, id: i
 func _on_agent_timeout(_agent):
 	pass
 	# game.add_score_and_time(5, 10)
-	# $DeliveryAudio.play()
+	# game.play_sound("delivery")
 
 # --- tutorial staging -------------------------------------------------------
 

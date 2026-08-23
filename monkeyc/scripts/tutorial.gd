@@ -26,7 +26,9 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var window_spot: Callable = func():
 		var r: Rect2 = level.tutorial_window_rect()
-		return null if r.size.x <= 0.0 else r
+		if r.size.x <= 0.0:
+			return null
+		return r
 
 	return [
 		{
@@ -37,7 +39,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "This is the belt. Items ride down it, and the robot judges them one at a time.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_belt_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 4.0,
 		},
 		{
@@ -45,7 +49,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Look closely: every item is a PAIR.\n\nThe rule only cares about one of the two. Which one is part of the puzzle.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_an_item_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 8.0,
 		},
 		{

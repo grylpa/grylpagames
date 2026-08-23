@@ -657,11 +657,25 @@ func _resolve(is_correct: bool, timed_out: bool, paid: float) -> void:
 	# exact amount"; swapping in a different pile the moment they get it wrong means the one thing
 	# the step is teaching never actually happens, and the caption is left naming an amount that no
 	# longer matches anything on screen.
-	if game.tutorial_mode and not is_correct and not _forced_current.is_empty():
+	if game.tutorial_mode and not _forced_current.is_empty() \
+			and (not is_correct or not _coach_wants_payment()):
 		_forced_boards.push_front(_forced_current)
 	if not timed_out:
 		game.tutorial_notify("paid_correct" if is_correct else "paid_wrong")
 		game.tutorial_notify("paid")
+
+# Is the coach actually waiting for a payment right now? PAY is pressable at any moment, and a
+# payment that happens to be CORRECT used to consume the staged pile even when the coach was still
+# on an earlier step — "drag a coin into the tray", say. The level then moved on to the next pile
+# while the caption still named the previous one, which is how "put in exactly 35 cents" ended up
+# over a 60-cent board and a correct 35 was marked wrong.
+func _coach_wants_payment() -> bool:
+	if not game.tutorial_mode:
+		return true
+	var r = game.tutorial_runner
+	if r == null or not is_instance_valid(r):
+		return true
+	return String(r._await_event).begins_with("paid")
 
 # --- Frame update -----------------------------------------------------------
 

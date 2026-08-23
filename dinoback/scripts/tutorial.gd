@@ -27,7 +27,9 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var card_spot: Callable = func():
 		var r: Rect2 = level.tutorial_card_rect()
-		return null if r.size.x <= 0.0 else r
+		if r.size.x <= 0.0:
+			return null
+		return r
 
 	return [
 		{
@@ -74,7 +76,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Swipe RIGHT to say match — or tap Match.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_buttons_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 6.0,
 			"await": {"event": "answered", "timeout": 120.0},
 			"hint_after": 10.0,
@@ -85,7 +89,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Your time for each card. Run out and it counts as a miss.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_bar_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 8.0,
 		},
 		{
@@ -107,7 +113,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Swipe LEFT to say no — or tap No.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_buttons_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 6.0,
 			"await": {"event": "answered", "timeout": 120.0},
 			"hint_after": 10.0,

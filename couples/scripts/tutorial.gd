@@ -27,10 +27,14 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var grid_spot: Callable = func():
 		var r: Rect2 = level.tutorial_grid_rect()
-		return null if r.size.x <= 0.0 else r
+		if r.size.x <= 0.0:
+			return null
+		return r
 	var picked_spot: Callable = func():
 		var r: Rect2 = level.tutorial_selected_rect()
-		return null if r.size.x <= 0.0 else r
+		if r.size.x <= 0.0:
+			return null
+		return r
 
 	return [
 		{
@@ -74,7 +78,9 @@ static func steps(level: Node, _game) -> Array:
 				return "Tap the held card again to release it, then find the picture that appears twice.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_twin_rect() if level.tutorial_selection_is_pair() else level.tutorial_selected_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 6.0,
 			"await": {"event": "answered", "timeout": 180.0},
 			"hint_after": 15.0,
@@ -88,7 +94,9 @@ static func steps(level: Node, _game) -> Array:
 				return "The right pair is shown in green. Both cards have to be the same picture.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_pair_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 8.0,
 		},
 		{
@@ -96,7 +104,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Your time for each board. Run out and it counts as a miss.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_bar_rect()
-				return null if r.size.x <= 0.0 else r,
+				if r.size.x <= 0.0:
+					return null
+				return r,
 			"spot_pad": 8.0,
 		},
 		{

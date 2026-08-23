@@ -101,6 +101,8 @@ func new_game(from_scratch=true):
 	$Level.new_game(from_scratch)	
 	hud.update_all()
 
+
+
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return

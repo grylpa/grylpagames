@@ -33,14 +33,9 @@ size_flags_vertical = 6
 texture = ExtResource("4_kj03m")
 stretch_mode = 1
 
-[node name="ExplosionAudio" type="AudioStreamPlayer2D" parent="." unique_id=394473695]
 
-[node name="MotorAudio" type="AudioStreamPlayer2D" parent="." unique_id=218986961]
 
-[node name="FeetAudio" type="AudioStreamPlayer2D" parent="." unique_id=1562492678]
 
-[node name="DeliveredAudio" type="AudioStreamPlayer2D" parent="." unique_id=946015407]
 
-[node name="StartAudio" type="AudioStreamPlayer2D" parent="." unique_id=258811754]
 
 [connection signal="timeout" from="AgentDispatchTimer" to="." method="_on_agent_dispatch_timer_timeout"]

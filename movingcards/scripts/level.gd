@@ -49,9 +49,10 @@ func new_game(from_scratch: bool = true) -> void:
 	_load_level_cfg()
 	_start_round()
 	ambient_audios.shuffle()
-	$AmbientAudio.stream = ambient_audios[0]
-	ambient_audios[0].loop = true
-	$AmbientAudio.play()
+	# Registered fresh each time: the list is shuffled, so which track "ambient" refers to changes
+	# from game to game. add_sound() updates the stream of a name it already knows.
+	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.play_sound("ambient")
 
 func _load_level_cfg() -> void:
 	var idx: int = clamp(level - 1, 0, MovingCardsLevelConfig.LEVELS.size() - 1)
@@ -79,7 +80,7 @@ func _input(event: InputEvent) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return
 	if event.is_action_pressed("mainmenu"):
-		$AmbientAudio.stop()
+		game.stop_sound("ambient")
 	elif event.is_action_pressed("clue"):
 		show_clue()
 

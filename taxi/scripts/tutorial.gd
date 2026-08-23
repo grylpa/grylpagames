@@ -132,7 +132,16 @@ static func steps(level: Node, game, main: Node) -> Array:
 			"text": "It drives over and picks them up.",
 			"await": "picked_up",
 			"hint_after": 20.0,
-			"hint": "Nothing to do — watch it work.",
+			# TEMPORARY DIAGNOSTIC — remove once the "taxi never sets off" report is understood.
+			# It has been reported on a phone and never reproduced here, so the hint reads the live
+			# state out instead of guessing: whether the taxi is blocked, whether it is standing on
+			# its own path (tick() moves it only if it is), and what the next cell on that path
+			# refuses.
+			"hint": func():
+				var t = level.tutorial_assigned_taxi()
+				if t == null:
+					return "Nothing to do — watch it work."
+				return "Nothing to do — watch it work.\n\n" + level.tutorial_taxi_state(t),
 		},
 		{
 			"tick": unblock,

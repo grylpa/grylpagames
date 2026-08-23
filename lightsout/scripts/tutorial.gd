@@ -23,10 +23,14 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var me: Callable = func():
 		var p: Vector2 = level.tutorial_player_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 	var goal: Callable = func():
 		var p: Vector2 = level.tutorial_goal_pos()
-		return null if p == Vector2.ZERO else p
+		if p == Vector2.ZERO:
+			return null
+		return p
 
 	return [
 		{
@@ -47,7 +51,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "A bomb. The run ends if you touch one, so it is worth remembering where they are.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_bomb_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": 60.0,
 		},
 		{

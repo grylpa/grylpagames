@@ -13,7 +13,7 @@ var games = [
 
 	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
-	["couples",       "Couples",        "Find and the two identical cards",                       "Attention & Speed"],
+	["couples",       "Couples",        "Find the two identical cards",                           "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["didi",          "Pinpoint",       "Two clues, one shot",                                    "Attention & Speed"],
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Attention & Speed"],
@@ -33,7 +33,7 @@ var games = [
 	["parkem",        "Parkem",         "Don't allow the monsters to reach their goals",          "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
-	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes"],
+	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes", false, true, false],
 
 	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
 	["udbr",          "Udbr",           "Follow your breathing pattern",                          "Serenity"],
@@ -68,6 +68,26 @@ func move_to_top(folder: String):
 			if i > 0:
 				games.insert(0, games.pop_at(i))
 			return
+
+# Optional fields on a game row, past the four every row carries:
+#   [4] needs_login   [5] runs on mobile   [6] runs on desktop
+# A row that stops short of a field takes the default: no login needed, and the game is offered on
+# both platforms. Only a game that is meaningless on one of them has to say so.
+const IDX_NEEDS_LOGIN: int = 4
+const IDX_SUPPORTS_MOBILE: int = 5
+const IDX_SUPPORTS_DESKTOP: int = 6
+
+func supports_mobile(g) -> bool:
+	return true if g.size() <= IDX_SUPPORTS_MOBILE else bool(g[IDX_SUPPORTS_MOBILE])
+
+func supports_desktop(g) -> bool:
+	return true if g.size() <= IDX_SUPPORTS_DESKTOP else bool(g[IDX_SUPPORTS_DESKTOP])
+
+# Whether to offer this game on the device we are actually running on. Typit, for one, only makes
+# sense with a touch keyboard, so it is hidden on desktop. Score sync deliberately does NOT use
+# this: a game hidden here may still have scores from the player's other device.
+func runs_on_this_platform(g) -> bool:
+	return supports_mobile(g) if MainGlobals.is_mobile() else supports_desktop(g)
 
 # set to value of game folder if a single game
 var single_game = ""

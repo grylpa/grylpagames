@@ -171,6 +171,41 @@ var swipe_start_pos:Vector2
 var swipe_did_step: bool = false
 var swipe_dir: Vector2 = Vector2.ZERO
 
+# --- Digitized swipe: the breathing games (udbr, mother, crack, river) --------------------------
+#
+# Their direction comes from WHERE THE FINGER IS, sampled over a fixed time window, and is decided
+# once per frame — not from the size of individual touch events.
+#
+# `event.relative` is the movement since the PREVIOUS touch event, so how big it is depends on the
+# phone's touch report rate. A slow breathing drag gives 2-3 px per event at 60 Hz and well under
+# one at 240 Hz, so the old fixed 3 px test (`dy >= dir_threshold`) could never trip on a fast
+# reporting phone: `swipe_axis` never reached 2, the up/down flags were never set, and the game sat
+# there dead while every other input worked. Displacement over 100 ms is the same number on any
+# device, whatever its report or frame rate.
+#
+# The deadzone is a share of screen HEIGHT rather than a pixel count, so it does not change with
+# resolution or DPI either. Below it the last direction stays latched, which is the behaviour these
+# games already had while a finger was held still — a breath hold keeps its direction.
+# The window is long enough to average out jitter and the deadzone small enough for a SLOW breath:
+# an inhale covering a third of the screen over five seconds moves about 0.13% of screen height per
+# 100 ms, so a 0.6% deadzone (the first attempt) sat above the very motion it had to detect. Below
+# the deadzone the last direction is kept, so too large a deadzone means the ball keeps doing
+# whatever it did last — it "moves up by itself".
+const DSW_WINDOW_MS: int = 150
+const DSW_DEADZONE_FRAC: float = 0.0015
+# HYSTERESIS. Starting to move from neutral only needs the deadzone above; REVERSING needs a good
+# deal more, so a wobble part-way through an inhale cannot register as the start of an exhale. The
+# old accumulator-based code had the same idea (a 30 px threshold to flip), and dropping it was a
+# mistake: near the turning point of a breath the finger is barely moving, which is precisely where
+# noise is loudest relative to the signal.
+const DSW_FLIP_FRAC: float = 0.005
+
+# The finger that owns the gesture. Everything else is ignored: a palm, the edge of a hand, or a
+# gesture-navigation phone reporting a second contact used to end the swipe on ITS release and
+# clear both flags while the real finger was still down.
+var _dsw_index: int = -1
+var _dsw_samples: Array = []   # [[time_ms, y], ...], newest last, trimmed to the window
+
 var _drawn_path: Array[Vector2i] = []
 var _path_last_board_pos: Vector2i = Vector2i(-1, -1)
 var _path_fade_tween: Tween = null
@@ -182,6 +217,56 @@ func _process(_delta:float) -> void:
 	if not MainGlobals.swipe_active or MainGlobals.popup_open:
 		MainGlobals.is_in_digitized_swipe_up = false
 		MainGlobals.is_in_digitized_swipe_dn = false
+		_dsw_index = -1
+		_dsw_samples.clear()
+		return
+	if MainGlobals.digitized_swipe_mode:
+		_update_digitized_swipe()
+
+# Which way the finger has moved over the last DSW_WINDOW_MS. Called every frame while a finger is
+# down, so a still finger keeps whatever direction it had and a moving one updates immediately.
+func _update_digitized_swipe() -> void:
+	if _dsw_samples.size() < 2:
+		return
+	var now_ms: int = MainGlobals.timems()
+	var newest: Array = _dsw_samples[-1]
+	# The oldest sample still inside the window; if the finger has been still, that is an old one
+	# and the displacement comes out at zero, which is exactly right.
+	var oldest: Array = _dsw_samples[0]
+	for s2 in _dsw_samples:
+		if now_ms - int(s2[0]) <= DSW_WINDOW_MS:
+			oldest = s2
+			break
+	if now_ms - int(newest[0]) > DSW_WINDOW_MS * 2:
+		return   # nothing new for a while: hold whatever it had, do not re-decide from stale data
+	var dy: float = float(newest[1]) - float(oldest[1])
+	var h: float = float(MainGlobals.screen_size.y)
+	var deadzone: float = maxf(1.0, h * DSW_DEADZONE_FRAC)
+	var flip: float = maxf(deadzone * 2.0, h * DSW_FLIP_FRAC)
+	var going_up: bool = MainGlobals.is_in_digitized_swipe_up
+	var going_dn: bool = MainGlobals.is_in_digitized_swipe_dn
+	if going_up:
+		if dy > flip:                      # a real reversal, not a wobble
+			MainGlobals.is_in_digitized_swipe_up = false
+			MainGlobals.is_in_digitized_swipe_dn = true
+		return
+	if going_dn:
+		if dy < -flip:
+			MainGlobals.is_in_digitized_swipe_dn = false
+			MainGlobals.is_in_digitized_swipe_up = true
+		return
+	# Neutral — the start of a gesture. Any deliberate movement picks the direction.
+	if absf(dy) < deadzone:
+		return
+	MainGlobals.is_in_digitized_swipe_up = dy < 0.0
+	MainGlobals.is_in_digitized_swipe_dn = not MainGlobals.is_in_digitized_swipe_up
+
+func _dsw_note(y: float) -> void:
+	var now_ms: int = MainGlobals.timems()
+	_dsw_samples.append([now_ms, y])
+	# Keep one sample older than the window so a slow drag always has something to compare against.
+	while _dsw_samples.size() > 2 and now_ms - int(_dsw_samples[1][0]) > DSW_WINDOW_MS:
+		_dsw_samples.remove_at(0)
 
 func _input(event: InputEvent) -> void:
 	if MainGlobals.popup_open:
@@ -208,6 +293,15 @@ func _input(event: InputEvent) -> void:
 			swipe_did_step = false
 			swipe_start_pos = event.position
 			swipe_dir = Vector2.ZERO
+			if MainGlobals.digitized_swipe_mode and _dsw_index < 0:
+				_dsw_index = event.index
+				_dsw_samples = []
+				_dsw_note(event.position.y)
+				# Start neutral. The direction is LATCHED while the finger is still, so without
+				# this a new touch inherits the direction of the previous one and the ball sets off
+				# on its own before the finger has moved anywhere.
+				MainGlobals.is_in_digitized_swipe_up = false
+				MainGlobals.is_in_digitized_swipe_dn = false
 		else:
 			if MainGlobals.draw_path_mode:
 				if MainGlobals.swipe_active:
@@ -236,14 +330,28 @@ func _input(event: InputEvent) -> void:
 								MainGlobals.sim_action(action)
 						MainGlobals.sim_action("stop")
 
+			# In digitized mode only the finger that started the gesture can end it.
+			if MainGlobals.digitized_swipe_mode and _dsw_index >= 0 and event.index != _dsw_index:
+				return
 			MainGlobals.swipe_active = false
 			swipe_accum = Vector2.ZERO
 			swipe_axis = 0
 			swipe_did_step = false
 			swipe_dir = Vector2.ZERO
+			_dsw_index = -1
+			_dsw_samples.clear()
 
 	elif event is InputEventScreenDrag and MainGlobals.swipe_active:
 		MainGlobals.swipe_was_drag = true
+		if MainGlobals.digitized_swipe_mode:
+			# Position only, and only from the finger that owns the gesture. No accumulator, no
+			# axis lock: a breathing game has one axis, and a sideways wobble at the start of a
+			# drag used to lock the gesture to horizontal and keep it there.
+			if _dsw_index < 0:
+				_dsw_index = event.index
+			if event.index == _dsw_index:
+				_dsw_note(event.position.y)
+			return
 		if MainGlobals.draw_path_mode:
 			_raw_swipe_pts.append(event.position)
 			_path_line.points = _raw_swipe_pts
@@ -282,18 +390,6 @@ func _input(event: InputEvent) -> void:
 				swipe_axis = 1
 			elif did_step:
 				swipe_accum.x *= cross_damp
-
-		if swipe_axis == 2:
-			var th:float = 30
-			if MainGlobals.is_in_digitized_swipe_up:
-				MainGlobals.is_in_digitized_swipe_up = swipe_accum.y < th
-				MainGlobals.is_in_digitized_swipe_dn = !MainGlobals.is_in_digitized_swipe_up
-			elif MainGlobals.is_in_digitized_swipe_dn:
-				MainGlobals.is_in_digitized_swipe_dn = swipe_accum.y > -th
-				MainGlobals.is_in_digitized_swipe_up = !MainGlobals.is_in_digitized_swipe_dn
-			else:
-				MainGlobals.is_in_digitized_swipe_up = swipe_accum.y < 0
-				MainGlobals.is_in_digitized_swipe_dn = !MainGlobals.is_in_digitized_swipe_up
 
 	elif event.is_action_pressed("mute"):
 		MainGlobals.mute = !MainGlobals.mute

@@ -94,15 +94,15 @@ func _ready() -> void:
 	level = LightsG.starting_level
 	round_in_level = 0
 	_apply_level()
-	$ExplosionAudio.stream = explosion_audio
-	$DeliveredAudio.stream = delivered_audio
-	$StartAudio.stream = start_audio
+	game.add_sound(self, "explosion", explosion_audio, false)
+	game.add_sound(self, "delivered", delivered_audio, false)
+	game.add_sound(self, "start", start_audio, false)
 	
 	motor_audio.loop = true
-	$MotorAudio.stream = motor_audio
+	game.add_sound(self, "motor", motor_audio, true)
 
 	feet_audio.loop = true
-	$FeetAudio.stream = feet_audio
+	game.add_sound(self, "feet", feet_audio, true)
 
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
@@ -205,8 +205,8 @@ func _start_playing():
 	game.tutorial_notify("lights_off")   # no-op outside tutorial mode
 	if play_start_sound:
 		play_start_sound = false
-		if $StartAudio != null:
-			$StartAudio.play()
+		if true:
+			game.play_sound("start")
 		if player != null:
 			player.play()
 	turn_lights_off()
@@ -573,17 +573,17 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 		agent.transaction_id = transaction_id
 		agent.set_color(color)
 
-	if not $MotorAudio.playing:
-		$MotorAudio.play()
+	if not game.is_sound_playing("motor"):
+		game.play_sound("motor")
 		
 	return agent
 			
 func on_player_is_really_moving(is_moving: bool):
 	if is_moving:
-		if not $FeetAudio.playing:
-			$FeetAudio.play()
+		if not game.is_sound_playing("feet"):
+			game.play_sound("feet")
 	else:
-		$FeetAudio.stop()
+		game.stop_sound("feet")
 
 func on_clicked_door(pos: Vector2i):
 	for i in doors.size():
@@ -619,7 +619,7 @@ func check_player_on_target(q):
 			if player.transaction_id == target.transaction_id and target.is_receiver:
 				time_to_hide = 0
 				turn_lights_on()
-				$DeliveredAudio.play()
+				game.play_sound("delivered")
 				player.mark_arrived()
 				_record_answer_time()
 				game.tutorial_notify("delivered")
@@ -640,7 +640,7 @@ func check_player_on_target(q):
 					if not _tutorial_bombs_hit.has(target):
 						_tutorial_bombs_hit[target] = true
 						game.tutorial_notify("hit_bomb")
-						$ExplosionAudio.play()
+						game.play_sound("explosion")
 						# A FLASH, not a reveal. In a real round the lights come up because the run
 						# is over; here it continues, so leaving them on would hand the player the
 						# whole board and end the memory task.
@@ -648,7 +648,7 @@ func check_player_on_target(q):
 						MainGlobals.do_after(0.35, turn_lights_off)
 					return false
 				game.tutorial_notify("hit_bomb")
-				$ExplosionAudio.play()
+				game.play_sound("explosion")
 				collision.emit()
 				player.mark_hit()
 				return true
@@ -851,8 +851,8 @@ func _on_level_done_popup_closed():
 func level_is_done(didwin: bool):
 	last_level_was_a_win = didwin
 	game.level_is_done = true
-	$MotorAudio.stop()
-	$FeetAudio.stop()
+	game.stop_sound("motor")
+	game.stop_sound("feet")
 	if game.tutorial_mode or _tutorial_board:
 		# "Round 1 of Level 1 completed" landing on (or just after) the coach's closing caption is
 		# the failure mmm taught us to guard against. _tutorial_board is what makes this hold: the
@@ -1025,8 +1025,8 @@ func check_agent_collisions():
 				return
 			collision.emit()
 			player.mark_hit()
-			if not $ExplosionAudio.playing:
-				$ExplosionAudio.play()
+			if not game.is_sound_playing("explosion"):
+				game.play_sound("explosion")
 			return
 		if !a1.was_hit and !a1.arrived:
 			for j in agents.size():
@@ -1056,8 +1056,8 @@ func check_agent_collisions():
 # 	for agent in agents:
 # 		if agent != null and agent.transaction_id == transaction_id:
 # 			agent.is_moving = true
-# 			if not $MotorAudio.playing:
-# 				$MotorAudio.play()
+# 			if not game.is_sound_playing("motor"):
+# 				game.play_sound("motor")
 # 			break
 
 # func on_agent_pressed(transaction_id, _agent_board_pos):

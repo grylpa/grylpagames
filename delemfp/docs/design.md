@@ -180,6 +180,62 @@ Specific to this game:
   `tutorial_all_docks_rect`, `tutorial_dispatch_label`, `tutorial_countdown_label`,
   `tutorial_bottom_button`.
 
+## The truck and its packets
+
+The truck is a head, one body sprite per packet still on board, and a tail. The head drives; the
+packets and the tail follow it along a recorded trail, `time_back_positions`, which gets one sample
+per frame while the truck is moving.
+
+`pos_back_along_trail(dist)` returns the point exactly `dist` back along that trail, interpolating
+inside whichever segment it lands in, and returns `null` while the trail is still shorter than
+`dist`.
+
+**Two things about it are deliberate, and getting either wrong brings back a visible jitter.**
+
+- It interpolates rather than returning the nearest recorded sample. The old version returned the
+  index of the first sample at least `dist` back and the caller parked the packet on that sample.
+  Between index steps the sample is fixed while the truck drives on, so the packet slid backwards
+  and then jumped a whole sample forward when the index stepped — a sawtooth as large as the
+  distance covered per frame (5.5 px at speed).
+- The trail stores raw positions, not `position.round()`. Rounding the samples to whole pixels
+  makes the segment lengths alternate, so a packet reading a distance off the trail wobbles about
+  half a pixel every frame no matter how well the lookup interpolates. At low speeds that
+  quantization *was* the whole of the jitter, which is why it showed up most on the first packets.
+
+Measured on a straight run: snapping to samples gave 0.8 px of wobble at 1.4 px/frame and 5.5 px at
+5.5 px/frame; interpolating alone cut the fast case to 1.0 px but left the slow case untouched;
+interpolating on an unrounded trail gives zero on both.
+
+**The board's dispatch runs from `_process`, not the `GameTick` timer.** `tick()` gates itself on
+`major_tick_time_ms * time_scale`, so calling it every frame changes no cadence. On the 0.05 s
+timer it did change one: a fire landing just short of the deadline (599.6 ms into a 600 ms leg)
+failed the gate, and the next chance was a whole 50 ms later, so the agent finished its tile and
+stood still for three frames at 60 fps before being handed the next one. That was the intermittent
+jump on a straight run. Measured in delemfp: 12-13 frozen frames per 228 in bursts of 3, down to 5
+in bursts of 1.
+
+**`set_target_pos()` also backdates the clock** by however late the dispatch was, capped at
+`MAX_LEG_CATCHUP_MS` (17 ms, one frame). Without it `dt` starts at 0 and the first frame of every
+tile advances nothing. That took delemfp from 5 frozen frames per 220 to 2.
+
+The cap is the whole point. An earlier attempt used 50 ms, which is harmless when the dispatch is
+merely a frame late but wrong when the agent legitimately finished early and was *waiting* for the
+next tick: it then injected the full 50 ms of travel into a single frame, about 7 px, and every
+tile visibly jumped. Only delemfp carries the backdating -- it measured no benefit in deliverem,
+and guidem/parkem/pneumo could not be measured because agents teleporting on spawn swamp the
+signal.
+
+## The skeleton and its backing line
+
+`Skeleton` is a `Line2D` whose points are the head, each packet and the tail. `SkeletonBK` is a
+second, thicker, black `Line2D` sitting behind it to give the whole train an outline.
+
+`SkeletonBK` carries `res://scripts/line_backing.gd` and simply mirrors `Skeleton.points` each
+frame, so **no game code touches it**. It is an earlier sibling of `Skeleton`, which is what puts
+it behind at the same `z_index`, and it copies at a raised `process_priority` so it is never a
+frame stale. Do not add, move or remove its points by hand — that duplicates every skeleton call
+and drifts out of sync the moment one is missed.
+
 ## Turning
 
 The truck's head is drawn from `_head_angle`, which chases the logical heading rather than

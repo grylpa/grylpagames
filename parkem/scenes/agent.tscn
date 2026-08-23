@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://e08aa333e864"]
 
+[ext_resource type="Script" path="res://scripts/line_backing.gd" id="bk_line"]
 [ext_resource type="Script" uid="uid://bxjp062eg0da4" path="res://parkem/scripts/agent.gd" id="1_rbrxq"]
 [ext_resource type="PackedScene" uid="uid://cfowiqyh33w3r" path="res://scenes/head_anim.tscn" id="8_358f3"]
 
@@ -15,6 +16,12 @@ metadata/_edit_group_ = true
 
 [node name="AgentShape" type="CollisionShape2D" parent="." unique_id=2051395311]
 shape = SubResource("RectangleShape2D_tu7kf")
+
+[node name="SkeletonBK" type="Line2D" parent="." unique_id=1955581703]
+width = 7.0
+default_color = Color(0, 0, 0, 1)
+script = ExtResource("bk_line")
+follows = NodePath("../Skeleton")
 
 [node name="Skeleton" type="Line2D" parent="." unique_id=2020295497]
 width = 5.0

@@ -5,7 +5,7 @@ var game:GenericGameUtil
 var main_menu
 var _did_per_level_save: bool = false
 
-var lives_tex: Texture2D = preload("res://art//tube-1-4x.png")
+var lives_tex: Texture2D = preload("res://art/tube-1-4x.png")
 
 func _ready() -> void:
 	game = PneumoG.game
@@ -69,7 +69,9 @@ func start_tutorial() -> void:
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _rect_or_null(p: Vector2, r: float):
-	return null if p == Vector2.ZERO else Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
+	if p == Vector2.ZERO:
+		return null
+	return Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0)
 
 func _on_tutorial_done(_completed: bool) -> void:
 	_restore_tutorial_globals()
@@ -188,6 +190,8 @@ func _save_ongoing_score():
 
 func on_game_no_more_packets():
 	hud.update_all()
+
+
 
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:

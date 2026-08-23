@@ -72,9 +72,10 @@ func new_game():
 	score_if_successful = 5 + 2 * difficulty
 	create_board()
 	ambient_audios.shuffle()
-	$AmbientAudio.stream = ambient_audios[0]
-	ambient_audios[0].loop = true
-	$AmbientAudio.play()
+	# Registered fresh each time: the list is shuffled, so which track "ambient" refers to changes
+	# from game to game. add_sound() updates the stream of a name it already knows.
+	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.play_sound("ambient")
 	# time_started_level_ms = MainGlobals.timems()
 	BE.upsert_game_state("Matchws", 
 		{"state":"new","difficulty": difficulty, "moving":MatchwsG.moving})
@@ -430,7 +431,9 @@ func find_card_index(card_id):
 
 func find_card(card_id):
 	var i = find_card_index(card_id)
-	return null if i < 0 else cards[i]
+	if i < 0:
+		return null
+	return cards[i]
 	# for c in cards:
 	# 	if c.id == card_id:
 	# 		return c

@@ -55,13 +55,12 @@ func _ready() -> void:
 	level = GuidemG.starting_level
 	increase_difficulty(false)
 
-	$DoorAudio.stream = door_audio
-	$MotorAudio.stream = motor_audio
-	motor_audio.loop = true
+	game.add_sound(self, "door", door_audio, false)
+	game.add_sound(self, "motor", motor_audio, true)
 
-	$DispatchAudio.stream = dispatch_audio
-	$DeliveryAudio.stream = delivery_audio
-	$ExplosionAudio.stream = explosion_audio
+	game.add_sound(self, "dispatch", dispatch_audio, false)
+	game.add_sound(self, "delivery", delivery_audio, false)
+	game.add_sound(self, "explosion", explosion_audio, false)
 	
 func new_game(from_scratch=true):
 	game.level_is_ready = false
@@ -83,7 +82,7 @@ func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return
 	if event.is_action_pressed("mainmenu"):
-		$MotorAudio.stop()
+		game.stop_sound("motor")
 
 func _process(_delta: float) -> void:
 	check_agent_collisions()
@@ -264,10 +263,10 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	agents.append(agent)
 	game.tutorial_notify("walker_dispatched")   # no-op outside tutorial mode
 	agent.set_pos(game.board_to_px(p), direction)
-	if not $DispatchAudio.playing:
-		$DispatchAudio.play()
-	if not $MotorAudio.playing:
-		MainGlobals.do_after(0.5, func(): $MotorAudio.play())
+	if not game.is_sound_playing("dispatch"):
+		game.play_sound("dispatch")
+	if not game.is_sound_playing("motor"):
+		MainGlobals.do_after(0.5, func(): game.play_sound("motor"))
 			
 func on_clicked_door(pos: Vector2i):
 	#if board[pos.y][pos.x].has_agent:
@@ -280,8 +279,8 @@ func on_clicked_door(pos: Vector2i):
 			door.set_rot(newdir)
 			#door.rotate(PI/4.0)
 			board[pos.y][pos.x].door_type = newdir
-			$DoorAudio.stop()
-			$DoorAudio.play()
+			game.stop_sound("door")
+			game.play_sound("door")
 			game.tutorial_notify("door_turned")   # no-op outside tutorial mode
 			break
 
@@ -319,8 +318,8 @@ func tick():
 				agent.mark_arrived()
 				game.tutorial_notify("delivered")
 				delivered_one.emit()
-				if !$DeliveryAudio.playing:
-					$DeliveryAudio.play()
+				if !game.is_sound_playing("delivery"):
+					game.play_sound("delivery")
 				if game.packets_left == 0:
 					_record_answer_time()
 					level_is_done(true)
@@ -406,7 +405,7 @@ func _on_level_done_popup_closed():
 func level_is_done(didwin: bool):
 	game.level_is_done = true
 	game.level_is_ready = false	
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 	BE.send_event("level_done", "Guidem", {
 		"level": level,
 		"didwin": int(didwin),
@@ -537,11 +536,11 @@ func check_agent_collisions():
 							# print("agent %d hit %d" % [a1.agent_id, a2.agent_id])
 							a1.mark_hit()
 							a2.mark_hit()
-							$ExplosionAudio.play()
+							game.play_sound("explosion")
 							collision.emit()
 				
 func on_time_over():
-	$MotorAudio.stop()
+	game.stop_sound("motor")
 
 var agent_cam = null
 

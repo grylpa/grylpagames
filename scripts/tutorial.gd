@@ -82,6 +82,7 @@ const SPOT_FOLLOW_COOLDOWN_MS: int = 700
 var _moved_for_spot_ms: int = -100000
 var _step_elapsed: float = 0.0
 var _diag_ticks: int = 0
+var _host: Node = null
 var _hint_shown: bool = false
 var _await_event: String = ""
 var _await_timeout: float = 0.0
@@ -106,6 +107,7 @@ var _pending_event: String = ""
 func run(parent: Node, steps: Array, game_util, on_done: Callable = Callable()) -> void:
 	_steps = steps
 	_game = game_util
+	_host = parent
 	_on_done = on_done
 	layer = LAYER
 	if get_parent() == null:
@@ -457,10 +459,8 @@ func _finish(completed: bool) -> void:
 	MainGlobals.mark_tutorial_done(completed)
 	if _game != null:
 		_game.tutorial_runner = null
-		# Silence whatever the tutorial's own session started. Several games kick off an ambient
-		# loop in new_game(), and the tutorial runs a real session — so completing it, or hitting
-		# Skip, left that loop running underneath the main menu.
-		_game.stop_all_sounds()
+		# Silence whatever the tutorial's own session started, however it was started.
+		_silence_now_and_shortly()
 		# Restore the real session BEFORE the callback, so whoever resumes the game sees the
 		# player's own state rather than the tutorial's.
 		_game.end_tutorial()
@@ -476,9 +476,39 @@ func _exit_tree() -> void:
 	_set_frozen(false)
 	if not _finished and _game != null:
 		_game.tutorial_runner = null
-		_game.stop_all_sounds()
+		_silence_now_and_shortly()
 		_game.end_tutorial()
 		_finished = true
+
+# Silence the tutorial's session. `stop_all_sounds()` only covers sounds registered through
+# GenericGameUtil.add_sound; several games instead play an AudioStreamPlayer that lives in their
+# own scene (delemfp's $MotorAudio, pneumo's $DoorAudio), which that registry has never heard of.
+# So the game's whole scene is walked as well.
+#
+# It is also run again a moment later: delemfp starts its motor from
+# `MainGlobals.do_after(0.5, ...)`, so a stop at the instant the tutorial ends can be undone by a
+# timer that has not fired yet.
+func _silence(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if node is AudioStreamPlayer or node is AudioStreamPlayer2D or node is AudioStreamPlayer3D:
+		node.stop()
+	for c in node.get_children():
+		_silence(c)
+
+func _silence_everything() -> void:
+	if _game != null:
+		_game.stop_all_sounds()
+	_silence(_host)
+
+func _silence_now_and_shortly() -> void:
+	_silence_everything()
+	var host: Node = _host
+	if host != null and is_instance_valid(host):
+		# Deliberately on the HOST, not on this node: the runner frees itself immediately.
+		MainGlobals.do_after(0.8, func():
+			if is_instance_valid(host):
+				_silence(host))
 
 func _set_frozen(frozen: bool) -> void:
 	MainGlobals.set_visible("tutorial", frozen)

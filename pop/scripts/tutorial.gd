@@ -30,7 +30,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "That is the one to remember — its shape and its color.\n\nNote WHERE it appeared, too: it could have been anywhere around the rim.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_model_pos()
-				return null if p == Vector2.ZERO else p,
+				if p == Vector2.ZERO:
+					return null
+				return p,
 			"spot_radius": level.tutorial_frame_radius(),
 			"spot_pad": 0.0,
 		},

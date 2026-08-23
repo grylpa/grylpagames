@@ -7,6 +7,29 @@ junctions to turn creatures aside, and win by keeping every creature from ever p
 It is the inverse of `deliverem`, which shares the same skeleton: there you route a truck *to* its
 docks, here you keep creatures *away* from their spots.
 
+## Movement, the trail and the skeleton
+
+The head drives itself tile to tile; the followers (packets/cars) and the tail trail behind it, and
+`Skeleton` is a `Line2D` drawn through all of them. Three things here are deliberate, and undoing
+any of them brings back a visible stutter.
+
+**The trail stores raw positions.** `time_back_positions` used to store `position.round()`. Whole
+pixel samples make the segment lengths alternate, so a follower reading a distance off the trail
+wobbles about half a pixel every frame. At low speed that quantization was the whole of the jitter.
+
+**`pos_back_along_trail(dist)` interpolates.** It returns the point exactly `dist` back along the
+trail, interpolating inside the segment it lands in, and `null` while the trail is shorter than
+`dist`. It replaced `find_closest_dist()`, which returned the *index* of the first sample at least
+`dist` back; the caller parked the follower on that sample, so between index steps the sample stood
+still while the head drove on and then jumped a whole sample forward -- a sawtooth as large as the
+distance covered in a frame (5.5 px at speed).
+
+**`SkeletonBK`** is a second, thicker, black `Line2D` behind `Skeleton` giving the train an outline.
+It carries `res://scripts/line_backing.gd` and mirrors `Skeleton`'s points and `z_index` every
+frame, so **no game code touches it**. It is the earlier sibling, which is what puts it behind at
+equal `z_index`. Do not add, move or remove its points by hand: that duplicates every skeleton call
+and drifts out of sync the moment one is missed.
+
 ## Files
 
 ```
