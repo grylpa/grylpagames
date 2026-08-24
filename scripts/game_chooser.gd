@@ -31,6 +31,7 @@ var _icon_cat: Texture2D = preload("res://art/category_list_48.png")
 const _ICON_COLOR: Color = Color(1.0, 0.8980392, 0.007843138, 1.0)
 
 func _ready() -> void:
+	%TitleLabel.text = _titled(%TitleLabel.text)
 	MainGlobals.load_settings()
 	_update_view_mode_button()
 	create_grid()
@@ -298,7 +299,7 @@ func create_grid():
 				add_game(game_folder, game_name, game_desc, needs_login, list_mode)
 				n_games += 1
 				if MainCfg.single_game == game_folder:
-					%TitleLabel.text = g[1]
+					%TitleLabel.text = _titled(g[1])
 
 	%GamesGrid.columns = n_columns
 	if view_mode == MainGlobals.ViewMode.LIST:
@@ -508,6 +509,17 @@ func _build_categorized_grid() -> void:
 			var needs_login: bool = g[4] if g.size() > 4 else false
 			add_game(g[0], g[1], g[2], needs_login, true)
 			n_games += 1
+
+# A package id ending in ".dev" is a development build, so say so in the title -- the dev app and
+# the store app share a name and an icon, and the id is the only thing that separates them.
+#
+# On Android `user_data_dir` is /data/user/0/<applicationId>/files, so the id is one of its path
+# segments. No JNI plugin, and it holds in debug or release, whoever installed the app.
+func _titled(base: String) -> String:
+	for part in OS.get_user_data_dir().split("/"):
+		if part.ends_with(".dev"):
+			return "%s dev" % base
+	return base
 
 func _cat_recent_index(cat: String, lpo: Array) -> int:
 	var best: int = 999999
