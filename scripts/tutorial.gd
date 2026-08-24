@@ -62,6 +62,11 @@ var _foot_label: Label = null
 var _spot_rect: Rect2 = Rect2()
 var _has_spot: bool = false
 var _blocking: bool = true
+# A doing step that asks the player to WATCH rather than act. It stays unfrozen — the board has to
+# keep running for the thing being watched to happen — but it dims and swallows input like a
+# talking step, so it looks as inert as it behaves. Without it such a step is indistinguishable
+# from one inviting a tap.
+var _watch_only: bool = false
 
 # Rects the caption must not sit on while the player is playing: the controls the step is telling
 # them to use. Set per game before run() — each entry is a Callable returning a Rect2, a Control,
@@ -254,6 +259,7 @@ func _enter_step(i: int) -> void:
 
 	# Talking steps freeze the game and eat input; doing steps let the player play underneath.
 	_blocking = _await_event.is_empty()
+	_watch_only = bool(step.get("watch_only", false))
 
 	# Zones this step in particular must not be covered by, falling back to the runner-wide list.
 	var step_clear = step.get("keep_clear", null)
@@ -349,6 +355,13 @@ func _update_footer() -> void:
 	var parts: Array = []
 	if _blocking:
 		parts.append("tap to continue")
+	elif _watch_only:
+		# A watch-only step is dimmed and takes no input, exactly like a talking step, but it is
+		# NOT waiting on the player, so it cannot say "tap to continue". Left blank it was worse
+		# than either: a dimmed board with a caption and no affordance at all, where the only
+		# thing that looks actionable is the game itself — which is the tap the step is trying to
+		# prevent. Say what is actually happening.
+		parts.append("watch")
 	var line: String = "        ".join(parts)
 	if _hint_shown:
 		# No default text: every step that sets `hint_after` supplies its own `hint`, and a generic
@@ -420,7 +433,7 @@ func _apply_dim_filter() -> void:
 	if _dim == null:
 		return
 	var settling: bool = Time.get_ticks_msec() - _step_opened_ms < STEP_SETTLE_MS
-	_dim.mouse_filter = Control.MOUSE_FILTER_STOP if (_blocking or settling) \
+	_dim.mouse_filter = Control.MOUSE_FILTER_STOP if (_blocking or _watch_only or settling) \
 		else Control.MOUSE_FILTER_IGNORE
 
 func _tap_advance() -> void:
@@ -791,13 +804,14 @@ func _draw_dim() -> void:
 	var full: Rect2 = Rect2(Vector2.ZERO, _dim.size)
 	if not _has_spot:
 		# On a doing step we must not dim — the player is looking at the board and playing on it.
-		if _blocking:
+		# Unless the step is watch-only, where the whole point is that acting is not wanted.
+		if _blocking or _watch_only:
 			for r in dim_rects(full, _holes()):
 				_dim.draw_rect(r, DIM_COLOR)
 		_draw_demo_path()
 		return
 	var hole: Rect2 = _spot_rect
-	if _blocking:
+	if _blocking or _watch_only:
 		for r in dim_rects(full, _holes()):
 			_dim.draw_rect(r, DIM_COLOR)
 	# The frame has to pull the eye by itself. A caption saying "this is your money" is usually at

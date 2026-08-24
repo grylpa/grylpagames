@@ -421,7 +421,7 @@ func _layout() -> void:
 			al.position = al.sim_pos
 
 # Areas sit in the screen CORNERS: one area centers in the field, two take OPPOSING corners, and
-# three or four fill the remaining ones. Corners keep the middle of the field open as one
+# three or four fill the remaining ones. Corners keep the center of the field open as one
 # contiguous roaming space, and keep the two rings as far apart as the screen allows.
 const CORNER_SIGNS: Array = [
 	Vector2(-1.0, -1.0),   # top-left
@@ -1553,8 +1553,8 @@ func _slide_out_of_wedge(p: Vector2, r: float, own_idx: int) -> Vector2:
 		# still inside after the clamp: step around the ring toward the field center
 		var nrm: Vector2 = dv / dist
 		var tang: Vector2 = Vector2(-nrm.y, nrm.x)
-		var to_middle: Vector2 = (_field.position + _field.size * 0.5) - q
-		if tang.dot(to_middle) < 0.0:
+		var to_center: Vector2 = (_field.position + _field.size * 0.5) - q
+		if tang.dot(to_center) < 0.0:
 			tang = -tang
 		q += tang * (need - dist)
 	return q
@@ -1574,17 +1574,17 @@ func _constrain_alien(al) -> void:
 	al.sim_pos = al.sim_pos.clamp(lo, hi)
 	# If the clamp put it back inside a disc, the alien is wedged between the ring and a screen
 	# edge (the band above a ring can be narrower than an alien). Radial pushing cannot help —
-	# slide it along the ring instead, toward the open middle of the field.
+	# slide it along the ring instead, toward the open center of the field.
 	var before_slide: Vector2 = al.sim_pos
 	al.sim_pos = _slide_out_of_wedge(al.sim_pos, al.radius, skip)
 	if al.sim_pos.distance_squared_to(before_slide) > 0.01:
-		# genuinely pinched: aim at the open middle so it walks itself free
-		var middle: Vector2 = _field.position + _field.size * 0.5
+		# genuinely pinched: aim at the open center so it walks itself free
+		var field_center: Vector2 = _field.position + _field.size * 0.5
 		if al.state == AState.ROAM:
-			al.wander_target = middle
+			al.wander_target = field_center
 			al.retarget_ms = _last_now + 1600.0
 		elif al.state == AState.LEAVING:
-			al.waypoints = [middle]
+			al.waypoints = [field_center]
 	al.sim_pos = al.sim_pos.clamp(lo, hi)
 	# Bounce only when actually pressing OUTWARD. This runs once per resolve cycle, so it has to
 	# be idempotent: a plain "flip if out of bounds" would flip an odd/even number of times and

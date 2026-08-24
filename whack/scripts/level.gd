@@ -18,6 +18,12 @@ var _no_real_chance: float = 0.0
 var _same_color_decoy: bool = false
 var _use_many_colors_for_decoys: bool = false
 
+# The tap ring is an acknowledgement, not information: by the time it is drawn the tap has already
+# been scored. At the original 2.5/s it lingered 400 ms — long enough to still be on screen during
+# the NEXT tutorial step, because the coach advances on the same frame as the hit. 12/s clears it
+# in about 80 ms, and `_spawn_round()` clears it outright so it can never overlap a new round.
+const FLASH_FADE_PER_SEC: float = 12.0
+
 const _DECOY_COLOR_DEFAULT: Color = Color(0.25, 0.5, 1.0, 1.0)
 const _DECOY_COLORS_MULTI: Array = [
 	Color(0.3,  0.85, 0.3,  1.0),  # green
@@ -34,8 +40,56 @@ var _target_color: Color = Color(1.0, 0.35, 0.2, 1.0)
 # Each decoy: { "pos": Vector2, "color": Color, "draw_dot": bool }
 var _decoys: Array = []
 
+# Tutorial only; both are inert in normal play.
+#
+# `tutorial_rounds` is a queue of rounds the coach needs to show, consumed one per spawn:
+#   {"real": bool, "decoys": int, "mode": "blue" | "multi" | "same"}
+# The game would only reach "a real target beside two same-colored decoys" by luck, and that is
+# precisely the round a first-timer has to be walked through.
+#
+# `tutorial_no_timeout` holds a round on screen indefinitely so the player can be told what they
+# are looking at before it vanishes. It is switched OFF again for the lesson about empty rounds,
+# which can only be taught by letting one time out.
+var tutorial_rounds: Array = []
+var tutorial_no_timeout: bool = false
+# While the coach is running, rounds appear ONLY from tutorial_stage_now(). The level otherwise
+# keeps scheduling its own on the normal 700-1500 ms gap -- new_game() queues one immediately, and
+# so does every hit -- and one of those could land in the gap between two steps: an unstaged round,
+# with no band, that then blocked the staged one because a round was already active.
+var tutorial_only_staged: bool = false
+# Taps are swallowed while the coach is asking the player to WATCH rather than act. Hitting the
+# target during the "watch the ring" step ends the round, so the ring never reaches its halfway
+# mark and the step it is waiting on can never be satisfied -- a dead end reachable by doing the
+# one thing the tutorial has spent four steps training the player to do.
+var tutorial_ignore_taps: bool = false
+# A round the coach wants back if it expires. The lesson about the countdown has to let the ring
+# actually run out, which means the player can miss it -- and the step is waiting for a hit, so a
+# missed target would leave nothing to hit and nothing to wait for. Re-staging the same round on
+# timeout turns the miss into part of the lesson instead of a dead end.
+var tutorial_retry_spec: Dictionary = {}
+
+# Floating score changes: {"pos": Vector2, "text": String, "color": Color, "age": float}.
+# Every scoring event in this game is a tap or a target expiring, and until now the only feedback
+# was a colored flash that said "something happened" without saying what it cost. The number is
+# the part the player is trying to learn.
+var _pops: Array = []
+const POP_LIFE_SEC: float = 0.9
+const POP_RISE_PX: float = 42.0
+
+# What sitting out a round with no real target is worth. Waiting is a decision, and the only one
+# the game never acknowledged: letting a real target expire costs 5, tapping a decoy costs 5, and
+# correctly tapping nothing paid nothing at all. Mirrors the penalty it avoids.
+const NO_TARGET_REWARD: int = 5
+var _tutorial_half_sent: bool = false
+var _round_show_ms: float = 0.0
+
 var _round_active: bool = false
 var _round_has_real: bool = true
+# Set by ANY tap during the round. Waiting out an empty round only pays if the player actually
+# waited. Tapping a decoy costs 5, so paying 5 back at the end would net zero and quietly refund a
+# wrong tap; and tapping empty space in an empty round is free by design, but it is still not
+# waiting, so it should not earn the reward either.
+var _round_was_tapped: bool = false
 var _round_shown_time_ms: float = 0.0
 
 var _reaction_times: Array = []
@@ -92,6 +146,23 @@ func new_game(from_scratch: bool = true) -> void:
 	game.level_is_ready = true
 	started_playing.emit()
 
+# Stage a round AND show it immediately, instead of queueing it behind the normal 700-1500 ms gap.
+#
+# The coach's caption is laid out the moment its step opens. With the round arriving a second
+# later, the caption described circles that were not there yet, and then the caption jumped once
+# they appeared and `keep_clear` finally had something to avoid. Spawning inside the step's setup,
+# which runs before the step opens, makes the circles part of the layout from the first frame.
+func tutorial_stage_now(spec: Dictionary) -> void:
+	tutorial_rounds.append(spec)
+	# Replace whatever is on screen rather than queueing behind it. Queueing was what made a step
+	# talk over the wrong round: an unstaged round already up meant the staged one waited, and then
+	# arrived mid-step -- decoys vanishing and the target jumping to a new place while the caption
+	# was still describing the old one.
+	_round_active = false
+	_target_active = false
+	_decoys.clear()
+	_spawn_round()
+
 func _apply_difficulty() -> void:
 	var idx: int = clamp(level - 1, 0, WhackLevelConfig.LEVELS.size() - 1)
 	var cfg: Dictionary = WhackLevelConfig.LEVELS[idx]
@@ -110,7 +181,11 @@ func _schedule_next_target() -> void:
 	_next_target_time_ms = game.game_time + interval
 	_waiting_for_next = true
 
-func _try_random_pos(area_size: Vector2, existing: Array) -> Variant:
+# `band` optionally restricts the vertical range to a fraction of the playable area, as
+# [min, max] in 0..1. The tutorial uses it to keep every circle in the lower part of the field so
+# the caption has somewhere to sit: with circles free to land anywhere they can span the whole
+# field, and then the balloon has no choice but to bury one.
+func _try_random_pos(area_size: Vector2, existing: Array, band = null) -> Variant:
 	var top_margin: float = 120.0
 	var bottom_margin: float = 80.0
 	var visual_radius: float = target_radius + 11.0  # circle edge + arc (radius+9 center, 4px wide)
@@ -120,6 +195,13 @@ func _try_random_pos(area_size: Vector2, existing: Array) -> Variant:
 	var x_max: float = area_size.x - pad
 	var y_min: float = top_margin + pad
 	var y_max: float = area_size.y - bottom_margin - pad
+	if band != null:
+		var span: float = y_max - y_min
+		var lo: float = y_min + span * float(band[0])
+		var hi: float = y_min + span * float(band[1])
+		if hi - lo >= pad:
+			y_min = lo
+			y_max = hi
 	if x_max <= x_min or y_max <= y_min:
 		return null
 	for _attempt in range(200):
@@ -135,7 +217,25 @@ func _try_random_pos(area_size: Vector2, existing: Array) -> Variant:
 
 func _spawn_round() -> void:
 	_waiting_for_next = false
+	_round_was_tapped = false
+	_flash_alpha = 0.0        # never let the last tap's ring bleed into a new round
+	var forced = null
+	if not tutorial_rounds.is_empty():
+		forced = tutorial_rounds.pop_front()
 	_round_has_real = randf() >= _no_real_chance
+	if forced != null:
+		_round_has_real = bool(forced.get("real", true))
+	# A round with no real target AND no decoys puts nothing whatsoever on the screen: dead time
+	# that reads as a long gap, with no decision in it for the player to get right. Level 1 shipped
+	# able to produce one (no_real_chance 0.1 against num_decoys 0) and it went unnoticed for
+	# exactly that reason -- it had no consequence, until the wait-it-out reward gave it one.
+	#
+	# This has to be decided HERE, before the block below places the target: deciding it later,
+	# next to the decoy count, is too late to bring a target back and the guard silently does
+	# nothing. Organic rounds only -- a round the coach staged is left exactly as asked, so the
+	# tutorial keeps full control of what it puts on screen.
+	if not _round_has_real and forced == null and _num_decoys <= 0:
+		_round_has_real = true
 	_decoys.clear()
 	_target_active = false
 
@@ -145,8 +245,11 @@ func _spawn_round() -> void:
 
 	var used_positions: Array = []
 
+	var band = null
+	if forced != null:
+		band = forced.get("band", null)
 	if _round_has_real:
-		var rpos: Variant = _try_random_pos(area_size, used_positions)
+		var rpos: Variant = _try_random_pos(area_size, used_positions, band)
 		if rpos != null:
 			_target_pos = rpos
 			used_positions.append(_target_pos)
@@ -157,10 +260,16 @@ func _spawn_round() -> void:
 	if _same_color_decoy and _use_many_colors_for_decoys:
 		round_same_color = randf() < 0.5
 		round_multi_color = not round_same_color
+	var want_decoys: int = _num_decoys
+	if forced != null:
+		var mode: String = str(forced.get("mode", "blue"))
+		round_same_color = mode == "same"
+		round_multi_color = mode == "multi"
+		want_decoys = int(forced.get("decoys", 0))
 
 	var decoy_count: int = 0
-	for _i in range(_num_decoys):
-		var dpos: Variant = _try_random_pos(area_size, used_positions)
+	for _i in range(want_decoys):
+		var dpos: Variant = _try_random_pos(area_size, used_positions, band)
 		if dpos == null:
 			break  # can't fit more decoys without overlapping — stop here
 		used_positions.append(dpos)
@@ -176,38 +285,89 @@ func _spawn_round() -> void:
 
 	_round_shown_time_ms = game.game_time
 	_round_active = true
+	_tutorial_half_sent = false
+	# A round may be given its own window, so the coach can let the countdown ring deplete at a
+	# readable pace instead of the level's own two seconds.
+	_round_show_ms = show_target_ms
+	if forced != null and forced.has("show_ms"):
+		_round_show_ms = float(forced["show_ms"])
+	game.tutorial_notify("round_shown")   # no-op outside tutorial mode
 	_target_color = Color(1.0, 0.35, 0.2, 1.0)
 	game.play_sound("appear")
 	_draw_area.queue_redraw()
 
 func _process(_delta: float) -> void:
-	if not game.level_is_ready or game.level_is_done or game.paused():
-		return
-	if _waiting_for_next and game.game_time >= _next_target_time_ms:
-		_spawn_round()
-	if _round_active and (game.game_time - _round_shown_time_ms) >= show_target_ms:
-		_on_round_timeout()
-	if _round_active:
-		_draw_area.queue_redraw()
+	# The tap flash fades ABOVE the pause guard. Below it, a caption freezing the game froze the
+	# flash too, so the colored ring left by a tap sat there at full strength and was still on
+	# screen during the next step. It is feedback for a tap that has already been judged; it has
+	# no reason to wait for the game.
 	if _flash_alpha > 0.0:
-		_flash_alpha -= _delta * 2.5
+		_flash_alpha -= _delta * FLASH_FADE_PER_SEC
 		if _flash_alpha < 0.0:
 			_flash_alpha = 0.0
 		_draw_area.queue_redraw()
+	if not _pops.is_empty():
+		for i in range(_pops.size() - 1, -1, -1):
+			_pops[i]["age"] = float(_pops[i]["age"]) + _delta
+			if float(_pops[i]["age"]) >= POP_LIFE_SEC:
+				_pops.remove_at(i)
+		_draw_area.queue_redraw()
+	if not game.level_is_ready or game.level_is_done or game.paused():
+		return
+	if _waiting_for_next and not tutorial_only_staged \
+			and game.game_time >= _next_target_time_ms:
+		_spawn_round()
+	if _round_active and not _tutorial_half_sent \
+			and (game.game_time - _round_shown_time_ms) >= _round_window() * 0.5:
+		_tutorial_half_sent = true
+		game.tutorial_notify("half_gone")   # the countdown ring is half closed
+	if _round_active and not tutorial_no_timeout \
+			and (game.game_time - _round_shown_time_ms) >= _round_window():
+		_on_round_timeout()
+	if _round_active:
+		_draw_area.queue_redraw()
 
 func _on_round_timeout() -> void:
+	# Where the target WAS: it is cleared below, and a penalty with nothing to point at reads as
+	# arbitrary. A round with no real target costs nothing and gets no pop.
+	var expired_at: Vector2 = _target_pos
+	var had_real: bool = _target_active
+	# Where the decoys were, for the reward below: it belongs on the things the player correctly
+	# left alone, not in some neutral corner. Falls back to the center of the playfield when the
+	# round was completely empty.
+	var decoy_center: Vector2 = Vector2.ZERO
+	if _decoys.is_empty():
+		decoy_center = _draw_area.size * 0.5
+	else:
+		for d in _decoys:
+			decoy_center += d["pos"]
+		decoy_center /= float(_decoys.size())
 	_round_active = false
 	_target_active = false
 	_decoys.clear()
 	if _round_has_real:
+		if had_real:
+			_pop_at(expired_at, -5)
 		game.add_score_and_time(-5, -5)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("wrong")
+	elif not _round_was_tapped:
+		# Nothing to hit, and the player did not tap anything either.
+		_pop_at(decoy_center, NO_TARGET_REWARD)
+		game.add_score_and_time(NO_TARGET_REWARD, NO_TARGET_REWARD)
+		game.add_correct_or_mistake(1, 0)
+		game.play_sound("hit")
 	_draw_area.queue_redraw()
+	game.tutorial_notify("round_gone")
+	if not tutorial_retry_spec.is_empty():
+		tutorial_stage_now(tutorial_retry_spec.duplicate())
+		return
 	_schedule_next_target()
 
 func _on_draw_area_input(event: InputEvent) -> void:
 	if not game.level_is_ready or game.level_is_done or game.paused():
+		return
+	if tutorial_ignore_taps:
 		return
 	var tap_pos: Vector2 = Vector2.ZERO
 	var is_tap: bool = false
@@ -225,6 +385,7 @@ func _on_draw_area_input(event: InputEvent) -> void:
 		return
 	if not _round_active:
 		return
+	_round_was_tapped = true
 
 	# Check decoys first
 	for i in range(_decoys.size()):
@@ -251,6 +412,7 @@ func _on_hit(tap_pos: Vector2, dist: float) -> void:
 		_accuracies.remove_at(0)
 	var score_bonus: int = max(1, 20 - reaction_ms / 200)
 	game.add_score_and_time(score_bonus, 10)
+	_pop_at(tap_pos, score_bonus)
 	game.add_correct_or_mistake(1, 0)
 	num_corrects_in_level_so_far += 1
 	_flash_at(tap_pos, Color(0.2, 0.9, 0.3, 0.6))
@@ -258,8 +420,13 @@ func _on_hit(tap_pos: Vector2, dist: float) -> void:
 	_round_active = false
 	_decoys.clear()
 	game.play_sound("hit")
+	game.tutorial_notify("hit_target")
 	_draw_area.queue_redraw()
-	if num_corrects_in_level_so_far >= corrects_for_next_level:
+	# The tutorial is not a level and must never complete one. Level 1 needs 5 hits and the coach
+	# asks for exactly 5, so the last lesson used to land on the level-done popup — which pauses
+	# the game, so the round the coach was waiting on could never expire and the step hung until
+	# its timeout. The coach ends the session itself.
+	if num_corrects_in_level_so_far >= corrects_for_next_level and not game.tutorial_mode:
 		_level_done(true)
 	else:
 		_schedule_next_target()
@@ -267,15 +434,29 @@ func _on_hit(tap_pos: Vector2, dist: float) -> void:
 func _on_decoy_hit(tap_pos: Vector2, decoy_idx: int) -> void:
 	_decoys.remove_at(decoy_idx)
 	game.add_score_and_time(-5, -5)
+	_pop_at(tap_pos, -5)
 	game.add_correct_or_mistake(0, 1)
 	_flash_at(tap_pos, Color(0.9, 0.2, 0.2, 0.5))
+	game.tutorial_notify("hit_decoy")
 	_draw_area.queue_redraw()
 
 func _on_miss_tap(tap_pos: Vector2) -> void:
 	game.add_score_and_time(-3, -3)
+	_pop_at(tap_pos, -3)
 	game.add_correct_or_mistake(0, 1)
 	_flash_at(tap_pos, Color(0.9, 0.2, 0.2, 0.5))
 	_draw_area.queue_redraw()
+
+# `delta` is +ve for a gain and -ve for a loss; the sign picks the wording and the color.
+func _pop_at(pos: Vector2, delta: int) -> void:
+	if delta == 0:
+		return
+	_pops.append({
+		"pos": pos,
+		"text": ("+%d" % delta) if delta > 0 else str(delta),
+		"color": Color(0.25, 0.9, 0.35, 1.0) if delta > 0 else Color(1.0, 0.35, 0.3, 1.0),
+		"age": 0.0,
+	})
 
 func _flash_at(pos: Vector2, color: Color) -> void:
 	_flash_color = color
@@ -312,10 +493,42 @@ func _on_time_over() -> void:
 func tick() -> void:
 	pass
 
+# --- what the coach needs to point at -------------------------------------------------------
+#
+# Targets are drawn by draw_area.gd in ITS local space, so every rect is converted to screen space
+# before being handed to the tutorial overlay.
+
+func _tutorial_rect_at(pos: Vector2) -> Rect2:
+	var r: float = target_radius + 11.0     # circle edge plus the countdown arc
+	var top_left: Vector2 = _draw_area.get_global_transform() * (pos - Vector2(r, r))
+	return Rect2(top_left, Vector2(r * 2.0, r * 2.0))
+
+func tutorial_has_real() -> bool:
+	return _target_active
+
+# The real target, or null when this round has none — a Callable spot returning null simply draws
+# no spotlight, which is what the "there is nothing to hit" step wants.
+func tutorial_target_rect():
+	if not _target_active:
+		return null
+	return _tutorial_rect_at(_target_pos)
+
+func tutorial_decoy_count() -> int:
+	return _decoys.size()
+
+func tutorial_decoy_rect(idx: int):
+	if idx < 0 or idx >= _decoys.size():
+		return null
+	return _tutorial_rect_at(_decoys[idx]["pos"])
+
+# The window this round actually runs for: the level's, unless the coach overrode it.
+func _round_window() -> float:
+	return _round_show_ms if _round_show_ms > 0.0 else show_target_ms
+
 func get_draw_state() -> Dictionary:
 	var age: float = 0.0
-	if _round_active and show_target_ms > 0.0:
-		age = clamp((game.game_time - _round_shown_time_ms) / show_target_ms, 0.0, 1.0)
+	if _round_active and _round_window() > 0.0:
+		age = clamp((game.game_time - _round_shown_time_ms) / _round_window(), 0.0, 1.0)
 
 	var targets: Array = []
 	if _target_active:
@@ -336,6 +549,7 @@ func get_draw_state() -> Dictionary:
 		})
 
 	return {
+		"pops": _pops,
 		"targets": targets,
 		"target_radius": target_radius,
 		"flash_color": _flash_color,

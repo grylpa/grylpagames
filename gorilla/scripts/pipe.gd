@@ -6,7 +6,7 @@ var board_pos := Vector2i.ZERO
 var game: GenericGameUtil
 var has_brick := -1
 var has_coin := -1
-var show_middle_road_path := false
+var show_center_road_path := false
 var warp_to_pos: Vector2i
 
 var bricks: Array[Sprite2D] = []
@@ -231,7 +231,7 @@ func show_dir_floor(board):
 	$PipeImage4.hide()
 	$PipeImageURD.hide()
 	$PipeImageRD.hide()
-	if !show_middle_road_path:
+	if !show_center_road_path:
 		return
 
 	$PipeImageLR.z_index = 1

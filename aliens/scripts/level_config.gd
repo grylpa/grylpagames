@@ -29,7 +29,7 @@ extends Node
 #   name               display name (level label / scores)
 #   level_time_sec     how long the level lasts; it completes when this elapses
 #   rules              pool of MODALITY names (see above); [] = any modality
-#   num_areas          number of target areas. 1 sits in the middle of the field; 2 go in
+#   num_areas          number of target areas. 1 sits in the center of the field; 2 go in
 #                      OPPOSING corners; 3 and 4 fill the remaining corners. 1..2 is the tuned
 #                      range on a phone — 3+ auto-shrinks the aliens.
 #   alien_speed        roaming speed in SCREEN WIDTHS PER SECOND (0.13 relaxed .. 0.27 brisk).

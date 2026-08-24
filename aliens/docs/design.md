@@ -239,7 +239,7 @@ there is no correct answer left to give and every arrival becomes an eviction.
 
 `field.gd` draws an **alien night sky** behind everything: a 40-band vertical gradient (near-black
 overhead → deep teal-green at the horizon), ~70 stars in two size classes, and an edge vignette
-that pulls the eye to the middle of the board.
+that pulls the eye to the center of the board.
 
 **No planets, moons or other large discs.** An early version had two dim planets low in the
 corners; every circle in this game *means* something (outer ring, inner ring), so a big circle in
@@ -549,7 +549,7 @@ never leaks whether the alien matches the rule.
 ## Layout
 
 Areas sit in the screen **CORNERS** (`CORNER_SIGNS`, order TL → BR → TR → BL): one area centers in
-the field, two take **opposing** corners, three or four fill the rest. Corners keep the middle of
+the field, two take **opposing** corners, three or four fill the rest. Corners keep the center of
 the field open as one contiguous roaming space and put the two rings as far apart as possible.
 
 `alien_size` → `sw * base_frac * 0.5` (big .112 / med .098 / small .086), `×0.70` off mobile —

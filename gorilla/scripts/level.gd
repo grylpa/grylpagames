@@ -166,7 +166,7 @@ func tutorial_show_a_monster() -> bool:
 		return true
 	return _spawn_agent(0, true)
 
-# Slide the live gorilla to the middle of its own lane. A gorilla spawns fully OFF screen and the
+# Slide the live gorilla to the center of its own lane. A gorilla spawns fully OFF screen and the
 # coach's freeze stops it wherever it happens to be — which, at the moment it is first reported, is
 # still outside the visible area. Without this the tutorial talks about a gorilla the player never
 # actually sees, then unfreezes and lets it run off while they are still reading.
@@ -623,7 +623,7 @@ func _plan_gorilla_spawns():
 	level_start_ms = MainGlobals.timems()
 
 # force_horizontal: the tutorial always wants a left/right runner. A vertical one held mid-lane
-# sits in the middle of the screen edge and reads oddly, and phones only ever get horizontal lanes
+# sits in the center of the screen edge and reads oddly, and phones only ever get horizontal lanes
 # anyway, so the tutorial should teach the case everyone actually sees.
 func _spawn_peripheral_gorilla(force_horizontal: bool = false):
 	var play: Rect2 = _playfield_world_rect()
