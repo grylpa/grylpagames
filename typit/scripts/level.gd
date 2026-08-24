@@ -769,7 +769,7 @@ func _draw_comparison(canvas: Control) -> void:
 			# Expected
 			canvas.draw_string(_mono_font, Vector2(cx_i, want_y), _target[gi],
 				HORIZONTAL_ALIGNMENT_CENTER, adv, cfs, light)
-			# Typed (case-matched; wrong letters red, wrong/untyped → red middle dot)
+			# Typed (case-matched; wrong letters red, wrong/untyped → red center dot)
 			var dispc: String
 			var wrong: bool
 			if gi < _char_pressed.size():

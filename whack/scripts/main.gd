@@ -41,7 +41,14 @@ func _ready() -> void:
 		"Avoid the decoy targets!\n" +
 		"Targets shrink at higher levels.\n",
 		_ins_font_sz)
-	if not game.shown_instructions:
+	# Teach instead of showing the instructions wall when the tutorial was asked for, or on a
+	# first run. Consumed before the `shown_instructions` check below, which would otherwise put
+	# a page of text in front of the lesson that replaces it.
+	var _teaching: bool = MainGlobals.take_pending_tutorial("whack") \
+		or MainGlobals.take_auto_tutorial("whack", game.shown_instructions)
+	if _teaching:
+		call_deferred("start_tutorial")
+	elif not game.shown_instructions:
 		game.show_instructions(self)
 		WhackG.save_settings()
 	main_menu.show_continue_and_start_new(false)
@@ -57,6 +64,53 @@ func _ready() -> void:
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
+
+var _tutorial_saved_level: int = -1
+
+# begin_tutorial() BEFORE new_game(): new_game() runs game.reset(true), which calls
+# convert_ongoing_score_to_permanent() and would commit the player's unfinished real session.
+func start_tutorial() -> void:
+	var tut: Script = load("res://whack/scripts/tutorial.gd")
+	game.begin_tutorial()
+	# starting_level lives on WhackG, not on the game util, so begin_tutorial() does not cover it.
+	_tutorial_saved_level = WhackG.starting_level
+	WhackG.starting_level = tut.tutorial_level_id()
+	new_game()
+	$Level.tutorial_only_staged = true
+	var runner: TutorialRunner = TutorialRunner.new()
+	# The circles themselves, not the playfield. `_best_y()` scores candidate positions by how much
+	# they overlap these zones, and `_follow_keep_clear()` re-places the caption when one becomes
+	# half buried — both need SMALL zones to discriminate. Handing them the whole playfield scores
+	# every position identically and can never reach the half-buried threshold, so it reads as a
+	# constraint while doing nothing at all.
+	runner.keep_clear = [
+		func(): return $Level.tutorial_target_rect(),
+		func(): return $Level.tutorial_decoy_rect(0),
+		func(): return $Level.tutorial_decoy_rect(1),
+		func(): return $Level.tutorial_decoy_rect(2),
+	]
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	show_main_menu()
+
+# Also called from _exit_tree: leaving mid-tutorial frees the scene, and the staged rounds and the
+# held timeout must not survive into a real session.
+func _restore_tutorial_globals() -> void:
+	if is_instance_valid($Level):
+		$Level.tutorial_rounds.clear()
+		$Level.tutorial_no_timeout = false
+		$Level.tutorial_only_staged = false
+		$Level.tutorial_ignore_taps = false
+		$Level.tutorial_retry_spec = {}
+	if _tutorial_saved_level >= 0:
+		WhackG.starting_level = _tutorial_saved_level
+		_tutorial_saved_level = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
 
 func show_main_menu() -> void:
 	main_menu.show_continue_and_start_new(false)

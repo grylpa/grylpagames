@@ -315,7 +315,7 @@ Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for t
   timed schedule: on the schedule one ran past while the coach was still talking about coins, and a
   different one was held up later, which read as a gorilla appearing from nowhere. It prefers a
   horizontal lane (the only kind phones get, and a vertical one held mid-lane sits oddly in the
-  middle of the screen edge) but falls back to any available side — insisting on horizontal on a
+  center of the screen edge) but falls back to any available side — insisting on horizontal on a
   screen where the top/bottom bands do not fit produced no gorilla at all.
 - The **`player_steered`** hook exists because `GorillaG.always_moving` starts the player walking by
   itself: a "collect a coin" step is satisfied by the game wandering into one, so the coach
@@ -325,7 +325,7 @@ Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for t
   step. Monsters are off for the whole tutorial (`num_inside_monsters = 0`) so nobody is killed
   mid-lesson — but a player who is never shown one meets their first at full speed with no
   warning, so the tutorial names and points at one while the game is frozen, then ends.
-- **`tutorial_hold_gorilla_midscreen()`** slides the live gorilla to the middle of its own lane.
+- **`tutorial_hold_gorilla_midscreen()`** slides the live gorilla to the center of its own lane.
   A gorilla spawns fully off screen and crosses in a few seconds, so a player reading a caption
   misses it entirely and never learns what to look for. The tutorial holds one still, frozen, and
   spotlights it. This was the single biggest gap in the first version.

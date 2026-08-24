@@ -85,10 +85,41 @@ Each step is a Dictionary:
 | `hint` | the nudge line |
 | `setup` | `Callable` run before the step, to stage the situation the step needs to teach. It may cause the very event the step waits for — that is recognized, not lost |
 | `keep_clear` | zones this step's caption must try not to cover — same accepted types as `spot`, in a list. Overrides `runner.keep_clear` for the length of the step; omit to inherit it |
+| `watch_only` | a DOING step where the player should watch, not act. The board keeps running — it has to, for the thing being watched to happen — but the step dims and swallows input like a talking step, and its spotlight drops the pulse for a steady frame, so it *looks* as inert as it behaves |
 | `demo_path` | `Callable` returning screen points; the overlay traces them with a drawn pointing hand, then walks a dot along the same route, to *show* a gesture instead of describing it |
 
 Steps with no `await` freeze the game and dim everything but the spotlight. Steps with an `await`
 let the player play: no dim, just a pulsing outline, and input passes straight through.
+
+**A doing step that asks the player to watch needs `watch_only`.** A step with an `await` normally
+lets the player play: no dim, input passes through. That is exactly wrong when the step is waiting
+for something to happen *to* the board rather than for the player to act — the board looks live and
+invites the tap that breaks it. Whack's countdown lesson is the case: hitting the target ends the
+round, so the ring never reaches halfway and the awaited event never arrives, a dead end reached by
+doing the very thing the tutorial just taught. Verified by measurement: a doing step normally leaves
+the dim non-blocking, and `watch_only` puts it back to blocking exactly as on a talking step.
+
+**A `watch_only` step should carry no `spot`.** A spotlight punches a bright hole in the dim and
+frames it, and that framing is how the app says "act here" — wrong for a step asking the player to
+watch. Whack's countdown lesson still read as an invitation to tap with the spotlight on, even
+though the tap did nothing. Dim everything evenly, as a talking step does, and let the caption name
+the subject; if the step needs a spotlight to be understood at all, it probably wants to be two
+steps.
+
+**It also needs a footer.** `_update_footer()` writes "tap to continue" only while `_blocking`, so
+a watch-only step came out blank — a dimmed board, a caption, and no affordance anywhere, which
+leaves the game itself as the only thing that looks actionable. That is the tap the step exists to
+prevent. It says "watch" instead.
+
+Guard the game side as well. The dim stops a finger; it does not stop anything already inside the
+level, and a harness that calls the level's input handler directly bypasses the overlay entirely —
+so the layer the tests can actually exercise is the game's own flag, not the overlay.
+
+**A step waiting for the player to act on something that can disappear needs a way back.** If the
+thing times out, the awaited event can never arrive and the step is a dead end — the `timeout`
+escape hatch turns it into a long stall rather than a hang, which is not the same as working.
+Whack's countdown lesson re-stages the same round when it expires, so there is always something to
+act on; the miss becomes part of the lesson instead of the end of it.
 
 **Always give a `timeout` to a doing step that waits on the game rather than the player** (e.g.
 "a card appeared"). Without one, a missed notify strands the player forever.

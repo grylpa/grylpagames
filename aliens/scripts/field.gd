@@ -85,7 +85,7 @@ func _draw_sky() -> void:
 		var y: float = fposmod(pn.y * h + _drift, h)
 		draw_circle(Vector2(x, y), float(st["r"]), Color(0.86, 0.92, 1.0, float(st["a"])))
 
-	# vignette: darken the edges so the eye settles on the middle of the board
+	# vignette: darken the edges so the eye settles on the center of the board
 	var depth: float = minf(w, h) * VIGNETTE_DEPTH
 	var step: float = depth / float(VIGNETTE_STEPS)
 	for i in VIGNETTE_STEPS:

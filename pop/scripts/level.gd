@@ -538,7 +538,7 @@ func tutorial_has_lineup() -> bool:
 # Handing it the merged rect is useless here: the candidates ring the board, so their bounding box
 # is most of the screen and "avoid this" becomes unsatisfiable — which is why the caption ended up
 # sitting straight on top of them. As separate small obstacles they leave an obvious hole in the
-# middle of the board, which is exactly where the caption should go.
+# center of the board, which is exactly where the caption should go.
 func tutorial_candidate_rect_at(i: int) -> Rect2:
 	var found: int = 0
 	for a in agents:

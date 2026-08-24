@@ -20,7 +20,8 @@ const LEVELS: Array = [
 		"show_ms":                  2000.0,
 		"hits_to_complete":            5,
 		"num_decoys":                   0,
-		"no_real_chance":             0.1,
+		# 0 on purpose: with no decoys, an "empty" round would show nothing at all.
+		"no_real_chance":             0.0,
 		"same_color_decoy":          true,
 		"use_many_colors_for_decoys": true,
 	},

@@ -80,7 +80,7 @@ func start_tutorial() -> void:
 	# player is comparing against it.
 	# Each candidate listed separately, NOT as one merged rect. They ring the board, so their
 	# bounding box is most of the screen and asking the placer to avoid it is unsatisfiable — the
-	# caption then lands right on them. Individually they leave the middle of the board free, which
+	# caption then lands right on them. Individually they leave the center of the board free, which
 	# is where the caption belongs. Level 1 shows two; the spare entries cost nothing when absent.
 	runner.keep_clear = [
 		func():

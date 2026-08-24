@@ -3,6 +3,21 @@ extends Control
 # Set by level.gd after instantiation
 var level_node: Node = null
 
+# Mirrors level.gd's POP_LIFE_SEC / POP_RISE_PX; the level owns the timing, this owns the drawing.
+const _POP_LIFE: float = 0.9
+const _POP_RISE: float = 42.0
+
+static var _font: Font = null
+
+static func _pop_font() -> Font:
+	if _font == null:
+		var sf: SystemFont = SystemFont.new()
+		sf.font_names = PackedStringArray(["Arial Black", "Open Sans Bold", "DejaVu Sans",
+			"sans-serif"])
+		sf.font_weight = 800
+		_font = sf
+	return _font
+
 func _ready() -> void:
 	level_node = get_parent()
 
@@ -39,3 +54,25 @@ func _draw() -> void:
 		var fc: Color = flash_color
 		fc.a = flash_alpha * flash_color.a
 		draw_circle(flash_pos, flash_radius * 1.3, fc)
+
+	# What the tap was worth. The flash says something happened; the number says what it cost,
+	# which is the part a player is actually trying to learn. It rises and fades so it cannot be
+	# confused with a target, and it is drawn LAST so a later round never covers it.
+	var pops: Array = state.get("pops", [])
+	if not pops.is_empty():
+		var f: Font = _pop_font()
+		var fs: int = 34 if MainGlobals.is_mobile() else 24
+		for p in pops:
+			var t: float = clampf(float(p["age"]) / _POP_LIFE, 0.0, 1.0)
+			var col: Color = p["color"]
+			col.a = 1.0 - t * t                       # holds, then drops away
+			var txt: String = p["text"]
+			var ss: Vector2 = f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+			var at: Vector2 = Vector2(float(p["pos"].x) - ss.x * 0.5,
+				float(p["pos"].y) - _POP_RISE * t)
+			# A dark backing stroke: these land on the playfield, on top of a target as often as
+			# not, and a thin colored glyph on a saturated circle is unreadable.
+			var shadow: Color = Color(0.0, 0.0, 0.0, col.a * 0.75)
+			for off in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2)]:
+				draw_string(f, at + off, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, shadow)
+			draw_string(f, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
