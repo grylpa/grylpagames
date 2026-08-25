@@ -128,7 +128,7 @@ still throws its expanding ring, and the rhythm is still measured, scored and sh
 The flag gates exactly one assignment — `_anim_active = true` at tap 4 — and every other piece of
 animation machinery below still exists and is still correct; it simply never runs.
 
-Set the flag back to `true` to restore the old behaviour.
+Set the flag back to `true` to restore the old behavior.
 
 ## Breathing Circle Animation
 
@@ -286,3 +286,51 @@ None — the session is silent by design.
 
 One slider entry:
 1. **Duration (min)** (1–15) — session length in minutes
+
+---
+
+## Tutorial
+
+`breathe/scripts/tutorial.gd`, registered in `MainCfg.tutorials`. Eleven steps, three of them
+doing steps that each wait on a real tap.
+
+The whole tutorial exists for one sentence in the instructions wall — *"Tap once at the end of each
+exhale"* — because that half-line is the entire game. The score is the standard deviation of the
+gaps **between** taps, so a player who taps at a different point in each cycle (sometimes at the
+top of the inhale, sometimes after the exhale) records scattered intervals and a poor consistency
+number while breathing perfectly evenly. Three steps are spent on placing the tap in the cycle, and
+the coach asks for three taps rather than one so the player performs a rhythm instead of an action.
+
+The other three things a first-timer gets wrong, in order:
+
+- **there is nothing to aim at** — the circle looks like a button; the tap lands anywhere;
+- **nothing on screen is pacing them** — the circle is deliberately static (see *Why the animation
+  is off*), so a player waiting to be led waits forever;
+- **fast is not better** — a 4 s cycle and a 12 s cycle both reach 100 if they are even.
+
+### Hooks
+
+`_register_tap()` emits `tapped` (and `rhythm_started` from the second tap), placed **after** the
+200 ms debounce so the coach only ever counts taps the game itself accepted. `tutorial_circle_rect()`,
+`tutorial_tap_count()` and `tutorial_last_interval_sec()` exist for the captions and spotlights;
+the "that gap was N seconds" caption is a Callable that reads the real interval rather than
+asserting anything.
+
+### Session length
+
+`start_tutorial()` stashes `BreatheG.duration_min` and sets 15. Breathe counts its own session in
+`level.gd::_process` (`_duration_ms`), **not** on the game util's clock, so
+`TutorialRunner.TUTORIAL_MINUTES` does not reach it — on the 5 minute default the results panel,
+full of statistics for four tutorial taps, could arrive on top of the coach. Restored from
+`_on_tutorial_done` **and** `_exit_tree`, because leaving the game mid-tutorial frees the scene
+without the runner's callback ever firing. Verified by probe, including the abandon path: with
+`_exit_tree` removed, the tutorial's 15 is left sitting in the player's real settings.
+
+### Two placement traps found while building it
+
+- The step saying *"anywhere on the screen — there is nothing to aim at"* originally spotlighted
+  the circle. A spotlight frames a thing and means "here", which is the exact opposite of the
+  sentence. It has no `spot`.
+- The circle is 440 px across on mobile and centered, leaving a band under it barely as tall as a
+  caption. The "the circle does not lead you" step overlapped its own spotlight by 8% until its
+  text was shortened enough for the panel to fit in that band.

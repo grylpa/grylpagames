@@ -270,6 +270,18 @@ func _on_action_completed(action_type: int, prev_swipe_dir: int, duration_ms: fl
 	if duration_ms < 80.0:
 		return
 
+	# The coach listens here because this is where the game itself decides an action happened --
+	# past the flicker guard, so a twitch the game ignored never advances a tutorial step.
+	# no-ops outside tutorial mode.
+	if action_type == 1:
+		game.tutorial_notify("inhaled")
+	elif action_type == -1:
+		game.tutorial_notify("exhaled")
+	elif prev_swipe_dir == 1:
+		game.tutorial_notify("held_top")
+	elif prev_swipe_dir == -1:
+		game.tutorial_notify("held_bottom")
+
 	# Record phase durations for stats
 	if action_type == 1:
 		_swipe_up_ms.append(duration_ms)
@@ -335,6 +347,9 @@ func _try_score() -> void:
 		game.add_score_and_time(1, 0)
 		_safe_open = not _safe_open
 		_unlock_times_ms.append(_elapsed_ms)
+		game.tutorial_notify("unlocked")
+	else:
+		game.tutorial_notify("sequence_missed")
 
 func _current_phase_label() -> String:
 	if active_mode:
@@ -520,6 +535,81 @@ func _do_draw(canvas: CanvasItem) -> void:
 		canvas.draw_string(score_font, Vector2(text_x, y_goal),
 			"Goal:  %s – %s – %s – %s" % [_fv_ms(d[0]), _fv_ms(d[1]), _fv_ms(d[2]), _fv_ms(d[3])],
 			HORIZONTAL_ALIGNMENT_CENTER, text_w, fs_goal, Color(0.62, 0.72, 0.95, 0.88))
+
+# --- what the coach needs to point at -------------------------------------------------------
+#
+# The safe is drawn procedurally in _do_draw, so there are no nodes to hand the overlay. These
+# recompute the same geometry from the same canvas size. Kept next to nothing else on purpose: if
+# _do_draw's layout constants move, these move with them.
+
+func _dial_center_and_radius() -> Array:
+	var w: float = _canvas.size.x
+	var h: float = _canvas.size.y
+	var door_w: float = w * 0.88
+	var door_h: float = h * 0.80
+	return [Vector2(w * 0.5, h * 0.5), minf(door_w, door_h) * 0.26]
+
+func _to_screen(r: Rect2) -> Rect2:
+	var tl: Vector2 = _canvas.get_global_transform() * r.position
+	return Rect2(tl, r.size)
+
+# The three lines of timing HUD stacked just above the dial: recent durations, the live "Now:"
+# indicator, and the goal line. Spotlighted as one block -- they are read together.
+func tutorial_hud_rect() -> Rect2:
+	var d: Array = _dial_center_and_radius()
+	var c: Vector2 = d[0]
+	var dial_r: float = d[1]
+	var mobile_d: bool = MainGlobals.is_mobile()
+	var fs_now: int = 32 if mobile_d else 20
+	var fs_goal: int = 32 if mobile_d else 17
+	var fs_dur: int = 44 if mobile_d else 30
+	var line_gap: float = 4.0 if mobile_d else 5.0
+	var bottom: float = c.y - dial_r - 26.0 - (24.0 if mobile_d else 16.0)
+	var top: float = bottom - float(fs_goal) - line_gap - float(fs_now) - line_gap - float(fs_dur)
+	var w: float = _canvas.size.x * 0.88
+	var x: float = (_canvas.size.x - w) * 0.5
+	return _to_screen(Rect2(Vector2(x, top - 6.0), Vector2(w, bottom - top + 12.0)))
+
+# The unlock count at the foot of the door.
+func tutorial_score_rect() -> Rect2:
+	var w: float = _canvas.size.x
+	var h: float = _canvas.size.y
+	var door_w: float = w * 0.88
+	var door_h: float = h * 0.80
+	var door_x: float = (w - door_w) * 0.5
+	var door_y: float = (h - door_h) * 0.5 + h * 0.02
+	return _to_screen(Rect2(Vector2(door_x, door_y + door_h - 100.0), Vector2(door_w, 60.0)))
+
+# The gesture, drawn: a slow vertical drag down the center of the screen, and its exact reverse.
+# Crack's input is the one thing no caption can convey -- "swipe up" reads as a flick, and a flick
+# is exactly what does not work here, because what the game measures is how LONG the finger keeps
+# moving. The traced hand takes the full length of the path, which is the point being made.
+#
+# The path is vertical because the gesture is vertical. The HAND is what is tilted (see
+# _HAND_TILT_DEG in scripts/tutorial.gd) so that its body sits beside the line instead of lying
+# along it and hiding it; its fingertip still lands on the line.
+func _tutorial_demo_column(from_frac: float, to_frac: float) -> Array:
+	var w: float = _canvas.size.x
+	var h: float = _canvas.size.y
+	var pts: Array = []
+	var steps_n: int = 10
+	for i in range(steps_n + 1):
+		var t: float = float(i) / float(steps_n)
+		var y: float = lerpf(h * from_frac, h * to_frac, t)
+		pts.append(_canvas.get_global_transform() * Vector2(w * 0.5, y))
+	return pts
+
+func tutorial_demo_up() -> Array:
+	return _tutorial_demo_column(0.74, 0.26)
+
+func tutorial_demo_down() -> Array:
+	return _tutorial_demo_column(0.26, 0.74)
+
+func tutorial_unlocks() -> int:
+	return _score
+
+func tutorial_safe_is_open() -> bool:
+	return _safe_open
 
 func _avg_ms(arr: Array) -> float:
 	if arr.is_empty():

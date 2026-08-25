@@ -87,6 +87,7 @@ Each step is a Dictionary:
 | `keep_clear` | zones this step's caption must try not to cover — same accepted types as `spot`, in a list. Overrides `runner.keep_clear` for the length of the step; omit to inherit it |
 | `watch_only` | a DOING step where the player should watch, not act. The board keeps running — it has to, for the thing being watched to happen — but the step dims and swallows input like a talking step, and its spotlight drops the pulse for a steady frame, so it *looks* as inert as it behaves |
 | `demo_path` | `Callable` returning screen points; the overlay traces them with a drawn pointing hand, then walks a dot along the same route, to *show* a gesture instead of describing it |
+| `demo_hand_only` | with `demo_path`: draw only the pointing hand — no start ring and no traveling dot. The dot means *something then follows this route*; in a game where the swipe IS the event and nothing travels, it reads as a second, different thing to do |
 
 Steps with no `await` freeze the game and dim everything but the spotlight. Steps with an `await`
 let the player play: no dim, just a pulsing outline, and input passes straight through.
@@ -131,6 +132,13 @@ gate *wanted* an alien that did not match. The captions now read the live pass o
 (`_pass_label`) and quote it in every line that talks about matching, so caption and screen cannot
 disagree. If a caption asserts something about the game state, prefer reading that state.
 
+**Tilt the hand, not the path.** The pointing hand is drawn upright with its wrist below the
+fingertip, so on a *vertical* demo path its body lies along the line and hides the very thing being
+traced. The fix is `_HAND_TILT_DEG` (-45°), which rotates the hand about its contact point: the
+body swings clear to the lower right, the line stays visible, and the fingertip is still exactly on
+the path. Angling the PATH instead is the wrong fix -- it makes the drawn gesture disagree with the
+gesture being taught, which for crack is straight up and down. Applies to every `demo_path` game.
+
 **Show a gesture you cannot name.** `demo_path` animates a pointing hand over the board, then a dot
 walking the same route — the gesture, then its effect, in that order. The hand is drawn as a
 polygon (`_HAND_SHAPE`), not typeset from an emoji, so it does not depend on a font being installed
@@ -153,7 +161,7 @@ the game to report *how* the answer was given, not just that it was.
 below), or `"right"` / `"left"` for a narrow column pinned to that edge and vertically centered. Set
 it on the runner before `run()`, or per step with a `caption_side` key.
 
-Use a side caption when the game's action runs down the **middle** of the screen. udbr's lane is
+Use a side caption when the game's action runs down the **center** of the screen. udbr's lane is
 vertical and centered and the ball travels its whole height, so a full-width caption docked at the
 bottom sits on exactly what the player is meant to be watching. The column is `0.32` of screen
 width (min 150 px) — 218 px on a 680 px screen, against udbr's 180 px centered lane, so it clears
@@ -166,7 +174,7 @@ caption needs a paragraph, it probably wants `auto`.
 
 The caption goes wherever there is actually room around the spotlight: below it if the gap fits,
 otherwise above it, otherwise flush against it in whichever gap is roomier. Flipping bottom→top
-was not enough — a target near the middle of the screen (a gorilla held mid-lane on a vertical
+was not enough — a target near the center of the screen (a gorilla held mid-lane on a vertical
 run) clips *both* ends, and the old fallback then chose the bottom regardless and sat on the very
 thing it was pointing at. Keep step text short for spotlighted steps: on a 748px screen a
 230px caption leaves almost no gap to place it in.
@@ -238,6 +246,9 @@ player's own saved state back into the level so Continue still resumes their gam
 | `udbr` | held drag (breathing) | it is not a swipe — the finger stays down; there is no fail state |
 | `mother` | held drag (breathing, guided) | your finger never touches the snake; a hold is performed by doing nothing |
 | `bucketmadness` | swipe to one of three targets | an item is two objects, only one can match; the rules fade out and still apply |
+| `whack` | tap a target | which circle is the real one, and that the ring is a deadline |
+| `breathe` | one tap per breath | *where in the breath* the tap goes — the score is the gap between taps |
+| `crack` | held drag (breathing, 4-beat) | the swipe is not a flick; a hold is a beat, and it ends when the next breath starts |
 
 Between them these cover every input family in the app, so a new tutorial almost always has a
 worked example to copy. Two things worth knowing before writing the next one:
@@ -266,6 +277,16 @@ running its setup, and parks any event that arrives during setup (`_entering` / 
 rather than dropping it. Gorilla's setup spawns the gorilla the step then waits to be told about;
 with setup running first, that notification landed while `_await_event` was still empty and the
 step sat out its full 30s timeout while the gorilla it had just created ran past and off screen.
+
+**An event that fires on a state CHANGE cannot be awaited by a step that asks the player to hold
+still.** Crack's holds are the case. Its `_on_action_completed` is reached only from
+`_on_gesture_changed`, so the bottom hold is not "completed" when the player lifts their finger —
+it is completed when they *start the next inhale*, which is also the moment `_try_score` judges the
+sequence. A step reading "lift off and hold" that awaited `held_bottom` would therefore sit there
+after the player had done exactly what it asked, waiting for a move no caption had mentioned yet.
+Two of crack's steps were written that way and both were restructured to name the move that ends
+the hold. Before awaiting an event, find the line that emits it and check what has to happen for
+control to reach it — not what the event is called.
 
 **Don't number the steps.** The footer used to show "3/12" and the numbers skipped. Several steps
 exist only to unfreeze the game and wait for it to produce something ("here comes the first card",
@@ -792,7 +813,7 @@ no need to look at the art.)
 
 **When picking "one of these" to point at, pick one that is wholly on screen.** Monkey C's item
 spotlight took the item furthest down the belt, which is usually half off its end — the spotlight
-landed at y=792 on a 788px overlay. Choose from the middle of the region and require the candidate
+landed at y=792 on a 788px overlay. Choose from the center of the region and require the candidate
 to be fully inside it.
 
 **Anything the player must read off the HUD needs `never_dim`.** A game's HUD sits on a low
@@ -869,7 +890,7 @@ event that fires on ANY answer, and say what happened in a reactive caption.
 
 **Hand the caption placer several small obstacles, not one merged box.** Glimpse's candidates ring
 the board, so their bounding box is most of the screen: as one rect the constraint is unsatisfiable
-and the caption lands straight on them. Listed individually, the empty middle of the board becomes
+and the caption lands straight on them. Listed individually, the empty center of the board becomes
 obvious and the caption goes there. Measured: 2 of 2 candidates covered before, 0 of 2 after.
 
 **"The timer runs on game_time, which excludes paused time" protects the TALKING steps only.**

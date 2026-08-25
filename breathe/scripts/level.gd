@@ -190,6 +190,10 @@ func _register_tap(tap_pos: Vector2) -> void:
 	_ring_active = true
 	_tap_area.queue_redraw()
 	_update_breath_label()
+	# After the debounce, so the coach only ever counts taps the game itself accepted.
+	game.tutorial_notify("tapped")          # no-op outside tutorial mode
+	if n >= 2:
+		game.tutorial_notify("rhythm_started")
 
 func _update_rhythm() -> void:
 	var n: int = _tap_times_ms.size()
@@ -299,7 +303,6 @@ func _show_results() -> void:
 		return
 
 	var mean_sec: float = _mean_ms / 1000.0
-	var _cv_pct: float = (_stddev_ms / _mean_ms) * 100.0 if _mean_ms > 0.0 else 0.0
 	var dur_min: int = int(_duration_ms / 60000.0)
 	var dur_sec: int = int(_duration_ms / 1000.0) % 60
 
@@ -322,6 +325,24 @@ func get_session_score(didwin: bool, wasaborted: bool) -> Array:
 		_bpm,
 		_tap_times_ms.size(),
 		_missed_breaths]
+
+# --- what the coach needs to point at -------------------------------------------------------
+
+# The breathing circle, in screen space. tap_area draws it centered on itself at a fixed radius.
+func tutorial_circle_rect() -> Rect2:
+	var r: float = 220.0 if MainGlobals.is_mobile() else 150.0
+	var c: Vector2 = _tap_area.get_global_transform() * (_tap_area.size / 2.0)
+	return Rect2(c - Vector2(r, r), Vector2(r * 2.0, r * 2.0))
+
+func tutorial_tap_count() -> int:
+	return _tap_times_ms.size()
+
+# The gap between the last two taps, in seconds; 0 until there are two.
+func tutorial_last_interval_sec() -> float:
+	var n: int = _tap_times_ms.size()
+	if n < 2:
+		return 0.0
+	return float(_tap_times_ms[n - 1] - _tap_times_ms[n - 2]) / 1000.0
 
 func get_tap_draw_state() -> Dictionary:
 	return {

@@ -32,7 +32,14 @@ func _ready() -> void:
 		"When the session ends you'll see\n" +
 		"your consistency stats.",
 		36 if MainGlobals.is_mobile() else 22)
-	if not game.shown_instructions:
+	# Teach instead of showing the instructions wall when the tutorial was asked for, or on a
+	# first run. Consumed before the `shown_instructions` check, which would otherwise put a page
+	# of text in front of the lesson that replaces it.
+	var _teaching: bool = MainGlobals.take_pending_tutorial("breathe") \
+		or MainGlobals.take_auto_tutorial("breathe", game.shown_instructions)
+	if _teaching:
+		call_deferred("start_tutorial")
+	elif not game.shown_instructions:
 		game.show_instructions(self)
 		BreatheG.save_settings()
 
@@ -155,3 +162,43 @@ func _input(event: InputEvent) -> void:
 		game.in_focus = true
 	else:
 		game.handle_event(event, self)
+
+
+# --- tutorial ---------------------------------------------------------------------------------
+
+var _tutorial_saved_duration: int = -1
+
+# begin_tutorial() BEFORE new_game(): new_game() runs game.reset(true), which calls
+# convert_ongoing_score_to_permanent() and would commit the player's unfinished real session.
+func start_tutorial() -> void:
+	var tut: Script = load("res://breathe/scripts/tutorial.gd")
+	game.begin_tutorial()
+	# The session length is breathe's own clock (`_duration_ms` in level.gd), counted in _process
+	# and not the game util's timer, so TutorialRunner.TUTORIAL_MINUTES does not reach it. The
+	# default is 5 minutes and reading eleven captions can outlast that -- and the results panel
+	# arriving over the coach, full of statistics for four tutorial taps, is not something a
+	# first-timer can make sense of. Not covered by the GenericGameUtil snapshot, so restored by
+	# hand below.
+	_tutorial_saved_duration = BreatheG.duration_min
+	BreatheG.duration_min = 15
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	game.level_is_ready = false
+	refresh_menu()
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback -- so without it the tutorial's stashed duration stayed
+# applied to the player's real settings.
+func _restore_tutorial_globals() -> void:
+	if _tutorial_saved_duration >= 0:
+		BreatheG.duration_min = _tutorial_saved_duration
+		_tutorial_saved_duration = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()
