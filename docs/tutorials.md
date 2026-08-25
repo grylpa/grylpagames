@@ -87,7 +87,8 @@ Each step is a Dictionary:
 | `keep_clear` | zones this step's caption must try not to cover — same accepted types as `spot`, in a list. Overrides `runner.keep_clear` for the length of the step; omit to inherit it |
 | `watch_only` | a DOING step where the player should watch, not act. The board keeps running — it has to, for the thing being watched to happen — but the step dims and swallows input like a talking step, and its spotlight drops the pulse for a steady frame, so it *looks* as inert as it behaves |
 | `demo_path` | `Callable` returning screen points; the overlay traces them with a drawn pointing hand, then walks a dot along the same route, to *show* a gesture instead of describing it |
-| `demo_hand_only` | with `demo_path`: draw only the pointing hand — no start ring and no traveling dot. The dot means *something then follows this route*; in a game where the swipe IS the event and nothing travels, it reads as a second, different thing to do |
+| `demo_hand` | a `Callable(elapsed_sec)` returning `{"pos", "lift", "path"}` (`lift` 0..1, so coming off the glass can be animated rather than snapped), plus optional `badge` / `badge_alpha` / `badge_good` for a short-lived announcement box opposite the caption — the step drives the finger itself every frame, including lifting it off the surface. For acting out a *timed* gesture with pauses of a specific length; `demo_path` only animates a fixed route on the runner's clock |
+| `advance_when` | `Callable` returning bool, polled each frame: the step ends itself when it returns true. For a demonstration the player is meant to watch — requiring a tap to get past an animation, or chopping it into tap-gated pieces, destroys the timing it exists to convey. A tap still skips it |
 
 Steps with no `await` freeze the game and dim everything but the spotlight. Steps with an `await`
 let the player play: no dim, just a pulsing outline, and input passes straight through.
@@ -131,6 +132,69 @@ plainly said GREEN: a NOT pass was in play, and `_gate_wants()` returns `matches
 gate *wanted* an alien that did not match. The captions now read the live pass out of the level
 (`_pass_label`) and quote it in every line that talks about matching, so caption and screen cannot
 disagree. If a caption asserts something about the game state, prefer reading that state.
+
+**Demo timing lives in named constants** (`_DEMO_DRAW_SEC`, `_DEMO_GAP_SEC`, `_DEMO_WALK_SEC`,
+`_DEMO_REST_SEC`). Every `demo_path` game therefore animates at one
+identical speed by construction rather than by coincidence — which is the whole point, since wolves
+and storm sit next to each other in the same category and a mismatch reads as a bug. Current cycle:
+hand traces in 1.25 s, a 0.25 s beat, the character walks it in 1.25 s, 0.55 s rest — 3.30 s in
+all, down from 4.60 s.
+
+**A demo path must start when the STEP does.** `_pulse` is a free-running clock shared with the
+spotlight pulse, so `fmod(_pulse, cycle)` put the hand wherever that clock happened to be when the
+step opened — after a few seconds of reading earlier captions it opened at t≈1.6, past the hand
+phase entirely, so the first thing the player saw was the dot already most of the way along the
+route, and only the *second* cycle started from the character. `_demo_t0` is stamped in
+`_update_demo_path()` (which runs once per step entry) and the phase is measured from it, so every
+demo opens at the start of its path. The spotlight keeps the uninterrupted `_pulse` it needs.
+
+Note that `_update_demo_path()` runs **only** on step entry, so a `demo_path` Callable that needs
+live board state must be able to answer then — if it returns empty at that moment there is no hand
+for the whole step, and nothing re-asks.
+
+**Do not tap-gate a lesson about timing.** Crack's practice half was four doing steps — inhale,
+freeze and talk, exhale, freeze and talk. The game judges four durations *in a row*, so freezing
+the board between them destroys the rhythm being asked for: the player rehearses beats they can
+never join up. It is now one doing step for the whole pattern. Where a game measures timing, the
+practice has to run unbroken, and the talking belongs before it.
+
+**Put the caption where it can be read WITHOUT looking away from the thing it describes.** A side
+caption solves the "panel sits on the board" problem, but a column on the far side of the screen
+just replaces it with a worse one when the step needs reading and watching at once. Crack's demo
+docks the caption left and puts the animated line ~29 px to its right.
+
+**`MainGlobals.screen_size` must be initialized in any probe that asserts caption geometry.**
+Without `init_globals()`, `_layout_panel()` clamps the panel to a 1x0 rect, and every
+"caption does not overlap X" assertion passes against a panel that is not there. Two runs of a
+placement probe reported clean before this was spotted.
+
+**Do not tap-gate a lesson about timing.** Crack's practice half was four doing steps — inhale,
+freeze and talk, exhale, freeze and talk. The game judges four durations *in a row*, so freezing
+the board between them destroys the rhythm being asked for: the player rehearses beats they can
+never join up. It is now one doing step for the whole pattern. Where a game measures timing, the
+practice has to run unbroken, and the talking belongs before it.
+
+**Put the caption where it can be read WITHOUT looking away from the thing it describes.** A side
+caption solves the "panel sits on the board" problem, but a column on the far side of the screen
+replaces it with a worse one when the step needs reading and watching at once. Crack's demo docks
+the caption left and puts the animated line about 29 px to its right.
+
+**`MainGlobals.screen_size` must be initialized in any probe that asserts caption geometry.**
+Without `init_globals()`, `_layout_panel()` clamps the panel to a 1x0 rect and every "the caption
+does not overlap X" assertion passes against a panel that is not there. Two runs of a placement
+probe reported clean before this was spotted.
+
+**A demonstration must not be tap-gated.** Crack's pattern was first built as five steps, one per
+beat, each waiting for a tap. That destroys the thing an animated demo exists to convey: the
+pattern is a rhythm, and its timing is the only lesson. It is now one step that plays the whole
+4-1-4-1-and-start sequence three times, with a live Callable `text` naming each beat as it happens
+and `advance_when` ending the step by itself. Anything the player is meant to WATCH should play,
+not be clicked through.
+
+**An overlay only repaints when something tells it to.** `_dim.queue_redraw()` is gated on having a
+spotlight or a `demo_path`; a step that animates via `demo_hand` has neither, so its hand was
+computed every frame and drawn on none of them — an invisible demo that looked like a broken
+Callable. Any new per-frame overlay drawing has to be added to that condition.
 
 **Tilt the hand, not the path.** The pointing hand is drawn upright with its wrist below the
 fingertip, so on a *vertical* demo path its body lies along the line and hides the very thing being

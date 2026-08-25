@@ -29,14 +29,19 @@ func _mono() -> FontFile:
 		_mono_font = ResourceLoader.load(_MONO_PATH) as FontFile
 	return _mono_font
 
+# A MAJORITY of entries starting with a digit is enough, not every one of them. The breathing
+# games list seven timing patterns alongside "Active" and sometimes "User 4-2-4-2": those two are
+# exactly the rows that gain nothing from mono, and requiring unanimity let them veto the alignment
+# for the seven rows that need it. Word-only lists ("Easy", "Hard") still come out proportional.
 func _looks_numbered(options: Array) -> bool:
 	if options.size() < 2:
 		return false
+	var numbered: int = 0
 	for o in options:
 		var s: String = str(o).strip_edges()
-		if s.is_empty() or not s.substr(0, 1).is_valid_int():
-			return false
-	return true
+		if not s.is_empty() and s.substr(0, 1).is_valid_int():
+			numbered += 1
+	return numbered >= 2 and numbered * 2 > options.size()
 
 # Applies to the button AND its drop list, so the collapsed value and the open list agree.
 func _apply_option_font(btn: OptionButton, options: Array) -> void:

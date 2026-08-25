@@ -28,16 +28,15 @@ static func tutorial_level_id() -> int:
 	return LEVEL_ID
 
 static func steps(level: Node, _game) -> Array:
-	var hud_spot: Callable = func():
-		return level.tutorial_hud_rect()
-	var score_spot: Callable = func():
-		return level.tutorial_score_rect()
-	var demo_up: Callable = func():
-		return level.tutorial_demo_up()
-	var demo_down: Callable = func():
-		return level.tutorial_demo_down()
+	var goal_spot: Callable = func():
+		return level.tutorial_goal_rect()
+	# One continuous animation of the whole pattern, with a caption that changes in step with it.
+	var demo_seq: Callable = func(el): return level.tutorial_demo_sequence(el)
+	var demo_caption: Callable = func(): return level.tutorial_demo_caption()
+	var demo_zone: Callable = func(): return level.tutorial_demo_rect()
+	var demo_over: Callable = func(): return level.tutorial_demo_finished()
 
-	# Quote the live preset instead of hard-coding 4-1-4-1: the tutorial picks the preset, but the
+	# Quote the live preset instead of hard-coding 4-2-4-2: the tutorial picks the preset, but the
 	# numbers still come from the game, so a change to GUIDED_PRESETS cannot leave this lying.
 	var d: Array = CrackG.get_guided_durations()
 	var s_in: String = "%.0f" % (float(d[0]) / 1000.0)
@@ -53,75 +52,42 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "The combination",
-			"text": "In for %s seconds.\nHold for %s.\nOut for %s seconds.\nHold for %s." % [s_in, s_ht, s_out, s_hb],
-			"spot": hud_spot,
+			"text": "In for %s seconds.\nHold for %s.\nOut for %s seconds.\nHold for %s.\n\nIt is written on the door." % [s_in, s_ht, s_out, s_hb],
+			"spot": goal_spot,
 		},
 		{
-			"title": "Not a flick",
-			"text": "Your finger slides for as long as the breath lasts — all %s seconds of it.\n\n"
-				% s_in + "Slowly, like this. A quick flick does nothing.",
-			"demo_path": demo_up,
-			"demo_hand_only": true,
+			# ONE step, not five. The pattern is a rhythm; chopping it into tap-gated stills loses
+			# the timing, which is the only thing being taught. The caption is a live Callable that
+			# follows the animation, so picture and words stay together on their own.
+			#
+			# A side caption because the animation runs down the board: a full-width panel docked
+			# at the bottom sits on the very thing being watched. On the LEFT, with the line just
+			# beside it -- a caption on the far side of the screen from the gesture means reading
+			# and watching cannot happen at once, and this step needs both. The hand is tilted so
+			# its body falls down-and-right, away from the words.
+			"title": "Watch",
+			"text": demo_caption,
+			"demo_hand": demo_seq,
+			"caption_side": "left",
+			"keep_clear": [demo_zone],
+			"advance_when": demo_over,
+			"setup": func():
+				level.tutorial_demo_end(),
 		},
 		{
-			"text": "Try it: breathe in, sliding your finger up the whole time.",
-			"await": {"event": "inhaled", "timeout": 180.0},
-			"hint_after": 12.0,
-			"hint": "Press down and keep sliding upward without lifting. On a keyboard, hold the UP arrow.",
-			"demo_path": demo_up,
-			"demo_hand_only": true,
+			"title": "That was 3 sequences",
+			"text": "A whole round is that, over and over, until the time runs out.\n\n"
+				+ "Here is what you get at the end of one.",
 		},
 		{
-			"text": "The slide ended when you stopped moving.\n\nThat is your inhale, and its length is what counts.",
-			"spot": hud_spot,
-		},
-		{
-			"title": "Holding is a move",
-			"text": "Lift your finger off.\n\nThat pause is part of the pattern.",
-		},
-		{
-			"text": "Now breathe out, sliding your finger down all the way.",
-			"await": {"event": "exhaled", "timeout": 180.0},
-			"hint_after": 14.0,
-			"hint": "Press down and keep sliding downward without lifting. On a keyboard, hold the DOWN arrow.",
-			"demo_path": demo_down,
-			"demo_hand_only": true,
-		},
-		{
-			"title": "When the lock listens",
-			"text": "One beat is left: the hold at the bottom.\n\n"
-				+ "It ends when you START your next breath in — and that is the moment the lock "
-				+ "judges all four.",
-		},
-		{
-			"text": "So: lift off, hold for %s second, then begin your next breath in." % s_hb,
-			"await": {"event": "held_bottom", "timeout": 180.0},
-			"hint_after": 14.0,
-			"hint": "Lift your finger, pause, then start sliding up again.",
-		},
-		{
-			"title": "Four in a row",
-			"text": "In, hold, out, hold — in that order.\n\n"
-				+ "Break the order and it starts over from the beginning, quietly.",
-		},
-		{
-			"text": "Each one has to land within %s second of its target. All four, or nothing." % thr_s
-				+ "\n\nThis line is what you just did. The one below it is what to aim for.",
-			"spot": hud_spot,
-		},
-		{
-			"text": "Now a whole pattern, in rhythm, to open it.",
-			"await": {"event": "unlocked", "timeout": 240.0},
-			"hint_after": 20.0,
-			"hint": "In for %s, hold %s, out for %s, hold %s. Watch the timings above the dial." % [s_in, s_ht, s_out, s_hb],
-		},
-		{
-			"text": "Open.\n\nEvery pattern you get right counts once more.",
-			"spot": score_spot,
+			"title": "The summary",
+			"text": "Shows how close you were to the target, and the shape of "
+				+ "every breath you took.",
+			"setup": func():
+				level.tutorial_show_summary(),
 		},
 		{
 			"title": "Ready",
-			"text": "Keep breathing the pattern until the time runs out.\n\n"
-				+ "The menu has other patterns, and an Active mode that just records your own.",
+			"text": "The menu has other patterns, and an Active mode that just records your own.",
 		},
 	]

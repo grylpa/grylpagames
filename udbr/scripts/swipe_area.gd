@@ -32,18 +32,9 @@ func _draw() -> void:
 	var h: float = size.y
 	var cx: float = w * 0.5
 
-	# Progress bar along the top edge
+	# Progress bar along the top edge (shared: scripts/session_bar.gd)
 	if state.get("session_active", false):
-		var progress: float = state.get("session_progress", 0.0)
-		const PAD_X: float = 24.0
-		const BAR_Y: float = 18.0
-		const BAR_H: float = 5.0
-		var bar_w: float = w - PAD_X * 2.0
-		draw_rect(Rect2(PAD_X, BAR_Y, bar_w, BAR_H),
-			Color(0.3, 0.55, 0.65, 0.12), true)
-		if progress > 0.0:
-			draw_rect(Rect2(PAD_X, BAR_Y, bar_w * progress, BAR_H),
-				Color(0.4, 0.82, 0.92, 0.28), true)
+		SessionBar.draw_cool(self, w, state.get("session_progress", 0.0))
 
 	if not state.get("session_active", false):
 		return

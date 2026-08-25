@@ -50,7 +50,7 @@ const DUST_SPEED_NEAR: float = 3.6
 const DUST_A_FAR: float = 0.10
 const DUST_A_NEAR: float = 0.30
 const DUST_COL: Color = Color(0.86, 0.78, 0.70)
-# Vignette: darkens the screen edges so the eye settles on the middle, where the snakes are.
+# Vignette: darkens the screen edges so the eye settles on the center, where the snakes are.
 # Drawn on the props canvas, i.e. OVER the snakes — a vignette behind them would be pointless,
 # since the thing it needs to de-emphasise is the busy edge of the play area, snakes included.
 const VIGNETTE_STEPS: int = 12
@@ -233,7 +233,6 @@ var _tut_still_since_ms: float = -1.0
 var tutorial_mother_hidden: bool = false
 
 @onready var _canvas: Control = $MotherCanvas
-@onready var _timer_label: Label = $SessionOverlay/TimerLabel
 @onready var _goal_label: Label = $SessionOverlay/GoalLabel
 @onready var _phase_label: Label = $SessionOverlay/PhaseLabel
 @onready var _results_panel: Control = $ResultsPanel
@@ -433,7 +432,7 @@ func _ready() -> void:
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("hover", btn_style)
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("pressed", btn_pressed)
 
-	for lb in [_timer_label, _goal_label, _phase_label]:
+	for lb in [_goal_label, _phase_label]:
 		lb.add_theme_color_override("font_color", TEXT_COL)
 		lb.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.55))
 		lb.add_theme_constant_override("outline_size", 5)
@@ -441,10 +440,7 @@ func _ready() -> void:
 	_result_label.add_theme_color_override("font_color", Color(TEXT_COL, 0.82))
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_color_override("font_color", TEXT_COL)
 
-	_timer_label.offset_right = -16.0
 	if MainGlobals.is_mobile():
-		_timer_label.add_theme_font_size_override("font_size", 46)
-		_timer_label.offset_bottom = 62.0
 		_goal_label.add_theme_font_size_override("font_size", 42)
 		_goal_label.offset_top = 66.0
 		_goal_label.offset_bottom = 114.0
@@ -454,6 +450,20 @@ func _ready() -> void:
 		$ResultsPanel/Margin/VBox/TitleLabel.add_theme_font_size_override("font_size", 34)
 		_result_label.add_theme_font_size_override("font_size", 28)
 		$ResultsPanel/Margin/VBox/DoneButton.add_theme_font_size_override("font_size", 36)
+
+	# Keep the top labels clear of the session bar. The bar took over from a digital countdown that
+	# used to sit ABOVE these labels, so on desktop the goal line (y 8..46) ran straight through
+	# the bar's band. Derived from SessionBar's own constants rather than hardcoded, so moving the
+	# bar or changing its height cannot silently put them back on top of each other; and expressed
+	# as a minimum, so the mobile layout -- which already clears it -- is left exactly as it was.
+	var bar_h: float = SessionBar.H_MOBILE if MainGlobals.is_mobile() else SessionBar.H_DESKTOP
+	var need_top: float = SessionBar.Y + bar_h + 11.0
+	if _goal_label.offset_top < need_top:
+		var shift: float = need_top - _goal_label.offset_top
+		_goal_label.offset_top += shift
+		_goal_label.offset_bottom += shift
+		_phase_label.offset_top += shift
+		_phase_label.offset_bottom += shift
 
 	_child_history = PackedFloat32Array()
 	_child_history.resize(HISTORY_SLOTS)
@@ -614,7 +624,11 @@ func new_game() -> void:
 	_tut_base_y = _child_y
 	_tut_still_ref_y = _child_y
 	_tut_still_since_ms = -1.0
-	tutorial_mother_hidden = false
+	# Undoes anything the tutorial hid. It takes the mother off screen for three steps and puts her
+	# back on a later one -- so a player who SKIPS in between left the flag and, more visibly, the
+	# three body Line2Ds switched off. The head sprite was already restored on this line below; the
+	# body was not, so the real game ran with a headed mother and no body at all.
+	tutorial_set_mother_visible(true)
 	# In ACTIVE mode the only snake on screen is the PLAYER's own trail, so it wears the child's
 	# head and colors. It used to wear the mother's, which made Active mode look like Guided mode
 	# with the mother missing — the single most confusing thing about this game.
@@ -719,8 +733,6 @@ func _process(delta: float) -> void:
 
 	_tutorial_watch()
 
-	var rem_s: int = int(maxf(0.0, _duration_ms - _elapsed_ms) / 1000.0)
-	_timer_label.text = "%d:%02d" % [rem_s / 60, rem_s % 60]
 	_phase_label.text = _current_phase_label()
 
 	_canvas.queue_redraw()
@@ -1006,6 +1018,12 @@ func _do_draw(canvas: CanvasItem) -> void:
 	# vertical gradient, baked once (was 24 alpha rects every frame)
 	canvas.draw_texture_rect(_grad_tex, Rect2(0.0, 0.0, w, h), false)
 
+	# Session progress along the top edge, the same bar udbr and breathe use, in this game's own
+	# warm palette -- the cyan those two use belongs to their cool backgrounds and would read as a
+	# foreign object on the dunes. It replaced a digital countdown: a number counting down is
+	# something to read and do arithmetic on, which is the opposite of what a breathing game wants.
+	_draw_session_bar(canvas, w)
+
 	var scroll_off: float = _elapsed_ms * _scroll_px_per_ms
 	var bg_span: float = 2000.0
 
@@ -1148,6 +1166,17 @@ func _do_draw(canvas: CanvasItem) -> void:
 # snake passing behind a bush reads as being on the ground rather than floating above it. Now that
 # the bodies are Line2D nodes rather than canvas draws, these need their own canvas above them.
 # Baked once into a texture (was 48 alpha rects every frame, measured at 983 us).
+# Session progress along the top edge -- shared with udbr, breathe and crack, but in this game's
+# own colors: MOTHER_COL is the snake the player is following, so the bar belongs to the scene.
+# The dunes are far lighter than the other three games' backgrounds, hence the alpha lift.
+const BAR_ALPHA_SCALE: float = 1.4
+
+func _draw_session_bar(canvas: CanvasItem, w: float) -> void:
+	if _session_complete or _duration_ms <= 0.0:
+		return
+	SessionBar.draw(canvas, w, _elapsed_ms / _duration_ms,
+		MOTHER_COL.darkened(0.55), MOTHER_COL, BAR_ALPHA_SCALE)
+
 func _draw_vignette(canvas: CanvasItem, w: float, h: float) -> void:
 	canvas.draw_texture_rect(_vig_tex, Rect2(0.0, 0.0, w, h), false)
 

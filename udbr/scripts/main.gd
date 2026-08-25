@@ -228,7 +228,7 @@ func _build_mode_options() -> Array:
 			_fv(UdbrG.learned_exhale_ms / 1000.0),
 			_fv(UdbrG.learned_hold_bottom_ms / 1000.0)])
 	for p in UdbrG.GUIDED_PRESETS:
-		opts.append("Guided %s-%s-%s-%s" % [_fv(p[0]), _fv(p[1]), _fv(p[2]), _fv(p[3])])
+		opts.append("%s-%s-%s-%s" % [_fv(p[0]), _fv(p[1]), _fv(p[2]), _fv(p[3])])
 	return opts
 
 func _mode_to_option_idx() -> int:

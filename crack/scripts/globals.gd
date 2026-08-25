@@ -4,22 +4,30 @@ const TIMING_THRESHOLD_MS: float = 1000.0
 const DRAG_SCALE: float = 0.9
 
 const GUIDED_PRESETS: Array = [
-	[4, 1, 4, 1],
-	[6, 1, 6, 1],
+	[4, 2, 4, 2],
+	[4, 7, 8, 1],
 	[4, 4, 4, 4],
-	[2, 1, 2, 1],
+	[5, 0, 5, 0],
+	[4, 4, 8, 0],
+	[4, 0, 8, 0],
+	[4, 2, 4, 0],
 ]
 
 var duration_min: int = 1
 # 0=Active (free), 1=Guided from user, 2+=GUIDED_PRESETS[selected_mode - 2]
-var selected_mode: int = 0
+# Guided 4-2-4-2 out of the box (GUIDED_PRESETS[0]). Active mode records whatever the player
+# does but paces them through nothing, which is the wrong thing to hand someone who has
+# just arrived: with no pattern to follow there is nothing to do and nothing to score.
+# Only the shipped default changes -- load_settings() still overrides it with whatever a
+# returning player last chose.
+const DEFAULT_MODE: int = 2
+var selected_mode: int = DEFAULT_MODE
 var has_user_session: bool = false
 var learned_inhale_ms: float = 4000.0
 var learned_exhale_ms: float = 4000.0
 var learned_hold_top_ms: float = 1000.0
 var learned_hold_bottom_ms: float = 1000.0
 
-var show_instructions: bool = true
 
 var guided_mode: bool:
 	get:
@@ -41,8 +49,7 @@ func get_guided_durations() -> Array:
 func save_settings() -> void:
 	game.save_settings([duration_min, selected_mode, int(has_user_session),
 		int(learned_inhale_ms), int(learned_exhale_ms),
-		int(learned_hold_top_ms), int(learned_hold_bottom_ms),
-		int(show_instructions)])
+		int(learned_hold_top_ms), int(learned_hold_bottom_ms)])
 
 func load_settings() -> void:
 	var settings: Array = game.read_settings()
@@ -60,7 +67,5 @@ func load_settings() -> void:
 		learned_hold_top_ms = float(int(settings[5]))
 	if settings.size() > 6:
 		learned_hold_bottom_ms = float(int(settings[6]))
-	if settings.size() > 7:
-		show_instructions = int(settings[7]) != 0
 	if selected_mode == 1 and not has_user_session:
 		selected_mode = 0

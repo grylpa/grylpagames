@@ -57,8 +57,6 @@ var _screen_w: float = 680.0
 var _screen_h: float = 788.0
 
 @onready var _canvas: Control = $CrackCanvas
-@onready var _timer_label: Label = $SessionOverlay/TimerLabel
-@onready var _phase_label: Label = $SessionOverlay/PhaseLabel
 @onready var _results_panel: Control = $ResultsPanel
 @onready var _result_label: Label = $ResultsPanel/Margin/VBox/ResultLabel
 
@@ -73,9 +71,6 @@ func _ready() -> void:
 	_t.set_font("font", "Button", _f)
 	$SessionOverlay.theme = _t
 	_results_panel.theme = _t
-	if OS.get_name() == "Web":
-		_phase_label.custom_minimum_size.x = _screen_w * 0.75
-		_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	var btn_style: StyleBoxFlat = StyleBoxFlat.new()
 	btn_style.bg_color = Color(0.12, 0.30, 0.50, 1.0)
@@ -89,18 +84,8 @@ func _ready() -> void:
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("hover", btn_style)
 	$ResultsPanel/Margin/VBox/DoneButton.add_theme_stylebox_override("pressed", btn_pressed)
 
-	_timer_label.offset_right = -16.0
-	var door_h_r: float = _screen_h * 0.80
-	var door_y_r: float = (_screen_h - door_h_r) * 0.5 + _screen_h * 0.02
 	var mobile_r: bool = MainGlobals.is_mobile()
-	var fs_phase: int = 36 if mobile_r else 19
-	var phase_gap: float = 24.0 if mobile_r else 8.0
-	_phase_label.offset_bottom = door_y_r - phase_gap
-	_phase_label.offset_top = _phase_label.offset_bottom - float(fs_phase) - 8.0
 	if mobile_r:
-		_timer_label.add_theme_font_size_override("font_size", 46)
-		_timer_label.offset_bottom = 62.0
-		_phase_label.add_theme_font_size_override("font_size", 36)
 		$ResultsPanel/Margin/VBox/TitleLabel.add_theme_font_size_override("font_size", 34)
 		_result_label.add_theme_font_size_override("font_size", 28)
 		$ResultsPanel/Margin/VBox/DoneButton.add_theme_font_size_override("font_size", 36)
@@ -187,7 +172,6 @@ func new_game() -> void:
 	game.level_is_ready = true
 	game.playing = true
 	$SessionOverlay.show()
-	_phase_label.visible = CrackG.show_instructions
 	_results_panel.hide()
 	_canvas.queue_redraw()
 
@@ -240,9 +224,6 @@ func _process(delta: float) -> void:
 	elif _gesture == 0 and _last_swipe_dir == -1:
 		_short_angle -= SHORT_SPEED * delta
 
-	var rem_s: int = int(maxf(0.0, _duration_ms - _elapsed_ms) / 1000.0)
-	_timer_label.text = "%d:%02d" % [rem_s / 60, rem_s % 60]
-	_phase_label.text = _current_phase_label()
 
 	_canvas.queue_redraw()
 
@@ -258,6 +239,14 @@ func _on_gesture_changed(new_gesture: int) -> void:
 	_gesture = new_gesture
 	# Record the completed action before updating direction
 	_on_action_completed(prev, _last_swipe_dir, duration_ms)
+	# A finger that turns straight around -- up to down with no neutral frame between -- performed
+	# a hold of zero length, and the pattern has four beats whether or not one of them took any
+	# time. Without this the hold simply never happens: _process polls up, then down, then neutral,
+	# so a reversal inside one frame never passes through 0 and no hold action is ever generated.
+	# The sequence then stalls waiting for a beat that cannot arrive, which is why the presets with
+	# a 0 in them (5-0-5-0, 4-0-8-0, 4-4-8-0, 4-2-4-0) could never open the safe.
+	if prev != 0 and new_gesture != 0 and prev != new_gesture:
+		_on_action_completed(0, _last_swipe_dir, 0.0)
 	# Update direction for new swipe
 	if new_gesture != 0:
 		_last_swipe_dir = new_gesture
@@ -266,8 +255,12 @@ func _on_action_completed(action_type: int, prev_swipe_dir: int, duration_ms: fl
 	# Ignore the initial "0-holding-from-nothing" at game start
 	if action_type == 0 and prev_swipe_dir == 0:
 		return
-	# Ignore very short accidental flickers
-	if duration_ms < 80.0:
+	# Ignore very short accidental flickers -- but only on the SLIDES. The guard exists because the
+	# digitized-swipe flag can drop for a frame mid-gesture; applied to holds as well, it threw away
+	# every genuinely brief pause, so a fast turnaround was indistinguishable from no turnaround and
+	# a 0-length hold could never be timed. A hold is not a flicker: it is a beat of the pattern,
+	# and if it was short the timing check is what should say so.
+	if action_type != 0 and duration_ms < 80.0:
 		return
 
 	# The coach listens here because this is where the game itself decides an action happened --
@@ -351,21 +344,6 @@ func _try_score() -> void:
 	else:
 		game.tutorial_notify("sequence_missed")
 
-func _current_phase_label() -> String:
-	if active_mode:
-		return "Set your breathing pattern"
-	var d: Array = CrackG.get_guided_durations()
-	var t: float = fmod(_elapsed_ms, d[0] + d[1] + d[2] + d[3])
-	if t < d[0]:
-		return "Inhale  ▲"
-	t -= d[0]
-	if t < d[1]:
-		return "Hold  ■"
-	t -= d[1]
-	if t < d[2]:
-		return "Exhale  ▼"
-	return "Hold  ■"
-
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
 	var h: float = (canvas as Control).size.y
@@ -373,6 +351,11 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var cy: float = h * 0.5
 
 	canvas.draw_rect(Rect2(0.0, 0.0, w, h), Color(0.04, 0.05, 0.09, 1.0))
+
+	# Session progress along the top edge, the same bar udbr and breathe use. It replaced a digital
+	# countdown: a number counting down is something to read and do arithmetic on, which is the
+	# opposite of what a breathing game wants the player doing.
+	_draw_session_bar(canvas, w)
 
 	var door_w: float = w * 0.88
 	var door_h: float = h * 0.80
@@ -553,63 +536,350 @@ func _to_screen(r: Rect2) -> Rect2:
 	var tl: Vector2 = _canvas.get_global_transform() * r.position
 	return Rect2(tl, r.size)
 
-# The three lines of timing HUD stacked just above the dial: recent durations, the live "Now:"
-# indicator, and the goal line. Spotlighted as one block -- they are read together.
-func tutorial_hud_rect() -> Rect2:
+# Just the goal line -- the combination itself. The three-line block below is mostly empty before
+# the demo has run, so framing all of it to say "here is the combination" points at two blank rows
+# and one small line of text.
+func tutorial_goal_rect() -> Rect2:
 	var d: Array = _dial_center_and_radius()
-	var c: Vector2 = d[0]
-	var dial_r: float = d[1]
 	var mobile_d: bool = MainGlobals.is_mobile()
-	var fs_now: int = 32 if mobile_d else 20
 	var fs_goal: int = 32 if mobile_d else 17
-	var fs_dur: int = 44 if mobile_d else 30
-	var line_gap: float = 4.0 if mobile_d else 5.0
-	var bottom: float = c.y - dial_r - 26.0 - (24.0 if mobile_d else 16.0)
-	var top: float = bottom - float(fs_goal) - line_gap - float(fs_now) - line_gap - float(fs_dur)
-	var w: float = _canvas.size.x * 0.88
+	var base: float = float(d[0].y) - float(d[1]) - 26.0 - (24.0 if mobile_d else 16.0)
+	var w: float = _canvas.size.x * 0.7
 	var x: float = (_canvas.size.x - w) * 0.5
-	return _to_screen(Rect2(Vector2(x, top - 6.0), Vector2(w, bottom - top + 12.0)))
+	return _to_screen(Rect2(Vector2(x, base - float(fs_goal) - 8.0), Vector2(w, float(fs_goal) + 16.0)))
 
-# The unlock count at the foot of the door.
-func tutorial_score_rect() -> Rect2:
-	var w: float = _canvas.size.x
-	var h: float = _canvas.size.y
-	var door_w: float = w * 0.88
-	var door_h: float = h * 0.80
-	var door_x: float = (w - door_w) * 0.5
-	var door_y: float = (h - door_h) * 0.5 + h * 0.02
-	return _to_screen(Rect2(Vector2(door_x, door_y + door_h - 100.0), Vector2(door_w, 60.0)))
-
-# The gesture, drawn: a slow vertical drag down the center of the screen, and its exact reverse.
-# Crack's input is the one thing no caption can convey -- "swipe up" reads as a flick, and a flick
-# is exactly what does not work here, because what the game measures is how LONG the finger keeps
-# moving. The traced hand takes the full length of the path, which is the point being made.
+# Ends the tutorial the way a real session ends: on the summary screen, with a session behind it.
 #
-# The path is vertical because the gesture is vertical. The HAND is what is tilted (see
-# _HAND_TILT_DEG in scripts/tutorial.gd) so that its body sits beside the line instead of lying
-# along it and hiding it; its fingertip still lands on the line.
-func _tutorial_demo_column(from_frac: float, to_frac: float) -> Array:
+# The demo showed four beats a few times over; what it cannot show is what twenty minutes of them
+# adds up to, which is the thing the player is actually signing up for. Rather than describe that
+# screen, the tutorial produces one. The run beneath it is invented -- there was no session -- but
+# it is invented the way a real one behaves: the preset, breathed with a human amount of drift, for
+# a believable length of time, with a handful of sequences missed.
+#
+# It writes nothing. `game.tutorial_mode` guards every save in generic_game_util.gd, and the
+# `learned_*` write in main.gd is behind `not guided_mode`, which the tutorial has forced off.
+const _SUMMARY_MINUTES: float = 3.0
+
+func tutorial_show_summary() -> void:
+	var d: Array = CrackG.get_guided_durations()
+	var base: Array = [float(d[0]) / 1000.0, float(d[1]) / 1000.0,
+		float(d[2]) / 1000.0, float(d[3]) / 1000.0]
+	var cycle: float = base[0] + base[1] + base[2] + base[3]
+	_duration_ms = _SUMMARY_MINUTES * 60000.0
+
+	# _key_poll is the whole record the summary is computed and drawn from: one sample every
+	# KEY_POLL_INTERVAL_MS_C, 1 = sliding up, 2 = sliding down, 0 = holding.
+	_key_poll = []
+	_swipe_up_ms = []
+	_hold_top_ms = []
+	_swipe_down_ms = []
+	_hold_bot_ms = []
+	_unlock_times_ms = []
+	_score = 0
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 20260825            # same picture every time it is shown
+	var t_ms: float = 0.0
+	var thr: float = CrackG.TIMING_THRESHOLD_MS
+	while t_ms < _duration_ms - cycle * 1000.0:
+		var beat: Array = []
+		var hit: bool = true
+		for i in range(4):
+			# Human drift: mostly close, occasionally enough to miss.
+			var off: float = rng.randfn(0.0, 0.34)
+			if rng.randf() < 0.12:
+				off += (1.0 if rng.randf() < 0.5 else -1.0) * rng.randf_range(0.9, 1.5)
+			var v: float = maxf(0.35, base[i] + off)
+			beat.append(v)
+			if absf(v * 1000.0 - float(d[i])) >= thr:
+				hit = false
+		_swipe_up_ms.append(beat[0] * 1000.0)
+		_hold_top_ms.append(beat[1] * 1000.0)
+		_swipe_down_ms.append(beat[2] * 1000.0)
+		_hold_bot_ms.append(beat[3] * 1000.0)
+		for i in range(4):
+			var code: int = [1, 0, 2, 0][i]
+			var n: int = int(round(beat[i] * 1000.0 / KEY_POLL_INTERVAL_MS_C))
+			for _j in range(n):
+				_key_poll.append(code)
+			t_ms += beat[i] * 1000.0
+		if hit:
+			_score += 1
+			_safe_open = not _safe_open
+			_unlock_times_ms.append(t_ms)
+	_elapsed_ms = _duration_ms
+	_current_trace = []
+	_trace_segments = []
+	_on_session_complete()
+
+# The results panel, once it is up, so the coach can leave it undimmed. Null while it is hidden --
+# a never_dim entry returning a rect for a hidden panel would punch a bright hole in every earlier
+# step.
+func tutorial_results_rect():
+	if _results_panel == null or not _results_panel.visible:
+		return null
+	return _results_panel.get_global_rect()
+
+# --- the acted-out pattern ------------------------------------------------------------------
+#
+# The coach plays the WHOLE combination as one continuous animation before asking the player to do
+# any of it, and repeats it three times. Not one beat per tap: a breathing pattern is a rhythm, and
+# a rhythm chopped into five tap-gated stills is not a rhythm any more -- the timing, which is the
+# only thing being taught, is exactly what gets lost.
+#
+# The caption changes in step with the animation instead (a live Callable `text`), so what is on
+# screen and what is being said stay together without the player having to do anything.
+#
+# Durations come from the live preset, so what is demonstrated is exactly what will be judged.
+const _DEMO_CYCLES: int = 3
+const _DEMO_FINAL_SEC: float = 2.0     # the last inhale, which opens it and ends the demo
+# No tail. It was 2.6 s, added so the animation's own closing caption could be read -- but the step
+# that follows now carries that message, so holding a motionless picture first is just dead air
+# between the animation ending and the next words appearing.
+const _DEMO_TAIL_SEC: float = 0.0
+const _DEMO_BADGE_SEC: float = 1.8     # how long "safe opened/closed" stays up after a toggle
+
+# Phase of the demo, for the caption. -1 = not running, 5 = finished.
+var _demo_phase: int = -1
+var _demo_cycle: int = 0
+var _demo_done: bool = false
+
+func _demo_line() -> Array:
 	var w: float = _canvas.size.x
 	var h: float = _canvas.size.y
-	var pts: Array = []
-	var steps_n: int = 10
-	for i in range(steps_n + 1):
-		var t: float = float(i) / float(steps_n)
-		var y: float = lerpf(h * from_frac, h * to_frac, t)
-		pts.append(_canvas.get_global_transform() * Vector2(w * 0.5, y))
-	return pts
+	# The caption is a narrow column on the right, so the gesture gets the full height it deserves
+	# -- a finger that only crosses a third of the height does not look like a four-second breath.
+	var x: float = w * 0.38
+	return [_canvas.get_global_transform() * Vector2(x, h * 0.76),
+		_canvas.get_global_transform() * Vector2(x, h * 0.16)]
 
-func tutorial_demo_up() -> Array:
-	return _tutorial_demo_column(0.74, 0.26)
+# The region the animation occupies, for the caption to keep clear of.
+func tutorial_demo_rect() -> Rect2:
+	var line: Array = _demo_line()
+	var top: float = minf(line[0].y, line[1].y) - 40.0
+	var bot: float = maxf(line[0].y, line[1].y) + 70.0
+	var x: float = line[0].x
+	return Rect2(Vector2(x - 24.0, top), Vector2(140.0, bot - top))
 
-func tutorial_demo_down() -> Array:
-	return _tutorial_demo_column(0.26, 0.74)
+# How quickly the finger comes off the glass and settles back onto it.
+const _DEMO_LIFT_SEC: float = 0.18
 
-func tutorial_unlocks() -> int:
-	return _score
+# The demo does NOT breathe the preset exactly. A row of perfect 4.0 - 1.0 - 4.0 - 1.0 teaches that
+# the numbers must be hit dead on, which is not the rule -- everything within TIMING_THRESHOLD_MS
+# counts. Being visibly a little off, and opening anyway, is the clearest way to say so.
+const _DEMO_OFFSETS: Array = [0.1, 0.2, -0.1, -0.1]
 
-func tutorial_safe_is_open() -> bool:
-	return _safe_open
+func _demo_durations() -> Array:
+	var d: Array = CrackG.get_guided_durations()
+	var out: Array = []
+	for i in range(4):
+		out.append(maxf(0.3, float(d[i]) / 1000.0 + float(_DEMO_OFFSETS[i])))
+	return out
+
+# elapsed -> where the finger is, how far off the glass, and which beat we are on.
+#
+# The finger NEVER jumps. Every beat begins where the last one ended, because that is what the
+# gesture actually is: up, off, down, off, up again.
+#
+# This also drives the SAFE ITSELF -- the dial arms, the live "Now:" readout, the row of completed
+# durations, and the lock opening. The level is frozen while the coach talks, so none of that moves
+# on its own, and a demonstration of a gesture on a board that does not react to it teaches the
+# gesture as decoration. Everything below is computed from `elapsed` alone, never accumulated, so
+# it lands on the same state no matter which frames it is called on.
+func tutorial_demo_sequence(elapsed: float) -> Dictionary:
+	var line: Array = _demo_line()
+	var low: Vector2 = line[0]
+	var high: Vector2 = line[1]
+	var dd: Array = _demo_durations()
+	var t_in: float = dd[0]
+	var t_ht: float = dd[1]
+	var t_out: float = dd[2]
+	var t_hb: float = dd[3]
+	var cycle: float = t_in + t_ht + t_out + t_hb
+	# A tail after the last beat, holding the finished picture -- the safe open, the row of what it
+	# did -- long enough to be read. Without it `advance_when` fired on the same frame the
+	# animation ended and the closing caption was never seen at all.
+	var total: float = cycle * float(_DEMO_CYCLES) + _DEMO_FINAL_SEC + _DEMO_TAIL_SEC
+
+	var el: float = clampf(elapsed, 0.0, total)
+	_demo_done = elapsed >= total
+	var pos: Vector2 = low
+	var lift: float = 0.0
+	var phase: int = 0
+	# How many complete four-beat sequences have been performed by now. The lock TOGGLES on each
+	# one, exactly as _try_score does, so three sequences read open, closed, open.
+	var seqs: int = 0
+	# Time spent so far in each of the four gestures, for the dial arms and the "Now:" line.
+	var up_s: float = 0.0
+	var dn_s: float = 0.0
+	var ht_s: float = 0.0
+	var hb_s: float = 0.0
+	var live: float = 0.0
+	var gest: int = 0
+	# Time since the lock last changed state, or -1 when it has not just changed. A toggle only
+	# happens as an INHALE begins, so this is not the same as time-into-the-current-beat -- keying
+	# it to that popped the badge up again at the start of every beat.
+	var since_toggle: float = -1.0
+
+	if el >= cycle * float(_DEMO_CYCLES):
+		var ff: float = clampf((el - cycle * float(_DEMO_CYCLES)) / _DEMO_FINAL_SEC, 0.0, 1.0)
+		_demo_cycle = _DEMO_CYCLES
+		seqs = _DEMO_CYCLES
+		pos = low.lerp(high, ff * 0.5)
+		phase = 5 if ff >= 1.0 else 4
+		live = ff * _DEMO_FINAL_SEC
+		gest = 1
+		up_s = live
+		since_toggle = el - cycle * float(_DEMO_CYCLES)
+	else:
+		var c: int = int(el / cycle)
+		var t: float = el - float(c) * cycle
+		_demo_cycle = mini(c + 1, _DEMO_CYCLES)
+		seqs = c
+		if t < t_in:
+			pos = low.lerp(high, t / maxf(t_in, 0.01))
+			# The whole inhale, not the first two seconds of it. A caption that changes partway
+			# through a beat is on screen too briefly to read, and this is the one sentence in the
+			# demo that explains what just happened to the lock.
+			phase = 4 if c >= 1 else 0
+			live = t
+			gest = 1
+			up_s = t
+			if c >= 1:
+				since_toggle = t
+		elif t < t_in + t_ht:
+			var th: float = t - t_in
+			pos = high
+			phase = 1
+			live = th
+			gest = 0
+			up_s = t_in
+			ht_s = th
+			lift = minf(th / _DEMO_LIFT_SEC, (t_ht - th) / _DEMO_LIFT_SEC)
+			lift = clampf(lift, 0.0, 1.0)
+		elif t < t_in + t_ht + t_out:
+			var td: float = t - t_in - t_ht
+			pos = high.lerp(low, td / maxf(t_out, 0.01))
+			phase = 2
+			live = td
+			gest = -1
+			up_s = t_in
+			ht_s = t_ht
+			dn_s = td
+		else:
+			var tb: float = t - t_in - t_ht - t_out
+			pos = low
+			phase = 3
+			live = tb
+			gest = 0
+			up_s = t_in
+			ht_s = t_ht
+			dn_s = t_out
+			hb_s = tb
+			lift = minf(tb / _DEMO_LIFT_SEC, (t_hb - tb) / _DEMO_LIFT_SEC)
+			lift = clampf(lift, 0.0, 1.0)
+
+	# The dial arms, exactly as _process turns them: the long arm follows the slides, the short arm
+	# follows the holds. Whole cycles cancel out (in == out, hold == hold in every preset), so only
+	# the current cycle's partial gestures move them.
+	_long_angle = LONG_SPEED * (up_s - dn_s)
+	_short_angle = SHORT_SPEED * (ht_s - hb_s)
+	_gesture = gest
+	_gesture_timer_ms = live * 1000.0
+
+	# The row of completed durations, as the player will see their own. Rebuilt from scratch each
+	# call rather than appended, so it cannot drift.
+	var beats: Array = [t_in, t_ht, t_out, t_hb]
+	var done_beats: Array = []
+	for i in range(seqs * 4):
+		done_beats.append(beats[i % 4])
+	if phase == 1 or phase == 2 or phase == 3 or (phase == 0 and _demo_cycle > 0):
+		var within: int = 0
+		if phase == 1:
+			within = 1
+		elif phase == 2:
+			within = 2
+		elif phase == 3:
+			within = 3
+		for i in range(within):
+			done_beats.append(beats[i])
+	_display_durations = []
+	for i in range(maxi(0, done_beats.size() - 4), done_beats.size()):
+		_display_durations.append(done_beats[i])
+
+	var want_open: bool = (seqs % 2) == 1
+	if phase == 5 or (phase == 4 and _demo_cycle == _DEMO_CYCLES and el >= cycle * float(_DEMO_CYCLES)):
+		want_open = (_DEMO_CYCLES % 2) == 1
+	_demo_phase = phase
+	if _safe_open != want_open:
+		_safe_open = want_open
+	_canvas.queue_redraw()
+
+	# The lock changing state is the payoff of the four beats just performed, and it happens on the
+	# board -- which is under the dim while the coach talks, so it is easy to miss. Announce it,
+	# briefly, opposite the caption. `since` is the time since the toggle, which is the time since
+	# the current beat began, because a toggle only ever happens on a beat boundary.
+	var badge: String = ""
+	var badge_alpha: float = 0.0
+	if seqs >= 1 and since_toggle >= 0.0 and since_toggle < _DEMO_BADGE_SEC:
+		badge = "Safe opened!" if want_open else "Safe closed!"
+		badge_alpha = clampf((_DEMO_BADGE_SEC - since_toggle) / 0.45, 0.0, 1.0)
+	return {"pos": pos, "lift": lift, "path": line,
+		"badge": badge, "badge_alpha": badge_alpha, "badge_good": want_open}
+
+# What the animation is doing right now, in words. Read by the step's live caption.
+func tutorial_demo_caption() -> String:
+	var d: Array = CrackG.get_guided_durations()
+	var s_in: String = "%.0f" % (float(d[0]) / 1000.0)
+	var s_ht: String = "%.0f" % (float(d[1]) / 1000.0)
+	var s_out: String = "%.0f" % (float(d[2]) / 1000.0)
+	var reps: String = "%d of %d" % [_demo_cycle, _DEMO_CYCLES]
+	match _demo_phase:
+		0:
+			return "Breathe IN.\n\nThe finger slides up, and keeps sliding for all %s seconds.\n\nNot a flick.\n\n(%s)" % [s_in, reps]
+		1:
+			return "Finger OFF.\n\nThat pause is the hold — %s second.\n\n(%s)" % [s_ht, reps]
+		2:
+			return "Breathe OUT.\n\nSliding back down, %s seconds, all the way.\n\n(%s)" % [s_out, reps]
+		3:
+			return "Finger OFF again at the bottom.\n\n(%s)" % reps
+		4:
+			return "The next breath in — and THAT is when the lock reads all four.\n\nOpen.\n\n(%s)" % reps
+		5:
+			return "In, hold, out, hold.\n\nThen the next breath in opens it."
+	return ""
+
+# True once the animation has played all _DEMO_CYCLES times, so the step can end itself.
+# True only once the tail has run too, so the closing caption gets its time on screen.
+func tutorial_demo_finished() -> bool:
+	return _demo_done
+
+# Ends the animation and shuts the lock, but deliberately LEAVES the row of durations and the dial
+# where the demo put them: the next two captions point at that row and call it "what the demo just
+# did", so clearing it here would blank the very thing they describe.
+func tutorial_demo_end() -> void:
+	_demo_phase = -1
+	_demo_done = false
+	if _safe_open:
+		_safe_open = false
+	_canvas.queue_redraw()
+
+# Wipes what the demo left behind, for the player's own turn to fill in.
+func tutorial_demo_clear() -> void:
+	_demo_phase = -1
+	_demo_done = false
+	_gesture = 0
+	_gesture_timer_ms = 0.0
+	_display_durations = []
+	_long_angle = 0.0
+	_short_angle = 0.0
+	_safe_open = false
+	_canvas.queue_redraw()
+
+# Session progress along the top edge -- shared with udbr, breathe and mother.
+func _draw_session_bar(canvas: CanvasItem, w: float) -> void:
+	if _session_complete or _duration_ms <= 0.0:
+		return
+	SessionBar.draw_cool(canvas, w, _elapsed_ms / _duration_ms)
 
 func _avg_ms(arr: Array) -> float:
 	if arr.is_empty():

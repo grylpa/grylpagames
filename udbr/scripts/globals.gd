@@ -12,15 +12,24 @@ const AMBIENT_SOUNDS: Array = [
 
 # Each row: [inhale_s, hold_top_s, exhale_s, hold_bottom_s]
 const GUIDED_PRESETS: Array = [
-	[2, 0.5, 2, 0.5],
-	[4, 1, 4, 1],
-	[4, 4, 4, 7],
-	[2, 3, 2, 6],
+	[4, 2, 4, 2],
+	[4, 7, 8, 1],
+	[4, 4, 4, 4],
+	[5, 0, 5, 0],
+	[4, 4, 8, 0],
+	[4, 0, 8, 0],
+	[4, 2, 4, 0],
 ]
 
 var duration_min: int = 1
 # 0 = Active (free), 1 = Guided from user, 2+ = GUIDED_PRESETS[selected_mode - 2]
-var selected_mode: int = 0
+# Guided 4-2-4-2 out of the box (GUIDED_PRESETS[0]). Active mode records whatever the player
+# does but paces them through nothing, which is the wrong thing to hand someone who has
+# just arrived: with no pattern to follow there is nothing to do and nothing to score.
+# Only the shipped default changes -- load_settings() still overrides it with whatever a
+# returning player last chose.
+const DEFAULT_MODE: int = 2
+var selected_mode: int = DEFAULT_MODE
 var ambient_sound_idx: int = 0
 var has_user_session: bool = false
 var guided_mode: bool:

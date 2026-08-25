@@ -27,17 +27,6 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="TimerLabel" type="Label" parent="SessionOverlay"]
-layout_mode = 1
-anchor_right = 1.0
-offset_top = 8.0
-offset_bottom = 46.0
-theme_override_colors/font_color = Color(0.22, 0.12, 0.04, 0.85)
-theme_override_font_sizes/font_size = 22
-text = "5:00"
-horizontal_alignment = 2
-mouse_filter = 2
-
 [node name="GoalLabel" type="Label" parent="SessionOverlay"]
 layout_mode = 1
 anchor_right = 1.0

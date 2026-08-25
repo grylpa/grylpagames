@@ -208,3 +208,40 @@ while the coach is still running. `_on_level_session_done` now returns early in 
 it writes `learned_*` and `has_user_session`, which the "User" mode preset is built from, and those
 are in-memory globals that a later legitimate save would persist — so a tutorial would quietly
 become the player's own breathing pattern.
+
+---
+
+## Default mode
+
+`selected_mode` ships as `DEFAULT_MODE` (2) — **4-2-4-2**, not Active. Active records
+whatever the player does but paces them through nothing, which is the wrong thing to hand
+someone who has just arrived: with no pattern to follow there is nothing to do and nothing to
+score. Only the shipped default changed; `load_settings()` still overrides it with whatever a
+returning player last chose.
+
+The preset list is shared by crack, udbr and mother:
+
+| # | pattern | |
+|---|---|---|
+| 0 | 4-2-4-2 | the default |
+| 1 | 4-7-8-1 | the 4-7-8 relaxation pattern |
+| 2 | 4-4-4-4 | box breathing |
+| 3 | 5-0-5-0 | no holds |
+| 4 | 4-4-8-0 | long exhale |
+| 5 | 4-0-8-0 | long exhale, no holds |
+| 6 | 4-2-4-0 | |
+
+Menu rows are the bare numbers — `Active`, then `4-2-4-2`, `4-7-8-1`, … The word "Guided" on all
+seven said nothing the numbers did not, and ate the width the mono fit-shrinking then had to claw
+back. `main_menu.gd` draws the list in the project mono face so the columns line up; that used to
+require *every* row to start with a digit, which `Active` vetoed, and now takes a majority.
+
+---
+
+## Session progress bar
+
+The bar itself lives in **`scripts/session_bar.gd`** (`SessionBar`), shared by udbr, breathe, crack
+and mother. Geometry and the alpha policy are shared; **colors are the caller's**, because they are
+not a detail — the cyan the three cool-background games use reads as a foreign object on mother's
+dunes. `SessionBar.draw_cool()` is the cyan default; mother calls `SessionBar.draw()` with
+`MOTHER_COL` and an alpha lift for its lighter background.

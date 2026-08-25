@@ -21,7 +21,7 @@ extends RefCounted
 #      on a touch screen, lift off. It is the action nobody performs unless asked, which is why it
 #      gets a step of its own.
 #
-# The tutorial runs in Guided 4-1-4-1 (`selected_mode = 2`), forced in main.gd. Active mode has no
+# The tutorial runs in Guided 4-2-4-2 (`selected_mode = 2`), forced in main.gd. Active mode has no
 # mother at all, which makes every caption here meaningless, and the User preset is built from the
 # player's own past sessions, which a first-timer does not have.
 #
