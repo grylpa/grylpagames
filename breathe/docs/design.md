@@ -334,3 +334,13 @@ without the runner's callback ever firing. Verified by probe, including the aban
 - The circle is 440 px across on mobile and centered, leaving a band under it barely as tall as a
   caption. The "the circle does not lead you" step overlapped its own spotlight by 8% until its
   text was shortened enough for the panel to fit in that band.
+
+---
+
+## Session progress bar
+
+The bar itself lives in **`scripts/session_bar.gd`** (`SessionBar`), shared by udbr, breathe, crack
+and mother. Geometry and the alpha policy are shared; **colors are the caller's**, because they are
+not a detail — the cyan the three cool-background games use reads as a foreign object on mother's
+dunes. `SessionBar.draw_cool()` is the cyan default; mother calls `SessionBar.draw()` with
+`MOTHER_COL` and an alpha lift for its lighter background.

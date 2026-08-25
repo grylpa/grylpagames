@@ -27,33 +27,6 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="TimerLabel" type="Label" parent="SessionOverlay"]
-layout_mode = 1
-anchor_right = 1.0
-offset_top = 8.0
-offset_bottom = 46.0
-theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 0.65)
-theme_override_font_sizes/font_size = 22
-text = "3:00"
-horizontal_alignment = 2
-mouse_filter = 2
-
-[node name="PhaseLabel" type="Label" parent="SessionOverlay"]
-layout_mode = 1
-anchor_left = 0.5
-anchor_right = 0.5
-anchor_top = 0.0
-anchor_bottom = 0.0
-offset_left = -140.0
-offset_right = 140.0
-offset_top = 66.0
-offset_bottom = 94.0
-theme_override_colors/font_color = Color(0.85, 0.95, 1.0, 0.60)
-theme_override_font_sizes/font_size = 19
-text = ""
-horizontal_alignment = 1
-mouse_filter = 2
-
 [node name="ResultsPanel" type="PanelContainer" parent="."]
 z_index = 5
 visible = false

@@ -27,7 +27,7 @@ mother/
 
 ## Visual design — "night desert"
 
-Every colour and dimension lives in one block of constants at the top of `level.gd`, and
+Every color and dimension lives in one block of constants at the top of `level.gd`, and
 `mother/docs/make_thumbnail.py` mirrors them. Re-run that script after any visual change.
 
 **What it replaced.** The game was saturated sand `(0.82, 0.70, 0.46)` under a near-pure green
@@ -48,7 +48,7 @@ Three passes, in this order, and the head uses **the same three** so the two mat
 | pass | what | node |
 |---|---|---|
 | halo | `GLOW_MUL` wider, `GLOW_ALPHA` faint, body hue, offset `SHADOW_DY` down | `_l_*_sh` |
-| fill | base colour with dark bands (`BAND_PX`, `BAND_DARK`), tail dissolve | `_l_*` |
+| fill | base color with dark bands (`BAND_PX`, `BAND_DARK`), tail dissolve | `_l_*` |
 | spine | `STRIPE_W` wide, `STRIPE_LIGHT` lighter, **unbanded** | `_l_*_st` |
 
 There is deliberately **no dark outline** anywhere.
@@ -128,7 +128,7 @@ as a share of body width, and re-check `BAND_PX` after any width change.
 
 ### Slither — vertical displacement only
 
-Amplitude `SLITHER_AMP_W` (a share of body width), one wave per `SLITHER_WAVE_W`, travelling
+Amplitude `SLITHER_AMP_W` (a share of body width), one wave per `SLITHER_WAVE_W`, traveling
 toward the tail at `SLITHER_SPEED`, eased in over `SLITHER_RAMP_W` behind the head so the head
 stays exactly on the true path (measured: 0.00 px).
 
@@ -148,7 +148,7 @@ Note the amplitude scales **both** ways: at a body width of 80, `0.32` is a 26 p
 
 Both bodies are sampled at times snapped to a fixed grid
 (`t_base = floor(elapsed / dt_step) * dt_step`), walking head-first, never at fixed screen-x.
-Snapping the sample *times* keeps each vertex's neighbours constant frame to frame, so the body
+Snapping the sample *times* keeps each vertex's neighbors constant frame to frame, so the body
 scrolls smoothly instead of resampling under itself.
 
 The guided mother used to be the exception — fixed screen-x with exact phase-transition vertices
@@ -215,7 +215,7 @@ than canvas draws, the props needed their own canvas above them.
 ## Active mode draws the PLAYER, not the mother
 
 In Active mode there is no guide: the only body on screen is the player's own trail. It used to
-wear the mother's colour, width and head, which made Active mode look exactly like Guided mode
+wear the mother's color, width and head, which made Active mode look exactly like Guided mode
 with the mother missing — reported as a bug more than once. It now wears the child's.
 
 **When debugging "I can't see the mother", check `selected_mode` in the save file first.** Probes
@@ -244,7 +244,7 @@ pass (a per-disc outline beads the edge and makes the body read as rope), and th
 sampled per disc from distance-along-the-body so it follows the taper.
 
 **Verification here is structural only.** Headless Godot has no renderer and there is no xvfb, so
-nothing visual can be checked in this repo — probes confirm points, widths, colours, z-order and
+nothing visual can be checked in this repo — probes confirm points, widths, colors, z-order and
 node counts, and those have repeatedly passed on something visibly broken. Add visual features one
 at a time and confirm each on a real screen before the next.
 
@@ -403,3 +403,81 @@ Specific to this game:
 - **Nothing visual is verifiable in this repo.** Headless has no renderer and there is no xvfb;
   structural probes have repeatedly passed on something visibly broken. One visual change at a
   time, confirmed on a real screen.
+
+---
+
+## Default mode
+
+`selected_mode` ships as `DEFAULT_MODE` (2) — **4-2-4-2**, not Active. Active records
+whatever the player does but paces them through nothing, which is the wrong thing to hand
+someone who has just arrived: with no pattern to follow there is nothing to do and nothing to
+score. Only the shipped default changed; `load_settings()` still overrides it with whatever a
+returning player last chose.
+
+The preset list is shared by crack, udbr and mother:
+
+| # | pattern | |
+|---|---|---|
+| 0 | 4-2-4-2 | the default |
+| 1 | 4-7-8-1 | the 4-7-8 relaxation pattern |
+| 2 | 4-4-4-4 | box breathing |
+| 3 | 5-0-5-0 | no holds |
+| 4 | 4-4-8-0 | long exhale |
+| 5 | 4-0-8-0 | long exhale, no holds |
+| 6 | 4-2-4-0 | |
+
+Menu rows are the bare numbers — `Active`, then `4-2-4-2`, `4-7-8-1`, … The word "Guided" on all
+seven said nothing the numbers did not, and ate the width the mono fit-shrinking then had to claw
+back. `main_menu.gd` draws the list in the project mono face so the columns line up; that used to
+require *every* row to start with a digit, which `Active` vetoed, and now takes a majority.
+
+---
+
+## Skipping the tutorial with the mother hidden
+
+The tutorial takes the mother off screen for three steps (`tutorial_set_mother_visible(false)`) and
+puts her back on a later one. A player who pressed **Skip** in between was left in the real game
+with no mother body: `new_game()` reset `tutorial_mother_hidden` and re-showed the head sprite, but
+never touched the three body `Line2D`s, so the mother ran headed and bodiless.
+
+`new_game()` now calls `tutorial_set_mother_visible(true)` instead of clearing the flag by hand, so
+every fresh game restores sprite, body lines and phase label together, whatever the tutorial did and
+however it ended. Reproduced and fixed under probe: with the old code the head came back and the
+body did not, which is exactly what was reported.
+
+Note that in **Active** mode there is no mother at all by design, so the bug is only visible in a
+guided mode — checking it in Active proves nothing.
+
+---
+
+## Session progress bar
+
+The top edge carries the same thin progress bar udbr and breathe use, and for the same reason: it
+replaced a digital `m:ss` countdown, which is a number to read and do arithmetic on rather than
+something to glance at.
+
+The geometry is identical to those games (`BAR_PAD_X` 24, `BAR_Y` 18, 7 px mobile / 5 desktop) but
+the **colors are this game's own**: the fill is `MOTHER_COL` and the track is the same color
+darkened, because the cyan udbr and breathe use belongs to their cool backgrounds and reads as a
+foreign object on the dunes. Tying it to the mother's color also means the bar belongs to the scene
+rather than sitting on top of it.
+
+The `TimerLabel` node is removed from the scene, not just hidden — a node left behind with nothing
+setting its visibility simply shows.
+
+The countdown used to sit **above** the goal and phase labels, so removing it left them where the
+bar now runs: on desktop the goal line (y 8–46) crossed the bar's band. `_ready()` pushes both
+labels down to clear `SessionBar.Y + bar height + 11`, **derived from SessionBar's own constants**
+rather than hardcoded, so moving the bar or changing its height cannot silently put them back on
+top of each other. It is applied as a *minimum*, so the mobile layout — which already cleared the
+bar — is untouched.
+
+Note for anyone measuring this: these labels render ~46 px tall against 38 px offsets, so the goal
+and phase **boxes** have overlapped by 4 px since long before the bar existed. The drawn text does
+not collide (bands 46–68 and 88–110), which is why it has never shown.
+
+The bar itself lives in **`scripts/session_bar.gd`** (`SessionBar`), shared by udbr, breathe, crack
+and mother. Geometry and the alpha policy are shared; **colors are the caller's**, because they are
+not a detail — the cyan the three cool-background games use reads as a foreign object on mother's
+dunes. `SessionBar.draw_cool()` is the cyan default; mother calls `SessionBar.draw()` with
+`MOTHER_COL` and an alpha lift for its lighter background.

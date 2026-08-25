@@ -15,7 +15,6 @@ func _ready() -> void:
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	main_menu.add_entry(1, "Duration (min)", 1, 20, false)
 	main_menu.add_option_entry(2, "Mode", _build_mode_options())
-	main_menu.add_entry(3, "Instructions", 0, 1, true)
 	refresh_menu()
 	show_main_menu()
 
@@ -112,7 +111,7 @@ func _build_mode_options() -> Array:
 			_fv(CrackG.learned_exhale_ms / 1000.0),
 			_fv(CrackG.learned_hold_bottom_ms / 1000.0)])
 	for p in CrackG.GUIDED_PRESETS:
-		opts.append("Guided %s-%s-%s-%s" % [_fv(p[0]), _fv(p[1]), _fv(p[2]), _fv(p[3])])
+		opts.append("%s-%s-%s-%s" % [_fv(p[0]), _fv(p[1]), _fv(p[2]), _fv(p[3])])
 	return opts
 
 func _mode_to_option_idx() -> int:
@@ -138,15 +137,11 @@ func _rebuild_mode_options() -> void:
 func refresh_menu() -> void:
 	main_menu.update_val(1, CrackG.duration_min)
 	main_menu.update_option(2, _mode_to_option_idx())
-	main_menu.update_val(3, 1 if CrackG.show_instructions else 0)
 
 func _on_menu_slider_changed(id: int, val: float) -> void:
 	if id == 1:
 		CrackG.duration_min = roundi(val)
 		refresh_menu()
-	elif id == 3:
-		CrackG.show_instructions = roundi(val) == 1
-		CrackG.save_settings()
 
 func _on_menu_option_changed(id: int, idx: int) -> void:
 	if id == 2:
@@ -187,7 +182,7 @@ var _tutorial_saved_duration: int = -1
 func start_tutorial() -> void:
 	var tut: Script = load("res://crack/scripts/tutorial.gd")
 	game.begin_tutorial()
-	# Force a guided preset. The shipped default is `selected_mode = 0` ("Active"), in which
+	# Force a guided preset. Active mode ("Active"), which the player may have selected, is one in which
 	# _try_score() returns immediately -- the safe can NEVER open, so the tutorial's whole payoff
 	# step would wait forever on an `unlocked` that the game is incapable of sending. 2 is the
 	# first entry of GUIDED_PRESETS. Assign `selected_mode`, not `guided_mode`: the latter is a
@@ -203,6 +198,10 @@ func start_tutorial() -> void:
 	CrackG.duration_min = 20
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
+	# The tutorial ends on the real summary screen, and a summary nobody can read is worse than
+	# none: the overlay dims the whole board on a talking step. Null while the panel is hidden, so
+	# no earlier step gets a bright hole where it will eventually appear.
+	runner.never_dim = [func(): return $Level.tutorial_results_rect()]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
 func _on_tutorial_done(_completed: bool) -> void:

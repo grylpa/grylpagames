@@ -67,7 +67,7 @@ func start_tutorial() -> void:
 	# BEFORE new_game(): new_game() -> game.reset(true) -> convert_ongoing_score_to_permanent(),
 	# which would commit and upload the player's unfinished real session.
 	game.begin_tutorial()
-	# Guided 4-1-4-1. Active mode has no mother at all, which makes every caption meaningless, and
+	# Guided 4-2-4-2. Active mode has no mother at all, which makes every caption meaningless, and
 	# the User preset is built from sessions a first-timer has not had yet. Neither this nor the
 	# duration below is part of the GenericGameUtil snapshot, so both are restored by hand.
 	_tutorial_saved_mode = MotherG.selected_mode
@@ -173,7 +173,7 @@ func _build_mode_options() -> Array:
 			_fv(MotherG.learned_exhale_ms / 1000.0),
 			_fv(MotherG.learned_hold_bottom_ms / 1000.0)])
 	for p in MotherG.GUIDED_PRESETS:
-		opts.append("Guided %s-%s-%s-%s" % [_fv(p[0]), _fv(p[1]), _fv(p[2]), _fv(p[3])])
+		opts.append("%s-%s-%s-%s" % [_fv(p[0]), _fv(p[1]), _fv(p[2]), _fv(p[3])])
 	return opts
 
 func _mode_to_option_idx() -> int:

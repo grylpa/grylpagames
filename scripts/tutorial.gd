@@ -93,6 +93,12 @@ var _await_event: String = ""
 var _await_timeout: float = 0.0
 var _finished: bool = false
 var _pulse: float = 0.0
+# When the CURRENT step's demo path started animating. `_pulse` is a free-running clock shared with
+# the spotlight pulse, so a demo step that read it directly began at whatever phase the clock
+# happened to be at -- the hand's first appearance started partway along the path, usually near the
+# end, and only looked right from the second cycle on. Stamped on step entry so every demo opens at
+# the start of the route; the spotlight keeps the uninterrupted `_pulse` it needs.
+var _demo_t0: float = 0.0
 # How long one breath of the spotlight takes, and how far its halo travels before fading out.
 const SPOT_PULSE_SEC: float = 1.6
 const SPOT_HALO_PX: float = 16.0
@@ -548,6 +554,15 @@ func _hold_clock() -> void:
 func _process(dt: float) -> void:
 	_apply_dim_filter()
 	_refresh_live_text()
+	# `advance_when`: a talking step that ends ITSELF. A demonstration the player is meant to watch
+	# should not also require a tap to get past -- and chopping it into tap-gated pieces destroys
+	# the very thing an animated demo exists to convey, which is timing. A tap still skips it.
+	if _idx >= 0 and _idx < _steps.size():
+		var done_when = _steps[_idx].get("advance_when", null)
+		if done_when is Callable and (done_when as Callable).is_valid():
+			if bool((done_when as Callable).call()):
+				_advance()
+				return
 	if _finished or _idx < 0 or _idx >= _steps.size():
 		return
 	_hold_clock()
@@ -606,7 +621,7 @@ func _process(dt: float) -> void:
 	# drawn stayed on the canvas after the spotlight resolved to nothing, so dragging the marked
 	# alien out of the ring left its marker hanging in empty space until something else happened
 	# to trigger a redraw.
-	if _has_spot or had_spot != _has_spot or not _demo_pts.is_empty():
+	if _has_spot or had_spot != _has_spot or not _demo_pts.is_empty() or _has_demo_hand():
 		_dim.queue_redraw()
 
 # A keep_clear zone can appear AFTER the caption has been placed. The opening caption is laid out
@@ -709,6 +724,7 @@ func _rect_for(target, radius: float) -> Rect2:
 # alone were not getting "you can draw a route for the dog to walk" across.
 func _update_demo_path() -> void:
 	_demo_pts = PackedVector2Array()
+	_demo_t0 = _pulse
 	if _idx < 0 or _idx >= _steps.size():
 		return
 	var spec = _steps[_idx].get("demo_path", null)
@@ -725,16 +741,108 @@ func _update_demo_path() -> void:
 			if pt is Vector2:
 				_demo_pts.append(pt)
 
+# Demo timing, in seconds. Named rather than inline so the two halves of the animation are
+# obviously the same length as each other, and so every hand+dot game -- wolves and storm -- runs
+# at one identical speed by construction instead of by coincidence.
+const _DEMO_DRAW_SEC: float = 1.25    # the hand tracing the route
+const _DEMO_GAP_SEC: float = 0.25     # a beat between the gesture and its effect
+const _DEMO_WALK_SEC: float = 1.25    # the character following the same route
+const _DEMO_REST_SEC: float = 0.55    # before it loops
+# How far through the demo we are: 0..1 is the hand drawing the route, 1..2 is the character
+# walking it afterwards. Measured from `_demo_t0`, so a step
+# always opens at 0 -- at the start of the path, where the player is.
+func _demo_progress() -> float:
+	var cycle: float = _DEMO_DRAW_SEC + _DEMO_GAP_SEC + _DEMO_WALK_SEC + _DEMO_REST_SEC
+	var phase: float = fmod(maxf(_pulse - _demo_t0, 0.0), cycle)
+	if phase < _DEMO_DRAW_SEC:
+		return phase / _DEMO_DRAW_SEC
+	# During the gap this clamps to exactly 1.0, which parks the HAND at the end of the route --
+	# the pause that separates "you swiped" from "it then walked".
+	return 1.0 + clampf((phase - _DEMO_DRAW_SEC - _DEMO_GAP_SEC) / _DEMO_WALK_SEC, 0.0, 1.0)
+
+# `demo_hand`: a Callable(elapsed_sec) returning {"pos": Vector2, "down": bool, "path": [Vector2]}.
+# Where `demo_path` animates a fixed route on the runner's own clock, this hands the step full
+# control of the finger every frame -- which is what it takes to act out a timed gesture, with
+# pauses of a specific length, against durations the game itself defines. Returns true if it
+# handled the drawing, so the plain demo_path below is skipped.
+# A step that animates its own finger has to repaint every frame; nothing else on a talking step
+# does. Without this the hand was computed and never drawn -- an invisible demo.
+func _has_demo_hand() -> bool:
+	if _idx < 0 or _idx >= _steps.size():
+		return false
+	return _steps[_idx].get("demo_hand", null) is Callable
+
+func _draw_demo_hand() -> bool:
+	if _idx < 0 or _idx >= _steps.size():
+		return false
+	var spec = _steps[_idx].get("demo_hand", null)
+	if spec == null or not (spec is Callable) or not (spec as Callable).is_valid():
+		return false
+	var st = (spec as Callable).call(maxf(_pulse - _demo_t0, 0.0))
+	if not (st is Dictionary) or not st.has("pos"):
+		return true
+	var route = st.get("path", null)
+	if route != null:
+		var line: PackedVector2Array = PackedVector2Array()
+		for p in route:
+			if p is Vector2:
+				line.append(p)
+		if line.size() >= 2:
+			_dim.draw_polyline(line, Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 0.4), 4.0, true)
+	# `lift` if the step animates the moment of coming off, else the plain down/up flag.
+	var lift: float = 0.0
+	if st.has("lift"):
+		lift = float(st["lift"])
+	elif not bool(st.get("down", true)):
+		lift = 1.0
+	_draw_hand(st["pos"], lift)
+	var badge = st.get("badge", "")
+	if badge is String and not (badge as String).is_empty():
+		_draw_badge(String(badge), float(st.get("badge_alpha", 1.0)),
+			bool(st.get("badge_good", true)), route)
+	return true
+
+# A short-lived announcement box, opposite the caption. Something that happens ON the board during
+# a talking step is under the dim and easy to miss entirely; this is drawn by the overlay, so it is
+# as bright as the hand and lands where nothing else is competing for the eye.
+func _draw_badge(text: String, alpha: float, good: bool, avoid = null) -> void:
+	var a: float = clampf(alpha, 0.0, 1.0)
+	if a <= 0.0:
+		return
+	var font: Font = MainGlobals.get_system_sans_font()
+	if font == null:
+		return
+	var fs: int = 26 if MainGlobals.is_mobile() else 19
+	var screen: Vector2 = _dim.size
+	var text_w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x
+	var pad: float = 14.0
+	var box_w: float = text_w + pad * 2.0
+	var box_h: float = float(fs) + pad * 1.4
+	# As near the center of the screen as it can get without touching the gesture. The demo's own
+	# path is the obstacle: the box starts just clear of it (plus the room the hand needs when it
+	# lifts), and is clamped to the screen if that pushes it too far right.
+	var obstacle_right: float = -1.0
+	if avoid != null:
+		for p in avoid:
+			if p is Vector2:
+				obstacle_right = maxf(obstacle_right, (p as Vector2).x)
+	var x: float = (screen.x - box_w) * 0.5
+	if obstacle_right > 0.0:
+		x = maxf(x, obstacle_right + _HAND_LIFT_PX + 34.0)
+	x = clampf(x, 8.0, maxf(screen.x - box_w - 8.0, 8.0))
+	var box: Rect2 = Rect2(x, (screen.y - box_h) * 0.5, box_w, box_h)
+	var fill: Color = Color(0.16, 0.42, 0.24, 0.92 * a) if good else Color(0.42, 0.20, 0.20, 0.92 * a)
+	var rim: Color = Color(0.45, 0.88, 0.58, a) if good else Color(0.95, 0.55, 0.50, a)
+	_dim.draw_rect(box, fill)
+	_dim.draw_rect(box, rim, false, 2.0)
+	_dim.draw_string(font, Vector2(box.position.x + pad, box.position.y + pad * 0.7 + float(fs) * 0.8),
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(1, 1, 1, a))
+
 func _draw_demo_path() -> void:
+	if _draw_demo_hand():
+		return
 	if _demo_pts.size() < 2:
 		return
-	# `demo_hand_only`: draw the gesture and nothing else. The second phase below exists to show a
-	# CHARACTER following the route the finger drew -- right for wolves and storm, where something
-	# then walks it, and wrong for a game where the swipe is the whole event and nothing travels
-	# anywhere. There the dot reads as a second, different thing to do.
-	var hand_only: bool = false
-	if _idx >= 0 and _idx < _steps.size():
-		hand_only = bool(_steps[_idx].get("demo_hand_only", false))
 	var trail: Color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 0.55)
 	_dim.draw_polyline(_demo_pts, trail, 5.0, true)
 	# Total length, so the dot travels at a constant speed rather than per-segment.
@@ -748,13 +856,7 @@ func _draw_demo_path() -> void:
 		return
 	# Two halves per cycle: the finger draws the route (t 0..1), then the character walks the same
 	# route (t 1..2), then a pause. Cause and effect, in that order.
-	var cycle: float = 3.4 if hand_only else 4.6
-	var phase: float = fmod(_pulse, cycle)
-	var t: float = 0.0
-	if hand_only:
-		t = clampf(phase / 1.8, 0.0, 1.0)
-	else:
-		t = phase / 1.8 if phase < 1.8 else (1.0 + clampf((phase - 2.1) / 1.8, 0.0, 1.0))
+	var t: float = _demo_progress()
 	var traveled: float = clampf(fmod(t, 1.0) if t > 1.0 else t, 0.0, 1.0) * total
 	if t >= 2.0:
 		traveled = total
@@ -766,12 +868,11 @@ func _draw_demo_path() -> void:
 			pos = _demo_pts[i].lerp(_demo_pts[i + 1], f)
 			break
 		acc += seg_len[i]
-	if not hand_only:
-		_dim.draw_circle(_demo_pts[0], 9.0, trail, false, 3.0, true)
+	_dim.draw_circle(_demo_pts[0], 9.0, trail, false, 3.0, true)
 	# The finger doing the drawing, then the character following it. Showing only a dot left it
 	# ambiguous whether the dot WAS the character or the gesture; drawing both, one after the
 	# other, is what makes it read as "you swipe, then it walks".
-	if hand_only or t <= 1.0:
+	if t <= 1.0:
 		_draw_hand(pos)
 	else:
 		_dim.draw_circle(pos, 11.0, SPOT_COLOR, true, -1.0, true)
@@ -806,19 +907,37 @@ const _HAND_SCALE: float = 1.25
 # in. Rotation is about the contact point, so the fingertip stays exactly on the path either way.
 const _HAND_TILT_DEG: float = -45.0
 
-func _draw_hand(at: Vector2) -> void:
-	var ink: Color = Color(1, 1, 1, 0.97)
-	var edge: Color = Color(0.08, 0.08, 0.08, 0.9)
+# How a lifted finger is drawn: further from the line AND larger, as though raised toward the
+# viewer. A hold is the one beat of a breathing pattern with nothing to see, so "not touching" has
+# to be visible -- and distance alone reads as the finger having slid sideways rather than come
+# off the glass. Growing it is what sells the third dimension on a flat board.
+const _HAND_LIFT_PX: float = 48.0
+const _HAND_LIFT_SCALE: float = 1.22
+
+# `lift` is 0 (flat on the glass) to 1 (fully raised). It is a float and not a flag so the step can
+# animate the moment of coming off: snapping between the two states made the hold look like a
+# teleport rather than a movement the player is meant to copy.
+func _draw_hand(at: Vector2, lift: float = 0.0) -> void:
+	var f: float = clampf(lift, 0.0, 1.0)
+	var ink: Color = Color(1, 1, 1, lerpf(0.97, 0.62, f))
+	var edge: Color = Color(0.08, 0.08, 0.08, lerpf(0.9, 0.5, f))
 	var tilt: float = deg_to_rad(_HAND_TILT_DEG)
+	# Raised: the hand backs away along the direction it points AND grows, so it reads as coming
+	# off the surface toward the viewer rather than sliding along it.
+	var origin: Vector2 = at - Vector2(0.0, -1.0).rotated(tilt) * (_HAND_LIFT_PX * f)
+	var hand_scale: float = _HAND_SCALE * lerpf(1.0, _HAND_LIFT_SCALE, f)
 	var pts: PackedVector2Array = PackedVector2Array()
 	for v in _HAND_SHAPE:
-		pts.append(at + (Vector2(v) * _HAND_SCALE).rotated(tilt))
+		pts.append(origin + (Vector2(v) * hand_scale).rotated(tilt))
 	_dim.draw_colored_polygon(pts, ink)
 	var closed: PackedVector2Array = pts.duplicate()
 	closed.append(pts[0])
 	_dim.draw_polyline(closed, edge, 1.6, true)
-	# the point of contact, on the path itself
-	_dim.draw_circle(at, 3.5, SPOT_COLOR, true, -1.0, true)
+	if f < 1.0:
+		# The point of contact, on the path itself -- and only while there IS contact. A marker
+		# left behind at the lift-off point just litters the line with dots.
+		_dim.draw_circle(at, 3.5, Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 1.0 - f), true, -1.0, true)
+
 
 func _draw_dim() -> void:
 	var full: Rect2 = Rect2(Vector2.ZERO, _dim.size)

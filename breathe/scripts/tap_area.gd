@@ -11,18 +11,9 @@ func _draw() -> void:
 	var mobile: bool = MainGlobals.is_mobile()
 	var state: Dictionary = level_node.get_tap_draw_state()
 
-	# Thin progress bar along the top edge
+	# Thin progress bar along the top edge (shared: scripts/session_bar.gd)
 	if state.get("session_active", false):
-		var progress: float = state.get("session_progress", 0.0)
-		const PAD_X: float = 24.0
-		const BAR_Y: float = 18.0
-		var bar_h: float = 7.0 if mobile else 5.0
-		var bar_w: float = size.x - PAD_X * 2.0
-		draw_rect(Rect2(PAD_X, BAR_Y, bar_w, bar_h),
-			Color(0.3, 0.55, 0.65, 0.30 if mobile else 0.12), true)
-		if progress > 0.0:
-			draw_rect(Rect2(PAD_X, BAR_Y, bar_w * progress, bar_h),
-				Color(0.4, 0.82, 0.92, 0.70 if mobile else 0.28), true)
+		SessionBar.draw_cool(self, size.x, state.get("session_progress", 0.0))
 
 	# Large breathing circle — static before first tap, animated after
 	if state.get("session_active", false):
