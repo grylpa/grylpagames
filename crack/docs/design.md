@@ -99,3 +99,73 @@ At session end, `_on_session_complete()` shows:
 - Session duration + unlock count
 - Average swipe-up / hold-top / swipe-down / hold-bot durations vs targets
 - Graph: gesture state over time (y_norm: swipe_up=0.05, hold_top=0.25, neutral=0.5, hold_bot=0.75, swipe_down=0.95), sampled every 200ms, rendered via `udbr/scripts/graph.gd`.
+
+---
+
+## Tutorial
+
+`crack/scripts/tutorial.gd`, registered in `MainCfg.tutorials`. Thirteen steps, four of them doing
+steps.
+
+### What it exists to fix
+
+**Players flick.** Everywhere else in this app — and on every phone — a swipe is a fast flick.
+Here it is the opposite: the finger keeps sliding for as long as the inhale lasts, four whole
+seconds, because the *duration* of the slide is the measurement. A player who flicks sees a game
+that does not respond at all. Two steps are spent on this, one of them a `demo_path` that traces a
+slow drag up the screen, because no rewording of "swipe" survives contact with what players already
+believe a swipe is.
+
+Then, in order: that a hold is a *beat* rather than a gap between beats; that the four moves are a
+sequence which `_reset_seq()` silently restarts when broken; and that `_try_score` needs **all
+four** durations inside `TIMING_THRESHOLD_MS`, so three out of four scores nothing.
+
+### A hold completes when the NEXT move starts
+
+`_on_action_completed` is reached only from `_on_gesture_changed`, so an action is recorded when the
+gesture *changes*. The bottom hold is therefore not completed when the player lifts their finger —
+it is completed when they **begin the next inhale**, which is also the instant `_try_score` judges
+the sequence.
+
+Two steps were originally written as "lift off and hold", awaiting `held_top` / `held_bottom`. Each
+would have stalled after the player did exactly what it asked, waiting on a move no caption had
+mentioned yet. Both now name the move that ends the hold ("lift off … then breathe out", "lift off,
+hold, then begin your next breath in"), and the sequence-completion rule is taught explicitly
+instead of being a trap. This is recorded in `docs/tutorials.md` as a general rule.
+
+### It forces a guided preset
+
+`start_tutorial()` stashes `CrackG.selected_mode` and sets **2** (the first `GUIDED_PRESETS` entry,
+4-1-4-1). The shipped default is `selected_mode = 0` ("Active"), in which `_try_score()` returns
+immediately — the safe can **never** open, so the tutorial's payoff step would wait forever on an
+`unlocked` the game is incapable of sending. Assign `selected_mode`, never `guided_mode`: the
+latter is a getter-only computed property and assigning to it does nothing (the same trap udbr
+documents).
+
+`duration_min` is likewise stashed and set to 20 — the default session is 1 minute and the tutorial
+asks for two full breathing cycles at four seconds a phase. Both are restored from
+`_on_tutorial_done` **and** `_exit_tree`; verified by probe, including the abandon path.
+
+### Hooks and spots
+
+`_on_action_completed` emits `inhaled` / `exhaled` / `held_top` / `held_bottom`, placed **after**
+the 80 ms flicker guard so a twitch the game ignored can never advance a step. `_try_score` emits
+`unlocked` or `sequence_missed`.
+
+The safe is drawn procedurally, so there are no nodes to hand the overlay: `tutorial_hud_rect()`,
+`tutorial_score_rect()` and `tutorial_demo_up()` / `tutorial_demo_down()` recompute the same
+geometry `_do_draw()` uses.
+
+The demo path is **vertical**, because the gesture is vertical. What is angled is the *hand*
+(`_HAND_TILT_DEG` in `scripts/tutorial.gd`): drawn bolt upright, its body lies along a vertical
+path and hides the line it is tracing, so it is tilted 45° to sit beside the line instead, with
+the fingertip still landing on it. Every demo here also sets `demo_hand_only` — the traveling dot
+means *something then follows this route*, and in crack nothing does. The opening step carries no spotlight — the safe fills the screen, so a
+box around the dial says nothing and leaves the caption nowhere to sit that is not on top of it.
+
+### Stale notes corrected
+
+The Settings section above describes index 1 as `selected_preset`; it is `selected_mode`, where
+0 = Active (free, no scoring), 1 = the player's own learned pattern, and 2+ index into
+`GUIDED_PRESETS`. The statistics graph is crack's own, not `udbr/scripts/graph.gd` — nothing in
+`crack/` references another game.

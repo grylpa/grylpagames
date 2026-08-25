@@ -57,7 +57,7 @@ var games = [
 # two buttons that offer a tutorial (the game's main menu and its instructions screen) instead test
 # whether the game's main.gd defines start_tutorial(). Add a folder here as each tutorial is
 # written — see docs/tutorials.md for the recipe.
-var tutorials: Array = ["aliens", "bucketmadness", "change", "couples", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
+var tutorials: Array = ["aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials

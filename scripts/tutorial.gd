@@ -40,7 +40,7 @@ const MAX_PANEL_FRAC: float = 0.55       # caption never eats more than this muc
 # tutorial needs; end_tutorial() puts the player's own clock back afterwards (time_left_sec and
 # _reset_time_left_sec are both in the snapshot).
 const TUTORIAL_MINUTES: int = 30
-# A SIDE caption is a narrow column pinned to one edge, for games whose action runs down the middle
+# A SIDE caption is a narrow column pinned to one edge, for games whose action runs down the center
 # of the screen: udbr's lane is vertical and centered, and the ball travels its whole height, so a
 # full-width caption docked at the bottom sits on top of the very thing the player is watching.
 const SIDE_FRAC: float = 0.32            # of screen width
@@ -728,6 +728,13 @@ func _update_demo_path() -> void:
 func _draw_demo_path() -> void:
 	if _demo_pts.size() < 2:
 		return
+	# `demo_hand_only`: draw the gesture and nothing else. The second phase below exists to show a
+	# CHARACTER following the route the finger drew -- right for wolves and storm, where something
+	# then walks it, and wrong for a game where the swipe is the whole event and nothing travels
+	# anywhere. There the dot reads as a second, different thing to do.
+	var hand_only: bool = false
+	if _idx >= 0 and _idx < _steps.size():
+		hand_only = bool(_steps[_idx].get("demo_hand_only", false))
 	var trail: Color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 0.55)
 	_dim.draw_polyline(_demo_pts, trail, 5.0, true)
 	# Total length, so the dot travels at a constant speed rather than per-segment.
@@ -741,9 +748,13 @@ func _draw_demo_path() -> void:
 		return
 	# Two halves per cycle: the finger draws the route (t 0..1), then the character walks the same
 	# route (t 1..2), then a pause. Cause and effect, in that order.
-	var cycle: float = 4.6
+	var cycle: float = 3.4 if hand_only else 4.6
 	var phase: float = fmod(_pulse, cycle)
-	var t: float = phase / 1.8 if phase < 1.8 else (1.0 + clampf((phase - 2.1) / 1.8, 0.0, 1.0))
+	var t: float = 0.0
+	if hand_only:
+		t = clampf(phase / 1.8, 0.0, 1.0)
+	else:
+		t = phase / 1.8 if phase < 1.8 else (1.0 + clampf((phase - 2.1) / 1.8, 0.0, 1.0))
 	var traveled: float = clampf(fmod(t, 1.0) if t > 1.0 else t, 0.0, 1.0) * total
 	if t >= 2.0:
 		traveled = total
@@ -755,11 +766,12 @@ func _draw_demo_path() -> void:
 			pos = _demo_pts[i].lerp(_demo_pts[i + 1], f)
 			break
 		acc += seg_len[i]
-	_dim.draw_circle(_demo_pts[0], 9.0, trail, false, 3.0, true)
+	if not hand_only:
+		_dim.draw_circle(_demo_pts[0], 9.0, trail, false, 3.0, true)
 	# The finger doing the drawing, then the character following it. Showing only a dot left it
 	# ambiguous whether the dot WAS the character or the gesture; drawing both, one after the
 	# other, is what makes it read as "you swipe, then it walks".
-	if t <= 1.0:
+	if hand_only or t <= 1.0:
 		_draw_hand(pos)
 	else:
 		_dim.draw_circle(pos, 11.0, SPOT_COLOR, true, -1.0, true)
@@ -787,12 +799,20 @@ const _HAND_SHAPE: Array = [
 ]
 const _HAND_SCALE: float = 1.25
 
+# The hand is tilted rather than drawn bolt upright. Straight up, its body lies ALONG a vertical
+# path and hides the very line it is tracing; at an angle the body sits beside the line and the
+# line stays visible. Negative tilts it anticlockwise on screen, so the finger points up-and-left
+# with the wrist below-right -- a right hand reaching in from the corner a phone is actually held
+# in. Rotation is about the contact point, so the fingertip stays exactly on the path either way.
+const _HAND_TILT_DEG: float = -45.0
+
 func _draw_hand(at: Vector2) -> void:
 	var ink: Color = Color(1, 1, 1, 0.97)
 	var edge: Color = Color(0.08, 0.08, 0.08, 0.9)
+	var tilt: float = deg_to_rad(_HAND_TILT_DEG)
 	var pts: PackedVector2Array = PackedVector2Array()
 	for v in _HAND_SHAPE:
-		pts.append(at + Vector2(v) * _HAND_SCALE)
+		pts.append(at + (Vector2(v) * _HAND_SCALE).rotated(tilt))
 	_dim.draw_colored_polygon(pts, ink)
 	var closed: PackedVector2Array = pts.duplicate()
 	closed.append(pts[0])

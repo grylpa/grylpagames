@@ -30,7 +30,14 @@ func _ready() -> void:
 		"On desktop: press ↑ to inhale, press ↓ to exhale,\n" +
 		"release to hold.",
 		36 if MainGlobals.is_mobile() else 22)
-	if not game.shown_instructions:
+	# Teach instead of showing the instructions wall when the tutorial was asked for, or on a
+	# first run. Consumed before the `shown_instructions` check, which would otherwise put a page
+	# of text in front of the lesson that replaces it.
+	var _teaching: bool = MainGlobals.take_pending_tutorial("crack") \
+		or MainGlobals.take_auto_tutorial("crack", game.shown_instructions)
+	if _teaching:
+		call_deferred("start_tutorial")
+	elif not game.shown_instructions:
 		game.show_instructions(self)
 		CrackG.save_settings()
 
@@ -168,3 +175,53 @@ func _input(event: InputEvent) -> void:
 		game.in_focus = true
 	else:
 		game.handle_event(event, self)
+
+
+# --- tutorial ---------------------------------------------------------------------------------
+
+var _tutorial_saved_mode: int = -1
+var _tutorial_saved_duration: int = -1
+
+# begin_tutorial() BEFORE new_game(): new_game() runs game.reset(true), which calls
+# convert_ongoing_score_to_permanent() and would commit the player's unfinished real session.
+func start_tutorial() -> void:
+	var tut: Script = load("res://crack/scripts/tutorial.gd")
+	game.begin_tutorial()
+	# Force a guided preset. The shipped default is `selected_mode = 0` ("Active"), in which
+	# _try_score() returns immediately -- the safe can NEVER open, so the tutorial's whole payoff
+	# step would wait forever on an `unlocked` that the game is incapable of sending. 2 is the
+	# first entry of GUIDED_PRESETS. Assign `selected_mode`, not `guided_mode`: the latter is a
+	# getter-only computed property and assigning to it does nothing.
+	_tutorial_saved_mode = CrackG.selected_mode
+	CrackG.selected_mode = 2
+	# Crack runs on its own session clock (`_duration_ms`), not the game util's, so
+	# TutorialRunner.TUTORIAL_MINUTES does not reach it. The default session is 1 minute and this
+	# tutorial asks for two full breathing cycles at four seconds a phase -- it would be cut off
+	# by the results panel partway through. Neither value is in the GenericGameUtil snapshot, so
+	# both are restored by hand below.
+	_tutorial_saved_duration = CrackG.duration_min
+	CrackG.duration_min = 20
+	new_game()
+	var runner: TutorialRunner = TutorialRunner.new()
+	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
+
+func _on_tutorial_done(_completed: bool) -> void:
+	_restore_tutorial_globals()
+	game.playing = false
+	game.level_is_ready = false
+	refresh_menu()
+	show_main_menu()
+
+# Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's own
+# _exit_tree does not invoke this callback -- so without it the tutorial's stashed mode and
+# duration stayed applied to the player's real settings.
+func _restore_tutorial_globals() -> void:
+	if _tutorial_saved_mode >= 0:
+		CrackG.selected_mode = _tutorial_saved_mode
+		_tutorial_saved_mode = -1
+	if _tutorial_saved_duration >= 0:
+		CrackG.duration_min = _tutorial_saved_duration
+		_tutorial_saved_duration = -1
+
+func _exit_tree() -> void:
+	_restore_tutorial_globals()

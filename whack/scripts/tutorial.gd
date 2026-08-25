@@ -146,8 +146,8 @@ static func steps(level: Node, _game) -> Array:
 		{
 			# Explained on a FROZEN step, then watched on the next one. As a single doing step the
 			# caption vanished the instant the round expired, so it was gone before it was read.
-			"text": "Last thing: sometimes there is no target at all.\n\n"
-				+ "Decoys turn up on their own. Tap nothing and wait.\n"
+			"text": "Sometimes there is no target at all.\n\n"
+				+ "Only decoys. Do not tap them. Just wait.\n"
 				+ "Tapping a decoy will cost you points.",
 			"setup": func():
 				level.tutorial_retry_spec = {}     # the ring lesson is over; let this one expire
