@@ -226,6 +226,9 @@ static func header(lbl: Label) -> void:
 	sb.content_margin_top = 5.0
 	sb.content_margin_bottom = 5.0
 	lbl.add_theme_stylebox_override("normal", sb)
+	# Prose, so the no-fallback face: the symbol font's line box is 2.09x the font size and these
+	# rule labels wrap ("Shape is / blue or red?"), which made the gap between lines look broken.
+	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
 	lbl.add_theme_color_override("font_color", Color(0.98, 0.94, 0.78))
 	lbl.add_theme_color_override("font_outline_color", Color(0.04, 0.05, 0.07, 0.9))
 	lbl.add_theme_constant_override("outline_size", 4)

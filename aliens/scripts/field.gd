@@ -28,7 +28,7 @@ const STAR_DRIFT: float = 3.0                         # px/sec — slow enough t
 const VIGNETTE_STEPS: int = 10
 const VIGNETTE_DEPTH: float = 0.26                    # fraction of the short side that is darkened
 
-var _stars: Array = []          # [{p: Vector2 (0..1 normalised), r: float, a: float}]
+var _stars: Array = []          # [{p: Vector2 (0..1 normalized), r: float, a: float}]
 var _drift: float = 0.0
 var _sky_size: Vector2 = Vector2(680, 748)
 

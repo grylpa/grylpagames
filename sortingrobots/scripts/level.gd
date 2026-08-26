@@ -181,10 +181,16 @@ func _ready() -> void:
 		%RightRuleLabel.add_theme_font_size_override("font_size", 32)
 		%AvgTimeLabel.add_theme_font_size_override("font_size", 36)
 	_feedback = %FeedbackLabel
+	# Prose labels take the NO-FALLBACK face. The symbol font's line box is 2.09x the font size
+	# (the Noto Symbols fallback is very tall and a Font's line height is the MAX over its
+	# fallbacks), which on these WRAPPED rule labels nearly doubles the gap between lines --
+	# "Shape is / blue or red?" reading as two separate captions. Only the tick/cross needs
+	# symbols.
 	var f: Font = MainGlobals.get_system_sans_font()
-	%LeftRuleLabel.add_theme_font_override("font", f)
-	%RightRuleLabel.add_theme_font_override("font", f)
-	%AvgTimeLabel.add_theme_font_override("font", f)
+	var ft: Font = MainGlobals.get_text_font()
+	%LeftRuleLabel.add_theme_font_override("font", ft)
+	%RightRuleLabel.add_theme_font_override("font", ft)
+	%AvgTimeLabel.add_theme_font_override("font", ft)
 	_feedback.add_theme_font_override("font", f)
 	# Fix both rule labels to a 2-line height so a 1-line and a 2-line rule
 	# occupy the same space (bottom-aligned), keeping the two belts aligned.
@@ -838,6 +844,54 @@ func _claw_pull(to_right: bool) -> void:
 
 # Put the ✓/✗ exactly between the two belts: horizontally centered in the gap that separates
 # them, vertically at their shared center. Recomputed on each show so it follows any resize.
+# The verdict, with some weight behind it.
+#
+# It was a label whose color changed and whose alpha went to 1 — the single least noticeable way to
+# tell someone they got it wrong, on a screen where their eyes are on a belt somewhere else. It now
+# punches in past its final size and settles, and the belt that was being judged flashes with it, so
+# the answer is reported where the player was actually looking.
+func _pop_feedback(is_right: bool) -> void:
+	_feedback.modulate.a = 1.0
+	_feedback.pivot_offset = _feedback.size * 0.5
+	_feedback.scale = Vector2(0.35, 0.35)
+	var tw: Tween = create_tween()
+	tw.tween_property(_feedback, "scale", Vector2(1.45, 1.45), 0.16) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_feedback, "scale", Vector2.ONE, 0.14)
+	_flash_belt(window_belt, is_right)
+
+# A wash over the WHOLE belt the round was about, not a tint on its outline.
+#
+# The first version of this recolored the belt's 2px border and nothing else, which is invisible in
+# practice — a flash you have to look for is not feedback. This floods the belt's fill with the
+# verdict color, thickens its edge, and drains both back over half a second, so the machine the
+# round was about visibly reacts.
+func _flash_belt(belt: int, is_right: bool) -> void:
+	if belt < 0 or belt > 1:
+		return
+	var cont: Control = _containers()[belt]
+	if cont == null or not is_instance_valid(cont):
+		return
+	var box = cont.get_parent()
+	if not (box is PanelContainer):
+		return
+	var sb: StyleBoxFlat = box.get_theme_stylebox("panel") as StyleBoxFlat
+	if sb == null:
+		return
+	var hit: Color = Color(0.25, 0.80, 0.42) if is_right else Color(0.88, 0.28, 0.26)
+	sb.bg_color = Color(hit.r, hit.g, hit.b, 0.72)
+	sb.border_color = hit.lightened(0.35)
+	sb.set_border_width_all(6)
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(sb, "bg_color", Sleek.BELT_FILL, 0.55)
+	tw.tween_property(sb, "border_color", Sleek.BELT_EDGE, 0.55)
+	tw.chain().tween_callback(func():
+		sb.border_width_top = 3
+		sb.border_width_bottom = 2
+		sb.border_width_left = 2
+		sb.border_width_right = 2)
+
 func _position_feedback() -> void:
 	if _feedback == null:
 		return
@@ -881,7 +935,7 @@ func _score_answer(user_picks_up: bool, is_timeout: bool) -> void:
 		_feedback.text = "✗"
 		_feedback.modulate = Color.RED
 	_position_feedback()
-	_feedback.modulate.a = 1.0
+	_pop_feedback(is_right)
 	if rounds_done >= rounds_before_hide and not labels_hidden:
 		labels_hidden = true
 		_hide_labels()
@@ -934,16 +988,32 @@ func _input(event: InputEvent) -> void:
 func _level_done() -> void:
 	set_process(false)
 	game.level_is_done = true
-	SortingRobotsG.record_level_result(current_level_id, pct_correct())
-	game.sig_level_is_done.emit(true)
-	MainGlobals.global_level_is_done(true)
+	var pct: int = pct_correct()
+	var need: int = SortingRobotsG.pass_pct_for(current_level_id)
+	# Passing is now a RESULT, not a formality: below the level's own accuracy the same
+	# level comes round again instead of the next one.
+	var passed: bool = SortingRobotsG.record_level_result(current_level_id, pct)
+	game.sig_level_is_done.emit(passed)
+	MainGlobals.global_level_is_done(passed)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
-		pct_correct(),
+	var extra: String = "\n\nAccuracy: %d%% (need %d%%)\nMean time: %s" % [
+		pct, need,
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
+	# Say what happens next, either way. "Accuracy: 40%" alone does not tell the player whether
+	# they are moving on, which is the only thing they want to know at that moment.
+	extra += "\n\n" + _progress_line(passed, need)
 	game.show_level_done_popup(self, "", extra, 0, "")
+
+# What the player gets next, in words.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	var nxt: int = SortingRobotsG.peek_next_level_id()
+	if nxt <= 0 or nxt == current_level_id:
+		return "Level passed."
+	return "Level passed — on to level %s." % SortingRobotsG.level_name_for(nxt)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

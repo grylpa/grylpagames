@@ -28,6 +28,7 @@ extends Node
 #   id                 level id (monotonic)
 #   name               display name (level label / scores)
 #   level_time_sec     how long the level lasts; it completes when this elapses
+#   pass_pct           accuracy (%) needed to move on; below it the SAME level is played again
 #   rules              pool of MODALITY names (see above); [] = any modality
 #   num_areas          number of target areas. 1 sits in the center of the field; 2 go in
 #                      OPPOSING corners; 3 and 4 fill the remaining corners. 1..2 is the tuned
@@ -104,31 +105,31 @@ const LEVELS: Array = [
 	# 1 — teach the loop: one area, color rules only, the rule never hides, roomy ring.
 	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["color"],
 	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 9, "hide_after_sec": 0, "enter_chance": 0.16,
-	 "park_patience_sec": 30.0},
+	 "park_patience_sec": 30.0, "pass_pct": 60},
 
 	# 2 — same shape, but now the rule disappears partway through.
 	{"id": 2, "name": "2", "level_time_sec": 80, "rules": ["eyes", "color"],
 	 "num_areas": 2, "alien_speed": 0.155, "alien_size": "big", "num_free_aliens": 10, "hide_after_sec": 35, "enter_chance": 0.20,
-	 "park_patience_sec": 30.0},
+	 "park_patience_sec": 30.0, "pass_pct": 65},
 
 	# 3 — silhouette rules; body shape varies independently of everything else.
 	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["shape", "eyes", "color", "antennae"],
 	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "hide_after_sec": 28, "enter_chance": 0.24,
-	 "park_patience_sec": 29.0},
+	 "park_patience_sec": 29.0, "pass_pct": 70},
 
 	# 4 — GATE CHANGE arrives. Everything else is held at level 3's settings on purpose: one new
 	#     idea at a time, and this is a big one.
 	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["color", "eyes"],
 	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "hide_after_sec": 25, "enter_chance": 0.30,
 	 "park_patience_sec": 28.0,
-	 "gate_change_sec": 34.0},
+	 "gate_change_sec": 34.0, "pass_pct": 70},
 
 	# 5 — NOW BOARDING arrives: a called alien on a clock, so a gate can no longer be worked alone.
 	{"id": 5, "name": "5", "level_time_sec": 110,
 	 "rules": ["antennae", "eyes", "color", "shape"],
 	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 20, "enter_chance": 0.36,
 	 "colors": [0, 1, 3], "park_patience_sec": 27.0,
-	 "gate_change_sec": 30.0, "priority_every_sec": 19.0, "priority_window_sec": 8.0},
+	 "gate_change_sec": 30.0, "priority_every_sec": 19.0, "priority_window_sec": 8.0, "pass_pct": 75},
 
 	# 6 — DENY gates arrive; spots join the pool. Gate change is eased off while the new polarity
 	#     is learned, then tightened again from 7.
@@ -137,7 +138,7 @@ const LEVELS: Array = [
 	 "num_areas": 2, "alien_speed": 0.205, "alien_size": "med", "num_free_aliens": 12, "hide_after_sec": 14, "enter_chance": 0.42,
 	 "colors": [0, 2, 4], "park_patience_sec": 26.0,
 	 "gate_change_sec": 34.0, "deny_chance": 0.5,
-	 "priority_every_sec": 18.0, "priority_window_sec": 7.5},
+	 "priority_every_sec": 18.0, "priority_window_sec": 7.5, "pass_pct": 75},
 
 	# 7 — three gates, all three twists running together.
 	{"id": 7, "name": "7", "level_time_sec": 140,
@@ -145,14 +146,14 @@ const LEVELS: Array = [
 	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 9, "enter_chance": 0.50,
 	 "colors": [0, 1, 3, 4], "park_patience_sec": 25.0,
 	 "gate_change_sec": 26.0, "deny_chance": 0.5,
-	 "priority_every_sec": 15.0, "priority_window_sec": 6.5},
+	 "priority_every_sec": 15.0, "priority_window_sec": 6.5, "pass_pct": 80},
 
 	# 8 — every usable rule, four gates, fast: the ring only empties if the player empties it.
 	{"id": 8, "name": "8", "level_time_sec": 170, "rules": [],
 	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "hide_after_sec": 6, "enter_chance": 0.60,
 	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0,
 	 "gate_change_sec": 22.0, "deny_chance": 0.5,
-	 "priority_every_sec": 13.0, "priority_window_sec": 6.0},
+	 "priority_every_sec": 13.0, "priority_window_sec": 6.0, "pass_pct": 80},
 
 	# 9 — COMPOUND passes arrive: two traits in one pass. Back to 2 gates and a slower clock, and
 	#     deny is off — one pass now spans two traits, which is quite enough to be going on with.
@@ -163,7 +164,7 @@ const LEVELS: Array = [
 	 "colors": [0, 1, 3], "park_patience_sec": 27.0,
 	 "gate_change_sec": 32.0,
 	 "priority_every_sec": 18.0, "priority_window_sec": 7.5,
-	 "compound_chance": 1.0, "compound_ops": ["and", "or"]},
+	 "compound_chance": 1.0, "compound_ops": ["and", "or"], "pass_pct": 85},
 
 	# 10 — everything at once: all four operators, deny on whichever gates stay simple, 3 gates.
 	{"id": 10, "name": "10", "level_time_sec": 180, "rules": [],
@@ -171,7 +172,7 @@ const LEVELS: Array = [
 	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0,
 	 "gate_change_sec": 26.0, "deny_chance": 0.5,
 	 "priority_every_sec": 14.0, "priority_window_sec": 6.5,
-	 "compound_chance": 0.6},
+	 "compound_chance": 0.6, "pass_pct": 85},
 ]
 
 # LEVEL_PROGRESSION_ORDER: the level play order; may repeat ids. When the list runs out it

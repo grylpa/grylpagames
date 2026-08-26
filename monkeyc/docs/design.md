@@ -272,3 +272,39 @@ and the arm **is** the claw:
 It is an overlay across the level rather than nodes in the layout, positioning itself from the
 belts' rects every frame, because the layout resizes with the window and belt height is computed at
 runtime by `_size_belts`.
+
+### Feedback
+
+The ✓/✗ the robot stamps on an item appeared at full size in one frame, which on a moving belt is
+easy to miss — and in this game the mark **is** the lesson: it is the evidence the player collects
+to work out the rule.
+
+`_pop_mark()` punches it in past its final size and settles it, and the item's own frame flinches
+(a 1.10 scale pulse and back), so the moment the robot decides is impossible to look past.
+
+### Items already ride in and out
+
+Worth recording, because it was asserted twice as a gap and is not one. `_scroll_belts()` spawns new
+items above the belt at negative y and frees them only once fully below it, with the containers set
+to `clip_contents`. Nothing pops into existence.
+
+### Thumbnail is stale
+
+`art/game_screen_200.png` — the tile the game chooser shows — predates the visual rework (factory
+scenery, running belts/chute, edge-mounted robots, drawn shapes, tiled text, animated feedback). It
+still shows the old flat green-on-grass screen, so the chooser advertises a game that no longer
+looks like this.
+
+Regenerating it needs a **real display**: `--headless` uses a dummy renderer and cannot capture a
+frame, so the game has to run windowed and save `get_viewport().get_texture().get_image()` scaled to
+the existing 200 px tile. Worth doing in one pass for all three sorting games, mid-round, so the
+belts have items on them.
+
+### Rule labels use the prose font
+
+Rule labels wrap ("Shape is / blue or red?"), and they used `get_system_sans_font()`, whose line box
+is **2.09x** the font size because a Font's line height is the MAX over its fallbacks and the Noto
+Symbols fallback is very tall. That nearly doubled the gap between the wrapped lines.
+
+They now take `MainGlobals.get_text_font()` (1.41x); only the ✓/✗ keeps the symbol face. See the
+Fonts section in the project `CLAUDE.md` — the same trap applies to every wrapped label in the app.

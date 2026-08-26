@@ -2360,16 +2360,32 @@ func _on_time_over() -> void:
 func _level_done() -> void:
 	game.level_is_done = true
 	_drag_alien = null
-	AliensG.record_level_result(current_level_id, pct_correct())
-	game.sig_level_is_done.emit(true)
-	MainGlobals.global_level_is_done(true)
+	var pct: int = pct_correct()
+	var need: int = AliensG.pass_pct_for(current_level_id)
+	# Passing is now a RESULT, not a formality: below the level's own accuracy the same
+	# level comes round again instead of the next one.
+	var passed: bool = AliensG.record_level_result(current_level_id, pct)
+	game.sig_level_is_done.emit(passed)
+	MainGlobals.global_level_is_done(passed)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
-		pct_correct(),
+	var extra: String = "\n\nAccuracy: %d%% (need %d%%)\nMean time: %s" % [
+		pct, need,
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
+	# Say what happens next, either way. "Accuracy: 40%" alone does not tell the player whether
+	# they are moving on, which is the only thing they want to know at that moment.
+	extra += "\n\n" + _progress_line(passed, need)
 	game.show_level_done_popup(self, "", extra, 0, "")
+
+# What the player gets next, in words.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	var nxt: int = AliensG.peek_next_level_id()
+	if nxt <= 0 or nxt == current_level_id:
+		return "Level passed."
+	return "Level passed — on to level %s." % AliensG.level_name_for(nxt)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

@@ -717,3 +717,24 @@ That path was observed failing intermittently in the headless harness — step 5
 full 60 s timeout with an empty ring — which is the same thing as "no alien enters the outer ring"
 from the player's side. The nudge covers the symptom; the underlying reason a requested arrival is
 occasionally lost has not been root-caused.
+
+### Passing a level
+
+Each level carries a **`pass_pct`** — the accuracy needed to move on. Below it, the **same level is
+played again** rather than the next one.
+
+Before this, 70 was hardcoded in `globals.gd` for every level, and failing only re-queued the level
+*behind* the next one — so a player could get every answer wrong and still advance, and the accuracy
+shown in the level-done popup was decorative.
+
+- `pass_pct_for(id)` reads the level's own value, falling back to `DEFAULT_PASS_PCT` (70) if a level
+  omits it, so adding a level cannot silently make it ungated.
+- `record_level_result()` now **returns** whether the player passed, and inserts the failed level at
+  the FRONT of the queue.
+- `_level_done()` passes that result into `sig_level_is_done` and `global_level_is_done`, so a failed
+  level is no longer reported as a win.
+
+The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus either
+*"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
+
+Thresholds ramp with difficulty rather than sitting flat.

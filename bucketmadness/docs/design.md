@@ -1,4 +1,4 @@
-# Bucket Madness — Design Doc
+this  Bucket Madness — Design Doc
 
 ## Overview
 
@@ -325,3 +325,64 @@ The buckets now **react to catching an item** (`_bucket_react`): a squash-and-se
 brightening when the answer was right, a short shake when it was wrong. Nothing on this screen used
 to move on a drop except a tick appearing in a label — the buckets sat perfectly still either way,
 which is most of why the game felt inert.
+
+### Thumbnail is stale
+
+`art/game_screen_200.png` — the tile the game chooser shows — predates the visual rework (factory
+scenery, running belts/chute, edge-mounted robots, drawn shapes, tiled text, animated feedback). It
+still shows the old flat green-on-grass screen, so the chooser advertises a game that no longer
+looks like this.
+
+Regenerating it needs a **real display**: `--headless` uses a dummy renderer and cannot capture a
+frame, so the game has to run windowed and save `get_viewport().get_texture().get_image()` scaled to
+the existing 200 px tile. Worth doing in one pass for all three sorting games, mid-round, so the
+belts have items on them.
+
+### Driving a tween from `_process`
+
+Both of this game's animations are paused/resumed every frame from `_process` so they follow the
+game's own paused state. That spammed the log once a round's animation finished:
+
+```
+Can't play finished Tween, use stop() first to reset its state.
+```
+
+**Godot has no `is_dead()`.** A tween that has run to the end still reports `is_valid() == true`,
+and `is_running() == false` is indistinguishable from "paused" — so neither guard is enough, and
+`_process` keeps calling `play()` on a corpse every frame for the rest of the round. Guarding with
+`is_instance_valid()` alone (the original code) or with `is_valid()` (the first fix) both still
+error.
+
+The reliable answer is not to hold a reference to a finished tween: `_forget_when_done()` connects
+each tween's `finished` signal to clear its own variable, so the plain `!= null` check is finally
+telling the truth. `_drive_tween()` then keeps the pause/resume logic in one place.
+
+### Rule labels use the prose font
+
+Rule labels wrap ("Shape is / blue or red?"), and they used `get_system_sans_font()`, whose line box
+is **2.09x** the font size because a Font's line height is the MAX over its fallbacks and the Noto
+Symbols fallback is very tall. That nearly doubled the gap between the wrapped lines.
+
+They now take `MainGlobals.get_text_font()` (1.41x); only the ✓/✗ keeps the symbol face. See the
+Fonts section in the project `CLAUDE.md` — the same trap applies to every wrapped label in the app.
+
+### Passing a level
+
+Each level carries a **`pass_pct`** — the accuracy needed to move on. Below it, the **same level is
+played again** rather than the next one.
+
+Before this, 70 was hardcoded in `globals.gd` for every level, and failing only re-queued the level
+*behind* the next one — so a player could get every answer wrong and still advance, and the accuracy
+shown in the level-done popup was decorative.
+
+- `pass_pct_for(id)` reads the level's own value, falling back to `DEFAULT_PASS_PCT` (70) if a level
+  omits it, so adding a level cannot silently make it ungated.
+- `record_level_result()` now **returns** whether the player passed, and inserts the failed level at
+  the FRONT of the queue.
+- `_level_done()` passes that result into `sig_level_is_done` and `global_level_is_done`, so a failed
+  level is no longer reported as a win.
+
+The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus either
+*"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
+
+Thresholds ramp with difficulty rather than sitting flat.

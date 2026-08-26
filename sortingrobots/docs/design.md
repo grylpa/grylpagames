@@ -192,3 +192,66 @@ and the arm **is** the claw:
 It is an overlay across the level rather than nodes in the layout, positioning itself from the
 belts' rects every frame, because the layout resizes with the window and belt height is computed at
 runtime by `_size_belts`.
+
+### Feedback
+
+The verdict was a label whose color changed and whose alpha went to 1 — the least noticeable way to
+tell someone they got it wrong, on a screen where their eyes are on a belt somewhere else.
+
+`_pop_feedback()` punches the ✓/✗ in to 1.45x and settles it (`TRANS_BACK`, measured peak 1.56x),
+and `_flash_belt()` floods the **belt the round was about** with the verdict color, thickens its
+edge to 6 px, and drains both back over 0.55 s.
+
+The first version tinted only the belt's **2 px border** and was invisible in practice — a flash you
+have to look for is not feedback. Measured, the fill now moves 1.07 in RGB distance (near-black to
+red) where the border-only version moved nothing the eye could catch. If a visual change cannot be
+measured as large, assume it cannot be seen.
+
+### Items already ride in and out
+
+Worth recording, because it was asserted twice as a gap and is not one. `_scroll_belts()` spawns new
+items at negative y (above the belt) and only frees them once `position.y >= h`, fully past the
+bottom; the containers are `clip_contents`, so both ends are hidden. Measured: a tracked item enters
+at y = -65 and leaves below the belt's 472 px height. Nothing pops into existence.
+
+### Thumbnail is stale
+
+`art/game_screen_200.png` — the tile the game chooser shows — predates the visual rework (factory
+scenery, running belts/chute, edge-mounted robots, drawn shapes, tiled text, animated feedback). It
+still shows the old flat green-on-grass screen, so the chooser advertises a game that no longer
+looks like this.
+
+Regenerating it needs a **real display**: `--headless` uses a dummy renderer and cannot capture a
+frame, so the game has to run windowed and save `get_viewport().get_texture().get_image()` scaled to
+the existing 200 px tile. Worth doing in one pass for all three sorting games, mid-round, so the
+belts have items on them.
+
+### Rule labels use the prose font
+
+Rule labels wrap ("Shape is / blue or red?"), and they used `get_system_sans_font()`, whose line box
+is **2.09x** the font size because a Font's line height is the MAX over its fallbacks and the Noto
+Symbols fallback is very tall. That nearly doubled the gap between the wrapped lines.
+
+They now take `MainGlobals.get_text_font()` (1.41x); only the ✓/✗ keeps the symbol face. See the
+Fonts section in the project `CLAUDE.md` — the same trap applies to every wrapped label in the app.
+
+### Passing a level
+
+Each level carries a **`pass_pct`** — the accuracy needed to move on. Below it, the **same level is
+played again** rather than the next one.
+
+Before this, 70 was hardcoded in `globals.gd` for every level, and failing only re-queued the level
+*behind* the next one — so a player could get every answer wrong and still advance, and the accuracy
+shown in the level-done popup was decorative.
+
+- `pass_pct_for(id)` reads the level's own value, falling back to `DEFAULT_PASS_PCT` (70) if a level
+  omits it, so adding a level cannot silently make it ungated.
+- `record_level_result()` now **returns** whether the player passed, and inserts the failed level at
+  the FRONT of the queue.
+- `_level_done()` passes that result into `sig_level_is_done` and `global_level_is_done`, so a failed
+  level is no longer reported as a win.
+
+The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus either
+*"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
+
+Thresholds ramp with difficulty rather than sitting flat.

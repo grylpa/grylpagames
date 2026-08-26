@@ -23,13 +23,14 @@ extends Node
 #   "lines"        — Letter is straight lines?    (AEFHIKLMNTVWXYZ vs curved)
 # NOTE: "square" overlaps with "filled"/"hollow" (a ■ is both square AND filled) — they are never
 #   shown together as the two rules, so a pool may safely contain all of them.
+# pass_pct: accuracy (%) needed to move on. Below it the SAME level is played again.
 const LEVELS: Array = [
-	{"id": 1, "name": "1", "rules": ["digit", "square"],                                            "hide_after": 6, "rounds": 10, "window_dur": 3.0, "belt_spd": 65},
-	{"id": 2, "name": "2", "rules": ["even_odd", "vowel", "hollow"],                                "hide_after": 5, "rounds": 12, "window_dur": 2.6, "belt_spd": 70},
-	{"id": 3, "name": "3", "rules": ["hollow", "even_odd", "vowel", "square"],                      "hide_after": 4, "rounds": 12, "window_dur": 2.3, "belt_spd": 75},
-	{"id": 4, "name": "4", "rules": ["prime", "filled", "vowel", "lines", "color_shape"],      	    "hide_after": 3, "rounds": 15, "window_dur": 2.0, "belt_spd": 80},
-	{"id": 5, "name": "5", "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "hide_after": 2, "rounds": 15, "window_dur": 1.7, "belt_spd": 85},
-	{"id": 6, "name": "6", "rules": [],                                                             "hide_after": 2, "rounds": 15, "window_dur": 1.7, "belt_spd": 85},
+	{"id": 1, "name": "1", "rules": ["digit", "square"],                                            "hide_after": 6, "rounds": 10, "window_dur": 3.0, "belt_spd": 65, "pass_pct": 60},
+	{"id": 2, "name": "2", "rules": ["even_odd", "vowel", "hollow"],                                "hide_after": 5, "rounds": 12, "window_dur": 2.6, "belt_spd": 70, "pass_pct": 65},
+	{"id": 3, "name": "3", "rules": ["hollow", "even_odd", "vowel", "square"],                      "hide_after": 4, "rounds": 12, "window_dur": 2.3, "belt_spd": 75, "pass_pct": 70},
+	{"id": 4, "name": "4", "rules": ["prime", "filled", "vowel", "lines", "color_shape"],      	    "hide_after": 3, "rounds": 15, "window_dur": 2.0, "belt_spd": 80, "pass_pct": 70},
+	{"id": 5, "name": "5", "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "hide_after": 2, "rounds": 15, "window_dur": 1.7, "belt_spd": 85, "pass_pct": 75},
+	{"id": 6, "name": "6", "rules": [],                                                             "hide_after": 2, "rounds": 15, "window_dur": 1.7, "belt_spd": 85, "pass_pct": 75},
 ]
 
 # LEVEL_PROGRESSION_ORDER: the level play order; may repeat ids. When the list runs out it

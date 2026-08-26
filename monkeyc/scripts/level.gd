@@ -192,11 +192,17 @@ func _ready() -> void:
 		%AvgTimeLabel.add_theme_font_size_override("font_size", 36)
 		$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox.custom_minimum_size = Vector2(220, 500)
 		$MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox.custom_minimum_size = Vector2(220, 500)
+	# Prose labels take the NO-FALLBACK face. The symbol font's line box is 2.09x the font size
+	# (the Noto Symbols fallback is very tall and a Font's line height is the MAX over its
+	# fallbacks), which on these WRAPPED rule labels nearly doubles the gap between lines --
+	# "Shape is / blue or red?" reading as two separate captions. Only the tick/cross needs
+	# symbols.
 	var f: Font = MainGlobals.get_system_sans_font()
-	%AvgTimeLabel.add_theme_font_override("font", f)
+	var ft: Font = MainGlobals.get_text_font()
+	%AvgTimeLabel.add_theme_font_override("font", ft)
 	%FeedbackLabel.add_theme_font_override("font", f)
-	%LeftRuleLabel.add_theme_font_override("font", f)
-	%RightRuleLabel.add_theme_font_override("font", f)
+	%LeftRuleLabel.add_theme_font_override("font", ft)
+	%RightRuleLabel.add_theme_font_override("font", ft)
 	# Reserve a 2-line height on both rule labels so a 1-line and a 2-line rule occupy the
 	# same space, keeping the two belts vertically aligned (see sortingrobots).
 	var rule_fs: int = 32 if MainGlobals.is_mobile() else 22
@@ -724,8 +730,29 @@ func _mark_item() -> void:
 				sb.border_color = Color(1.0, 0.35, 0.0)
 				sb.bg_color = Color(1.0, 0.15, 0.0, 0.2)
 		window_panel.add_child(indicator)
+		_pop_mark(indicator)
 	game.tutorial_notify("item_marked")
 	game.tutorial_notify("marked_yes" if picks_up else "marked_no")
+
+# The ✓/✗ the robot stamps on an item, with some weight behind it.
+#
+# It appeared at full size in one frame, which on a moving belt is easy to miss entirely — and in
+# this game the mark IS the lesson: it is the evidence the player has to collect to work out the
+# rule. It now punches in past its final size and settles, and the item it lands on flinches, so
+# the moment the robot decides is impossible to look past.
+func _pop_mark(indicator: Label) -> void:
+	indicator.pivot_offset = indicator.size * 0.5
+	indicator.scale = Vector2(0.3, 0.3)
+	var tw: Tween = create_tween()
+	tw.tween_property(indicator, "scale", Vector2(1.5, 1.5), 0.15) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(indicator, "scale", Vector2.ONE, 0.14)
+	if window_panel != null and is_instance_valid(window_panel):
+		window_panel.pivot_offset = window_panel.size * 0.5
+		var tp: Tween = create_tween()
+		tp.tween_property(window_panel, "scale", Vector2(1.18, 1.18), 0.11) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tp.tween_property(window_panel, "scale", Vector2.ONE, 0.17)
 
 # Take (pull) or leave the item once it reaches _take_top (within the h/2..3h/4 band).
 func _take_item() -> void:
@@ -880,7 +907,9 @@ func _ask_for_rule(belt_idx: int) -> void:
 	var spacer: Control = Control.new()
 	spacer.custom_minimum_size = Vector2(0.0, 16.0)
 	vbox.add_child(spacer)
-	var f: Font = MainGlobals.get_system_sans_font()
+	# The rule options are words ("Is it a filled shape?"), so the no-fallback face: these wrap on a
+	# narrow phone and the symbol font's 2.09x line box splits them into two loosely stacked lines.
+	var f: Font = MainGlobals.get_text_font()
 	for opt in options:
 		var btn: Button = Button.new()
 		btn.text = _u(opt["label"])
