@@ -80,10 +80,10 @@ var _non_primes: Array = [1, 4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24,
 var _straight_letters: Array = ["A", "E", "F", "H", "I", "K", "L", "M", "N", "T", "V", "W", "X", "Y", "Z"]
 var _curved_letters: Array = ["B", "C", "D", "G", "J", "O", "P", "Q", "R", "S", "U"]
 var _color_names: Array = ["RED", "BLUE", "GREEN", "YELLOW", "PURPLE"]
-var _color_values: Dictionary = {
-	"RED": Color.RED, "BLUE": Color.BLUE, "GREEN": Color(0.0, 0.75, 0.0),
-	"YELLOW": Color.YELLOW, "PURPLE": Color(0.6, 0.0, 0.9),
-}
+# Shared with the other two sorting games — see scripts/sleek.gd. The raw primaries these used to
+# be (Color.RED is literally (1,0,0)) had no shading headroom and looked like debug placeholders.
+# Item colors are compared for EQUALITY by the rule tests, so every color must come from here.
+var _color_values: Dictionary = Sleek.PALETTE
 var _all_modality_keys: Array = ["digit", "square", "even_odd", "vowel", "prime", "filled", "hollow", "stroop", "color_shape", "lines"]
 
 # The pool of rule keys allowed for the CURRENT level (from level_config "rules"). Each round the
@@ -118,11 +118,47 @@ var wrong_audio = preload("res://art/sounds/swoosh.mp3")
 signal sig_level_is_done(didwin: bool)
 signal started_playing
 
+# The belts and rule headers, restyled. The belts were the largest thing on screen and the
+# flattest: a PanelContainer with one flat color, no border, no radius and no shadow.
+# A factory FLOOR, drawn, in place of the tiled grass field this game shipped with.
+#
+# Top-down: the belts are conveyors seen from overhead, so the room has no horizon and no vanishing
+# point — every seam is parallel and the only depth comes from light and wear. Drawing a wall
+# meeting a floor, as the first attempt did, is a side-on view, and against top-down belts it read
+# as a conveyor standing upright against a wall.
+#
+# The old TextureRect is hidden rather than deleted: the scene file still owns it, and hiding is
+# reversible in a way that editing three .tscn files is not.
+func _add_backdrop_depth() -> void:
+	var bg = get_node_or_null("Background")
+	var fb: FactoryFloor = FactoryFloor.new()
+	fb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fb)
+	move_child(fb, 0)
+	if bg != null:
+		bg.visible = false
+
+func _apply_sleek_chrome() -> void:
+	_add_backdrop_depth()
+	for c in [%LeftItemsContainer, %RightItemsContainer]:
+		var box = c.get_parent()
+		if box is PanelContainer:
+			(box as PanelContainer).add_theme_stylebox_override("panel", Sleek.belt())
+			# A running tread UNDER the items. move_child(0) matters: a PanelContainer stretches
+			# every child to fill it, so without this the tread would be painted over the objects.
+			var tread: BeltTread = BeltTread.new()
+			box.add_child(tread)
+			box.move_child(tread, 0)
+	for lbl in [%LeftRuleLabel, %RightRuleLabel]:
+		if lbl is Label:
+			Sleek.header(lbl as Label)
+
 func _ready() -> void:
 	game = MonkeyCG.game
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	_apply_sleek_chrome()
 	var layout: MarginContainer = $MainLayout
 	layout.offset_top = 148.0 if MainGlobals.is_mobile() else 192.0
 	layout.offset_bottom = -(MainGlobals.footer_height + 15.0)
@@ -281,7 +317,7 @@ func _test_colored_shape(item: Variant) -> int:
 	if typeof(item) != TYPE_DICTIONARY or not item.has("shape"):
 		return -1
 	var c: Color = item["color"]
-	return 1 if (c == Color.BLUE or c == Color.RED) else 0
+	return 1 if (c == _color_values["BLUE"] or c == _color_values["RED"]) else 0
 
 # Verdict a rule gives for a whole belt item (a PAIR of objects): true when EITHER object satisfies
 # it, which is how the player reads it — they scan both glyphs for one the rule accepts.
@@ -346,38 +382,42 @@ func _gen_colored_shape(is_correct: bool) -> Dictionary:
 	var shapes: Array = ["■", "●", "▲", "★"]
 	var shape: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
-		return {"shape": shape, "color": [Color.BLUE, Color.RED][rng.randi_range(0, 1)]}
-	var others: Array = [Color(0.0, 0.75, 0.0), Color.YELLOW, Color(0.6, 0.0, 0.9), Color.WHITE, Color.ORANGE]
-	return {"shape": shape, "color": others[rng.randi_range(0, others.size() - 1)]}
+		return {"shape": shape, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
+	# Anything that is NOT the blue/red the rule accepts. Named, then looked up, so these stay the
+	# same objects the equality test compares against.
+	var others: Array = ["GREEN", "YELLOW", "PURPLE", "WHITE", "ORANGE"]
+	return {"shape": shape, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
 
 func _make_text(item: Variant) -> Label:
+	# Shapes go through here too, not only through _make_colored_shape: the "square", "filled" and
+	# "hollow" rules all generate bare glyphs. Converting only the colored-shape rule left three of
+	# the four shape rules — and so most of what the player actually sees — as flat glyphs.
+	var as_text: String = _u(str(item))
+	if Sleek.is_shape(as_text):
+		return ShapeLabel.make(as_text, Sleek.PALETTE["WHITE"], pair_font_size)
 	var lbl: Label = Label.new()
-	lbl.text = _u(str(item))
+	lbl.text = as_text
 	lbl.add_theme_font_size_override("font_size", pair_font_size)
 	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Sleek.style_text(lbl)
 	return lbl
 
 func _make_stroop(item: Dictionary) -> Label:
 	var lbl: Label = Label.new()
 	lbl.text = _u(item["text"])
 	lbl.add_theme_font_size_override("font_size", 40)
-	lbl.add_theme_color_override("font_color", item["color"])
 	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Sleek.style_text(lbl, item["color"])
 	return lbl
 
+# Drawn, not typeset — see scripts/shape_label.gd. Still a Label, so the pair layout that measures
+# both objects and shares the row width between them is untouched.
 func _make_colored_shape(item: Dictionary) -> Label:
-	var lbl: Label = Label.new()
-	lbl.text = item["shape"]
-	lbl.add_theme_font_size_override("font_size", pair_font_size)
-	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.modulate = item["color"]
-	return lbl
+	return ShapeLabel.make(item["shape"], item["color"], pair_font_size)
 
 func _make_pair_control(item_l: Variant, mod_l: Dictionary, item_r: Variant, mod_r: Dictionary, bw: float) -> Control:
 	var c: Control = Control.new()

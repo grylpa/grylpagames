@@ -79,3 +79,89 @@ Specific to this game:
   whatever is closest.
 - Events reported to the coach: `window_opened`, `window_settled`, `judged`, `labels_hidden` — all
   `game.tutorial_notify`, no-ops outside tutorial mode.
+
+---
+
+## Visual style
+
+The objects on the belt are **drawn**, not typeset. They used to be font glyphs in a Label — `"■"`
+tinted `Color.RED` — which is the whole reason this game looked flat: a glyph is one silhouette at
+whatever weight the font happens to have, in the most saturated red a screen can produce, with no
+shading anywhere.
+
+`scripts/sleek.gd` (`Sleek`) draws each shape with a contact shadow, a vertical gradient and a rim
+light along the top edge — the three things a real object does under a light — and
+`scripts/shape_label.gd` (`ShapeLabel`) wraps that as a **Label subclass**, so the pair-layout pass
+that measures both objects and shares the row width between them is untouched. The text is still
+set, because that is what the layout measures; it is just painted transparent.
+
+The palette moved there too. `Color.RED` is literally `(1, 0, 0)`: it vibrates against a dark
+background and has no headroom left to lighten into, so a gradient has nowhere to go.
+
+### Shapes were only part of it
+
+Measured across all ten rules, 40 items each: **only four rules produce shapes** (`square`,
+`filled`, `hollow`, `color_shape`) — 160 of 400 items. The other six produce **digits, letters and
+words**, and no amount of shape drawing touches those: a bare "7" on a flat belt looks exactly as
+unfinished as a flat square did.
+
+So every object, text or shape, now sits on the same **tile**: rounded, slightly raised, soft
+shadow (`Sleek.tile()`). That is what turns a character into an object, and it is the change that
+makes text and shapes look like they belong to the same game. Coverage is asserted rather than
+assumed: 400/400 items in each game are either a drawn shape or tiled text.
+
+The tile goes on as the Label's `"normal"` stylebox, which draws **behind** the text. A script's
+`_draw()` on a Label paints *over* it — right for the shape, useless for a backing card.
+
+**The one thing to be careful with:** item colors are compared for **equality** by the rule tests
+(`item["color"] == _color_values[word]` for stroop, `c == BLUE or c == RED` for colored shapes), so
+every color must come from `Sleek.PALETTE` and nowhere else. A raw `Color.BLUE` left behind
+anywhere silently stops matching and the rule quietly becomes unsatisfiable — there were three such
+sites per game, and they are now all lookups.
+
+### The chrome
+
+The belts were the largest thing on screen after the background and the flattest of all: a
+`PanelContainer` whose entire style was `bg_color = Color(0, 0.06, 0, 0.6)` — no border, no corner
+radius, no shadow. Two 140x420 slabs of flat dark green over a grass photo. Restyling the objects
+ON them could never fix that, which is why the first passes barely showed.
+
+`Sleek.belt()` gives them rounded corners, a lit top edge, a darker base and a real drop shadow, so
+the machine sits on the scene instead of being a hole cut in it. `Sleek.header()` puts each rule on
+a chip that belongs to the belt below it, rather than bare yellow text floating on grass.
+Bucketmadness has no belts — its chute (`_trap_poly`) takes the same `BELT_FILL`, so the three
+games read as one family.
+
+Applied from `_apply_sleek_chrome()` in `_ready()` rather than by editing the scene's sub-resources,
+so the styling lives with the rest of the look.
+
+### The scene
+
+The screen was a tiled grass texture over a grass-green clear color — a field, in a game about
+machines sorting objects on a conveyor. Being the largest single thing on screen, it is why
+restyling the widgets on top of it kept failing to change what the screen looked like.
+
+**This game is top-down.** The belts are conveyors seen from overhead, so the room is a FLOOR and
+nothing else: `scripts/factory_floor.gd` (`FactoryFloor`) draws steel plates in a grid, parallel
+seams both ways with a lit lip for thickness, bolts at every plate corner, painted hazard bands
+down each edge, circular overhead lamp pools, and a vignette.
+
+A top-down room has **no horizon and no vanishing point**. An earlier attempt drew a wall meeting a
+floor at a horizon — a side-on view — and against top-down belts it read as a conveyor standing
+upright against a wall. `FactoryFloor` has no `horizon` property at all, so that mistake cannot be
+repeated by configuration.
+
+Plate tint varies per plate from a hash of its grid position, not `randf()`: a tint chosen inside
+`_draw()` reshuffles every frame and the floor shimmers.
+
+`scripts/belt_tread.gd` (`BeltTread`) makes each belt an actual machine: an inset trough, slats
+scrolling down it at 34 px/s, a lit lip on each slat's leading edge so the motion reads, side rails
+and a roller at each end. Nothing on this screen moved before. It is added as child 0 of the belt's
+PanelContainer, which stretches every child to fill — without `move_child(tread, 0)` the tread
+paints over the objects instead of under them.
+
+`belt_edge.gd` takes `Sleek.BELT_FILL` for its fade strips; it had a hardcoded copy of the old flat
+green and went stale the moment the belt was restyled.
+
+The old TextureRect is hidden rather than deleted — the scene file still owns it.
+
