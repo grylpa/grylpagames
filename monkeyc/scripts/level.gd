@@ -32,7 +32,6 @@ const _GRAB_SCALE: float = 1.18
 const _GRAB_TIME: float = 0.14
 const _PULL_TIME: float = 0.55
 
-const CLAW_SCRIPT: GDScript = preload("res://monkeyc/scripts/claw.gd")
 
 var belt_items: Array = [[], []]
 var belt_initialized: bool = false
@@ -138,6 +137,26 @@ func _add_backdrop_depth() -> void:
 	if bg != null:
 		bg.visible = false
 
+# The robots the game is named after. An overlay across the level rather than nodes in the layout:
+# the belts sit in a tight HBox with no room beside them, and the arms have to hover OVER the belt
+# edge anyway, which is where a top-down arm serving a conveyor would be.
+var _robots: RobotBay = null
+
+# Keeps each robot beside its belt. Done every frame from the belts' own rects because the layout
+# resizes with the window and the belt height is computed at runtime (_size_belts).
+func _position_robots() -> void:
+	if _robots == null or not is_instance_valid(_robots):
+		return
+	var boxes: Array = [%LeftItemsContainer.get_parent(), %RightItemsContainer.get_parent()]
+	var bays: Array = []
+	for i in range(boxes.size()):
+		var b = boxes[i]
+		if b == null or not is_instance_valid(b):
+			continue
+		var r: Rect2 = Rect2(b.global_position - _robots.global_position, b.size)
+		bays.append({"rect": r, "side": -1 if i == 0 else 1})
+	_robots.bays = bays
+
 func _apply_sleek_chrome() -> void:
 	_add_backdrop_depth()
 	for c in [%LeftItemsContainer, %RightItemsContainer]:
@@ -149,6 +168,9 @@ func _apply_sleek_chrome() -> void:
 			var tread: BeltTread = BeltTread.new()
 			box.add_child(tread)
 			box.move_child(tread, 0)
+	_robots = RobotBay.new()
+	_robots.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_robots)
 	for lbl in [%LeftRuleLabel, %RightRuleLabel]:
 		if lbl is Label:
 			Sleek.header(lbl as Label)
@@ -543,6 +565,7 @@ func _clear_belts() -> void:
 # --- Window / robot ---
 
 func _process(delta: float) -> void:
+	_position_robots()
 	if game.paused() or game.level_is_done:
 		return
 	if not belt_initialized:
@@ -778,11 +801,11 @@ func _claw_pull(to_right: bool) -> void:
 		panel.reparent(flyer, true)  # keep the (green) border rectangle around the item
 		window_panel = null
 	item.reparent(flyer, true)  # keep global transform so the item doesn't jump/change
-	var claw: Node2D = CLAW_SCRIPT.new()
-	claw.side = 1 if to_right else -1
-	claw.box_size = item_size
-	claw.position = item_gpos - item_center  # claw origin = box top-left, in flyer-local space
-	flyer.add_child(claw)
+	# The ROBOT grips it — not a throwaway claw sprite parented to the flyer. It tracks this node's
+	# real position every frame, so the arm is dragged along with the item as it is yanked off, and
+	# retracts by itself once the flyer is freed. An arm that is not doing the picking is scenery.
+	if _robots != null and is_instance_valid(_robots):
+		_robots.hold(1 if to_right else 0, flyer)
 	var sw: float = float(MainGlobals.screen_size.x)
 	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
 	var tw: Tween = flyer.create_tween()
