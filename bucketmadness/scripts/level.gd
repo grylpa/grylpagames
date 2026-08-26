@@ -63,6 +63,7 @@ var _bucket_tex: Texture2D = preload("res://bucketmadness/art/bucket_open_2.png"
 var _dumpster_tex: Texture2D = preload("res://bucketmadness/art/dumpster_half_open.png")
 
 var _trap_poly: Polygon2D = null
+var _chute: ChuteView = null
 # The three bucket pictures, in board order [left, dumpster, right]. They are built at runtime by
 # _setup_bucket_images and have no scene names, so anything wanting to point at a bucket — the
 # tutorial — needs them kept here.
@@ -73,10 +74,10 @@ var _non_primes: Array = [1, 4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24,
 var _straight_letters: Array = ["A", "E", "F", "H", "I", "K", "L", "M", "N", "T", "V", "W", "X", "Y", "Z"]
 var _curved_letters: Array = ["B", "C", "D", "G", "J", "O", "P", "Q", "R", "S", "U"]
 var _color_names: Array = ["RED", "BLUE", "GREEN", "YELLOW", "PURPLE"]
-var _color_values: Dictionary = {
-	"RED": Color.RED, "BLUE": Color.BLUE, "GREEN": Color(0.0, 0.75, 0.0),
-	"YELLOW": Color.YELLOW, "PURPLE": Color(0.6, 0.0, 0.9),
-}
+# Shared with the other two sorting games — see scripts/sleek.gd. The raw primaries these used to
+# be (Color.RED is literally (1,0,0)) had no shading headroom and looked like debug placeholders.
+# Item colors are compared for EQUALITY by the rule tests, so every color must come from here.
+var _color_values: Dictionary = Sleek.PALETTE
 
 var item_font_size: int = 52
 var pair_font_size: int = 36
@@ -92,7 +93,37 @@ var _swipe_tracking: bool = false
 signal sig_level_is_done(didwin: bool)
 signal started_playing
 
+# The rule headers, restyled to match the other two sorting games: a chip that belongs to the
+# bucket under it rather than bare yellow text floating on grass.
+# A factory, drawn, in place of the tiled grass field these games shipped with — a field, in three
+# games about machines sorting objects on conveyors. It is the largest single thing on screen, so
+# nothing done to the widgets on top of it changes what the screen looks like.
+#
+# The old TextureRect is hidden rather than deleted: the scene file still owns it, and hiding is
+# reversible in a way that editing three .tscn files is not.
+func _add_backdrop_depth() -> void:
+	var bg = get_node_or_null("Background")
+	var fb: FactoryBackdrop = FactoryBackdrop.new()
+	fb.horizon = 0.74
+	fb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fb)
+	move_child(fb, 0)
+	if bg != null:
+		bg.visible = false
+
+func _apply_sleek_chrome() -> void:
+	_add_backdrop_depth()
+	for n in ["LeftRuleLabel", "RightRuleLabel", "DumpsterLabel"]:
+		var lbl = get_node_or_null("MainLayout/VBox/ContentVBox/BucketsRow/LeftBucketSide/" + n)
+		if lbl == null:
+			lbl = get_node_or_null("MainLayout/VBox/ContentVBox/BucketsRow/RightBucketSide/" + n)
+		if lbl == null:
+			lbl = get_node_or_null("MainLayout/VBox/ContentVBox/BucketsRow/CenterBucketSide/" + n)
+		if lbl is Label:
+			Sleek.header(lbl as Label)
+
 func _ready() -> void:
+	_apply_sleek_chrome()
 	game = BucketMadnessG.game
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
@@ -116,8 +147,13 @@ func _ready() -> void:
 	%AvgTimeLabel.add_theme_font_override("font", f)
 	%FeedbackLabel.add_theme_font_override("font", f)
 	%FallArea.clip_contents = true
+	_chute = ChuteView.new()
+	%FallArea.add_child(_chute)
+	%FallArea.move_child(_chute, 0)
 	_trap_poly = Polygon2D.new()
-	_trap_poly.color = Color(0.0, 0.08, 0.0, 0.85)
+	# The flat trapezoid is kept as the base fill under the drawn chute, so nothing shows through
+	# at the edges where the two disagree by a pixel.
+	_trap_poly.color = Sleek.BELT_FILL
 	%FallArea.add_child(_trap_poly)
 	%FallArea.move_child(_trap_poly, 0)
 	%FallArea.resized.connect(_update_trapezoid)
@@ -140,6 +176,10 @@ func _update_trapezoid() -> void:
 		Vector2(w, h),
 		Vector2(0.0, h)
 	])
+	if _chute != null and is_instance_valid(_chute):
+		_chute.size = sz
+		_chute.position = Vector2.ZERO
+		_chute.top_inset = top_inset
 
 func _process(_delta: float) -> void:
 	# "item_dropped" fires the moment a round starts, when the item is still one full item-height
@@ -159,6 +199,32 @@ func _process(_delta: float) -> void:
 		fall_tween.pause()
 	else:
 		fall_tween.play()
+
+# The bucket the item went into reacts to catching it. Nothing on this screen moved on a drop
+# except a tick appearing in a label — the buckets themselves sat perfectly still whether the
+# player was right or wrong, which is most of why the game felt inert.
+#
+# A right answer is a quick squash-and-settle, as though something landed in it. A wrong one is a
+# short shake. Both are driven from the bucket's own center so it does not slide out of its row.
+func _bucket_react(bucket: int, is_right: bool) -> void:
+	if bucket < 0 or bucket >= _bucket_images.size():
+		return
+	var img: TextureRect = _bucket_images[bucket]
+	if img == null or not is_instance_valid(img):
+		return
+	img.pivot_offset = img.size * 0.5
+	var tw: Tween = create_tween()
+	if is_right:
+		img.modulate = Color(1.35, 1.35, 1.2)
+		tw.tween_property(img, "scale", Vector2(1.14, 0.86), 0.09)
+		tw.tween_property(img, "scale", Vector2(0.96, 1.06), 0.10)
+		tw.tween_property(img, "scale", Vector2.ONE, 0.12)
+		tw.parallel().tween_property(img, "modulate", Color.WHITE, 0.22)
+	else:
+		var x: float = img.position.x
+		tw.tween_property(img, "position:x", x - 7.0, 0.05)
+		tw.tween_property(img, "position:x", x + 7.0, 0.08)
+		tw.tween_property(img, "position:x", x, 0.07)
 
 func _setup_bucket_images() -> void:
 	var sides: Array = [
@@ -266,38 +332,42 @@ func _gen_colored_shape(is_correct: bool) -> Dictionary:
 	var shapes: Array = ["■", "●", "▲", "★"]
 	var shape: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
-		return {"shape": shape, "color": [Color.BLUE, Color.RED][rng.randi_range(0, 1)]}
-	var others: Array = [Color(0.0, 0.75, 0.0), Color.YELLOW, Color(0.6, 0.0, 0.9), Color.WHITE, Color.ORANGE]
-	return {"shape": shape, "color": others[rng.randi_range(0, others.size() - 1)]}
+		return {"shape": shape, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
+	# Anything that is NOT the blue/red the rule accepts. Named, then looked up, so these stay the
+	# same objects the equality test compares against.
+	var others: Array = ["GREEN", "YELLOW", "PURPLE", "WHITE", "ORANGE"]
+	return {"shape": shape, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
 
 func _make_text(item: Variant) -> Label:
+	# Shapes go through here too, not only through _make_colored_shape: the "square", "filled" and
+	# "hollow" rules all generate bare glyphs. Converting only the colored-shape rule left three of
+	# the four shape rules — and so most of what the player actually sees — as flat glyphs.
+	var as_text: String = _u(str(item))
+	if Sleek.is_shape(as_text):
+		return ShapeLabel.make(as_text, Sleek.PALETTE["WHITE"], item_font_size)
 	var lbl: Label = Label.new()
-	lbl.text = _u(str(item))
+	lbl.text = as_text
 	lbl.add_theme_font_size_override("font_size", item_font_size)
 	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Sleek.style_text(lbl)
 	return lbl
 
 func _make_stroop(item: Dictionary) -> Label:
 	var lbl: Label = Label.new()
 	lbl.text = _u(item["text"])
 	lbl.add_theme_font_size_override("font_size", 44)
-	lbl.add_theme_color_override("font_color", item["color"])
 	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Sleek.style_text(lbl, item["color"])
 	return lbl
 
+# Drawn, not typeset — see scripts/shape_label.gd. Still a Label, so the pair layout that measures
+# both objects and shares the row width between them is untouched.
 func _make_colored_shape(item: Dictionary) -> Label:
-	var lbl: Label = Label.new()
-	lbl.text = item["shape"]
-	lbl.add_theme_font_size_override("font_size", item_font_size)
-	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.modulate = item["color"]
-	return lbl
+	return ShapeLabel.make(item["shape"], item["color"], item_font_size)
 
 func _make_pair_control(item_a: Variant, mod_a: Dictionary, item_b: Variant, mod_b: Dictionary) -> Control:
 	var c: Control = Control.new()
@@ -449,7 +519,10 @@ func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
 
 func _clear_fall_area() -> void:
 	for child in %FallArea.get_children():
-		if child != _trap_poly:
+		# The chute and its base fill are scenery, not items: this clears the round's falling
+		# object, and freeing the chute with it left the game running in an empty box from the
+		# first round onward.
+		if child != _trap_poly and child != _chute:
 			child.queue_free()
 	fall_item_node = null
 	if fall_tween != null:
@@ -569,6 +642,7 @@ func _evaluate_answer(bucket: int) -> void:
 		%FeedbackLabel.modulate = Color.RED
 
 	%FeedbackLabel.modulate.a = 1.0
+	_bucket_react(bucket, is_right)
 	game.tutorial_notify("answered_right" if is_right else "answered_wrong")
 
 	# Animate item to selected bucket

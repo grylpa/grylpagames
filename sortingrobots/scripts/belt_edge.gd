@@ -5,7 +5,9 @@ extends Control
 # draws beyond it (above y=0, below y=h); no ancestor may clip it.
 
 const STRIP_H: float = 5.0
-const BELT_COLOR: Color = Color(0.0, 0.06, 0.0, 0.6)
+# The belt's own color, so these fades keep matching it. It was a hardcoded copy of the old flat
+# green and went stale the moment the belt was restyled.
+const BELT_COLOR: Color = Sleek.BELT_FILL
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE

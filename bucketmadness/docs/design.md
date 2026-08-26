@@ -223,3 +223,105 @@ Specific to this game:
 - `fall_tween.kill()` is called at start of `_evaluate_answer()` to stop fall animation immediately.
 - The dumpster (`correct_bucket = 1`) is bucket index 1 (center), not the right bucket.
 - Category 2 (dumpster) uses `current_pair[0]["gen"].call(false)` — a "wrong" example from the left modality's generator.
+
+---
+
+## Visual style
+
+The objects on the belt are **drawn**, not typeset. They used to be font glyphs in a Label — `"■"`
+tinted `Color.RED` — which is the whole reason this game looked flat: a glyph is one silhouette at
+whatever weight the font happens to have, in the most saturated red a screen can produce, with no
+shading anywhere.
+
+`scripts/sleek.gd` (`Sleek`) draws each shape with a contact shadow, a vertical gradient and a rim
+light along the top edge — the three things a real object does under a light — and
+`scripts/shape_label.gd` (`ShapeLabel`) wraps that as a **Label subclass**, so the pair-layout pass
+that measures both objects and shares the row width between them is untouched. The text is still
+set, because that is what the layout measures; it is just painted transparent.
+
+The palette moved there too. `Color.RED` is literally `(1, 0, 0)`: it vibrates against a dark
+background and has no headroom left to lighten into, so a gradient has nowhere to go.
+
+### Shapes were only part of it
+
+Measured across all ten rules, 40 items each: **only four rules produce shapes** (`square`,
+`filled`, `hollow`, `color_shape`) — 160 of 400 items. The other six produce **digits, letters and
+words**, and no amount of shape drawing touches those: a bare "7" on a flat belt looks exactly as
+unfinished as a flat square did.
+
+So every object, text or shape, now sits on the same **tile**: rounded, slightly raised, soft
+shadow (`Sleek.tile()`). That is what turns a character into an object, and it is the change that
+makes text and shapes look like they belong to the same game. Coverage is asserted rather than
+assumed: 400/400 items in each game are either a drawn shape or tiled text.
+
+The tile goes on as the Label's `"normal"` stylebox, which draws **behind** the text. A script's
+`_draw()` on a Label paints *over* it — right for the shape, useless for a backing card.
+
+**The one thing to be careful with:** item colors are compared for **equality** by the rule tests
+(`item["color"] == _color_values[word]` for stroop, `c == BLUE or c == RED` for colored shapes), so
+every color must come from `Sleek.PALETTE` and nowhere else. A raw `Color.BLUE` left behind
+anywhere silently stops matching and the rule quietly becomes unsatisfiable — there were three such
+sites per game, and they are now all lookups.
+
+### The chrome
+
+The belts were the largest thing on screen after the background and the flattest of all: a
+`PanelContainer` whose entire style was `bg_color = Color(0, 0.06, 0, 0.6)` — no border, no corner
+radius, no shadow. Two 140x420 slabs of flat dark green over a grass photo. Restyling the objects
+ON them could never fix that, which is why the first passes barely showed.
+
+`Sleek.belt()` gives them rounded corners, a lit top edge, a darker base and a real drop shadow, so
+the machine sits on the scene instead of being a hole cut in it. `Sleek.header()` puts each rule on
+a chip that belongs to the belt below it, rather than bare yellow text floating on grass.
+Bucketmadness has no belts — its chute (`_trap_poly`) takes the same `BELT_FILL`, so the three
+games read as one family.
+
+Applied from `_apply_sleek_chrome()` in `_ready()` rather than by editing the scene's sub-resources,
+so the styling lives with the rest of the look.
+
+### The scene
+
+The whole screen was `res://art/grass.png` — a photographic grass texture, in a game about machines
+sorting things. It covered 100% of the pixels and had nothing to do with the subject, which is why
+restyling the widgets on top of it kept failing to change what the screen looked like.
+
+`scripts/sleek_scene.gd` (`SleekBackdrop`) draws an interior instead: a vertical gradient wall, a
+darker floor below a horizon line at 70% height, a pool of light over the play area, and a vignette
+closing the corners so the center reads as lit. Drawn rather than an image, so it scales to any
+screen with no second asset and the palette stays with the rest of the look. The old TextureRect is
+hidden, not deleted — the scene file still owns it.
+
+`scripts/belt_tread.gd` (`BeltTread`) makes a belt an actual machine: an inset trough, slats
+scrolling down it, a lit lip on each slat's leading edge, side rails and a roller at each end.
+**Nothing on these screens moved before** — that, as much as the flat color, is what made them read
+as a list of labels rather than something running. It is added as child 0 of the belt's
+PanelContainer, which stretches every child to fill: without `move_child(tread, 0)` the tread paints
+over the objects instead of under them.
+
+The tread runs at 34 px/s on purpose. Background motion that competes with the objects the player
+is trying to read is worse than none.
+
+`belt_edge.gd` now takes `Sleek.BELT_FILL` for its fade strips. It had a hardcoded copy of the old
+flat green and went stale the moment the belt was restyled.
+
+### The chute and the buckets
+
+The fall area was a single flat-colored trapezoid — one `Polygon2D`, covering the largest part of
+the play area, with no edges, no depth and nothing moving in it. The falling object was the only
+thing that ever changed.
+
+`scripts/chute_view.gd` (`ChuteView`) draws it as an actual chute: walls darkening toward the
+sides, rails down both slanted edges, a shadow under the mouth, a pool of light at the bottom where
+the item is heading, and chevrons drifting downward so the chute reads as flowing the way the item
+is about to. The chevrons are the belt-tread idea from the other two sorting games, so the three
+look like one family. The flat trapezoid stays underneath as a base fill so nothing shows through
+where the two disagree by a pixel.
+
+**`_clear_fall_area()` had to learn about it.** It frees every child of `%FallArea` except
+`_trap_poly`, so the chute was destroyed at the end of the first round and the game ran in an empty
+box from then on. Anything scenic added there needs the same exemption.
+
+The buckets now **react to catching an item** (`_bucket_react`): a squash-and-settle plus a brief
+brightening when the answer was right, a short shake when it was wrong. Nothing on this screen used
+to move on a drop except a tick appearing in a label — the buckets sat perfectly still either way,
+which is most of why the game felt inert.
