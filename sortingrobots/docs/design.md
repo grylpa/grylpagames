@@ -165,3 +165,30 @@ green and went stale the moment the belt was restyled.
 
 The old TextureRect is hidden rather than deleted — the scene file still owns it.
 
+
+### The robots
+
+Both games are named after them; neither had one on screen. The only "robot" that existed was a
+transient gripper (`claw.gd`) spawned for the half-second of a successful pick-up and thrown away.
+
+A first attempt stood arms in the gap beside each belt, and it was **worse than nothing**: pleasant
+to look at, unconnected to anything, crowding the board while a separate claw did the actual
+picking. An arm that is not doing the picking is scenery competing with the game.
+
+`scripts/robot_arm.gd` (`RobotBay`) now bolts each base to the **screen edge**, clear of the belts,
+and the arm **is** the claw:
+
+- `hold(bay, flyer)` from `_claw_pull` hands the robot the flying item. It tracks that node's real
+  position every frame, so the gripper is on the item and is dragged along as it is yanked off —
+  not an animation playing next to it. It retracts by itself once the flyer is freed.
+- The elbow comes from real **two-bone IK** (law of cosines), with the bend direction chosen per
+  side so both arms flex away from the belt instead of one folding across it.
+- Idle, the gripper tucks against the edge and drifts on a slow sine; it never crosses onto a belt.
+- Jaws open while reaching and close once it has the item; the base lamp is amber at rest, green
+  while working.
+
+`claw.gd` is deleted from both games — the robot's own arm replaced it.
+
+It is an overlay across the level rather than nodes in the layout, positioning itself from the
+belts' rects every frame, because the layout resizes with the window and belt height is computed at
+runtime by `_size_belts`.
