@@ -2,7 +2,7 @@ extends Node
 
 var starting_level_id: int = 1
 var use_uppercase: bool = true
-var game: GenericGameUtil = GenericGameUtil.new("Monkey C", "monkeyc", 0, 10, 0, 0)
+var game: GenericGameUtil = GenericGameUtil.new("Apprentice", "monkeyc", 0, 10, 0, 0)
 
 var level_queue: Array = []
 

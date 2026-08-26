@@ -45,7 +45,7 @@ var learned_hold_bottom_ms: float = 1000.0
 var large_move_threshold_frac: float = 0.24
 
 # 16h dummy max so GenericGameUtil timer never expires — we manage our own elapsed timer
-var game: GenericGameUtil = GenericGameUtil.new("Udbr", "udbr", 16, 0, 0)
+var game: GenericGameUtil = GenericGameUtil.new("Buoy", "udbr", 16, 0, 0)
 
 func init_globals() -> void:
 	game.init_sizes()

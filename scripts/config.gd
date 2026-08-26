@@ -7,7 +7,7 @@ var games = [
 	["aliens",        "Aliens",         "Work the spaceport gates",                               "Brain twisters"],
 	["sortingrobots", "Sorting Robots", "Sort items by hidden rules",                             "Brain twisters"],
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
-	["monkeyc",       "Monkey C",       "Figure out the rule",                                    "Brain twisters"],
+	["monkeyc",       "Apprentice",     "Watch the robot, then name its rule",                    "Brain twisters"],
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
@@ -36,7 +36,7 @@ var games = [
 	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes", false, true, false],
 
 	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
-	["udbr",          "Udbr",           "Follow your breathing pattern",                          "Serenity"],
+	["udbr",          "Buoy",           "Float up and down with your breath",                     "Serenity"],
 	["crack",         "Crack the Safe", "Crack the safe with your breath",                        "Serenity"],
 	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
 	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],

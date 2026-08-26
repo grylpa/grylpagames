@@ -1,6 +1,6 @@
 extends RefCounted
 
-# Udbr's coached tutorial. See docs/tutorials.md for the step schema.
+# Buoy's coached tutorial. See docs/tutorials.md for the step schema.
 #
 # THE TEXT COMES FROM THE GAME'S OWN "I" INSTRUCTIONS SCREEN (udbr/scripts/main.gd), which is
 # accurate. Three earlier versions of this file were wrong because they described a model I had
@@ -42,7 +42,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Up Down Breathe",
+			"title": "Buoy",
 			"text": "Breathe at your own pace.\n\nYour finger follows your breath.",
 		},
 		{

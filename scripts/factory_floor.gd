@@ -3,7 +3,7 @@ class_name FactoryFloor
 
 # The floor of a factory, seen FROM ABOVE.
 #
-# Sorting Robots and Monkey C are top-down: the belts are conveyors viewed from overhead, with items
+# Sorting Robots and Apprentice are top-down: the belts are conveyors viewed from overhead, with items
 # traveling down them. The first factory backdrop drew a wall meeting a floor at a horizon, which
 # is a side-on view — against top-down belts it read as a conveyor standing upright against a wall.
 # A top-down room has no horizon and no vanishing point: every seam is parallel, and the only depth

@@ -875,7 +875,7 @@ saw an empty rectangle. Where the thing being pointed at is not visually obvious
 to name what is inside the frame. (The door counts in the level data were enough to work this out;
 no need to look at the art.)
 
-**When picking "one of these" to point at, pick one that is wholly on screen.** Monkey C's item
+**When picking "one of these" to point at, pick one that is wholly on screen.** Apprentice's item
 spotlight took the item furthest down the belt, which is usually half off its end — the spotlight
 landed at y=792 on a 788px overlay. Choose from the center of the region and require the candidate
 to be fully inside it.
