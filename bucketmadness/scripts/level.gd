@@ -140,11 +140,17 @@ func _ready() -> void:
 		%RightRuleLabel.add_theme_font_size_override("font_size", 26)
 		%DumpsterLabel.add_theme_font_size_override("font_size", 26)
 		%AvgTimeLabel.add_theme_font_size_override("font_size", 36)
+	# Prose labels take the NO-FALLBACK face. The symbol font's line box is 2.09x the font size
+	# (the Noto Symbols fallback is very tall and a Font's line height is the MAX over its
+	# fallbacks), which on these WRAPPED rule labels nearly doubles the gap between lines --
+	# "Shape is / blue or red?" reading as two separate captions. Only the tick/cross needs
+	# symbols.
 	var f: Font = MainGlobals.get_system_sans_font()
-	%LeftRuleLabel.add_theme_font_override("font", f)
-	%RightRuleLabel.add_theme_font_override("font", f)
-	%DumpsterLabel.add_theme_font_override("font", f)
-	%AvgTimeLabel.add_theme_font_override("font", f)
+	var ft: Font = MainGlobals.get_text_font()
+	%LeftRuleLabel.add_theme_font_override("font", ft)
+	%RightRuleLabel.add_theme_font_override("font", ft)
+	%DumpsterLabel.add_theme_font_override("font", ft)
+	%AvgTimeLabel.add_theme_font_override("font", ft)
 	%FeedbackLabel.add_theme_font_override("font", f)
 	%FallArea.clip_contents = true
 	_chute = ChuteView.new()
@@ -188,17 +194,36 @@ func _process(_delta: float) -> void:
 	if not _tut_notified_ready and _tutorial_should_hold():
 		_tut_notified_ready = true
 		game.tutorial_notify("item_ready")
-	if _slide_tween != null and is_instance_valid(_slide_tween):
-		if game.paused():
-			_slide_tween.pause()
-		else:
-			_slide_tween.play()
-	if fall_tween == null:
+	# is_instance_valid() is NOT enough: a Tween that has run to the end is still a live object, but
+	# play() on it errors ("Can't play finished Tween"). Tween.is_valid() is the one that goes false
+	# when it finishes or was built outside the tree, and _process runs every frame after the item
+	# has landed — so this fired continuously once a round's animation completed.
+	_drive_tween(_slide_tween, game.paused())
+	_drive_tween(fall_tween, game.paused() or _tutorial_should_hold())
+
+# Pause or resume a tween that may already have finished. Kept in one place because both of this
+# game's tweens are driven every frame from _process to follow the game's own paused state.
+func _drive_tween(tw: Tween, want_paused: bool) -> void:
+	if tw == null or not is_instance_valid(tw) or not tw.is_valid():
 		return
-	if game.paused() or _tutorial_should_hold():
-		fall_tween.pause()
-	else:
-		fall_tween.play()
+	if want_paused:
+		if tw.is_running():
+			tw.pause()
+	elif not tw.is_running():
+		tw.play()
+
+# Godot has no is_dead(): a tween that has run to the end still reports is_valid() == true, and
+# is_running() == false is indistinguishable from "paused". The only reliable way not to call
+# play() on a finished tween is to stop holding a reference to one — so every tween this game
+# drives from _process clears its own variable the moment it finishes.
+func _forget_when_done(tw: Tween, which: String) -> void:
+	if tw == null:
+		return
+	tw.finished.connect(func():
+		if which == "fall" and fall_tween == tw:
+			fall_tween = null
+		elif which == "slide" and _slide_tween == tw:
+			_slide_tween = null)
 
 # The bucket the item went into reacts to catching it. Nothing on this screen moved on a drop
 # except a tick appearing in a label — the buckets themselves sat perfectly still whether the
@@ -592,6 +617,7 @@ func _next_round() -> void:
 	fall_area.add_child(fall_item_node)
 
 	fall_tween = create_tween()
+	_forget_when_done(fall_tween, "fall")
 	fall_tween.tween_property(fall_item_node, "position:y", h - item_h - 30.0, fall_duration)
 	fall_tween.tween_callback(_on_fall_reached_bottom)
 
@@ -653,6 +679,7 @@ func _evaluate_answer(bucket: int) -> void:
 		var fracs: Array = [0.1, 0.5, 0.9]
 		var target_x: float = w * fracs[bucket] - item_w * 0.5
 		_slide_tween = create_tween().set_parallel(true)
+		_forget_when_done(_slide_tween, "slide")
 		_slide_tween.tween_property(fall_item_node, "position:x", target_x, 0.3)
 		_slide_tween.tween_property(fall_item_node, "position:y", h + 20.0, 0.35)
 
@@ -720,16 +747,32 @@ func _input(event: InputEvent) -> void:
 
 func _level_done() -> void:
 	game.level_is_done = true
-	BucketMadnessG.record_level_result(current_level_id, pct_correct())
-	game.sig_level_is_done.emit(true)
-	MainGlobals.global_level_is_done(true)
+	var pct: int = pct_correct()
+	var need: int = BucketMadnessG.pass_pct_for(current_level_id)
+	# Passing is now a RESULT, not a formality: below the level's own accuracy the same
+	# level comes round again instead of the next one.
+	var passed: bool = BucketMadnessG.record_level_result(current_level_id, pct)
+	game.sig_level_is_done.emit(passed)
+	MainGlobals.global_level_is_done(passed)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
-		pct_correct(),
+	var extra: String = "\n\nAccuracy: %d%% (need %d%%)\nMean time: %s" % [
+		pct, need,
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
+	# Say what happens next, either way. "Accuracy: 40%" alone does not tell the player whether
+	# they are moving on, which is the only thing they want to know at that moment.
+	extra += "\n\n" + _progress_line(passed, need)
 	game.show_level_done_popup(self, "", extra, 0, "")
+
+# What the player gets next, in words.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	var nxt: int = BucketMadnessG.peek_next_level_id()
+	if nxt <= 0 or nxt == current_level_id:
+		return "Level passed."
+	return "Level passed — on to level %s." % BucketMadnessG.level_name_for(nxt)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

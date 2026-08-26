@@ -650,7 +650,16 @@ func set_game_font(idx: int) -> void:
 
 var _system_sans_font: Font = null
 func _init_app_fonts() -> void:
-	var base: FontFile = ResourceLoader.load("res://art/fonts/OpenSans-SemiBold.ttf") as FontFile
+	# A PRIVATE copy of the face. ResourceLoader hands out ONE shared FontFile per path, so setting
+	# `fallbacks` on the cached instance reached every other user of this TTF — the game chooser's
+	# description labels, anything that load()s the path, and any FontVariation built on it — and
+	# dragged their line box from 1.23x the font size to 2.09x, because a Font's line height is the
+	# MAX over its fallbacks and Noto Sans Symbols is very tall.
+	#
+	# On one line that only shifts the vertical centering. On a WRAPPED label it nearly doubles the
+	# gap between lines, which is what "Shape is / blue or red?" looked broken for.
+	var base: FontFile = ResourceLoader.load("res://art/fonts/OpenSans-SemiBold.ttf", "",
+		ResourceLoader.CACHE_MODE_IGNORE) as FontFile
 	if base == null:
 		return
 	var symbols2: FontFile = ResourceLoader.load("res://art/fonts/NotoSansSymbols2-Regular.ttf") as FontFile
@@ -662,6 +671,26 @@ func _init_app_fonts() -> void:
 		fallbacks.append(symbols)
 	base.fallbacks = fallbacks
 	_system_sans_font = base
+
+# The same face WITHOUT the symbol fallbacks — for prose.
+#
+# A Font's line height is the MAX over its fallbacks, and Noto Sans Symbols is a very tall face, so
+# `get_system_sans_font()` reports a line box of 2.09x the font size where the bare face is 1.23x.
+# On a single line that only shifts the vertical centering; on a WRAPPED label it nearly doubles
+# the gap between lines, which is what "Shape is / blue or red?" looked wrong for.
+#
+# The theme font already solves this by carrying no fallbacks (see build_game_font). This is the
+# same fix for in-game text: use THIS font for anything that is words, and get_system_sans_font()
+# only where a symbol glyph is actually typeset.
+var _text_font: Font = null
+
+func get_text_font() -> Font:
+	if _text_font == null:
+		var base: FontFile = ResourceLoader.load("res://art/fonts/OpenSans-SemiBold.ttf") as FontFile
+		if base == null:
+			return get_system_sans_font()
+		_text_font = base
+	return _text_font
 
 func get_system_sans_font() -> Font:
 	if _system_sans_font == null:
