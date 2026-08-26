@@ -386,3 +386,133 @@ The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus
 *"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
 
 Thresholds ramp with difficulty rather than sitting flat.
+
+### The containers are drawn
+
+The three containers were illustrated PNGs sitting among a screen that is otherwise entirely drawn —
+the factory wall, the chute, the object tiles, the shapes. They read as pasted in from a different
+game, and being fixed images they could not react to anything either.
+
+`scripts/bucket_view.gd` (`BucketView`) draws them in the same palette: a tapered body with a lit
+side and a shaded edge, a dark mouth so the container reads as hollow, a rim, and two hoops. The
+dumpster is the same object drawn wider, squarer and with a hazard band, so it stays visibly the odd
+one out without belonging to another art style.
+
+Because the lid is drawn, `open_amount` (0..1) is a real angle: it is **tweened**, so the flaps
+swing. Measured, 20 intermediate values across a 0.18 s open.
+
+**A mistake worth recording.** An earlier attempt animated the shipped sprites instead, assuming
+`bucket_closed` / `bucket_open_1` / `bucket_open_2` were three frames of one bucket because of their
+names. They are not related images, so swapping between them looked like the bucket being *replaced*
+rather than opening. Filenames are not evidence about what a picture contains; the only ways to know
+are to look at it or to draw it yourself.
+
+`scripts/bucket_stage.gd` (`BucketStage`) still gives them a floor: one shelf spanning the row, a
+contact shadow under each, and a puff of dust when something lands. It draws under the containers
+and reads their live rects each frame, since the row is laid out by a container.
+
+### The item goes IN
+
+It used to tween to `h + 20` inside `%FallArea`, which is `clip_contents` — so it was cut off at the
+bottom of the chute and **vanished in mid-air above the buckets**. It never reached one, which made
+the whole point of the game invisible.
+
+It is now reparented to the `BucketStage` for the last leg. That fixes both halves at once: the
+stage is not clipped, and it sits UNDER the containers in the tree, so the item is **occluded by the
+bucket's front wall** as it drops in rather than sliding across it. It shrinks to 0.45 on the way
+down, which reads as going into the container rather than onto it, and the dust puff fires on
+arrival rather than at the moment of judgement. Measured: the item finishes 5 px from the mouth,
+from 490 px away at release.
+
+**Z-order matters as much as the reparent.** The stage sits below `MainLayout` in the tree, so on
+its own that hid the item behind the chute for the entire journey — it only reappeared as it entered
+the container, which looked like it had teleported. The item takes `z_index = 4` and the containers
+`z_index = 8`, so the order is chute (0) < item (4) < containers (8): visible the whole way down,
+and still occluded by the bucket's front wall at the end.
+
+### Bucket vs dumpster
+
+They differed only in width, which is not a difference a player can name, and the dumpster wore a
+straight yellow band that meant nothing and fought the rounded shading around it.
+
+They are now different **objects**: the bucket is a cylinder, the dumpster a box.
+
+Two geometry mistakes worth recording, because both made the shapes read as wrong rather than as
+plain:
+
+- **A cylinder's base is an ellipse, not a line.** The mouth is drawn as an ellipse because we look
+  slightly down into it, so a flat bottom edge contradicts it — the whole thing reads as a flat
+  trapezoid wearing a round lid. The silhouette now runs down the left wall, around the FRONT of
+  the base ellipse, up the right wall and back across the front of the mouth, as one closed shape.
+  Its hoops follow the same curve instead of cutting straight across.
+
+  The first attempt at that outline walked the base arc **right to left** while the previous point
+  was the bottom-LEFT corner, so the loop folded back over itself: `Invalid polygon data,
+  triangulation failed` — 618 times in a single run, and nothing drawn. `bucket_silhouette()` is a
+  method so a probe can test the real outline for self-intersection; the probe that missed this
+  rebuilt the same maths itself and confirmed its own bug.
+- **Nothing may be drawn below the dumpster's far top edge.** The top face recedes UP the screen
+  (it is the opening); an earlier version also drew a "far wall" polygon below that edge, which put
+  a solid surface inside the hole and made the box look inside-out. The faces are now drawn side,
+  then opening, then front — back to front — and the lid hinges along the far edge and folds back
+  over the top.
+
+### Buckets have no lids
+
+The buckets briefly grew two hinged flaps that swung out of the rim as an item approached. Buckets
+are open-topped containers; the flaps existed only because an open/close animation was wanted, and
+on screen they read as two diagonal lines appearing from nowhere.
+
+They are gone. "Ready to receive" is now a lift in the rim colour and a little light down the inside
+wall — what an open container catching the light would actually do. `open_amount` still drives it,
+so the timing is unchanged.
+
+**The dumpster lid folds, it does not swing.** Its hinge is a horizontal axis in the scene, so the
+lid must foreshorten as it lifts: the projected depth shrinks by `cos(angle)` while it rises by
+`sin(angle)`. It was being rotated as a 2D vector (`span.rotated()`), which swung it sideways across
+the screen — which is exactly why the shut lid looked right and the open one did not. Shut, the two
+methods agree; they only diverge as it opens. Measured: horizontal reach from the hinge falls 21 px
+to 3 px while the tip rises, and the panel stays rigid.
+
+### Only the chosen container reacts
+
+All three used to open the moment an item was released. That says nothing — no choice has been made
+yet, so three containers gaping at once is just movement. They now stay shut while the item falls,
+and `_open_one()` opens **only the one the item is going into**, at the moment the answer is given.
+
+### Going in, not behind
+
+The item was at `z_index = 4`, under the containers (z 8), so the container's body covered it as
+soon as they overlapped: it read as sliding out of sight BEHIND the bucket rather than dropping into
+it. Being occluded is the wrong tool here — the mouth is drawn as part of the same node, so there is
+no "inside" to be occluded by.
+
+It now draws **above** the containers (z 12) and sells going in the way a falling object does:
+shrinking to 0.12 as it descends, and fading out only over the **last third** of the trip, so it
+stays solid all the way to the rim and disappears as it passes below it. Measured: solid while more
+than 40 px from the mouth, faded within it.
+
+### The dumpster label, and a tofu trap
+
+The label read "♻ Dumpster". After the prose/symbol font split it renders as a **blank box**: the
+no-fallback face has no U+267B, verified with `Font.has_char()`. The glyph was also wrong in meaning
+— a recycling symbol on the bin for things that match *neither* rule implies sorting for reuse,
+which is the opposite. It now reads "Dumpster", and the drawn container carries the meaning.
+
+**The general trap:** splitting prose from symbols means any label that mixes them silently loses
+its glyph. A runtime scan over every Label and Button in six games checked 14 non-ASCII glyphs
+against the font each one is actually using and found 0 missing — worth re-running after any font
+change, since nothing about a tofu box shows up as an error.
+
+### The dumpster reacts too
+
+Its opening brightens and its front lip catches the light as it receives, the same cue the bucket
+mouths use. It was the only container that gave nothing back when something went into it.
+
+### The chute is hardware
+
+It was a dark trapezoid with chevrons and two hairline rails. It now has: rails as tapering bands
+with rivets and a lit inner edge, a bolted lip across the mouth so it reads as fixed to something
+above rather than being a hole, a shadow under that lip so the throat recedes, and a flared bottom
+edge that catches the light — so the chute visibly DELIVERS into the row of containers instead of
+merely stopping above them.

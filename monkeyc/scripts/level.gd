@@ -209,8 +209,10 @@ func _ready() -> void:
 	var two_line_h: float = f.get_height(rule_fs) * 2.0 + 12.0
 	%LeftRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
 	%RightRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
-	%LeftRuleLabel.add_theme_constant_override("line_spacing", -8)
-	%RightRuleLabel.add_theme_constant_override("line_spacing", -8)
+	# 0, not -8: that was compensating for the symbol font's 2.09x line box, and these labels now
+	# use the prose face, where it would squeeze the wrapped lines together instead.
+	%LeftRuleLabel.add_theme_constant_override("line_spacing", 0)
+	%RightRuleLabel.add_theme_constant_override("line_spacing", 0)
 	%LeftRuleLabel.modulate.a = 0.0
 	%RightRuleLabel.modulate.a = 0.0
 	%LeftItemsContainer.clip_contents = true
