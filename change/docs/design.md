@@ -52,7 +52,7 @@ comes from the level's `coin_size` key.
 | `overlap` | `"none"` / `"med"` / `"max"` — how much piled coins cover each other |
 
 ## Gameplay flow
-- **Pre-level popup** (`game.show_text_popup`, Storm-style): coins, board time, total time.
+- **Pre-level popup** (`game.show_game_popup`, the shared briefing card — see "The level intro" below): coins, board time, total time.
   Play starts when it closes (`closed` → `_on_game_popup_closed`).
 - **Board build** (`_build_board`): pick a denomination per coin (weighted). Choose a **solution
   subset** (proper, non-trivial when `num_coins ≥ 3`: `2..num_coins-1` coins) and set the target
@@ -163,3 +163,21 @@ Three things stopped the coach's stated amount from being payable:
 
 `_tutorial_setup()` also cuts `gap_ms` (1000 -> 200) and `feedback_ms` (1200 -> 500) so "Another
 pile." is not followed by a second of nothing. `_load_level` restores both.
+
+## The level intro
+
+The briefing is the shared card (`GenericGameUtil.show_game_popup` -> `scripts/result_card.gd`),
+the same one every other game uses, on its BRIEFING tone (cool header, "Start" on the button). It
+replaced `show_text_popup` / `PopupText`, a fixed-size yellow panel that sized itself to its text
+and so needed every line hand-wrapped with `\n`.
+
+Two things follow from that and both matter when editing the text:
+
+- **Prose is written as sentences.** The card wraps it. Hand-broken lines now come out as separate
+  centered fragments.
+- **A fact is written `Label: value`** and is set as a table row, label left and value right, with
+  a hairline between adjacent facts. So the facts are grouped together, not scattered between the
+  prose lines, or they end up as separate one-row tables.
+
+Play still starts when the card closes, now via `MainGlobals.sig_game_popup_closed` (connected
+once, guarded with `is_connected`) instead of the popup instance's own `closed` signal.

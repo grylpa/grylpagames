@@ -190,15 +190,18 @@ func new_game(_from_scratch: bool = true) -> void:
 		game.level_is_ready = true
 		started_playing.emit()
 		return
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
+	# The shared briefing card (ResultCard) wraps prose itself and sets "Label: value" lines as a
+	# table, so the sentence is written as a sentence.
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Level %d" % current_level_id,
 		# parentheses required — `%` binds tighter than `+`
-		("Find the two\nmatching cards\nand tap them.\n\n" +
+		("Find the two matching cards and tap them.\n\n" +
 		"Grid: %d x %d\n" +
 		"Board time: %s\n" +
 		"Total: %s") % [
 			nc, nr, _fmt_secs(show_time_ms / 1000.0), _fmt_secs(float(duration_sec))
 		])
-	intro.closed.connect(_on_game_popup_closed)
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:

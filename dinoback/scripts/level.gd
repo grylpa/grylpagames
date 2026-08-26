@@ -281,32 +281,27 @@ func new_game(_from_scratch: bool = true) -> void:
 		game.level_is_ready = true
 		started_playing.emit()
 		return
-	# Intro popup (centered panel, tap anywhere to start). Play starts when it closes. It sizes to
-	# its text, so keep short \n lines — there is no auto-wrap here.
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, _intro_text())
-	intro.closed.connect(_on_game_popup_closed)
+	# The shared briefing card (ResultCard): prose wraps itself and "Label: value" lines are set as
+	# a table, so the text below is written as sentences and facts, not hand-wrapped lines.
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Level %d" % current_level_id, _intro_text())
 
 # The rule is spelled out in full every level. It changes from level to level along two axes at
 # once (what N is, and which attribute counts), and neither is guessable from the cards.
 func _intro_text() -> String:
 	var noun: String = _symbol_noun()
-	var lines: Array = [
-		"Cards: %s" % _categories_phrase(),
-		"N = %d" % n_back,
-		"",
-	]
+	# Sentences, not hand-wrapped lines — the card wraps prose itself. The facts go last so they
+	# form ONE table instead of being split by the rule text.
+	var lines: Array = []
 	match rule:
 		"color":
-			lines.append("MATCH = same COLOR as")
-			lines.append("the card %d back." % n_back)
+			lines.append("MATCH = same COLOR as the card %d back." % n_back)
 			lines.append("The %s does not matter." % noun.to_lower())
 		"both":
-			lines.append("MATCH = same %s AND" % noun)
-			lines.append("same COLOR as the card")
-			lines.append("%d back." % n_back)
+			lines.append("MATCH = same %s AND same COLOR as the card %d back." % [noun, n_back])
 		_:
-			lines.append("MATCH = same %s as" % noun)
-			lines.append("the card %d back." % n_back)
+			lines.append("MATCH = same %s as the card %d back." % [noun, n_back])
 			if num_colors > 1:
 				lines.append("The color does not matter.")
 	lines.append("")
@@ -318,6 +313,8 @@ func _intro_text() -> String:
 	else:
 		lines.append("The first %d cards are just to watch." % n_back)
 	lines.append("")
+	lines.append("Cards: %s" % _categories_phrase())
+	lines.append("N: %d" % n_back)
 	lines.append("Duration: %s" % _fmt_secs(float(duration_sec)))
 	return "\n".join(lines)
 

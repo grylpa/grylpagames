@@ -276,10 +276,11 @@ func new_game(_from_scratch: bool = true) -> void:
 		_on_game_popup_closed()
 		return
 
-	# Storm-style intro popup (centered panel, tap anywhere to start). Play starts when
-	# it's closed. Sizes to its text, so keep short \n lines (no auto-wrap here).
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, _intro_text())
-	intro.closed.connect(_on_game_popup_closed)
+	# The shared briefing card (ResultCard): prose wraps itself and "Label: value" lines are set as
+	# a table, so the text below is written as sentences and facts, not hand-wrapped lines.
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Level %d" % current_level_id, _intro_text())
 
 # A tutorial plays the real level, but with the pressure taken off: a long per-card deadline (the
 # bar is being EXPLAINED, so it must not expire while the coach talks about it) and a scripted
@@ -303,15 +304,14 @@ func _tutorial_setup() -> void:
 # per-card bar under the header shows it far better than a number in a panel you have already
 # dismissed.
 func _intro_text() -> String:
+	# The facts sit together at the end so they form ONE table; prose above them is left to wrap.
 	var lines: Array = [
-		"Cards: %s" % _folders_phrase(),
-		"",
-		"SEEN = this card has already",
-		"appeared THIS round.",
+		"SEEN = this card has already appeared THIS round.",
 		"",
 		"Swipe RIGHT = seen before",
 		"Swipe LEFT = new",
 		"",
+		"Cards: %s" % _folders_phrase(),
 		"Duration: %s" % _fmt_secs(float(duration_sec)),
 	]
 	return "\n".join(lines)
