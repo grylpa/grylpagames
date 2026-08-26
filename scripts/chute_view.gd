@@ -17,6 +17,8 @@ const WALL_EDGE: Color = Color(0.031, 0.039, 0.059, 0.96)
 const RAIL: Color = Color(0.322, 0.376, 0.475, 0.95)
 const CHEVRON: Color = Color(0.322, 0.376, 0.475, 0.16)
 const FLOOR_GLOW: Color = Color(0.392, 0.541, 0.741, 0.10)
+const LIP: Color = Color(0.376, 0.431, 0.529)
+const RIVET: Color = Color(0.541, 0.596, 0.694, 0.75)
 
 const CHEVRON_GAP: float = 54.0
 @export var speed: float = 26.0
@@ -83,13 +85,51 @@ func _draw() -> void:
 		PackedColorArray([Color(FLOOR_GLOW.r, FLOOR_GLOW.g, FLOOR_GLOW.b, 0.0),
 			Color(FLOOR_GLOW.r, FLOOR_GLOW.g, FLOOR_GLOW.b, 0.0), FLOOR_GLOW, FLOOR_GLOW]))
 
-	# Rails down both slanted edges, and a shadow under the mouth.
+	# Rails down both slanted edges, as solid tapering bands rather than hairlines, with rivets.
 	var t0: Vector2 = _edges(0.0)
 	var t1: Vector2 = _edges(1.0)
-	draw_line(Vector2(t0.x, 0.0), Vector2(t1.x, h), RAIL, 3.0, true)
-	draw_line(Vector2(t0.y, 0.0), Vector2(t1.y, h), RAIL, 3.0, true)
+	_rail(Vector2(t0.x, 0.0), Vector2(t1.x, h), 1.0)
+	_rail(Vector2(t0.y, 0.0), Vector2(t1.y, h), -1.0)
+
+	# A lip at the mouth: the chute is a piece of hardware bolted to something above, not a hole.
+	var lip_h: float = maxf(h * 0.035, 7.0)
 	draw_polygon(
-		PackedVector2Array([Vector2(t0.x, 0.0), Vector2(t0.y, 0.0),
-			Vector2(_edges(0.06).y, h * 0.06), Vector2(_edges(0.06).x, h * 0.06)]),
+		PackedVector2Array([Vector2(t0.x - 6.0, -1.0), Vector2(t0.y + 6.0, -1.0),
+			Vector2(_edges(0.04).y + 3.0, lip_h), Vector2(_edges(0.04).x - 3.0, lip_h)]),
+		PackedColorArray([LIP, LIP, LIP.darkened(0.35), LIP.darkened(0.35)]))
+	draw_line(Vector2(t0.x - 6.0, 0.0), Vector2(t0.y + 6.0, 0.0), LIP.lightened(0.35), 2.0)
+	var bolts: int = 6
+	for i in range(bolts):
+		var bx: float = lerpf(t0.x + 8.0, t0.y - 8.0, (float(i) + 0.5) / float(bolts))
+		draw_circle(Vector2(bx, lip_h * 0.5), 2.2, RIVET)
+
+	# Shadow under the mouth, so the throat looks like it recedes.
+	draw_polygon(
+		PackedVector2Array([Vector2(t0.x, lip_h), Vector2(t0.y, lip_h),
+			Vector2(_edges(0.10).y, h * 0.10), Vector2(_edges(0.10).x, h * 0.10)]),
 		PackedColorArray([Color(0, 0, 0, 0.45), Color(0, 0, 0, 0.45),
 			Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.0)]))
+
+	# The bottom edge flares outward and catches the light: the chute visibly DELIVERS into the row
+	# of containers below instead of simply stopping.
+	var out_l: Vector2 = Vector2(t1.x - 10.0, h)
+	var out_r: Vector2 = Vector2(t1.y + 10.0, h)
+	draw_polygon(
+		PackedVector2Array([Vector2(_edges(0.93).x, h * 0.93), Vector2(_edges(0.93).y, h * 0.93), out_r, out_l]),
+		PackedColorArray([WALL_MID, WALL_MID, LIP.darkened(0.2), LIP.darkened(0.2)]))
+	draw_line(out_l, out_r, LIP.lightened(0.25), 3.0, true)
+
+# A rail as a tapering band with a lit inner edge and rivets, rather than a 3px line.
+func _rail(top: Vector2, bot: Vector2, inward: float) -> void:
+	var w_top: float = 7.0
+	var w_bot: float = 10.0
+	var a: Vector2 = top + Vector2(w_top * inward, 0.0)
+	var b: Vector2 = bot + Vector2(w_bot * inward, 0.0)
+	draw_polygon(PackedVector2Array([top, a, b, bot]),
+		PackedColorArray([RAIL, RAIL, RAIL.darkened(0.35), RAIL.darkened(0.35)]))
+	draw_line(top, bot, RAIL.lightened(0.30), 2.0, true)
+	var n: int = 7
+	for i in range(n):
+		var t: float = (float(i) + 0.5) / float(n)
+		var p: Vector2 = top.lerp(bot, t) + Vector2(w_top * 0.5 * inward, 0.0)
+		draw_circle(p, 2.0, RIVET)

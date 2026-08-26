@@ -59,11 +59,14 @@ const _CONFUSABLE_WITH: Dictionary = {
 	"color_shape": ["square", "filled"],
 }
 
-var _bucket_tex: Texture2D = preload("res://bucketmadness/art/bucket_open_2.png")
-var _dumpster_tex: Texture2D = preload("res://bucketmadness/art/dumpster_half_open.png")
+# The containers are DRAWN (scripts/bucket_view.gd), not sprites. The shipped PNGs looked like they
+# came from a different game to everything else on screen — and `bucket_closed` / `bucket_open_*`
+# turned out not to be frames of one bucket at all, so swapping between them read as the bucket
+# being replaced rather than opening.
 
 var _trap_poly: Polygon2D = null
 var _chute: ChuteView = null
+var _stage: BucketStage = null
 # The three bucket pictures, in board order [left, dumpster, right]. They are built at runtime by
 # _setup_bucket_images and have no scene names, so anything wanting to point at a bucket — the
 # tutorial — needs them kept here.
@@ -113,6 +116,12 @@ func _add_backdrop_depth() -> void:
 
 func _apply_sleek_chrome() -> void:
 	_add_backdrop_depth()
+	# The ground the buckets stand on. Added straight after the backdrop so it sits UNDER the
+	# buckets themselves, which live inside MainLayout further down the tree.
+	_stage = BucketStage.new()
+	_stage.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_stage)
+	move_child(_stage, 1)
 	for n in ["LeftRuleLabel", "RightRuleLabel", "DumpsterLabel"]:
 		var lbl = get_node_or_null("MainLayout/VBox/ContentVBox/BucketsRow/LeftBucketSide/" + n)
 		if lbl == null:
@@ -198,6 +207,7 @@ func _process(_delta: float) -> void:
 	# play() on it errors ("Can't play finished Tween"). Tween.is_valid() is the one that goes false
 	# when it finishes or was built outside the tree, and _process runs every frame after the item
 	# has landed — so this fired continuously once a round's animation completed.
+	_position_stage()
 	_drive_tween(_slide_tween, game.paused())
 	_drive_tween(fall_tween, game.paused() or _tutorial_should_hold())
 
@@ -231,10 +241,27 @@ func _forget_when_done(tw: Tween, which: String) -> void:
 #
 # A right answer is a quick squash-and-settle, as though something landed in it. A wrong one is a
 # short shake. Both are driven from the bucket's own center so it does not slide out of its row.
+# Shut once the caught item has visibly gone in, not the instant it is judged.
+func _shut_buckets_after() -> void:
+	await get_tree().create_timer(0.45).timeout
+	if is_inside_tree() and not game.level_is_done:
+		_set_buckets_open(false)
+
+# Keeps the stage under the buckets. From their live rects because the row is laid out by a
+# container and resizes with the window.
+func _position_stage() -> void:
+	if _stage == null or not is_instance_valid(_stage):
+		return
+	var rs: Array = []
+	for img in _bucket_images:
+		if img != null and is_instance_valid(img):
+			rs.append(Rect2(img.global_position - _stage.global_position, img.size))
+	_stage.rects = rs
+
 func _bucket_react(bucket: int, is_right: bool) -> void:
 	if bucket < 0 or bucket >= _bucket_images.size():
 		return
-	var img: TextureRect = _bucket_images[bucket]
+	var img: Control = _bucket_images[bucket]
 	if img == null or not is_instance_valid(img):
 		return
 	img.pivot_offset = img.size * 0.5
@@ -251,24 +278,45 @@ func _bucket_react(bucket: int, is_right: bool) -> void:
 		tw.tween_property(img, "position:x", x + 7.0, 0.08)
 		tw.tween_property(img, "position:x", x, 0.07)
 
+# Only the container the item is actually going into opens.
+#
+# All three used to open the moment an item was released, which says nothing: no choice has been
+# made yet, so three containers gaping at once is just movement. The one that opens is the one
+# answering for this item.
+func _set_buckets_open(open: bool) -> void:
+	for img in _bucket_images:
+		_tween_open(img, 0.0 if not open else 1.0)
+
+func _open_one(idx: int) -> void:
+	for i in range(_bucket_images.size()):
+		_tween_open(_bucket_images[i], 1.0 if i == idx else 0.0)
+
+func _tween_open(img, amount: float) -> void:
+	if not (img is BucketView) or not is_instance_valid(img):
+		return
+	if absf(img.open_amount - amount) < 0.01:
+		return
+	var tw: Tween = create_tween()
+	tw.tween_property(img, "open_amount", amount, 0.16) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
 func _setup_bucket_images() -> void:
 	var sides: Array = [
 		$MainLayout/VBox/ContentVBox/BucketsRow/LeftBucketSide,
 		$MainLayout/VBox/ContentVBox/BucketsRow/CenterBucketSide,
 		$MainLayout/VBox/ContentVBox/BucketsRow/RightBucketSide
 	]
-	var textures: Array = [_bucket_tex, _dumpster_tex, _bucket_tex]
 	var min_heights: Array = [125, 160, 125]
 	for i in 3:
-		var _tr: TextureRect = TextureRect.new()
-		_tr.texture = textures[i]
-		_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		_tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		_tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_tr.custom_minimum_size = Vector2(0, min_heights[i])
-		sides[i].add_child(_tr)
-		sides[i].move_child(_tr, 0)
-		_bucket_images.append(_tr)
+		var v: BucketView = BucketView.new()
+		v.is_dumpster = (i == 1)
+		# Above the flying item (z 4), so an item entering the mouth is occluded by the front wall.
+		v.z_index = 8
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.custom_minimum_size = Vector2(0, min_heights[i])
+		sides[i].add_child(v)
+		sides[i].move_child(v, 0)
+		_bucket_images.append(v)
 
 # --- Modality building (same as rlmadness) ---
 
@@ -571,6 +619,8 @@ func _next_round() -> void:
 
 	_clear_fall_area()
 	item_answered = false
+	# All shut while the item falls: nothing has been chosen yet.
+	_set_buckets_open(false)
 
 	var fall_area: Control = %FallArea
 	var h: float = max(fall_area.size.y, 280.0)
@@ -668,20 +718,52 @@ func _evaluate_answer(bucket: int) -> void:
 		%FeedbackLabel.modulate = Color.RED
 
 	%FeedbackLabel.modulate.a = 1.0
+	_open_one(bucket)
 	_bucket_react(bucket, is_right)
+	_shut_buckets_after()
 	game.tutorial_notify("answered_right" if is_right else "answered_wrong")
 
-	# Animate item to selected bucket
-	if fall_item_node != null and is_instance_valid(fall_item_node):
-		var fall_area: Control = %FallArea
-		var h: float = max(fall_area.size.y, 280.0)
-		var w: float = max(fall_area.size.x, 300.0)
-		var fracs: Array = [0.1, 0.5, 0.9]
-		var target_x: float = w * fracs[bucket] - item_w * 0.5
+	# Drop the item INTO the container it was sent to.
+	#
+	# It used to tween to `h + 20` inside %FallArea, which is clip_contents — so it was cut off at
+	# the bottom of the chute and vanished in mid-air ABOVE the buckets. It never reached one.
+	#
+	# Reparenting to the stage fixes both halves: the stage is not clipped, and it sits UNDER the
+	# containers in the tree, so the item is occluded by the bucket's front wall as it goes in
+	# rather than sliding over the top of it.
+	if fall_item_node != null and is_instance_valid(fall_item_node) and _stage != null:
+		var item: Control = fall_item_node
+		var target: Control = _bucket_images[bucket] if bucket < _bucket_images.size() else null
+		var landing: Vector2 = Vector2.ZERO
+		if target is BucketView:
+			landing = (target as BucketView).mouth_global() - _stage.global_position
+		elif target != null:
+			landing = target.global_position + target.size * 0.5 - _stage.global_position
+		var keep: Vector2 = item.global_position
+		item.reparent(_stage, true)
+		item.position = keep - _stage.global_position
+		# ABOVE the containers (z 8), not behind them. At z 4 the container's body covered the item
+		# the moment they overlapped, so it read as sliding out of sight BEHIND the bucket rather
+		# than dropping into it. Going in is sold by the item shrinking and fading away into the
+		# dark mouth instead — which is what something falling into a container actually does.
+		item.z_index = 12
+		landing -= item.size * 0.5
 		_slide_tween = create_tween().set_parallel(true)
 		_forget_when_done(_slide_tween, "slide")
-		_slide_tween.tween_property(fall_item_node, "position:x", target_x, 0.3)
-		_slide_tween.tween_property(fall_item_node, "position:y", h + 20.0, 0.35)
+		_slide_tween.tween_property(item, "position", landing, 0.34) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		# Shrinking as it drops in reads as going down into the container rather than onto it.
+		item.pivot_offset = item.size * 0.5
+		_slide_tween.tween_property(item, "scale", Vector2(0.12, 0.12), 0.34) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		# Fading only over the LAST third: it stays solid all the way to the rim, then goes as it
+		# passes below it.
+		_slide_tween.tween_property(item, "modulate:a", 0.0, 0.12).set_delay(0.22)
+		_slide_tween.chain().tween_callback(func():
+			if _stage != null and is_instance_valid(_stage):
+				_stage.thump(bucket)
+			if is_instance_valid(item):
+				item.queue_free())
 
 	await _wait_ms(700.0)
 	%FeedbackLabel.modulate.a = 0.0
