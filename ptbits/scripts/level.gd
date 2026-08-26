@@ -84,6 +84,20 @@ var times_to_answer: Array = []
 
 var _phys_frozen: bool = false
 
+# --- art state (see ptbits/scripts/arena_art.gd) --------------------------
+# A free-running clock for the idle pulses, plus decaying levels for the one-shot flashes. All of
+# it is drawn, none of it is physics, so it advances even while the arena is frozen for a caption.
+var _art_t: float = 0.0
+var _basket_flash: PackedFloat32Array = PackedFloat32Array()   # index == color id
+var _bumper_glow: PackedFloat32Array = PackedFloat32Array()    # index == bumper
+# The loop handle pulses until the player picks a tool up for the first time, then stops. A hint
+# that stays forever is decoration; one that retires the moment it is understood is instruction.
+var _grab_hint: float = 1.0
+var _has_grabbed: bool = false
+var _glow_tex: Texture2D = null
+# The near half of every basket, drawn ABOVE the balls (see PtbitsArt.basket_back/basket_front).
+var _basket_front: Node2D = null
+
 # --- tutorial staging (all inert outside tutorial_mode) ---------------------
 # The coach spawns every ball itself: a ball arriving on the spawn timer in the middle of a
 # lesson is exactly the "game free-running when it matters" the tutorial must not do.
@@ -109,6 +123,12 @@ func _ready() -> void:
 	# top) so the grabbed tool can be raised above the OTHER tools and stay there.
 	_tools_layer = Node2D.new()
 	add_child(_tools_layer)
+	# z_index, not tree order: balls are added as children of the level as they spawn, so they
+	# always come after this node in the tree and only a z_index puts the rims in front of them.
+	_basket_front = Node2D.new()
+	_basket_front.z_index = 20
+	_basket_front.draw.connect(_draw_basket_fronts)
+	add_child(_basket_front)
 	_recompute_play_rect()
 	set_process(true)
 	set_physics_process(true)
@@ -249,9 +269,11 @@ func _build_outer_walls() -> void:
 	# Being a solid rigid shape the whole ball radius is handled (no squeeze) and it
 	# can't be forced through. These are now the main way to work a ball inward.
 	_bumpers.clear()
+	_bumper_glow.clear()
 	var cy: float = play_top + (play_bottom - play_top) * 0.25
 	_add_side_bumper(true, cy, 52.0)
 	_add_side_bumper(false, cy, 52.0)
+	_bumper_glow.resize(_bumpers.size())
 
 func _add_side_bumper(on_left: bool, cy: float, size: float) -> void:
 	var wall_x: float = play_left if on_left else play_right
@@ -277,6 +299,8 @@ func _build_baskets() -> void:
 	_basket_polys.clear()
 	_basket_rects.resize(num_colors)
 	_basket_polys.resize(num_colors)
+	_basket_flash.clear()
+	_basket_flash.resize(num_colors)
 
 	# free-standing trapezoidal buckets: wide open top, narrower bottom. Sized so the
 	# interior still fits a ball AFTER the thick (24px) walls (which stop the tool
@@ -389,45 +413,18 @@ func _make_tool(color_id: int) -> AnimatableBody2D:
 	shape.shape = cs
 	tool.add_child(shape)
 
+	# One art node for the whole tool (see PtbitsArt.tool). It was four primitives — a Line2D stem,
+	# a Line2D loop, a flat Polygon2D disc and a rim — which is why the tool read as a colored
+	# circle: flat fills have no lit side, so nothing about it said "a thing you can pick up".
+	var art: Node2D = Node2D.new()
 	var col: Color = COLORS[color_id]
-	# handle: a thick rounded bar between the disc (big "head") and the loop —
-	# roughly an ant: big head, body, then the loop at the tail.
-	var handle: Line2D = Line2D.new()
-	handle.add_point(Vector2(0.0, tool_radius * 0.45))
-	handle.add_point(Vector2(0.0, grab_offset - loop_radius))
-	handle.width = maxf(9.0, tool_radius * 0.42)
-	handle.default_color = col.darkened(0.22)
-	handle.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	handle.end_cap_mode = Line2D.LINE_CAP_ROUND
-	tool.add_child(handle)
-	# loop handle (an open ring the player grabs)
-	var loop: Line2D = Line2D.new()
-	loop.points = _circle_points(loop_radius, 22)
-	loop.closed = true
-	loop.width = maxf(5.0, tool_radius * 0.22)
-	loop.default_color = col.darkened(0.18)
-	loop.position = Vector2(0.0, grab_offset)
-	tool.add_child(loop)
-	# pusher disc on top
-	var body_poly: Polygon2D = Polygon2D.new()
-	body_poly.polygon = _circle_points(tool_radius, 28)
-	body_poly.color = col
-	tool.add_child(body_poly)
-	var rim: Line2D = Line2D.new()
-	rim.points = _circle_points(tool_radius, 28)
-	rim.closed = true
-	rim.width = 3.5
-	rim.default_color = col.darkened(0.4)
-	rim.joint_mode = Line2D.LINE_JOINT_ROUND
-	tool.add_child(rim)
+	art.draw.connect(func() -> void:
+		PtbitsArt.tool(art, col, tool_radius, loop_radius, grab_offset,
+			_dragging_tool == tool, _grab_hint, 0.5 + 0.5 * sin(_art_t * 3.0)))
+	tool.add_child(art)
+	tool.set_meta("art", art)
 	return tool
 
-func _circle_points(r: float, n: int) -> PackedVector2Array:
-	var pts: PackedVector2Array = PackedVector2Array()
-	for s in n:
-		var a: float = TAU * (float(s) / float(n))
-		pts.append(Vector2(cos(a), sin(a)) * r)
-	return pts
 
 # --- Balls ------------------------------------------------------------------
 
@@ -459,6 +456,17 @@ func _spawn_ball(force_color: int = -1, at_x: float = -1.0) -> void:
 	shape.shape = cs
 	ball.add_child(shape)
 
+	# Halo first (so it sits behind), then the tinted sphere, then the untinted white sheen. The
+	# halo is what lifts a ball off a dark backdrop; the sheen is what makes it look like glass
+	# rather than a flat disc, and it has to be a separate node because `modulate` multiplies —
+	# there is no way to keep a white highlight white inside a tinted texture.
+	var halo: Sprite2D = Sprite2D.new()
+	halo.texture = PtbitsG.glow_texture()
+	var halo_scl: float = (ball_radius * 5.2) / float(PtbitsG.glow_texture().get_width())
+	halo.scale = Vector2(halo_scl, halo_scl)
+	halo.modulate = Color(COLORS[color_id].r, COLORS[color_id].g, COLORS[color_id].b, 0.30)
+	ball.add_child(halo)
+
 	var spr: Sprite2D = Sprite2D.new()
 	spr.texture = PtbitsG.ball_texture()
 	var tex_size: float = float(PtbitsG.ball_texture().get_width())
@@ -466,6 +474,11 @@ func _spawn_ball(force_color: int = -1, at_x: float = -1.0) -> void:
 	spr.scale = Vector2(scl, scl)
 	spr.modulate = COLORS[color_id]
 	ball.add_child(spr)
+
+	var sheen: Sprite2D = Sprite2D.new()
+	sheen.texture = PtbitsG.ball_sheen_texture()
+	sheen.scale = Vector2(scl, scl)
+	ball.add_child(sheen)
 
 	_set_layers(ball, [_color_bit(color_id)], [LAYER_OUTER, _color_bit(color_id)])
 
@@ -500,6 +513,10 @@ func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
 		game.add_score_and_time(15 + speed_bonus, 0)
 		game.add_correct_or_mistake(1, 0)
 		game.play_sound("correct")
+		var cid: int = int(ball.get_meta("color_id", 0))
+		if cid < _basket_flash.size():
+			_basket_flash[cid] = 1.0
+		_pop_at(ball.global_position, 15 + speed_bonus, COLORS[cid].lightened(0.35))
 		game.tutorial_notify("ball_scored")
 	else:
 		var penalty: int = mini(5, game.score)
@@ -508,12 +525,38 @@ func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
 		game.play_sound("wrong")
 		game.tutorial_notify("ball_missed")
 		_flash_miss(ball.global_position)
+		if penalty > 0:
+			_pop_at(ball.global_position + Vector2(0.0, -34.0), -penalty, PtbitsArt.HAZARD)
 	MainGlobals.global_update_hud()
 	ball.queue_free()
 
 	# check level completion immediately on every resolve (hit OR miss)
 	if resolved_count >= rounds and not game.level_is_done:
 		_level_done(true)
+
+# The score change, said where it happened. The HUD number ticking is not feedback a player can
+# connect to the ball they just lost.
+func _pop_at(pos: Vector2, amount: int, col: Color) -> void:
+	var pop: Node2D = Node2D.new()
+	pop.z_index = 62
+	pop.position = Vector2(
+		clampf(pos.x, play_left + 40.0, play_right - 40.0),
+		clampf(pos.y, play_top + 40.0, play_bottom - 60.0))
+	var label: String = ("+%d" % amount) if amount >= 0 else ("\u2212%d" % -amount)
+	var font: Font = MainGlobals.get_text_font()
+	var fsize: int = 34 if MainGlobals.is_mobile() else 26
+	pop.draw.connect(func() -> void:
+		var w: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize).x
+		var at: Vector2 = Vector2(-w * 0.5, 0.0)
+		pop.draw_string_outline(font, at, label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize, 6,
+			Color(0.0, 0.0, 0.0, 0.75))
+		pop.draw_string(font, at, label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize, col))
+	add_child(pop)
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(pop, "position:y", pop.position.y - 52.0, 0.85).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(pop, "modulate:a", 0.0, 0.85).set_delay(0.25)
+	tw.chain().tween_callback(pop.queue_free)
 
 func _flash_miss(pos: Vector2) -> void:
 	# A DRAWN cross, not the "✗" character. The UI font is Open Sans (MainGlobals
@@ -595,6 +638,9 @@ func _update_pause_freeze() -> void:
 			b.freeze = want_frozen
 
 func _process(delta: float) -> void:
+	# Deliberately BEFORE the playing/paused guard: the arena keeps breathing while a tutorial
+	# caption holds the balls still, which is the difference between paused and switched off.
+	_update_art(delta)
 	if not game.playing or game.level_is_done or game.paused():
 		return
 
@@ -675,6 +721,7 @@ func _begin_drag(t: AnimatableBody2D, index: int, pos: Vector2) -> void:
 	_drag_index = index
 	_drag_target = pos
 	_bring_tool_to_front(t)
+	_has_grabbed = true
 	game.tutorial_notify("tool_grabbed")
 
 func _bring_tool_to_front(t: AnimatableBody2D) -> void:
@@ -708,57 +755,95 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and _dragging_tool != null and _drag_index == -1:
 		_drag_target = event.position
 
+# --- Art -------------------------------------------------------------------
+
+func _update_art(delta: float) -> void:
+	_art_t += delta
+	if _has_grabbed:
+		_grab_hint = maxf(0.0, _grab_hint - delta * 2.2)
+	for i in _basket_flash.size():
+		_basket_flash[i] = maxf(0.0, _basket_flash[i] - delta * 1.7)
+	for i in _bumper_glow.size():
+		_bumper_glow[i] = maxf(0.0, _bumper_glow[i] - delta * 2.6)
+	_sense_bumper_hits()
+	for t in _tools:
+		if is_instance_valid(t) and t.has_meta("art"):
+			var art: Node2D = t.get_meta("art")
+			if is_instance_valid(art):
+				art.queue_redraw()
+	queue_redraw()
+	if _basket_front != null and is_instance_valid(_basket_front):
+		_basket_front.queue_redraw()
+
+# A ball touching a bumper is worth a glint, and asking the physics server for contacts would mean
+# turning on contact monitoring for every ball. Proximity to the apex face is enough for a flash
+# and costs one length() per ball per bumper.
+func _sense_bumper_hits() -> void:
+	if _bumpers.is_empty() or _balls.is_empty():
+		return
+	for i in _bumpers.size():
+		var tri: PackedVector2Array = _bumpers[i]
+		if tri.size() < 3:
+			continue
+		for b in _balls:
+			if not is_instance_valid(b):
+				continue
+			var d: float = _dist_to_segment(b.global_position, tri[0], tri[1])
+			d = minf(d, _dist_to_segment(b.global_position, tri[1], tri[2]))
+			if d <= ball_radius + 3.0:
+				_bumper_glow[i] = 1.0
+				break
+
+static func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab: Vector2 = b - a
+	var len_sq: float = ab.length_squared()
+	if len_sq < 0.001:
+		return (p - a).length()
+	var t: float = clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	return (p - (a + ab * t)).length()
+
 # --- Draw (background + baskets) -------------------------------------------
 
 func _draw() -> void:
-	# play-area backdrop
-	# extend the backdrop all the way to the screen bottom (behind the button bar) so
-	# there's no color band between play_bottom and the bar
+	# The backdrop runs to the screen bottom (behind the button bar) so no band of a different color
+	# shows between play_bottom and the bar.
 	var bg_bottom: float = maxf(play_bottom, float(MainGlobals.full_screen_size.y))
 	var area: Rect2 = Rect2(play_left, play_top, play_right - play_left, bg_bottom - play_top)
-	draw_rect(area, Color(0.11, 0.14, 0.20, 1.0), true)
+	if _glow_tex == null:
+		_glow_tex = PtbitsG.glow_texture()
 
-	# solid mid-side triangular bumpers
-	for tri in _bumpers:
-		draw_colored_polygon(tri, Color(0.20, 0.25, 0.33, 1.0))
-		draw_line(tri[0], tri[1], Color(0.40, 0.46, 0.56, 1.0), 3.0)
-		draw_line(tri[1], tri[2], Color(0.40, 0.46, 0.56, 1.0), 3.0)
+	PtbitsArt.backdrop(self, area, _spawn_min_x, _spawn_max_x, _glow_tex)
+	PtbitsArt.motes(self, area, _art_t)
+	PtbitsArt.loss_zone(self, area, play_bottom - 30.0)
+	PtbitsArt.frame(self, area)
+	PtbitsArt.inlet(self, area, _spawn_min_x, _spawn_max_x)
 
+	for i in _bumpers.size():
+		var glow: float = _bumper_glow[i] if i < _bumper_glow.size() else 0.0
+		PtbitsArt.bumper(self, _bumpers[i], glow, _glow_tex)
+
+	for b in _balls:
+		if is_instance_valid(b):
+			PtbitsArt.ball_trail(self, b.global_position, b.linear_velocity, ball_radius,
+				COLORS[int(b.get_meta("color_id", 0))])
+
+	var pulse: float = 0.5 + 0.5 * sin(_art_t * 1.7)
 	for i in num_colors:
 		if i >= _basket_polys.size() or not (_basket_polys[i] is PackedVector2Array):
 			continue
 		if (_basket_polys[i] as PackedVector2Array).size() < 4:
 			continue
-		_draw_basket(i)
+		var flash: float = _basket_flash[i] if i < _basket_flash.size() else 0.0
+		PtbitsArt.basket_back(self, _basket_polys[i], COLORS[i], 12.0, flash, pulse, _glow_tex)
 
-func _draw_basket(color_id: int) -> void:
-	var p: PackedVector2Array = _basket_polys[color_id]
-	var tl: Vector2 = p[0]
-	var _tr: Vector2 = p[1]
-	var br: Vector2 = p[2]
-	var bl: Vector2 = p[3]
-	var col: Color = COLORS[color_id]
-	var hw: float = 12.0  # half of wall_t (24) — sides pushed out hw, bottom slab 2·hw tall
-	var bd: Color = Color(0.11, 0.14, 0.20, 1.0)  # backdrop color, to carve the cavity
-
-	# One clean bucket = an OUTER solid trapezoid with the INNER cavity carved out (and
-	# opened at the top). Both halves are simple convex quads, so it draws cleanly and
-	# the slanted sides join the bottom with no gaps. Visible ≈ collision (walls are
-	# centered on tl/tr/bl/br, ±hw), so the ball still rests flush.
-	var outer: PackedVector2Array = PackedVector2Array([
-		Vector2(tl.x - hw, tl.y), Vector2(_tr.x + hw, _tr.y),
-		Vector2(br.x + hw, br.y + 2.0 * hw), Vector2(bl.x - hw, bl.y + 2.0 * hw)])
-	draw_colored_polygon(outer, col)
-	# carve the cavity (raised above the mouth so the top is open)
-	var inner: PackedVector2Array = PackedVector2Array([
-		Vector2(tl.x + hw, tl.y - 30.0), Vector2(_tr.x - hw, _tr.y - 30.0),
-		Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)])
-	draw_colored_polygon(inner, bd)
-	# faint color tint inside the cavity (from the mouth down)
-	var tint: PackedVector2Array = PackedVector2Array([
-		Vector2(tl.x + hw, tl.y), Vector2(_tr.x - hw, _tr.y),
-		Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)])
-	draw_colored_polygon(tint, Color(col.r, col.g, col.b, 0.14))
+func _draw_basket_fronts() -> void:
+	for i in num_colors:
+		if i >= _basket_polys.size() or not (_basket_polys[i] is PackedVector2Array):
+			continue
+		if (_basket_polys[i] as PackedVector2Array).size() < 4:
+			continue
+		var flash: float = _basket_flash[i] if i < _basket_flash.size() else 0.0
+		PtbitsArt.basket_front(_basket_front, _basket_polys[i], COLORS[i], 12.0, flash)
 
 # --- Level completion -------------------------------------------------------
 

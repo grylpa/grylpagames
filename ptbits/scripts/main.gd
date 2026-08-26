@@ -86,7 +86,12 @@ func start_tutorial() -> void:
 	runner.keep_clear = [
 		func(): return $Level.tutorial_tool_rect(0),
 		func(): return $Level.tutorial_tool_rect(1),
-		func(): return Rect2($Level.tutorial_ball_pos() - Vector2(40, 40), Vector2(80, 80)) if $Level.tutorial_has_ball() else null,
+		# Written out rather than as a ternary: `Rect2 if ... else null` is INCOMPATIBLE_TERNARY,
+		# because the two arms have no common type.
+		func():
+			if not $Level.tutorial_has_ball():
+				return null
+			return Rect2($Level.tutorial_ball_pos() - Vector2(40, 40), Vector2(80, 80)),
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 

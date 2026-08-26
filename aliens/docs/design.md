@@ -363,7 +363,7 @@ This makes deny levels harder: polarity is now part of what you memorize, not a 
   at all — only confusion. `_avoid_double_negatives` swaps the rule to the positive one of the
   same modality, which keeps both the polarity mix and one-modality-per-gate intact. It runs
   **after** the mixed-polarity fix so it can never be undone, and a usable modality always has a
-  positively-labelled rule, so the "drop the deny" fallback is effectively unreachable.
+  positively-labeled rule, so the "drop the deny" fallback is effectively unreachable.
   Deny genuinely earns its keep on the >2-valued traits (eyes, antennae, color), where `NO BLUE`
   is not equivalent to any single accept rule.
 
@@ -380,7 +380,7 @@ A gate's pass is no longer always a single rule. With `compound_chance` it becom
 | `ornot` | `1 EYE OR NOT PURPLE` | common, so a *reject* is the rare event |
 
 Stored as `{"op": ..., "a": rule, "b": rule}` on `_areas[i]["pass"]` (there is no `["rule"]` key
-any more), evaluated by `_pass_matches`, labelled by `_pass_label`.
+any more), evaluated by `_pass_matches`, labeled by `_pass_label`.
 
 - **Both atoms always come from different modalities**, and that is not cosmetic — it is what
   makes `_force_pass` exact. Forcing one atom can never change the other's truth, so satisfying
@@ -392,7 +392,7 @@ any more), evaluated by `_pass_matches`, labelled by `_pass_label`.
   confusion mechanism rests on.
 - **A compound is never denied.** `NO (1 EYE AND BLUE)` is a De Morgan puzzle; `andnot` / `ornot`
   already give negation in a form that reads straight off the chip.
-- **The right operand of `andnot`/`ornot` is never a negatively-labelled rule**, or the chip reads
+- **The right operand of `andnot`/`ornot` is never a negatively-labeled rule**, or the chip reads
   `1 EYE AND NOT NO ANTENNAE`. Same class of bug as the deny double-negative.
 - **Chip legibility was the real cost, and it was measured, not guessed.** A compound label is
   roughly twice as long in a chip that does not get any wider, and `_fit_caption` shrinks the font
@@ -738,3 +738,21 @@ The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus
 *"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
 
 Thresholds ramp with difficulty rather than sitting flat.
+
+## The level intro
+
+The briefing is the shared card (`GenericGameUtil.show_game_popup` -> `scripts/result_card.gd`),
+the same one every other game uses, on its BRIEFING tone (cool header, "Start" on the button). It
+replaced `show_text_popup` / `PopupText`, a fixed-size yellow panel that sized itself to its text
+and so needed every line hand-wrapped with `\n`.
+
+Two things follow from that and both matter when editing the text:
+
+- **Prose is written as sentences.** The card wraps it. Hand-broken lines now come out as separate
+  centered fragments.
+- **A fact is written `Label: value`** and is set as a table row, label left and value right, with
+  a hairline between adjacent facts. So the facts are grouped together, not scattered between the
+  prose lines, or they end up as separate one-row tables.
+
+Play still starts when the card closes, now via `MainGlobals.sig_game_popup_closed` (connected
+once, guarded with `is_connected`) instead of the popup instance's own `closed` signal.

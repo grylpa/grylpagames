@@ -300,15 +300,18 @@ func new_game(_from_scratch: bool = true) -> void:
 		_on_game_popup_closed()
 		return
 
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id,
+	# The shared briefing card (ResultCard) wraps prose itself and sets "Label: value" lines as a
+	# table, so the sentence is written as a sentence.
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Level %d" % current_level_id,
 		# parentheses required — `%` binds tighter than `+`
-		("Pay the exact amount by\ndragging coins into the tray,\nthen press Pay.\n\n" +
+		("Pay the exact amount by dragging coins into the tray, then press Pay.\n\n" +
 		"Coins: %d\n" +
 		"Board time: %s\n" +
 		"Total: %s") % [
 			num_coins, _fmt_secs(board_time_ms / 1000.0), _fmt_secs(float(duration_sec))
 		])
-	intro.closed.connect(_on_game_popup_closed)
 
 # The boards come from tutorial.gd so the coins on screen and the amounts the coach names can
 # never drift apart. The per-board clock is stretched because the bar is being explained.

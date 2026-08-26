@@ -2172,9 +2172,8 @@ func new_game(from_scratch: bool = true) -> void:
 
 	var hide_txt: String = "never" if hide_after_ms <= 0.0 else "%d s" % int(hide_after_ms / 1000.0)
 	var body: String = ("Aliens queue up in a gate's outer ring.\n" +
-		"Drag one the pass ACCEPTS onto the\n" +
-		"boarding ramp, and one it does not\n" +
-		"back out to the hall.\n")
+		"Drag one the pass ACCEPTS onto the boarding ramp, " +
+		"and one it does not back out to the hall.\n")
 	# Only name the twists THIS ROUND actually drew. _pick_rules has already run, so the briefing
 	# can report what is really on the board rather than what the level permits — with an
 	# independent deny roll, a level that allows deny gates will sometimes have none.
@@ -2190,17 +2189,20 @@ func new_game(from_scratch: bool = true) -> void:
 	if n_deny > 0:
 		body += "\nA \"NOT ...\" pass boards everyone EXCEPT that.\n"
 	if gate_change_ms > 0.0 and num_areas > 1:
-		body += "\nGATE CHANGE: the passes move between gates.\n"
+		body += "\nGATE CHANGE — the passes move between gates.\n"
 	if priority_every_ms > 0.0:
-		body += "\nNOW BOARDING: the ringed alien must be\ndealt with before its ring runs out.\n"
+		body += "\nNOW BOARDING — the ringed alien must be dealt with before its ring runs out.\n"
 	body += "\nGates: %d\nPass comes down after: %s\nTime: %d s" % [num_areas, hide_txt, level_time_sec]
 	if game.tutorial_mode:
 		# The tutorial teaches all of this by doing it; the popup would make the player dismiss
 		# a wall of text before being taught it. (_tutorial_setup already ran, up in new_game.)
 		_on_game_popup_closed()
 		return
-	var intro: PopupText = game.show_text_popup(self, "Level %d" % current_level_id, body)
-	intro.closed.connect(_on_game_popup_closed)
+	# The shared briefing card (ResultCard) wraps prose itself and sets "Label: value" lines as a
+	# table, so the lines above are sentences and the three facts at the end are the table.
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Level %d" % current_level_id, body)
 
 # The alien that most recently parked at a gate. A tutorial step LOCKS this into its own local
 # reference at step entry (see aliens/scripts/tutorial.gd) rather than reading it live: every

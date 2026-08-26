@@ -282,3 +282,21 @@ Specific to this game:
   no-ops outside tutorial mode.
 - Points for the coach, all in screen coordinates: `tutorial_card_rect`, `tutorial_bar_rect`,
   `tutorial_buttons_rect`.
+
+## The level intro
+
+The briefing is the shared card (`GenericGameUtil.show_game_popup` -> `scripts/result_card.gd`),
+the same one every other game uses, on its BRIEFING tone (cool header, "Start" on the button). It
+replaced `show_text_popup` / `PopupText`, a fixed-size yellow panel that sized itself to its text
+and so needed every line hand-wrapped with `\n`.
+
+Two things follow from that and both matter when editing the text:
+
+- **Prose is written as sentences.** The card wraps it. Hand-broken lines now come out as separate
+  centered fragments.
+- **A fact is written `Label: value`** and is set as a table row, label left and value right, with
+  a hairline between adjacent facts. So the facts are grouped together, not scattered between the
+  prose lines, or they end up as separate one-row tables.
+
+Play still starts when the card closes, now via `MainGlobals.sig_game_popup_closed` (connected
+once, guarded with `is_connected`) instead of the popup instance's own `closed` signal.

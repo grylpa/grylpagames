@@ -1376,8 +1376,8 @@ func level_is_done(didwin: bool):
 		game.add_score_and_time(50, 0)
 		game.need_to_increase_level = true
 		MainGlobals.global_level_is_done(true)
-		var text: String = "You have\ncompleted\nlevel %d\nwith %d sheep\n\nTotal score: %d" % [level, get_num_sheep_left(), game.score]
-		game.show_level_done_popup(self, "", text)
+		var text: String = "Sheep saved: %d\nTotal score: %d" % [get_num_sheep_left(), game.score]
+		game.show_level_done_popup(self, "", text, level)
 		return
 	else:
 		game.show_game_popup(self, "Oh no!", "Level %d\n\nnot completed" % [level])

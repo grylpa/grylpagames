@@ -702,13 +702,21 @@ func create_board() -> void:
 		# The tutorial teaches all of this by doing it.
 		_on_closed_intro_popup()
 	else:
-		var ppp = game.show_text_popup(self, "Level %d" % level, "You have\n%s\nto protect\n\nThe storm\nwill last\n%s" % [roomsstr, timestr], true, 120)
-		ppp.closed.connect(_on_closed_intro_popup)
+		# NOT a second connection to sig_game_popup_closed: this game shows TWO game popups (this
+		# briefing, and the "Well done!"/"Oh no!" card at the end of a round) and that signal is
+		# global, so both handlers would run for both popups — closing the briefing would have
+		# ended the round it was introducing. _on_game_popup_closed routes on this flag instead.
+		_intro_is_open = true
+		game.show_game_popup(self, "Level %d" % level,
+			"You have %s to protect.\n\nStorm lasts: %s" % [roomsstr, timestr])
 
 	game.play_sound("rain")
 	started_sounds = true
 
+var _intro_is_open: bool = false
+
 func _on_closed_intro_popup():
+	_intro_is_open = false
 	game.level_is_ready = true
 	_start_playing()
 
@@ -995,7 +1003,13 @@ func add_leak():
 func _on_level_done_popup_closed():
 	sig_level_is_done.emit(true)
 
+# The one global signal reports both of this game's popups. Only the round-result one means the
+# round is over.
 func _on_game_popup_closed():
+	if _intro_is_open:
+		_intro_is_open = false
+		_on_closed_intro_popup()
+		return
 	sig_level_is_done.emit(last_level_was_a_win)
 
 func level_is_done(didwin: bool):
@@ -1010,7 +1024,9 @@ func level_is_done(didwin: bool):
 	})
 	var time_from_start_s: float = (game.game_time - time_started_level_ms) / 1000.0
 	var stats: Dictionary = count_round_stats()
-	var stats_str: String = "\nScore: %d  |  Time: %d s\nSaved: %d  Lost: %d  Flooded: %d" % [
+	# One fact per line: the card sets them as a table, so the "  |  " and double-space packing
+	# that squeezed five numbers onto two lines is no longer buying anything.
+	var stats_str: String = "\n\nScore: %d\nTime: %d s\nSaved: %d\nLost: %d\nFlooded: %d" % [
 		game.score, int(time_from_start_s), stats["saved"], round_items_lost, stats["flooded"]]
 	if didwin:
 		var score_add: int = min(5, 60 - time_from_start_s)
