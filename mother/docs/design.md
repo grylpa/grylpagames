@@ -25,21 +25,50 @@ mother/
 - **Mother y range**: `M_TOP_FRAC=30%` to `M_BOT_FRAC=56%` (center ~43%, just above screen mid). Child starts 60px below `_m_bot_y` at session start.
 - **Both heads at `HEAD_X_FRAC=0.82`**.
 
-## Visual design — "night desert"
+## Visual design — sunlit desert
 
-Every color and dimension lives in one block of constants at the top of `level.gd`, and
-`mother/docs/make_thumbnail.py` mirrors them. Re-run that script after any visual change.
+**It used to be night, and that was the problem under all the others.** The ground sat at 7-18%
+luminance; the three dune ridges differed from it by six to fourteen levels out of 255. There is no
+such thing as an interesting near-black surface, so every attempt to make the scene richer failed
+while the fundamental stayed dark.
 
-**What it replaced.** The game was saturated sand `(0.82, 0.70, 0.46)` under a near-pure green
-mother `(0.18, 0.82, 0.22)` and a saturated indigo child `(0.30, 0.25, 0.90)` — three unrelated
-hue families at high chroma. Three concrete problems: it was the only bright screen in the
-"Serenity" category (crack `0.04,0.05,0.09`, river `0.06,0.18,0.34`, udbr `0.04,0.07,0.14`); it
-contradicted itself, since the results panel and stats graph were already near-black; and the
-child shared no hue with the mother, so they read as unrelated species.
+It is now a desert in full sun:
 
-Now the ground is dark and warm and the snakes are the light source: mother warm amber
-`MOTHER_COL`, child pale gold `CHILD_COL` — one hue family, separated by lightness, so they read
-as the same animal at two ages.
+| | luminance (of 255) |
+|---|---|
+| sand in sun | 204 |
+| shaded sand | 148 |
+| dune crest | 225 |
+| slip face | 120 |
+| mother's body / bands | 29 / 163 |
+| child's body / bands | 46 / 216 |
+
+**Desert shadows are blue.** In open sun the only light reaching a shadow is skylight, so the slip
+faces and troughs are cooled (`BARCHAN_SHADOW` has more blue than red) while lit sand is warm. That
+warm-lit / cool-shadow split is where a desert's color actually comes from, and having everything
+one brown is why the old scheme read as mud.
+
+Everything else followed from the inversion: props are darker than the ground now (dry olive scrub,
+warm pebbles, near-black beetles), text is dark ink rather than cream, the vignette dropped from
+0.26 to 0.10 so it does not re-darken a sunlit scene, and the bodies' halo pass became a **cast
+shadow** (`BODY_SHADOW`) — in daylight a snake does not glow, it sits on the sand and darkens it.
+
+## The snakes are patterned animals
+
+Dark bodies wearing bright crossbands, which is both the strongest read against pale sand and what
+these animals actually look like. Taken from reference, not invented: the
+[Saharan horned viper](https://www.desertusa.com/animals/horned_viper.html) carries dark
+semi-rectangular dorsal blotches that fuse into crossbars, and the
+[California kingsnake](https://animals.sandiegozoo.org/animals/kingsnake) is banded light-on-dark.
+
+Mother and child keep their old identity **in the band color** — her amber, the child's pale gold —
+so they remain one hue family separated by lightness: the same animal at two ages.
+
+`_build_gradient()` now alternates **two real colors** along the body instead of one color and a
+darker copy of itself. That difference is the whole point: a color against a dimmer version of
+itself reads as uneven lighting, two colors read as a pattern. Measured band contrast on the
+mother: 134 levels. `_draw_head()` uses `_band_shade` as the mix between the same two colors, so the
+head wears the body's pattern rather than a dimmer version of one of them.
 
 ## The body
 
@@ -191,12 +220,9 @@ is what makes it a snake.
 
 ## Environment
 
-- **Three parallax dune ridges** (`DUNE_LAYERS`), filled bands whose top edge is a slow double
-  sine, each scrolling at its own fraction of world speed (0.22 / 0.40 / 0.62, far to near). The
-  differing speeds are what read as depth. Deliberately **not** a horizon with a moon: the ripples,
-  pebbles, bushes and beetles all establish an oblique view of a ground *plane*, and a skyline
-  would contradict every one of them. The top edge is single-valued in x and always well above the
-  bottom, so the outline is always a simple polygon.
+- **A field of barchan dunes** (`_draw_barchans`), seen from above: each a crescent with sand
+  heaped along the windward arc, a steep slip face in shadow inside the curve, and two horns
+  trailing downwind. Bigger ones drift faster, which is where the parallax now comes from.
 - **Drifting dust** (`DUST_COUNT`): size, speed and opacity all derive from the **same** depth
   value as the mote's y, so a nearer mote is bigger, faster and brighter together. Rolling them
   independently just looks like noise. Dust also drifts faster than the fastest pebble, so the
@@ -481,3 +507,175 @@ and mother. Geometry and the alpha policy are shared; **colors are the caller's*
 not a detail — the cyan the three cool-background games use reads as a foreign object on mother's
 dunes. `SessionBar.draw_cool()` is the cyan default; mother calls `SessionBar.draw()` with
 `MOTHER_COL` and an alpha lift for its lighter background.
+
+---
+
+## The child glows when you are with her
+
+The whole game is "stay level with your mother", and **nothing on screen said whether you were**.
+The closeness test (`TUT_WITH_PX`) already existed, but only the tutorial ever read it — during a
+real session the player had no feedback at all.
+
+A meter or a number would be wrong in the calmest game in the app, and this design already
+establishes that *the ground is dark and the snakes are the light source*. So the child simply
+burns brighter as the player holds level with her: `_sync` (0 adrift, 1 level) scales the child's
+halo alpha up to `SYNC_GLOW_MUL`, and its halo width with it. Nothing new appears on screen.
+
+Two things that keep it calm rather than twitchy:
+
+- `_sync` **eases** toward its target at `SYNC_FADE` instead of tracking the distance directly.
+  Measured, the largest single-frame change is 0.015, so the light breathes rather than blinking at
+  the edge of the band.
+- Only the CHILD responds. The mother's halo is untouched — she is the reference, and a reference
+  that reacts to you is no longer a reference.
+
+Active mode has no mother to be level with, so the glow stays at rest there.
+
+---
+
+## The desert was invisible
+
+The snakes were fine; the environment was not there. Measured from the palette:
+
+| | luminance (of 255) |
+|---|---|
+| ground | 18 → 30 |
+| the three "parallax dune ridges" | 24, 29, 32 |
+| mother / child | 168 / 219 |
+
+Eight levels of spread across all three ridges, six to fourteen above the sand. Nothing in that
+range is visible on a phone in daylight, so the "night desert" was in practice a black field with
+two glowing worms on it — which is exactly how it read.
+
+Three changes, all in the palette block:
+
+- **Ridges are separated.** 37 / 44 / 53 against sand that runs 26 (far) to 47 (near), so each one
+  steps clearly off the one behind it.
+- **A moonlit crest** along the top edge of every ridge (`DUNE_CREST`, alpha rising 0.16 → 0.30
+  toward the camera), with a soft warm bloom falling away beneath it. A filled band is a shape; the
+  lit edge where the crest turns away is what makes it a dune.
+- **Warm/cool depth.** Far sand is cool violet (r−b = −0.045), near sand is warm (r−b = +0.073).
+  The old scheme was one muddy brown at both ends, so distance carried no color information at all.
+
+The snakes still own the screen: 168 and 219 against a nearest ridge of 53.
+
+`mother/docs/make_thumbnail.py` mirrors these constants and has been updated in step, as its own
+header instructs — the chooser tile is generated from it.
+
+## The snakes light the sand
+
+The palette is built on "the ground is dark and the snakes are the light source" — but they only
+ever carried a thin halo. They lit *nothing*, so the desert stayed uniformly dark however close they
+came to it, and the concept existed only in the doc.
+
+`_draw_body_light()` lays a warm pool along each body on the **ground** canvas, so it falls under
+the bodies and over the dunes. It is brighter toward the head, because the light travels with the
+animal rather than being a uniform strip, and the **child's pool rises with `_sync`** — the light is
+the reward for staying with her.
+
+Measured: sand directly under the body is lit 0.20, two body-widths away 0.10, nine widths away
+0.00. It illuminates its surroundings without flooding the screen.
+
+It is drawn as **discs**, not a ribbon along the body, for the same reason the crest bloom is drawn
+as per-segment quads — see below.
+
+## Flicker along the ridge tops
+
+The first crest bloom was one long ribbon polygon following the wave. That shape is concave, and
+Godot re-triangulates it every frame as the dune scrolls; the triangulation flips between frames and
+the gradient crawls. It is now **one convex quad per segment**, which cannot be triangulated two
+different ways.
+
+Anything that follows a moving curve and is filled has this problem. Cut it into convex pieces.
+
+## The sand has form
+
+Ripples were single hairlines of flat color — on a dark field they read as scratches ruled across
+it. Each lit ripple is now a crest with its own shadow beneath it, and both thicken toward the
+camera (1.0 px far, 2.6 px near). A ripple is a small dune and is drawn like one.
+
+
+## What NOT to add
+
+**Wide translucent light pools** cast by the bodies — faithful to "the snakes are the light
+source", and completely wrong here: large semi-transparent circles sliding around are agitating, and
+this game is meant to relax.
+
+**A sky.** A night sky with a low moon was added over the top seventh of the screen and looked good
+in isolation, but it broke the game: on an oblique ground plane the snakes move vertically to go
+*toward and away*, and the moment there is a horizon above them the same movement reads as
+altitude — they look like they are flying. The design doc's "deliberately not a horizon with a moon"
+was load-bearing for legibility, not a matter of taste. Do not re-add it.
+
+## What makes it alive
+
+Three things, none of which fight the ground-plane reading:
+
+- **Tracks.** Each snake leaves a trail: a shadowed trough with sand pushed up below it and scuffs
+  across it, fading out `TRACK_FADE_PX` behind the head. Drawn in the same language as the ripples,
+  so it belongs to the desert. It also settles what the sky got wrong — a track can only exist on a
+  surface, so seeing one behind each animal says "moving across ground", not "flying".
+- **Weather.** Everything used to move at one unchanging intensity forever: the bushes swayed by the
+  same amount on the first second and the thousandth, so there was nothing to notice. `_gust()` beats
+  a 23 s period against an 8.5 s one, so gusts arrive irregularly rather than on a metronome.
+  Measured over 100 s it ranges 0.01 to 1.00 — real calms and real gusts. A gust leans every bush
+  the same way at once (that shared direction is what reads as wind rather than each bush fidgeting)
+  and drags sand streaks across the ground, which only appear above 0.45 so they read as weather
+  rather than permanent decoration.
+- **The world notices the snakes.** A beetle bolts when a head comes within `BEETLE_SCARE_PX`,
+  falling off with distance — measured, 15.9 px of scramble from a snake 20 px away and nothing at
+  all from one twice the scare radius off. Nothing in this desert previously took the slightest
+  notice of the two animals crossing it, which is most of why it read as scenery rather than a
+  place. The player causes it, so it rewards watching.
+
+## The view is DOWN, and everything must agree with that
+
+This is the fault that kept coming back in different costumes. The player moves the child up and
+down the screen, and that has to read as moving **across the ground**. Anything implying a horizon
+direction turns the same movement into altitude, and the snakes look like they are flying.
+
+Three things did it, each removed in turn:
+
+1. **A sky with a moon.** Obvious in hindsight; looked good alone, wrong in place.
+2. **Three horizontal dune ridges with wavy tops.** These were a SIDE view of ridges receding —
+   seeing dune *tops* only makes sense from ground level. They were in the original design and were
+   the deepest cause.
+3. **A top-to-bottom brightness gradient** on the sand, dark at the top and light at the bottom.
+   That is a distance cue: from above there is no far and near. Now 6.3 levels of difference where
+   there were 21.
+
+What replaced them is top-down by construction: crescent dunes, mottled patches of shade and open
+sand, ripple fields, tracks, and props casting short shadows. None of it says which way is "away",
+because from above there is no away.
+
+## Color
+
+The palette was one brown at both ends of its gradient — the reason the whole thing read as mud.
+Sand is now split by **hue**, not by height: violet shade (`SAND_SHADE`, hue 0.70) against ochre
+moonlit sand (`SAND_LIT`, hue 0.07), mottled across the field in drifting patches, with the dune
+crests warmer still. The snakes remain far brighter than the brightest sand.
+
+## Fallout from the inversion
+
+Turning a night scene into a day scene inverts every contrast decision in the game, and three were
+missed at first — all of them "this was tuned for light-on-dark and is now dark-on-dark":
+
+- **The results buttons disagreed with each other.** `DoneButton` used `TEXT_COL`, which had just
+  become dark ink, on its dark brown button; the dynamically-added `Again` button used a pale mint
+  green that matched nothing. Both now use `BTN_TEXT`, one light cream, which is the opposite
+  problem to text on sand and needs its own constant.
+- **The goal and phase lines were illegible.** Dark ink with the old **black** outline is dark on
+  dark. An outline exists to separate text from what is behind it, so dark ink needs a LIGHT halo:
+  `TEXT_HALO`, 120+ levels clear of the ink.
+- **Sand was not yellow enough.** Yellowness (avg(r,g) − b) went 0.274 → 0.392 on lit sand.
+
+## Sand grain
+
+The ground was a perfectly smooth fill, which is what a screen looks like and not what sand looks
+like. `_build_grain_tex()` bakes a 96x96 sheet once — half the grains catching the sun, half the
+pits between them, because sand sparkles rather than merely being dirty — and it is drawn in ONE
+call with `draw_texture_rect_region`, the source rect offset by the scroll so the grain travels with
+the world instead of sitting on the glass like dirt on the lens.
+
+`_canvas.texture_repeat` must be `TEXTURE_REPEAT_ENABLED` or the region does not tile and the sheet
+is stretched across the whole screen instead.

@@ -36,7 +36,7 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 - **Storm** — manage leaks with the right tools before the boat sinks
 - **Guidem** — guide characters through a maze; plan the path before they move
 - **Taxi** — route a taxi to pick up and drop off passengers
-- **Monkey C** — pattern completion / sequence game
+- **Apprentice** — watch a robot sort, then name its hidden rule
 - **MMM** — timed multi-modal memory task
 
 ## Tech Stack

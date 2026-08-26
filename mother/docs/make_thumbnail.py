@@ -1,5 +1,10 @@
 """Mother Snake chooser thumbnail — mirrors mother/scripts/level.gd.
 
+!!! OUT OF DATE !!!  The scene was rebuilt as a genuine top-down view: the three horizontal dune
+ridges are gone (they were a side view of ridges receding, which made the snakes read as flying),
+replaced by a field of barchan crescents over mottled violet/ochre sand, plus tracks and wind.
+This script still draws the old ridge scene and must be rewritten before it is run again.
+
 Every constant below is copied from level.gd. Re-run after any visual change there:
 
     python3 mother/docs/make_thumbnail.py
@@ -16,8 +21,8 @@ S, SS = 200, 4
 W = S * SS
 
 # --- palette ---
-GROUND_TOP = (22, 17, 20)
-GROUND_BOTTOM = (37, 28, 27)
+GROUND_TOP = (27, 25, 38)
+GROUND_BOTTOM = (57, 45, 39)
 GROUND_BANDS = 24
 RIPPLE_LIGHT = (158, 128, 112)
 RIPPLE_DARK = (10, 8, 10)
@@ -51,10 +56,13 @@ HEAD_STRIPE_FROM = 0.42
 
 # --- environment ---
 DUNE_LAYERS = [
-    (0.14, 0.055, 1.55, 0.22, (29, 22, 23)),
-    (0.24, 0.045, 1.05, 0.40, (35, 27, 26)),
-    (0.34, 0.036, 0.78, 0.62, (40, 30, 28)),
+    (0.14, 0.055, 1.55, 0.22, (38, 35, 49)),
+    (0.24, 0.045, 1.05, 0.40, (50, 42, 46)),
+    (0.34, 0.036, 0.78, 0.62, (63, 51, 47)),
 ]
+# Moonlight along each ridge's top edge — the lit crest is what makes a filled band read as a dune.
+DUNE_CREST = (184, 163, 153)
+DUNE_CREST_A = [0.16, 0.22, 0.30]
 VIGNETTE_STEPS = 12
 VIGNETTE_DEPTH = 0.16
 VIGNETTE_MAX_A = 0.26

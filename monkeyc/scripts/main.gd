@@ -36,7 +36,7 @@ func _ready() -> void:
 	$Help.set_texts({"N": "New game", "M": "Main menu"})
 	$Help.close_help.connect(_on_help_close_help)
 
-	game.set_instructions("Monkey C",
+	game.set_instructions("Apprentice",
 		"Watch the robot sort items on the belt.\n" +
 		"The robot always follows a hidden rule.\n" +
 		"After several rounds, guess the rule!\n" +

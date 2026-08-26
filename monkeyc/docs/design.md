@@ -1,4 +1,4 @@
-# Monkey C — Design Doc
+# Apprentice — Design Doc
 
 ## Overview
 
@@ -22,7 +22,7 @@ Independent game: it has its own `monkeyc/art/` folder (just the chooser thumbna
 
 ## Autoloads
 
-- `MonkeyCG` — `globals.gd`; owns `GenericGameUtil.new("Monkey C", "monkeyc", 0, 10, 0, 0)`; manages level queue, settings (`starting_level_id`, `use_uppercase`)
+- `MonkeyCG` — `globals.gd`; owns `GenericGameUtil.new("Apprentice", "monkeyc", 0, 10, 0, 0)`; manages level queue, settings (`starting_level_id`, `use_uppercase`)
 - `MonkeyCLevelConfig` — `level_config.gd`; provides `LEVELS`, `LEVEL_PROGRESSION_ORDER`, `get_level(id)`, `level_names()`, `id_to_index(id)`
 
 ## Gameplay Design
@@ -308,3 +308,10 @@ Symbols fallback is very tall. That nearly doubled the gap between the wrapped l
 
 They now take `MainGlobals.get_text_font()` (1.41x); only the ✓/✗ keeps the symbol face. See the
 Fonts section in the project `CLAUDE.md` — the same trap applies to every wrapped label in the app.
+
+## Name
+
+The game is **Apprentice** to the player: you learn the robot's rule by watching it work, never by
+being told. The folder, the `MonkeyCG` / `MonkeyCLevelConfig` autoloads and the save shortname stay
+`monkeyc` (from "monkey see", the development name) — renaming the shortname would orphan every
+`*_monkeyc.gru` score file on every device.

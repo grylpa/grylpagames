@@ -1,4 +1,4 @@
-# Udbr — Design Document
+# Buoy — Design Document
 
 ## Overview
 
@@ -245,3 +245,11 @@ and mother. Geometry and the alpha policy are shared; **colors are the caller's*
 not a detail — the cyan the three cool-background games use reads as a foreign object on mother's
 dunes. `SessionBar.draw_cool()` is the cyan default; mother calls `SessionBar.draw()` with
 `MOTHER_COL` and an alpha lift for its lighter background.
+
+## Name
+
+The game is **Buoy** to the player. The folder, the `UdbrG` autoload and the save shortname stay
+`udbr` (from "up-down breathing", the name it shipped under during development) — renaming the
+shortname would orphan every `*_udbr.gru` score file on every device, so it is deliberately left
+alone. Only the display name in `scripts/config.gd`, `GenericGameUtil.new(...)`, the instructions
+title and the tutorial title changed.

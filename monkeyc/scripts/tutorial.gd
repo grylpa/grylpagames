@@ -1,8 +1,8 @@
 extends RefCounted
 
-# Monkey C's coached tutorial. See docs/tutorials.md for the step schema.
+# Apprentice's coached tutorial. See docs/tutorials.md for the step schema.
 #
-# What a first-time Monkey C player actually gets wrong, in order of damage:
+# What a first-time Apprentice player actually gets wrong, in order of damage:
 #   1. They do not realise there IS a hidden rule. The robot picking things up looks like scenery
 #      until the question arrives out of nowhere and asks what the rule was — by which point they
 #      have watched five judgements without paying attention to any of them.
@@ -32,7 +32,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Monkey C",
+			"title": "Apprentice",
 			"text": "A robot sorts things coming down a conveyor belt.\n\nIt follows one secret rule, and never tells you what it is. Working that out is the whole game.",
 		},
 		{

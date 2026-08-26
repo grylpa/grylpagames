@@ -28,7 +28,7 @@ func _ready() -> void:
 	$Help.set_texts({"N": "New session"})
 	$Help.close_help.connect(_on_help_close)
 
-	game.set_instructions("Up Down Breathe",
+	game.set_instructions("Buoy",
 		"Swipe UP while inhaling.\n" +
 		"Swipe DOWN while exhaling.\n" +
 		"Keep touching while holding your breath between inhaling and exhaling.\n" +

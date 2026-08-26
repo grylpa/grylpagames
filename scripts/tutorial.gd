@@ -175,9 +175,10 @@ func _build() -> void:
 	_title_label.add_theme_font_size_override("font_size", 30 if is_mob else 22)
 	_title_label.add_theme_color_override("font_color", SPOT_COLOR)
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# Must wrap like the others. Without this a title wider than the caption ("Up Down Breathe" at
-	# 30px against a 182px side column) reports its full width as its MINIMUM, the VBox grows past
-	# the panel to satisfy it, and the text spills out to the right of the balloon.
+	# Must wrap like the others. Without this a title wider than the caption ("Up Down Breathe",
+	# Buoy's name when this was measured, at 30px against a 182px side column) reports its full
+	# width as its MINIMUM, the VBox grows past the panel to satisfy it, and the text spills out to
+	# the right of the balloon.
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(_title_label)
