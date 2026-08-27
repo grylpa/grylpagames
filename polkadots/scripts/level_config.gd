@@ -7,21 +7,28 @@ class_name PolkadotsLevelConfig
 # rounds_per_level   : rounds before session ends
 # option_display_sec : 0 = always visible; >0 = hide after N sec, show index numbers
 # letter_size        : font size of options
+# pass_pct           : accuracy (%) needed to move on. Below it the SAME level is played again.
+#                      A level is `rounds_per_level` rounds long, so only a few percentages are
+#                      even REACHABLE: out of 10 rounds a score is a multiple of 10, out of 12 it
+#                      is 0/8/16/25/33/41/50/58/66/75/83/91/100. Set this to one of them, or the
+#                      card promises a bar that cannot be met — "need 65%" out of 10 rounds really
+#                      means 7/10, i.e. 70%. Recheck these whenever rounds_per_level changes.
+#                      As set: 6/10, 6/10, 7/10, 7/10, 7/10, 9/12, 9/12, 10/12.
 
 # don't use more than 5 options
 
 const LEVELS: Array = [
-	{"level": 1, "num_options": 3, "dot_density": 1.5, "dot_radius": 16.0, "timeout_sec": 4.0, "rounds_per_level": 5, "option_display_sec": 0.0, "letter_size": 120, 
+	{"level": 1, "num_options": 3, "dot_density": 1.5, "dot_radius": 16.0, "timeout_sec": 4.0, "rounds_per_level": 10, "option_display_sec": 0.0, "letter_size": 120, "pass_pct": 60, 
 	"bk_color": Color(0.7,0,0,1), "dot_color": Color(1,1,1,1), "letter_color": Color(1,1,1,1), },
-	{"level": 2, "num_options": 3, "dot_density": 0.9, "dot_radius": 16.0, "timeout_sec": 4.0, "rounds_per_level": 5, "option_display_sec": 0.0, "letter_size": 110,
+	{"level": 2, "num_options": 3, "dot_density": 0.9, "dot_radius": 16.0, "timeout_sec": 4.0, "rounds_per_level": 10, "option_display_sec": 0.0, "letter_size": 110, "pass_pct": 60,
 	"bk_color": Color(0,0.5,0,1), "dot_color": Color(1,1,1,1), "letter_color": Color(1,1,1,1), },
-	{"level": 3, "num_options": 4, "dot_density": 0.5, "dot_radius": 12.0, "timeout_sec": 4.0, "rounds_per_level": 5, "option_display_sec": 0.0, "letter_size": 100,
+	{"level": 3, "num_options": 4, "dot_density": 0.5, "dot_radius": 12.0, "timeout_sec": 4.0, "rounds_per_level": 10, "option_display_sec": 0.0, "letter_size": 100, "pass_pct": 70,
 	"bk_color": Color(0,0,0.8,1), "dot_color": Color(1,1,1,1), "letter_color": Color(1,1,1,1), },
-	{"level": 4, "num_options": 4, "dot_density": 0.5, "dot_radius": 12.0, "timeout_sec": 3.0, "rounds_per_level": 5, "option_display_sec": 5.0, "letter_size": 100},
-	{"level": 5, "num_options": 5, "dot_density": 0.4, "dot_radius": 10.0, "timeout_sec": 2.0, "rounds_per_level": 5, "option_display_sec": 4.0, "letter_size": 90},
-	{"level": 6, "num_options": 5, "dot_density": 0.5, "dot_radius":  9.0, "timeout_sec": 2.0, "rounds_per_level": 6, "option_display_sec": 3.5, "letter_size": 90},
-	{"level": 7, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 6, "option_display_sec": 3.0, "letter_size": 80},
-	{"level": 8, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 6, "option_display_sec": 2.5, "letter_size": 80},
+	{"level": 4, "num_options": 4, "dot_density": 0.5, "dot_radius": 12.0, "timeout_sec": 3.0, "rounds_per_level": 10, "option_display_sec": 5.0, "letter_size": 100, "pass_pct": 70},
+	{"level": 5, "num_options": 5, "dot_density": 0.4, "dot_radius": 10.0, "timeout_sec": 2.0, "rounds_per_level": 10, "option_display_sec": 4.0, "letter_size": 90, "pass_pct": 70},
+	{"level": 6, "num_options": 5, "dot_density": 0.5, "dot_radius":  9.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 3.5, "letter_size": 90, "pass_pct": 75},
+	{"level": 7, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 3.0, "letter_size": 80, "pass_pct": 75},
+	{"level": 8, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 2.5, "letter_size": 80, "pass_pct": 83},
 ]
 
 const default_bk_color: Color = Color(0.99, 0.79, 0.3, 1.0)

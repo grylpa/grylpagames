@@ -191,7 +191,7 @@ DRAGGED / SNAPPING / FADING`.
   The only way into an inner ring is the player dragging an alien there.
 - **Wedge escape.** A band between a ring and a screen edge can be narrower than an alien, and the
   field clamp undoes the radial keep-out every frame — a permanent trap. `_slide_out_of_wedge`
-  moves such an alien *along* the ring toward the open middle, and a pinched alien is also
+  moves such an alien *along* the ring toward the open center, and a pinched alien is also
   retargeted at the field center so it walks itself free instead of being shoved back.
 - A seeker that cannot squeeze into a crowded ring gives up after `SEEK_TIMEOUT_MS` (3.5 s) and
   visibly wanders off **away from that ring**, which reads as changing its mind rather than being
@@ -248,7 +248,7 @@ mistaken for anything — keep any future background motif non-circular. The sta
 drift at `STAR_DRIFT` = **3 px/s** and wrap — deliberately slow, because the aliens are small,
 numerous and always moving, and anything back here that reads as motion competes with the thing the
 player has to track. The star scatter is **re-randomised for every level** (`rebuild_sky()`): determinism matters for the
-simulation so tests repeat and behaviour is reproducible, but the sky is decoration — nothing reads
+simulation so tests repeat and behavior is reproducible, but the sky is decoration — nothing reads
 it and nothing compares it between runs, so pinning it only threw away free variety.
 `set_sky_size()` keeps it spanning the screen after a relayout.
 
@@ -756,3 +756,50 @@ Two things follow from that and both matter when editing the text:
 
 Play still starts when the card closes, now via `MainGlobals.sig_game_popup_closed` (connected
 once, guarded with `is_connected`) instead of the popup instance's own `closed` signal.
+
+## "complete!" only when it was
+
+This game can END a level without PASSING it, so `show_level_done_popup` is called with the gate
+result as its `passed` argument. The card then reads "Level N complete!" with a check badge on the
+success color, or **"Level N not passed"** with no badge on the warning color — a tick over "you
+need at least NN% accuracy" was the card congratulating the player for failing.
+
+The level id is passed too, so the title names the level instead of saying a bare "Level complete!".
+`passed` defaults to true in the shared helper, which is right for every game where reaching the
+end of a level IS finishing it.
+
+The accuracy row is the number ALONE — `Accuracy: 50%`, not `50% (need 60%)`. The threshold is
+already stated in full by the progress line under the table, and on a level the player passed, the
+bar they cleared is not something they need told.
+
+## A replay starts clean
+
+Failing the gate brings the same level round again, and that has to be a fresh attempt: the level's
+own `new_game()` clears `total_rounds`, `total_corrects`, `game.corrects`, `game.mistakes` and
+`times_to_answer` on EVERY level start, not just `if from_scratch`.
+
+They were per-session before, which is wrong twice over. The visible half is the HUD still showing
+the last level's correct/wrong tally. The half that mattered is that `pct_correct()` reads those
+counters and the gate reads `pct_correct()` — so a replay inherited the misses that failed the
+level, and even a flawless retry could not reach the threshold. (aliens always reset them here;
+this is the other games catching up.)
+
+`score` deliberately does NOT reset — it accumulates across a session, and only `game.reset(true)`
+clears it.
+
+The repaint sits next to the clearing (`MainGlobals.global_update_hud()`), not in `main.gd`.
+Whether the HUD is refreshed after the level is rebuilt differs per game — polkadots never did it —
+so the counters read 0 while the labels still showed the level the player had just failed. Clearing
+a counter and showing the cleared value belong together.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped when a level begins, and a level that misses the gate restores
+it. Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every
+failed attempt banked its points and the retry cost nothing — fail forever, earn forever.
+
+The rollback happens BEFORE the score row is saved, so the row records the score the player
+actually keeps, and it repaints the HUD (`MainGlobals.global_update_hud()`) since nothing else will
+until the next point is scored.
+
+Only the failed level's points go back. Everything earned in levels already passed is untouched.

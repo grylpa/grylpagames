@@ -175,8 +175,12 @@ func _set_app_screen_size(sz: Vector2):
 	# var w = vp.get_window()
 	# w.size = sz
 
+# Set only by the headless probes, so mobile layout (which is where big fonts overflow small
+# cards) can be measured on a desktop build. Nothing in the app writes it.
+var force_mobile: bool = false
+
 func is_mobile():
-	return OS.has_feature("mobile")
+	return force_mobile or OS.has_feature("mobile")
 
 enum PlatformId { UNKNOWN = 0, DESKTOP = 1, PHONE = 2, TABLET = 3, WEB = 4 }
 

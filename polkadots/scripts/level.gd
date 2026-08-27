@@ -40,6 +40,7 @@ var _round_start_time: float = 0.0
 var _help_open_time: float = 0.0
 var _rounds_done: int = 0
 var _rounds_correct: int = 0
+var score_at_level_start: int = 0
 var _total_response_time_ms: float = 0.0
 var _can_click: bool = false
 var _round_id: int = 0
@@ -97,6 +98,17 @@ func new_game(_from_scratch: bool = true, _keep_stats: bool = false) -> void:
 		_rounds_done = 0
 		_rounds_correct = 0
 		_total_response_time_ms = 0.0
+		# The HUD's correct/wrong pair belongs to the level being graded too. (_keep_stats is the
+		# last level looping on purpose, where a running average IS the point.)
+		PolkadotsG.game.corrects = 0
+		PolkadotsG.game.mistakes = 0
+		# What the score was before this level. A failed level gives its points back (see main.gd):
+		# without that, failing forever is a way to earn forever.
+		score_at_level_start = PolkadotsG.game.score
+		# Repaint here, where the clearing happens: this game's main.gd does not refresh the HUD
+		# after rebuilding the level, so the counters read 0 while the labels still showed the
+		# level the player had just failed.
+		MainGlobals.global_update_hud()
 	_first_round = true
 	if _from_scratch:
 		_level = PolkadotsG.starting_level
@@ -584,7 +596,13 @@ func pause_round(paused: bool) -> void:
 		_round_start_time += Time.get_unix_time_from_system() - _help_open_time
 
 func _next_or_finish() -> void:
-	if _rounds_correct >= int(_cfg["rounds_per_level"]):
+	# ROUNDS PLAYED, not rounds won. It used to end the level after `rounds_per_level` CORRECT
+	# answers, which meant a wrong answer simply bought another round and the level could not be
+	# failed — you always finished on a win. With an accuracy gate deciding whether the player
+	# moves on, the level has to be a fixed number of attempts for that percentage to mean
+	# anything. (level_config has always described the field this way: "rounds before session
+	# ends".)
+	if _rounds_done >= int(_cfg["rounds_per_level"]):
 		var avg_time_ms: int = int(_total_response_time_ms / max(1, _rounds_done))
 		var pct_correct: int = int(100.0 * _rounds_correct / max(1, _rounds_done))
 		sig_level_is_done.emit(int(_cfg["level"]), avg_time_ms, pct_correct)
