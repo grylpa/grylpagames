@@ -23,6 +23,9 @@ func reset() -> void:
 
 func init_globals() -> void:
 	game.tile_size = 88
+	# No session clock: nothing in this game calls restart_time_left_timer(), so the countdown
+	# would sit frozen at its starting value in the HUD and on every summary card.
+	game.uses_session_clock = false
 	reset()
 	game.init_sizes()
 

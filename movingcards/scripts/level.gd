@@ -6,6 +6,9 @@ var level: int = 1
 var max_difficulty: int = MovingCardsLevelConfig.LEVELS.size()
 var num_cards: int = 2
 var rounds_done_this_level: int = 0
+var rounds_correct_this_level: int = 0
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var current_level_cfg: Dictionary = {}
 
 var expected_card_idx_clicked: int = 0
@@ -18,7 +21,10 @@ var card_click_order: Array = []
 var cards: Array = []
 var move_order: Array = []
 
-const TOP_MARGIN: float = 120.0
+# The shared HUD's top strip: score and the correct/wrong counters at y 0..60, and the per-round
+# instruction line ("ORDER: 3,1,2") below them at y 65..115. A card's top edge starts at
+# TOP_MARGIN + pad - CARD_SIZE/2, so this clears the line with a 21px gap.
+const TOP_MARGIN: float = 130.0
 const BOTTOM_MARGIN: float = 80.0
 const CARD_SIZE: float = 80.0
 const MIN_TRAVEL_DIST: float = 180.0
@@ -32,7 +38,8 @@ var ambient_audios: Array = [
 ]
 
 signal sig_can_start_clicking
-signal sig_level_is_done(didwin: bool, score: int)
+# passed, the accuracy that decided it, and the bonus a pass is worth.
+signal sig_level_is_done(passed: bool, pct: int, bonus: int)
 signal sig_message(text: String, autohide: bool)
 signal update_score(score: int)
 
@@ -47,6 +54,11 @@ func new_game(from_scratch: bool = true) -> void:
 		level = MovingCardsG.starting_level
 		rounds_done_this_level = 0
 	_load_level_cfg()
+	if from_scratch:
+		rounds_correct_this_level = 0
+	game.corrects = 0
+	game.mistakes = 0
+	_score_at_level_start = game.score
 	_start_round()
 	ambient_audios.shuffle()
 	# Registered fresh each time: the list is shuffled, so which track "ambient" refers to changes
@@ -315,18 +327,88 @@ func _segments_cross(a1: Vector2, a2: Vector2, b1: Vector2, b2: Vector2) -> bool
 
 func add_card_at(start_px: Vector2, end_px: Vector2, card_id: int, will_move: bool) -> void:
 	var card = card_scene.instantiate()
-	card.end_pixel_pos = end_px if will_move else start_px
+	var target: Vector2 = end_px if will_move else start_px
 	card.set_id(card_id)
 	add_child(card)
 	cards.append(card)
 	card.position = start_px
+	card.begin_move(start_px, target, _bow_for(start_px, target))
 	card.card_pressed.connect(_on_card_pressed)
+
+# How far the arc bows, and which way. Proportional to the trip so a short hop is not a loop, and
+# clamped so the deepest point of the arc still clears the header, the bottom bar and the sides —
+# the placement code guarantees the ENDPOINTS are inside, and the bow is the only thing that can
+# take a card outside them.
+func _bow_for(from: Vector2, to: Vector2) -> float:
+	var span: float = from.distance_to(to)
+	if span < 1.0:
+		return 0.0
+	var amount: float = clampf(span * 0.13, 10.0, 40.0) * (1.0 if randf() < 0.5 else -1.0)
+	var side: Vector2 = (to - from).normalized().orthogonal()
+	var apex: Vector2 = from.lerp(to, 0.5) + side * amount
+	var pad: float = CARD_SIZE / 2.0 + 4.0
+	var area: Vector2 = MainGlobals.screen_size
+	var room: Rect2 = Rect2(pad, TOP_MARGIN + pad,
+		area.x - pad * 2.0, area.y - BOTTOM_MARGIN - TOP_MARGIN - pad * 2.0)
+	if room.has_point(apex):
+		return amount
+	# bowing that way leaves the field; try the other side, and give up on a bow if it also does
+	apex = from.lerp(to, 0.5) - side * amount
+	return -amount if room.has_point(apex) else 0.0
 
 func find_card(card_id: int):
 	for c in cards:
 		if c.id == card_id:
 			return c
 	return null
+
+# Every round counts, won or lost. Getting it wrong used to just restart the round without
+# counting it, so `num_rounds` measured successes and the level always ended in a win.
+func _finish_round(was_correct: bool) -> void:
+	rounds_done_this_level += 1
+	if was_correct:
+		rounds_correct_this_level += 1
+	game.add_correct_or_mistake(1 if was_correct else 0, 0 if was_correct else 1)
+	MainGlobals.global_update_hud()
+	if rounds_done_this_level < int(current_level_cfg["num_rounds"]):
+		_start_round()
+		return
+	game.playing = false
+	can_start_clicking = false
+	var pct: int = int(100.0 * float(rounds_correct_this_level) / float(rounds_done_this_level))
+	var passed: bool = pct >= int(current_level_cfg.get("pass_pct", 66))
+	MainGlobals.global_level_is_done(passed)
+	sig_level_is_done.emit(passed, pct, score_if_successful)
+
+# Called by main.gd once the player has closed the level card: the next level, or this one again.
+func continue_after_level(passed: bool) -> void:
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	rounds_done_this_level = 0
+	rounds_correct_this_level = 0
+	# The counters belong to the level being graded, so they start clean whether the next level is
+	# the next one or this one again.
+	game.corrects = 0
+	game.mistakes = 0
+	if passed:
+		level = min(level + 1, max_difficulty)
+	_load_level_cfg()
+	_score_at_level_start = game.score
+	MainGlobals.global_update_hud()
+	_start_round()
+
+func level_name() -> int:
+	return level
+
+func is_last_level() -> bool:
+	return level >= max_difficulty
+
+func mark_score_rollback() -> void:
+	_rollback_score_on_next_level = true
+
+func score_at_level_start() -> int:
+	return _score_at_level_start
 
 # ---- Input handling ----
 
@@ -345,12 +427,12 @@ func _on_card_pressed(_p: Vector2, _card_id: int) -> void:
 		game.playing = false
 		for _c in cards:
 			_c.reveal_card()
-		sig_message.emit("Wrong! Try again", false)
+		sig_message.emit("Wrong!", false)
 		var rid: int = _round_id
 		await MainGlobals.sleep(1.5)
 		if _round_id != rid or not is_visible():
 			return
-		_start_round()
+		_finish_round(false)
 	else:
 		# Correct card
 		if c != null:
@@ -368,21 +450,7 @@ func _on_card_pressed(_p: Vector2, _card_id: int) -> void:
 			await MainGlobals.sleep(2.0)
 			if not is_visible():
 				return
-			rounds_done_this_level += 1
-			if rounds_done_this_level >= int(current_level_cfg["num_rounds"]):
-				# Difficulty level complete
-				rounds_done_this_level = 0
-				if level >= max_difficulty:
-					# Last level: loop silently, save score without game-over popup
-					update_score.emit(score_if_successful)
-					game.save_ongoing_score([])
-				else:
-					level = min(level + 1, max_difficulty)
-					sig_level_is_done.emit(true, score_if_successful)
-					MainGlobals.global_level_is_done(true)
-					_load_level_cfg()
-					sig_message.emit("Level %d!" % level, true)
-			_start_round()
+			_finish_round(true)
 		else:
 			expected_card_idx_clicked += 1
 			var rid: int = _round_id
