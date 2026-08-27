@@ -105,12 +105,19 @@ func _on_level_sig_level_is_done(level_id: int, avg_time_ms: int, pct_correct: i
 	# still moved up.
 	var need: int = PolkadotsG.pass_pct_for(level_id)
 	var passed: bool = pct_correct >= need
-	# A failed level earns nothing. Done BEFORE save_score, so the row records the score the player
-	# actually keeps — otherwise failing forever is a way to earn forever.
+	# A failed level earns nothing — but the player does not see it vanish while the summary is
+	# still up. The row saved here has to record the score actually kept, or failing repeatedly
+	# would farm the score list; so the kept value is in place just for the save, the screen keeps
+	# showing the level that was played, and the rollback lands with the counters when the player
+	# presses Continue (see Level.new_game).
 	if not passed:
+		var earned_this_level: int = game.score
 		game.score = $Level.score_at_level_start
-		MainGlobals.global_update_hud()
-	game.save_score([false, false, level_id, avg_time_ms, pct_correct])
+		game.save_score([false, false, level_id, avg_time_ms, pct_correct])
+		game.score = earned_this_level
+		$Level.rollback_score_on_next_level = true
+	else:
+		game.save_score([false, false, level_id, avg_time_ms, pct_correct])
 	MainGlobals.global_level_is_done(passed)
 	if level_id >= PolkadotsLevelConfig.LEVELS.size():
 		# Last level: loop indefinitely, keeping cumulative stats so each save

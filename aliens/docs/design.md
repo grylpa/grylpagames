@@ -798,8 +798,11 @@ a counter and showing the cleared value belong together.
 it. Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every
 failed attempt banked its points and the retry cost nothing — fail forever, earn forever.
 
-The rollback happens BEFORE the score row is saved, so the row records the score the player
-actually keeps, and it repaints the HUD (`MainGlobals.global_update_hud()`) since nothing else will
-until the next point is scored.
+**When** it happens is split on purpose. The score row is written the moment the level ends and
+must already hold the kept value, or failing repeatedly would farm the score list — so the kept
+value is put in place just for that save. The screen, though, keeps showing the score the player
+had while playing, because watching it drop out from under a summary you are still reading is
+alarming. The visible rollback lands in `new_game()` along with the counters, when Continue is
+pressed.
 
 Only the failed level's points go back. Everything earned in levels already passed is untouched.
