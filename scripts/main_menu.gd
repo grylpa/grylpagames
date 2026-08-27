@@ -94,7 +94,115 @@ func set_game(_game):
 	if MainCfg.show_reset_scores:
 		_add_reset_scores_button()
 	_maybe_add_tutorial_button()
+	_restyle()
 	call_deferred("_ensure_full_width")
+
+# --- the look ---------------------------------------------------------------------------------
+# The menu was a tiled grass photo with a 1px dark-green rounded outline around the options and two
+# flat gold-text buttons whose pressed state was the same StyleBox as their normal one — pressing
+# START did not look like pressing anything. The table, the switches and the sliders are untouched;
+# what changed is the ground they sit on and the two things the player is here to press.
+
+const BG_TOP: Color = Color(0.114, 0.137, 0.204)
+const BG_BOT: Color = Color(0.043, 0.055, 0.086)
+const ACCENT: Color = Color(0.976, 0.792, 0.353)
+const INK: Color = Color(0.153, 0.118, 0.043)
+
+var _bg: Control = null
+var _bg_t: float = 0.0
+
+func _restyle() -> void:
+	var ground: TextureRect = $ColorRect
+	# The grass came from res://art/ and every screen in the app used to wear it. Nothing is tiled
+	# now; the backdrop is drawn.
+	ground.texture = null
+	if _bg == null or not is_instance_valid(_bg):
+		_bg = Control.new()
+		_bg.name = "Backdrop"
+		_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ground.add_child(_bg)
+		ground.move_child(_bg, 0)
+		_bg.draw.connect(_draw_backdrop)
+	set_process(true)
+
+	# The options table: a card, like the rest of the app, instead of an outline on grass.
+	var frame: StyleBoxFlat = StyleBoxFlat.new()
+	frame.bg_color = Color(1.0, 1.0, 1.0, 0.045)
+	frame.set_corner_radius_all(24)
+	frame.content_margin_left = 20.0
+	frame.content_margin_right = 20.0
+	frame.content_margin_top = 14.0
+	frame.content_margin_bottom = 14.0
+	frame.border_width_left = 1
+	frame.border_width_top = 1
+	frame.border_width_right = 1
+	frame.border_width_bottom = 1
+	frame.border_color = Color(1.0, 1.0, 1.0, 0.10)
+	%OptionsFrame.add_theme_stylebox_override("panel", frame)
+
+	%Title.add_theme_font_override("font", MainGlobals.get_text_font())
+	%Title.add_theme_color_override("font_color", ACCENT)
+	%Title.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.55))
+	%Title.add_theme_constant_override("outline_size", 6)
+
+	# The two buttons the player came here for. Same object as the game-over Restart, and the SAME
+	# SIZE in every game — these used to inherit whatever height the surrounding VBox had left
+	# over, so START was huge in dino and ordinary in Moving Cards.
+	for pair in [[%StartNewGameButton, GameButton.primary_size(), GameButton.PRIMARY_FONT],
+			[%ContinueGameButton, GameButton.continue_size(), GameButton.CONTINUE_FONT]]:
+		var b: Button = pair[0]
+		b.theme = null                     # start_button.tres used one StyleBox for every state
+		b.custom_minimum_size = pair[1]
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		# the margin parents must not stretch them either
+		var holder: Control = b.get_parent() as Control
+		if holder != null:
+			holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		GameButton.style(b, ACCENT, INK, int(pair[2]))
+	if _pulse == null or not _pulse.is_valid():
+		_pulse = GameButton.pulse(%StartNewGameButton, ACCENT)
+
+var _pulse: Tween = null
+
+func _process(delta: float) -> void:
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += delta
+		_bg.queue_redraw()
+
+func _draw_backdrop() -> void:
+	var w: float = _bg.size.x
+	var h: float = _bg.size.y
+	if w < 4.0 or h < 4.0:
+		return
+	_bg.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)]),
+		PackedColorArray([BG_TOP, BG_TOP, BG_BOT, BG_BOT]))
+	# A pool of light under the title, so the screen has a top rather than being evenly dark.
+	var glow: Texture2D = MainGlobals.menu_glow_texture()
+	if glow != null:
+		var gw: float = w * 1.5
+		_bg.draw_texture_rect(glow, Rect2(w * 0.5 - gw * 0.5, -gw * 0.30, gw, gw * 0.75), false,
+			Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.14))
+	# Slow dust. Twelve specks, positions derived from the clock — enough that the screen is not
+	# a still image, far too slow to pull the eye off the options.
+	for i in 18:
+		var seed_f: float = float(i) * 1.6180339
+		var speed: float = 5.0 + fmod(seed_f * 31.0, 7.0)
+		var y: float = h - fposmod(fmod(seed_f * 197.0, h) + _bg_t * speed, h)
+		var x: float = fmod(seed_f * 389.0, w) + sin(_bg_t * 0.35 + seed_f * 5.0) * 18.0
+		var a: float = 0.08 + 0.11 * (0.5 + 0.5 * sin(_bg_t * 0.6 + seed_f * 3.0))
+		_bg.draw_circle(Vector2(x, y), 1.7 + fmod(seed_f * 7.0, 1.9), Color(1, 1, 1, a))
+	# Vignette, so the edges settle and the card in the center is where the eye lands.
+	var vw: float = 120.0
+	var dark: Color = Color(0.0, 0.0, 0.0, 0.30)
+	var clear: Color = Color(0.0, 0.0, 0.0, 0.0)
+	_bg.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(vw, 0), Vector2(vw, h), Vector2(0, h)]),
+		PackedColorArray([dark, clear, clear, dark]))
+	_bg.draw_polygon(PackedVector2Array([Vector2(w - vw, 0), Vector2(w, 0), Vector2(w, h), Vector2(w - vw, h)]),
+		PackedColorArray([clear, dark, dark, clear]))
+	_bg.draw_polygon(PackedVector2Array([Vector2(0, h - vw * 1.4), Vector2(w, h - vw * 1.4), Vector2(w, h), Vector2(0, h)]),
+		PackedColorArray([clear, clear, dark, dark]))
 
 func _ensure_full_width() -> void:
 	%OptionsFrame.custom_minimum_size.x = MainGlobals.screen_size.x - 40
@@ -111,13 +219,13 @@ func _maybe_add_tutorial_button() -> void:
 		return
 	var vbox: Node = %MarginStartNewGame.get_parent()
 	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_top", 40)
 	var btn: Button = Button.new()
 	btn.text = "How to play"
-	btn.add_theme_font_size_override("font_size", 24)
-	btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 1.0))
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.custom_minimum_size = Vector2(200, 0)
+	btn.custom_minimum_size = Vector2(GameButton.primary_size().x * 0.72, 0.0)
+	# Ghost: the same button as START, in its secondary form — present, not competing with it.
+	GameButton.style(btn, ACCENT, INK, GameButton.SECONDARY_FONT, true)
 	btn.pressed.connect(_on_tutorial_button_pressed)
 	margin.add_child(btn)
 	vbox.add_child(margin)
@@ -265,7 +373,10 @@ func _on_start_new_game_button_pressed() -> void:
 
 func show_continue_and_start_new(_visible:bool):
 	%StartNewGameButton.text = "NEW GAME" if _visible else "START"
-	%StartNewGameButton.add_theme_font_size_override("font_size", 80)
+	# No font override here. This line set 80 for every game that called it — whether or not it
+	# was showing a Continue button — which is why START was huge in dino, whack and taxi and
+	# ordinary in Moving Cards and Polka Dots. The size comes from GameButton.PRIMARY_FONT now,
+	# once, for everyone.
 	if _visible:
 		%MarginContinue.show()
 	else:

@@ -183,8 +183,6 @@ func _scrim_style() -> StyleBoxFlat:
 var _banner_fx: Control = null
 var _fx_t: float = 0.0
 var _beat: Tween = null
-var _btn_fx: Control = null
-var _btn_down: bool = false
 
 func _style_banner(didwin: bool) -> void:
 	var bg: Color = _WIN_BG if didwin else _LOSE_BG
@@ -355,76 +353,13 @@ func _draw_ash(fx: Control, w: float, h: float, bg: Color) -> void:
 		fx.draw_circle(pos, radius * 1.9, Color(col.r, col.g, col.b, alpha * 0.18))
 		fx.draw_circle(pos, radius, Color(col.r, col.g, col.b, alpha))
 
-# NO DROP SHADOW. It was the only shadowed control in the app, which is exactly why it looked
-# stuck on rather than designed. The depth comes from the shape instead: a solid base the button
-# stands on, a gradient face, and a sheen — the same light as the banner, from the same direction.
-const _BTN_LIP: float = 10.0
-
+# The restart button is the app's standard game button (see scripts/game_button.gd), which was
+# lifted out of here so the main menu's Start could be the same object.
 func _style_restart_button(didwin: bool) -> void:
-	var btn: Button = $StartButton/StartButtonCtrl
 	var bg: Color = _WIN_BG if didwin else Color(0.976, 0.792, 0.353)
-	btn.add_theme_font_override("font", MainGlobals.get_text_font())
-	btn.add_theme_font_size_override("font_size", 44 if MainGlobals.is_mobile() else 28)
-	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		btn.add_theme_color_override(c, _WIN_INK)
-	# The button paints text only; the face below it is drawn (see _draw_button). Margins still
-	# size it, and the top one carries the press: the label sinks with the face.
-	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		var sb: StyleBoxFlat = StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0, 0)
-		sb.content_margin_left = 34.0
-		sb.content_margin_right = 34.0
-		# The face is the top `h - LIP` of the control and slides down by `sink` when pressed, so
-		# for the label to stay centered ON THE FACE: top = 16 + sink, bottom = 16 + LIP - sink.
-		var sink: float = _BTN_LIP - 3.0 if state == "pressed" else 0.0
-		sb.content_margin_top = 16.0 + sink
-		sb.content_margin_bottom = 16.0 + _BTN_LIP - sink
-		btn.add_theme_stylebox_override(state, sb)
+	GameButton.style($StartButton/StartButtonCtrl, bg, _WIN_INK,
+		44 if MainGlobals.is_mobile() else 28)
 
-	if _btn_fx == null or not is_instance_valid(_btn_fx):
-		_btn_fx = Control.new()
-		_btn_fx.show_behind_parent = true
-		_btn_fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_btn_fx.set_anchors_preset(Control.PRESET_FULL_RECT)
-		btn.add_child(_btn_fx)
-		btn.button_down.connect(func() -> void:
-			_btn_down = true
-			_btn_fx.queue_redraw())
-		btn.button_up.connect(func() -> void:
-			_btn_down = false
-			_btn_fx.queue_redraw())
-	var fx: Control = _btn_fx
-	for c in fx.draw.get_connections():
-		fx.draw.disconnect(c["callable"])
-	fx.draw.connect(func() -> void: _draw_button(fx, bg))
-	fx.queue_redraw()
-
-func _draw_button(fx: Control, bg: Color) -> void:
-	var w: float = fx.size.x
-	var h: float = fx.size.y
-	if w < 8.0 or h < 8.0:
-		return
-	var sink: float = _BTN_LIP - 3.0 if _btn_down else 0.0
-	var face_h: float = h - _BTN_LIP
-	# draw_style_box gives rounded corners at an arbitrary rect, which draw_rect cannot.
-	var base: StyleBoxFlat = StyleBoxFlat.new()
-	base.bg_color = bg.darkened(0.45)
-	base.set_corner_radius_all(20)
-	fx.draw_style_box(base, Rect2(0.0, 0.0, w, h))
-
-	var face: StyleBoxFlat = StyleBoxFlat.new()
-	face.bg_color = bg
-	face.set_corner_radius_all(20)
-	fx.draw_style_box(face, Rect2(0.0, sink, w, face_h))
-
-	var sheen: StyleBoxFlat = StyleBoxFlat.new()
-	sheen.bg_color = Color(1, 1, 1, 0.22)
-	sheen.corner_radius_top_left = 18
-	sheen.corner_radius_top_right = 18
-	sheen.corner_radius_bottom_left = 4
-	sheen.corner_radius_bottom_right = 4
-	fx.draw_style_box(sheen, Rect2(5.0, sink + 4.0, w - 10.0, face_h * 0.42))
-	
 func set_game(_game):
 	game = _game
 	game.sig_game_is_done.connect(on_game_is_done)

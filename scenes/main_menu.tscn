@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://capdjgyg0qeqt"]
 
 [ext_resource type="Script" uid="uid://cdplsdk701505" path="res://scripts/main_menu.gd" id="1_wu84c"]
-[ext_resource type="Texture2D" uid="uid://dyuktoyvbrtmg" path="res://art/grass_dark.png" id="2_bqqt6"]
 [ext_resource type="Theme" uid="uid://jmyy33bjn73p" path="res://scenes/start_button.tres" id="4_oa1go"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_wu84c"]
@@ -37,7 +36,6 @@ grow_vertical = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 2
-texture = ExtResource("2_bqqt6")
 stretch_mode = 1
 
 [node name="TitleMargin" type="MarginContainer" parent="ColorRect" unique_id=1717797275]
@@ -65,7 +63,6 @@ vertical_alignment = 1
 [node name="CenterContainer" type="CenterContainer" parent="ColorRect" unique_id=1860035563]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.0
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
@@ -90,7 +87,7 @@ size_flags_vertical = 4
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bqqt6")
 
-[node name="OptionsInner" type="VBoxContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame"]
+[node name="OptionsInner" type="VBoxContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame" unique_id=1274870644]
 layout_mode = 2
 mouse_filter = 2
 
@@ -101,7 +98,7 @@ mouse_filter = 2
 theme_override_constants/h_separation = 30
 columns = 2
 
-[node name="OptionRowsVBox" type="VBoxContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame/OptionsInner"]
+[node name="OptionRowsVBox" type="VBoxContainer" parent="ColorRect/CenterContainer/VBoxContainer/OptionsFrame/OptionsInner" unique_id=1364107953]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2

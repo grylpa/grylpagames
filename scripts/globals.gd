@@ -459,6 +459,22 @@ func kill_active_tweens():
 			t.kill()
 	_active_tweens.clear()
 
+# One soft radial falloff, tinted at the draw site. The main menu uses it for the pool of light
+# under the title; anything else that wants a glow can take it rather than baking its own.
+var _menu_glow: Texture2D = null
+
+func menu_glow_texture() -> Texture2D:
+	if _menu_glow == null:
+		var d: int = 128
+		var img: Image = Image.create(d, d, false, Image.FORMAT_RGBA8)
+		var c: float = (d - 1) * 0.5
+		for y in d:
+			for x in d:
+				var t: float = clampf(1.0 - Vector2(float(x) - c, float(y) - c).length() / c, 0.0, 1.0)
+				img.set_pixel(x, y, Color(1, 1, 1, t * t * t))
+		_menu_glow = ImageTexture.create_from_image(img)
+	return _menu_glow
+
 func make_tween():
 	var t = get_tree().root.create_tween()
 	_active_tweens[t] = true
