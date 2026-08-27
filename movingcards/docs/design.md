@@ -128,3 +128,73 @@ Score row format: `[unixtime, score, time_left, times_run, didwin, wasaborted, d
 - `didwin` is always `false` (no natural game-over; session ends when returning to menu)
 - `wasaborted` is always `true` for the same reason
 - `difficulty` = the level reached when the player exited
+
+## A level is a fixed number of rounds, and can be failed
+
+`num_rounds` counts rounds PLAYED. It used to count only the successful ones — a wrong answer just
+restarted the round without counting it — so the level could not be failed, it always ended on a
+win, and there was nothing for an accuracy gate to measure. All eight values were doubled when this
+changed, since a level of "6 rounds however they go" is a shorter sitting than "3 rounds you must
+win".
+
+`_finish_round(was_correct)` is now the single place a round ends, called from both the wrong-card
+branch and the last-correct-card branch. When `rounds_done_this_level` reaches `num_rounds` it
+works out the accuracy and emits `sig_level_is_done(passed, pct, bonus)`.
+
+Each level carries a **`pass_pct`** chosen to be exactly reachable in that many rounds — 3/6, 4/6,
+6/8, 8/10 — so the number on the card is the number required. Recheck them if `num_rounds` changes.
+
+## The level card
+
+Before this, a level ended by silently becoming the next one: a transient "Level Up!" flash from
+the HUD and nothing else. `main.gd` now shows the shared level card
+(`GenericGameUtil.show_level_done_popup`), the same one every other game uses, saying either
+"on to level N" or what accuracy was needed. Play resumes when it closes, into the next level or
+into the same one again.
+
+A failed level earns nothing: the bonus is only added on a pass, and the score row written at that
+moment holds the kept score, while the screen keeps showing what the player had until they press
+Continue (`mark_score_rollback` / `continue_after_level`).
+
+The HUD's `game_over()` is gone — it only ever showed that "Level Up!" flash, and the card replaces
+it. This game still has no losing state; nothing ends it.
+
+## Cards travel an arc
+
+`card.begin_move(from, to, bow)` bows the path sideways, deepest at the halfway point, `sin()`
+being zero at both ends so the card still starts and finishes exactly on the positions the level
+laid out. The bow is proportional to the trip (10..40px) and its direction is random.
+
+`Level._bow_for()` picks it, because the level is the only thing that knows the margins: it tests
+the arc's deepest point against the playable rect and flips the bow, or drops it to zero, rather
+than letting a curve carry a card into the header or off the side. Only ONE card moves at a time,
+so a bowed path cannot collide with another card.
+
+## The HUD is the shared one
+
+This game had its OWN HUD (`movingcards/scenes/hud.tscn`, now deleted), which is why it had no
+correct/wrong counters and never showed the shared game-over screen. The apparent reason for the
+fork was that its instruction line ("ORDER: 3,1,2") has to sit at the TOP while the board is
+visible, and the shared HUD's `Message` is center-screen — it is the game-over banner slot.
+
+That was not a reason: deliverem and delemfp put their persistent top line in `hud.dispatch()`, and
+so does this game now.
+
+What WAS real is that `Dispatch` and the correct/wrong counters are both anchored top-center and
+their rects overlap — counters (256,0)-(424,60), dispatch (216,3)-(463,53). No game had ever hit it
+because none used both: the 14 games that dispatch never show counters, and none of the 22 that
+show counters dispatch.
+
+`GenericGameHud._sync_top_strip()` drops the LINE below the counters when a game shows both. The
+line moves and the counters do not, because the counters are level state — a running tally watched
+across the whole level — while the line is per round. Letting the line take precedence and hide
+them was tried, and it made the tally blink out and back on every single round, which is worse than
+a line sitting 60px lower.
+
+A game that never shows counters is completely unaffected: its line stays at y=3, exactly where the
+scene puts it.
+
+`TOP_MARGIN` is 130 — score and counters at y 0..60, the line at 65..115, and a card's top edge starts at 136.
+
+The counters are fed by `_finish_round` and cleared per level, like every other graded game, and
+`uses_session_clock = false` hides a countdown that nothing here ever runs.

@@ -68,6 +68,7 @@ func reminder(text, autohide=true):
 	$Reminder.visible = !$Reminder.visible
 	if autohide and $Reminder.visible:
 		$ReminderTimer.start()
+	_sync_top_strip()
 	return $Reminder.visible		
 		
 # `col` tints the line in the color of whatever it is about — the truck a delivery list belongs
@@ -83,6 +84,7 @@ func dispatch(text, autohide=true, col=null):
 	$Dispatch.text = text
 	$Dispatch.add_theme_color_override("font_color", col if col != null else _dispatch_default_col)
 	$Dispatch.show()
+	_sync_top_strip()
 	if autohide:
 		$DispatchTimer.start()		
 	
@@ -90,6 +92,7 @@ func reset():
 	$Message.hide()
 	$Reminder.hide()
 	$Dispatch.hide()
+	_sync_top_strip()
 	$StartButton.hide()
 	$Panel.hide()
 	$CountdownLabel.hide()	
@@ -451,9 +454,11 @@ func _on_start_button_pressed() -> void:
 
 func _on_reminder_timer_timeout() -> void:
 	$Reminder.hide()
+	_sync_top_strip()
 
 func _on_dispatch_timer_timeout() -> void:
 	$Dispatch.hide()
+	_sync_top_strip()
 
 func check_time_run_out():
 	if game.did_time_run_out():
@@ -514,7 +519,33 @@ func show_lives():
 	$LivesContainer.show()
 
 func show_corrects_mistakes():
+	_counters_wanted = true
 	$CorrectsMistakesContainer.show()
+	_sync_top_strip()
+
+func hide_dispatch() -> void:
+	$Dispatch.hide()
+	$DispatchTimer.stop()
+	_sync_top_strip()
+
+# The counters and the transient line (Dispatch/Reminder) are both anchored top-center and their
+# rects overlap — counters (256,0)-(424,60), dispatch (216,3)-(463,53). No game had hit it because
+# none used both: the 14 games that dispatch never show counters, and none of the 22 that show
+# counters dispatch.
+#
+# The LINE moves, not the counters. The counters are level state — a running tally the player
+# watches across the whole level — and the line is per round, so letting the line hide them made
+# the tally blink out and back on every single round. A line 60px lower is the cheaper cost.
+#
+# A game that does not show counters is untouched: the offsets stay exactly as the scene set them.
+const _TOP_STRIP_DROP: float = 62.0
+var _counters_wanted: bool = false
+
+func _sync_top_strip() -> void:
+	var drop: float = _TOP_STRIP_DROP if _counters_wanted else 0.0
+	for n: Control in [$Dispatch, $Reminder]:
+		n.offset_top = 3.0 + drop
+		n.offset_bottom = 53.0 + drop
 
 func add_life():
 	game.lives_left += 1
