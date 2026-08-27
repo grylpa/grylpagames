@@ -107,14 +107,52 @@ static func pulse(btn: Button, face: Color) -> Tween:
 			1.0 - target, target, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	return t
 
+# What makes a flat button inviting is LIGHT and ATTENTION, not elevation. Three things, all
+# behind the button, so the button itself stays flat and perfectly still:
+#
+#   glow    a soft halo breathing under it — the button looks lit rather than raised
+#   rim     a hairline of its own color just outside the edge, breathing with the glow
+#   ripple  every few seconds one ring travels outward and fades, the way a notification asks
+#           to be looked at. One ring, not a loop of them.
+#
+# Everything is drawn OUTSIDE the button's rect, which also means none of it has to be clipped to
+# the rounded corners — a sweep across the face would, and would show square corners doing it.
+const _RIPPLE_PERIOD: float = 3.6
+const _RIPPLE_LIFE: float = 1.15
+
 static func _draw_glow(halo: Control, btn: Button, face: Color) -> void:
+	var w: float = halo.size.x
+	var h: float = halo.size.y
+	if w < 8.0 or h < 8.0:
+		return
 	var glow: float = float(btn.get_meta("gb_glow", 0.0))
-	if glow <= 0.001:
-		return
 	var tex: Texture2D = MainGlobals.menu_glow_texture()
-	if tex == null:
-		return
-	var pad: float = 24.0 + 10.0 * glow
-	halo.draw_texture_rect(tex,
-		Rect2(-pad, -pad * 0.6, halo.size.x + pad * 2.0, halo.size.y + pad * 1.2), false,
-		Color(face.r, face.g, face.b, 0.08 + 0.14 * glow))
+	if tex != null and glow > 0.001:
+		var pad: float = 24.0 + 10.0 * glow
+		halo.draw_texture_rect(tex, Rect2(-pad, -pad * 0.6, w + pad * 2.0, h + pad * 1.2), false,
+			Color(face.r, face.g, face.b, 0.08 + 0.14 * glow))
+
+	var rim: StyleBoxFlat = StyleBoxFlat.new()
+	rim.bg_color = Color(0, 0, 0, 0)
+	rim.set_corner_radius_all(CORNER + 3)
+	rim.border_width_left = 2
+	rim.border_width_top = 2
+	rim.border_width_right = 2
+	rim.border_width_bottom = 2
+	rim.border_color = Color(face.r, face.g, face.b, 0.16 + 0.20 * glow)
+	halo.draw_style_box(rim, Rect2(-3.0, -3.0, w + 6.0, h + 6.0))
+
+	var t: float = fposmod(float(Time.get_ticks_msec()) / 1000.0, _RIPPLE_PERIOD)
+	if t < _RIPPLE_LIFE:
+		var k: float = t / _RIPPLE_LIFE
+		var spread: float = 4.0 + k * 20.0
+		var ring: StyleBoxFlat = StyleBoxFlat.new()
+		ring.bg_color = Color(0, 0, 0, 0)
+		ring.set_corner_radius_all(CORNER + int(spread))
+		ring.border_width_left = 2
+		ring.border_width_top = 2
+		ring.border_width_right = 2
+		ring.border_width_bottom = 2
+		# fades as it travels, so the last thing the eye sees is it leaving
+		ring.border_color = Color(face.r, face.g, face.b, 0.34 * (1.0 - k) * (1.0 - k))
+		halo.draw_style_box(ring, Rect2(-spread, -spread, w + spread * 2.0, h + spread * 2.0))

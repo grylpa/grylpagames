@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://dq01irsowd2xu"]
 
 [ext_resource type="Script" uid="uid://cobaijtdvjsi7" path="res://scripts/help.gd" id="1_l2nui"]
-[ext_resource type="Texture2D" uid="uid://dyuktoyvbrtmg" path="res://art/grass_dark.png" id="2_chmrd"]
 [ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="4_hy4f4"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_moruy"]
@@ -9,7 +8,7 @@ content_margin_left = 0.0
 content_margin_top = 0.0
 content_margin_right = 0.0
 content_margin_bottom = 0.0
-bg_color = Color(0, 0, 0, 1)
+bg_color = Color(0.031, 0.067, 0.059, 1)
 border_color = Color(0.12549, 0.12549, 0.12549, 1)
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_2by0i"]
@@ -54,7 +53,6 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_moruy")
 clip_contents = true
 layout_mode = 2
 mouse_filter = 2
-texture = ExtResource("2_chmrd")
 stretch_mode = 1
 
 [node name="VBoxContainer" type="VBoxContainer" parent="BackgroundPanel" unique_id=2106668240]
