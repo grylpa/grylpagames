@@ -103,48 +103,26 @@ func set_game(_game):
 # START did not look like pressing anything. The table, the switches and the sliders are untouched;
 # what changed is the ground they sit on and the two things the player is here to press.
 
-const BG_TOP: Color = Color(0.114, 0.137, 0.204)
-const BG_BOT: Color = Color(0.043, 0.055, 0.086)
 const ACCENT: Color = Color(0.976, 0.792, 0.353)
 const INK: Color = Color(0.153, 0.118, 0.043)
 
 var _bg: Control = null
 var _bg_t: float = 0.0
+var _pulse: Tween = null
 
 func _restyle() -> void:
 	var ground: TextureRect = $ColorRect
 	# The grass came from res://art/ and every screen in the app used to wear it. Nothing is tiled
-	# now; the backdrop is drawn.
+	# now; the backdrop is drawn (see scripts/screen_backdrop.gd), in the menu's own colors.
 	ground.texture = null
-	if _bg == null or not is_instance_valid(_bg):
-		_bg = Control.new()
-		_bg.name = "Backdrop"
-		_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-		ground.add_child(_bg)
-		ground.move_child(_bg, 0)
-		_bg.draw.connect(_draw_backdrop)
+	_bg = ScreenBackdrop.attach(ground)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void:
+			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.MENU_TOP, ScreenBackdrop.MENU_BOT, ACCENT))
 	set_process(true)
 
-	# The options table: a card, like the rest of the app, instead of an outline on grass.
-	var frame: StyleBoxFlat = StyleBoxFlat.new()
-	frame.bg_color = Color(1.0, 1.0, 1.0, 0.045)
-	frame.set_corner_radius_all(24)
-	frame.content_margin_left = 20.0
-	frame.content_margin_right = 20.0
-	frame.content_margin_top = 14.0
-	frame.content_margin_bottom = 14.0
-	frame.border_width_left = 1
-	frame.border_width_top = 1
-	frame.border_width_right = 1
-	frame.border_width_bottom = 1
-	frame.border_color = Color(1.0, 1.0, 1.0, 0.10)
-	%OptionsFrame.add_theme_stylebox_override("panel", frame)
-
-	%Title.add_theme_font_override("font", MainGlobals.get_text_font())
-	%Title.add_theme_color_override("font_color", ACCENT)
-	%Title.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.55))
-	%Title.add_theme_constant_override("outline_size", 6)
+	%OptionsFrame.add_theme_stylebox_override("panel", ScreenBackdrop.card_style())
+	ScreenBackdrop.style_title(%Title, ACCENT)
 
 	# The two buttons the player came here for. Same object as the game-over Restart, and the SAME
 	# SIZE in every game — these used to inherit whatever height the surrounding VBox had left
@@ -156,7 +134,6 @@ func _restyle() -> void:
 		b.custom_minimum_size = pair[1]
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		# the margin parents must not stretch them either
 		var holder: Control = b.get_parent() as Control
 		if holder != null:
 			holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -164,45 +141,10 @@ func _restyle() -> void:
 	if _pulse == null or not _pulse.is_valid():
 		_pulse = GameButton.pulse(%StartNewGameButton, ACCENT)
 
-var _pulse: Tween = null
-
 func _process(delta: float) -> void:
 	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
 		_bg_t += delta
 		_bg.queue_redraw()
-
-func _draw_backdrop() -> void:
-	var w: float = _bg.size.x
-	var h: float = _bg.size.y
-	if w < 4.0 or h < 4.0:
-		return
-	_bg.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)]),
-		PackedColorArray([BG_TOP, BG_TOP, BG_BOT, BG_BOT]))
-	# A pool of light under the title, so the screen has a top rather than being evenly dark.
-	var glow: Texture2D = MainGlobals.menu_glow_texture()
-	if glow != null:
-		var gw: float = w * 1.5
-		_bg.draw_texture_rect(glow, Rect2(w * 0.5 - gw * 0.5, -gw * 0.30, gw, gw * 0.75), false,
-			Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.14))
-	# Slow dust. Twelve specks, positions derived from the clock — enough that the screen is not
-	# a still image, far too slow to pull the eye off the options.
-	for i in 18:
-		var seed_f: float = float(i) * 1.6180339
-		var speed: float = 5.0 + fmod(seed_f * 31.0, 7.0)
-		var y: float = h - fposmod(fmod(seed_f * 197.0, h) + _bg_t * speed, h)
-		var x: float = fmod(seed_f * 389.0, w) + sin(_bg_t * 0.35 + seed_f * 5.0) * 18.0
-		var a: float = 0.08 + 0.11 * (0.5 + 0.5 * sin(_bg_t * 0.6 + seed_f * 3.0))
-		_bg.draw_circle(Vector2(x, y), 1.7 + fmod(seed_f * 7.0, 1.9), Color(1, 1, 1, a))
-	# Vignette, so the edges settle and the card in the center is where the eye lands.
-	var vw: float = 120.0
-	var dark: Color = Color(0.0, 0.0, 0.0, 0.30)
-	var clear: Color = Color(0.0, 0.0, 0.0, 0.0)
-	_bg.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(vw, 0), Vector2(vw, h), Vector2(0, h)]),
-		PackedColorArray([dark, clear, clear, dark]))
-	_bg.draw_polygon(PackedVector2Array([Vector2(w - vw, 0), Vector2(w, 0), Vector2(w, h), Vector2(w - vw, h)]),
-		PackedColorArray([clear, dark, dark, clear]))
-	_bg.draw_polygon(PackedVector2Array([Vector2(0, h - vw * 1.4), Vector2(w, h - vw * 1.4), Vector2(w, h), Vector2(0, h)]),
-		PackedColorArray([clear, clear, dark, dark]))
 
 func _ensure_full_width() -> void:
 	%OptionsFrame.custom_minimum_size.x = MainGlobals.screen_size.x - 40

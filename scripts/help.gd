@@ -20,9 +20,37 @@ var def_help_text = {
 var help_text
 var just_closed := false
 
+var _bg: Control = null
+var _bg_t: float = 0.0
+
 func _ready():
 	if MainGlobals.is_mobile():
 		grid.add_theme_constant_override("v_separation", 40)
+	_restyle()
+
+# Same treatment as the main menu (scripts/screen_backdrop.gd), in GREEN — a player who opens help
+# should know at a glance that this is not the menu, and green is the hue this screen has always
+# had. The one-letter buttons, their captions and the rounded frame around them all stay; what
+# changed is the ground under them.
+func _restyle() -> void:
+	var panel: PanelContainer = $BackgroundPanel
+	var photo: TextureRect = $BackgroundPanel/TextureRect
+	photo.texture = null
+	_bg = ScreenBackdrop.attach(panel)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void:
+			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.HELP_TOP, ScreenBackdrop.HELP_BOT,
+				ScreenBackdrop.ACCENT))
+	# The frame keeps its generous 40px radius; it is a pane now rather than an outline on a photo.
+	%GridContainer.get_parent().add_theme_stylebox_override("panel", ScreenBackdrop.card_style(40))
+	var title: Label = $BackgroundPanel/VBoxContainer/TitleMargin/Title
+	ScreenBackdrop.style_title(title, ScreenBackdrop.ACCENT)
+	set_process(true)
+
+func _process(delta: float) -> void:
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += delta
+		_bg.queue_redraw()
 
 func set_texts(_help_text, add_def: bool = true):
 	help_text = _help_text.duplicate()
