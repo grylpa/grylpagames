@@ -41,6 +41,7 @@ var _help_open_time: float = 0.0
 var _rounds_done: int = 0
 var _rounds_correct: int = 0
 var score_at_level_start: int = 0
+var rollback_score_on_next_level: bool = false
 var _total_response_time_ms: float = 0.0
 var _can_click: bool = false
 var _round_id: int = 0
@@ -102,6 +103,11 @@ func new_game(_from_scratch: bool = true, _keep_stats: bool = false) -> void:
 		# last level looping on purpose, where a running average IS the point.)
 		PolkadotsG.game.corrects = 0
 		PolkadotsG.game.mistakes = 0
+		# The failed level's points go back HERE, with everything else, so the summary card is read
+		# against the score the player had while playing it.
+		if rollback_score_on_next_level:
+			rollback_score_on_next_level = false
+			PolkadotsG.game.score = score_at_level_start
 		# What the score was before this level. A failed level gives its points back (see main.gd):
 		# without that, failing forever is a way to earn forever.
 		score_at_level_start = PolkadotsG.game.score

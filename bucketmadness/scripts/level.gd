@@ -27,6 +27,7 @@ var waiting_for_input: bool = false
 
 var times_to_answer: Array = []
 var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var total_rounds: int = 0
 var total_corrects: int = 0
 
@@ -509,6 +510,11 @@ func new_game(from_scratch: bool = true) -> void:
 	total_corrects = 0
 	game.corrects = 0
 	game.mistakes = 0
+	# The failed level's points go back HERE, with everything else, so the summary card is read
+	# against the score the player had while playing it.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
 	# What the score was before this level. A failed level gives its points back (see _level_done):
 	# without that, failing forever is a way to earn forever — every attempt banked its points and
 	# the retry cost nothing.
@@ -850,12 +856,19 @@ func _level_done() -> void:
 	# Passing is now a RESULT, not a formality: below the level's own accuracy the same
 	# level comes round again instead of the next one.
 	var passed: bool = BucketMadnessG.record_level_result(current_level_id, pct)
-	# A failed level earns nothing. Done BEFORE sig_level_is_done, which is what saves the score
-	# row, so the row records the score the player actually keeps.
+	# A failed level earns nothing — but the player does not see it vanish while the summary is
+	# still up. The score row IS written now (sig_level_is_done saves it), and it has to record the
+	# score actually kept or failing repeatedly would farm the score list. So the kept value is put
+	# in place just for the save, the screen keeps showing the level the player played, and the
+	# rollback lands with everything else when they press Continue (see new_game).
 	if not passed:
+		var earned_this_level: int = game.score
 		game.score = _score_at_level_start
-		MainGlobals.global_update_hud()
-	game.sig_level_is_done.emit(passed)
+		game.sig_level_is_done.emit(passed)
+		game.score = earned_this_level
+		_rollback_score_on_next_level = true
+	else:
+		game.sig_level_is_done.emit(passed)
 	MainGlobals.global_level_is_done(passed)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
