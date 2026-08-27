@@ -10,18 +10,34 @@ extends CanvasLayer
 
 var _closing: bool = false
 var _parts: Dictionary = {}
+# Most games cannot fail a level — reaching the end IS finishing it — so this stays true unless a
+# gated game says otherwise.
+var _passed: bool = true
 
 func _ready() -> void:
 	MainGlobals.set_visible("level_done", true)
 	MainGlobals.sig_need_to_close_info_popups.connect(close_window)
-	_parts = ResultCard.build(self, ResultCard.ACCENT, true, "Continue", close_window)
+
+# Must be called before set_title/set_text, which is where the card gets built.
+func set_passed(passed: bool) -> void:
+	_passed = passed
+
+func _accent() -> Color:
+	return ResultCard.ACCENT if _passed else ResultCard.ALERT
+
+func _build() -> void:
+	if _parts.is_empty():
+		# No check badge on a level that was not passed: a tick over "you need at least 70%" is
+		# the card congratulating the player for failing.
+		_parts = ResultCard.build(self, _accent(), _passed, "Continue", close_window)
 
 func set_title(title) -> void:
-	if _parts.has("title") and is_instance_valid(_parts["title"]):
-		_parts["title"].text = str(title)
+	_build()
+	_parts["title"].text = str(title)
 
 func set_text(text) -> void:
-	ResultCard.set_body(_parts, str(text), ResultCard.ACCENT)
+	_build()
+	ResultCard.set_body(_parts, str(text), _accent())
 
 func close_window() -> void:
 	if _closing:

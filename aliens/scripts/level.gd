@@ -196,6 +196,7 @@ var _drag_offset: Vector2 = Vector2.ZERO
 var total_rounds: int = 0
 var total_corrects: int = 0
 var times_to_answer: Array = []
+var _score_at_level_start: int = 0
 
 # --- nodes ---
 var _catcher: Control = null
@@ -2137,6 +2138,14 @@ func new_game(from_scratch: bool = true) -> void:
 	game.corrects = 0
 	game.mistakes = 0
 	times_to_answer.clear()
+	# What the score was before this level. A failed level gives its points back (see _level_done):
+	# without that, failing forever is a way to earn forever — every attempt banked its points and
+	# the retry cost nothing.
+	_score_at_level_start = game.score
+	# Repaint here, where the clearing happens. Whether the HUD is refreshed AFTER the level is
+	# rebuilt is up to each game's main.gd, and polkadots did not — so its counters read 0 while
+	# the labels still showed the level the player had just failed.
+	MainGlobals.global_update_hud()
 	_rules_hidden = false
 	_chips_visible = true
 	_reveal_until_ms = 0.0
@@ -2367,18 +2376,28 @@ func _level_done() -> void:
 	# Passing is now a RESULT, not a formality: below the level's own accuracy the same
 	# level comes round again instead of the next one.
 	var passed: bool = AliensG.record_level_result(current_level_id, pct)
+	# A failed level earns nothing. Done BEFORE sig_level_is_done, which is what saves the score
+	# row, so the row records the score the player actually keeps.
+	if not passed:
+		game.score = _score_at_level_start
+		MainGlobals.global_update_hud()
 	game.sig_level_is_done.emit(passed)
 	MainGlobals.global_level_is_done(passed)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-	var extra: String = "\n\nAccuracy: %d%% (need %d%%)\nMean time: %s" % [
-		pct, need,
+	# Just the number. The threshold is stated in full by the progress line below the table
+	# ("You need at least NN% accuracy..."), so "(need NN%)" here said it twice; and on a level the
+	# player passed, the bar they cleared is not something they need told.
+	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
+		pct,
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
 	# Say what happens next, either way. "Accuracy: 40%" alone does not tell the player whether
 	# they are moving on, which is the only thing they want to know at that moment.
 	extra += "\n\n" + _progress_line(passed, need)
-	game.show_level_done_popup(self, "", extra, 0, "")
+	# `passed` and the level id: this game can END a level without PASSING it, so the card must not
+	# say "complete!" over a "you need at least NN%" line.
+	game.show_level_done_popup(self, "", extra, current_level_id, "", passed)
 
 # What the player gets next, in words.
 func _progress_line(passed: bool, need: int) -> String:

@@ -50,6 +50,12 @@ var progress_tab_name: String = ""
 var zoomed_in := false
 
 var game_over_on_time_out := true
+# A session clock only means something if the game RUNS it: `game.playing = true` plus
+# `hud.restart_time_left_timer()`, after which it counts down and ends the session at zero (see
+# whack). A game that never does that still gets the countdown drawn in the HUD and a "Time left"
+# line in its summary — both frozen at the starting value, a number that looks like a limit and
+# is not one. Such a game declares itself here instead.
+var uses_session_clock: bool = true
 var game_over_on_zero_score := false
 var time_left_sec:int = 300
 var _reset_time_left_sec := time_left_sec
@@ -1173,22 +1179,33 @@ func handle_event(event, parent):
 
 var show_time_left_on_level_done := true
 
-func show_level_done_popup(parent, title, text, level_id=0, text_add=""):
+# `passed` defaults to TRUE because in most games reaching the end of a level IS completing it.
+# The games with an accuracy gate (aliens, bucketmadness, sortingrobots, polkadots) can end a level
+# WITHOUT passing it, and there "Level 3 complete!" over "you need at least 70%" congratulated the
+# player for failing.
+func show_level_done_popup(parent, title, text, level_id=0, text_add="", passed=true):
 	if title == null or title == "":
 		# The level number belongs in the title. It used to head the body as well ("You have /
 		# completed / level 3" under a "Level complete!" banner), which spent the top third of the
 		# card saying the same thing twice.
-		title = "Level %d complete!" % level_id if level_id > 0 else "Level complete!"
+		if passed:
+			title = "Level %d complete!" % level_id if level_id > 0 else "Level complete!"
+		else:
+			title = "Level %d not passed" % level_id if level_id > 0 else "Level not passed"
 	if text == null or text == "":
 		text = "Total score: %d" % score
 		# Only worth saying when there was time to spare. In a game whose clock IS the level's
 		# length, the level ends BECAUSE the clock hit zero, so the line would read "00:00:00"
-		# every single time and tell the player nothing.
-		if time_left_sec > 0:
+		# every single time and tell the player nothing — and in a game with no running clock at
+		# all it would read the starting value every single time, which is worse.
+		if uses_session_clock and time_left_sec > 0:
 			text += "\nTime left: %s" % time_left_str()
 	text += text_add
 	var ldp = level_done_popup_scene.instantiate()
 	parent.add_child(ldp)
+	# Before set_title: the card is built on the first of these calls, and whether the level was
+	# passed decides its color and whether it gets a check badge.
+	ldp.set_passed(passed)
 	ldp.set_title(title)
 	ldp.set_text(text)
 

@@ -128,3 +128,99 @@ Score row format: `[unixtime, score, corrects, mistakes, didwin, wasaborted, lev
 |--------|-----------|---------|
 | `Level.sig_level_is_done(level_id, avg_time_ms, pct_correct)` | level → main | level complete → save + popup or loop |
 | `Level.update_score(delta)` | level → main | add points to running score |
+
+## Passing a level
+
+Each level in `level_config.gd` carries a **`pass_pct`** — the accuracy needed to move on.
+`PolkadotsG.pass_pct_for(level_id)` reads it, falling back to `DEFAULT_PASS_PCT` (70) for a level
+that does not state one.
+
+**A level is a fixed number of rounds, so only some percentages exist.** Out of 10 rounds a score
+is a multiple of 10; out of 12 the rungs are 8, 16, 25, 33, 41, 50, 58, 66, 75, 83, 91. A
+`pass_pct` off those rungs makes the card promise a bar that cannot be met — "need 65%" out of 10
+rounds really means 7/10, i.e. 70%. The values are chosen to land exactly:
+
+| level | rounds | pass_pct | really |
+|---|---|---|---|
+| 1-2 | 10 | 60 | 6/10, 4 misses |
+| 3-5 | 10 | 70 | 7/10, 3 misses |
+| 6-7 | 12 | 75 | 9/12, 3 misses |
+| 8 | 12 | 83 | 10/12, 2 misses |
+
+Recheck them whenever `rounds_per_level` changes.
+
+`_next_or_finish` ends the level after `rounds_per_level` rounds PLAYED. It used to end after that
+many rounds WON — a wrong answer just bought another round, so the level could not be failed and
+you always finished on a win, which leaves an accuracy gate nothing to measure.
+
+Before the gate, `_on_level_sig_level_is_done` set `game.need_to_increase_level = true`
+unconditionally: finishing the rounds WAS passing, so a player could get every round wrong and still be moved up,
+which made the accuracy number on the summary decorative. It is now `= passed`, and
+`MainGlobals.global_level_is_done(passed)` reports the same truth.
+
+The summary says which happened, because "80% correct" on its own does not tell the player whether
+they are moving on:
+
+- passed -> `Level passed — on to level N.`
+- failed -> `You need at least NN% accuracy to pass to the next level.`
+
+The last level is unaffected: it loops with cumulative stats and never shows the card.
+
+## "complete!" only when it was
+
+This game can END a level without PASSING it, so `show_level_done_popup` is called with the gate
+result as its `passed` argument. The card then reads "Level N complete!" with a check badge on the
+success color, or **"Level N not passed"** with no badge on the warning color — a tick over "you
+need at least NN% accuracy" was the card congratulating the player for failing.
+
+The level id is passed too, so the title names the level instead of saying a bare "Level complete!".
+`passed` defaults to true in the shared helper, which is right for every game where reaching the
+end of a level IS finishing it.
+
+The accuracy row is the number ALONE — `Accuracy: 50%`, not `50% (need 60%)`. The threshold is
+already stated in full by the progress line under the table, and on a level the player passed, the
+bar they cleared is not something they need told.
+
+## No session clock
+
+`PolkadotsG.init_globals()` sets `game.uses_session_clock = false`, which hides the HUD countdown
+and keeps a "Time left" row out of the level summary.
+
+A session clock only means something if the game RUNS it — `game.playing = true` plus
+`hud.restart_time_left_timer()`, after which it counts down and ends the session at zero (whack is
+the model). This game never did either: `game.playing` appears exactly once in its scripts, as
+`= false`. So the countdown sat frozen at 00:05:00 in the HUD and every level summary printed
+"Time left: 00:05:00" — a number that looks like a limit and is not one.
+
+The time pressure here is the **per-round `timeout_sec`**, the bar above the options, and the level
+ends after `rounds_per_level` rounds. Neither has anything to do with the session clock.
+
+The `0, 5, 0` in the `GenericGameUtil` constructor is now inert. If this game ever WANTS a cap, the
+fix is to run the clock (set `playing`, restart the timer) and drop the flag — not to re-show a
+number nothing decrements.
+
+## A replay starts clean
+
+Failing the gate replays the level, and `Level.new_game()` clears `_rounds_done`, `_rounds_correct`,
+`_total_response_time_ms` and the HUD's `game.corrects` / `game.mistakes` — the pair the player can
+see, which used to still show the failed attempt.
+
+The exception is `_keep_stats`, which is the last level looping on purpose: there a running average
+over everything played at that level IS the point, so nothing is cleared.
+
+The repaint sits next to the clearing (`MainGlobals.global_update_hud()`), not in `main.gd`.
+Whether the HUD is refreshed after the level is rebuilt differs per game — polkadots never did it —
+so the counters read 0 while the labels still showed the level the player had just failed. Clearing
+a counter and showing the cleared value belong together.
+
+## A failed level earns nothing
+
+`Level.score_at_level_start` is stamped when a level begins (main.gd reads it), and a level that misses the gate restores
+it. Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every
+failed attempt banked its points and the retry cost nothing — fail forever, earn forever.
+
+The rollback happens BEFORE the score row is saved, so the row records the score the player
+actually keeps, and it repaints the HUD (`MainGlobals.global_update_hud()`) since nothing else will
+until the next point is scored.
+
+Only the failed level's points go back. Everything earned in levels already passed is untouched.

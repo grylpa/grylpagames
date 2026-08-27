@@ -100,18 +100,42 @@ func _on_level_show_main_menu() -> void:
 func _on_level_sig_level_is_done(level_id: int, avg_time_ms: int, pct_correct: int) -> void:
 	_did_save = true
 	game.score_was_changed = true
+	# Passing is a RESULT, not a formality: below the level's own accuracy the SAME level is played
+	# again. It used to advance on completion alone, so every answer could be wrong and the player
+	# still moved up.
+	var need: int = PolkadotsG.pass_pct_for(level_id)
+	var passed: bool = pct_correct >= need
+	# A failed level earns nothing. Done BEFORE save_score, so the row records the score the player
+	# actually keeps — otherwise failing forever is a way to earn forever.
+	if not passed:
+		game.score = $Level.score_at_level_start
+		MainGlobals.global_update_hud()
 	game.save_score([false, false, level_id, avg_time_ms, pct_correct])
-	MainGlobals.global_level_is_done(true)
+	MainGlobals.global_level_is_done(passed)
 	if level_id >= PolkadotsLevelConfig.LEVELS.size():
 		# Last level: loop indefinitely, keeping cumulative stats so each save
 		# reflects a running average over all rounds played at this level
 		new_game(false, true)
 		return
-	game.need_to_increase_level = true
+	game.need_to_increase_level = passed
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-	var text_add: String = "\n\nAvg response: %d ms\n%d%% correct" % [avg_time_ms, pct_correct]
-	game.show_level_done_popup(self, "", "", level_id, text_add)
+	# Say what happens next, either way: "80% correct" alone does not tell the player whether they
+	# are moving on, which is the only thing they want to know at that moment.
+	# Just the number. The threshold is stated in full by the progress line below the table
+	# ("You need at least NN% accuracy..."), so "(need NN%)" here said it twice; and on a level the
+	# player passed, the bar they cleared is not something they need told.
+	var text_add: String = "\n\nAccuracy: %d%%\nAvg response: %d ms\n\n%s" % [
+		pct_correct, avg_time_ms, _progress_line(passed, need, level_id)]
+	# `passed` and the level id: this game can END a level without PASSING it, so the card must not
+	# say "complete!" over a "you need at least NN%" line.
+	game.show_level_done_popup(self, "", "", level_id, text_add, passed)
+
+# What the player gets next, in words.
+func _progress_line(passed: bool, need: int, level_id: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	return "Level passed — on to level %d." % (level_id + 1)
 
 func _on_level_done_popup_closed() -> void:
 	new_game(false)

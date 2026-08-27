@@ -35,6 +35,21 @@ const RULE: Color = Color(1.0, 1.0, 1.0, 0.07)
 const COL_GAP: int = 44
 const COL_GAP_DESKTOP: int = 34
 
+# Type sizes, phone first. The old dialogs these replaced set 40 for a title and 60 for a button on
+# mobile; the first version of this card used 34 and 30, which is a step DOWN on the device where
+# the text is furthest from your eyes and the target is a thumb. Every size here is one place, so
+# the whole family moves together.
+const TITLE_SIZE: int = 46
+const TITLE_SIZE_DESKTOP: int = 27
+const PROSE_SIZE: int = 32
+const PROSE_SIZE_DESKTOP: int = 20
+const LABEL_SIZE: int = 30
+const LABEL_SIZE_DESKTOP: int = 20
+const VALUE_SIZE: int = 32
+const VALUE_SIZE_DESKTOP: int = 22
+const BUTTON_SIZE: int = 46
+const BUTTON_SIZE_DESKTOP: int = 23
+
 # A briefing ("Level 3"), a congratulation ("Well done!") and a loss ("Oh no!") arrive through the
 # same call and used to look identical — same gold, same word on the button. They are three
 # different moments: one says what is ABOUT to happen, two say what just did.
@@ -109,7 +124,10 @@ static func build_confirm(host: CanvasLayer, ok_text: String, cancel_text: Strin
 static func _shell(host: CanvasLayer, accent: Color, badge: bool, on_close: Callable,
 		opaque: bool = false) -> Dictionary:
 	var mob: bool = MainGlobals.is_mobile()
-	var card_w: float = minf(560.0, float(MainGlobals.screen_size.x) * 0.88)
+	# Wider on a phone. The card was capped at 560 on a 680 screen, which left 120px of scrim doing
+	# nothing while two buttons fought over the room inside it.
+	var card_w: float = minf(620.0, float(MainGlobals.screen_size.x) * 0.92) if mob \
+		else minf(560.0, float(MainGlobals.screen_size.x) * 0.88)
 
 	var scrim: ColorRect = ColorRect.new()
 	scrim.color = Color(0.043, 0.055, 0.086, 1.0) if opaque else Color(0.0, 0.0, 0.0, 0.62)
@@ -211,7 +229,7 @@ static func _header(parent: Control, accent: Color, badge: bool, card_w: float, 
 
 	var title_label: Label = Label.new()
 	title_label.add_theme_font_override("font", MainGlobals.get_text_font())
-	title_label.add_theme_font_size_override("font_size", 34 if mob else 27)
+	title_label.add_theme_font_size_override("font_size", TITLE_SIZE if mob else TITLE_SIZE_DESKTOP)
 	title_label.add_theme_color_override("font_color", HEADER_INK)
 	# An autowrapping Label with nothing constraining its width wraps at effectively ZERO — one
 	# character per line — and then reports THAT as its minimum height. This header measured 669px
@@ -229,7 +247,7 @@ static func _button(label: String, accent: Color, mob: bool, on_close: Callable,
 	var btn: Button = Button.new()
 	btn.text = label
 	btn.add_theme_font_override("font", MainGlobals.get_text_font())
-	btn.add_theme_font_size_override("font_size", 30 if mob else 23)
+	btn.add_theme_font_size_override("font_size", BUTTON_SIZE if mob else BUTTON_SIZE_DESKTOP)
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		btn.add_theme_color_override(state, accent if ghost else HEADER_INK)
 	for state in ["normal", "hover", "pressed", "focus"]:
@@ -249,8 +267,8 @@ static func _button(label: String, accent: Color, mob: bool, on_close: Callable,
 		sb.set_corner_radius_all(16)
 		sb.content_margin_top = 14.0
 		sb.content_margin_bottom = 14.0
-		sb.content_margin_left = 26.0
-		sb.content_margin_right = 26.0
+		sb.content_margin_left = 18.0 if mob else 26.0
+		sb.content_margin_right = 18.0 if mob else 26.0
 		btn.add_theme_stylebox_override(state, sb)
 	btn.pressed.connect(func() -> void: on_close.call())
 	return btn
@@ -337,40 +355,66 @@ static func _flush_table(rows: VBoxContainer, pending: Array, mob: bool) -> void
 	table.add_theme_constant_override("separation", 2)
 	holder.add_child(table)
 	rows.add_child(holder)
+	var cells: Array = []
 	for i in pending.size():
 		if i > 0:
 			var rule: ColorRect = ColorRect.new()
 			rule.color = RULE
 			rule.custom_minimum_size = Vector2(0.0, 1.0)
 			table.add_child(rule)
-		_add_stat(table, pending[i][0], pending[i][1], mob)
+		cells.append(_add_stat(table, pending[i][0], pending[i][1], mob))
+	_align_columns(cells)
 	pending.clear()
 
-static func _add_stat(table: VBoxContainer, label_text: String, value_text: String, mob: bool) -> void:
+# Two COLUMNS, not two rows of independently sized text. Each row was laying itself out on its own:
+# the label took whatever slack was left after its own value, so the boundary between the columns
+# moved from row to row, and a long value like "50% (need 60%)" began over the word "response" in
+# the row below it. That is a pair of lines, not a table.
+#
+# Both columns are therefore sized once, from the widest cell in each, and every row uses those
+# widths — labels flush left down one edge, values flush right down the other, and the gap between
+# the columns is the same on every line.
+static func _align_columns(cells: Array) -> void:
+	if cells.is_empty():
+		return
+	var label_w: float = 0.0
+	var value_w: float = 0.0
+	for pair in cells:
+		label_w = maxf(label_w, (pair[0] as Label).get_combined_minimum_size().x)
+		value_w = maxf(value_w, (pair[1] as Label).get_combined_minimum_size().x)
+	for pair in cells:
+		(pair[0] as Label).custom_minimum_size = Vector2(label_w, 0.0)
+		(pair[1] as Label).custom_minimum_size = Vector2(value_w, 0.0)
+
+# Returns [label, value] so the caller can size the two columns once all the rows are known.
+static func _add_stat(table: VBoxContainer, label_text: String, value_text: String, mob: bool) -> Array:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", COL_GAP if mob else COL_GAP_DESKTOP)
 	var lab: Label = Label.new()
 	lab.text = label_text
 	lab.add_theme_font_override("font", MainGlobals.get_text_font())
-	lab.add_theme_font_size_override("font_size", 26 if mob else 20)
+	lab.add_theme_font_size_override("font_size", LABEL_SIZE if mob else LABEL_SIZE_DESKTOP)
 	lab.add_theme_color_override("font_color", MUTED)
-	# The label takes the slack, which is what keeps it left while the value stays right.
-	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# FILL, not EXPAND: the column widths are set by _align_columns once every row is known, and an
+	# expanding label would hand each row's leftover space back to itself and break the alignment.
+	lab.size_flags_horizontal = Control.SIZE_FILL
 	row.add_child(lab)
 	var val: Label = Label.new()
 	val.text = value_text
 	val.add_theme_font_override("font", MainGlobals.get_text_font())
-	val.add_theme_font_size_override("font_size", 28 if mob else 22)
+	val.add_theme_font_size_override("font_size", VALUE_SIZE if mob else VALUE_SIZE_DESKTOP)
 	val.add_theme_color_override("font_color", TEXT)
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	val.size_flags_horizontal = Control.SIZE_FILL
 	row.add_child(val)
 	table.add_child(row)
+	return [lab, val]
 
 static func _add_prose(rows: VBoxContainer, line: String, accent: Color, card_w: float, mob: bool) -> void:
 	var lab: Label = Label.new()
 	lab.text = line
 	lab.add_theme_font_override("font", MainGlobals.get_text_font())
-	lab.add_theme_font_size_override("font_size", 26 if mob else 20)
+	lab.add_theme_font_size_override("font_size", PROSE_SIZE if mob else PROSE_SIZE_DESKTOP)
 	lab.add_theme_color_override("font_color", accent if line.ends_with("!") else TEXT)
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -463,7 +463,7 @@ The buckets briefly grew two hinged flaps that swung out of the rim as an item a
 are open-topped containers; the flaps existed only because an open/close animation was wanted, and
 on screen they read as two diagonal lines appearing from nowhere.
 
-They are gone. "Ready to receive" is now a lift in the rim colour and a little light down the inside
+They are gone. "Ready to receive" is now a lift in the rim color and a little light down the inside
 wall — what an open container catching the light would actually do. `open_amount` still drives it,
 so the timing is unchanged.
 
@@ -516,3 +516,50 @@ with rivets and a lit inner edge, a bolted lip across the mouth so it reads as f
 above rather than being a hole, a shadow under that lip so the throat recedes, and a flared bottom
 edge that catches the light — so the chute visibly DELIVERS into the row of containers instead of
 merely stopping above them.
+
+## "complete!" only when it was
+
+This game can END a level without PASSING it, so `show_level_done_popup` is called with the gate
+result as its `passed` argument. The card then reads "Level N complete!" with a check badge on the
+success color, or **"Level N not passed"** with no badge on the warning color — a tick over "you
+need at least NN% accuracy" was the card congratulating the player for failing.
+
+The level id is passed too, so the title names the level instead of saying a bare "Level complete!".
+`passed` defaults to true in the shared helper, which is right for every game where reaching the
+end of a level IS finishing it.
+
+The accuracy row is the number ALONE — `Accuracy: 50%`, not `50% (need 60%)`. The threshold is
+already stated in full by the progress line under the table, and on a level the player passed, the
+bar they cleared is not something they need told.
+
+## A replay starts clean
+
+Failing the gate brings the same level round again, and that has to be a fresh attempt: the level's
+own `new_game()` clears `total_rounds`, `total_corrects`, `game.corrects`, `game.mistakes` and
+`times_to_answer` on EVERY level start, not just `if from_scratch`.
+
+They were per-session before, which is wrong twice over. The visible half is the HUD still showing
+the last level's correct/wrong tally. The half that mattered is that `pct_correct()` reads those
+counters and the gate reads `pct_correct()` — so a replay inherited the misses that failed the
+level, and even a flawless retry could not reach the threshold. (aliens always reset them here;
+this is the other games catching up.)
+
+`score` deliberately does NOT reset — it accumulates across a session, and only `game.reset(true)`
+clears it.
+
+The repaint sits next to the clearing (`MainGlobals.global_update_hud()`), not in `main.gd`.
+Whether the HUD is refreshed after the level is rebuilt differs per game — polkadots never did it —
+so the counters read 0 while the labels still showed the level the player had just failed. Clearing
+a counter and showing the cleared value belong together.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped when a level begins, and a level that misses the gate restores
+it. Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every
+failed attempt banked its points and the retry cost nothing — fail forever, earn forever.
+
+The rollback happens BEFORE the score row is saved, so the row records the score the player
+actually keeps, and it repaints the HUD (`MainGlobals.global_update_hud()`) since nothing else will
+until the next point is scored.
+
+Only the failed level's points go back. Everything earned in levels already passed is untouched.

@@ -129,6 +129,8 @@ func set_game(_game):
 	game = _game
 	game.sig_game_is_done.connect(on_game_is_done)
 	game.sig_level_label_changed.connect(show_level_label)
+	if not game.uses_session_clock:
+		$TimeLeftLabel.hide()
 	update_all()
 	
 func on_game_is_done(_didwin: bool, _wasaborted: bool):

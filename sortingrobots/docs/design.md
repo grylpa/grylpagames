@@ -255,3 +255,50 @@ The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus
 *"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
 
 Thresholds ramp with difficulty rather than sitting flat.
+
+## "complete!" only when it was
+
+This game can END a level without PASSING it, so `show_level_done_popup` is called with the gate
+result as its `passed` argument. The card then reads "Level N complete!" with a check badge on the
+success color, or **"Level N not passed"** with no badge on the warning color — a tick over "you
+need at least NN% accuracy" was the card congratulating the player for failing.
+
+The level id is passed too, so the title names the level instead of saying a bare "Level complete!".
+`passed` defaults to true in the shared helper, which is right for every game where reaching the
+end of a level IS finishing it.
+
+The accuracy row is the number ALONE — `Accuracy: 50%`, not `50% (need 60%)`. The threshold is
+already stated in full by the progress line under the table, and on a level the player passed, the
+bar they cleared is not something they need told.
+
+## A replay starts clean
+
+Failing the gate brings the same level round again, and that has to be a fresh attempt: the level's
+own `new_game()` clears `total_rounds`, `total_corrects`, `game.corrects`, `game.mistakes` and
+`times_to_answer` on EVERY level start, not just `if from_scratch`.
+
+They were per-session before, which is wrong twice over. The visible half is the HUD still showing
+the last level's correct/wrong tally. The half that mattered is that `pct_correct()` reads those
+counters and the gate reads `pct_correct()` — so a replay inherited the misses that failed the
+level, and even a flawless retry could not reach the threshold. (aliens always reset them here;
+this is the other games catching up.)
+
+`score` deliberately does NOT reset — it accumulates across a session, and only `game.reset(true)`
+clears it.
+
+The repaint sits next to the clearing (`MainGlobals.global_update_hud()`), not in `main.gd`.
+Whether the HUD is refreshed after the level is rebuilt differs per game — polkadots never did it —
+so the counters read 0 while the labels still showed the level the player had just failed. Clearing
+a counter and showing the cleared value belong together.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped when a level begins, and a level that misses the gate restores
+it. Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every
+failed attempt banked its points and the retry cost nothing — fail forever, earn forever.
+
+The rollback happens BEFORE the score row is saved, so the row records the score the player
+actually keeps, and it repaints the HUD (`MainGlobals.global_update_hud()`) since nothing else will
+until the next point is scored.
+
+Only the failed level's points go back. Everything earned in levels already passed is untouched.
