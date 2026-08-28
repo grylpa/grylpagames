@@ -10,6 +10,7 @@ const DIST_Y_MAX: float = 150.0                      # distance chart capped at 
 var _typit_font: Font = null
 var _key_sessions: Array = []
 var _keys_area: Control = null   # whole keys page (info + fixed header + scrolling data)
+var _keys_margin: MarginContainer = null   # the framed panel around it, shown/hidden as a tab
 var _keys_btn: Button = null
 var _view_level: int = 1         # which level's key data is shown
 
@@ -109,13 +110,28 @@ func _add_keys_tab() -> void:
 	if vbox == null:
 		return
 
-	# Keys page = VBox [ info label, fixed header row, scrolling data ]
+	# Keys page = VBox [ info label, fixed header row, scrolling data ], inside the same framed
+	# panel every other tab opens onto — it is a tab of this screen and has to look like one.
 	var page: VBoxContainer = VBoxContainer.new()
 	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page.add_theme_constant_override("separation", 4)
-	page.visible = false
-	vbox.add_child(page)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", content_frame())
+	panel.add_child(page)
+	_keys_margin = MarginContainer.new()
+	_keys_margin.name = "KeysMargin"
+	_keys_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_keys_margin.add_theme_constant_override("margin_bottom", 10)
+	_keys_margin.visible = false
+	_keys_margin.add_child(panel)
+	# Into the tab stack, so the Keys tab joins its content the way the others do.
+	if _tabs_stack != null:
+		_tabs_stack.add_child(_keys_margin)
+	else:
+		vbox.add_child(_keys_margin)
+	_content_areas.append(_keys_margin)
 	_keys_area = page
 
 	_view_level = TypitG.selected_level
@@ -133,8 +149,8 @@ func _on_keys_tab_pressed() -> void:
 	_show_chart_area()
 	if _chart_area:
 		_chart_area.visible = false
-	if _keys_area:
-		_keys_area.visible = true
+	if _keys_margin:
+		_keys_margin.visible = true
 	_apply_tab_style(_keys_btn, true)
 	var scores_tab: Node = find_child("ScoresTabButton", true, false)
 	if scores_tab:
@@ -146,8 +162,8 @@ func _on_keys_tab_pressed() -> void:
 		_apply_tab_style(_chart_tab_button, false)
 
 func _on_standard_tab_pressed() -> void:
-	if _keys_area:
-		_keys_area.visible = false
+	if _keys_margin:
+		_keys_margin.visible = false
 	if _keys_btn:
 		_apply_tab_style(_keys_btn, false)
 
@@ -342,6 +358,20 @@ func _build_key_row(parent: Node, ch: String, ks: Dictionary,
 	var sy: String = "+" if dy_pct >= 0.0 else ""
 	_cell(row, "%s%.0f" % [sy, dy_pct], COL_VAL, fs_stats, Color(0.90, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
 	_cell(row, "%.0f" % sdy_pct, COL_STD, fs_stats, Color(0.70, 0.78, 0.95, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
+	_ignore_pointer(card)
+
+# Every control in a row ignores the pointer — which is what the standard score rows do too
+# (`mouse_filter = 2` throughout scores_list_row.tscn and the grid label scenes).
+#
+# It is what makes the table SCROLLABLE on a phone. These rows are built in code, so they carried
+# Control's default MOUSE_FILTER_STOP: each one swallowed the touch, and the ScrollContainer above
+# them never saw a drag. The table had 1608 units of content in a 454-unit view and a live
+# scrollbar, and still would not move under a finger.
+func _ignore_pointer(n: Node) -> void:
+	if n is Control:
+		(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for c in n.get_children():
+		_ignore_pointer(c)
 
 func _spacer(parent: Node, w: float) -> void:
 	var sp: Control = Control.new()

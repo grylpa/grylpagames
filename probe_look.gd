@@ -159,6 +159,20 @@ func _ready() -> void:
 		fails.append("scores: the tab bar and the table are not in one stack")
 	elif stack.get_theme_constant("separation") != 0:
 		fails.append("scores: there is a gap between the tab bar and the table")
+	# The stack must only claim the screen while it HAS content showing. typit adds a Keys page as a
+	# sibling and switches to it by hiding both the table and the chart; a stack still set to expand
+	# went on holding ~350 units for a 57-unit tab bar, and the Keys list had no room to scroll in.
+	if stack != null:
+		if stack.size_flags_vertical != Control.SIZE_EXPAND_FILL:
+			fails.append("scores: the stack does not expand while the table is showing")
+		scores.call("_show_chart_area")
+		if scores.get("_chart_area") != null:
+			(scores.get("_chart_area") as Control).visible = false
+		for _i in 4:
+			await get_tree().process_frame
+		if stack.size_flags_vertical == Control.SIZE_EXPAND_FILL:
+			fails.append("scores: the stack still claims the screen with no content on show")
+
 	scores.queue_free()
 	for _i in 4:
 		await get_tree().process_frame

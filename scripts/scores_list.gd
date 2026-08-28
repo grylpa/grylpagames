@@ -54,7 +54,7 @@ const TEXT: Color = ResultCard.TEXT
 const MUTED: Color = ResultCard.MUTED
 # The hairline around a tab's content. One line, the accent at a quarter: the panel has to read as
 # the tab's own without competing with what is inside it.
-const FRAME: Color = Color(ScreenBackdrop.ACCENT.r, ScreenBackdrop.ACCENT.g, ScreenBackdrop.ACCENT.b, 0.28)
+const FRAME: Color = Color(ScreenBackdrop.ACCENT.r, ScreenBackdrop.ACCENT.g, ScreenBackdrop.ACCENT.b, 0.45)
 # What a tab's content sits on. A step LIGHTER than the bar above it: the score rows are drawn with
 # a 38%-black backing, so the paler the surface under them the more each row separates from the next
 # — on the bar's own color the list read as one slab.
@@ -65,6 +65,10 @@ var _bg_t: float = 0.0
 var _table_panel: PanelContainer = null
 var _table_margin: MarginContainer = null
 var _tabs_stack: VBoxContainer = null
+# One per tab: the framed panel that tab opens onto. A subclass adding a tab of its own adds its
+# panel here, and the stack then knows to claim the screen for it (see _sync_stack_expand) —
+# typit's Keys page is the one that does.
+var _content_areas: Array = []
 
 func _ready():
 	$ScoresWindow.size = MainGlobals.full_screen_size
@@ -200,6 +204,7 @@ func _ready():
 		_tabs_stack.add_child(_chart_area)
 	else:
 		$ScoresWindow/ColorRect/VBoxContainer.add_child(_chart_area)
+	_content_areas.append(_chart_area)
 
 	_update_tab_visuals()
 	await get_tree().process_frame
@@ -299,11 +304,34 @@ func _build_table_panel() -> void:
 	scroll_mc.reparent(inner)
 	_table_margin = table_margin
 	_tabs_stack = stack
+	_content_areas.append(table_margin)
 
 func _process(delta: float) -> void:
 	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
 		_bg_t += delta
 		_bg.queue_redraw()
+	_sync_stack_expand()
+
+# The tab bar and its content share one container, and that container must only claim the screen
+# while it HAS content on show.
+#
+# typit adds a Keys page of its own as a sibling, and switches to it by hiding both the table and
+# the chart. With the stack still set to expand, it went on holding 357 of the screen's units for a
+# tab bar 60 units tall — and the Keys list, expanding into what was left, had no room to scroll in.
+#
+# Read from the children rather than set at each switch: typit hides the chart AFTER calling
+# _show_chart_area(), so no single switch point knows the final answer.
+func _sync_stack_expand() -> void:
+	if _tabs_stack == null or not is_instance_valid(_tabs_stack):
+		return
+	var showing: bool = false
+	for a in _content_areas:
+		if a != null and is_instance_valid(a) and (a as Control).visible:
+			showing = true
+			break
+	var want: int = Control.SIZE_EXPAND_FILL if showing else Control.SIZE_SHRINK_BEGIN
+	if _tabs_stack.size_flags_vertical != want:
+		_tabs_stack.size_flags_vertical = want
 
 func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos: int = -1, level_names: Dictionary = {}, pct_label: String = "% Correct", pct_format: String = "%d", time_label: String = "Avg Time", time_format: String = "%d", time_is_pct: bool = false, tab_name: String = "", score_label: String = "Score", pct_integer: bool = false) -> void:
 	_raw_scores = raw_scores
