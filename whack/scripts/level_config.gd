@@ -3,12 +3,15 @@ class_name WhackLevelConfig
 # Per-level parameters for Whack.
 # interval between targets = randf_range(interval_min_ms, interval_max_ms)
 # show_ms                   : how long targets stay visible before auto-disappearing
-# rounds                    : rounds played at this level before it is judged. A round is one
-#                             target presentation — hit, missed, or correctly left alone.
-# pass_pct                  : share of those rounds that must be answered right to move on. Below
-#                             it the SAME level is played again.
-#                             A level is a fixed number of rounds, so only some percentages exist:
-#                             out of 10 the rungs are multiples of 10. These land exactly.
+# num_targets_in_round      : target presentations in one round. A presentation is one target shown
+#                             — hit, missed, or correctly left alone.
+# num_rounds                : rounds played at this level before it is judged. A short panel marks
+#                             each round boundary; the level ends after the last one.
+# pass_pct                  : share of the level's presentations that must be answered right to
+#                             move on. Below it the SAME level is played again.
+#                             A level is num_rounds x num_targets_in_round presentations, so only
+#                             some percentages exist: out of 20 the rungs are multiples of 5, and
+#                             every value below lands exactly on one.
 # num_decoys                : how many decoy targets appear alongside the real one
 # no_real_chance            : probability (0.0-1.0) that a round has only decoys and no real target
 # same_color_decoy          : if true, decoys share the real target's color but have no center dot
@@ -23,7 +26,8 @@ const LEVELS: Array = [
 		"interval_min_ms":           700.0,
 		"interval_max_ms":          1500.0,
 		"show_ms":                  2000.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   60,
 		"num_decoys":                   0,
 		# 0 on purpose: with no decoys, an "empty" round would show nothing at all.
@@ -37,7 +41,8 @@ const LEVELS: Array = [
 		"interval_min_ms":            700.0,
 		"interval_max_ms":           1200.0,
 		"show_ms":                   1500.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   60,
 		"num_decoys":                    2,
 		"no_real_chance":              0.2,
@@ -50,7 +55,8 @@ const LEVELS: Array = [
 		"interval_min_ms":            700.0,
 		"interval_max_ms":           1200.0,
 		"show_ms":                   1000.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   70,
 		"num_decoys":                    4,
 		"no_real_chance":              0.3,
@@ -63,7 +69,8 @@ const LEVELS: Array = [
 		"interval_min_ms":            700.0,
 		"interval_max_ms":           1500.0,
 		"show_ms":                   1000.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   70,
 		"num_decoys":                    8,
 		"no_real_chance":              0.3,
@@ -76,7 +83,8 @@ const LEVELS: Array = [
 		"interval_min_ms":            600.0,
 		"interval_max_ms":           1200.0,
 		"show_ms":                    800.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   80,
 		"num_decoys":                    12,
 		"no_real_chance":              0.3,
@@ -89,7 +97,8 @@ const LEVELS: Array = [
 		"interval_min_ms":            500.0,
 		"interval_max_ms":           1000.0,
 		"show_ms":                    700.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   80,
 		"num_decoys":                    15,
 		"no_real_chance":              0.3,
@@ -102,7 +111,8 @@ const LEVELS: Array = [
 		"interval_min_ms":            500.0,
 		"interval_max_ms":           1000.0,
 		"show_ms":                    500.0,
-		"rounds":                     10,
+		"num_targets_in_round":       5,
+		"num_rounds":                  4,
 		"pass_pct":                   80,
 		"num_decoys":                    20,
 		"no_real_chance":              0.3,
@@ -121,8 +131,14 @@ static func pass_pct_for(level_id: int) -> int:
 			return int(lv.get("pass_pct", DEFAULT_PASS_PCT))
 	return DEFAULT_PASS_PCT
 
+static func targets_in_round_for(level_id: int) -> int:
+	for lv: Dictionary in LEVELS:
+		if int(lv["level"]) == level_id:
+			return int(lv.get("num_targets_in_round", 5))
+	return 5
+
 static func rounds_for(level_id: int) -> int:
 	for lv: Dictionary in LEVELS:
 		if int(lv["level"]) == level_id:
-			return int(lv.get("rounds", 10))
-	return 10
+			return int(lv.get("num_rounds", 4))
+	return 4
