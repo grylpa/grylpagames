@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://didi/scripts/level.gd" id="1_dilevel"]
 [ext_resource type="PackedScene" path="res://didi/scenes/agent.tscn" id="2_dilevel"]
-[ext_resource type="Texture2D" path="res://didi/art/grass.png" id="4_dilevel"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_dilevel"]
 
 [node name="Level" type="CanvasLayer" unique_id=70001]
 script = ExtResource("1_dilevel")

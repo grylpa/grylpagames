@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c24ld0yxtmme8"]
 
 [ext_resource type="Script" uid="uid://c812r1g7jp7na" path="res://matchws/scripts/card.gd" id="1_dtpes"]
-[ext_resource type="Texture2D" uid="uid://c16w2d1jjh8uv" path="res://matchws/art/zig1.png" id="2_0qh85"]
+[ext_resource type="Texture2D" uid="uid://lvyr5nxt1aqw" path="res://art/zig1.png" id="2_0qh85"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dtpes"]
 bg_color = Color(0.6, 0.6, 0.6, 0)

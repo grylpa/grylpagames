@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bsf4y1n8wgktm" path="res://guidem/scripts/level.gd" id="1_5agtr"]
 [ext_resource type="PackedScene" uid="uid://ckj3afshagqjs" path="res://guidem/scenes/pipe.tscn" id="3_8txly"]
-[ext_resource type="Texture2D" uid="uid://cs8jdwjp7x8l7" path="res://guidem/art/grass.png" id="4_3h76h"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_3h76h"]
 [ext_resource type="PackedScene" uid="uid://sweqyylil6e8" path="res://guidem/scenes/door.tscn" id="5_11118"]
 
 [node name="Level" type="CanvasLayer" unique_id=345785039]

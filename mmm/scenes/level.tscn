@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://hxyf4vbnc45x" path="res://mmm/scripts/level.gd" id="1_yah8g"]
 [ext_resource type="PackedScene" uid="uid://bawjn443qw7nd" path="res://mmm/scenes/pipe.tscn" id="2_dm1hp"]
 [ext_resource type="PackedScene" uid="uid://cdgw3r0f3x6rr" path="res://mmm/scenes/door.tscn" id="3_sd3ak"]
-[ext_resource type="Texture2D" uid="uid://dmat7lqww3rgq" path="res://mmm/art/grass.png" id="4_v0q7p"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_v0q7p"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_yah8g"]
 content_margin_left = 20.0
@@ -30,7 +30,11 @@ door_scene = ExtResource("3_sd3ak")
 wait_time = 0.5
 autostart = true
 
-[node name="TextureRect" type="TextureRect" parent="." unique_id=1437505540]
+[node name="BgLayer" type="CanvasLayer" parent="."]
+layer = -1
+follow_viewport_enabled = true
+
+[node name="TextureRect" type="TextureRect" parent="BgLayer" unique_id=1437505540]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

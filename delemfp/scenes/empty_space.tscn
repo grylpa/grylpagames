@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c7sx23t35t2rt"]
 
 [ext_resource type="Script" uid="uid://dm0ygbrjrm23c" path="res://delemfp/scripts/empty_space.gd" id="1_wm7ux"]
-[ext_resource type="Texture2D" uid="uid://dl6rc484yuv1g" path="res://delemfp/art/grass.png" id="2_6iq3f"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="2_6iq3f"]
 [ext_resource type="Texture2D" uid="uid://dp6uwcbcv4ccn" path="res://art/empty_corner.png" id="3_iir64"]
 [ext_resource type="Texture2D" uid="uid://cum2j088nct2g" path="res://art/pipe_wall.png" id="3_yk2tg"]
 

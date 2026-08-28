@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://ccyw6n3uhhcy3" path="res://parkem/scripts/level.gd" id="1_8x76s"]
 [ext_resource type="PackedScene" uid="uid://0277b1b3fc78" path="res://parkem/scenes/pipe.tscn" id="2_psf55"]
 [ext_resource type="PackedScene" uid="uid://58e4b5f6cad5" path="res://parkem/scenes/door.tscn" id="3_ro06t"]
-[ext_resource type="Texture2D" uid="uid://d2e20e1i4v1ug" path="res://parkem/art/grass.png" id="4_3y2co"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_3y2co"]
 
 [node name="Level" type="CanvasLayer" unique_id=198400547]
 script = ExtResource("1_8x76s")

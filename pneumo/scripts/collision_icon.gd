@@ -5,7 +5,7 @@ extends RefCounted
 # horizontally, one coming down vertically — snapped off where they met, with cartoon impact marks
 # over the break.
 #
-# It is built from `res://pneumo/art/agent_body1.png`, the same 30x25 body segment the capsules on
+# It is built from `res://art/agent_body1.png`, the same 30x25 body segment the capsules on
 # the board are made of — scaled, tinted with two of the game's palette colors, and rotated onto the
 # diagonal. Nothing here is invented art: the counter counts capsules crashing, so it shows the
 # capsule the player looks at all game, in the colors they see it in.
@@ -55,7 +55,7 @@ static func make(color_a: Color, color_b: Color) -> ImageTexture:
 
 # One capsule: the board's own body segment, scaled, tinted, and snapped off at its right end.
 static func _tube(col: Color) -> Image:
-	var tex: Texture2D = load("res://pneumo/art/agent_body1.png")
+	var tex: Texture2D = load("res://art/agent_body1.png")
 	var img: Image = tex.get_image()
 	if img.is_compressed():
 		img.decompress()

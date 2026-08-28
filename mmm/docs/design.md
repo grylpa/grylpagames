@@ -228,3 +228,16 @@ Specific to this game:
   (type 0) sit still and enemies (type 1) patrol. The closing step says exactly that.
 - Events reported to the coach: `coin_taken`, `room_entered`, `map_shown`, `room_answered` — all
   `game.tutorial_notify`, no-ops outside tutorial mode.
+
+## The ground and the camera
+
+The Level is a `CanvasLayer` with `follow_viewport_enabled`, so everything in it moves WITH the
+camera. This game's camera is parented to a moving node and PANS, so a screen-anchored ground in
+that layer covers the screen once, at the start, and is then walked off the edge of — bare screen
+at the sides.
+
+The ground therefore sits in a nested `BgLayer` (`CanvasLayer`, `layer = -1`, NOT following the
+viewport), which is the arrangement gorilla already used. Games whose camera is pinned to the board
+centre (lightsout, taxi, wolves) do not need it and do not have it.
+
+`probe_look.gd` fails if this game's ground goes back into the following layer.

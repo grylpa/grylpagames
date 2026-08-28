@@ -2,9 +2,15 @@ extends Area2D
 
 var board_pos := Vector2i.ZERO
 
-func _ready() -> void:
-	var rng = RandomNumberGenerator.new()
-	$Grass.rotation = rng.randi_range(0,3)*PI/2.0
+# The grass tile is left ALONE — not rotated, not flipped.
+#
+# Measured, `res://art/grass.png` tiles SEAMLESSLY: its left column matches its right (0.034) and
+# its top matches its bottom (0.030) more closely than two random interior columns match each other
+# (0.043). Laid out plainly, the 40-unit grid is invisible because the texture wraps across it.
+#
+# Turning or flipping a cell breaks that wrap, so every cell boundary becomes a seam and the field
+# gains a grid of them — which is the "still looks tiled" this used to cause. A per-cell random
+# rotation was here from the start and was making things worse, not better.
 
 func show_hide_walls(board):
 	var p = board_pos

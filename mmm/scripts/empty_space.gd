@@ -2,9 +2,14 @@ extends Area2D
 
 var board_pos := Vector2i.ZERO
 
+# NO grass sprite on a cell. The lawn is one continuous field drawn behind the whole board — see
+# scripts/grass_field.gd — and a per-cell tile on top of it would put the mosaic straight back.
+#
+# (Its own tile does wrap seamlessly, measured: left-to-right 0.034 and top-to-bottom 0.030 against
+# an interior baseline of 0.043. So the grid was invisible until something turned the cells — which
+# a per-cell random rotation in here did, from the start.)
 func _ready() -> void:
-	var rng = RandomNumberGenerator.new()
-	$Grass.rotation = rng.randi_range(0,3)*PI/2.0
+	$Grass.hide()
 
 func show_hide_walls(board):
 	var p = board_pos

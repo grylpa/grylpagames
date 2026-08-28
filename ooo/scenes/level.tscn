@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b47cmnwbwtd7y" path="res://ooo/scripts/level.gd" id="1_ufpus"]
 [ext_resource type="PackedScene" uid="uid://ba00658c408a0" path="res://ooo/scenes/pipe.tscn" id="2_gdn1f"]
-[ext_resource type="Texture2D" uid="uid://bwqt05cj7weph" path="res://ooo/art/grass.png" id="4_asnw5"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_asnw5"]
 
 [node name="Level" type="CanvasLayer" unique_id=1941738343]
 script = ExtResource("1_ufpus")

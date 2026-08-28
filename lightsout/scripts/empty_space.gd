@@ -2,10 +2,6 @@ extends Area2D
 
 var board_pos = Vector2i.ZERO
 
-func _ready() -> void:
-	var rng = RandomNumberGenerator.new()
-	$Grass.rotation = rng.randi_range(0,3)*PI/2.0
-
 func show_hide_walls(board):
 	var p = board_pos
 

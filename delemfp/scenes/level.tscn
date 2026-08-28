@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://bglylcujv61wo" path="res://delemfp/scripts/level.gd" id="1_5agtr"]
 [ext_resource type="PackedScene" uid="uid://byktsjwn62wjr" path="res://delemfp/scenes/player.tscn" id="1_re2nr"]
 [ext_resource type="PackedScene" uid="uid://dm7kko4nw16ia" path="res://delemfp/scenes/pipe.tscn" id="3_8txly"]
-[ext_resource type="Texture2D" uid="uid://dl6rc484yuv1g" path="res://delemfp/art/grass.png" id="4_l1lck"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_l1lck"]
 
 [node name="Level" type="CanvasLayer" unique_id=1340773866]
 follow_viewport_enabled = true
@@ -15,7 +15,10 @@ pipe_scene = ExtResource("3_8txly")
 wait_time = 0.5
 autostart = true
 
-[node name="TextureRect" type="TextureRect" parent="." unique_id=165557321]
+[node name="BgLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="TextureRect" type="TextureRect" parent="BgLayer" unique_id=165557321]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
