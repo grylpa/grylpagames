@@ -153,7 +153,7 @@ func _ready() -> void:
 	again_btn_a.add_theme_stylebox_override("normal", btn_style)
 	again_btn_a.add_theme_stylebox_override("hover", btn_style)
 	again_btn_a.add_theme_stylebox_override("pressed", btn_pressed_style)
-	again_btn_a.add_theme_font_size_override("font_size", 36 if mobile else 26)
+	MainGlobals.set_font_size(again_btn_a, 26)
 	again_btn_a.pressed.connect(_on_again_pressed)
 	var btn_hbox_a: HBoxContainer = HBoxContainer.new()
 	btn_hbox_a.add_theme_constant_override("separation", 16)

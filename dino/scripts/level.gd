@@ -180,11 +180,11 @@ func _layout() -> void:
 	var btn_y: float = sh - btn_h - btn_margin_bottom
 
 	# fonts scale up on mobile
-	_instruction.add_theme_font_size_override("font_size", 40 if mob else 30)
-	_hint.add_theme_font_size_override("font_size", 30 if mob else 22)
-	_feedback.add_theme_font_size_override("font_size", 120 if mob else 84)
+	MainGlobals.set_font_size(_instruction, 30)
+	MainGlobals.set_font_size(_hint, 22)
+	MainGlobals.set_font_size(_feedback, 84)
 	for b in [_btn_new, _btn_seen]:
-		b.add_theme_font_size_override("font_size", 44 if mob else 32)
+		MainGlobals.set_font_size(b, 32)
 
 	# timeout bar just under the header (level label is moved down below it in main.gd)
 	_bar_h = 22.0 if mob else 14.0

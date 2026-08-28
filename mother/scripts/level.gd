@@ -577,7 +577,6 @@ func _ready() -> void:
 	vbox_m.add_child(graph_spacer_m)
 	vbox_m.move_child(graph_spacer_m, vbox_m.get_child_count() - 2)
 
-	var mobile_m: bool = MainGlobals.is_mobile()
 	var again_btn_m: Button = Button.new()
 	again_btn_m.text = "Again"
 	again_btn_m.custom_minimum_size = Vector2(160, 52)
@@ -585,7 +584,7 @@ func _ready() -> void:
 	again_btn_m.add_theme_stylebox_override("normal", btn_style)
 	again_btn_m.add_theme_stylebox_override("hover", btn_style)
 	again_btn_m.add_theme_stylebox_override("pressed", btn_pressed)
-	again_btn_m.add_theme_font_size_override("font_size", 36 if mobile_m else 26)
+	MainGlobals.set_font_size(again_btn_m, 26)
 	again_btn_m.add_theme_color_override("font_color", BTN_TEXT)
 	again_btn_m.pressed.connect(_on_again_pressed)
 	var btn_hbox_m: HBoxContainer = HBoxContainer.new()
@@ -610,7 +609,7 @@ func _ready() -> void:
 	_reaction_label = Label.new()
 	_reaction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_reaction_label.add_theme_font_override("font", MainGlobals.get_system_sans_font())
-	_reaction_label.add_theme_font_size_override("font_size", 20 if not MainGlobals.is_mobile() else 28)
+	MainGlobals.set_font_size(_reaction_label, 20)
 	_reaction_label.add_theme_color_override("font_color", Color(0.75, 0.88, 0.75, 0.85))
 	_reaction_label.visible = false
 	vbox_m.add_child(_reaction_label)

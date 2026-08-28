@@ -182,6 +182,39 @@ var force_mobile: bool = false
 func is_mobile():
 	return force_mobile or OS.has_feature("mobile")
 
+# ONE mobile type scale, derived rather than guessed per label.
+#
+# The canvas is 680x788 on desktop and 680x1200 on mobile (see _ready). So a size in units is the
+# same share of the WIDTH everywhere and a 1200/788 = 1.52x smaller share of the HEIGHT on a phone:
+# 1.52 is where a font has to land just to hold its ground, before any argument about a phone being
+# a physically smaller piece of glass.
+#
+# Almost every hand-written pair in this project is BELOW that. The tutorial's Skip button was
+# 20/15 = 1.33, the score rows 26/20 = 1.30 and 28/22 = 1.27 — each one shrinking by 12-16% on the
+# device it was written for. Everything with a single flat size loses the whole 34%.
+#
+# `ui_font_size(desktop)` is the pair, computed. Call it with the DESKTOP size and let the mobile
+# one follow; never write the mobile number by hand next to it, which is how the ratios drifted.
+#
+# It applies ONLY where it is called, and that limit is deliberate. An earlier version scaled every
+# Control automatically as it entered the tree, on the theory that a scene-authored size must be a
+# desktop size. Measured, the theory is false: across the 223 sizes in the .tscn files the median is
+# 30 with quartiles at 24 and 36 — the MOBILE half of the range this project's own explicit pairs
+# use (desktop 20-27, mobile 32-46). The scenes were authored on a phone. Scaling them made the help
+# screen, the login screen and the score rows far too large, and every screen in the app would have
+# needed to opt out of it.
+const MOBILE_FONT_SCALE: float = 1.6
+
+func ui_font_size(desktop_size: int) -> int:
+	return int(round(float(desktop_size) * MOBILE_FONT_SCALE)) if is_mobile() else desktop_size
+
+# Sets a control's type from its DESKTOP size. Any code that decides a font size should come
+# through here rather than writing the mobile number beside it.
+func set_font_size(ctrl: Control, desktop_size: int, item: String = "font_size") -> void:
+	if ctrl == null or not is_instance_valid(ctrl):
+		return
+	ctrl.add_theme_font_size_override(item, ui_font_size(desktop_size))
+
 enum PlatformId { UNKNOWN = 0, DESKTOP = 1, PHONE = 2, TABLET = 3, WEB = 4 }
 
 func get_platform_id() -> int:

@@ -163,6 +163,87 @@ func _ready() -> void:
 	for _i in 4:
 		await get_tree().process_frame
 
+	# --- the scores screen AT MOBILE TYPE -------------------------------------------------------
+	#
+	# Built with force_mobile on, so the automatic type pass runs over it: the three things that
+	# broke when it first did were tabs of different sizes, rows inheriting a scene size and
+	# bursting their line, and the chart's metric row running off the screen.
+	MainGlobals.force_mobile = true
+	var mscores: CanvasLayer = load("res://scenes/scores_list.tscn").instantiate()
+	add_child(mscores)
+	for _i in 8:
+		await get_tree().process_frame
+	var tabs: Array = []
+	var tab_bar: Node = _find(mscores, "TabBar")
+	if tab_bar == null:
+		fails.append("mobile scores: no tab bar")
+	else:
+		# With every tab visible, the bar must still fit across the screen.
+		for c in tab_bar.get_children():
+			if c is Control:
+				(c as Control).visible = true
+		for _i in 4:
+			await get_tree().process_frame
+		var bar_want: float = (tab_bar as Control).get_combined_minimum_size().x
+		print("  tab bar wants %.0f of %.0f units" % [bar_want, MainGlobals.full_screen_size.x])
+		if bar_want > float(MainGlobals.full_screen_size.x):
+			fails.append("mobile scores: the tab bar wants %d units of a %d-unit screen" % [
+				bar_want, MainGlobals.full_screen_size.x])
+		for c in tab_bar.get_children():
+			if c is Button:
+				tabs.append(c)
+		var sizes: Array = []
+		for t: Button in tabs:
+			sizes.append(t.get_theme_font_size("font_size"))
+		for v in sizes:
+			if int(v) != int(sizes[0]):
+				fails.append("mobile scores: the tabs are set at different sizes %s" % str(sizes))
+				break
+	# The chart's metric row must fit the canvas. The chart area starts hidden, and a container that
+	# has never been laid out reports a stale minimum size — so it is shown first.
+	if mscores.has_method("_show_chart_area"):
+		mscores.call("_show_chart_area")
+	for _i in 6:
+		await get_tree().process_frame
+	var metric_row: Node = null
+	for c in _all_nodes(mscores):
+		if c is Button and String(c.text) == "% Correct":
+			metric_row = c.get_parent().get_parent().get_parent()
+	if metric_row == null:
+		fails.append("mobile scores: no metric row")
+	else:
+		var want: float = (metric_row as Control).get_combined_minimum_size().x
+		var have: float = float(MainGlobals.full_screen_size.x)
+		print("  metric row wants %.0f of %.0f units" % [want, have])
+		if want > have:
+			fails.append("mobile scores: the metric row wants %d units of a %d-unit screen" % [want, have])
+	mscores.queue_free()
+	MainGlobals.force_mobile = false
+	for _i in 4:
+		await get_tree().process_frame
+
+	# --- the mobile type scale ------------------------------------------------------------------
+	#
+	# It applies where it is CALLED and nowhere else — the scene files are authored phone-first, so
+	# there is no automatic pass over them (see MainGlobals.ui_font_size).
+	MainGlobals.force_mobile = true
+	var decided: Label = Label.new()
+	MainGlobals.set_font_size(decided, 20)
+	add_child(decided)
+	if decided.get_theme_font_size("font_size") != int(round(20.0 * MainGlobals.MOBILE_FONT_SCALE)):
+		fails.append("type: set_font_size did not scale on mobile (got %d)" % decided.get_theme_font_size("font_size"))
+	decided.queue_free()
+
+	var untouched: Label = Label.new()
+	untouched.add_theme_font_size_override("font_size", 40)
+	add_child(untouched)
+	if untouched.get_theme_font_size("font_size") != 40:
+		fails.append("type: a scene-authored size was changed behind the scenes (got %d)" % untouched.get_theme_font_size("font_size"))
+	untouched.queue_free()
+	MainGlobals.force_mobile = false
+	for _i in 2:
+		await get_tree().process_frame
+
 	print("")
 	if fails.is_empty():
 		print("LOOK OK")

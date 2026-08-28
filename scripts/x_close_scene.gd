@@ -43,7 +43,20 @@ func _update_theme():
 		return
 
 	button_node.add_theme_color_override("font_color", text_color)
-	button_node.add_theme_font_size_override("font_size", font_size)
+	# The X is the other end of the screen's header, and the title beside it is scaled on mobile.
+	# Left at its desktop size it shrinks against everything around it — and this runs from _ready(),
+	# AFTER the app's automatic type pass, so a plain override here would undo that pass as well.
+	if Engine.is_editor_hint():
+		button_node.add_theme_font_size_override("font_size", font_size)
+	else:
+		MainGlobals.set_font_size(button_node, font_size)
+		# The X the player sees is an ICON (art/x32.png, 32x32 native), which no type scale reaches,
+		# and it sat in a 48x48 button looking small beside a title that had grown.
+		#
+		# `expand_icon` fills the box it already has — 32 to 48, half again as big — WITHOUT changing
+		# any geometry. Growing custom_minimum_size instead put the button past its anchored 56-unit
+		# slot and off the right edge of the screen.
+		button_node.expand_icon = MainGlobals.is_mobile()
 
 	if close_icon:
 		button_node.icon = close_icon

@@ -193,13 +193,13 @@ func _layout() -> void:
 	var mob: bool = MainGlobals.is_mobile()
 	var hh: float = float(MainGlobals.header_height)
 
-	_target_label.add_theme_font_size_override("font_size", 66 if mob else 48)
+	MainGlobals.set_font_size(_target_label, 48)
 	if show_level_instruction:
-		_instruction.add_theme_font_size_override("font_size", 32 if mob else 24)
+		MainGlobals.set_font_size(_instruction, 24)
 	_fb_font_big = 96 if mob else 66
 	_fb_font_small = 54 if mob else 38
 	_feedback.add_theme_font_size_override("font_size", _fb_font_big)
-	_pay_btn.add_theme_font_size_override("font_size", 48 if mob else 34)
+	MainGlobals.set_font_size(_pay_btn, 34)
 
 	# full-screen drag catcher
 	_place(_catcher, 0.0, 0.0, sw, sh)

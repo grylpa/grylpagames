@@ -121,8 +121,8 @@ func _layout() -> void:
 	var mob: bool = MainGlobals.is_mobile()
 	var hh: float = float(MainGlobals.header_height)
 
-	_instruction.add_theme_font_size_override("font_size", 38 if mob else 28)
-	_feedback.add_theme_font_size_override("font_size", 110 if mob else 78)
+	MainGlobals.set_font_size(_instruction, 28)
+	MainGlobals.set_font_size(_feedback, 78)
 
 	# timeout bar just under the header (level label is moved down below it in main.gd)
 	_bar_h = 22.0 if mob else 14.0

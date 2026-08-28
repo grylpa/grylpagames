@@ -102,7 +102,7 @@ func _ready():
 	_chart_tab_button.text = "Chart"
 	_chart_tab_button.visible = false
 	_chart_tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_chart_tab_button.add_theme_font_size_override("font_size", 26)
+	MainGlobals.set_font_size(_chart_tab_button, 20)
 	_chart_tab_button.pressed.connect(_on_chart_tab_pressed)
 	tab_bar.add_child(_chart_tab_button)
 
@@ -116,8 +116,11 @@ func _ready():
 	_chart_area.add_child(chart_top_spacer)
 
 	var metric_margin: MarginContainer = MarginContainer.new()
-	metric_margin.add_theme_constant_override("margin_left", 80)
-	metric_margin.add_theme_constant_override("margin_right", 40)
+	# Was 80/40, which fitted three buttons of desktop type and nothing else. With the mobile type
+	# scale the three of them plus the D/# switch wanted more than the 680-unit canvas has, and the
+	# row ran off the screen.
+	metric_margin.add_theme_constant_override("margin_left", 12)
+	metric_margin.add_theme_constant_override("margin_right", 12)
 	metric_margin.add_theme_constant_override("margin_top", 0)
 	metric_margin.add_theme_constant_override("margin_bottom", 2)
 	var bar_panel: PanelContainer = PanelContainer.new()
@@ -137,7 +140,7 @@ func _ready():
 		var btn: Button = Button.new()
 		btn.text = metric_labels[idx]
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.add_theme_font_size_override("font_size", 19)
+		MainGlobals.set_font_size(btn, 16)
 		btn.clip_text = false
 		var captured_idx: int = idx
 		btn.pressed.connect(func(): _on_metric_button_pressed(captured_idx))
@@ -150,7 +153,7 @@ func _ready():
 	_x_mode_switch = CheckButton.new()
 	_x_mode_switch.text = "D/#"
 	_x_mode_switch.set_pressed_no_signal(true)  # default: by index
-	_x_mode_switch.add_theme_font_size_override("font_size", 19)
+	MainGlobals.set_font_size(_x_mode_switch, 16)
 	var dark: Color = Color(0.22, 0.22, 0.22, 1.0)
 	_x_mode_switch.add_theme_color_override("font_color", dark)
 	_x_mode_switch.add_theme_color_override("font_hover_color", dark)
@@ -174,7 +177,7 @@ func _ready():
 	metric_row.add_theme_constant_override("separation", 0)
 	metric_row.add_child(bar_panel)
 	var gap: Control = Control.new()
-	gap.custom_minimum_size = Vector2(40, 0)
+	gap.custom_minimum_size = Vector2(12, 0)
 	metric_row.add_child(gap)
 	metric_row.add_child(_x_mode_switch)
 
@@ -216,6 +219,10 @@ func _apply_look() -> void:
 			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.SCORES_TOP, ScreenBackdrop.SCORES_BOT, GOLD))
 	set_process(true)
 	ScreenBackdrop.style_title(%Title, GOLD)
+	# The Scores and Speed tabs carry a flat 26 from the scene — a desktop size with no mobile pair,
+	# so on a phone they lost the full 34% while the Chart tab beside them is set from the scale.
+	for tab: Button in [%ScoresTabButton, %SpeedTabButton]:
+		MainGlobals.set_font_size(tab, 20)
 	ScreenBackdrop.style_close($ScoresWindow/ColorRect/XCloseScene, GOLD)
 	%MonotonicCheckButton.modulate = GOLD
 	_build_table_panel()
@@ -361,6 +368,9 @@ func _set_header(field_name, text, widthidx, _is_panel_visible:=false):
 	var panel = %Header.get_node("HBox/" + field_name + "Panel")
 	panel.visible = _is_panel_visible
 	var label = panel.get_node("Label")
+	# The header labels carry a flat 24 from grid_header_label.tscn, which is a DESKTOP size wearing
+	# no mobile pair at all — on a phone it lost the full 34%.
+	MainGlobals.set_font_size(label, 16)
 	label.text = text
 	if widthidx < cell_widths.size():
 		panel.custom_minimum_size = Vector2(cell_widths[widthidx], 1)
@@ -384,22 +394,17 @@ func add_line(texts, is_from_user):
 	texture.hide()
 	llabel.text = MainGlobals.cap_first_word(texts[0])
 	rlabel.text = MainGlobals.cap_first_word(texts[1])
-	if _score_col_font_size > 0:
-		rlabel.add_theme_font_size_override("font_size", _score_col_font_size)
-	elif _row_font_size > 0:
-		rlabel.add_theme_font_size_override("font_size", _row_font_size + 2)
-	if _row_font_size > 0:
-		llabel.add_theme_font_size_override("font_size", _row_font_size)
+	# Every cell is sized here, none left to its scene: see create_list().
+	MainGlobals.set_font_size(rlabel, _score_col_font_size)
+	MainGlobals.set_font_size(llabel, _row_font_size)
 	if texts.size() > 2:
 		level_label.text = MainGlobals.cap_first_word(texts[2])
-		if _row_font_size > 0:
-			level_label.add_theme_font_size_override("font_size", _row_font_size)
 	else:
 		level_label.text = ""
+	MainGlobals.set_font_size(level_label, _row_font_size)
 	if texts.size() > 3:
 		time_label.text = MainGlobals.cap_first_word(texts[3])
-		if _row_font_size > 0:
-			time_label.add_theme_font_size_override("font_size", _row_font_size)
+	MainGlobals.set_font_size(time_label, _row_font_size)
 	lpanel.custom_minimum_size = Vector2(cell_widths[0], 1)
 	rpanel.custom_minimum_size = Vector2(cell_widths[1], 1)
 	level_panel.custom_minimum_size = Vector2(cell_widths[2], 1)
@@ -412,14 +417,18 @@ var saved_table = null
 
 func create_list(input_table):
 	var vis_cols: int = 2 + (1 if show_level else 0) + (1 if show_time else 0)
-	var mobile: bool = MainGlobals.is_mobile()
+	# DESKTOP sizes; add_line() puts them through the app's type scale. They are never 0 now: a row
+	# left to inherit its scene's size took the automatic mobile scale on top of a number written
+	# for a desktop (grid_score_label is 40, so 64 on a phone) and burst its line.
 	if vis_cols >= 4:
-		_row_font_size = 26 if mobile else 20
+		_row_font_size = 20
+		_score_col_font_size = 22
 	elif vis_cols == 3:
-		_row_font_size = 28 if mobile else 22
+		_row_font_size = 22
+		_score_col_font_size = 24
 	else:
-		_row_font_size = 0
-	_score_col_font_size = 0
+		_row_font_size = 26
+		_score_col_font_size = 30
 	var monotonic: bool = MainGlobals.show_monotonic_scores
 	var new_table: Array = []
 	for i in range(input_table.size() - 1, -1, -1):
@@ -784,15 +793,15 @@ func _add_centered_message(grid: Control, text: String) -> void:
 func create_progress_list() -> void:
 	var has_pct_peek: bool = _progress_pct_pos >= 0
 	var vis_cols_p: int = 2 + (1 if has_pct_peek else 0)
-	var mobile_p: bool = MainGlobals.is_mobile()
 	if vis_cols_p >= 4:
-		_row_font_size = 26 if mobile_p else 20
-		_score_col_font_size = 0
+		_row_font_size = 20
+		_score_col_font_size = 22
 	elif vis_cols_p == 3:
-		_row_font_size = 28 if mobile_p else 22
-		_score_col_font_size = 0
+		_row_font_size = 22
+		_score_col_font_size = 24
 	else:
-		_row_font_size = 0
+		_row_font_size = 26
+		_score_col_font_size = 30
 		_score_col_font_size = 32
 	var grid = %GridContainer
 	for child in grid.get_children():

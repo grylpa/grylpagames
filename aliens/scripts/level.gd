@@ -1017,6 +1017,7 @@ func _show_banner(txt: String) -> void:
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.z_index = 210
 	lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
+	# Sized to the ALIEN, not to reading distance: the glyph has to keep fitting inside the circle.
 	lbl.add_theme_font_size_override("font_size", int(_alien_radius * (1.05 if MainGlobals.is_mobile() else 0.95)))
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.86, 0.30))
 	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
