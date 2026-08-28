@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c25cw0hcpf42t"]
 
-[ext_resource type="Texture2D" uid="uid://cyf2po3q1eegg" path="res://movingcards/art/CardBack4.png" id="1_45xct"]
+[ext_resource type="Texture2D" uid="uid://dm5vfgpn0iji1" path="res://art/cards/CardBack4.png" id="1_45xct"]
 [ext_resource type="Script" uid="uid://lrbm5t6cysr" path="res://movingcards/scripts/card.gd" id="1_lh2w0"]
 [ext_resource type="Texture2D" uid="uid://botx2vigxf4ig" path="res://movingcards/art/CardFront1.png" id="3_yw081"]
 

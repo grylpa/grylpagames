@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cc3s7h23vw331" path="res://lightsout/scripts/level.gd" id="1_3h1un"]
 [ext_resource type="PackedScene" uid="uid://c42eiru1lqc70" path="res://lightsout/scenes/pipe.tscn" id="2_554b8"]
 [ext_resource type="PackedScene" uid="uid://bcrfn28sjxajd" path="res://lightsout/scenes/door.tscn" id="3_col7x"]
-[ext_resource type="Texture2D" uid="uid://0xpf600qov76" path="res://lightsout/art/grass.png" id="4_kj03m"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_kj03m"]
 
 [node name="Level" type="CanvasLayer" unique_id=1519085017]
 follow_viewport_enabled = true

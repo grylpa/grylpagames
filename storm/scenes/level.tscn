@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dicunr8084fin" path="res://storm/scripts/level.gd" id="1_rrd3d"]
 [ext_resource type="PackedScene" uid="uid://b1g50upd2ty2r" path="res://storm/scenes/pipe.tscn" id="2_b31s3"]
 [ext_resource type="PackedScene" uid="uid://cg55koteuna80" path="res://storm/scenes/door.tscn" id="3_ekc2d"]
-[ext_resource type="Texture2D" uid="uid://b40ucyudrggyv" path="res://storm/art/grass.png" id="4_u2yqg"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_u2yqg"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_yah8g"]
 content_margin_left = 20.0
@@ -26,7 +26,10 @@ script = ExtResource("1_rrd3d")
 pipe_scene = ExtResource("2_b31s3")
 door_scene = ExtResource("3_ekc2d")
 
-[node name="TextureRect" type="TextureRect" parent="." unique_id=1437505540]
+[node name="BgLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="TextureRect" type="TextureRect" parent="BgLayer" unique_id=1437505540]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

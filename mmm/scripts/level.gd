@@ -83,17 +83,25 @@ var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
+
+var _field: Control = null
+
 signal delivered_one
 signal collision
 signal update_score(score:int)
 
 func _ready() -> void:
 	game = MmmG.game
+	# After `game`: the ground is drawn at the board's tile size.
+	_apply_ground()
 	game.sig_time_over.connect(on_time_over)
 	game.sig_lives_depleted.connect(on_lives_depleted)
 	level = MmmG.starting_level
 	round_in_level = 0
 	_apply_level()
+	# After _apply_level(), which is what sets the board's geometry: the lawn exists before anything
+	# is shown, so the first thing on screen is grass rather than the window's clear colour.
+	_fit_ground_to_board()
 
 	game.add_sound(self, "explosion", explosion_audio)
 	game.add_sound(self, "motor", motor_audio, true)
@@ -654,6 +662,9 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 
 
 func create_board() -> void:
+	# BEFORE the cells: a level change resizes the board, and the lawn under it has to be right from
+	# the first frame of "building board", not after it.
+	_fit_ground_to_board()
 	if game.tutorial_mode:
 		# BEFORE create_rooms() below reads num_rooms, and before the hazard counts are used.
 		_tutorial_setup()
@@ -1473,7 +1484,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_close_popup()
 		get_viewport().set_input_as_handled()
 
-const swatch_tex: Texture2D = preload("res://mmm/art/floor2.png")
+const swatch_tex: Texture2D = preload("res://art/floor2.png")
 const color_layouts = [
 	[],[],	# for 0,1
 	[1,1],
@@ -1699,3 +1710,36 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 		return true
 
 	return false
+
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and the cells are half of it.
+#
+# What it must get right is SCALE. The board is drawn through a camera zoomed to `player_camscale`,
+# so its cells appear at `tile x zoom`; a ground tiled in screen space appears at `tile`, and the
+# two are visibly different grass the moment the player camera takes over. That is what "the
+# background changes once the board is built" was. So the ground lives in the WORLD: its layer
+# follows the viewport and its rect covers the whole board, which also means it cannot run out at
+# the sides the way a screen-sized ground in a following layer did.
+func _apply_ground() -> void:
+	$BgLayer/TextureRect.hide()
+	_field = GrassField.attach($BgLayer)
+	if _field.draw.get_connections().is_empty():
+		_field.draw.connect(func() -> void: GrassField.draw(_field, 7))
+
+# Sized to the BOARD, once it exists — with a margin, so the edge of the lawn is never the edge of
+# the screen even when the camera is against its limit.
+func _fit_ground_to_board() -> void:
+	if game == null:
+		return
+	if _field == null or not is_instance_valid(_field) or game == null:
+		return
+	var m: float = game.tile_size * 4.0
+	var tl: Vector2 = game.board_to_px(Vector2i(0, 0)) - Vector2(m, m)
+	var br: Vector2 = game.board_to_px(game.board_size) + Vector2(m, m)
+	if _field.position == tl and _field.size == br - tl:
+		return          # same board: the lawn is already sown, and sowing it is the expensive part
+	_field.position = tl
+	_field.size = br - tl
+	_field.queue_redraw()
+	GrassField.sow(_field, 7)

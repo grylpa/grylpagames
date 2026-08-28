@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dvtp7v87kl5lw" path="res://taxi/scripts/level.gd" id="1_ufpus"]
 [ext_resource type="PackedScene" uid="uid://c5y8pjw7op6d0" path="res://taxi/scenes/pipe.tscn" id="2_gdn1f"]
 [ext_resource type="PackedScene" uid="uid://d0rtkvrr02xhj" path="res://taxi/scenes/door.tscn" id="3_ywqo3"]
-[ext_resource type="Texture2D" uid="uid://86p5lo7ncbcj" path="res://taxi/art/grass.png" id="4_asnw5"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_asnw5"]
 
 [node name="Level" type="CanvasLayer" unique_id=963530706]
 script = ExtResource("1_ufpus")

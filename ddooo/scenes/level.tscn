@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://ddo4a5b6c7d8h" path="res://ddooo/scripts/level.gd" id="1_ddlevel"]
 [ext_resource type="PackedScene" uid="uid://ddo7a8b9c0d1k" path="res://ddooo/scenes/pipe.tscn" id="2_ddlevel"]
-[ext_resource type="Texture2D" path="res://ddooo/art/grass.png" id="4_ddlevel"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_ddlevel"]
 
 [node name="Level" type="CanvasLayer" unique_id=30001]
 script = ExtResource("1_ddlevel")

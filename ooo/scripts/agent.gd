@@ -19,13 +19,13 @@ var shader_material_lr: ShaderMaterial = null
 
 static var next_agent_texture_idx := 0
 static var agent_textures = [
-	preload("res://ooo/art/shape-circle.png"),
-	preload("res://ooo/art/shape-circle-4.png"),
-	preload("res://ooo/art/shape-circle-swirl.png"),
-	preload("res://ooo/art/shape-circle-w-2-dots.png"),
-	preload("res://ooo/art/shape-circle-w-3-dots.png"),
-	preload("res://ooo/art/shape-circle-w-4-dots.png"),
-	preload("res://ooo/art/shape-circle-w-5-dots.png"),
+	preload("res://art/shape-circle.png"),
+	preload("res://art/shape-circle-4.png"),
+	preload("res://art/shape-circle-swirl.png"),
+	preload("res://art/shape-circle-w-2-dots.png"),
+	preload("res://art/shape-circle-w-3-dots.png"),
+	preload("res://art/shape-circle-w-4-dots.png"),
+	preload("res://art/shape-circle-w-5-dots.png"),
 ]
 
 func _ready() -> void:

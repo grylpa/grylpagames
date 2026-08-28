@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://bfhe830d8shi2" path="res://deliverem/scripts/level.gd" id="1_5agtr"]
 [ext_resource type="PackedScene" uid="uid://bnn280wf8yuaa" path="res://deliverem/scenes/player.tscn" id="1_re2nr"]
 [ext_resource type="PackedScene" uid="uid://cpwixjccmepbc" path="res://deliverem/scenes/pipe.tscn" id="3_8txly"]
-[ext_resource type="Texture2D" uid="uid://b15rhtbautvij" path="res://deliverem/art/grass.png" id="5_1dmea"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="5_1dmea"]
 [ext_resource type="PackedScene" uid="uid://c2y5v8dthhv21" path="res://deliverem/scenes/door.tscn" id="5_11118"]
 
 [node name="Level" type="CanvasLayer" unique_id=612818191]

@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://gorilla/scripts/tube_animation.gd" id="1"]
-[ext_resource type="Texture2D" path="res://gorilla/art/agent_body1.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://vd0sioymks48" path="res://art/agent_body1.png" id="2"]
 [ext_resource type="Texture2D" path="res://gorilla/art/agent_body3.png" id="3"]
 [ext_resource type="Texture2D" path="res://gorilla/art/agent_body2.png" id="4"]
 

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://db7aiyvutvrbo" path="res://friends/scripts/level.gd" id="1_ufpus"]
 [ext_resource type="Theme" uid="uid://jmyy33bjn73p" path="res://scenes/start_button.tres" id="3_3204t"]
-[ext_resource type="Texture2D" uid="uid://byk0fyp0kxs63" path="res://friends/art/grass.png" id="4_asnw5"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="4_asnw5"]
 [ext_resource type="Theme" uid="uid://c33for04p63fj" path="res://scenes/in_game_yellow_button.tres" id="4_cpuoa"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glcgs"]

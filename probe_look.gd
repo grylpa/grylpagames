@@ -258,6 +258,29 @@ func _ready() -> void:
 	for _i in 2:
 		await get_tree().process_frame
 
+	# --- a panning game's ground ----------------------------------------------------------------
+	#
+	# The ground of a panning game needs a background layer of its own, drawn behind everything.
+	# Whether that layer FOLLOWS the camera depends on what is in it: a screen-sized ground must not
+	# (it would be walked off the edge of), a board-sized one must (or its tiles are the wrong
+	# apparent size beside the board's). mmm is the second kind; the others are still the first.
+	for folder: String in ["mmm", "storm", "delemfp"]:
+		var lvl: Node = load("res://%s/scenes/level.tscn" % folder).instantiate()
+		add_child(lvl)
+		await get_tree().process_frame
+		# The ground node itself may be a drawn lawn rather than a texture now (mmm), so what is
+		# checked is the LAYER it lives in.
+		var layer: CanvasLayer = null
+		for c in _all_nodes(lvl):
+			if c is CanvasLayer and c.name == "BgLayer":
+				layer = c
+		if layer == null:
+			fails.append("%s: the ground has no BgLayer of its own" % folder)
+		elif layer.get_child_count() == 0:
+			fails.append("%s: the BgLayer is empty" % folder)
+		lvl.queue_free()
+		await get_tree().process_frame
+
 	print("")
 	if fails.is_empty():
 		print("LOOK OK")

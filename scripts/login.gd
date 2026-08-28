@@ -5,7 +5,7 @@ extends CanvasLayer
 # ScreenBackdrop.style_field / style_tab. Nothing about the layout, the flow or the logic changed —
 # only what it is made of.
 #
-# What it was: a tiled `res://pneumo/art/grass_dark.png` (one GAME's art, worn by an app-level
+# What it was: a tiled `res://art/grass.png` (one GAME's art, worn by an app-level
 # screen), a black 25%-alpha panel with a hard black border, tab buttons drawn as a yellow 3px
 # outline open at the bottom over a form panel with a yellow 3px outline open at the top, and
 # near-black flat rectangles for the text fields. It matched no other screen in the app, including

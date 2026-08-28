@@ -5,8 +5,8 @@
 [ext_resource type="Texture2D" uid="uid://bgw0xh627ckxx" path="res://taxi/art/pipe_4_exits.png" id="3_esy4p"]
 [ext_resource type="Texture2D" uid="uid://dxn6rs3xgxlax" path="res://taxi/art/pipe_urd.png" id="4_mw4rm"]
 [ext_resource type="Texture2D" uid="uid://cw1bbhfvcb7s3" path="res://taxi/art/pipe_rd.png" id="5_1kyf8"]
-[ext_resource type="Texture2D" uid="uid://ciaw0kq2ltihd" path="res://taxi/art/pipe_path.png" id="6_bmdu0"]
-[ext_resource type="Texture2D" uid="uid://c5aymwdwpntfp" path="res://taxi/art/pipe_lobby.png" id="7_f3pwk"]
+[ext_resource type="Texture2D" uid="uid://01j5ankmqxda" path="res://art/pipe_path.png" id="6_bmdu0"]
+[ext_resource type="Texture2D" uid="uid://b6o4xf2vv6rcm" path="res://art/pipe_lobby.png" id="7_f3pwk"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_8423h"]
 size = Vector2(40, 40)

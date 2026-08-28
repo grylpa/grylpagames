@@ -212,7 +212,7 @@ func _ready():
 
 # Cosmetics only: the layout, the tabs, the flow and every number on this screen are untouched.
 #
-# The ground was `res://matchws/art/grass_light.png` — one GAME's art tiled behind an app-level
+# The ground was `res://art/grass_light.png` — one GAME's art tiled behind an app-level
 # screen — under a gold-on-dark tab bar that matched nothing else in the app, including the menu
 # this screen is opened from.
 func _apply_look() -> void:

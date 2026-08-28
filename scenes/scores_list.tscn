@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ytshvxq0ba2h"]
 
 [ext_resource type="Script" uid="uid://bupyurlu0yvb3" path="res://scripts/scores_list.gd" id="1_tssfn"]
-[ext_resource type="Texture2D" uid="uid://ce5gp3yijxknc" path="res://matchws/art/grass_light.png" id="2_ykb6w"]
+[ext_resource type="Texture2D" uid="uid://cvyo5u40qx8w8" path="res://art/grass_light.png" id="2_ykb6w"]
 [ext_resource type="Texture2D" uid="uid://cgs37y8vig8ea" path="res://art/bars-48.png" id="3_07022"]
 [ext_resource type="PackedScene" uid="uid://bpd8ss75cu877" path="res://scenes/scores_list_header.tscn" id="4_0ijpw"]
 [ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="4_7vbyi"]

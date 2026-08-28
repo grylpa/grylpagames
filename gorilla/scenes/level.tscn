@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://gorilla/scenes/player.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://gorilla/scenes/peripheral_gorilla.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://gorilla/scenes/empty_space.tscn" id="6"]
-[ext_resource type="Texture2D" path="res://gorilla/art/grass.png" id="7"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="7"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
 content_margin_left = 20.0
