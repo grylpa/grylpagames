@@ -3,9 +3,37 @@ extends CanvasLayer
 var _tutorial_host: Node = null
 var _tutorial_game = null
 
+var _bg: Control = null
+var _bg_t: float = 0.0
+
 func _ready():
 	MainGlobals.set_visible("instructions",true)
 	MainGlobals.sig_need_to_close_info_popups.connect(close_window)
+	_restyle()
+
+# The third screen to get the drawn ground (scripts/screen_backdrop.gd), in its own color: the menu
+# is blue-slate, help is green, instructions are indigo. Three screens a player moves between
+# should not be three copies of one photo.
+func _restyle() -> void:
+	var panel: PanelContainer = $BackgroundPanel
+	$BackgroundPanel/TextureRect.texture = null
+	_bg = ScreenBackdrop.attach(panel)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void:
+			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.INSTR_TOP, ScreenBackdrop.INSTR_BOT,
+				ScreenBackdrop.ACCENT))
+	var frame: PanelContainer = %Text.get_parent().get_parent() as PanelContainer
+	if frame != null:
+		frame.add_theme_stylebox_override("panel", ScreenBackdrop.card_style(28))
+	ScreenBackdrop.style_title(%Title, ScreenBackdrop.ACCENT)
+	%Text.add_theme_font_override("font", MainGlobals.get_text_font())
+	%Text.add_theme_color_override("font_color", Color(0.929, 0.941, 0.969))
+	set_process(true)
+
+func _process(delta: float) -> void:
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += delta
+		_bg.queue_redraw()
 
 func close_window() -> void:
 	MainGlobals.set_visible("instructions",false)

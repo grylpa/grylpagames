@@ -15,6 +15,8 @@ const MENU_TOP: Color = Color(0.114, 0.137, 0.204)
 const MENU_BOT: Color = Color(0.043, 0.055, 0.086)
 const HELP_TOP: Color = Color(0.086, 0.161, 0.145)
 const HELP_BOT: Color = Color(0.031, 0.067, 0.059)
+const INSTR_TOP: Color = Color(0.145, 0.125, 0.216)
+const INSTR_BOT: Color = Color(0.055, 0.047, 0.094)
 const ACCENT: Color = Color(0.976, 0.792, 0.353)
 
 # Attaches a drawn backdrop as `parent`'s first child and returns it. The caller advances `t` and

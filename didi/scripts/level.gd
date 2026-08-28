@@ -105,6 +105,8 @@ func _on_game_popup_closed() -> void:
 		_schedule_next_round(500.0)
 
 func new_game(from_scratch: bool = true) -> void:
+	game.corrects = 0
+	game.mistakes = 0
 	_clear_round_state()
 	game.level_is_ready = false
 	game.level_is_done = false
@@ -520,11 +522,16 @@ func _level_done(didwin: bool) -> void:
 		if level >= DidiLevelConfig.MAX_LEVEL:
 			sig_level_is_done.emit(true)
 		else:
-			game.need_to_increase_level = true
+			# Passing is a RESULT, not a formality: below this level's accuracy the SAME level
+			# comes round again. The bar rises with the level, from 60% to at most 80%.
+			var need: int = mini(60 + 5 * (level - 1), 80)
+			var pct: int = game.session_pct_correct()
+			var passed: bool = pct >= need
+			game.need_to_increase_level = passed
 			if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 				MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-			var textadd: String = "\n\nAverage time: %d ms" % mean_time_to_answer_ms()
-			game.show_level_done_popup(self, "", "", level, textadd)
+			var textadd: String = "\n\nAverage time: %d ms\nAccuracy: %d%%\n\n%s" % [mean_time_to_answer_ms(), pct, _progress_line(passed, need)]
+			game.show_level_done_popup(self, "", "", level, textadd, passed)
 	else:
 		sig_level_is_done.emit(didwin)
 
@@ -592,3 +599,10 @@ func _create_camera() -> void:
 	_agent_cam.enabled = true
 	_agent_cam.set_anchor_mode(Camera2D.ANCHOR_MODE_DRAG_CENTER)
 	_agent_cam.set_offset(game.board_to_px(Vector2i(3, 3)))
+
+# What the player gets next, in words. An accuracy figure alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	return "Level passed — on to level %d." % (level + 1)

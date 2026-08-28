@@ -92,6 +92,15 @@ func _ready() -> void:
 	game.add_sound(self, "breakdown",breakdown_audio)
 
 func new_game(from_scratch=true):
+	# Re-baseline the tick stamps to the freshly-reset game clock. game.reset() puts game_time back
+	# to ~0, but these keep the (larger) value from the previous session, and `now - last_major_tick`
+	# is then NEGATIVE — so no taxi moves at all until game_time climbs back past it. That is the
+	# "it drives over and picks them up" step sitting there doing nothing and then, minutes later,
+	# suddenly working. It needed a previous play to show up, which is why it never reproduced on a
+	# fresh run. generic_game_hud.restart_time_left_timer() documents the same trap for the clock.
+	last_major_tick = 0.0
+	last_one_sec_tick = 0.0
+	time_last_dispatch = 0.0
 	game.level_is_ready = false
 	game.count_lives = true
 	game._reset_lives_val = num_of_taxis
