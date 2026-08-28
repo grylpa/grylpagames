@@ -47,6 +47,41 @@ const MAX_BLADES: int = 320000
 const BLADE_W: float = 2.2
 const BLADE_LEN: float = 12.0
 
+# The whole installation, in one call a game makes from wherever its board geometry becomes known:
+# hides the tiled ground it replaces, attaches the field, sizes it to the board with a margin, and
+# sows it — but only when the board's extent has actually changed, because sowing a quarter of a
+# million blades is not something to redo between rounds.
+static func fit(parent: Node, tiled_ground: CanvasItem, game, seed_i: int = 1) -> Control:
+	if game == null or parent == null:
+		return null
+	var f: Control = attach(parent)
+	if f.draw.get_connections().is_empty():
+		f.draw.connect(func() -> void: draw(f, seed_i))
+	var m: float = game.tile_size * 4.0
+	var r: Rect2 = Rect2(game.board_to_px(Vector2i(0, 0)) - Vector2(m, m),
+		game.board_to_px(game.board_size) - game.board_to_px(Vector2i(0, 0)) + Vector2(m, m) * 2.0)
+	# The tile this replaces was anchored to the whole SCREEN, so the field has to reach at least as
+	# far. A board smaller than the canvas — most of these games on a 680x1200 phone — otherwise
+	# leaves bare bands above and below the grass. full_screen_size, not screen_size: the latter has
+	# the 40-unit footer taken off it, and the footer is exactly where a missing strip would show.
+	r = r.merge(Rect2(Vector2.ZERO, Vector2(MainGlobals.full_screen_size)))
+	var tl: Vector2 = r.position
+	var want: Vector2 = r.size
+	# Called from _ready as well, where a game may not have sized its board yet. There is nothing to
+	# sow then, and the tile this replaces has to stay up: hiding it first and THEN bailing leaves a
+	# bare screen where the ground was.
+	if want.x < 4.0 or want.y < 4.0:
+		return f
+	if tiled_ground != null and is_instance_valid(tiled_ground):
+		tiled_ground.hide()
+	if f.position == tl and f.size == want:
+		return f
+	f.position = tl
+	f.size = want
+	f.queue_redraw()
+	sow(f, seed_i)
+	return f
+
 static func attach(parent: Node) -> Control:
 	var bg: Control = parent.get_node_or_null("GrassField") as Control
 	if bg == null:

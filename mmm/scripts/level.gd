@@ -92,8 +92,6 @@ signal update_score(score:int)
 
 func _ready() -> void:
 	game = MmmG.game
-	# After `game`: the ground is drawn at the board's tile size.
-	_apply_ground()
 	game.sig_time_over.connect(on_time_over)
 	game.sig_lives_depleted.connect(on_lives_depleted)
 	level = MmmG.starting_level
@@ -1721,25 +1719,7 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 # background changes once the board is built" was. So the ground lives in the WORLD: its layer
 # follows the viewport and its rect covers the whole board, which also means it cannot run out at
 # the sides the way a screen-sized ground in a following layer did.
-func _apply_ground() -> void:
-	$BgLayer/TextureRect.hide()
-	_field = GrassField.attach($BgLayer)
-	if _field.draw.get_connections().is_empty():
-		_field.draw.connect(func() -> void: GrassField.draw(_field, 7))
-
-# Sized to the BOARD, once it exists — with a margin, so the edge of the lawn is never the edge of
-# the screen even when the camera is against its limit.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	if game == null:
-		return
-	if _field == null or not is_instance_valid(_field) or game == null:
-		return
-	var m: float = game.tile_size * 4.0
-	var tl: Vector2 = game.board_to_px(Vector2i(0, 0)) - Vector2(m, m)
-	var br: Vector2 = game.board_to_px(game.board_size) + Vector2(m, m)
-	if _field.position == tl and _field.size == br - tl:
-		return          # same board: the lawn is already sown, and sowing it is the expensive part
-	_field.position = tl
-	_field.size = br - tl
-	_field.queue_redraw()
-	GrassField.sow(_field, 7)
+	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 7)

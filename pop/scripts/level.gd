@@ -72,6 +72,7 @@ func _ready() -> void:
 	game.add_sound(self, "dispatch", dispatch_audio)
 	game.add_sound(self, "delivery", delivery_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
+	_fit_ground_to_board()
 
 func new_game(from_scratch=true):
 	# The failed level's points go back HERE, on Continue, together with everything else that is
@@ -154,6 +155,7 @@ func dist_to_agent_positions(p:Vector2):
 	return min_d
 
 func create_board() -> void:
+	_fit_ground_to_board()
 	board.clear()
 	for row_index in game.board_size.y:
 		var row: Array[OneCell]
@@ -624,3 +626,15 @@ func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
 	return "Level passed — on to level %d." % (level + 1)
+
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and this game's cells were half of it.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board()
+# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
+# only re-sows when that size actually changed.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+func _fit_ground_to_board() -> void:
+	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 18)

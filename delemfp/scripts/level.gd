@@ -71,6 +71,7 @@ func _ready() -> void:
 	game.add_sound(self, "delivery", delivery_audio, false)
 
 	MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
+	_fit_ground_to_board()
 	
 func new_game(from_scratch: bool):
 	if from_scratch:
@@ -166,6 +167,7 @@ func show_hide_walls():
 		e.show_hide_walls(board)
 			
 func create_board() -> void:
+	_fit_ground_to_board()
 	start_dispatch = false
 	DelemfpG.freeze = true
 	board.clear()
@@ -719,3 +721,14 @@ func tutorial_dispatch_label() -> Control:
 	var lbl = tutorial_hud.get_node_or_null("Dispatch")
 	return lbl if lbl is Control and (lbl as Control).is_visible_in_tree() else null
 
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and this game's cells were half of it.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board()
+# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
+# only re-sows when that size actually changed.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+func _fit_ground_to_board() -> void:
+	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 11)

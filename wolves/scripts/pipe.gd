@@ -16,10 +16,24 @@ var active_brick = null
 func _ready() -> void:
 	game = WolvesG.game
 	bricks = [$PipeBrick1, $PipeBrick2, $PipeBrick3]
-	if is_grass:
-		%PipeGrass.rotation = game.rng.randi_range(0,3)*PI/2.0
-		%PipeGrass.show()
-		%PipeGrass.modulate = Color(0.5,0.8,0.5,1)
+
+# Inside the fence the ground is a flat WASH over the lawn, not a grass sprite.
+#
+# The lawn behind the whole board is one continuous field (scripts/grass_field.gd). This cell used
+# to lay a randomly ROTATED copy of the same grass.png on top of it and tint it green, which is a
+# mosaic twice over: the rotation breaks the tile's own seamless wrap, and the tile is the thing
+# the field replaced. All the tint was ever saying is "this side of the fence is the farm", so
+# that is all that is left — a translucent green over the real grass, which reads as shade rather
+# than as a second, differently-lit lawn.
+#
+# Drawn by the pipe itself so it sits UNDER the bricks, coins and fences, which are its children.
+const FIELD_WASH: Color = Color(0.13, 0.35, 0.14, 0.30)
+
+func _draw() -> void:
+	if not is_grass:
+		return
+	var t: float = float(game.tile_size)
+	draw_rect(Rect2(-t * 0.5, -t * 0.5, t, t), FIELD_WASH)
 
 func can_fill():
 	return has_brick < 0 and has_coin < 0

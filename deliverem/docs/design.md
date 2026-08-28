@@ -193,3 +193,32 @@ Specific to this game:
   `reminder_shown` — all `game.tutorial_notify`, no-ops outside tutorial mode.
 - Points for the coach, all in screen coordinates: `tutorial_agent_pos`, `tutorial_next_door_pos`,
   `tutorial_next_dock_pos`, `tutorial_dock_pos`, `tutorial_dispatch_label`.
+
+## The lawn
+
+The ground is ONE continuous field of drawn grass over the whole board — `scripts/grass_field.gd`,
+shared by the twelve grass games — not a tile. `level.gd`'s `_fit_ground_to_board()` is the whole
+installation:
+
+```gdscript
+GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 12)
+```
+
+It hides the tiled `TextureRect` it replaces, attaches a `GrassField` control to the Level layer itself, as its first child so it
+draws behind everything, sizes it to the board plus a four-tile margin (merged with the full canvas,
+so a board smaller than the screen still has grass to the edges), and sows it. The seed is this
+game's own — 12 — so no two games show the same field.
+
+It is called twice: at the end of `_ready()`, so the lawn is already there before the first board is
+built, and at the START of `create_board()`, for a level that changes the board's size. `fit()`
+re-sows only when the rect actually changed, because the field is a `MultiMeshInstance2D` of tens to
+hundreds of thousands of blades and building it is not something to redo between rounds.
+
+Every empty cell used to carry its own 40x40 `grass.png`; `empty_space.gd`'s `_ready()` now hides it.
+That per-cell sprite was the real reason the board looked tiled — the background alone was never
+it — and the per-cell random rotation some of these games applied made it worse, because the tile
+wraps seamlessly and turning a cell breaks the wrap.
+
+`probe_lawn.gd` checks all twelve: the field exists, is the first child of its layer, is sown before
+any board is built, covers the board and the canvas, retires the tiled ground only once it has
+something in it, and that no cell shows its own grass again.

@@ -150,6 +150,7 @@ func _ready() -> void:
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
 	MainGlobals.sig_path_drawn.connect(_on_path_drawn)  
+	_fit_ground_to_board()
 	
 func reset():
 	# Every one of these is a baseline in game_time, and game_time RESTARTS at zero on each round
@@ -653,6 +654,7 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 
 
 func create_board() -> void:
+	_fit_ground_to_board()
 	# rng = RandomNumberGenerator.new()
 	# rng.seed = 1110
 
@@ -1485,3 +1487,15 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 		return true
 
 	return false
+
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and this game's cells were half of it.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board()
+# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
+# only re-sows when that size actually changed.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+func _fit_ground_to_board() -> void:
+	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19)

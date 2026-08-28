@@ -35,6 +35,7 @@ empty_space_scene = ExtResource("6")
 
 [node name="BgLayer" type="CanvasLayer" parent="."]
 layer = -1
+follow_viewport_enabled = true
 
 [node name="BackgroundRect" type="TextureRect" parent="BgLayer"]
 anchors_preset = 15

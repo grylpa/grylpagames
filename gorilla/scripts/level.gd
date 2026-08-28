@@ -115,6 +115,7 @@ func _ready() -> void:
 
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	_fit_ground_to_board()
 
 func _on_game_popup_closed():
 	sig_level_is_done.emit(last_level_was_a_win)
@@ -230,6 +231,7 @@ func tutorial_spawn_gorilla() -> void:
 	_spawn_peripheral_gorilla(true)
 
 func create_board():
+	_fit_ground_to_board()
 	time_to_spawn_agent = 0
 	for r in game.board_size.y:
 		var row = []
@@ -1229,3 +1231,15 @@ func create_camera():
 	game_cam.position = game_center
 	game_cam.enabled = true
 	game_cam.make_current()
+
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and this game's cells were half of it.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board()
+# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
+# only re-sows when that size actually changed.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+func _fit_ground_to_board() -> void:
+	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/BackgroundRect") as CanvasItem, game, 13)

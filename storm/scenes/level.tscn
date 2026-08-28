@@ -28,6 +28,7 @@ door_scene = ExtResource("3_ekc2d")
 
 [node name="BgLayer" type="CanvasLayer" parent="."]
 layer = -1
+follow_viewport_enabled = true
 
 [node name="TextureRect" type="TextureRect" parent="BgLayer" unique_id=1437505540]
 anchors_preset = 15
