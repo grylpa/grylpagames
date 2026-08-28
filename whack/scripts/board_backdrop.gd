@@ -41,13 +41,17 @@ const RAIL_BULGE: float = 0.25   # how far a segment's arc swells inward, as a s
 const MOWN_H: float = 56.0       # a mower's width
 
 # Every number in this file is in the project's own units, not device pixels: the window stretches
-# `canvas_items` from a 680x788 viewport, so the board is 680 units wide on a desktop and on a
-# phone alike and none of this needs to know what it is being drawn on.
+# `canvas_items` (aspect `keep`) so nothing here needs to know what it is being drawn on.
 #
-# `_k()` is not correcting for a coordinate difference — there is not one. It is correcting for
-# APPARENT size: 20 units of rail that frame the board in a desktop window are a hairline on a
-# phone held at arm's length. It is the same adjustment every font in this app makes
-# (`36 if is_mobile() else 22` and so on), applied to scenery instead of type.
+# The canvas is 680 units WIDE on both platforms, but it is NOT the same shape: MainGlobals._ready()
+# sets content_scale_size to 680x1200 on mobile against the project's 680x788. So a fixed number of
+# units is the same share of the WIDTH everywhere and a smaller share of the HEIGHT on a phone —
+# which is the same reason every font in this app carries a mobile variant (`36 if is_mobile() else
+# 22`, a ratio of 1.6 against the 1200/788 = 1.52 the canvas grew by).
+#
+# `_k()` is that adjustment applied to scenery instead of type, plus a little for apparent size: a
+# phone is a physically smaller piece of glass than a maximized desktop window, so matching the
+# share of the screen is not the same as matching what the eye sees.
 static func _k() -> float:
 	return 1.75 if MainGlobals.is_mobile() else 1.0
 
