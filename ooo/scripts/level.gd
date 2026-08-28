@@ -70,6 +70,7 @@ func _ready() -> void:
 	game.add_sound(self, "dispatch", dispatch_audio)
 	game.add_sound(self, "delivery", delivery_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
+	_fit_ground_to_board()
 
 func new_game(from_scratch=true):
 	# The failed level's points go back HERE, on Continue, together with everything else that is
@@ -137,6 +138,7 @@ func add_agent_pos_dir(p):
 var model_pos: Vector2i = Vector2i(3,1)
 
 func create_board() -> void:
+	_fit_ground_to_board()
 	board.clear()
 	for row_index in game.board_size.y:
 		var row: Array[OneCell]
@@ -598,3 +600,16 @@ func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
 	return "Level passed — on to level %d." % (level + 1)
+
+# The background. This game has no world in it — a shape flashes and you answer — so there is no
+# ground to draw: `scripts/study_backdrop.gd` puts a deep, near-uniform surface behind the board and
+# nothing else. It is deliberately featureless. These are perceptual tests: a background that is
+# brighter in some directions than others makes the same shape easier to catch in some
+# directions than others, so what variation there is, is radially symmetric and tiny.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board() so
+# a level that changes the board size gets its backdrop before the cells go down. `fit()` only
+# rebuilds when that size actually changed.
+func _fit_ground_to_board() -> void:
+	StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
+		StudyBackdrop.LINEUP, 32)

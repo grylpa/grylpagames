@@ -1,16 +1,20 @@
-# Pop — Game Design & Implementation Document
+# Glimpse (folder `pop`) — Game Design & Implementation Document
 
 ## Overview
 
-**Game name:** Pop
+**Game name:** Glimpse (folder and save key are still `pop`)
 **Folder:** `pop/`
 **Singleton:** `PopG`
 **Save key (short name):** `pop`
 **Initial time:** 2 minutes
-**Background color:** `0x3C5D3EFF` (dark green)
+**Background:** `StudyBackdrop.GLIMPSE` — see "The background" below. (It was `0x3C5D3EFF`,
+dark green, when the ground was grass.)
 **Initial score:** 100, `game_over_on_zero_score = true`
 
-Pop is a visual memory speed game. The player briefly sees an image at one location on the board, then after a delay must select the matching image from several shown at different locations.
+Glimpse is a visual memory speed game. The player briefly sees one shape at a position around the
+edge of the screen, then after a delay must pick the matching shape from several that appear at other
+edge positions. It is Lineup (`ooo`) played at the edge of vision, and that difference drives most of
+the decisions below — see "There is no board".
 
 ---
 
@@ -21,13 +25,18 @@ pop/
 ├── docs/
 │   └── design.md           ← this file
 ├── art/
+│   └── box.png               the plate a shape stands on
 ├── scripts/
 │   ├── globals.gd            (PopG autoload)
 │   ├── main.gd
-│   └── level.gd
+│   ├── level.gd
+│   ├── agent.gd
+│   ├── level_config.gd
+│   └── tutorial.gd
 └── scenes/
     ├── main.tscn
-    └── level.tscn
+    ├── level.tscn            the Level layer and nothing else — no ground, no board
+    └── agent.tscn
 ```
 
 ---
@@ -180,31 +189,75 @@ Specific to this game:
 - `_tutorial_board` guards level completion, not `tutorial_mode`.
 - Events: `model_shown`, `candidate_shown`, `lineup_shown`, `answered_right`, `answered_wrong`.
 
-## The lawn
+## There is no board
 
-The ground is ONE continuous field of drawn grass over the whole board — `scripts/grass_field.gd`,
-shared by the twelve grass games — not a tile. `level.gd`'s `_fit_ground_to_board()` is the whole
-installation:
+A shape flashes at the edge of vision and you say which one it was. Nothing walks, nothing is
+delivered, nothing is blocked — so there is nothing for a board to do, and this game no longer has
+one.
+
+What `create_board()` builds is only the RING of places a shape can appear: every other cell along
+the four edges of the 11x11 grid, collected into `agent_start_positions` / `agent_start_directions`.
+The `board` array itself survives as bookkeeping — one `OneCell` per grid square, holding whichever
+`agent` and `box` is currently there — and nothing is drawn for a cell that has neither.
+
+It used to build a maze: road pipes threaded between the shape positions (`add_pipe`, `pipe.tscn`,
+four pipe PNGs) and every remaining cell floored with a walled grass tile (`add_empty`,
+`empty_space.tscn`). None of it meant anything, and all of it sat directly under the thing the
+player was straining to see. `pipe.gd`, `empty_space.gd`, both scenes, the four pipe PNGs and
+`empty_corner.png` are gone, and so is the level scene's grass `TextureRect` — `level.tscn` is now
+the `Level` CanvasLayer and nothing else.
+
+### The box
+
+A shape stands on one box: `art/box.png`, a plain `Sprite2D` created in code by `_add_box_at()`.
+Lineup (`ooo`) is the near relative here and does it differently on purpose — Lineup frames every
+candidate position for the whole round, so the player can see where the answers will be before they
+arrive. Glimpse must not: it is played at the EDGE of vision, and a box sitting on an empty position
+is a marker for a question that has not been asked yet, or one that is already over.
+
+So the box's life is exactly the shape's life:
+
+| | |
+|---|---|
+| created | `add_agent_at()`, **before** `add_child(agent)` — so the box is the older sibling and draws under the shape even without the `z_index` |
+| `z_index` | 1: above the backdrop, below the shape's 10 (`agent.gd` sets that in its own `_ready`) |
+| never | an `Area2D`. A tappable box would swallow the tap meant for the shape standing on it |
+| destroyed | `on_agent_need_to_remove_agent()`, which every removal path funnels through — timeout, right answer and wrong answer alike |
+| swept | at the top of `create_board()`, **before** `board.clear()`: a box is reached through its cell, so sweeping afterwards finds nothing and orphans every box on screen |
+
+`probe_lawn.gd` drives the dispatch and removal directly and asserts the count matches the number of
+shapes at each step — 1, then 3, then 0 — plus the box's position, `z_index`, untappability, and
+that no cell or road pipe is built at all any more.
+
+---
+
+## The background
+
+This game has no world in it — a shape flashes and you answer — so there is no ground to draw. What
+sits behind the board is `scripts/study_backdrop.gd`, shared with Witness (`ddooo`), Pinpoint
+(`didi`) and Lineup (`ooo`), the other three games with nothing standing on anything. It used to
+show a lawn, for no reason at all.
 
 ```gdscript
-GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 18)
+StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
+    StudyBackdrop.GLIMPSE, 31)
 ```
 
-It hides the tiled `TextureRect` it replaces, attaches a `GrassField` control to the Level layer itself, as its first child so it
-draws behind everything, sizes it to the board plus a four-tile margin (merged with the full canvas,
-so a board smaller than the screen still has grass to the edges), and sows it. The seed is this
-game's own — 18 — so no two games show the same field.
+`_fit_ground_to_board()` is called at the end of `_ready()` and at the start of `create_board()`.
+`fit()` attaches a control as the Level layer's first child so it draws behind everything, sizes it
+to the board's extent plus a four-tile margin merged with the full canvas, and populates it —
+rebuilding only when that rect actually changed. There is no `TextureRect` left for it to hide; the
+`tiled_ground` argument is `get_node_or_null("TextureRect")` and comes back null, which `fit()`
+allows.
 
-It is called twice: at the end of `_ready()`, so the lawn is already there before the first board is
-built, and at the START of `create_board()`, for a level that changes the board's size. `fit()`
-re-sows only when the rect actually changed, because the field is a `MultiMeshInstance2D` of tens to
-hundreds of thousands of blades and building it is not something to redo between rounds.
+**It is deliberately featureless, and that is a gameplay constraint, not a shortcut.** Glimpse is
+Lineup played at the EDGE of vision: anything with structure out there competes with the very thing
+the player is straining to catch. So there is no vignette, no gradient with a direction to it, no
+pattern and no motion. The surface is a deep base (`StudyBackdrop.GLIMPSE`, a low-chroma plum), a
+radially symmetric lift toward the centre at 5% alpha, and a fine untiled dust of specks in two
+tones at 4-9% alpha — enough that the screen reads as a matte surface rather than as a missing
+asset, and far too little to compete with a coloured shape.
 
-Every empty cell used to carry its own 40x40 `grass.png`; `empty_space.gd`'s `_ready()` now hides it.
-That per-cell sprite was the real reason the board looked tiled — the background alone was never
-it — and the per-cell random rotation some of these games applied made it worse, because the tile
-wraps seamlessly and turning a cell breaks the wrap.
-
-`probe_lawn.gd` checks all twelve: the field exists, is the first child of its layer, is sown before
-any board is built, covers the board and the canvas, retires the tiled ground only once it has
-something in it, and that no cell shows its own grass again.
+`probe_lawn.gd` checks this game with the other three: backdrop present and first in its layer,
+populated before any shape appears, covering the board's extent and the canvas, and the centre lift
+both small and direction-free.

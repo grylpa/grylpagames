@@ -291,3 +291,31 @@ Specific to this game:
   `dirs_shown`, `dirs_after_right`, `dirs_after_wrong`, `dir_right`, `dir_wrong`.
 - Points for the coach: `tutorial_model_pos`, `tutorial_periph_pos`, `tutorial_candidates_rect`,
   `tutorial_correct_dir_pos`.
+
+## The background
+
+This game has no world in it — a shape flashes and you answer — so there is no ground to draw. What
+sits behind the board is `scripts/study_backdrop.gd`, shared with Pinpoint (`didi`), Lineup (`ooo`) and Glimpse (`pop`), the other three games
+with nothing standing on anything. It used to show a lawn, for no reason at all.
+
+```gdscript
+StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
+    StudyBackdrop.WITNESS, 33)
+```
+
+`_fit_ground_to_board()` is called at the end of `_ready()` and at the start of `create_board()`. `fit()` hides the tiled
+`TextureRect` it replaces, attaches a control as the Level layer's first child so it draws behind
+the board, sizes it to the board plus a four-tile margin merged with the full canvas, and populates
+it — rebuilding only when that rect actually changed.
+
+**It is deliberately featureless, and that is a gameplay constraint, not a shortcut.** The whole game is whether you saw a shape correctly, so anything on the background is
+competing with the thing being measured.
+So there is no vignette, no gradient with a direction to it, no pattern and no motion. The surface
+is a deep base (`StudyBackdrop.WITNESS`, a low-chroma indigo), a radially symmetric lift toward
+the centre at 5% alpha, and a fine untiled dust of specks in two tones at 4-9% alpha — enough that
+the screen reads as a matte surface rather than as a missing asset, and far too little to compete
+with a coloured shape.
+
+`probe_lawn.gd` checks this game with the other three: backdrop present and first in its layer,
+populated before any board is built, covering board and canvas, the tiled ground retired only once
+it has something in it, and the centre lift both small and direction-free.

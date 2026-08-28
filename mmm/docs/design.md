@@ -250,7 +250,7 @@ follows.
 ## The lawn
 
 The ground is ONE continuous field of drawn grass over the whole board — `scripts/grass_field.gd`,
-shared by the twelve grass games — not a tile. `level.gd`'s `_fit_ground_to_board()` is the whole
+shared by the eleven grass games — not a tile. `level.gd`'s `_fit_ground_to_board()` is the whole
 installation:
 
 ```gdscript
@@ -272,6 +272,6 @@ That per-cell sprite was the real reason the board looked tiled — the backgrou
 it — and the per-cell random rotation some of these games applied made it worse, because the tile
 wraps seamlessly and turning a cell breaks the wrap.
 
-`probe_lawn.gd` checks all twelve: the field exists, is the first child of its layer, is sown before
+`probe_lawn.gd` checks all eleven: the field exists, is the first child of its layer, is sown before
 any board is built, covers the board and the canvas, retires the tiled ground only once it has
 something in it, and that no cell shows its own grass again.

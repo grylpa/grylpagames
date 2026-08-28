@@ -103,6 +103,7 @@ func _ready() -> void:
 	_timer_arc.hide()
 	add_child(_timer_arc)
 	_create_camera()
+	_fit_ground_to_board()
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:
@@ -163,6 +164,7 @@ func _load_cfg(increase: bool = false) -> void:
 	_num_options = lvl["num_options"]
 	_num_corrects_for_next_level = lvl["rounds"]
 	_time_to_consider_fail_ms = lvl["time_to_consider_fail"]
+	_fit_ground_to_board()
 	if game.tutorial_mode:
 		# After the level values are read, so it overrides them rather than being overwritten.
 		_tutorial_setup()
@@ -638,3 +640,16 @@ func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
 	return "Level passed — on to level %d." % (level + 1)
+
+# The background. This game has no world in it — a shape flashes and you answer — so there is no
+# ground to draw: `scripts/study_backdrop.gd` puts a deep, near-uniform surface behind the board and
+# nothing else. It is deliberately featureless. These are perceptual tests: a background that is
+# brighter in some directions than others makes the same shape easier to catch in some
+# directions than others, so what variation there is, is radially symmetric and tiny.
+#
+# Called from _ready() once the board's geometry exists, and again from _load_cfg(). This game has
+# no create_board: the board is a fixed 7x7 at every level, so _load_cfg is the only place its size
+# could ever change, and `fit()` costs nothing when it has not.
+func _fit_ground_to_board() -> void:
+	StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
+		StudyBackdrop.PINPOINT, 34)

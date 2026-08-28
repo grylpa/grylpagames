@@ -3,15 +3,13 @@ extends CanvasLayer
 var game: GenericGameUtil
 
 class OneCell:
-	var ispipe: bool = false
 	var agent = null
-	var pipe
+	# The box drawn behind this cell's shape, and only while there IS one — see _add_box_at().
+	var box: Sprite2D = null
 
 var max_difficulty: int = 8	
 var board: Array
 var agents = []
-var pipes = []
-var empties = []
 var agent_start_positions = []
 var agent_start_directions = []
 var time_increased_difficulty_ms = 0
@@ -40,9 +38,13 @@ var num_corrects_in_level_so_far: int = 0
 
 var times_to_answer: Array = []
 
-@export var pipe_scene: PackedScene = load("res://pop/scenes/pipe.tscn")
-@export var empty_scene: PackedScene = load("res://pop/scenes/empty_space.tscn")
 @export var agent_scene: PackedScene = load("res://pop/scenes/agent.tscn")
+
+# The box a shape stands on. Lineup (`ooo`) frames every candidate position for the whole round;
+# here a box exists only while a shape is on it and goes when the shape goes, so the screen carries
+# nothing the player is not being asked about. One sprite, created in code — a scene for one textured
+# node is more machinery than the thing deserves.
+var box_texture: Texture2D = preload("res://pop/art/box.png")
 
 var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
 var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
@@ -109,26 +111,30 @@ func new_game(from_scratch=true):
 func use_b12(b):
 	return b == 1 or (b == 2 and game.rng.randi() % 2 == 0)
 
-func add_pipe(p):
-	board[p.y][p.x].ispipe = true
-	var pipe = pipe_scene.instantiate()
-	board[p.y][p.x].pipe = pipe
-	pipe.board_pos = p
-	pipe.position = game.board_to_px(p)
-	add_child(pipe)
-	pipes.append(pipe)
-	pipe.pipe_pressed.connect(_on_pipe_pressed)
+# The box behind one shape. Drawn UNDER the agent (which sets z_index 10 in its own _ready) and
+# above the backdrop, and never an Area2D: a box that could be tapped would steal the tap meant for
+# the shape standing on it.
+func _add_box_at(p: Vector2i) -> void:
+	var box: Sprite2D = Sprite2D.new()
+	box.texture = box_texture
+	box.position = game.board_to_px(p)
+	box.z_index = 1
+	add_child(box)
+	board[p.y][p.x].box = box
 
-func add_empty(p):
-	var e = empty_scene.instantiate()
-	e.board_pos = p
-	e.position = game.board_to_px(p)
-	add_child(e)
-	empties.append(e)
-	
-func show_hide_walls():
-	for e in empties:
-		e.show_hide_walls(board)
+func _all_boxes() -> Array:
+	var out: Array = []
+	for row: Array in board:
+		for cell: OneCell in row:
+			if cell != null and cell.box != null and is_instance_valid(cell.box):
+				out.append(cell.box)
+	return out
+
+func _remove_box_at(p: Vector2i) -> void:
+	var cell: OneCell = board[p.y][p.x]
+	if cell.box != null and is_instance_valid(cell.box):
+		cell.box.queue_free()
+	cell.box = null
 
 func add_agent_pos_dir(p):
 	var q = p
@@ -145,17 +151,19 @@ func add_agent_pos_dir(p):
 		dir = 3
 	agent_start_positions.append(q)
 	agent_start_directions.append(dir)
-	# add_pipe(q)
 	return q
-
-func dist_to_agent_positions(p:Vector2):
-	var min_d: float = 10000.0
-	for ap in agent_start_positions:
-		min_d = min(min_d,p.distance_to(ap))
-	return min_d
 
 func create_board() -> void:
 	_fit_ground_to_board()
+	# Clear the OLD board before replacing it. A box is reached through its cell, so sweeping after
+	# board.clear() finds nothing and leaves every box on screen as an orphan child.
+	for c in agents:
+		if is_instance_valid(c):
+			c.queue_free()
+	for b in _all_boxes():
+		b.queue_free()
+	agents.clear()
+
 	board.clear()
 	for row_index in game.board_size.y:
 		var row: Array[OneCell]
@@ -163,19 +171,14 @@ func create_board() -> void:
 		for col_index in game.board_size.x:
 			row[col_index] = OneCell.new()
 		board.append(row)
-	for c in pipes:
-		c.queue_free()
-	for c in agents:
-		c.queue_free()
-	for c in empties:
-		c.queue_free()
-	pipes.clear()
-	empties.clear()
-	agents.clear()
 
 	agent_start_positions = []
 	agent_start_directions = []
 
+	# There is no BOARD here, only the ring of places a shape can appear: every other cell along the
+	# four edges. This game used to lay a maze of road pipes between them and floor every remaining
+	# cell with a walled tile — scenery for a world it does not have, and the thing the player is
+	# straining to see sat on top of it. Nothing is drawn now until a shape needs somewhere to stand.
 	var target_rows = range(2,game.board_size.y-1,2)
 	var target_cols = range(2,game.board_size.x-1,2)
 	for row in target_rows:
@@ -184,27 +187,6 @@ func create_board() -> void:
 	for col in target_cols:
 		add_agent_pos_dir(Vector2i(col,0))
 		add_agent_pos_dir(Vector2i(col,game.board_size.y-1))
-
-	# for a in agent_start_positions:
-	# 	add_pipe(a)
-	for row in range(1,game.board_size.y-1):
-		for col in range(1,game.board_size.x-1):
-			# add_pipe(Vector2i(col,row))
-			if (row % 2 == 0 or col % 2 == 0) and dist_to_agent_positions(Vector2i(col,row)) < 1.5:
-				add_pipe(Vector2i(col,row))
-			# if row % 2 == 0 or col % 2 == 0 or (row > 2 and col > 2 and 
-			# 	row < game.board_size.y-2 and col < game.board_size.x-2):
-					# add_pipe(Vector2i(col,row))
-	
-	for row in game.board_size.y:
-		for col in game.board_size.x:
-			if !board[row][col].ispipe:
-				add_empty(Vector2i(col,row))
-
-	show_hide_walls()
-				
-	for pipe in pipes:
-		pipe.set_rot(board)
 
 	need_to_show_model = true
 	time_to_show_model_ms = game.game_time + agent_time_to_show_model_after_alternatives
@@ -225,6 +207,8 @@ func add_agent_at(p: Vector2i, direction: int, color, is_model = false, is_corre
 	agent.id = next_agent_id
 	next_agent_id += 1
 	agent.board_pos = p
+	# Before the agent, so the box is the older sibling and draws under it even without the z_index.
+	_add_box_at(p)
 	add_child(agent)
 	agent.agent_pressed.connect(on_agent_pressed)	
 	board[p.y][p.x].agent = agent
@@ -463,6 +447,7 @@ func on_agent_need_to_remove_agent(agent):
 	for i in range(agents.size() - 1, -1, -1):
 		if agents[i].id == agent.id:
 			board[agents[i].board_pos.y][agents[i].board_pos.x].agent = null
+			_remove_box_at(agents[i].board_pos)
 			agents[i].queue_free()
 			agents.remove_at(i)
 			if agent.is_model:				
@@ -514,15 +499,6 @@ func create_camera(camscale):
 	agent_cam.set_anchor_mode(Camera2D.ANCHOR_MODE_DRAG_CENTER)
 	agent_cam.set_offset(game.board_to_px(game.get_board_center()))
 	
-func _is_cell_empty(_board_pos):
-	var cell = board[_board_pos.y][_board_pos.x]
-	var full = cell.agent != null or !cell.ispipe
-	return not full
-
-func _on_pipe_pressed(_board_pos):
-	if !_is_cell_empty(_board_pos):
-		return
-
 func mean_time_to_answer_ms() -> int:
 	var N = times_to_answer.size()
 	if N == 0:
@@ -627,14 +603,14 @@ func _progress_line(passed: bool, need: int) -> String:
 		return "You need at least %d%% accuracy to pass to the next level." % need
 	return "Level passed — on to level %d." % (level + 1)
 
-# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
-# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
-# arranged, and this game's cells were half of it.
+# The background. This game has no world in it — a shape flashes and you answer — so there is no
+# ground to draw: `scripts/study_backdrop.gd` puts a deep, near-uniform surface behind the board and
+# nothing else. It is deliberately featureless. Glimpse is Lineup played at the EDGE of vision, and
+# anything with structure out there competes with the thing the player is straining to catch.
 #
-# Called from _ready() once the board's geometry exists, and again at the START of create_board()
-# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
-# only re-sows when that size actually changed.
-# The ground node is looked up with get_node_or_null because this script is not only on the
-# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+# Called from _ready() once the board's geometry exists, and again at the START of create_board() so
+# a level that changes the board size gets its backdrop before the cells go down. `fit()` only
+# rebuilds when that size actually changed.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 18)
+	StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
+		StudyBackdrop.GLIMPSE, 31)
