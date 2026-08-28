@@ -172,7 +172,7 @@ func _build() -> void:
 	var vbox: Control = _panel
 
 	_title_label = Label.new()
-	_title_label.add_theme_font_size_override("font_size", 30 if is_mob else 22)
+	MainGlobals.set_font_size(_title_label, 22)
 	_title_label.add_theme_color_override("font_color", SPOT_COLOR)
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Must wrap like the others. Without this a title wider than the caption ("Up Down Breathe",
@@ -184,7 +184,7 @@ func _build() -> void:
 	vbox.add_child(_title_label)
 
 	_text_label = Label.new()
-	_text_label.add_theme_font_size_override("font_size", 26 if is_mob else 19)
+	MainGlobals.set_font_size(_text_label, 19)
 	_text_label.add_theme_color_override("font_color", TEXT_COLOR)
 	_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -192,7 +192,7 @@ func _build() -> void:
 	vbox.add_child(_text_label)
 
 	_foot_label = Label.new()
-	_foot_label.add_theme_font_size_override("font_size", 20 if is_mob else 15)
+	MainGlobals.set_font_size(_foot_label, 15)
 	_foot_label.add_theme_color_override("font_color", HINT_COLOR)
 	_foot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_foot_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -206,7 +206,9 @@ func _build() -> void:
 	_skip_btn = Button.new()
 	_skip_btn.name = "SkipTutorial"
 	_skip_btn.text = "Skip tutorial"
-	_skip_btn.add_theme_font_size_override("font_size", 20 if is_mob else 15)
+	# 18, not 15: this is the one control on the coach's screen a player hunts for, and at the app's
+	# mobile scale a 15 came out at 24 against captions of 30 and 35.
+	MainGlobals.set_font_size(_skip_btn, 18)
 	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		_skip_btn.add_theme_color_override(state, Color(1, 1, 1, 0.92))
 	_skip_btn.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -813,7 +815,7 @@ func _draw_badge(text: String, alpha: float, good: bool, avoid = null) -> void:
 	var font: Font = MainGlobals.get_system_sans_font()
 	if font == null:
 		return
-	var fs: int = 26 if MainGlobals.is_mobile() else 19
+	var fs: int = MainGlobals.ui_font_size(19)
 	var screen: Vector2 = _dim.size
 	var text_w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs).x
 	var pad: float = 14.0

@@ -229,7 +229,7 @@ static func _header(parent: Control, accent: Color, badge: bool, card_w: float, 
 
 	var title_label: Label = Label.new()
 	title_label.add_theme_font_override("font", MainGlobals.get_text_font())
-	title_label.add_theme_font_size_override("font_size", TITLE_SIZE if mob else TITLE_SIZE_DESKTOP)
+	MainGlobals.set_font_size(title_label, TITLE_SIZE_DESKTOP)
 	title_label.add_theme_color_override("font_color", HEADER_INK)
 	# An autowrapping Label with nothing constraining its width wraps at effectively ZERO — one
 	# character per line — and then reports THAT as its minimum height. This header measured 669px
@@ -247,7 +247,7 @@ static func _button(label: String, accent: Color, mob: bool, on_close: Callable,
 	var btn: Button = Button.new()
 	btn.text = label
 	btn.add_theme_font_override("font", MainGlobals.get_text_font())
-	btn.add_theme_font_size_override("font_size", BUTTON_SIZE if mob else BUTTON_SIZE_DESKTOP)
+	MainGlobals.set_font_size(btn, BUTTON_SIZE_DESKTOP)
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		btn.add_theme_color_override(state, accent if ghost else HEADER_INK)
 	for state in ["normal", "hover", "pressed", "focus"]:
@@ -393,7 +393,7 @@ static func _add_stat(table: VBoxContainer, label_text: String, value_text: Stri
 	var lab: Label = Label.new()
 	lab.text = label_text
 	lab.add_theme_font_override("font", MainGlobals.get_text_font())
-	lab.add_theme_font_size_override("font_size", LABEL_SIZE if mob else LABEL_SIZE_DESKTOP)
+	MainGlobals.set_font_size(lab, LABEL_SIZE_DESKTOP)
 	lab.add_theme_color_override("font_color", MUTED)
 	# FILL, not EXPAND: the column widths are set by _align_columns once every row is known, and an
 	# expanding label would hand each row's leftover space back to itself and break the alignment.
@@ -402,7 +402,7 @@ static func _add_stat(table: VBoxContainer, label_text: String, value_text: Stri
 	var val: Label = Label.new()
 	val.text = value_text
 	val.add_theme_font_override("font", MainGlobals.get_text_font())
-	val.add_theme_font_size_override("font_size", VALUE_SIZE if mob else VALUE_SIZE_DESKTOP)
+	MainGlobals.set_font_size(val, VALUE_SIZE_DESKTOP)
 	val.add_theme_color_override("font_color", TEXT)
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	val.size_flags_horizontal = Control.SIZE_FILL
@@ -414,7 +414,7 @@ static func _add_prose(rows: VBoxContainer, line: String, accent: Color, card_w:
 	var lab: Label = Label.new()
 	lab.text = line
 	lab.add_theme_font_override("font", MainGlobals.get_text_font())
-	lab.add_theme_font_size_override("font_size", PROSE_SIZE if mob else PROSE_SIZE_DESKTOP)
+	MainGlobals.set_font_size(lab, PROSE_SIZE_DESKTOP)
 	lab.add_theme_color_override("font_color", accent if line.ends_with("!") else TEXT)
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

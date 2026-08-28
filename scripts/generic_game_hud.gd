@@ -204,7 +204,7 @@ func _style_banner(didwin: bool) -> void:
 		bg.lightened(0.72) if didwin else bg.darkened(0.62))
 	$Message.add_theme_constant_override("outline_size", 6 if didwin else 10)
 	$Message.add_theme_font_override("font", MainGlobals.get_text_font())
-	$Message.add_theme_font_size_override("font_size", 62 if MainGlobals.is_mobile() else 46)
+	MainGlobals.set_font_size($Message, 46)
 
 	# Restart the show, so the first burst opens just after the banner lands rather than wherever
 	# the clock happened to be from a previous game.

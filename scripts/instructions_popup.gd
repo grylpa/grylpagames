@@ -79,7 +79,7 @@ func offer_tutorial(host: Node, game_util) -> void:
 	margin.add_theme_constant_override("margin_bottom", 12)
 	var btn: Button = Button.new()
 	btn.text = "Interactive tutorial"
-	btn.add_theme_font_size_override("font_size", 40 if MainGlobals.is_mobile() else 24)
+	MainGlobals.set_font_size(btn, 24)
 	btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 1.0))
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.custom_minimum_size = Vector2(240, 0)

@@ -31,7 +31,7 @@ func popup_text(text_title: String, text: String, vcenter:bool, top_px := 80.0) 
 	_label.text = text
 	_label.add_theme_font_size_override("font_size", fs)
 	# "Tap anywhere to start" — a bit larger on mobile
-	_tap.add_theme_font_size_override("font_size", 24 if MainGlobals.is_mobile() else 16)
+	MainGlobals.set_font_size(_tap, 16)
 	# Title: same font/color as the text but +2 in size. If empty, hide it so it takes no
 	# vertical space (a hidden child is skipped by the VBox, along with its separation).
 	if text_title.is_empty():

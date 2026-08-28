@@ -191,11 +191,11 @@ func _layout() -> void:
 	var btn_margin_bottom: float = 46.0 if mob else 26.0
 	var btn_y: float = sh - btn_h - btn_margin_bottom
 
-	_instruction.add_theme_font_size_override("font_size", 40 if mob else 30)
-	_hint.add_theme_font_size_override("font_size", 30 if mob else 22)
-	_feedback.add_theme_font_size_override("font_size", 120 if mob else 84)
+	MainGlobals.set_font_size(_instruction, 30)
+	MainGlobals.set_font_size(_hint, 22)
+	MainGlobals.set_font_size(_feedback, 84)
 	for b in [_btn_no, _btn_match]:
-		b.add_theme_font_size_override("font_size", 44 if mob else 32)
+		MainGlobals.set_font_size(b, 32)
 
 	_bar_h = 22.0 if mob else 14.0
 	var bar_x: float = 22.0

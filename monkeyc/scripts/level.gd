@@ -902,7 +902,7 @@ func _ask_for_rule(belt_idx: int) -> void:
 	question_panel.add_child(vbox)
 	var q_lbl: Label = Label.new()
 	q_lbl.text = question_text
-	q_lbl.add_theme_font_size_override("font_size", 36 if MainGlobals.is_mobile() else 28)
+	MainGlobals.set_font_size(q_lbl, 28)
 	q_lbl.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	q_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.3, 1.0))
 	q_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -920,7 +920,7 @@ func _ask_for_rule(belt_idx: int) -> void:
 		btn.text = _u(opt["label"])
 		btn.set_meta("opt_key", opt["key"])
 		btn.add_theme_font_override("font", f)
-		btn.add_theme_font_size_override("font_size", 30 if MainGlobals.is_mobile() else 22)
+		MainGlobals.set_font_size(btn, 22)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.custom_minimum_size = Vector2(0.0, 72.0 if MainGlobals.is_mobile() else 56.0)
 		btn.pressed.connect(_on_option_pressed.bind(opt["key"], correct_key, vbox))

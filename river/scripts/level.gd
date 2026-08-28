@@ -171,7 +171,6 @@ func _ready() -> void:
 	vbox_r.add_child(graph_spacer_r)
 	vbox_r.move_child(graph_spacer_r, vbox_r.get_child_count() - 2)
 
-	var mobile_r: bool = MainGlobals.is_mobile()
 	var again_btn_r: Button = Button.new()
 	again_btn_r.text = "Again"
 	again_btn_r.custom_minimum_size = Vector2(160, 52)
@@ -179,7 +178,7 @@ func _ready() -> void:
 	again_btn_r.add_theme_stylebox_override("normal", btn_style)
 	again_btn_r.add_theme_stylebox_override("hover", btn_style)
 	again_btn_r.add_theme_stylebox_override("pressed", btn_pressed)
-	again_btn_r.add_theme_font_size_override("font_size", 36 if mobile_r else 26)
+	MainGlobals.set_font_size(again_btn_r, 26)
 	again_btn_r.add_theme_color_override("font_color", Color(0.88, 0.94, 1.0, 1.0))
 	again_btn_r.pressed.connect(_on_again_pressed)
 	var btn_hbox_r: HBoxContainer = HBoxContainer.new()
