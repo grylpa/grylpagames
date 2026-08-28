@@ -79,6 +79,7 @@ func _ready() -> void:
 	game.add_sound(self, "delivery", delivery_audio, false)
 	game.add_sound(self, "explosion", explosion_audio, false)
 	game.add_sound(self, "swoosh", swoosh_audio, false)
+	_fit_ground_to_board()
 
 func new_game(from_scratch=true):
 	_tutorial_board = game.tutorial_mode
@@ -175,6 +176,7 @@ func show_hide_walls():
 		e.show_hide_walls(board)
 			
 func create_board() -> void:
+	_fit_ground_to_board()
 	start_dispatch = false
 	board.clear()
 	for row_index in game.board_size.y:
@@ -793,3 +795,15 @@ func tutorial_next_door_pos() -> Vector2:
 
 func tutorial_has_door() -> bool:
 	return tutorial_next_door_pos() != Vector2.ZERO
+
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and this game's cells were half of it.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board()
+# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
+# only re-sows when that size actually changed.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+func _fit_ground_to_board() -> void:
+	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 17)

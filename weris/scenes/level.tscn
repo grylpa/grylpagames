@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://wer3a4b5c6d7g"]
 
 [ext_resource type="Script" uid="uid://wer4a5b6c7d8h" path="res://weris/scripts/level.gd" id="1_welevel"]
-[ext_resource type="Texture2D" uid="uid://byk0fyp0kxs63" path="res://art/grass.png" id="2_welevel"]
+[ext_resource type="Texture2D" uid="uid://bkdju07ctoiok" path="res://art/grass.png" id="2_welevel"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_feedback"]
 content_margin_left = 12.0

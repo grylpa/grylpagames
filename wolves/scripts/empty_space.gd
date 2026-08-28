@@ -2,15 +2,14 @@ extends Area2D
 
 var board_pos := Vector2i.ZERO
 
-# The grass tile is left ALONE — not rotated, not flipped.
+# NO grass sprite on a cell. The lawn is one continuous field drawn behind the whole board — see
+# scripts/grass_field.gd — and a per-cell tile on top of it would put the mosaic straight back.
 #
-# Measured, `res://art/grass.png` tiles SEAMLESSLY: its left column matches its right (0.034) and
-# its top matches its bottom (0.030) more closely than two random interior columns match each other
-# (0.043). Laid out plainly, the 40-unit grid is invisible because the texture wraps across it.
-#
-# Turning or flipping a cell breaks that wrap, so every cell boundary becomes a seam and the field
-# gains a grid of them — which is the "still looks tiled" this used to cause. A per-cell random
-# rotation was here from the start and was making things worse, not better.
+# (Its own tile does wrap seamlessly, measured: left-to-right 0.034 and top-to-bottom 0.030 against
+# an interior baseline of 0.043. So the grid was invisible until something turned the cells — which
+# a per-cell random rotation in here did, from the start.)
+func _ready() -> void:
+	$Grass.hide()
 
 func show_hide_walls(board):
 	var p = board_pos
@@ -18,8 +17,6 @@ func show_hide_walls(board):
 	if p.x == 0 || p.y == 0 || p.x == sz.x - 1 || p.y == sz.y - 1:
 		return
 
-	var c = board[p.y][p.x]
-	
 	var r = board[p.y][p.x+1]
 	var l = board[p.y][p.x-1]
 	var t = board[p.y-1][p.x]
@@ -29,9 +26,6 @@ func show_hide_walls(board):
 	var tl = board[p.y-1][p.x-1]
 	var br = board[p.y+1][p.x+1]
 	var bl = board[p.y+1][p.x-1]
-
-	if c.is_field:
-		$Grass.hide()
 
 	for wall in [$Wall0, $Wall1, $Wall2, $Wall3, $Wall4, $Wall5, $Wall6, $Wall7]:
 		wall.modulate = Color(0.99, 0.79, 0.3,1)

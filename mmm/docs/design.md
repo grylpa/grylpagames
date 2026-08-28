@@ -236,8 +236,42 @@ camera. This game's camera is parented to a moving node and PANS, so a screen-an
 that layer covers the screen once, at the start, and is then walked off the edge of — bare screen
 at the sides.
 
-The ground therefore sits in a nested `BgLayer` (`CanvasLayer`, `layer = -1`, NOT following the
-viewport), which is the arrangement gorilla already used. Games whose camera is pinned to the board
-centre (lightsout, taxi, wolves) do not need it and do not have it.
+The ground therefore sits in a nested `BgLayer` (`CanvasLayer`, `layer = -1`) — the arrangement
+gorilla already used. That layer DOES follow the viewport, because what is in it is no longer a
+screen-sized texture but a board-sized lawn (see "The lawn" below): a ground that covers the board
+has to be drawn in the board's space, or it appears at the wrong scale the moment the camera zooms.
+storm, delemfp and gorilla are the same. Games whose Level layer does not follow the camera at all
+(deliverem, guidem, lightsout, parkem, pneumo, pop, taxi, wolves) have no BgLayer and put the lawn
+straight into the Level layer.
 
-`probe_look.gd` fails if this game's ground goes back into the following layer.
+`probe_look.gd` fails if a BgLayer goes missing, is empty, or stops following a camera its Level
+follows.
+
+## The lawn
+
+The ground is ONE continuous field of drawn grass over the whole board — `scripts/grass_field.gd`,
+shared by the twelve grass games — not a tile. `level.gd`'s `_fit_ground_to_board()` is the whole
+installation:
+
+```gdscript
+GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 7)
+```
+
+It hides the tiled `TextureRect` it replaces, attaches a `GrassField` control to `BgLayer` (a nested `CanvasLayer`, `layer = -1`, `follow_viewport_enabled`) so it
+draws behind everything, sizes it to the board plus a four-tile margin (merged with the full canvas,
+so a board smaller than the screen still has grass to the edges), and sows it. The seed is this
+game's own — 7 — so no two games show the same field.
+
+It is called twice: at the end of `_ready()`, so the lawn is already there before the first board is
+built, and at the START of `create_board()`, for a level that changes the board's size. `fit()`
+re-sows only when the rect actually changed, because the field is a `MultiMeshInstance2D` of tens to
+hundreds of thousands of blades and building it is not something to redo between rounds.
+
+Every empty cell used to carry its own 40x40 `grass.png`; `empty_space.gd`'s `_ready()` now hides it.
+That per-cell sprite was the real reason the board looked tiled — the background alone was never
+it — and the per-cell random rotation some of these games applied made it worse, because the tile
+wraps seamlessly and turning a cell breaks the wrap.
+
+`probe_lawn.gd` checks all twelve: the field exists, is the first child of its layer, is sown before
+any board is built, covers the board and the canvas, retires the tiled ground only once it has
+something in it, and that no cell shows its own grass again.

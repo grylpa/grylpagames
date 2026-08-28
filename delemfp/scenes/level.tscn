@@ -17,6 +17,7 @@ autostart = true
 
 [node name="BgLayer" type="CanvasLayer" parent="."]
 layer = -1
+follow_viewport_enabled = true
 
 [node name="TextureRect" type="TextureRect" parent="BgLayer" unique_id=165557321]
 anchors_preset = 15

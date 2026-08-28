@@ -260,16 +260,17 @@ func _ready() -> void:
 
 	# --- a panning game's ground ----------------------------------------------------------------
 	#
-	# The ground of a panning game needs a background layer of its own, drawn behind everything.
-	# Whether that layer FOLLOWS the camera depends on what is in it: a screen-sized ground must not
-	# (it would be walked off the edge of), a board-sized one must (or its tiles are the wrong
-	# apparent size beside the board's). mmm is the second kind; the others are still the first.
-	for folder: String in ["mmm", "storm", "delemfp"]:
+	# The ground of a panning game needs a background layer of its own, drawn behind everything, and
+	# that layer must sit in the SAME space as the board: the lawn is now board-sized (one continuous
+	# field over the whole board, scripts/grass_field.gd), so if the Level layer follows the camera
+	# and the ground layer does not, the lawn is drawn unzoomed and reads as a different grass the
+	# moment the camera takes over. That was the "background changes once the board is built" bug.
+	for folder: String in ["mmm", "storm", "delemfp", "gorilla"]:
 		var lvl: Node = load("res://%s/scenes/level.tscn" % folder).instantiate()
 		add_child(lvl)
 		await get_tree().process_frame
-		# The ground node itself may be a drawn lawn rather than a texture now (mmm), so what is
-		# checked is the LAYER it lives in.
+		# The ground node itself is a drawn lawn rather than a texture now, so what is checked is the
+		# LAYER it lives in.
 		var layer: CanvasLayer = null
 		for c in _all_nodes(lvl):
 			if c is CanvasLayer and c.name == "BgLayer":
@@ -278,6 +279,9 @@ func _ready() -> void:
 			fails.append("%s: the ground has no BgLayer of its own" % folder)
 		elif layer.get_child_count() == 0:
 			fails.append("%s: the BgLayer is empty" % folder)
+		elif lvl is CanvasLayer and (lvl as CanvasLayer).follow_viewport_enabled \
+				and not layer.follow_viewport_enabled:
+			fails.append("%s: the Level follows the camera but its BgLayer does not, so the lawn is drawn at the wrong scale" % folder)
 		lvl.queue_free()
 		await get_tree().process_frame
 

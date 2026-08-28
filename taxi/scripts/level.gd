@@ -90,6 +90,7 @@ func _ready() -> void:
 	game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "customer_gaveup",gaveup_audio)
 	game.add_sound(self, "breakdown",breakdown_audio)
+	_fit_ground_to_board()
 
 func new_game(from_scratch=true):
 	# Re-baseline the tick stamps to the freshly-reset game clock. game.reset() puts game_time back
@@ -206,6 +207,7 @@ func show_hide_walls():
 		e.show_hide_walls(board)
 			
 func create_board(force_new_taxis_and_stations:bool) -> void:
+	_fit_ground_to_board()
 	start_dispatch = false
 	board.clear()
 	for row_index in game.board_size.y:
@@ -1358,3 +1360,15 @@ func set_state(_state: Dictionary):
 	start_with_state = _state
 	if _state.size() == 0:
 		can_use_state = false
+
+# The lawn: ONE continuous field over the whole board (scripts/grass_field.gd), with the per-cell
+# grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
+# arranged, and this game's cells were half of it.
+#
+# Called from _ready() once the board's geometry exists, and again at the START of create_board()
+# so a level that changes the board size has its lawn before the cells go down. GrassField.fit()
+# only re-sows when that size actually changed.
+# The ground node is looked up with get_node_or_null because this script is not only on the
+# level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+func _fit_ground_to_board() -> void:
+	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 20)
