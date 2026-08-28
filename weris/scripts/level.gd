@@ -47,6 +47,8 @@ func _ready() -> void:
 	increase_difficulty(false)
 
 func new_game(from_scratch = true):
+	game.corrects = 0
+	game.mistakes = 0
 	game.level_is_ready = false
 	if from_scratch:
 		level = WerisG.starting_level
@@ -252,11 +254,16 @@ func level_is_done(didwin: bool):
 		if level >= max_difficulty:
 			sig_level_is_done.emit(true)
 		else:
-			game.need_to_increase_level = true
+			# Passing is a RESULT, not a formality: below this level's accuracy the SAME level
+			# comes round again. The bar rises with the level, from 60% to at most 80%.
+			var need: int = mini(60 + 5 * (level - 1), 80)
+			var pct: int = game.session_pct_correct()
+			var passed: bool = pct >= need
+			game.need_to_increase_level = passed
 			if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 				MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-			var textadd = "\n\nAverage find time: %d ms" % mean_time_to_answer_ms()
-			game.show_level_done_popup(self, "", "", level, textadd)
+			var textadd = "\n\nAverage find time: %d ms\nAccuracy: %d%%\n\n%s" % [mean_time_to_answer_ms(), pct, _progress_line(passed, need)]
+			game.show_level_done_popup(self, "", "", level, textadd, passed)
 	else:
 		sig_level_is_done.emit(didwin)
 
@@ -307,3 +314,10 @@ func mean_time_to_answer_ms() -> int:
 	for t in times_to_answer:
 		s += t
 	return roundi(float(s) / N)
+
+# What the player gets next, in words. An accuracy figure alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	return "Level passed — on to level %d." % (level + 1)

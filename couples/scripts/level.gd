@@ -538,18 +538,30 @@ func _level_done(didwin: bool) -> void:
 	if not didwin:
 		sig_level_is_done.emit(false)
 		return
-	MainGlobals.global_level_is_done(true)
+	var pct: int = pct_correct()
+	var need: int = int(CouplesLevelConfig.get_level(current_level_id).get("pass_pct", 70))
+	# Passing is a RESULT, not a formality: below the level's own accuracy the SAME level comes
+	# round again instead of the next one.
+	var passed: bool = pct >= need
+	MainGlobals.global_level_is_done(passed)
 	if current_level_id >= CouplesLevelConfig.max_level():
 		sig_level_is_done.emit(true)
 		return
-	game.need_to_increase_level = true
+	game.need_to_increase_level = passed   # a failed level is played again
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
-		pct_correct(),
-		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
+	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s\n\n%s" % [
+		pct,
+		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A",
+		_progress_line(passed, need)
 	]
-	game.show_level_done_popup(self, "", "", current_level_id, extra)
+	game.show_level_done_popup(self, "", "", current_level_id, extra, passed)
+
+# What the player gets next, in words.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	return "Level passed — on to level %d." % (current_level_id + 1)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

@@ -18,12 +18,12 @@ extends Node
 # NOTE: with ball linear_damp ~3.2 the fall terminal velocity ≈ 980*gravity_scale/3.2.
 # These scales give a gentle ~80 px/s (L1) rising to ~140 px/s (L5) fall.
 var LEVELS: Array = [
-	{"id": 1, "name": "1", "num_colors": 2, "gravity_scale": 0.26, "spawn_interval": 4.8, "max_active": 10000, "rounds": 6,  "ball_radius": 27, "time_sec": 40},
-	{"id": 2, "name": "2", "num_colors": 2, "gravity_scale": 0.30, "spawn_interval": 3.8, "max_active": 10000, "rounds": 8,  "ball_radius": 25, "time_sec": 50},
-	{"id": 3, "name": "3", "num_colors": 3, "gravity_scale": 0.34, "spawn_interval": 3.6, "max_active": 10000, "rounds": 10, "ball_radius": 25, "time_sec": 60},
-	{"id": 4, "name": "4", "num_colors": 3, "gravity_scale": 0.40, "spawn_interval": 3.2, "max_active": 10000, "rounds": 12, "ball_radius": 23, "time_sec": 70},
-	{"id": 5, "name": "5", "num_colors": 4, "gravity_scale": 0.46, "spawn_interval": 3.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80},
-	{"id": 5, "name": "6", "num_colors": 4, "gravity_scale": 0.48, "spawn_interval": 2.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80},
+	{"id": 1, "name": "1", "num_colors": 2, "gravity_scale": 0.26, "spawn_interval": 4.8, "max_active": 10000, "rounds": 6,  "ball_radius": 27, "time_sec": 40, "pass_pct": 50},
+	{"id": 2, "name": "2", "num_colors": 2, "gravity_scale": 0.30, "spawn_interval": 3.8, "max_active": 10000, "rounds": 8,  "ball_radius": 25, "time_sec": 50, "pass_pct": 62},
+	{"id": 3, "name": "3", "num_colors": 3, "gravity_scale": 0.34, "spawn_interval": 3.6, "max_active": 10000, "rounds": 10, "ball_radius": 25, "time_sec": 60, "pass_pct": 70},
+	{"id": 4, "name": "4", "num_colors": 3, "gravity_scale": 0.40, "spawn_interval": 3.2, "max_active": 10000, "rounds": 12, "ball_radius": 23, "time_sec": 70, "pass_pct": 75},
+	{"id": 5, "name": "5", "num_colors": 4, "gravity_scale": 0.46, "spawn_interval": 3.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80, "pass_pct": 78},
+	{"id": 6, "name": "6", "num_colors": 4, "gravity_scale": 0.48, "spawn_interval": 2.0, "max_active": 10000, "rounds": 14, "ball_radius": 23, "time_sec": 80, "pass_pct": 78},
 ]
 
 func max_level() -> int:

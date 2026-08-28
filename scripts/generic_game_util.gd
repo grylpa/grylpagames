@@ -537,6 +537,18 @@ func tutorial_notify(event_name: String) -> void:
 		return
 	tutorial_runner.notify(event_name)
 
+# Accuracy over the level just played, from the same two counters the HUD shows. Games that keep
+# their own per-level tally have a pct_correct() of their own; this is for the ones that do not,
+# so a level gate does not need bespoke bookkeeping in every game.
+#
+# Both counters are cleared at the start of each level by the games that gate on them, so this is
+# the LEVEL's accuracy and not the session's.
+func session_pct_correct() -> int:
+	var total: int = corrects + mistakes
+	if total <= 0:
+		return 0
+	return int(round(100.0 * float(corrects) / float(total)))
+
 func reset(from_scratch:bool):
 	playing = false
 	_pause = false
