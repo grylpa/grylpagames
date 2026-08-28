@@ -43,6 +43,29 @@ var _pct_metric_btn: Button = null
 var _chart_control: ChartControl = null
 var _header_mc: Node = null
 
+# The screen's colors come from the app's palette rather than from six literals scattered through
+# this file. The tab treatment itself is unchanged — a filled gold pill on a dark bar is what it
+# always was and what it should stay — but the gold is now the accent every other screen uses and
+# the bar is the card color, so the tabs match the app instead of only matching each other.
+const GOLD: Color = ScreenBackdrop.ACCENT
+const BAR_BG: Color = ResultCard.CARD_BG
+const INK: Color = ResultCard.HEADER_INK
+const TEXT: Color = ResultCard.TEXT
+const MUTED: Color = ResultCard.MUTED
+# The hairline around a tab's content. One line, the accent at a quarter: the panel has to read as
+# the tab's own without competing with what is inside it.
+const FRAME: Color = Color(ScreenBackdrop.ACCENT.r, ScreenBackdrop.ACCENT.g, ScreenBackdrop.ACCENT.b, 0.28)
+# What a tab's content sits on. A step LIGHTER than the bar above it: the score rows are drawn with
+# a 38%-black backing, so the paler the surface under them the more each row separates from the next
+# — on the bar's own color the list read as one slab.
+const CONTENT_BG: Color = Color(0.169, 0.196, 0.259)
+
+var _bg: Control = null
+var _bg_t: float = 0.0
+var _table_panel: PanelContainer = null
+var _table_margin: MarginContainer = null
+var _tabs_stack: VBoxContainer = null
+
 func _ready():
 	$ScoresWindow.size = MainGlobals.full_screen_size
 	$ScoresWindow.position = Vector2.ZERO
@@ -54,6 +77,8 @@ func _ready():
 	MainGlobals.set_visible("scores",true)
 
 	_header_mc = $ScoresWindow/ColorRect/VBoxContainer/MarginContainer2
+	# After _header_mc: the table surface is built around it.
+	_apply_look()
 
 	# Add Chart tab button to TabBar alongside Scores/Speed
 	var tab_bar: HBoxContainer = %SpeedTabButton.get_parent()
@@ -62,7 +87,9 @@ func _ready():
 	var tab_bar_panel: PanelContainer = PanelContainer.new()
 	tab_bar_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var tab_bar_bg: StyleBoxFlat = StyleBoxFlat.new()
-	tab_bar_bg.bg_color = Color(0.14, 0.14, 0.17, 1.0)
+	# NO border on the bar. The frame belongs to the CONTENT, underneath the tabs — a border here
+	# runs the frame around the tabs as well, which is what a tab is supposed to sit outside of.
+	tab_bar_bg.bg_color = BAR_BG
 	tab_bar_bg.corner_radius_top_left = 14
 	tab_bar_bg.corner_radius_top_right = 14
 	tab_bar_bg.corner_radius_bottom_left = 0
@@ -96,7 +123,7 @@ func _ready():
 	var bar_panel: PanelContainer = PanelContainer.new()
 	bar_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var bar_bg: StyleBoxFlat = StyleBoxFlat.new()
-	bar_bg.bg_color = Color(0.14, 0.14, 0.17, 1.0)
+	bar_bg.bg_color = BAR_BG
 	bar_bg.corner_radius_top_left = 0
 	bar_bg.corner_radius_top_right = 0
 	bar_bg.corner_radius_bottom_left = 14
@@ -156,12 +183,7 @@ func _ready():
 	var chart_panel: PanelContainer = PanelContainer.new()
 	chart_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	chart_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var chart_style: StyleBoxFlat = StyleBoxFlat.new()
-	chart_style.bg_color = Color(0.10, 0.10, 0.12, 1.0)
-	chart_style.border_color = Color(0.85, 0.65, 0.0, 1.0)
-	chart_style.set_border_width_all(3)
-	chart_style.set_content_margin_all(3)
-	chart_panel.add_theme_stylebox_override("panel", chart_style)
+	chart_panel.add_theme_stylebox_override("panel", content_frame(ChartControl.GROUND))
 	_chart_control = ChartControl.new()
 	_chart_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_chart_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -169,11 +191,112 @@ func _ready():
 	_chart_area.add_child(chart_panel)
 	_chart_area.add_child(metric_margin)
 
-	$ScoresWindow/ColorRect/VBoxContainer.add_child(_chart_area)
+	# Into the same gapless stack as the tab bar and the table, so the Chart tab is attached to the
+	# chart exactly the way the Scores tab is attached to the list.
+	if _tabs_stack != null:
+		_tabs_stack.add_child(_chart_area)
+	else:
+		$ScoresWindow/ColorRect/VBoxContainer.add_child(_chart_area)
 
 	_update_tab_visuals()
 	await get_tree().process_frame
 	_update_x_height()
+
+# Cosmetics only: the layout, the tabs, the flow and every number on this screen are untouched.
+#
+# The ground was `res://matchws/art/grass_light.png` — one GAME's art tiled behind an app-level
+# screen — under a gold-on-dark tab bar that matched nothing else in the app, including the menu
+# this screen is opened from.
+func _apply_look() -> void:
+	var ground: TextureRect = $ScoresWindow/ColorRect
+	ground.texture = null
+	_bg = ScreenBackdrop.attach(ground)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void:
+			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.SCORES_TOP, ScreenBackdrop.SCORES_BOT, GOLD))
+	set_process(true)
+	ScreenBackdrop.style_title(%Title, GOLD)
+	ScreenBackdrop.style_close($ScoresWindow/ColorRect/XCloseScene, GOLD)
+	%MonotonicCheckButton.modulate = GOLD
+	_build_table_panel()
+
+# The table needs a SURFACE, for two reasons that turn out to be the same one.
+#
+# The rows are drawn with a 38%-black background, which was legible over a tiled photo and is
+# nearly invisible over a dark gradient — the list came out as text floating on the screen.
+#
+# And an active tab has to be attached to something. The Chart tab looks right because the chart's
+# panel sits directly under it; Scores and Speed had nothing below them, so a filled tab read as a
+# pill floating over the background. Giving the header and the list one panel in the tab bar's own
+# color, with square top corners against the bar's rounded ones, makes the active tab part of the
+# surface it opens — and lands the rows on something solid at the same time.
+# THE frame. Every tab opens onto a panel wearing this, so each tab is attached to its own content
+# the same way — the Chart tab was the only one that looked right, because the chart was the only
+# content with a frame under it.
+#
+# A hairline of the accent on all four sides, rounded at all four corners.
+#
+# The frame starts BELOW the tabs: its top edge is the line under the tab row, and the tabs sit
+# outside it — which is the arrangement the chart already had and the one the table was missing.
+# The TOP corners are rounded because the tab bar is NARROWER than the frame: it is an inset pill
+# resting on a full-width panel, so the panel's top corners are in plain view either side of it.
+#
+# `fill` is the one thing that varies between tabs, because what fills the frame has to be whatever
+# the tab's content is drawn on. The chart draws its OWN dark ground inside its rect, so a frame in
+# the table's lighter color leaves a mat of a different color showing between the two.
+static func content_frame(fill: Color = CONTENT_BG) -> StyleBoxFlat:
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.border_color = FRAME
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(14)
+	sb.content_margin_left = 6.0
+	sb.content_margin_right = 6.0
+	sb.content_margin_top = 4.0
+	sb.content_margin_bottom = 6.0
+	return sb
+
+func _build_table_panel() -> void:
+	if _table_panel != null:
+		return
+	var col: VBoxContainer = $ScoresWindow/ColorRect/VBoxContainer
+	var scroll_mc: MarginContainer = %MarginContainer
+	_table_panel = PanelContainer.new()
+	_table_panel.name = "TablePanel"
+	_table_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_table_panel.add_theme_stylebox_override("panel", content_frame())
+	# No side inset: the FRAME spans the full width, and the tab bar above it does not — it keeps
+	# the 38px margins it always had, so it sits on the frame as an inset pill.
+	var table_margin: MarginContainer = MarginContainer.new()
+	table_margin.name = "TableMargin"
+	table_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	table_margin.add_theme_constant_override("margin_bottom", 10)
+	var inner: VBoxContainer = VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 0)
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_table_panel.add_child(inner)
+	table_margin.add_child(_table_panel)
+	# The tab bar and the table go in ONE container with zero separation, rather than being left as
+	# neighbours in the screen's VBox: whatever separation that VBox has would otherwise show as a
+	# gap between the bar and the surface, and the two have to read as a single shape.
+	var stack: VBoxContainer = VBoxContainer.new()
+	stack.name = "TabsAndTable"
+	stack.add_theme_constant_override("separation", 0)
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var at: int = %TabMargin.get_index()
+	col.add_child(stack)
+	col.move_child(stack, at)
+	%TabMargin.reparent(stack)
+	stack.add_child(table_margin)
+	_header_mc.reparent(inner)
+	scroll_mc.reparent(inner)
+	_table_margin = table_margin
+	_tabs_stack = stack
+
+func _process(delta: float) -> void:
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += delta
+		_bg.queue_redraw()
 
 func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos: int = -1, level_names: Dictionary = {}, pct_label: String = "% Correct", pct_format: String = "%d", time_label: String = "Avg Time", time_format: String = "%d", time_is_pct: bool = false, tab_name: String = "", score_label: String = "Score", pct_integer: bool = false) -> void:
 	_raw_scores = raw_scores
@@ -224,10 +347,15 @@ func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos
 	elif initial_progress_mode:
 		create_progress_list()
 
+# The header's own reference, NOT its path: it is reparented onto the table surface (see
+# _build_table_panel), so `$ScoresWindow/ColorRect/VBoxContainer/MarginContainer2` stopped
+# resolving and this threw on every open. Its position is also relative to its new parent now, so
+# the close button's tap height is measured in the window's coordinates via get_global_rect().
 func _update_x_height() -> void:
-	var mc2: Node = $ScoresWindow/ColorRect/VBoxContainer/MarginContainer2
-	var h: float = mc2.position.y + mc2.size.y
-	$ScoresWindow/ColorRect/XCloseScene.set_tap_height(h)
+	if _header_mc == null or not is_instance_valid(_header_mc):
+		return
+	var r: Rect2 = (_header_mc as Control).get_global_rect()
+	$ScoresWindow/ColorRect/XCloseScene.set_tap_height(r.position.y + r.size.y)
 
 func _set_header(field_name, text, widthidx, _is_panel_visible:=false):
 	var panel = %Header.get_node("HBox/" + field_name + "Panel")
@@ -409,6 +537,8 @@ func _show_table_area() -> void:
 	if _header_mc != null:
 		_header_mc.visible = true
 	%MarginContainer.visible = true
+	if _table_margin != null:
+		_table_margin.visible = true
 	if _chart_area != null:
 		_chart_area.visible = false
 
@@ -416,6 +546,10 @@ func _show_chart_area() -> void:
 	if _header_mc != null:
 		_header_mc.visible = false
 	%MarginContainer.visible = false
+	# The whole surface goes, not just its contents: an empty panel under the chart tab would leave
+	# the tab attached to a blank slab.
+	if _table_margin != null:
+		_table_margin.visible = false
 	if _chart_area != null:
 		_chart_area.visible = true
 
@@ -441,18 +575,19 @@ func _apply_tab_style(btn: Button, is_active: bool) -> void:
 	style.corner_radius_bottom_right = 0
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
+	btn.add_theme_font_override("font", MainGlobals.get_text_font())
 	if is_active:
-		style.bg_color = Color(0.85, 0.65, 0.0, 1.0)
-		btn.add_theme_color_override("font_color", Color(0.1, 0.08, 0.0, 1.0))
-		btn.add_theme_color_override("font_hover_color", Color(0.1, 0.08, 0.0, 1.0))
-		btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.08, 0.0, 1.0))
+		style.bg_color = GOLD
+		btn.add_theme_color_override("font_color", INK)
+		btn.add_theme_color_override("font_hover_color", INK)
+		btn.add_theme_color_override("font_pressed_color", INK)
 	else:
 		style.bg_color = Color(0, 0, 0, 0)
 		style.corner_radius_top_left = 0
 		style.corner_radius_top_right = 0
-		btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1.0))
-		btn.add_theme_color_override("font_hover_color", Color(0.85, 0.85, 0.85, 1.0))
-		btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.85, 0.85, 1.0))
+		btn.add_theme_color_override("font_color", MUTED)
+		btn.add_theme_color_override("font_hover_color", TEXT)
+		btn.add_theme_color_override("font_pressed_color", TEXT)
 	btn.add_theme_stylebox_override("normal", style)
 	btn.add_theme_stylebox_override("hover", style)
 	btn.add_theme_stylebox_override("pressed", style)
@@ -466,16 +601,17 @@ func _apply_metric_style(btn: Button, is_active: bool) -> void:
 	style.corner_radius_bottom_right = 12
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
+	btn.add_theme_font_override("font", MainGlobals.get_text_font())
 	if is_active:
-		style.bg_color = Color(0.85, 0.65, 0.0, 1.0)
-		btn.add_theme_color_override("font_color", Color(0.1, 0.08, 0.0, 1.0))
-		btn.add_theme_color_override("font_hover_color", Color(0.1, 0.08, 0.0, 1.0))
-		btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.08, 0.0, 1.0))
+		style.bg_color = GOLD
+		btn.add_theme_color_override("font_color", INK)
+		btn.add_theme_color_override("font_hover_color", INK)
+		btn.add_theme_color_override("font_pressed_color", INK)
 	else:
 		style.bg_color = Color(0, 0, 0, 0)
-		btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1.0))
-		btn.add_theme_color_override("font_hover_color", Color(0.85, 0.85, 0.85, 1.0))
-		btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.85, 0.85, 1.0))
+		btn.add_theme_color_override("font_color", MUTED)
+		btn.add_theme_color_override("font_hover_color", TEXT)
+		btn.add_theme_color_override("font_pressed_color", TEXT)
 	btn.add_theme_stylebox_override("normal", style)
 	btn.add_theme_stylebox_override("hover", style)
 	btn.add_theme_stylebox_override("pressed", style)
@@ -767,8 +903,8 @@ func _make_toggle_texture(checked: bool) -> ImageTexture:
 	var W: int = 56
 	var H: int = 28
 	var img: Image = Image.create(W, H, false, Image.FORMAT_RGBA8)
-	var capsule_color: Color = Color(0.15, 0.15, 0.17, 1.0)
-	var dot_color: Color = Color(0.85, 0.65, 0.0, 1.0)
+	var capsule_color: Color = BAR_BG
+	var dot_color: Color = GOLD
 	var r: float = float(H) * 0.5        # capsule end radius = 14
 	var dot_r: float = r - 5.0           # dot radius = 9
 	var dot_cx: float = float(W) - r if checked else r

@@ -17,6 +17,15 @@ const HELP_TOP: Color = Color(0.086, 0.161, 0.145)
 const HELP_BOT: Color = Color(0.031, 0.067, 0.059)
 const INSTR_TOP: Color = Color(0.145, 0.125, 0.216)
 const INSTR_BOT: Color = Color(0.055, 0.047, 0.094)
+# The two card games' boards. Green, which is the color both have always had, minus the tiled photo.
+const FRIENDS_TOP: Color = Color(0.075, 0.157, 0.106)
+const FRIENDS_BOT: Color = Color(0.027, 0.063, 0.043)
+const WERIS_TOP: Color = Color(0.106, 0.145, 0.086)
+const WERIS_BOT: Color = Color(0.035, 0.063, 0.031)
+const LOGIN_TOP: Color = Color(0.106, 0.114, 0.180)
+const LOGIN_BOT: Color = Color(0.035, 0.043, 0.075)
+const SCORES_TOP: Color = Color(0.098, 0.129, 0.176)
+const SCORES_BOT: Color = Color(0.031, 0.051, 0.078)
 const ACCENT: Color = Color(0.976, 0.792, 0.353)
 
 # Attaches a drawn backdrop as `parent`'s first child and returns it. The caller advances `t` and
@@ -89,3 +98,73 @@ static func style_title(label: Label, accent: Color) -> void:
 	label.add_theme_color_override("font_color", accent)
 	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.55))
 	label.add_theme_constant_override("outline_size", 6)
+
+
+# --- widgets on a screen ---------------------------------------------------------------------
+#
+# A card and a title were enough while the only screens using this were the menu and help, which
+# are lists of buttons. The login screen and the scores screen also have TEXT FIELDS and TABS, and
+# both had their own hand-rolled versions — the login tabs drew a yellow 3px outline open at the
+# bottom, the fields were flat near-black rectangles from the scene file. They are here so those
+# two screens do not each invent one again.
+
+# A text field: a recessed pane, and the accent only when it has focus. The ring is what says
+# "typing goes here", so nothing else on the screen may wear it.
+static func style_field(le: LineEdit, accent: Color) -> void:
+	le.add_theme_font_override("font", MainGlobals.get_text_font())
+	le.add_theme_color_override("font_color", Color(0.929, 0.941, 0.969))
+	le.add_theme_color_override("font_placeholder_color", Color(0.929, 0.941, 0.969, 0.38))
+	le.add_theme_color_override("caret_color", accent)
+	le.add_theme_color_override("selection_color", Color(accent.r, accent.g, accent.b, 0.30))
+	for state in ["normal", "focus", "read_only"]:
+		var sb: StyleBoxFlat = StyleBoxFlat.new()
+		sb.bg_color = Color(0.0, 0.0, 0.0, 0.32)
+		sb.set_corner_radius_all(14)
+		sb.content_margin_left = 16.0
+		sb.content_margin_right = 16.0
+		sb.content_margin_top = 12.0
+		sb.content_margin_bottom = 12.0
+		sb.border_width_left = 2
+		sb.border_width_top = 2
+		sb.border_width_right = 2
+		sb.border_width_bottom = 2
+		sb.border_color = Color(accent.r, accent.g, accent.b, 0.85) if state == "focus" \
+			else Color(1.0, 1.0, 1.0, 0.12)
+		le.add_theme_stylebox_override(state, sb)
+
+# A tab: a pill that is FILLED when it is the one you are on and flat when it is not. The old login
+# tabs were an outline open at the bottom, which is a shape that only works when the thing below it
+# is a panel with the same border — and it was not.
+static func style_tab(btn: Button, accent: Color, active: bool) -> void:
+	btn.add_theme_font_override("font", MainGlobals.get_text_font())
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		btn.add_theme_color_override(c, Color(0.153, 0.118, 0.043) if active else Color(0.929, 0.941, 0.969, 0.72))
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var sb: StyleBoxFlat = StyleBoxFlat.new()
+		if active:
+			sb.bg_color = accent.darkened(0.10) if state == "pressed" else accent
+		else:
+			sb.bg_color = Color(1.0, 1.0, 1.0, 0.10 if state in ["hover", "pressed"] else 0.045)
+		sb.set_corner_radius_all(14)
+		sb.content_margin_top = 12.0
+		sb.content_margin_bottom = 12.0
+		sb.content_margin_left = 14.0
+		sb.content_margin_right = 14.0
+		btn.add_theme_stylebox_override(state, sb)
+
+# A label that is a caption over a field, or a line of small print. Both are the same face at the
+# same size; only the weight of the color differs.
+static func style_caption(label: Label, muted: bool = false) -> void:
+	label.add_theme_font_override("font", MainGlobals.get_text_font())
+	label.add_theme_color_override("font_color",
+		Color(0.929, 0.941, 0.969, 0.60) if muted else Color(0.929, 0.941, 0.969))
+	label.add_theme_constant_override("outline_size", 0)
+
+# The close X wears the SCREEN TITLE's color. It is the other end of the same header — a title in
+# the app's accent beside an X in a slightly different yellow is two decisions where there should
+# be one, and every screen had picked its own: (1,1,0), (0.835,0.863,0), (1,1,0.02).
+static func style_close(x_close: Node, accent: Color) -> void:
+	if x_close == null or not is_instance_valid(x_close):
+		return
+	x_close.icon_color = accent
+	x_close.text_color = accent

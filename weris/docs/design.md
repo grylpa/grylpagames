@@ -238,6 +238,78 @@ Score row format: `[didwin, wasaborted, difficulty, mean_time_ms, pct_correct]`
 
 ---
 
+## Passing a level
+
+Finishing a level's rounds is not the same as passing it. `Level.level_is_done()` measures the accuracy of
+the level just played — `game.session_pct_correct()` over that level's own `corrects`/`mistakes` —
+against a bar that rises with the level:
+
+```
+need = mini(60 + 5 * (level - 1), 80)
+```
+
+Below it the SAME level comes round again; at or above it, the next one. The gate's result is
+`game.need_to_increase_level`, which `new_game()` feeds to `increase_difficulty(game.need_to_increase_level)`.
+
+Before this, `need_to_increase_level` was set to `true` unconditionally — finishing the rounds WAS
+passing, so a player could get every single answer wrong and still be moved up, which made the
+accuracy on the summary card decorative.
+
+The bar is stated to the player as "at least NN%", so the test is `>=`. The last level
+(`max_difficulty`) is exempt: there is nothing to be promoted to, so it ends as it always did.
+
+## "complete!" only when it was
+
+This game can now END a level without PASSING it, so `show_level_done_popup` is called with the
+gate result as its `passed` argument. The card reads "Level N complete!" with a check badge on the
+success color, or **"Level N not passed"** with no badge on the warning color — a tick over "you
+need at least NN% accuracy" is the card congratulating the player for failing.
+
+The card also says what happens next in words, because a percentage on its own does not tell the
+player the one thing they want to know:
+
+- passed → `Level passed — on to level N.`
+- failed → `You need at least NN% accuracy to pass to the next level.`
+
+`MainGlobals.global_level_is_done()` is given the same result, so the level-done fanfare no longer
+plays over a level that was not passed.
+
+## A replay starts clean
+
+Failing the gate brings the same level round again, and that has to be a fresh attempt.
+`new_game()` clears `game.corrects`, `game.mistakes` and `times_to_answer` on **every** level start, not
+just `if from_scratch`.
+
+The counters matter twice over. The visible half is the HUD still showing the failed attempt's
+tally. The half that decides the game is that the GATE reads them — a replay which inherited the
+misses that failed the level could not pass it even played perfectly. The timing list is the same argument applied to the card's "Average find time" row, and to the mean time `main.gd` writes into the score row.
+
+`score` deliberately does NOT reset here — it accumulates across a session, and only
+`game.reset(true)` clears it.
+
+The HUD repaint is already covered: `main.gd`'s `new_game()` calls `hud.update_all()` immediately
+after `$Level.new_game()`. (polkadots is the game where that was missing, which is why the shared
+note about repainting next to the clearing exists.)
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped at the top of `new_game()` — after the rollback, so consecutive
+failures all measure from the same point — and a level that misses the gate goes back to it.
+Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every failed
+attempt banked its points and the retry cost nothing — fail forever, earn forever.
+
+**When** it happens is split on purpose:
+
+- The score ROW is written the moment the level ends (`main.gd` saves on `game.sig_level_is_done`),
+  so the kept value is swapped in just for that emit and swapped straight back. Without it, failing
+  the same level repeatedly would farm the score list. This is why the gate is computed at the TOP
+  of `Level.level_is_done()`, before anything is emitted.
+- The VISIBLE score keeps showing what the player played with while the summary card is up:
+  watching the number drop out from under a summary you are still reading is alarming. The visible
+  rollback lands in `new_game()`, behind `_rollback_score_on_next_level`, when Continue is pressed.
+
+Only the failed level's points go back; everything earned in levels already passed is untouched.
+
 ## Recreating From Scratch
 
 1. Create folder structure above
@@ -250,3 +322,13 @@ Score row format: `[didwin, wasaborted, difficulty, mean_time_ms, pct_correct]`
 8. Write `scenes/main.tscn` — standard game main with GameTick
 9. Add `WerisG="*res://weris/scripts/globals.gd"` to `project.godot` `[autoload]`
 10. Add `["weris", "Weris", "...description...\"]` to `scripts/config.gd` games array
+
+## The look
+
+`_apply_look()`, called from `_ready()`. The board's ground is the drawn backdrop the rest of the
+app uses (`scripts/screen_backdrop.gd`) in this game's own green — a gradient, a pool of light at
+the top, slow dust and a vignette — in place of the tiled `res://art/grass.png` that every screen in
+the app used to wear. The instruction, find and feedback labels take the app's prose font, and the
+countdown takes the app's accent.
+
+Nothing about the layout, the flow or the logic changed: only what it is made of.

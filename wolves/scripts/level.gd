@@ -70,6 +70,14 @@ var num_bricks_in_farm := 4
 var MAX_POSSIBLE_ROOMS := 1
 var MAX_COLORS_TO_USE := 12
 var last_level_was_a_win := true
+
+# The size of the flock when the level began. The gate is the share of it still inside at the end,
+# so it has to be measured once the board exists and not inferred from the config: pct_sheep fills
+# each room by AREA, and how many that comes to depends on the maze that was generated.
+var _sheep_at_level_start: int = 0
+# What the score was when this level began; a level that misses the gate goes back to it.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var in_answring_mode := false
 @export var pipe_scene: PackedScene = load("res://wolves/scenes/pipe.tscn")
 @export var empty_scene: PackedScene = load("res://wolves/scenes/empty_space.tscn")
@@ -164,6 +172,12 @@ func new_game(from_scratch=true):
 		level = WolvesG.starting_level
 		game.time_scale = 0.5
 
+	# The failed level's points go back HERE, on Continue, so the summary card was still read
+	# against the score the player had while playing it.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	_score_at_level_start = game.score
 	_advance_if_needed()
 	game.level_label_changed("Level %d" % level)
 	_load_cfg()
@@ -558,6 +572,9 @@ func create_board() -> void:
 
 	add_bricks()
 	add_sheep()
+	# Measured HERE, not in new_game(): create_board() awaits, so a caller that does not await it
+	# reaches its next line while the flock is still empty.
+	_sheep_at_level_start = get_num_sheep_left()
 
 	$BuildingLabel.hide()
 	game.level_is_ready = true	
@@ -1374,17 +1391,44 @@ func level_is_done(didwin: bool):
 	if didwin:
 		# var time_from_start_s = (MainGlobals.timems() - time_started_level_ms) / 1000
 		game.add_score_and_time(50, 0)
-		game.need_to_increase_level = true
-		MainGlobals.global_level_is_done(true)
-		var text: String = "Sheep saved: %d\nTotal score: %d" % [get_num_sheep_left(), game.score]
-		game.show_level_done_popup(self, "", text, level)
+		# Lasting the level is not the same as passing it: what counts is how much of the FLOCK is
+		# still inside at the end. Below the level's own bar the same level comes round again.
+		# Before this, need_to_increase_level was set unconditionally here — surviving the clock
+		# with one sheep left promoted the player exactly as fast as keeping all of them, and the
+		# "Sheep saved" line on the card decided nothing.
+		var saved: int = get_num_sheep_left()
+		var pct: int = _pct_flock_kept(saved)
+		var need: int = WolvesLevelConfig.pass_pct_for(level)
+		var is_last: bool = level >= WolvesLevelConfig.LEVELS.size()
+		var passed: bool = pct >= need
+		game.need_to_increase_level = passed and not is_last
+		_rollback_score_on_next_level = not passed
+		# No fanfare over a level that was not passed.
+		MainGlobals.global_level_is_done(passed)
+		var text: String = "Sheep saved: %d of %d\nFlock kept: %d%%\nTotal score: %d\n\n%s" % [
+			saved, _sheep_at_level_start, pct, game.score, _progress_line(passed, need, is_last)]
+		game.show_level_done_popup(self, "", text, level, "", passed)
 		return
 	else:
+		# The flock is gone, which is the same failure the gate catches — it just happened early.
+		game.need_to_increase_level = false
+		_rollback_score_on_next_level = true
 		game.show_game_popup(self, "Oh no!", "Level %d\n\nnot completed" % [level])
 		return
 
-func need_to_increase_level() -> bool:
-	return true
+func _pct_flock_kept(saved: int) -> int:
+	if _sheep_at_level_start <= 0:
+		return 0
+	return int(round(100.0 * float(saved) / float(_sheep_at_level_start)))
+
+# What the player gets next, in words. A count of sheep alone does not say whether they are moving
+# on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int, is_last: bool) -> String:
+	if not passed:
+		return "You need to keep at least %d%% of the flock to pass to the next level." % need
+	if is_last:
+		return "Level passed — this is the last one, so it comes round again."
+	return "Level passed — on to level %d." % (level + 1)
 
 func _advance_if_needed() -> void:
 	if game == null:

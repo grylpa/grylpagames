@@ -105,8 +105,36 @@ costs 2 points and 10 seconds via `_on_level_show_reminder`.
 
 ## Difficulty
 
-`increase_difficulty()` grows the board to `7 + level*2`, and raises `num_more_packets` and
-`num_more_agents` — later levels run several trucks at once, each with its own list.
+Every per-level number lives in `deliverem/scripts/level_config.gd`
+(`DeliveremLevelConfig.LEVELS`), read by `increase_difficulty()` through `get_level()`:
+`board_size`, `num_more_packets`, `num_more_agents` and `rounds`. Later levels run several trucks at
+once, each with its own list.
+
+It used to be an `if level == n:` ladder in `level.gd`, and the ladder carried a bug that only an
+explicit table makes obvious: it set `num_more_agents` at levels 1, 6, 7, 8 and 9 and left it alone
+at 2-5, so the value CARRIED whatever it happened to be — which depended on what the player had
+played before, not on the level. Every level now states its own.
+
+## Rounds and levels
+
+**A round is one board. A level is `rounds_per_level` of them** (`rounds` in `DeliveremLevelConfig`, 5 for every
+level so far). Winning a board steps `round_in_level`; only when it reaches `rounds_per_level` does
+`increase_difficulty()` bump the level and the level card appear. In between, the smaller
+"Round N of Level M completed" panel shows and the next board is dealt at the SAME level.
+
+Before this, **every won board advanced the level.** The `rounds` column in the config was dead text
+— nothing read it — and the board changed under the player every single time they finished one, so
+no level was ever played twice and none of them could settle into a rhythm.
+
+Losing is unchanged: it ends the session (`game_over.emit(false)`), so every completed round is a
+won one and there is nothing here for an accuracy gate to measure.
+
+`_on_game_popup_closed()` is what continues after the between-rounds panel. It is bound to the
+GLOBAL `MainGlobals.sig_game_popup_closed` — the instructions card reaches it too — so it acts only
+when `game.level_is_done`, i.e. when a round is actually waiting on it.
+
+**The tutorial is exempt**: its session is one lesson, not round 1 of 5, and it has always ended on
+the level card. A "Round 1 of Level 1" panel would land on its closing caption.
 
 ## Pause
 

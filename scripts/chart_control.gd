@@ -1,6 +1,11 @@
 class_name ChartControl
 extends Control
 
+# The chart's own ground. Dark, because the plot lines and the grid are drawn against it — and
+# PUBLIC, because the panel that frames the chart has to be filled with exactly this. Any other
+# value there shows as a mat of a different color between the frame and the plot.
+const GROUND: Color = Color(0.055, 0.067, 0.106, 1.0)
+
 const SERIES_COLORS: Array = [
 	Color(0.4, 0.9, 0.5),
 	Color(0.4, 0.7, 1.0),
@@ -33,7 +38,7 @@ func set_series(series_list: Array) -> void:
 func _draw() -> void:
 	var w: float = size.x
 	var h: float = size.y
-	draw_rect(Rect2(0.0, 0.0, w, h), Color(0.10, 0.10, 0.12, 1.0), true)
+	draw_rect(Rect2(0.0, 0.0, w, h), GROUND, true)
 
 	var px_left: float = float(MARGIN_LEFT)
 	var px_right: float = w - float(MARGIN_RIGHT)
@@ -104,8 +109,8 @@ func _draw() -> void:
 
 	var font: Font = ThemeDB.fallback_font
 	var font_size: int = 17
-	var grid_color: Color = Color(1.0, 1.0, 1.0, 0.08)
-	var label_color: Color = Color(0.7, 0.7, 0.7, 1.0)
+	var grid_color: Color = Color(1.0, 1.0, 1.0, 0.07)
+	var label_color: Color = ResultCard.MUTED
 
 	# Horizontal gridlines + Y-axis labels
 	var y_range: float = y_max - y_min

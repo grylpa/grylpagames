@@ -554,10 +554,15 @@ func set_lives_icon(_texture, _scale:Vector2 = Vector2(1,1), _modulate = null):
 		%LivesIcon.modulate = _modulate
 
 
-func set_packets_icon(_texture, _scale := 1.0):
+# `_modulate` exists because the icon carries a yellow tint from the scene, to match the yellow
+# number beside it. That is right for a one-color pictogram and wrong for an icon made of a game's
+# own sprite art, which comes out muddy under it — pneumo's crash icon passes white.
+func set_packets_icon(_texture, _scale := 1.0, _modulate = null):
 	%PacketsIcon.texture = _texture
 	var tex_size = %PacketsIcon.texture.get_size()
 	%PacketsIcon.custom_minimum_size = tex_size * _scale
+	if _modulate != null:
+		%PacketsIcon.modulate = _modulate
 
 func update_corrects_mistakes():
 	if game == null:
@@ -567,6 +572,14 @@ func update_corrects_mistakes():
 	%CorrectsLabel.text = str(game.corrects)
 	%MistakesLabel.text = str(game.mistakes)
 
+# The label sits over whatever the game draws behind it, and the games are getting drawn boards
+# rather than flat tiles — a 63%-alpha yellow over whack's fairground awning was unreadable. Full
+# opacity, the app's prose face, and a dark outline so it holds up over anything.
 func show_level_label(level_name: String):
 	%LevelLabel.text = level_name
+	%LevelLabel.modulate = Color(1, 1, 1, 1)
+	%LevelLabel.add_theme_font_override("font", MainGlobals.get_text_font())
+	%LevelLabel.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
+	%LevelLabel.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+	%LevelLabel.add_theme_constant_override("outline_size", 8)
 	%LevelLabel.show()

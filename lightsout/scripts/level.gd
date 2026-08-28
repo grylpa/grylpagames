@@ -42,6 +42,13 @@ var time_started_level_ms = 0
 var time_increased_difficulty_ms = 0
 var level: int = 0
 var round_in_level: int = 0
+
+# Set when the level's last round has been judged, so the next new_game() knows it is
+# starting a LEVEL and not just the next round.
+var _level_is_over: bool = false
+# What the score was when this level began; a level that misses the gate goes back to it.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var num_more_packets = 0
 var player = null
 var max_speed_scale = 1.0
@@ -152,6 +159,13 @@ func new_game(from_scratch=true):
 	if from_scratch:
 		level = LightsG.starting_level
 		round_in_level = 0
+		# The first level of a session starts clean and stamps its own starting score; every later
+		# level does the same from _advance_if_needed().
+		_level_is_over = false
+		_rollback_score_on_next_level = false
+		game.corrects = 0
+		game.mistakes = 0
+		_score_at_level_start = game.score
 		game.time_scale = 0.5
 
 	_advance_if_needed()
@@ -864,34 +878,64 @@ func level_is_done(didwin: bool):
 		"didwin": int(didwin),
 	})
 	start_dispatch = false
-	if didwin:
-		game.need_to_increase_level = true
-		if need_to_increase_level():
-			MainGlobals.global_level_is_done(true)
-			game.show_level_done_popup(self, "", "", level)
-			return
-		else:
-			var cur_round: int = round_in_level + 1
-			reset()
-			await get_tree().process_frame
-			game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [cur_round, level])
-			return
-	else:
-		var cur_round: int = round_in_level + 1
-		game.show_game_popup(self, "Oh no!", "Round %d\nof\nLevel %d\n\nnot completed" % [cur_round, level])
+	# EVERY round counts toward the level now, won or lost. Before this, round_in_level only
+	# moved when need_to_increase_level had been set, which happened on a WIN — so a lost
+	# round did not count at all and a level could be postponed forever but never failed.
+	game.add_correct_or_mistake(1 if didwin else 0, 0 if didwin else 1)
+	round_in_level += 1
+	if round_in_level >= rounds_per_level:
+		_finish_level()
 		return
+	if didwin:
+		reset()
+		await get_tree().process_frame
+		game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level, level])
+	else:
+		game.show_game_popup(self, "Oh no!", "Round %d\nof\nLevel %d\n\nnot completed" % [round_in_level, level])
 
+# A level is `rounds_per_level` rounds, and it is PASSED on the share of them won.
+func _finish_level() -> void:
+	var need: int = LightsoutLevelConfig.pass_pct_for(level)
+	var pct: int = game.session_pct_correct()
+	var passed: bool = pct >= need
+	var is_last: bool = level >= LightsoutLevelConfig.LEVELS.size()
+	game.need_to_increase_level = passed and not is_last
+	_rollback_score_on_next_level = not passed
+	_level_is_over = true
+	# No fanfare over a level that was not passed.
+	MainGlobals.global_level_is_done(passed)
+	var textadd: String = "\n\nRounds won: %d of %d\nAccuracy: %d%%\n\n%s" % [
+		game.corrects, rounds_per_level, pct, _progress_line(passed, need, is_last)]
+	game.show_level_done_popup(self, "", "", level, textadd, passed)
 
-func need_to_increase_level() -> bool:
-	return round_in_level >= rounds_per_level - 1
+# What the player gets next, in words. An accuracy figure alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int, is_last: bool) -> String:
+	if not passed:
+		return "You need to win at least %d%% of the rounds to pass to the next level." % need
+	if is_last:
+		return "Level passed — this is the last one, so it comes round again."
+	return "Level passed — on to level %d." % (level + 1)
 
+# Counting the rounds is level_is_done's job now; this only acts on the gate's verdict, and
+# only at a level boundary.
 func _advance_if_needed() -> void:
 	if game == null:
 		return
-	if game.need_to_increase_level:
-		round_in_level += 1
-		if round_in_level >= rounds_per_level:
-			round_in_level = 0
+	if _level_is_over:
+		_level_is_over = false
+		round_in_level = 0
+		# A replay has to be a FRESH attempt: the gate reads these, so a retry that inherited
+		# the losses which failed the level could not pass it even played perfectly.
+		game.corrects = 0
+		game.mistakes = 0
+		# The failed level's points go back HERE, on Continue, so the summary card was still
+		# read against the score the player had while playing it.
+		if _rollback_score_on_next_level:
+			_rollback_score_on_next_level = false
+			game.score = _score_at_level_start
+		_score_at_level_start = game.score
+		if game.need_to_increase_level:
 			level += 1
 			game.add_life()
 	_apply_level()
@@ -900,6 +944,9 @@ func _apply_level() -> void:
 	if game == null:
 		return
 	var cfg: Dictionary = LightsoutLevelConfig.LEVELS[min(level, LightsoutLevelConfig.LEVELS.size()) - 1]
+	# How many rounds this level is judged over — the gate reads it, so it has to come from the
+	# config rather than staying at whatever the member was initialised to.
+	rounds_per_level = int(cfg.get("rounds", rounds_per_level))
 	var s: int = cfg.get("board_size", 9)
 	game.max_board_size = Vector2i(s, s)
 	game.forced_board_size = game.max_board_size

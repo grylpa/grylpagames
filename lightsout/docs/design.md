@@ -62,7 +62,66 @@ delay matters — see the tutorial notes.
 
 +10 delivered; −1 for a bomb, a new board, a timeout, or a clue. Three lives
 (`GenericGameUtil.new("Lights Out", "lightsout", 0,5,0, 3)`); a completed level adds one.
-Three rounds per level (`rounds_per_level`), then the level advances.
+Three rounds per level (`rounds`, per level in `LightsoutLevelConfig`).
+
+## Passing a level
+
+A level is `rounds_per_level` rounds (`rounds` in `LightsoutLevelConfig`, read by `_apply_level()`), and it is
+**passed on the share of them WON**:
+
+```
+passed = game.session_pct_correct() >= LightsoutLevelConfig.pass_pct_for(level)
+```
+
+Below the bar the SAME level is played again; at or above it, the next one. `level_is_done()`
+records each round's verdict with `game.add_correct_or_mistake()` and steps `round_in_level`; when
+that reaches `rounds_per_level`, `_finish_level()` judges the level and `_advance_if_needed()` —
+called from `new_game()` — acts on the verdict.
+
+Before this, **a level could not be failed, only postponed.** `round_in_level` only moved inside
+`_advance_if_needed()` when `game.need_to_increase_level` had been set, and that happened on a WIN
+— so a lost round did not count toward the level at all. You could lose forever and simply keep
+being handed the same round.
+
+**The percentages have to land on a rung.** A level is a fixed number of rounds, so out of 3 the
+only scores that exist are 0, 33, 66 and 100. `pass_pct` is 60, which is exactly 2 of 3. Recheck it
+whenever `rounds` changes.
+
+The last level is judged the same way but never promotes.
+
+## "complete!" only when it was
+
+The level card is shown with the gate result as its `passed` argument, so it reads "Level N
+complete!" with a check badge or **"Level N not passed"** with none. Under it, `Rounds won: 2 of 3`,
+`Accuracy: 66%`, and what happens next:
+
+- passed -> `Level passed — on to level N.`
+- failed -> `You need to win at least 60% of the rounds to pass to the next level.`
+
+Mid-level rounds keep the small "Well done!" / "Oh no!" panel, now numbered from the round that was
+just played rather than from the one about to start.
+
+`MainGlobals.global_level_is_done()` takes the gate result, so the fanfare does not play over a
+level that was not passed.
+
+## A replay starts clean
+
+`new_game()` runs after EVERY round, so it cannot clear the level's counters unconditionally.
+`_level_is_over` is set by `_finish_level()` and is what tells `_advance_if_needed()` that a LEVEL
+is starting: only then does it reset `round_in_level`, `game.corrects` and `game.mistakes`.
+Otherwise a retry would inherit the losses that failed the level and could not pass it even played
+perfectly.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped when a level begins — in `new_game()` for the first level of a
+session, in `_advance_if_needed()` for every level after it, in both cases AFTER the rollback so
+consecutive failures all measure from the same point. A level that misses the gate goes back to it
+(`_rollback_score_on_next_level`), applied when Continue is pressed rather than when the level ends,
+because watching the score drop out from under a summary you are still reading is alarming.
+
+Without it the gate is a scoring exploit: the score is cumulative across a session, so every failed
+attempt banked its points and the retry cost nothing.
 
 ## Tutorial
 

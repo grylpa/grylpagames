@@ -58,6 +58,21 @@ const AGENT_COLOR_INDICES: Array[int] = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11]
 var rounds_per_level: int = 2
 var level: int = 0
 var round_in_level: int = 0
+
+# The counting error is a STAT and lives here. It used to ride on game.corrects / game.mistakes —
+# add_correct_or_mistake(error, 1) banked the SIZE of the error as "corrects" and a mistake on
+# every round, right or wrong — so those two counters said nothing about whether the player got a
+# building right, and an accuracy gate had nothing honest to read. They now mean what their names
+# say; the error stat is these two.
+var _error_sum: int = 0
+var _rounds_answered: int = 0
+
+# Set when the level's last round has been answered, so the next new_game() knows it is starting a
+# LEVEL and not just the next building.
+var _level_is_over: bool = false
+# What the score was when this level began; a level that misses the gate goes back to it.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var room_size: int = 7
 var num_inside_monsters: int = 1
 var num_bricks: int = 4
@@ -141,9 +156,28 @@ func new_game(from_scratch: bool = true):
 	$BuildingLabel.show()
 	$UILayer/AnswerOverlay.hide()
 	await get_tree().process_frame
+	# A round is one building; a LEVEL is `rounds_per_level` of them. Only a level boundary clears
+	# the counters, because the gate is judged over the whole level.
+	var level_starts: bool = from_scratch or _level_is_over
 	if from_scratch:
 		level = GorillaG.starting_level
+		# The Error stat is per SESSION (the scores screen plots it with no level grouping), so it
+		# survives a level boundary and only a fresh game clears it.
+		_error_sum = 0
+		_rounds_answered = 0
+	if _level_is_over and _rollback_score_on_next_level:
+		# The failed level's points go back HERE, on Continue, so the summary card was still read
+		# against the score the player had while playing it.
+		game.score = _score_at_level_start
+	_rollback_score_on_next_level = false
+	_level_is_over = false
+	if level_starts:
 		round_in_level = 0
+		# A replay has to be a FRESH attempt: the gate reads these, so a retry that inherited the
+		# misses which failed the level could not pass it even played perfectly.
+		game.corrects = 0
+		game.mistakes = 0
+		_score_at_level_start = game.score
 	_advance_if_needed()
 	game.need_to_increase_level = false
 	in_answering_mode = false
@@ -1057,22 +1091,80 @@ func _on_answer_selected(chosen: int, true_count: int):
 	game.tutorial_notify("answered")
 	$UILayer/AnswerOverlay.hide()
 	var error: int = abs(chosen - true_count)
-	game.add_correct_or_mistake(error, 1)
-	if error == 0:
+	var correct: bool = error == 0
+	_error_sum += error
+	_rounds_answered += 1
+	# One building, one verdict. Only an exact count is right — that is already the rule the +20
+	# bonus follows, and "nearly" is not a thing you can be asked to count.
+	game.add_correct_or_mistake(1 if correct else 0, 0 if correct else 1)
+	if correct:
 		game.add_score_and_time(20, 0)
-		game.need_to_increase_level = true
 
 	last_level_was_a_win = true
 	game.level_is_done = true
 
 	var popup_text: String
-	if error == 0:
+	if correct:
 		popup_text = "Correct!\n+20 bonus"
 	elif error == 1:
 		popup_text = "Off by 1\nThere were %d gorillas" % true_count
 	else:
 		popup_text = "Off by %d\nThere were %d gorillas" % [error, true_count]
-	game.show_game_popup(self, "Time's up!", popup_text)
+
+	# The coach's session is one building, not a level: its rounds must not add up to a level end,
+	# and a level card landing on a caption is the failure mmm taught us to guard against.
+	if game.tutorial_mode:
+		game.show_game_popup(self, "Time's up!", popup_text)
+		return
+
+	round_in_level += 1
+	if round_in_level >= rounds_per_level:
+		_finish_level(popup_text)
+	else:
+		game.show_game_popup(self, "Time's up!", popup_text)
+
+# A level is `rounds_per_level` buildings, and it is PASSED on the share of them counted exactly
+# right. Below the bar the same level comes round again.
+#
+# Before this, a wrong answer simply did not count toward the level at all — round_in_level only
+# advanced when need_to_increase_level had been set, which happened on an exact count. So the
+# level could not be failed, only postponed, and the accuracy the player was shown decided
+# nothing.
+func _finish_level(round_text: String) -> void:
+	var need: int = GorillaLevelConfig.pass_pct_for(level)
+	var pct: int = game.session_pct_correct()
+	var passed: bool = pct >= need
+	var is_last: bool = level >= GorillaLevelConfig.LEVELS.size()
+	game.need_to_increase_level = passed and not is_last
+	_rollback_score_on_next_level = not passed
+	_level_is_over = true
+	# No fanfare over a level that was not passed.
+	MainGlobals.global_level_is_done(passed)
+	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
+		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
+	# The last round's verdict still gets said — it is the answer the player just gave — and then
+	# the level's own tally underneath it.
+	var textadd: String = "\n\n%s\n\nCounted right: %d of %d\nAccuracy: %d%%\n\n%s" % [
+		round_text, game.corrects, rounds_per_level, pct, _progress_line(passed, need, is_last)]
+	game.show_level_done_popup(self, "", "", level, textadd, passed)
+
+func _on_level_done_popup_closed() -> void:
+	sig_level_is_done.emit(true)
+
+# What the player gets next, in words. An accuracy figure alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int, is_last: bool) -> String:
+	if not passed:
+		return "You need at least %d%% of the buildings counted right to pass to the next level." % need
+	if is_last:
+		return "Level passed — this is the last one, so it comes round again."
+	return "Level passed — on to level %d." % (level + 1)
+
+# Average counting error over the session — the number the scores screen's "Error" tab plots.
+func mean_error() -> int:
+	if _rounds_answered <= 0:
+		return -1
+	return int(round(float(_error_sum) / float(_rounds_answered)))
 
 func on_lives_depleted():
 	_level_done(false)
@@ -1083,12 +1175,10 @@ func _level_done(didwin: bool):
 	game.stop_sound("feet")
 	sig_level_is_done.emit(didwin)
 
+# Counting the rounds is _on_answer_selected's job now; this only acts on the gate's verdict.
 func _advance_if_needed() -> void:
 	if game.need_to_increase_level:
-		round_in_level += 1
-		if round_in_level >= rounds_per_level:
-			round_in_level = 0
-			level += 1
+		level = min(level + 1, GorillaLevelConfig.LEVELS.size())
 	_apply_level()
 
 func _reapply_level_after_player_created() -> void:

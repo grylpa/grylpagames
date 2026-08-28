@@ -67,7 +67,7 @@ Each belt item is a **pair** (two objects side by side), identical to sorting ro
 
 ## Levels
 
-5 levels, cycling via `LEVEL_PROGRESSION_ORDER = [1,2,3,4,5,3,4,5]`:
+6 levels, played in the order `LEVEL_PROGRESSION_ORDER = [1,2,3,4,5,3,4,5,6,-1]`:
 
 Each level defines a **`rules` pool**, not a fixed left/right pair. Every **round**, `_pick_pair_from_pool()` shuffles the pool and takes the first two **distinct, non-confusable** keys, so the hidden rule changes from round to round instead of being the same one all level. For 1 belt the first pick is the hidden rule and the second is a visible decoy attribute; for 2 belts both picks are hidden rules (one per belt). A bigger pool = harder and less predictable.
 
@@ -75,17 +75,72 @@ An **empty** `rules` list means "use every rule". Overlapping rules may safely s
 
 **Stroop sizing.** The two objects of an item do **not** split the width 50/50 — a stroop word ("YELLOW") is many times wider than a glyph and used to spill over its half and collide with the other object. `_share_pair_widths` gives each object a share proportional to its natural text width (clamped to 18–82% so neither is starved), then `_fit_label_width` shrinks each font until its text fits the share it got. On a 220px belt the word keeps its full size; only narrower items shrink it.
 
-| ID | Name   | Rules pool | Belts | Belt spd | Robot answer time | Min ex | Rounds | Options |
-|----|--------|-----------|-------|----------|-------------------|--------|--------|---------|
-| 1 | Simple | digit, square | 1 | 55 | 5.8s | 4 | 3 | 2 |
-| 2 | Even | even_odd, vowel, hollow | 1 | 60 | 1.6s | 4 | 3 | 3 |
-| 3 | Two | hollow, vowel, even_odd, square | 2 | 60 | 1.4s | 4 | 3 | 4 |
-| 4 | Tricky | prime, filled, vowel, lines, color_shape | 1 | 65 | 1.2s | 5 | 4 | 4 |
-| 5 | Expert | lines, hollow, prime, color_shape, stroop, vowel | 2 | 70 | 1.0s | 5 | 4 | 5 |
+| ID | Rules pool | Belts | Belt spd | Robot answer time | Min ex | Rounds | Options | pass_pct |
+|----|-----------|-------|----------|-------------------|--------|--------|---------|----------|
+| 1 | digit, square | 1 | 55 | 5.0s | 4 | 3 | 2 | 60 |
+| 2 | even_odd, vowel, hollow | 1 | 60 | 2.6s | 4 | 3 | 3 | 60 |
+| 3 | hollow, vowel, even_odd, square | 2 | 60 | 1.4s | 4 | 3 | 4 | 65 |
+| 4 | prime, filled, vowel, lines, color_shape | 1 | 65 | 1.2s | 5 | 4 | 4 | 70 |
+| 5 | lines, hollow, prime, color_shape, stroop, vowel | 2 | 70 | 1.0s | 5 | 4 | 5 | 70 |
+| 6 | *(empty = every rule)* | 2 | 70 | 1.0s | 5 | 4 | 5 | 75 |
 
 **Repeating the last level.** `LEVEL_PROGRESSION_ORDER` normally cycles back to its first entry once exhausted. Ending it with `-1` (`REPEAT_LAST`) instead makes the run **hold on the last level forever** — e.g. `[1, 2, 3, 4, 5, -1]` plays 1..5 then stays on 5. With the sentinel present `reset_queue_from` does **not** wrap the tail around, so picking a mid-list starting level still ends on the final level rather than making an earlier one repeat. `-1` is only a sentinel and is never handed out as a level id. Since the rules are re-picked on every level load (and the previous pair is avoided), a repeated level still plays different rules each time.
 
-If accuracy < 70%, level is replayed.
+## Passing a level
+
+Each level carries a **`pass_pct`** — the accuracy needed to move on. `MonkeyCG.pass_pct_for(id)`
+reads it, falling back to `DEFAULT_PASS_PCT` (70) for a level that does not state one, so adding a
+level cannot silently make it ungated.
+
+`record_level_result()` returns whether the player passed and, when they did not, puts the level
+back at the **FRONT** of `level_queue` — so the same level comes round again.
+
+**It used to insert it at index 1**, behind the level that follows. A player could get every answer
+wrong and still be handed the next level, with the failed one queued up after it; the accuracy
+number on the summary card decided nothing. The threshold was also hardcoded at 70 for every level,
+so the hardest level asked no more of the player than the first.
+
+**The percentages have to land on a rung.** A level is a fixed number of rounds, so out of 3 the
+only scores that exist are 0, 33, 66 and 100; out of 4, 0, 25, 50, 75 and 100. The values above sit
+exactly on one — 60 and 65 both mean 2 of 3, 70 and 75 mean 3 of 4. Recheck them whenever `rounds`
+changes.
+
+## "complete!" only when it was
+
+`show_level_done_popup` is called with the gate result as its `passed` argument and with
+`current_level_id`, so the card reads "Level N complete!" with a check badge, or **"Level N not
+passed"** with no badge on the warning color. Under it, the accuracy as a number alone, the mean
+response time, and then what happens next:
+
+- passed -> `Level passed — on to level N.` (from `MonkeyCG.peek_next_level_id()`)
+- failed -> `You need at least NN% accuracy to pass to the next level.`
+
+The threshold is stated in full by that line, so the accuracy row does not repeat it —
+and on a level the player passed, the bar they cleared is not something they need told.
+`MainGlobals.global_level_is_done()` takes the same result, so the fanfare does not play over a
+level that was not passed.
+
+## A replay starts clean
+
+`new_game()` clears `total_rounds`, `total_corrects`, `game.corrects` and `game.mistakes` on
+**every** level start, not just `if from_scratch`, and repaints the HUD next to the clearing.
+
+The gate reads `pct_correct()`, which reads those counters — so a replay that inherited the misses
+which failed the level could not pass it even played perfectly.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped at the top of `new_game()` (after the rollback, so consecutive
+failures all measure from the same point) and a level that misses the gate goes back to it.
+Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every failed
+attempt banked its points and the retry cost nothing.
+
+**When** it happens is split on purpose. The score ROW is written the moment the level ends
+(`main.gd` saves on `game.sig_level_is_done`), so the kept value is swapped in just for that emit
+and swapped straight back — without it, failing repeatedly would farm the score list. The VISIBLE
+score keeps showing what the player played with while the card is up, because watching it drop out
+from under a summary you are still reading is alarming; the visible rollback lands in `new_game()`
+when Continue is pressed.
 
 ## Modalities
 

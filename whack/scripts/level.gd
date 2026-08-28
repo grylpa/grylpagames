@@ -8,7 +8,14 @@ var game: GenericGameUtil
 var level: int = 1
 var max_difficulty: int = WhackLevelConfig.LEVELS.size()
 var num_corrects_in_level_so_far: int = 0
-var corrects_for_next_level: int = 10
+# A round is one target presentation — hit, missed, or correctly left alone. A LEVEL is
+# `rounds_per_level` of them, and the accuracy gate at the end decides whether it was passed.
+#
+# It used to end on a count of HITS ("hits_to_complete"), which meant a level always ended ON a hit
+# and could not be failed however many were missed on the way — the same thing polkadots had to be
+# fixed for. It also made the levels wildly uneven: 5 hits at level 1, 30 at level 4, 15 at 5.
+var rounds_per_level: int = 10
+var _rounds_in_level: int = 0
 var target_radius: float = 48.0
 var show_target_ms: float = 4000.0
 var interval_min_ms: float = 1000.0
@@ -108,6 +115,15 @@ var _appear_sound: AudioStream = preload("res://art/sounds/click-2.mp3")
 
 @onready var _draw_area: Control = $DrawArea
 
+# What the score was when this level began. A level that misses the gate gives its points
+# back (see the level-done function): without that, failing forever is a way to earn forever
+# — every attempt banked its points and the retry cost nothing.
+var _bg: Control = null
+var _bg_t: float = 0.0
+
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
+
 func _ready() -> void:
 	game = WhackG.game
 	game.sig_time_over.connect(_on_time_over)
@@ -121,10 +137,34 @@ func _ready() -> void:
 	_draw_area.position = Vector2.ZERO
 	_draw_area.size = vp_size
 	_draw_area.gui_input.connect(_on_draw_area_input)
+	_apply_look()
+
+# The board is a fairground whack-a-mole box seen from above, drawn — see
+# whack/scripts/board_backdrop.gd for why it is that, and why it is top-down. It replaces the tiled
+# `res://art/grass.png` every screen in the app used to wear.
+func _apply_look() -> void:
+	var ground: TextureRect = $Background
+	ground.texture = null
+	_bg = WhackBoardBackdrop.attach(ground)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void: WhackBoardBackdrop.draw(_bg, _bg_t))
+	set_process(true)
+
 
 func new_game(from_scratch: bool = true) -> void:
+	# The failed level's points go back HERE, on Continue, together with everything else that is
+	# cleared — so the summary card was still read against the score the player had while playing.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	_score_at_level_start = game.score
+	# A replay has to be a FRESH attempt. The gate reads these, so a retry that inherited the
+	# misses which failed the level could not pass it even played perfectly; and the summary's
+	# timing average would fold in the attempt the player is being made to redo.
 	game.corrects = 0
 	game.mistakes = 0
+	_reaction_times.clear()
+	_accuracies.clear()
 	game.level_is_ready = false
 	if from_scratch:
 		level = WhackG.starting_level
@@ -135,15 +175,57 @@ func new_game(from_scratch: bool = true) -> void:
 	_apply_difficulty()
 	game.level_label_changed("Level %d" % level)
 	num_corrects_in_level_so_far = 0
-	if from_scratch:
-		_reaction_times.clear()
-		_accuracies.clear()
+	_rounds_in_level = 0
 	_target_active = false
 	_round_active = false
 	_decoys.clear()
 	_waiting_for_next = false
 	_flash_alpha = 0.0
 	_draw_area.queue_redraw()
+	# The coach's session is one continuous lesson: a briefing card in front of it would land on a
+	# caption, and its rounds are staged by the tutorial rather than scheduled here.
+	if game.tutorial_mode:
+		_begin_play()
+		return
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Level %d" % level, _level_briefing())
+
+# What this level is about to be. Every one of these numbers changes between levels and none of
+# them was ever said: the player met a smaller, faster, more crowded board with no warning and had
+# to work out what had changed from the way it felt.
+func _level_briefing() -> String:
+	var text: String = "Target: %s\nOn screen: %.1f s" % [
+		_target_size_word(), show_target_ms / 1000.0]
+	if _num_decoys > 0:
+		text += "\nDecoys: %d" % _num_decoys
+	# The last level's quota is the sentinel 999, which is not a number to show anyone.
+	text += "\nRounds: %d\nPass mark: %d%%" % [rounds_per_level, WhackLevelConfig.pass_pct_for(level)]
+	if level >= max_difficulty:
+		text += "\n\nThe last level. It comes round again however well you do."
+	return text
+
+# The radius in pixels is a number the player cannot act on and cannot picture — it told them
+# nothing that looking at the first target would not. Three words they can hold in their head
+# before the level starts are worth more.
+#
+# The thresholds are set against the actual table, which runs 38, 30, 25, 20, 17, 15, 10: they cut
+# it two / two / three rather than stranding one level alone at the top.
+func _target_size_word() -> String:
+	if target_radius >= 28.0:
+		return "Big"
+	if target_radius >= 18.0:
+		return "Medium"
+	return "Small"
+
+func _on_game_popup_closed() -> void:
+	_begin_play()
+
+# Play starts when the briefing is out of the way, not while it is being read — started_playing is
+# what sets game.playing and restarts the session clock.
+func _begin_play() -> void:
+	if game.level_is_ready:
+		return
 	_schedule_next_target()
 	game.level_is_ready = true
 	started_playing.emit()
@@ -172,7 +254,7 @@ func _apply_difficulty() -> void:
 	show_target_ms = cfg["show_ms"]
 	interval_min_ms = cfg["interval_min_ms"]
 	interval_max_ms = cfg["interval_max_ms"]
-	corrects_for_next_level = cfg["hits_to_complete"]
+	rounds_per_level = int(cfg.get("rounds", 10))
 	_num_decoys = cfg.get("num_decoys", 0)
 	_no_real_chance = cfg.get("no_real_chance", 0.0)
 	_same_color_decoy = cfg.get("same_color_decoy", false)
@@ -299,6 +381,10 @@ func _spawn_round() -> void:
 	_draw_area.queue_redraw()
 
 func _process(_delta: float) -> void:
+	# The board lives whether or not the game is running: it is the room, not the round.
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += _delta
+		_bg.queue_redraw()
 	# The tap flash fades ABOVE the pause guard. Below it, a caption freezing the game froze the
 	# flash too, so the colored ring left by a tap sat there at full strength and was still on
 	# screen during the next step. It is feedback for a tap that has already been judged; it has
@@ -364,7 +450,20 @@ func _on_round_timeout() -> void:
 	if not tutorial_retry_spec.is_empty():
 		tutorial_stage_now(tutorial_retry_spec.duplicate())
 		return
-	_schedule_next_target()
+	_end_of_round()
+
+# One door for both ways a round can end — hit, or run out — so the level's length is counted in
+# one place.
+#
+# The tutorial is not a level and must never complete one: the coach asks for a fixed number of
+# rounds and ends its own session. A level-done popup landing mid-lesson pauses the game, and the
+# round the coach is waiting on can then never expire — the step hangs until its timeout.
+func _end_of_round() -> void:
+	_rounds_in_level += 1
+	if _rounds_in_level >= rounds_per_level and not game.tutorial_mode:
+		_level_done(true)
+	else:
+		_schedule_next_target()
 
 func _on_draw_area_input(event: InputEvent) -> void:
 	if not game.level_is_ready or game.level_is_done or game.paused():
@@ -424,14 +523,7 @@ func _on_hit(tap_pos: Vector2, dist: float) -> void:
 	game.play_sound("hit")
 	game.tutorial_notify("hit_target")
 	_draw_area.queue_redraw()
-	# The tutorial is not a level and must never complete one. Level 1 needs 5 hits and the coach
-	# asks for exactly 5, so the last lesson used to land on the level-done popup — which pauses
-	# the game, so the round the coach was waiting on could never expire and the step hung until
-	# its timeout. The coach ends the session itself.
-	if num_corrects_in_level_so_far >= corrects_for_next_level and not game.tutorial_mode:
-		_level_done(true)
-	else:
-		_schedule_next_target()
+	_end_of_round()
 
 func _on_decoy_hit(tap_pos: Vector2, decoy_idx: int) -> void:
 	_decoys.remove_at(decoy_idx)
@@ -467,17 +559,35 @@ func _flash_at(pos: Vector2, color: Color) -> void:
 
 func _level_done(didwin: bool) -> void:
 	game.level_is_done = true
-	game.sig_level_is_done.emit(didwin)
+	# The gate is decided BEFORE the level's score row is written: main.gd saves that row on
+	# game.sig_level_is_done, and it has to carry the score the player actually KEEPS, or
+	# failing the same level over and over is a way to farm the score list.
+	#
+	# Passing is a RESULT, not a formality: below this level's accuracy the SAME level comes
+	# round again. The bar is the level's own, chosen to land exactly on a rung of `rounds` (see
+	# level_config.gd) rather than on a formula that mostly does not.
+	var need: int = WhackLevelConfig.pass_pct_for(level)
+	var pct: int = game.session_pct_correct()
+	var passed: bool = true
+	if didwin and level < max_difficulty:
+		passed = pct >= need
+		_rollback_score_on_next_level = not passed
+	if passed:
+		game.sig_level_is_done.emit(didwin)
+	else:
+		# The kept value is put in place just for the save. The SCREEN keeps showing the score
+		# the player had while playing, because watching it drop out from under a summary you
+		# are still reading is alarming; the visible rollback lands on Continue, in new_game().
+		var earned_this_level: int = game.score
+		game.score = _score_at_level_start
+		game.sig_level_is_done.emit(didwin)
+		game.score = earned_this_level
 	if didwin:
-		MainGlobals.global_level_is_done(true)
+		# No fanfare for a level that was not passed.
+		MainGlobals.global_level_is_done(passed)
 		if level >= max_difficulty:
 			sig_level_is_done.emit(true)
 		else:
-			# Passing is a RESULT, not a formality: below this level's accuracy the SAME level
-			# comes round again. The bar rises with the level, from 55% to at most 75%.
-			var need: int = mini(55 + 5 * (level - 1), 75)
-			var pct: int = game.session_pct_correct()
-			var passed: bool = pct >= need
 			game.need_to_increase_level = passed
 			if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 				MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
@@ -564,6 +674,13 @@ func get_draw_state() -> Dictionary:
 		"flash_pos": _flash_pos,
 	}
 
+# The speed the player is measured on. Only a HIT appends to `_reaction_times`, which is what keeps
+# this honest: a round with no real target in it is one the player is supposed to leave alone, and
+# folding it in would enter the full show time as a reaction — by definition the worst possible one
+# — for doing exactly the right thing. A missed real target is left out for the same reason.
+#
+# The accuracy gate counts those rounds (correctly ignoring one IS a correct answer); the speed
+# average does not.
 func mean_reaction_ms(exclude_last: bool = false) -> int:
 	if _reaction_times.size() == 0:
 		return 9999

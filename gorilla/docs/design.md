@@ -12,11 +12,13 @@ Trains peripheral awareness while maintaining a central task under pressure.
 2. All non-brick room tiles are filled with coins at the start
 3. Inside monsters roam the room (kill on contact → lose a life)
 4. Gorillas walk across the screen edges (above/below/left/right of the room)
-5. When all coins are collected **or** timer hits 0: answer popup appears
+5. When all coins are collected **or** the timer hits 0: the answer popup appears
 6. Player picks how many gorillas they counted
-7. Correct → +20 bonus, difficulty increases next round
-8. Wrong → no bonus
-9. New round begins (score carries over, timer resets)
+7. Exactly right → +20 bonus and the round counts as correct; anything else counts as wrong
+8. A new round begins on the same level (score carries over, timer resets) — a round is one
+   BUILDING, and the level's difficulty does not change between them
+9. After `rounds_per_level` buildings the level is judged: at or above `pass_pct` the next level
+   follows, below it the same level is played again (see "Passing a level")
 
 If all lives are lost before collecting all coins: game over.
 
@@ -34,12 +36,100 @@ If all lives are lost before collecting all coins: game over.
 
 ## Gorilla Count Accuracy (Avg Error)
 
-After each round the player guesses how many gorillas crossed. The **error** is `|chosen − true_count|`. Errors accumulate via `game.add_correct_or_mistake(error, 1)` — `game.corrects` holds the total error sum, `game.mistakes` holds the question count. The **"Error" tab** (progress_tab_name = "Error", progress_time_pos = 7) shows per-session average error (`corrects / mistakes`), with no level grouping (`progress_level_pos = -1`).
+After each round the player guesses how many gorillas crossed. The **error** is
+`|chosen - true_count|`. `Level._error_sum` and `Level._rounds_answered` accumulate it, and
+`Level.mean_error()` is what `main.gd::get_game_score()` writes into the score row. The **"Error"
+tab** (`progress_tab_name = "Error"`, `progress_time_pos = 7`) plots that per-session average, with
+no level grouping (`progress_level_pos = -1`) — which is why those two counters are cleared only on
+a fresh game, not at a level boundary.
 
-Feedback shown to player after each answer:
+Feedback shown to the player after each answer:
+
 - Error 0: "Correct! +20 bonus"
 - Error 1: "Off by 1 — There were N gorillas"
 - Error 2+: "Off by N — There were N gorillas"
+
+**The error stat used to ride on the shared counters.** `game.add_correct_or_mistake(error, 1)`
+banked the SIZE of the error as `game.corrects` and a mistake on every round, right or wrong — so
+`corrects` held the error sum and `mistakes` held the question count, and the average was read back
+out as `corrects / mistakes`. It worked as a stat and was impossible as anything else: a perfect
+answer recorded zero correct and one wrong, an answer off by three recorded three correct, and any
+accuracy the level gate might read was noise. The counters now mean what their names say — one
+round, one verdict, `add_correct_or_mistake(1, 0)` or `(0, 1)` — and the error stat has its own two
+fields.
+
+**Only an exact count is right.** That was already the rule the +20 bonus followed, and "nearly" is
+not a thing a player can be asked to count.
+
+## Passing a level
+
+A round is one building. A **level is `rounds_per_level` buildings** (`rounds` in
+`GorillaLevelConfig`), and it is passed on the share of them counted exactly right:
+
+```
+passed = game.session_pct_correct() >= GorillaLevelConfig.pass_pct_for(level)
+```
+
+Below the bar the SAME level is played again; at or above it, the next one. `_finish_level()` runs
+when `round_in_level` reaches `rounds_per_level`, and `_advance_if_needed()` — called from
+`new_game()` — acts on its verdict.
+
+Before this, **a level could not be failed, only postponed.** `round_in_level` advanced only when
+`need_to_increase_level` had been set, and that happened on an exact count — so a wrong answer did
+not count toward the level at all. A player could be off by five every time and simply keep being
+handed the same level with no summary and nothing said.
+
+**The percentages have to land on a rung.** A level is a fixed number of rounds, so out of 3 the
+only scores that exist are 0, 33, 66 and 100; out of 4, 0, 25, 50, 75 and 100. `pass_pct` is chosen
+to sit exactly on one: 60 means 2 of 3, 70 means 3 of 4. Recheck them whenever `rounds` changes.
+
+| levels | rounds | pass_pct | really |
+|--------|--------|----------|--------|
+| 1-5 | 3 | 60 | 2 of 3 |
+| 6-10 | 4 | 70 | 3 of 4 |
+
+The last level (10) is judged the same way but never promotes: `is_last` keeps
+`need_to_increase_level` false and the card says so.
+
+## "complete!" only when it was
+
+The end of a level now shows the shared level card (`show_level_done_popup`) with the gate result
+as its `passed` argument, so it reads "Level N complete!" with a check badge or **"Level N not
+passed"** with none. Under it: the last round's own verdict ("Off by 1 / There were 5 gorillas"),
+then `Counted right: 2 of 3`, `Accuracy: 66%`, and a line saying what happens next —
+
+- passed -> `Level passed — on to level N.`
+- failed -> `You need at least 60% of the buildings counted right to pass to the next level.`
+
+Mid-level rounds keep the small `show_game_popup` "Time's up!" panel they always had.
+`MainGlobals.global_level_is_done()` takes the gate result, so the fanfare does not play over a
+level that was not passed.
+
+**The tutorial is exempt.** Its session is one building, not a level: `_on_answer_selected` returns
+after the round popup when `game.tutorial_mode` is set, so the coach's rounds never add up to a
+level end and no card lands on a caption.
+
+## A replay starts clean
+
+`new_game()` is called after EVERY round (main's `_on_level_sig_level_is_done`), so it cannot clear
+the level's counters unconditionally. `_level_is_over` is set by `_finish_level()` and is what tells
+the next `new_game()` that it is starting a LEVEL: only then does it reset `round_in_level`,
+`game.corrects` and `game.mistakes`. Otherwise a retry would inherit the misses that failed the
+level and could not pass it even played perfectly.
+
+`_error_sum` / `_rounds_answered` deliberately survive, because the Error stat is per session.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped when a level begins and a level that misses the gate goes back to
+it (`_rollback_score_on_next_level`, applied in `new_game()` when Continue is pressed). Otherwise
+the gate is a scoring exploit: the score is cumulative across a session, so every failed attempt
+banked its coins and the retry cost nothing.
+
+The rollback lands on Continue rather than at the moment the level ends, because watching the score
+drop out from under a summary you are still reading is alarming. gorilla does not emit
+`game.sig_level_is_done`, so unlike the games that save a score row per level there is nothing to
+swap the kept value in for.
 
 ## Lives
 
@@ -167,6 +257,7 @@ clearance is 40.06 px against a 40 px tile. Consequences:
 - Monster count: 3 (levels ≤2), 4 (level 3–5), 5 (level 6+)
 - Gorilla count pre-planned at level start: `randi_range(2+level, 5+level)` gorillas with irregular spawn times distributed over `[3s, level_duration − max_travel_time]`; only spawned if time remains to cross the screen
 - `game.game_over_on_time_out = false` — time-over triggers answer popup, not auto game-over
+- `rounds` / `pass_pct` per level: see "Passing a level"
 
 ## Settings
 

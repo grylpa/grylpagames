@@ -80,9 +80,34 @@ emptied, capped to the last 20.
 
 ## Difficulty
 
-`increase_difficulty()` bumps the level, grows the board to `7 + level*2`, and raises
-`num_more_packets` to `min(7, level-1)` — so level 1 carries the settings-chosen `num_packets`
-(3 by default) and level 8+ carries 7 more on top.
+Every per-level number lives in `delemfp/scripts/level_config.gd` (`DelemfpLevelConfig.LEVELS`),
+read by `increase_difficulty()` through `get_level()`: `board_size`, `num_more_packets` and
+`rounds`. Level 1 carries the settings-chosen `num_packets` (3 by default) and level 8+ carries 7
+more on top, on a board that grows from 9 to 25 tiles.
+
+Those were two formulas in `level.gd` (`7 + level * 2` and `max(0, min(7, level - 1))`). A formula
+is fine until one level needs to be different, and then it cannot be — the table can.
+
+## Rounds and levels
+
+**A round is one board. A level is `rounds_per_level` of them** (`rounds` in `DelemfpLevelConfig`, 5 for every
+level so far). Winning a board steps `round_in_level`; only when it reaches `rounds_per_level` does
+`increase_difficulty()` bump the level and the level card appear. In between, the smaller
+"Round N of Level M completed" panel shows and the next board is dealt at the SAME level.
+
+Before this, **every won board advanced the level.** The `rounds` column in the config was dead text
+— nothing read it — and the board changed under the player every single time they finished one, so
+no level was ever played twice and none of them could settle into a rhythm.
+
+Losing is unchanged: it ends the session (`game_over.emit(false)`), so every completed round is a
+won one and there is nothing here for an accuracy gate to measure.
+
+`_on_game_popup_closed()` is what continues after the between-rounds panel. It is bound to the
+GLOBAL `MainGlobals.sig_game_popup_closed` — the instructions card reaches it too — so it acts only
+when `game.level_is_done`, i.e. when a round is actually waiting on it.
+
+**The tutorial is exempt**: its session is one lesson, not round 1 of 5, and it has always ended on
+the level card. A "Round 1 of Level 1" panel would land on its closing caption.
 
 ## Pause
 

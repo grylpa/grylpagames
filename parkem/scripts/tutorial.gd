@@ -94,7 +94,7 @@ static func steps(level: Node, _game) -> Array:
 				level.tutorial_hold_new_creatures(false),
 			# Reactive: the quiet win is the whole lesson, and so is the quiet loss.
 			"text": func():
-				if level.tutorial_packets_left() <= 0:
+				if level.tutorial_creatures_stopped() > 0:
 					return "That is the job. Keep them wandering and they give up."
 				return "Keep it away from its spot. After about ten seconds it gives up — and that is your point.",
 			"await": {"event": "creature_stopped", "timeout": 300.0},

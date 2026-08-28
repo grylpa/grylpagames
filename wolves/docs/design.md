@@ -13,7 +13,8 @@ A herding game. The player is a sheepdog patrolling a fenced farm. Sheep start i
 5. A sheep is "lost" if it wanders off the board or off the playable field (not a room and not a field tile)
 6. Each lost sheep reduces `game.lives_left` by 1
 7. If all sheep are lost → level fails
-8. Level win condition: player reaches arrival point after all rooms visited and all coins collected
+8. The level runs for its `level_time`; reaching the end of the clock ends it
+9. It is PASSED on the share of the flock still inside at that moment (see "Passing a level")
 
 ## Controls
 
@@ -96,7 +97,58 @@ Defined in `level_config.gd` as `class_name WolvesLevelConfig`.
 | 4 | 11×11 | 1500 | 5000 | 0.5× | 50% | 3000 | 2 |
 | 5 | 11×11 | 1000 | 1000 | 0.5× | 80% | 1000 | 2 |
 
-`pct_sheep` × room area = number of sheep placed. Color per level is set in `_cfg["color"]`.
+`pct_sheep` x room area = number of sheep placed. Color per level is set in `_cfg["color"]`.
+`pass_pct` is the share of the flock that must survive: 50, 60, 65, 70, 75 for levels 1-5.
+
+## Passing a level
+
+Lasting the level is not the same as passing it. When the clock runs out, `level_is_done(true)`
+measures the flock:
+
+```
+pct = 100 * get_num_sheep_left() / _sheep_at_level_start
+passed = pct >= WolvesLevelConfig.pass_pct_for(level)
+```
+
+Below the bar the SAME level is played again; at or above it, the next one. Before this,
+`need_to_increase_level` was set unconditionally on the win path — surviving the clock with one
+sheep left promoted the player exactly as fast as keeping the whole flock, and the "Sheep saved"
+line on the card decided nothing.
+
+**`_sheep_at_level_start` is measured, not computed.** `pct_sheep` fills each room by AREA, and how
+many sheep that comes to depends on the maze that was generated, so the denominator can only be
+read off the board. It is stamped at the end of `create_board()`, right after `add_sheep()` — NOT
+in `new_game()`, because `create_board()` awaits and `new_game()` does not await it, so a stamp
+there reads an empty flock. (It did: the probe measured 0 sheep.)
+
+Losing the whole flock (`check_if_no_sheep_left`) is the same failure arriving early: it clears
+`need_to_increase_level` and rolls the score back, then shows the "Oh no!" panel it always did.
+
+The last level (5) is judged the same way but never promotes.
+
+## "complete!" only when it was
+
+`show_level_done_popup` is called with the gate result as its `passed` argument, so the card reads
+"Level N complete!" with a check badge or **"Level N not passed"** with none. The body is
+`Sheep saved: 7 of 9`, `Flock kept: 77%`, `Total score: N`, and then what happens next:
+
+- passed -> `Level passed — on to level N.`
+- failed -> `You need to keep at least 60% of the flock to pass to the next level.`
+
+`MainGlobals.global_level_is_done()` takes the same result, so the fanfare does not play over a
+level that was not passed.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped at the top of `new_game()` — after the rollback, so consecutive
+failures all measure from the same point — and a level that misses the gate goes back to it
+(`_rollback_score_on_next_level`). Otherwise the gate is a scoring exploit: the score is cumulative
+across a session, so every failed attempt banked its +50 level bonus and the retry cost nothing.
+
+The rollback lands on Continue rather than when the level ends, because watching the score drop out
+from under a summary you are still reading is alarming. wolves does not emit
+`game.sig_level_is_done`, so unlike the games that save a score row per level there is nothing to
+swap the kept value in for.
 
 ## Difficulty Scaling
 
