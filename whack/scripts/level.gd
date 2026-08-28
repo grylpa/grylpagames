@@ -8,14 +8,22 @@ var game: GenericGameUtil
 var level: int = 1
 var max_difficulty: int = WhackLevelConfig.LEVELS.size()
 var num_corrects_in_level_so_far: int = 0
-# A round is one target presentation — hit, missed, or correctly left alone. A LEVEL is
-# `rounds_per_level` of them, and the accuracy gate at the end decides whether it was passed.
+# Three things stacked, and they are three different things:
 #
-# It used to end on a count of HITS ("hits_to_complete"), which meant a level always ended ON a hit
-# and could not be failed however many were missed on the way — the same thing polkadots had to be
-# fixed for. It also made the levels wildly uneven: 5 hits at level 1, 30 at level 4, 15 at 5.
-var rounds_per_level: int = 10
+#   a PRESENTATION is one target shown — hit, missed, or correctly left alone
+#   a ROUND is `targets_in_round` presentations, with a short panel at its end
+#   a LEVEL is `rounds_per_level` rounds, and the accuracy gate over all of them decides passing
+#
+# The level used to end on a count of HITS ("hits_to_complete"), which meant a level always ended
+# ON a hit and so could not be failed however many were missed on the way — the same defect
+# polkadots had to be fixed for. It also made levels wildly uneven: 5 hits at level 1, 30 at
+# level 4, 15 at level 5.
+var targets_in_round: int = 5
+var rounds_per_level: int = 4
+var _targets_in_round_so_far: int = 0
 var _rounds_in_level: int = 0
+# A round has ended and its panel is up; the next presentation waits for it to be dismissed.
+var _waiting_after_round: bool = false
 var target_radius: float = 48.0
 var show_target_ms: float = 4000.0
 var interval_min_ms: float = 1000.0
@@ -176,6 +184,8 @@ func new_game(from_scratch: bool = true) -> void:
 	game.level_label_changed("Level %d" % level)
 	num_corrects_in_level_so_far = 0
 	_rounds_in_level = 0
+	_targets_in_round_so_far = 0
+	_waiting_after_round = false
 	_target_active = false
 	_round_active = false
 	_decoys.clear()
@@ -200,7 +210,8 @@ func _level_briefing() -> String:
 	if _num_decoys > 0:
 		text += "\nDecoys: %d" % _num_decoys
 	# The last level's quota is the sentinel 999, which is not a number to show anyone.
-	text += "\nRounds: %d\nPass mark: %d%%" % [rounds_per_level, WhackLevelConfig.pass_pct_for(level)]
+	text += "\nRounds: %d x %d\nPass mark: %d%%" % [
+		rounds_per_level, targets_in_round, WhackLevelConfig.pass_pct_for(level)]
 	if level >= max_difficulty:
 		text += "\n\nThe last level. It comes round again however well you do."
 	return text
@@ -218,8 +229,14 @@ func _target_size_word() -> String:
 		return "Medium"
 	return "Small"
 
+# Two different cards close through here, because sig_game_popup_closed is global: the level
+# briefing before play starts, and the between-rounds panel during it.
 func _on_game_popup_closed() -> void:
-	_begin_play()
+	if not game.level_is_ready:
+		_begin_play()
+	elif _waiting_after_round:
+		_waiting_after_round = false
+		_schedule_next_target()
 
 # Play starts when the briefing is out of the way, not while it is being read — started_playing is
 # what sets game.playing and restarts the session clock.
@@ -254,7 +271,8 @@ func _apply_difficulty() -> void:
 	show_target_ms = cfg["show_ms"]
 	interval_min_ms = cfg["interval_min_ms"]
 	interval_max_ms = cfg["interval_max_ms"]
-	rounds_per_level = int(cfg.get("rounds", 10))
+	targets_in_round = int(cfg.get("num_targets_in_round", 5))
+	rounds_per_level = int(cfg.get("num_rounds", 4))
 	_num_decoys = cfg.get("num_decoys", 0)
 	_no_real_chance = cfg.get("no_real_chance", 0.0)
 	_same_color_decoy = cfg.get("same_color_decoy", false)
@@ -450,20 +468,35 @@ func _on_round_timeout() -> void:
 	if not tutorial_retry_spec.is_empty():
 		tutorial_stage_now(tutorial_retry_spec.duplicate())
 		return
-	_end_of_round()
+	_end_of_target()
 
-# One door for both ways a round can end — hit, or run out — so the level's length is counted in
-# one place.
+# One door for both ways a presentation can end — hit, or run out — so the level's length is
+# counted in one place.
 #
-# The tutorial is not a level and must never complete one: the coach asks for a fixed number of
-# rounds and ends its own session. A level-done popup landing mid-lesson pauses the game, and the
-# round the coach is waiting on can then never expire — the step hangs until its timeout.
-func _end_of_round() -> void:
-	_rounds_in_level += 1
-	if _rounds_in_level >= rounds_per_level and not game.tutorial_mode:
-		_level_done(true)
-	else:
+# The tutorial is not a level and must never complete one: the coach stages its own presentations
+# and ends its own session. A level-done popup landing mid-lesson pauses the game, and the round the
+# coach is waiting on can then never expire — the step hangs until its timeout.
+func _end_of_target() -> void:
+	if game.tutorial_mode:
 		_schedule_next_target()
+		return
+	_targets_in_round_so_far += 1
+	if _targets_in_round_so_far < targets_in_round:
+		_schedule_next_target()
+		return
+	# End of a round.
+	_targets_in_round_so_far = 0
+	_rounds_in_level += 1
+	if _rounds_in_level >= rounds_per_level:
+		_level_done(true)
+		return
+	# A breather between rounds, and the one place `num_rounds` is visible to the player. Without
+	# it the value would divide the level into parts nobody can see.
+	_waiting_after_round = true
+	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+	game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [
+		_rounds_in_level, level])
 
 func _on_draw_area_input(event: InputEvent) -> void:
 	if not game.level_is_ready or game.level_is_done or game.paused():
@@ -523,7 +556,7 @@ func _on_hit(tap_pos: Vector2, dist: float) -> void:
 	game.play_sound("hit")
 	game.tutorial_notify("hit_target")
 	_draw_area.queue_redraw()
-	_end_of_round()
+	_end_of_target()
 
 func _on_decoy_hit(tap_pos: Vector2, decoy_idx: int) -> void:
 	_decoys.remove_at(decoy_idx)

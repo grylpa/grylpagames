@@ -535,6 +535,28 @@ Two earlier attempts, both worth not repeating:
   read well as a picture and it was the wrong projection: a booth seen side-on behind targets that
   are lying flat.
 
+**Units, not pixels.** Every number in `board_backdrop.gd` is in the project's own units: the window
+stretches `canvas_items` from a 680x788 viewport, so the board is 680 units wide on a desktop and on
+a phone alike and none of the drawing needs to know what it is being displayed on.
+
+**`_k()` is not correcting for a coordinate difference** — there isn't one. It corrects for APPARENT
+size: 20 units of rail that frame the board in a desktop window are a hairline on a phone held at
+arm's length. It is the same adjustment every font in this app makes (`36 if is_mobile() else 22`),
+applied to scenery instead of type. It returns 1.75 on mobile, and the rail, its segment length, its
+shadow and the earth patches all take it.
+
+**Each rail segment is a bead, not a stripe.** `_bulge()` adds a shallow circular arc swelling
+inward off the segment's inner edge, so the painted pieces read as rounded. The radius comes from
+the chord and the sagitta, `R = (L^2/4 + s^2) / 2s`, which is what keeps it shallow — a small
+sagitta on a long chord is a very large circle (44-unit chord, 5-unit swell, radius 51), so the bead
+swells a few units into the grass instead of ballooning across it. The sagitta is also clamped to
+18% of the chord, or the short part-width segment before each corner would take a full segment's
+swell and come out as a near-semicircular blob.
+
+**The rail's shadow is drawn FIRST, under the segments.** Drawn last it fell across the beads — they
+swell into exactly the band it covers — and every bead came out darker than the stripe it belongs
+to. They were always the same color; the shadow was what made them look different.
+
 What keeps it clear of the game is placement and shape:
 
 - **Nothing filled and circular.** A filled circle on this board is a target and the player is being
@@ -569,7 +591,7 @@ Level 3
 Target: Medium
 On screen: 1.4 s
 Decoys: 2
-Rounds: 10
+Rounds: 4 x 5
 Pass mark: 70%
 ```
 
@@ -579,12 +601,28 @@ on and cannot picture, and it told them nothing that looking at the first target
 three. The **gap between targets** was a range of two decimals describing something the player
 experiences as rhythm — it read as noise on a card meant to be taken in at a glance.
 
-## A level is a run of rounds
+## Presentations, rounds, levels
 
-A **round** is one target presentation — hit, missed, or correctly left alone. A **level** is
-`rounds_per_level` of them (`rounds` in `WhackLevelConfig`, 10 everywhere), and the accuracy gate at
-the end decides whether it was passed. `_end_of_round()` is the single door both endings go
-through — `_on_hit` and `_on_round_timeout` — so the level's length is counted in one place.
+Three things, and they are three different things:
+
+| | |
+|---|---|
+| a **presentation** | one target shown — hit, missed, or correctly left alone |
+| a **round** | `num_targets_in_round` presentations, closed by a short panel |
+| a **level** | `num_rounds` rounds, judged as a whole by the accuracy gate |
+
+`_end_of_target()` is the single door both endings of a presentation go through — `_on_hit` and
+`_on_round_timeout` — so the level's length is counted in one place.
+
+**The middle term used to be missing.** `rounds` in the config meant presentations, so `num_rounds`
+did not exist and the value that was there was named for something it was not. Now 4 rounds of 5 is
+20 presentations a level, with the "Round N of Level M completed" panel at each boundary — the one
+place `num_rounds` is visible to a player, and without it the value would divide the level into
+parts nobody could see.
+
+Two cards close through `_on_game_popup_closed()`, because `sig_game_popup_closed` is global: the
+level briefing before play starts, and the between-rounds panel during it. `_waiting_after_round`
+is what tells them apart.
 
 It used to end on a count of HITS (`hits_to_complete`), which is two problems. A level **always
 ended on a hit** and so could not be failed however many were missed on the way — the same defect
@@ -592,8 +630,9 @@ polkadots had to be fixed for. And the levels were wildly uneven: 5 hits at leve
 15 at level 5.
 
 `pass_pct` now lives in the level table too, instead of the formula `mini(55 + 5 * (level - 1), 75)`
-the gate was using. Out of 10 rounds the only scores that exist are multiples of 10, and the table's
-values (60, 60, 70, 70, 80, 80, 80) land exactly on them; the formula's 55 and 65 did not.
+the gate was using. A level is 20 presentations, so the only scores that exist are multiples of 5,
+and the table's values (60, 60, 70, 70, 80, 80, 80) land exactly on them; the formula's 55 and 65
+did not.
 
 **The speed average counts only hits.** `_reaction_times` is appended in `_on_hit` and nowhere else,
 which is what keeps it honest: a round with no real target in it is one the player is *supposed* to
