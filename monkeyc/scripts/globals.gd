@@ -51,12 +51,30 @@ func pop_next_level_id() -> int:
 	_last_level_id = level_queue.pop_front()
 	return _last_level_id
 
-func record_level_result(level_id: int, pct: int) -> void:
-	if pct < 70:
-		if level_queue.size() >= 1:
-			level_queue.insert(1, level_id)
-		else:
-			level_queue.append(level_id)
+# The accuracy a level demands before the player moves on, from that level's own config. 70 was
+# hardcoded below for every level, which is why a harder level asked no more of the player than
+# the first one.
+const DEFAULT_PASS_PCT: int = 70
+
+func pass_pct_for(level_id: int) -> int:
+	for lv in MonkeyCLevelConfig.LEVELS:
+		if int(lv.get("id", -1)) == level_id:
+			return int(lv.get("pass_pct", DEFAULT_PASS_PCT))
+	return DEFAULT_PASS_PCT
+
+# True when the player earned the next level. Failing now REPLAYS the same level next: it used to
+# be re-queued at index 1, BEHIND the level that follows — so a player could get every answer
+# wrong and still move on, which is what made the accuracy number decorative.
+func record_level_result(level_id: int, pct: int) -> bool:
+	if pct >= pass_pct_for(level_id):
+		return true
+	level_queue.insert(0, level_id)
+	return false
+
+# What the player will get next, for the level-done card to name. -1 when it cannot be known
+# without consuming the queue.
+func peek_next_level_id() -> int:
+	return int(level_queue[0]) if not level_queue.is_empty() else -1
 
 func save_settings() -> void:
 	game.save_settings([starting_level_id])

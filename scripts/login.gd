@@ -1,5 +1,21 @@
 extends CanvasLayer
 
+# The look is the app's, not this screen's own: the drawn ground from scripts/screen_backdrop.gd,
+# the card from ScreenBackdrop.card_style(), the buttons from GameButton, the fields and tabs from
+# ScreenBackdrop.style_field / style_tab. Nothing about the layout, the flow or the logic changed —
+# only what it is made of.
+#
+# What it was: a tiled `res://pneumo/art/grass_dark.png` (one GAME's art, worn by an app-level
+# screen), a black 25%-alpha panel with a hard black border, tab buttons drawn as a yellow 3px
+# outline open at the bottom over a form panel with a yellow 3px outline open at the top, and
+# near-black flat rectangles for the text fields. It matched no other screen in the app, including
+# the menu it is opened from.
+
+const ACCENT: Color = ScreenBackdrop.ACCENT
+
+var _bg: Control = null
+var _bg_t: float = 0.0
+
 var hide_after_hide: bool = false
 var quiet: bool = true
 enum TabMode { LOGIN, SIGNUP, GUEST }
@@ -32,7 +48,59 @@ func _ready() -> void:
 	%ShowPasswordBtn.icon = load("res://art/eye_open.svg")
 	%ShowPasswordBtn.expand_icon = true
 	%ShowPasswordBtn.modulate = Color(0.6, 0.6, 0.6, 1)
+	_apply_look()
 	_apply_tab()
+
+# Cosmetics only. Every node here already existed and keeps its place in the tree; this just says
+# what each one is made of.
+func _apply_look() -> void:
+	var ground: TextureRect = $BackgroundPanel/TextureRect
+	ground.texture = null
+	_bg = ScreenBackdrop.attach(ground)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void:
+			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.LOGIN_TOP, ScreenBackdrop.LOGIN_BOT, ACCENT))
+	set_process(true)
+
+	# The panel behind everything was a black rectangle with a hard black border drawn over the
+	# grass. With a drawn ground under it, it only has to hold the ground still.
+	var flat: StyleBoxFlat = StyleBoxFlat.new()
+	flat.bg_color = ScreenBackdrop.LOGIN_BOT
+	$BackgroundPanel.add_theme_stylebox_override("panel", flat)
+	$BackgroundPanel/BorderPanel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	%FormBorderPanel.add_theme_stylebox_override("panel", ScreenBackdrop.card_style(20))
+
+	%TabHBox.add_theme_constant_override("separation", 8)
+
+	for le: LineEdit in [%Username, %Email, %Password, %GuestName]:
+		ScreenBackdrop.style_field(le, ACCENT)
+	for lb: Label in [%UsernameLabel, %EmailLabel, %PasswordLabel, %GuestPromptLabel]:
+		ScreenBackdrop.style_caption(lb, true)
+	ScreenBackdrop.style_title(%GuestTitleLabel, ACCENT)
+	ScreenBackdrop.style_close(%LoginCloseBtn, ACCENT)
+	ScreenBackdrop.style_caption(%GuestNameMessage, true)
+	ScreenBackdrop.style_caption(%LoginMessage)
+
+	# The one button that finishes the job is the filled one; everything that steps back or sideways
+	# is a ghost, the same weight relationship the confirmation dialog uses.
+	var ink: Color = ResultCard.HEADER_INK
+	var fs: int = 34 if MainGlobals.is_mobile() else 22
+	GameButton.style(%ActionButton, ACCENT, ink, fs)
+	# GuestMargin's child, which is not a unique name in the scene.
+	var guest_btn: Button = %GuestMargin.get_node_or_null("GuestButton") as Button
+	if guest_btn != null:
+		GameButton.style(guest_btn, ACCENT, ink, fs, true)
+	# Back and Play are drawn the SAME. They are not a safe/destructive pair like the confirmation
+	# dialog's — one goes on, one goes back, and neither loses anything — so weighting one of them
+	# would be saying something about them that is not true.
+	for b: Button in [%GuestBackBtn, %GuestPlayBtn]:
+		GameButton.style(b, ACCENT, ink, fs)
+	GameButton.style(%ForgotPasswordBtn, ACCENT, ink, fs - 6, true)
+
+func _process(delta: float) -> void:
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += delta
+		_bg.queue_redraw()
 
 func _on_visibility_changed() -> void:
 	if visible:
@@ -46,32 +114,7 @@ func _on_visibility_changed() -> void:
 		_apply_tab()
 
 func _apply_tab_style(btn: Button, is_active: bool) -> void:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.draw_center = false
-	style.border_color = Color(0.79, 0.79, 0, 1)
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
-	style.content_margin_left = 4
-	style.content_margin_right = 4
-	if is_active:
-		style.border_width_left = 3
-		style.border_width_top = 3
-		style.border_width_right = 3
-		style.border_width_bottom = 0
-		style.corner_radius_top_left = 24
-		style.corner_radius_top_right = 24
-		btn.add_theme_color_override("font_color", Color(1, 1, 0, 1))
-		btn.add_theme_color_override("font_hover_color", Color(0.79, 0.79, 0, 1))
-		btn.add_theme_color_override("font_pressed_color", Color(1, 1, 0, 1))
-	else:
-		style.border_width_bottom = 3
-		btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		btn.add_theme_color_override("font_hover_color", Color(0.85, 0.85, 0.85, 1))
-		btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.85, 0.85, 1))
-	btn.add_theme_stylebox_override("normal", style)
-	btn.add_theme_stylebox_override("hover", style)
-	btn.add_theme_stylebox_override("pressed", style)
-	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	ScreenBackdrop.style_tab(btn, ACCENT, is_active)
 
 func _is_guest_tab() -> bool:
 	return _tab_mode == TabMode.GUEST

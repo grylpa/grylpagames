@@ -38,6 +38,19 @@ var time_started_level_ms = 0
 var time_increased_difficulty_ms = 0
 var level: int = 0
 var round_in_level: int = 0
+
+# Set when the level's last round has been judged, so the next new_game() knows it is
+# starting a LEVEL and not just the next round.
+var _level_is_over: bool = false
+# The level gate counts FULLY CORRECT rounds: every room named right, first try, and the round
+# survived. It cannot ride on game.corrects / game.mistakes the way the other gated games do,
+# because here those two already count ROOM ANSWERS and the HUD shows them.
+var _rounds_played: int = 0
+var _rounds_fully_correct: int = 0
+var _round_had_wrong_answer: bool = false
+# What the score was when this level began; a level that misses the gate goes back to it.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var num_more_packets = 0
 var num_rooms := 4
 var num_distracting_colors := 0
@@ -142,6 +155,14 @@ func new_game(from_scratch=true):
 	if from_scratch:
 		level = MmmG.starting_level
 		round_in_level = 0
+		# The first level of a session starts clean and stamps its own starting score; every later
+		# level does the same from _advance_if_needed().
+		_level_is_over = false
+		_rollback_score_on_next_level = false
+		_rounds_played = 0
+		_rounds_fully_correct = 0
+		_round_had_wrong_answer = false
+		_score_at_level_start = game.score
 		game.time_scale = 0.5
 	_advance_if_needed()
 	game.need_to_increase_level = false
@@ -257,6 +278,10 @@ func answered(correct: bool):
 	else:
 		game.add_score_and_time(-1,-5)
 		game.add_correct_or_mistake(0,1)
+		# One wrong pick is enough: the round can still be finished (the palette stays open and the
+		# player tries again) but it is no longer a fully correct one, and that is what the level
+		# gate counts.
+		_round_had_wrong_answer = true
 		game.play_sound("gaveup")
 
 func _on_pipe_pressed(_board_pos):
@@ -1204,35 +1229,77 @@ func level_is_done(didwin: bool):
 	# scoring and level progression are suppressed in tutorial_mode anyway.
 	if game.tutorial_mode:
 		return
+	# EVERY round counts toward the level now, won or lost. Before this, round_in_level only
+	# moved when need_to_increase_level had been set, which happened on a WIN — so a lost
+	# round did not count at all and a level could be postponed forever but never failed.
+	_rounds_played += 1
+	if didwin and not _round_had_wrong_answer:
+		_rounds_fully_correct += 1
+	_round_had_wrong_answer = false
+	round_in_level += 1
 	if didwin:
+		# The speed bonus is for a round that was won; it used to sit before the win/lose branch
+		# only because there was nothing else in front of it.
 		var time_from_start_s = (MainGlobals.timems() - time_started_level_ms) / 1000
 		var score_add = min(5, 60 - time_from_start_s)
 		var time_add = min(10, 60 - time_from_start_s)
 		game.add_score_and_time(score_add,time_add)
-		game.need_to_increase_level = true
-		if need_to_increase_level():
-			MainGlobals.global_level_is_done(true)
-			game.show_level_done_popup(self, "", "", level)
-			return
-		else:
-			reset()
-			await get_tree().process_frame
-			game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level + 1, level])
-			return
-	else:
-		game.show_game_popup(self, "Oh no!", "Round %d\nof\nLevel %d\n\nnot completed" % [round_in_level + 1, level])
+	if round_in_level >= rounds_per_level:
+		_finish_level()
 		return
+	if didwin:
+		reset()
+		await get_tree().process_frame
+		game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level, level])
+	else:
+		game.show_game_popup(self, "Oh no!", "Round %d\nof\nLevel %d\n\nnot completed" % [round_in_level, level])
 
-func need_to_increase_level() -> bool:
-	return round_in_level >= rounds_per_level - 1
+# A level is `rounds_per_level` rounds, and it is PASSED on the share of them won.
+func _finish_level() -> void:
+	var need: int = MmmLevelConfig.pass_pct_for(level)
+	var pct: int = 0 if _rounds_played <= 0 else int(round(100.0 * float(_rounds_fully_correct) / float(_rounds_played)))
+	var passed: bool = pct >= need
+	var is_last: bool = level >= MmmLevelConfig.LEVELS.size()
+	game.need_to_increase_level = passed and not is_last
+	_rollback_score_on_next_level = not passed
+	_level_is_over = true
+	# No fanfare over a level that was not passed.
+	MainGlobals.global_level_is_done(passed)
+	var textadd: String = "\n\nRounds fully right: %d of %d\nAccuracy: %d%%\n\n%s" % [
+		_rounds_fully_correct, _rounds_played, pct, _progress_line(passed, need, is_last)]
+	game.show_level_done_popup(self, "", "", level, textadd, passed)
 
+# What the player gets next, in words. An accuracy figure alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int, is_last: bool) -> String:
+	if not passed:
+		return "You need at least %d%% of the rounds fully right to pass to the next level." % need
+	if is_last:
+		return "Level passed — this is the last one, so it comes round again."
+	return "Level passed — on to level %d." % (level + 1)
+
+# Counting the rounds is level_is_done's job now; this only acts on the gate's verdict, and
+# only at a level boundary.
 func _advance_if_needed() -> void:
 	if game == null:
 		return
-	if game.need_to_increase_level:
-		round_in_level += 1
-		if round_in_level >= rounds_per_level:
-			round_in_level = 0
+	if _level_is_over:
+		_level_is_over = false
+		round_in_level = 0
+		# A replay has to be a FRESH attempt: the gate reads these, so a retry that inherited the
+		# rounds which failed the level could not pass it even played perfectly. game.corrects /
+		# game.mistakes are deliberately NOT touched — they are the session's room answers and the
+		# HUD shows them.
+		_rounds_played = 0
+		_rounds_fully_correct = 0
+		_round_had_wrong_answer = false
+		# The failed level's points go back HERE, on Continue, so the summary card was still
+		# read against the score the player had while playing it.
+		if _rollback_score_on_next_level:
+			_rollback_score_on_next_level = false
+			game.score = _score_at_level_start
+		_score_at_level_start = game.score
+		if game.need_to_increase_level:
 			level += 1
 			game.add_life()
 	_apply_level()
@@ -1241,6 +1308,12 @@ func _apply_level() -> void:
 	if game == null:
 		return
 	var s: int = 51 + level * 2
+	# How many rounds this level is judged over — the gate reads it, so it has to come from the
+	# config rather than staying at whatever the member was initialised to.
+	for lv: Dictionary in MmmLevelConfig.LEVELS:
+		if int(lv["level"]) == level:
+			rounds_per_level = int(lv["rounds"])
+			break
 	num_rooms = min(MAX_POSSIBLE_ROOMS, MAX_COLORS_TO_USE, 1 + level)
 	num_distracting_colors = level - 1 + round_in_level
 	game.forced_board_size = Vector2i(s, s)

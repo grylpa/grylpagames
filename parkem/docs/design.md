@@ -81,8 +81,69 @@ assumes they are doing it wrong.
 
 ## Difficulty
 
-`increase_difficulty()`: level 1 is 10 packets, a creature every 5s, 3 hazards, speed up to 2.0×;
-level 5 tightens all four. Board is a fixed 23×23.
+Every per-level number lives in `parkem/scripts/level_config.gd` (`ParkemLevelConfig.LEVELS`), read
+by `increase_difficulty()` through `get_level()`. It used to be a `match level:` ladder inside
+`level.gd`, with a `LEVELS` array next to it that stated `rounds: 1` five times and was read by
+nothing but the menu slider's range.
+
+| key | meaning |
+|-----|---------|
+| `time_between_dispatches_ms` | gap between creatures being sent in |
+| `num_more_packets` | extra tube segments on each creature — how LONG it is |
+| `max_speed_scale` | fastest a creature may move |
+| `num_bombs_to_use` | hazards placed on the board |
+| `allowed_arrivals` | creatures that may reach a parking spot before the game is over |
+| `level_time` | seconds the level lasts |
+
+The board is a fixed 23x23 (less on mobile), which is not per level.
+
+## Winning a level is surviving it
+
+There is no quota to finish. The level runs for `level_time` seconds, and **reaching the end of the
+clock IS passing it** — `on_time_over()` calls `level_is_done(true)`.
+
+That is why `main.gd` sets `game.game_over_on_time_out = false`: with it on, the shared HUD ends
+the whole SESSION at zero (`generic_game_hud.gd::check_time_run_out`), which is the opposite of
+what the clock means here.
+
+Two guards sit on `on_time_over()` and both are load-bearing:
+
+- **`game.level_is_done`** — with `game_over_on_time_out` off, the HUD does not stop its timer; it
+  re-emits `sig_time_over` on every tick while the clock sits at zero. Without the guard the level
+  would end again, and again, stacking level cards.
+- **`game.tutorial_mode or _tutorial_board`** — a tutorial easily outlasts a 90 s level, and a
+  level-done card landing on the coach's caption is the failure mmm taught us to guard against.
+
+## The counter at the top is an allowance
+
+`game.packets_left` — drawn by the shared HUD's `PacketsContainer` — is how many creatures may
+still reach their parking spot. It starts at the level's `allowed_arrivals` and ticks DOWN with
+each one that parks; at zero, `sig_no_more_packets` reaches `main.gd::on_game_no_more_packets()`,
+which stops play and calls `game.game_is_done(false, false)`. The session is over — the allowance
+cannot be earned back.
+
+Three things were wrong before, and they compounded:
+
+1. The counter ran the other way. It counted creatures the player still had to STOP, `dec_packet()`
+   on each stop, and the level was won at zero — while a creature that *parked* called
+   `inc_packet()` and put the number UP. So the one event the player is trying to prevent made the
+   counter look better.
+2. It wore `res://art/head2-4x.png`, the shared HUD's default icon — the same picture the LIVES
+   counter uses. A number counting creatures read as a number counting lives.
+3. Nothing enforced the failure at all: a creature parking cost 5 points and 10 seconds, and that
+   was the whole of it.
+
+It now wears the creature's own head, taken from frame 0 of the `Enemy` animation in
+`res://scenes/head_anim.tscn` (`main.gd::_creature_head_icon()`) so the icon and the sprite cannot
+drift apart. Stopping a creature still pays (`delivered_one` → +10 score, +10 s) but no longer
+touches the counter.
+
+**A creature that parks during the TUTORIAL spends nothing.** The allowance is the real game's, and
+spending it under the coach would end the session mid-caption.
+
+`_creatures_stopped` counts what the player turned back in this level. It is not a quota — nothing
+ends on it — but it is the first row on the level card, next to how much of the allowance the
+creatures took.
 
 ## Tutorial
 

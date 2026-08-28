@@ -16,6 +16,9 @@ var scroll_speed: float = 55.0
 # Scoring
 var rounds_done: int = 0
 var total_rounds: int = 0
+# What the score was when this level began; a level that misses the gate goes back to it.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 var total_corrects: int = 0
 var times_to_answer: Array = []
 
@@ -1011,9 +1014,24 @@ func _build_options(correct_key: String, belt_idx: int) -> Array:
 func new_game(from_scratch: bool = true) -> void:
 	game.level_is_done = false
 	times_to_answer.clear()
+	# EVERY level starts clean, not just the first. These count the level being GRADED — the gate
+	# reads pct_correct() — so leaving them to accumulate meant a replay of a failed level inherited
+	# the misses that failed it, and even a flawless retry could not reach the threshold.
+	total_rounds = 0
+	total_corrects = 0
+	game.corrects = 0
+	game.mistakes = 0
+	# The failed level's points go back HERE, with everything else, so the summary card was read
+	# against the score the player had while playing it.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	# A failed level gives its points back (see _level_done): without that, failing forever is a way
+	# to earn forever — every attempt banked its points and the retry cost nothing.
+	_score_at_level_start = game.score
+	# Repaint where the clearing happens, so the counters and the labels showing them agree.
+	MainGlobals.global_update_hud()
 	if from_scratch:
-		total_rounds = 0
-		total_corrects = 0
 		MonkeyCG.reset_queue_from(MonkeyCG.starting_level_id)
 	game.need_to_increase_level = false
 	current_level_id = MonkeyCG.pop_next_level_id()
@@ -1123,16 +1141,49 @@ func _update_avg_label() -> void:
 func _level_done() -> void:
 	set_process(false)
 	game.level_is_done = true
-	MonkeyCG.record_level_result(current_level_id, pct_correct())
-	game.sig_level_is_done.emit(true)
-	MainGlobals.global_level_is_done(true)
+	var pct: int = pct_correct()
+	var need: int = MonkeyCG.pass_pct_for(current_level_id)
+	# Passing is a RESULT, not a formality: below the level's own accuracy the same level comes
+	# round again instead of the next one.
+	var passed: bool = MonkeyCG.record_level_result(current_level_id, pct)
+	# A failed level earns nothing — but the player does not see it vanish while the summary is
+	# still up. The score row IS written now (main.gd saves on sig_level_is_done), and it has to
+	# record the score actually kept or failing repeatedly would farm the score list. So the kept
+	# value is put in place just for the save, the screen keeps showing the level the player played,
+	# and the rollback lands with everything else when they press Continue (see new_game).
+	if not passed:
+		var earned_this_level: int = game.score
+		game.score = _score_at_level_start
+		game.sig_level_is_done.emit(passed)
+		game.score = earned_this_level
+		_rollback_score_on_next_level = true
+	else:
+		game.sig_level_is_done.emit(passed)
+	# No fanfare over a level that was not passed.
+	MainGlobals.global_level_is_done(passed)
 	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
+	# Just the number. The threshold is stated in full by the progress line below, so "(need NN%)"
+	# here would say it twice — and on a level the player passed, the bar they cleared is not
+	# something they need told.
 	var extra: String = "\n\nAccuracy: %d%%\nMean time: %s" % [
-		pct_correct(),
+		pct,
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
-	game.show_level_done_popup(self, "", extra, 0, "")
+	extra += "\n\n" + _progress_line(passed, need)
+	# `passed` and the level id: this game can END a level without PASSING it, so the card must not
+	# say "complete!" over a "you need at least NN%" line, and the title should name the level.
+	game.show_level_done_popup(self, "", extra, current_level_id, "", passed)
+
+# What the player gets next, in words. An accuracy figure alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need at least %d%% accuracy to pass to the next level." % need
+	var nxt: int = MonkeyCG.peek_next_level_id()
+	if nxt <= 0 or nxt == current_level_id:
+		return "Level passed."
+	return "Level passed — on to level %d." % nxt
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

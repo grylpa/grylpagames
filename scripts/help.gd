@@ -45,6 +45,7 @@ func _restyle() -> void:
 	%GridContainer.get_parent().add_theme_stylebox_override("panel", ScreenBackdrop.card_style(40))
 	var title: Label = $BackgroundPanel/VBoxContainer/TitleMargin/Title
 	ScreenBackdrop.style_title(title, ScreenBackdrop.ACCENT)
+	ScreenBackdrop.style_close(_find_close(), ScreenBackdrop.ACCENT)
 	set_process(true)
 
 func _process(delta: float) -> void:
@@ -139,3 +140,17 @@ func _on_x_close_scene_button_pressed() -> void:
 
 func _on_visibility_changed() -> void:
 	MainGlobals.set_visible("help",visible)
+
+# The close X, wherever this screen keeps it.
+func _find_close() -> Node:
+	for n in _all_children(self):
+		if n.name == "XCloseScene":
+			return n
+	return null
+
+func _all_children(n: Node) -> Array:
+	var out: Array = []
+	for c in n.get_children():
+		out.append(c)
+		out.append_array(_all_children(c))
+	return out

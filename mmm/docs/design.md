@@ -65,6 +65,10 @@ mmm/scripts/
 Touching a moving agent or a bomb kills the round outright: `check_agent_collisions()` →
 `player.mark_hit()` → `remove_player(false)` → `level_is_done(false)`.
 
+The speed bonus (`min(5, 60 - seconds)` score and time) is paid only for a round that was WON. It
+used to be applied before the win/lose branch, so a round lost after ten seconds paid the same as
+one won in ten seconds.
+
 ## Difficulty
 
 `_apply_level()` is the whole curve: `num_rooms = 1 + level` (capped at 12), and
@@ -72,6 +76,82 @@ Touching a moving agent or a bomb kills the round outright: `check_agent_collisi
 palette but were never on any floor. So level 1 round 1 is two rooms and no decoys; by level 6 it is
 seven rooms and a palette with several colors that are pure noise. Board size grows with the level
 and agents speed up.
+
+`num_distracting_colors` rises with `round_in_level`, and `round_in_level` now counts LOST rounds
+too (see below) — so a level the player is struggling with gets harder round by round rather than
+holding still.
+
+## Passing a level
+
+A level is `rounds_per_level` rounds (`rounds` in `MmmLevelConfig`, read by `_apply_level()`), and
+it is **passed on the share of them that were FULLY CORRECT** — the round survived AND every room
+named right first try:
+
+```
+passed = 100 * _rounds_fully_correct / _rounds_played >= MmmLevelConfig.pass_pct_for(level)
+```
+
+One wrong pick in `answered()` sets `_round_had_wrong_answer` and spoils the round for the gate. The
+round can still be finished — the palette stays open and the player tries again — it just no longer
+counts toward the level.
+
+**The gate has its own counters on purpose.** Every other gated game reads
+`game.session_pct_correct()`, but here `game.corrects` / `game.mistakes` already count ROOM ANSWERS
+and the HUD shows them (`hud.show_corrects_mistakes()`). Putting round verdicts in the same pair
+would mix two different units in one number and make the counter on screen wrong.
+
+Below the bar the SAME level is played again; at or above it, the next one. `level_is_done()`
+records each round's verdict with `game.add_correct_or_mistake()` and steps `round_in_level`; when
+that reaches `rounds_per_level`, `_finish_level()` judges the level and `_advance_if_needed()` —
+called from `new_game()` — acts on the verdict.
+
+Before this, **a level could not be failed, only postponed.** `round_in_level` only moved inside
+`_advance_if_needed()` when `game.need_to_increase_level` had been set, and that happened on a WIN
+— so a lost round did not count toward the level at all. You could lose forever and simply keep
+being handed the same round.
+
+**The percentages have to land on a rung.** A level is a fixed number of rounds, so out of 3 the
+only scores that exist are 0, 33, 66 and 100. `pass_pct` is 60, which is exactly 2 of 3. Recheck it
+whenever `rounds` changes.
+
+The last level is judged the same way but never promotes.
+
+## "complete!" only when it was
+
+The level card is shown with the gate result as its `passed` argument, so it reads "Level N
+complete!" with a check badge or **"Level N not passed"** with none. Under it, `Rounds fully right: 2 of 3`,
+`Accuracy: 66%`, and what happens next:
+
+- passed -> `Level passed — on to level N.`
+- failed -> `You need at least 60% of the rounds fully right to pass to the next level.`
+
+Mid-level rounds keep the small "Well done!" / "Oh no!" panel, now numbered from the round that was
+just played rather than from the one about to start.
+
+`MainGlobals.global_level_is_done()` takes the gate result, so the fanfare does not play over a
+level that was not passed.
+
+## A replay starts clean
+
+`new_game()` runs after EVERY round, so it cannot clear the level's counters unconditionally.
+`_level_is_over` is set by `_finish_level()` and is what tells `_advance_if_needed()` that a LEVEL
+is starting: only then does it reset `round_in_level` and the round tally (`_rounds_played`,
+`_rounds_fully_correct`, `_round_had_wrong_answer`). Otherwise a retry would inherit the rounds that
+failed the level and could not pass it even played perfectly.
+
+`game.corrects` / `game.mistakes` are deliberately left alone — they are the session's room answers,
+not the level's rounds.
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped when a level begins — in `new_game()` for the first level of a
+session, in `_advance_if_needed()` for every level after it, in both cases AFTER the rollback so
+consecutive failures all measure from the same point. A level that misses the gate goes back to it
+(`_rollback_score_on_next_level`), applied when Continue is pressed rather than when the level ends,
+because watching the score drop out from under a summary you are still reading is alarming.
+
+Without it the gate is a scoring exploit: the score is cumulative across a session, so every failed
+attempt banked its points and the retry cost nothing.
 
 ## Tutorial
 

@@ -7,7 +7,7 @@
 **Singleton:** `WhackG`
 **Save key (short name):** `whack`
 **Initial time:** 10 minutes
-**Background color:** `res://art/grass.png` tiled TextureRect (shared default); clear color `0x3C5D3EFF` as fallback
+**Background:** drawn — `whack/scripts/board_backdrop.gd` (see "The board, from above")
 **Initial score:** 100, `game_over_on_zero_score = true`
 
 Whack is a reaction-speed and accuracy game. A circular target appears at a random position on the screen. The player must tap it as fast as possible before it disappears. Only taps whose center lands inside the target count as hits. Two metrics are tracked: reaction time (ms from appearance to tap) and accuracy (100 = center hit, 0 = edge hit).
@@ -253,6 +253,78 @@ Two details that matter:
 
 ---
 
+## Passing a level
+
+Finishing a level's rounds is not the same as passing it. `Level._level_done()` measures the accuracy of
+the level just played — `game.session_pct_correct()` over that level's own `corrects`/`mistakes` —
+against a bar that rises with the level:
+
+```
+need = mini(55 + 5 * (level - 1), 75)
+```
+
+Below it the SAME level comes round again; at or above it, the next one. The gate's result is
+`game.need_to_increase_level`, which `new_game()` feeds to its own `level = min(level + 1, max_difficulty)`.
+
+Before this, `need_to_increase_level` was set to `true` unconditionally — finishing the rounds WAS
+passing, so a player could get every single answer wrong and still be moved up, which made the
+accuracy on the summary card decorative.
+
+The bar is stated to the player as "at least NN%", so the test is `>=`. The last level
+(`max_difficulty`) is exempt: there is nothing to be promoted to, so it ends as it always did.
+
+## "complete!" only when it was
+
+This game can now END a level without PASSING it, so `show_level_done_popup` is called with the
+gate result as its `passed` argument. The card reads "Level N complete!" with a check badge on the
+success color, or **"Level N not passed"** with no badge on the warning color — a tick over "you
+need at least NN% accuracy" is the card congratulating the player for failing.
+
+The card also says what happens next in words, because a percentage on its own does not tell the
+player the one thing they want to know:
+
+- passed → `Level passed — on to level N.`
+- failed → `You need at least NN% accuracy to pass to the next level.`
+
+`MainGlobals.global_level_is_done()` is given the same result, so the level-done fanfare no longer
+plays over a level that was not passed.
+
+## A replay starts clean
+
+Failing the gate brings the same level round again, and that has to be a fresh attempt.
+`new_game()` clears `game.corrects`, `game.mistakes` and `_reaction_times` and `_accuracies` on **every** level start, not
+just `if from_scratch`.
+
+The counters matter twice over. The visible half is the HUD still showing the failed attempt's
+tally. The half that decides the game is that the GATE reads them — a replay which inherited the
+misses that failed the level could not pass it even played perfectly. The two measurement lists are the same argument applied to the card's "Avg reaction" and "Avg distance" rows, and to the score row `main.gd` saves.
+
+`score` deliberately does NOT reset here — it accumulates across a session, and only
+`game.reset(true)` clears it.
+
+The HUD repaint is already covered: `main.gd`'s `new_game()` calls `hud.update_all()` immediately
+after `$Level.new_game()`. (polkadots is the game where that was missing, which is why the shared
+note about repainting next to the clearing exists.)
+
+## A failed level earns nothing
+
+`_score_at_level_start` is stamped at the top of `new_game()` — after the rollback, so consecutive
+failures all measure from the same point — and a level that misses the gate goes back to it.
+Otherwise the gate is a scoring exploit: the score is cumulative across a session, so every failed
+attempt banked its points and the retry cost nothing — fail forever, earn forever.
+
+**When** it happens is split on purpose:
+
+- The score ROW is written the moment the level ends (`main.gd` saves on `game.sig_level_is_done`),
+  so the kept value is swapped in just for that emit and swapped straight back. Without it, failing
+  the same level repeatedly would farm the score list. This is why the gate is computed at the TOP
+  of `Level._level_done()`, before anything is emitted.
+- The VISIBLE score keeps showing what the player played with while the summary card is up:
+  watching the number drop out from under a summary you are still reading is alarming. The visible
+  rollback lands in `new_game()`, behind `_rollback_score_on_next_level`, when Continue is pressed.
+
+Only the failed level's points go back; everything earned in levels already passed is untouched.
+
 ## Tutorial
 
 `whack/scripts/tutorial.gd`, registered in `MainCfg.tutorials`, level 1. Thirteen steps.
@@ -440,3 +512,97 @@ window rather than on the step's 30 s escape.
 
 A second harness plays an impatient player, tapping the target on every frame of every step
 whatever the coach asked for: all 13 steps still complete, longest step 4.0 s.
+
+## The board, from above
+
+`whack/scripts/board_backdrop.gd` (`WhackBoardBackdrop`), attached to the level's `Background` node
+in place of the tiled `res://art/grass.png` that every screen in the app used to wear.
+
+It is a **fairground whack-a-mole box looked down into**: a striped fairground rail around the four
+sides, mown turf inside it, scattered earth where things have been coming up, and the stall lamp
+overhead as a pool of light on the grass.
+
+**Top-down, because that is how the game is seen.** The targets are circles lying on a surface with
+a countdown ring around each; there is no horizon and no depth in this game, so a backdrop with a
+horizon in it is a different picture from the one being played.
+
+Two earlier attempts, both worth not repeating:
+
+- **A shooting range** — concentric rings and crosshairs at 3% alpha. Technically on-topic, and
+  wallpaper: a dark screen with some faint lines on it. Faintness is not what keeps scenery out of a
+  game's way.
+- **The same stall from the SIDE** — awning overhead, posts at the sides, earth along the bottom. It
+  read well as a picture and it was the wrong projection: a booth seen side-on behind targets that
+  are lying flat.
+
+What keeps it clear of the game is placement and shape:
+
+- **Nothing filled and circular.** A filled circle on this board is a target and the player is being
+  timed against it. The earth is drawn as irregular polygons, never discs; the lamp is a soft
+  texture.
+- **The middle is the quietest part.** The rail is at the edges, the earth patches hug them, and the
+  center carries the lamp pool and the mown bands and nothing else.
+- **Nothing moves fast.** The lamp breathes over five seconds and the pollen drifts. A sweep or a
+  flash would pull the eye at exactly the moment the game is measuring where it went.
+
+It lives whether or not the game is running — it is the room, not the round — so the tick sits above
+the pause guard in `_process`, next to the tap flash.
+
+The HUD's level label had to change with it: it was a 63%-alpha yellow, which is unreadable over a
+drawn board. `generic_game_hud.show_level_label()` now sets it fully opaque, in the app's prose face
+and accent, with a dark outline — a shared fix, since every game's board is getting drawn.
+
+## The level briefing
+
+Every level changes the target's size, how long it stays, the gap between targets, how many decoys
+come with it and how many hits pass the level. **None of it was ever said.** The player met a
+smaller, faster, more crowded board with no warning and had to work out what had changed from the
+way it felt.
+
+`new_game()` now ends with the shared briefing card (`show_game_popup`, the BRIEFING tone), and
+`_begin_play()` — the schedule, `level_is_ready`, `started_playing` — waits for it to close. That
+ordering matters: `started_playing` is what sets `game.playing` and restarts the session clock, so
+starting play with the card up would run the clock while the player is reading.
+
+```
+Level 3
+Target: Medium
+On screen: 1.4 s
+Decoys: 2
+Rounds: 10
+Pass mark: 70%
+```
+
+Two things it deliberately does NOT say. The **radius in pixels** is a number the player cannot act
+on and cannot picture, and it told them nothing that looking at the first target would not; it is
+`Big` / `Medium` / `Small`, cut against the actual table (38, 30, 25, 20, 17, 15, 10) two / two /
+three. The **gap between targets** was a range of two decimals describing something the player
+experiences as rhythm — it read as noise on a card meant to be taken in at a glance.
+
+## A level is a run of rounds
+
+A **round** is one target presentation — hit, missed, or correctly left alone. A **level** is
+`rounds_per_level` of them (`rounds` in `WhackLevelConfig`, 10 everywhere), and the accuracy gate at
+the end decides whether it was passed. `_end_of_round()` is the single door both endings go
+through — `_on_hit` and `_on_round_timeout` — so the level's length is counted in one place.
+
+It used to end on a count of HITS (`hits_to_complete`), which is two problems. A level **always
+ended on a hit** and so could not be failed however many were missed on the way — the same defect
+polkadots had to be fixed for. And the levels were wildly uneven: 5 hits at level 1, 30 at level 4,
+15 at level 5.
+
+`pass_pct` now lives in the level table too, instead of the formula `mini(55 + 5 * (level - 1), 75)`
+the gate was using. Out of 10 rounds the only scores that exist are multiples of 10, and the table's
+values (60, 60, 70, 70, 80, 80, 80) land exactly on them; the formula's 55 and 65 did not.
+
+**The speed average counts only hits.** `_reaction_times` is appended in `_on_hit` and nowhere else,
+which is what keeps it honest: a round with no real target in it is one the player is *supposed* to
+leave alone, and folding it in would enter the full show time — by definition the worst possible
+reaction — for doing exactly the right thing. A missed real target is left out for the same reason.
+The accuracy gate does count those rounds; correctly ignoring one IS a correct answer.
+
+The last level's `hits_to_complete` is the sentinel 999, which is not a number to show anyone; there
+the row is replaced with "The last level. It keeps going for as long as you do."
+
+The tutorial is exempt: its session is one continuous lesson whose rounds are staged by the coach,
+so a briefing card in front of it would land on a caption.

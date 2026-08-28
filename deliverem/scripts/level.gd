@@ -62,6 +62,10 @@ signal started_playing
 signal new_packet_message(text, isdispatch, col)
 signal show_reminder(text)
 signal sig_level_is_done(didwin:bool)
+
+# A round is one board. The level is `rounds_per_level` of them, from the level's config.
+var rounds_per_level: int = 5
+var round_in_level: int = 0
 # signal update_score_time(add_score, add_time)
 
 func _ready() -> void:
@@ -83,6 +87,7 @@ func _ready() -> void:
 func new_game(from_scratch=true):
 	if from_scratch:
 		level = DeliveremG.starting_level
+		round_in_level = 0
 	if game.tutorial_mode:
 		_tutorial_setup()
 	increase_difficulty(false)
@@ -498,44 +503,41 @@ func level_is_done(didwin: bool):
 	})
 	start_dispatch = false
 	if didwin:
-		MainGlobals.global_level_is_done(true)
-		if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
-			MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-		game.show_level_done_popup(self, "","", level)
-		increase_difficulty()
-		# MainGlobals.sleep(1.0)
-		# sig_level_is_done.emit(didwin)
+		# A round is one board; a LEVEL is `rounds_per_level` of them. Every won board used to
+		# advance the level on its own, which made the `rounds` column in the config dead text and
+		# meant the board changed under the player every single time they finished one.
+		round_in_level += 1
+		# The coach's session is one lesson, not round 1 of 5: a "Round 1 of Level 1" panel would
+		# land on its closing caption, and the tutorial has always ended on the level card.
+		if game.tutorial_mode or round_in_level >= rounds_per_level:
+			round_in_level = 0
+			MainGlobals.global_level_is_done(true)
+			if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
+				MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
+			game.show_level_done_popup(self, "","", level)
+			increase_difficulty()
+		else:
+			if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
+				MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
+			game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level, level])
 	else:
 		game_over.emit(false)
+
+# sig_game_popup_closed is a GLOBAL signal — the instructions card closing reaches it too — so this
+# only acts when a round is actually waiting on it.
+func _on_game_popup_closed() -> void:
+	if game.level_is_done:
+		sig_level_is_done.emit(true)
 
 func increase_difficulty(increase=true):
 	if increase:
 		level += 1
-	var s = 17
+	var cfg: Dictionary = DeliveremLevelConfig.get_level(level)
+	var s: int = int(cfg["board_size"])
 	game.max_board_size = Vector2i(s,s)
-	if level == 1:
-		num_more_packets = 0
-		num_more_agents = 0
-	elif level == 2:
-		num_more_packets = 1
-	elif level == 3:
-		num_more_packets = 2
-	elif level == 4:
-		num_more_packets = 3
-	elif level == 5:
-		num_more_packets = 3
-	elif level == 6:
-		num_more_packets = 0
-		num_more_agents = 1
-	elif level == 7:
-		num_more_packets = 1
-		num_more_agents = 1
-	elif level == 8:
-		num_more_packets = 2
-		num_more_agents = 2
-	elif level >= 9:
-		num_more_packets = 3
-		num_more_agents = 3
+	num_more_packets = int(cfg["num_more_packets"])
+	num_more_agents = int(cfg["num_more_agents"])
+	rounds_per_level = int(cfg["rounds"])
 	if MainGlobals.is_mobile():
 		var bsh = 4
 		var bsv = 0

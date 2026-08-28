@@ -315,6 +315,7 @@ layout_mode = 2
 size_flags_horizontal = 8
 close_icon = ExtResource("6_xxlx5")
 icon_color = Color(0, 0, 0, 1)
+text_color = Color(0, 0, 0, 1)
 disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
 font_size = 26
 

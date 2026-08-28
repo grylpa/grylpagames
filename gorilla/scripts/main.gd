@@ -172,9 +172,10 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	game.save_score(get_game_score(_didwin, false))
 
 func get_game_score(_didwin, _wasaborted):
-	var num_questions: int = game.mistakes  # mistakes = question count
-	var avg_error: int = int(round(float(game.corrects) / num_questions)) if num_questions > 0 else -1
-	return [_didwin, _wasaborted, $Level.level, avg_error]
+	# The Error column comes from the level's own tally now. It used to be read off
+	# game.corrects / game.mistakes, which were carrying (error sum, question count) rather than
+	# correct and wrong rounds — the same overloading that left the level gate nothing to read.
+	return [_didwin, _wasaborted, $Level.level, $Level.mean_error()]
 
 func _on_game_is_done(_didwin: bool, _wasaborted: bool):
 	game.save_score(get_game_score(_didwin, _wasaborted))

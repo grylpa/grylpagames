@@ -1,5 +1,10 @@
 extends Node
 
+# pass_pct: accuracy (%) needed to move on. Below it the SAME level is played again.
+#   A level is a fixed number of rounds, so only some percentages exist: out of 3 the rungs are
+#   0, 33, 66, 100; out of 4 they are 0, 25, 50, 75, 100. A pass_pct off those rungs promises a
+#   bar that cannot be met. These land exactly — 60/65 = 2 of 3, 70 = 3 of 4, 75 = 3 of 4.
+#   Recheck them whenever "rounds" changes.
 # num_belts: 1 or 2 (how many rules to identify per question round)
 # belt_spd: pixels per second
 # min_examples: min items per belt rule shown before asking the question
@@ -28,12 +33,12 @@ extends Node
 # NOTE: "square" overlaps with "filled"/"hollow" (a ■ is both square AND filled) — avoid putting
 #   "square" in the same pool as "filled"/"hollow" (they are never paired or co-offered anyway).
 const LEVELS: Array = [
-	{"id": 1, "name": "1", "rules": ["digit", "square"],                                            "num_belts": 1, "belt_spd": 55.0, "robot_answer_time": 5.0, "min_examples": 4, "rounds": 3, "num_options": 2},
-	{"id": 2, "name": "2", "rules": ["even_odd", "vowel", "hollow"],                                "num_belts": 1, "belt_spd": 60.0, "robot_answer_time": 2.6, "min_examples": 4, "rounds": 3, "num_options": 3},
-	{"id": 3, "name": "3", "rules": ["hollow", "vowel", "even_odd", "square"],                      "num_belts": 2, "belt_spd": 60.0, "robot_answer_time": 1.4, "min_examples": 4, "rounds": 3, "num_options": 4},
-	{"id": 4, "name": "4", "rules": ["prime", "filled", "vowel", "lines", "color_shape"],           "num_belts": 1, "belt_spd": 65.0, "robot_answer_time": 1.2, "min_examples": 5, "rounds": 4, "num_options": 4},
-	{"id": 5, "name": "5", "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "num_belts": 2, "belt_spd": 70.0, "robot_answer_time": 1.0, "min_examples": 5, "rounds": 4, "num_options": 5},
-	{"id": 6, "name": "6", "rules": [],                                                             "num_belts": 2, "belt_spd": 70.0, "robot_answer_time": 1.0, "min_examples": 5, "rounds": 4, "num_options": 5},
+	{"id": 1, "name": "1", "pass_pct": 60, "rules": ["digit", "square"],                                            "num_belts": 1, "belt_spd": 55.0, "robot_answer_time": 5.0, "min_examples": 4, "rounds": 3, "num_options": 2},
+	{"id": 2, "name": "2", "pass_pct": 60, "rules": ["even_odd", "vowel", "hollow"],                                "num_belts": 1, "belt_spd": 60.0, "robot_answer_time": 2.6, "min_examples": 4, "rounds": 3, "num_options": 3},
+	{"id": 3, "name": "3", "pass_pct": 65, "rules": ["hollow", "vowel", "even_odd", "square"],                      "num_belts": 2, "belt_spd": 60.0, "robot_answer_time": 1.4, "min_examples": 4, "rounds": 3, "num_options": 4},
+	{"id": 4, "name": "4", "pass_pct": 70, "rules": ["prime", "filled", "vowel", "lines", "color_shape"],           "num_belts": 1, "belt_spd": 65.0, "robot_answer_time": 1.2, "min_examples": 5, "rounds": 4, "num_options": 4},
+	{"id": 5, "name": "5", "pass_pct": 70, "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "num_belts": 2, "belt_spd": 70.0, "robot_answer_time": 1.0, "min_examples": 5, "rounds": 4, "num_options": 5},
+	{"id": 6, "name": "6", "pass_pct": 75, "rules": [],                                                             "num_belts": 2, "belt_spd": 70.0, "robot_answer_time": 1.0, "min_examples": 5, "rounds": 4, "num_options": 5},
 ]
 
 # LEVEL_PROGRESSION_ORDER: the level play order; may repeat ids. When the list runs out it

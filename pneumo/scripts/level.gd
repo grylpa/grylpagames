@@ -87,8 +87,15 @@ func new_game(from_scratch=true):
 		level = PneumoG.starting_level
 	increase_difficulty(game.need_to_increase_level)
 	game.need_to_increase_level = false
+	# The failed level's points go back HERE, on Continue, so the summary card was still read
+	# against the score the player had while playing it.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	_score_at_level_start = game.score
 	time_last_dispatch = -10000
 	pos_last_dispatch = Vector2i(-1,-1)
+	_deliveries = 0
 	create_board()
 	time_started_level_ms = MainGlobals.timems()
 	time_increased_difficulty_ms = time_started_level_ms
@@ -394,7 +401,9 @@ func tick():
 				continue
 			var adj_tar_id = get_adjacent_target_id(p, agent)
 			if adj_tar_id >= 0:
-				game.dec_packet()
+				# A delivery is what the player is HERE for, and it pays (delivered_one), but it does
+				# not touch the crash allowance and does not end the level — the clock does that.
+				_deliveries += 1
 				delivered_transaction(agent.transaction_id)
 				var aid = agent.transaction_id
 				MainGlobals.do_after(2, func(): reset_sender_receiver(aid))
@@ -403,9 +412,6 @@ func tick():
 					game.play_sound("delivery")
 				game.tutorial_notify("delivered")
 				delivered_one.emit()
-				if game.packets_left == 0:
-					level_is_done(true)
-					return
 				continue
 			# var _removed_body_part = false
 			# if adj_tar_id >= 0:
@@ -514,14 +520,36 @@ func level_is_done(didwin: bool):
 	})
 	start_dispatch = false
 	if didwin:
-		MainGlobals.global_level_is_done(true)
-		game.need_to_increase_level = true
+		var cfg: Dictionary = PneumoLevelConfig.get_level(level)
+		var allowed: int = int(cfg["allowed_collisions"])
+		var need: int = int(cfg["min_deliveries"])
+		# Lasting the level is not the same as PASSING it. Reaching the end of the clock is what ends
+		# the level; landing `min_deliveries` capsules is what earns the next one. Without the second
+		# half, standing back and touching nothing crashed nothing and promoted the player — the
+		# level advanced without a single capsule delivered.
+		var passed: bool = _deliveries >= need
+		game.need_to_increase_level = passed
+		_rollback_score_on_next_level = not passed
+		# No fanfare over a level that was not passed.
+		MainGlobals.global_level_is_done(passed)
 		if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 			MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-		game.show_level_done_popup(self, "","", level)
+		# The two numbers the level was played against. The crash row is the count ALONE — the
+		# allowance is not a bar the player has to reach, it is one they have to stay under, and it
+		# is already on screen the whole level.
+		var textadd: String = "\n\nDelivered: %d of %d\nCrashes: %d of %d\n\n%s" % [
+			_deliveries, need, allowed - game.packets_left, allowed, _progress_line(passed, need)]
+		game.show_level_done_popup(self, "", "", level, textadd, passed)
 	else:
 		# MainGlobals.sleep(1.0)
 		sig_level_is_done.emit(didwin)
+
+# What the player gets next, in words. A count of deliveries alone does not say whether they are
+# moving on, which is the only thing they want to know at that moment.
+func _progress_line(passed: bool, need: int) -> String:
+	if not passed:
+		return "You need to deliver at least %d capsules to pass to the next level." % need
+	return "Level passed — on to level %d." % (level + 1)
 
 func increase_difficulty(increase=true):
 	if game == null:
@@ -532,56 +560,28 @@ func increase_difficulty(increase=true):
 		game.add_life()
 	var s = 9 + level * 2
 	game.max_board_size = Vector2i(s,s)
-	if level == 1:
-		time_between_dispatches_ms = 5000
-		num_more_packets = 0
-		max_speed_scale = 1.0
-		game.set_num_packets(3)
-	elif level == 2:
-		time_between_dispatches_ms = 2500
-		num_more_packets = 0
-		max_speed_scale = 1.5
-		game.set_num_packets(4)
-	elif level == 3:
-		time_between_dispatches_ms = 3500
-		num_more_packets = 1
-		max_speed_scale = 2.0
-		game.set_num_packets(5)
-	elif level == 4:
-		time_between_dispatches_ms = 2500
-		num_more_packets = 1
-		max_speed_scale = 2.0
-		game.set_num_packets(6)
-	elif level == 5:
-		time_between_dispatches_ms = 3000
-		num_more_packets = 2
-		max_speed_scale = 2.0
-		game.set_num_packets(7)
-	elif level == 6:
-		time_between_dispatches_ms = 3000
-		num_more_packets = 3
-		max_speed_scale = 3.0
-		game.set_num_packets(8)
-	elif level == 7:
-		time_between_dispatches_ms = 3000
-		num_more_packets = 4
-		max_speed_scale = 3.0
-		game.set_num_packets(9)
-	elif level == 8:
-		time_between_dispatches_ms = 2000
-		num_more_packets = 5
-		max_speed_scale = 3.0
-		game.set_num_packets(10)
-	elif level >= 9:
-		time_between_dispatches_ms = 2000
-		num_more_packets = 6
-		max_speed_scale = 4.0
-		game.set_num_packets(3000)
+	var cfg: Dictionary = PneumoLevelConfig.get_level(level)
+	time_between_dispatches_ms = int(cfg["time_between_dispatches_ms"])
+	num_more_packets = int(cfg["num_more_packets"])
+	max_speed_scale = float(cfg["max_speed_scale"])
+	# The counter at the top of the screen is an ALLOWANCE of crashes, not a delivery quota. It
+	# ticks DOWN with every collision, and the session is over when it runs out.
+	game.set_num_packets(int(cfg["allowed_collisions"]))
+	# The clock is per LEVEL, not per session: surviving it is what passing this level means.
+	game.set_reset_time_left(int(cfg["level_time"]))
+	game.reset_time_left()
 	if MainGlobals.is_mobile():
 		var bsh = 2
 		var bsv = 2
 		game.max_board_size -= Vector2i(bsh,bsv)
 	game.init_sizes()
+
+# How many capsules the player has landed in this level. It does not END the level — the clock does
+# that — but it is what PASSES it: see level_is_done().
+var _deliveries: int = 0
+# What the score was when this level began; a level that misses min_deliveries goes back to it.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
 
 var time_last_dispatch = -10000
 var pos_last_dispatch = Vector2i(-1,-1)
@@ -657,6 +657,13 @@ func check_agent_collisions():
 								game.play_sound("explosion")
 							game.tutorial_notify("capsules_collided")
 							collision.emit()
+							# One of the allowance is spent. dec_packet() emits sig_no_more_packets when it
+							# reaches zero, which is where main.gd ends the session — so a crash under the
+							# coach's supervision must not cost anything, or a fumbled lesson ends the game
+							# mid-caption. (It does: the tutorial's own text names a collision as a thing
+							# that happens here.)
+							if not (game.tutorial_mode or _tutorial_board):
+								game.dec_packet()
 							MainGlobals.do_after(2, func(): 
 								reset_sender_receiver(tid1)
 								reset_sender_receiver(tid2)
@@ -699,8 +706,15 @@ func on_clicked_target(target_id, _target_board_pos):
 	if target:
 		activate_transaction(target.transaction_id)
 
+# Running the clock out is how this level is WON: there is no quota to finish, only capsules to
+# keep from crashing for as long as the level lasts. The guards matter because the HUD re-emits
+# sig_time_over on every tick while the clock sits at zero (main.gd turns off
+# game_over_on_time_out), and because a tutorial can easily outlast a level's time.
 func on_time_over():
+	if game.level_is_done or game.tutorial_mode or _tutorial_board:
+		return
 	game.stop_sound("motor")
+	level_is_done(true)
 
 # --- tutorial staging -------------------------------------------------------
 

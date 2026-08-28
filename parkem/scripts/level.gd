@@ -100,6 +100,7 @@ func new_game(from_scratch=true):
 	game.need_to_increase_level = false
 	time_last_dispatch = -10000
 	pos_last_dispatch = Vector2i(-1,-1)
+	_creatures_stopped = 0
 	create_board()
 	time_started_level_ms = MainGlobals.timems()
 	time_increased_difficulty_ms = time_started_level_ms
@@ -511,7 +512,12 @@ func tick():
 				continue
 			var adj_tar_id = get_adjacent_target_id(p, agent)
 			if adj_tar_id >= 0:
-				game.inc_packet()
+				# One of the allowance is spent. dec_packet() emits sig_no_more_packets when it reaches
+				# zero, which is where main.gd ends the session — so a creature that parks under the
+				# coach's supervision must not cost anything, or a fumbled lesson ends the game
+				# mid-caption.
+				if not (game.tutorial_mode or _tutorial_board):
+					game.dec_packet()
 				game.add_score_and_time(-5,-10)
 				MainGlobals.sig_global_update_hud.emit()
 				delivered_transaction(agent.transaction_id)
@@ -635,7 +641,13 @@ func level_is_done(didwin: bool):
 		game.need_to_increase_level = true
 		if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 			MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
-		game.show_level_done_popup(self, "","", level)
+		# The card reports the two numbers the level was actually played against: how many the player
+		# turned back, and how much of the allowance the creatures took. Reaching the end of the
+		# clock with any allowance left IS passing, so there is no threshold line to print.
+		var cfg: Dictionary = ParkemLevelConfig.get_level(level)
+		var allowed: int = int(cfg["allowed_arrivals"])
+		var textadd: String = "\n\nTurned back: %d\nGot parked: %d of %d" % [_creatures_stopped, allowed - game.packets_left, allowed]
+		game.show_level_done_popup(self, "", "", level, textadd)
 	else:
 		# MainGlobals.sleep(1.0)
 		sig_level_is_done.emit(didwin)
@@ -649,65 +661,26 @@ func increase_difficulty(increase=true):
 		game.add_life()
 	var s = 23#19 + level * 2
 	game.max_board_size = Vector2i(s,s)
-	if level == 1:
-		time_between_dispatches_ms = 5000
-		num_more_packets = 4
-		max_speed_scale = 2.0
-		num_bombs_to_use = 3
-		game.set_num_packets(10)
-	elif level == 2:
-		time_between_dispatches_ms = 3500
-		num_more_packets = 2
-		max_speed_scale = 2.5
-		num_bombs_to_use = 5
-		game.set_num_packets(15)
-	elif level == 3:
-		time_between_dispatches_ms = 2500
-		num_more_packets = 0
-		max_speed_scale = 3.0
-		num_bombs_to_use = 6
-		game.set_num_packets(20)
-	elif level == 4:
-		time_between_dispatches_ms = 2500
-		num_more_packets = 0
-		max_speed_scale = 3.5
-		num_bombs_to_use = 7
-		game.set_num_packets(25)
-	elif level == 5:
-		time_between_dispatches_ms = 2000
-		num_more_packets = 0
-		max_speed_scale = 4.0
-		num_bombs_to_use = 8
-		game.set_num_packets(3000)
-	# elif level == 6:
-	# 	time_between_dispatches_ms = 3000
-	# 	num_more_packets = 0
-	# 	max_speed_scale = 3.5
-	# 	num_bombs_to_use = 9
-	# 	game.set_num_packets(35)
-	# elif level == 7:
-	# 	time_between_dispatches_ms = 3000
-	# 	num_more_packets = 0
-	# 	max_speed_scale = 3.5
-	# 	num_bombs_to_use = 9
-	# 	game.set_num_packets(40)
-	# elif level == 8:
-	# 	time_between_dispatches_ms = 2000
-	# 	num_more_packets = 0
-	# 	max_speed_scale = 3.5
-	# 	num_bombs_to_use = 9
-	# 	game.set_num_packets(50)
-	# elif level >= 9:
-	# 	time_between_dispatches_ms = 2000
-	# 	num_more_packets = 0
-	# 	max_speed_scale = 3.5
-	# 	num_bombs_to_use = 10
-	# 	game.set_num_packets(3000)
+	var cfg: Dictionary = ParkemLevelConfig.get_level(level)
+	time_between_dispatches_ms = int(cfg["time_between_dispatches_ms"])
+	num_more_packets = int(cfg["num_more_packets"])
+	max_speed_scale = float(cfg["max_speed_scale"])
+	num_bombs_to_use = int(cfg["num_bombs_to_use"])
+	# The counter at the top of the screen is an ALLOWANCE: how many creatures may still reach a
+	# parking spot. It ticks DOWN as they park, and the session is over when it runs out.
+	game.set_num_packets(int(cfg["allowed_arrivals"]))
+	# The clock is per LEVEL, not per session: surviving it is what passing this level means.
+	game.set_reset_time_left(int(cfg["level_time"]))
+	game.reset_time_left()
 	if MainGlobals.is_mobile():
 		var bsh = 12
 		var bsv = 8
 		game.max_board_size -= Vector2i(bsh,bsv)
 	game.init_sizes()
+
+# How many creatures the player has turned back in this level. Not a quota — the level does not
+# end on it — but it is what the level card reports and what the tutorial's closing step reads.
+var _creatures_stopped: int = 0
 
 var time_last_dispatch = -10000
 var pos_last_dispatch = Vector2i(-1,-1)
@@ -745,13 +718,13 @@ func on_agent_remove_agent(agent_id, arrived):
 			agents[i].queue_free()
 			agents.remove_at(i)
 			if not arrived:
-				game.dec_packet()
+				# Stopping one is the player's job, not a quota: it pays (delivered_one) but does not
+				# touch the allowance and does not end the level. The level ends when the clock does.
+				_creatures_stopped += 1
 				if !game.is_sound_playing("delivery"):
 					game.play_sound("delivery")
 				game.tutorial_notify("creature_stopped")
 				delivered_one.emit()
-				if game.packets_left == 0:
-					level_is_done(true)
 			else:
 				game.tutorial_notify("creature_parked")
 			break
@@ -804,8 +777,17 @@ func on_clicked_target(target_id, _target_board_pos):
 	if target:
 		activate_transaction(target.transaction_id)
 
+# Running the clock out is how this level is WON: there is no quota to finish, only creatures to
+# keep away from their spots for as long as the level lasts. The guard matters because the HUD
+# re-emits sig_time_over on every tick while the clock sits at zero (main.gd turns off
+# game_over_on_time_out, so nothing else stops it).
 func on_time_over():
+	# The coach's session has no clock to lose to: a tutorial can easily outlast a level's time, and
+	# a level-done popup landing on a caption is the failure mmm taught us to guard against.
+	if game.level_is_done or game.tutorial_mode or _tutorial_board:
+		return
 	game.stop_sound("motor")
+	level_is_done(true)
 
 func draw_path(path):
 	if !allow_show_path:
@@ -945,6 +927,9 @@ func tutorial_next_door_pos() -> Vector2:
 func tutorial_has_door() -> bool:
 	return tutorial_next_door_pos() != Vector2.ZERO
 
-func tutorial_packets_left() -> int:
-	return game.packets_left
+# How many creatures the player has turned back so far. The tutorial's closing step reads it to
+# tell whether the lesson already landed. It used to read game.packets_left, which counted DOWN
+# toward a quota of stops; that counter is now the arrivals allowance and means the opposite.
+func tutorial_creatures_stopped() -> int:
+	return _creatures_stopped
 

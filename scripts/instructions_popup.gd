@@ -26,6 +26,7 @@ func _restyle() -> void:
 	if frame != null:
 		frame.add_theme_stylebox_override("panel", ScreenBackdrop.card_style(28))
 	ScreenBackdrop.style_title(%Title, ScreenBackdrop.ACCENT)
+	ScreenBackdrop.style_close(_find_close(), ScreenBackdrop.ACCENT)
 	%Text.add_theme_font_override("font", MainGlobals.get_text_font())
 	%Text.add_theme_color_override("font_color", Color(0.929, 0.941, 0.969))
 	set_process(true)
@@ -112,3 +113,16 @@ func _on_background_panel_gui_input(_event: InputEvent) -> void:
 	# 	get_viewport().set_input_as_handled()
 	# 	return
 
+# The close X, wherever this screen keeps it.
+func _find_close() -> Node:
+	for n in _all_children(self):
+		if n.name == "XCloseScene":
+			return n
+	return null
+
+func _all_children(n: Node) -> Array:
+	var out: Array = []
+	for c in n.get_children():
+		out.append(c)
+		out.append_array(_all_children(c))
+	return out

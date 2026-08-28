@@ -55,6 +55,12 @@ var ambient_audios = [
 signal started_playing
 signal sig_level_is_done(didwin:bool)
 
+# What the score was when this level began. A level that misses the gate gives its points
+# back (see the level-done function): without that, failing forever is a way to earn forever
+# — every attempt banked its points and the retry cost nothing.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
+
 func _ready() -> void:
 	game = OooG.game
 	game.sig_time_over.connect(on_time_over)
@@ -66,8 +72,18 @@ func _ready() -> void:
 	game.add_sound(self, "swoosh", swoosh_audio)
 
 func new_game(from_scratch=true):
+	# The failed level's points go back HERE, on Continue, together with everything else that is
+	# cleared — so the summary card was still read against the score the player had while playing.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	_score_at_level_start = game.score
+	# A replay has to be a FRESH attempt. The gate reads these, so a retry that inherited the
+	# misses which failed the level could not pass it even played perfectly; and the summary's
+	# timing average would fold in the attempt the player is being made to redo.
 	game.corrects = 0
 	game.mistakes = 0
+	times_to_answer.clear()
 	_tutorial_board = game.tutorial_mode
 	game.level_is_ready = false
 	if from_scratch:
@@ -215,22 +231,39 @@ func level_is_done(didwin: bool):
 		# guard against; _tutorial_board keeps it holding once tutorial_mode has gone false.
 		return
 	game.level_is_done = true
-	game.sig_level_is_done.emit(didwin)
+	# The gate is decided BEFORE the level's score row is written: main.gd saves that row on
+	# game.sig_level_is_done, and it has to carry the score the player actually KEEPS, or
+	# failing the same level over and over is a way to farm the score list.
+	#
+	# Passing is a RESULT, not a formality: below this level's accuracy the SAME level comes
+	# round again. The bar rises with the level, from 60% to at most 80%.
+	var need: int = mini(60 + 5 * (level - 1), 80)
+	var pct: int = game.session_pct_correct()
+	var passed: bool = true
+	if didwin and level < max_difficulty:
+		passed = pct >= need
+		_rollback_score_on_next_level = not passed
+	if passed:
+		game.sig_level_is_done.emit(didwin)
+	else:
+		# The kept value is put in place just for the save. The SCREEN keeps showing the score
+		# the player had while playing, because watching it drop out from under a summary you
+		# are still reading is alarming; the visible rollback lands on Continue, in new_game().
+		var earned_this_level: int = game.score
+		game.score = _score_at_level_start
+		game.sig_level_is_done.emit(didwin)
+		game.score = earned_this_level
 	game.stop_sound("ambient")
 	BE.send_event("level_done", "OOO", {
 		"level": level,
 		"didwin": int(didwin),
 	})
 	if didwin:
-		MainGlobals.global_level_is_done(true)
+		# No fanfare for a level that was not passed.
+		MainGlobals.global_level_is_done(passed)
 		if level >= max_difficulty:
 			sig_level_is_done.emit(true)
 		else:
-			# Passing is a RESULT, not a formality: below this level's accuracy the SAME level
-			# comes round again. The bar rises with the level, from 60% to at most 80%.
-			var need: int = mini(60 + 5 * (level - 1), 80)
-			var pct: int = game.session_pct_correct()
-			var passed: bool = pct >= need
 			game.need_to_increase_level = passed
 			if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 				MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)

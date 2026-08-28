@@ -5,7 +5,6 @@ var game:GenericGameUtil
 var main_menu
 var _did_per_level_save: bool = false
 
-var lives_tex: Texture2D = preload("res://art/tube-1-4x.png")
 
 func _ready() -> void:
 	game = PneumoG.game
@@ -13,6 +12,9 @@ func _ready() -> void:
 	# background (measured rgb 0.00,0.30,0.20 against 0.00,0.32,0.11 -- a distance of 0.17 when
 	# the next nearest color is 0.88), so a capsule wearing it is nearly invisible.
 	game.skip_color_idxs = [10]
+	# The clock belongs to the LEVEL here, not to the session: running it out is how a level is
+	# passed, so it must not be the end of the game (see Level.on_time_over).
+	game.game_over_on_time_out = false
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
 	PneumoG.load_settings()
@@ -28,7 +30,14 @@ func _ready() -> void:
 		"N": "New game",
 	})
 	$Help.close_help.connect(_on_help_close_help)
-	hud.set_packets_icon(lives_tex, 0.2)
+	# The counter at the top of the screen counts CRASHES the player may still afford, so it wears
+	# two of this game's own capsules hitting each other — built from the board's body sprite, see
+	# pneumo/scripts/collision_icon.gd. A single tube there said "deliveries", which is not what the
+	# number means, and a bomb read as a hazard sitting on the board.
+	#
+	# White modulate: the icon is real sprite art, and the HUD's yellow tint turns it to mud.
+	hud.set_packets_icon(PneumoCollisionIcon.make(
+		game.color_by_index(6), game.color_by_index(7)), 0.5, Color.WHITE)
 	hud.set_game(game)
 	hud.show_packets()
 	hud.show()
@@ -192,8 +201,12 @@ func on_game_is_done(_didwin:bool, _wasaborted:bool):
 func _save_ongoing_score():
 	game.save_ongoing_score(get_game_score(false, false))
 
+# The crash allowance is spent. That is the end of the session, not just of the level — there is
+# no way to earn the allowance back.
 func on_game_no_more_packets():
 	hud.update_all()
+	game.playing = false
+	game.game_is_done(false, false)
 
 
 

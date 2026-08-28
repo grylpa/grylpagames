@@ -12,7 +12,8 @@ Same skeleton as `deliverem` and `parkem`; the distinguishing rule is the collis
 pneumo/
 ├── scripts/
 │   ├── globals.gd       PneumoG autoload: num_packets, starting_level
-│   ├── level_config.gd  PneumoLevelConfig: 9 levels (rounds only; difficulty is computed)
+│   ├── level_config.gd  PneumoLevelConfig: 9 levels, every per-level number
+│   ├── collision_icon.gd  PneumoCollisionIcon: the crash counter's icon, drawn
 │   ├── main.gd          orchestrator, HUD wiring, scoring
 │   ├── level.gd         board generation, dispatch, doors, delivery, collisions
 │   ├── agent.gd         a capsule: glides tile to tile, carries a transaction_id
@@ -165,8 +166,128 @@ jitter is not settled.
 
 ## Difficulty
 
-`increase_difficulty()`: level 1 is 3 packets on an 11x11 board, one capsule every 5s, speed 1.0.
-Level 9 reaches 9+ packets on a larger board with more capsules in flight at once.
+Every per-level number lives in `pneumo/scripts/level_config.gd` (`PneumoLevelConfig.LEVELS`), read
+by `increase_difficulty()` through `get_level()`. It used to be a `match level:` ladder inside
+`level.gd`, with a `LEVELS` array next to it that stated `rounds: 1` nine times and was read by
+nothing but the menu slider's range.
+
+| key | meaning |
+|-----|---------|
+| `time_between_dispatches_ms` | gap between capsules being sent in |
+| `num_more_packets` | extra body segments on each capsule — how LONG it is |
+| `max_speed_scale` | fastest a capsule may move |
+| `allowed_collisions` | crashes allowed before the game is over |
+| `min_deliveries` | capsules that must be landed for the level to be PASSED |
+| `level_time` | seconds the level lasts |
+
+The board grows with the level (`9 + level * 2`, less on mobile), which is not in the table.
+
+## Ending a level and passing it are two different things
+
+The level runs for `level_time` seconds; **reaching the end of the clock is what ENDS it** —
+`on_time_over()` calls `level_is_done(true)`. What PASSES it is having landed at least
+`min_deliveries` capsules.
+
+The second half is not optional, and leaving it out was a real bug: with "survive the clock" as the
+whole rule, a player who touched nothing crashed nothing and was promoted — the level advanced
+without a single capsule delivered. parkem's version of this rule needs no such minimum because
+doing nothing there LOSES: creatures reach their spots on their own and spend the allowance.
+
+Deliveries are still what the player scores; the minimum is a floor under the promotion, not a
+quota that ends anything.
+
+That is why `main.gd` sets `game.game_over_on_time_out = false`: with it on, the shared HUD ends
+the whole SESSION at zero (`generic_game_hud.gd::check_time_run_out`), which is the opposite of
+what the clock means here.
+
+Two guards sit on `on_time_over()` and both are load-bearing:
+
+- **`game.level_is_done`** — with `game_over_on_time_out` off the HUD does not stop its timer; it
+  re-emits `sig_time_over` on every tick while the clock sits at zero, which would stack level
+  cards.
+- **`game.tutorial_mode or _tutorial_board`** — a tutorial easily outlasts a 90 s level, and a
+  level-done card landing on the coach's caption is the failure mmm taught us to guard against.
+
+## The counter at the top is a crash allowance
+
+`game.packets_left` — drawn by the shared HUD's `PacketsContainer` — is how many collisions the
+player may still afford. It starts at the level's `allowed_collisions` and ticks DOWN with each
+crash; at zero, `sig_no_more_packets` reaches `main.gd::on_game_no_more_packets()`, which stops
+play and calls `game.game_is_done(false, false)`.
+
+It used to count DELIVERIES still owed, with the level won at zero, and it wore
+`res://art/tube-1-4x.png` — a capsule, which said "deliveries" correctly for the old meaning and
+says nothing about the new one. It now wears `res://art/bomb1.png`, a hazard, at scale 1.0 (the
+file is 32x32, which is exactly the size the shared HUD lays the icon out at).
+
+A collision already cost score and time through the shared `score_for_collision` default
+(`[-1, -10]`); what it did not do was ever end anything.
+
+**A crash during the TUTORIAL spends nothing.** The tutorial's own text names a collision as
+something that happens there ("Both capsules were destroyed"), so without the exemption a fumbled
+lesson ends the session mid-caption — which is exactly what the tutorial probe caught.
+
+`_deliveries` counts what the player landed in this level. Nothing ENDS on it; it is what the gate
+reads, and it is the first row on the level card next to how much of the allowance the crashes took:
+
+```
+Delivered: 3 of 5
+Crashes:   2 of 4
+
+You need to deliver at least 5 capsules to pass to the next level.
+```
+
+The crash row is the count alone — the allowance is not a bar to reach but one to stay under, and it
+is on screen the whole level anyway.
+
+A level that misses the minimum gives its points back: `_score_at_level_start` is stamped at the top
+of `new_game()` and `_rollback_score_on_next_level` restores it when Continue is pressed, so failing
+repeatedly cannot farm the score.
+
+## The crash counter's icon
+
+`pneumo/scripts/collision_icon.gd` (`PneumoCollisionIcon.make()`) builds it as a 64x64
+`ImageTexture`, halved to the 32px the shared HUD lays out. It is **this game's own capsule**:
+`res://pneumo/art/agent_body1.png`, the 30x25 body segment the capsules on the board are made of,
+scaled, tinted and rotated onto the diagonal — TWO of them, running at each other along one 45
+degree track, each snapped off short of the middle with a ragged bite out of its end. The burst sits
+in the gap between the two torn ends, with impact strokes thrown out across the track.
+
+It is a HEAD-ON collision because the arrangement carries the meaning. Laid out as an L — one tube
+along the bottom, one down the side, meeting at a corner — the same pieces read as a pipe junction,
+and the burst has nowhere to sit but off to one side of it. Facing each other, the gap between the
+ends IS the impact, and the picture fills the frame corner to corner.
+
+`_place_tube()` maps every DESTINATION pixel back into the tube and samples it, rather than throwing
+the tube's pixels forward: a forward blit at 45 degrees leaves a lattice of gaps wherever two source
+pixels round to the same destination.
+
+The colors are passed in by `main.gd` from the game's own palette (`color_by_index(6)` and `(7)`,
+cyan and magenta), so the icon shows two capsules of different colors hitting each other exactly as
+the board does.
+
+Five things were got wrong before landing here, and they are all worth not repeating:
+
+- **`res://art/bomb1.png`** reads as a hazard sitting on the board, not as two capsules hitting each
+  other.
+- **Drawing it from scratch as line-art** threw away the one picture that already says "capsule".
+  The art exists; the icon should be made OF it.
+- **Four arms** — each tube continued past the break as an offset far half, to fill the frame — just
+  reads as a cross.
+- **A train of small segments per run** came out as four little blocks at 32px on screen, with no
+  room left for the break between them. One segment is the whole tube.
+- **One tube horizontal, one vertical, meeting at a corner** reads as a pipe junction. By then every
+  PIECE was right — the broken tubes, the burst, the strokes — and the ARRANGEMENT was what was
+  wrong.
+- **Blitting the sprite as it comes** produces a white icon: the board tints it at runtime
+  (`agent.gd` modulates each capsule), so the icon has to tint it too.
+
+`main.gd` passes `Color.WHITE` as the icon's modulate. The HUD's `PacketsIcon` carries a yellow tint
+from the scene to match the yellow number beside it, which is right for a one-color pictogram and
+turns real sprite art to mud.
+
+`PneumoCollisionIcon.ascii()` renders the result as text, which is how each of those attempts was
+judged without opening an image.
 
 ## Pause
 

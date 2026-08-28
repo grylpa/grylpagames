@@ -9,6 +9,9 @@ func _ready() -> void:
 	game = ParkemG.game
 	game.score_for_collision = [0, 0]
 	game.score_for_deliver_one = [10, 10]
+	# The clock belongs to the LEVEL here, not to the session: running it out is how a level is
+	# passed, so it must not be the end of the game (see Level.on_time_over).
+	game.game_over_on_time_out = false
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
 	ParkemG.load_settings()
@@ -24,6 +27,7 @@ func _ready() -> void:
 		"N": "New game",
 	})
 	$Help.close_help.connect(_on_help_close_help)
+	hud.set_packets_icon(_creature_head_icon(), 0.25)
 	hud.set_game(game)
 	hud.show_packets()
 	hud.show()
@@ -189,8 +193,24 @@ func on_game_is_done(_didwin:bool, _wasaborted:bool):
 func _save_ongoing_score():
 	game.save_ongoing_score(get_game_score(false, false))
 
+# The allowance is spent: one creature too many reached its spot. That is the end of the session,
+# not just of the level — there is no way to earn the allowance back.
 func on_game_no_more_packets():
 	hud.update_all()
+	game.playing = false
+	game.game_is_done(false, false)
+
+# The counter at the top of the screen counts CREATURES, so it wears a creature's head. It used to
+# wear the HUD's default icon, which is the same picture the lives counter uses — so a number
+# counting how many more may park read as how many lives the player had left.
+func _creature_head_icon() -> Texture2D:
+	var head: AnimatedSprite2D = preload("res://scenes/head_anim.tscn").instantiate()
+	var frames: SpriteFrames = head.sprite_frames
+	var tex: Texture2D = null
+	if frames != null and frames.has_animation("Enemy"):
+		tex = frames.get_frame_texture("Enemy", 0)
+	head.free()
+	return tex
 
 
 

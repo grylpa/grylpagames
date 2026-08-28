@@ -41,11 +41,23 @@ var ambient_audios := [
 signal started_playing
 signal sig_level_is_done(didwin:bool)
 
+var _bg: Control = null
+var _bg_t: float = 0.0
+var _swipe_start: Vector2 = Vector2.ZERO
+var _swipe_tracking: bool = false
+
+# What the score was when this level began. A level that misses the gate gives its points
+# back (see the level-done function): without that, failing forever is a way to earn forever
+# — every attempt banked its points and the retry cost nothing.
+var _score_at_level_start: int = 0
+var _rollback_score_on_next_level: bool = false
+
 func _ready() -> void:
 	game = FriendsG.game
 	game.sig_time_over.connect(on_time_over)
 	level = FriendsG.starting_level
 	increase_difficulty(false)
+	_apply_look()
 
 	game.add_sound(self, "dispatch", dispatch_audio)
 	game.add_sound(self, "delivery", delivery_audio)
@@ -53,9 +65,85 @@ func _ready() -> void:
 
 	FriendsG.board_top = %Instructions.position.y + %Instructions.size.y + 30
 
+# Cosmetics, plus the one thing that was not cosmetic: SAY HI is on the RIGHT now, because a right
+# swipe and the right arrow are what say it. A button on the left labelled with the gesture that
+# goes right is a trap, and the project has been caught by it before.
+func _apply_look() -> void:
+	var ground: TextureRect = $TextureRect
+	ground.texture = null
+	_bg = ScreenBackdrop.attach(ground)
+	if _bg.draw.get_connections().is_empty():
+		_bg.draw.connect(func() -> void:
+			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.FRIENDS_TOP, ScreenBackdrop.FRIENDS_BOT,
+				ScreenBackdrop.ACCENT))
+	set_process(true)
+
+	# [left spacer] Ignore [gap] Say Hi [right spacer]. Moving Ignore in front of Say Hi on its own
+	# leaves the row's middle spacer stranded on the far side of the pair, so the two buttons end up
+	# touching; the spacer is moved back between them.
+	var row: HBoxContainer = $HBoxContainer
+	var gap: Control = row.get_node_or_null("MarginContainer3") as Control
+	row.move_child(%IgnoreButton, 1)
+	if gap != null:
+		row.move_child(gap, 2)
+	row.add_theme_constant_override("separation", 18)
+	%IgnoreButton.text = "\u2190  Ignore"
+	%SayHiButton.text = "Say Hi  \u2192"
+	var fs: int = 34 if MainGlobals.is_mobile() else 24
+	GameButton.style(%IgnoreButton, ScreenBackdrop.ACCENT, ResultCard.HEADER_INK, fs, true)
+	GameButton.style(%SayHiButton, ScreenBackdrop.ACCENT, ResultCard.HEADER_INK, fs)
+	GameButton.style($ReadyButton, ScreenBackdrop.ACCENT, ResultCard.HEADER_INK, fs)
+	ScreenBackdrop.style_caption(%Instructions)
+	%CorrectText.add_theme_font_override("font", MainGlobals.get_text_font())
+	%WrongText.add_theme_font_override("font", MainGlobals.get_text_font())
+
+func _process(delta: float) -> void:
+	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
+		_bg_t += delta
+		_bg.queue_redraw()
+	_tick_person()
+
+# Right is Hi, left is Ignore — the same pairing the buttons are laid out in and the arrows point
+# at. Both the arrow keys and a horizontal swipe say it.
+func _input(event: InputEvent) -> void:
+	# `answered_current_person` and not just the row's visibility: the row is hidden inside
+	# answered(), but two events can arrive in the same frame before that happens.
+	if answered_current_person or not $HBoxContainer.visible or not _can_play():
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_swipe_start = event.position
+			_swipe_tracking = true
+		else:
+			_swipe_tracking = false
+	elif event is InputEventScreenDrag and _swipe_tracking:
+		var delta: Vector2 = event.position - _swipe_start
+		if delta.length() > 60.0:
+			_swipe_tracking = false
+			MainGlobals.swipe_was_drag = true
+			if abs(delta.x) >= abs(delta.y):
+				if delta.x > 0.0:
+					_on_say_hi_button_pressed()
+				else:
+					_on_ignore_button_pressed()
+	if event.is_action_pressed("right") or event.is_action_pressed("ui_right"):
+		_on_say_hi_button_pressed()
+	elif event.is_action_pressed("left") or event.is_action_pressed("ui_left"):
+		_on_ignore_button_pressed()
+
 func new_game(from_scratch=true):
+	# The failed level's points go back HERE, on Continue, together with everything else that is
+	# cleared — so the summary card was still read against the score the player had while playing.
+	if _rollback_score_on_next_level:
+		_rollback_score_on_next_level = false
+		game.score = _score_at_level_start
+	_score_at_level_start = game.score
+	# A replay has to be a FRESH attempt. The gate reads these, so a retry that inherited the
+	# misses which failed the level could not pass it even played perfectly; and the summary's
+	# timing average would fold in the attempt the player is being made to redo.
 	game.corrects = 0
 	game.mistakes = 0
+	times_to_answer.clear()
 	game.level_is_ready = false
 	if from_scratch:
 		level = FriendsG.starting_level
@@ -201,22 +289,39 @@ func _on_level_done_popup_closed():
 
 func level_is_done(didwin: bool):	
 	game.level_is_done = true
-	game.sig_level_is_done.emit(didwin)
+	# The gate is decided BEFORE the level's score row is written: main.gd saves that row on
+	# game.sig_level_is_done, and it has to carry the score the player actually KEEPS, or
+	# failing the same level over and over is a way to farm the score list.
+	#
+	# Passing is a RESULT, not a formality: below this level's accuracy the SAME level comes
+	# round again. The bar rises with the level, from 60% to at most 80%.
+	var need: int = mini(60 + 5 * (level - 1), 80)
+	var pct: int = game.session_pct_correct()
+	var passed: bool = true
+	if didwin and level < max_difficulty:
+		passed = pct >= need
+		_rollback_score_on_next_level = not passed
+	if passed:
+		game.sig_level_is_done.emit(didwin)
+	else:
+		# The kept value is put in place just for the save. The SCREEN keeps showing the score
+		# the player had while playing, because watching it drop out from under a summary you
+		# are still reading is alarming; the visible rollback lands on Continue, in new_game().
+		var earned_this_level: int = game.score
+		game.score = _score_at_level_start
+		game.sig_level_is_done.emit(didwin)
+		game.score = earned_this_level
 	game.stop_sound("ambient")
 	BE.send_event("level_done", "Friends", {
 		"level": level,
 		"didwin": int(didwin),
 	})
 	if didwin:
-		MainGlobals.global_level_is_done(true)
+		# No fanfare for a level that was not passed.
+		MainGlobals.global_level_is_done(passed)
 		if level >= max_difficulty:
 			sig_level_is_done.emit(true)
 		else:
-			# Passing is a RESULT, not a formality: below this level's accuracy the SAME level
-			# comes round again. The bar rises with the level, from 60% to at most 80%.
-			var need: int = mini(60 + 5 * (level - 1), 80)
-			var pct: int = game.session_pct_correct()
-			var passed: bool = pct >= need
 			game.need_to_increase_level = passed
 			if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
 				MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
@@ -258,7 +363,7 @@ func increase_difficulty(increase=true):
 func _can_play():
 	return not game.paused() and not game.level_is_done and game.level_is_ready and game.playing
 
-func _process(_delta: float) -> void:
+func _tick_person() -> void:
 	if _can_play():
 		var now = game.game_time
 		if time_to_next_mode_ms > 0 and now >= time_to_next_mode_ms:
@@ -345,7 +450,18 @@ func get_rand_person_id():
 
 var answered_current_person := false
 func display_new_person():
-	if !_can_play() or mode != modes.DISPLAY_SOMEONE:
+	if mode != modes.DISPLAY_SOMEONE or game.level_is_done:
+		return
+	# THE STALL. This used to `return` whenever the game was not playable at that instant, and
+	# nothing ever called it again — so the round stopped dead with the last person's reaction
+	# ("Ann says Hi") on screen and no way forward but a new game.
+	#
+	# It is reached from a 2-second `do_after` after every answer, and `_can_play()` is false while
+	# ANY screen is up (help, the level card, the pause), while the app is out of focus, and before
+	# `game.playing` is set. Any of those landing in that 2-second window killed the round. Waiting
+	# is the answer, not giving up.
+	if !_can_play():
+		MainGlobals.do_after(0.5, display_new_person)
 		return
 	answered_current_person = false
 	%CorrectText.hide()

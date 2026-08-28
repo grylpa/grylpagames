@@ -1,0 +1,188 @@
+extends Node
+
+# TEMPORARY PROBE — instantiates the restyled screens and reports what they are made of, so a
+# cosmetic pass can be checked without a display.
+
+func _ready() -> void:
+	MainGlobals.init_globals(Vector2(680, 788))
+	var fails: Array = []
+	var login: CanvasLayer = load("res://scenes/login.tscn").instantiate()
+	add_child(login)
+	for _i in 8:
+		await get_tree().process_frame
+	var ground: TextureRect = login.get_node_or_null("BackgroundPanel/TextureRect")
+	if ground == null:
+		fails.append("no background node")
+	else:
+		if ground.texture != null:
+			fails.append("the grass texture is still there")
+		if ground.get_node_or_null("Backdrop") == null:
+			fails.append("no drawn backdrop attached")
+	for name_ in ["Username", "Email", "Password", "GuestName"]:
+		var le: LineEdit = _find(login, name_) as LineEdit
+		if le == null:
+			fails.append("no field %s" % name_)
+		elif le.get_theme_stylebox("normal") is StyleBoxFlat:
+			var sb: StyleBoxFlat = le.get_theme_stylebox("normal")
+			if sb.corner_radius_top_left < 8:
+				fails.append("%s is still a square field" % name_)
+		else:
+			fails.append("%s has no field style" % name_)
+	for name_ in ["LoginTabBtn", "SignupTabBtn", "GuestTabBtn"]:
+		var b: Button = _find(login, name_) as Button
+		if b == null:
+			fails.append("no tab %s" % name_)
+			continue
+		var sb = b.get_theme_stylebox("normal")
+		if not (sb is StyleBoxFlat) or not (sb as StyleBoxFlat).draw_center:
+			fails.append("%s is still an outline tab" % name_)
+	for name_ in ["ActionButton", "GuestPlayBtn", "GuestBackBtn"]:
+		var b: Button = _find(login, name_) as Button
+		if b == null:
+			fails.append("no button %s" % name_)
+			continue
+		var sb = b.get_theme_stylebox("normal")
+		if not (sb is StyleBoxFlat) or (sb as StyleBoxFlat).corner_radius_top_left != GameButton.CORNER:
+			fails.append("%s is not the app's button" % name_)
+	login.queue_free()
+	for _i in 4:
+		await get_tree().process_frame
+
+	# The two card games' boards: the drawn ground, and (friends) the answer row in the order the
+	# swipes go.
+	for spec: Array in [["friends", true], ["weris", false]]:
+		var folder: String = String(spec[0])
+		var m: Node = load("res://%s/scenes/main.tscn" % folder).instantiate()
+		add_child(m)
+		for _i in 8:
+			await get_tree().process_frame
+		var lvl: Node = m.get_node_or_null("Level")
+		var tr: TextureRect = lvl.get_node_or_null("TextureRect") if lvl != null else null
+		if tr == null:
+			fails.append("%s: no background node" % folder)
+		else:
+			if tr.texture != null:
+				fails.append("%s: the tiled grass is still there" % folder)
+			if tr.get_node_or_null("Backdrop") == null:
+				fails.append("%s: no drawn backdrop attached" % folder)
+		if bool(spec[1]):
+			var ignore_btn: Button = _find(lvl, "IgnoreButton") as Button
+			var hi_btn: Button = _find(lvl, "SayHiButton") as Button
+			if ignore_btn == null or hi_btn == null:
+				fails.append("%s: answer buttons missing" % folder)
+			else:
+				if ignore_btn.get_index() > hi_btn.get_index():
+					fails.append("%s: Say Hi is still left of Ignore, against the swipe" % folder)
+				if not hi_btn.text.contains("\u2192") or not ignore_btn.text.contains("\u2190"):
+					fails.append("%s: the answer buttons carry no arrows" % folder)
+		m.queue_free()
+		for _i in 4:
+			await get_tree().process_frame
+
+	# The scores/stats screen: the drawn ground, and the tabs on the app's accent.
+	var scores: CanvasLayer = load("res://scenes/scores_list.tscn").instantiate()
+	add_child(scores)
+	for _i in 8:
+		await get_tree().process_frame
+	var srect: TextureRect = scores.get_node_or_null("ScoresWindow/ColorRect")
+	if srect == null:
+		fails.append("scores: no background node")
+	else:
+		if srect.texture != null:
+			fails.append("scores: the tiled grass is still there")
+		if srect.get_node_or_null("Backdrop") == null:
+			fails.append("scores: no drawn backdrop attached")
+	var tab: Button = _find(scores, "ScoresTabButton") as Button
+	if tab == null:
+		fails.append("scores: no tab button")
+	else:
+		var sb = tab.get_theme_stylebox("normal")
+		if not (sb is StyleBoxFlat):
+			fails.append("scores: the tab has no style")
+		elif (sb as StyleBoxFlat).bg_color.a > 0.0 and (sb as StyleBoxFlat).bg_color != ScreenBackdrop.ACCENT:
+			fails.append("scores: the active tab is not on the app's accent")
+	# The table must sit ON a panel, and that panel must be square across the top so the active tab
+	# joins it instead of floating over the gradient.
+	var panel: PanelContainer = _find(scores, "TablePanel") as PanelContainer
+	if panel == null:
+		fails.append("scores: the table has no surface")
+	else:
+		var psb = panel.get_theme_stylebox("panel")
+		if not (psb is StyleBoxFlat):
+			fails.append("scores: the table surface has no style")
+		else:
+			# Rounded at the TOP too: the tab bar is an inset pill on a full-width panel, so those
+			# corners are in plain view either side of it.
+			if (psb as StyleBoxFlat).corner_radius_top_left == 0:
+				fails.append("scores: the content frame is square where it shows beside the tabs")
+			# Lighter than the bar above it, so the rows separate from the surface they sit on.
+			if (psb as StyleBoxFlat).bg_color.v <= ResultCard.CARD_BG.v:
+				fails.append("scores: the content surface is no lighter than the tab bar")
+		if _find(panel, "Header") == null or _find(panel, "ScrollContainer") == null:
+			fails.append("scores: the header and the list are not on the surface")
+	# The frame belongs to the content, not to the tabs: a border on the tab bar wraps it around
+	# them, which is what a tab has to sit outside of.
+	var bar: PanelContainer = null
+	for c in _all_nodes(scores):
+		if c is PanelContainer and _find(c, "ScoresTabButton") != null:
+			bar = c
+	if bar == null:
+		fails.append("scores: no tab bar panel")
+	else:
+		var bsb = bar.get_theme_stylebox("panel")
+		if bsb is StyleBoxFlat and (bsb as StyleBoxFlat).border_width_top > 0:
+			fails.append("scores: the frame runs around the tabs instead of under them")
+	if panel != null:
+		var fsb = panel.get_theme_stylebox("panel")
+		if fsb is StyleBoxFlat and (fsb as StyleBoxFlat).border_width_top == 0:
+			fails.append("scores: the content frame has no line closing it under the tabs")
+
+	# The chart's frame must be filled with the chart's OWN ground, or a mat of a different color
+	# shows between the frame and the plot.
+	var chart: Node = null
+	for c in _all_nodes(scores):
+		if c is ChartControl:
+			chart = c
+	if chart == null:
+		fails.append("scores: no chart control")
+	else:
+		var csb = (chart.get_parent() as PanelContainer).get_theme_stylebox("panel") \
+			if chart.get_parent() is PanelContainer else null
+		if csb == null or not (csb is StyleBoxFlat):
+			fails.append("scores: the chart has no frame")
+		elif (csb as StyleBoxFlat).bg_color != ChartControl.GROUND:
+			fails.append("scores: the chart's frame is not filled with the chart's own ground")
+
+	# The bar and the surface must be siblings with no gap between them.
+	var stack: VBoxContainer = _find(scores, "TabsAndTable") as VBoxContainer
+	if stack == null:
+		fails.append("scores: the tab bar and the table are not in one stack")
+	elif stack.get_theme_constant("separation") != 0:
+		fails.append("scores: there is a gap between the tab bar and the table")
+	scores.queue_free()
+	for _i in 4:
+		await get_tree().process_frame
+
+	print("")
+	if fails.is_empty():
+		print("LOOK OK")
+	else:
+		for f in fails:
+			print("LOOK FAIL ", f)
+	get_tree().quit()
+
+func _all_nodes(n: Node) -> Array:
+	var out: Array = []
+	for c in n.get_children():
+		out.append(c)
+		out.append_array(_all_nodes(c))
+	return out
+
+func _find(n: Node, want: String) -> Node:
+	if n.name == want:
+		return n
+	for c in n.get_children():
+		var r: Node = _find(c, want)
+		if r != null:
+			return r
+	return null
