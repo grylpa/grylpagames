@@ -143,3 +143,34 @@ Specific to this game:
   6 s answer clock is fine for play and absurd for someone reading a caption.
 - Events reported to the coach: `model_shown`, `periph_shown`, `answer_ready`, `answered_right` —
   all `game.tutorial_notify`, no-ops outside tutorial mode.
+
+## The background
+
+This game has no world in it — a shape flashes and you answer — so there is no ground to draw. What
+sits behind the board is `scripts/study_backdrop.gd`, shared with Witness (`ddooo`), Lineup (`ooo`) and Glimpse (`pop`), the other three games
+with nothing standing on anything. It used to show a lawn, for no reason at all.
+
+```gdscript
+StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
+    StudyBackdrop.PINPOINT, 34)
+```
+
+`_fit_ground_to_board()` is called at the end of `_ready()` and from `_load_cfg()` (this game has no `create_board` — the board is a fixed 7x7 at every
+level, so `_load_cfg` is the only place its size could change). `fit()` hides the tiled
+`TextureRect` it replaces, attaches a control as the Level layer's first child so it draws behind
+the board, sizes it to the board plus a four-tile margin merged with the full canvas, and populates
+it — rebuilding only when that rect actually changed.
+
+**It is deliberately featureless, and that is a gameplay constraint, not a shortcut.** This game asks which of EIGHT directions a dot flashed in. If the background were brighter in
+some directions than others, the dot would be easier to catch in some directions than others, and
+the game would no longer be measuring what it claims to. That is why the only variation is radially
+symmetric: identical whichever way the dot went.
+So there is no vignette, no gradient with a direction to it, no pattern and no motion. The surface
+is a deep base (`StudyBackdrop.PINPOINT`, a low-chroma slate blue), a radially symmetric lift toward
+the centre at 5% alpha, and a fine untiled dust of specks in two tones at 4-9% alpha — enough that
+the screen reads as a matte surface rather than as a missing asset, and far too little to compete
+with a coloured shape.
+
+`probe_lawn.gd` checks this game with the other three: backdrop present and first in its layer,
+populated before any board is built, covering board and canvas, the tiled ground retired only once
+it has something in it, and the centre lift both small and direction-free.
