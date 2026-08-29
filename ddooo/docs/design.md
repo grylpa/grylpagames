@@ -293,6 +293,17 @@ Specific to this game:
   `tutorial_correct_dir_pos`.
 
 
+
+## The plate under a shape
+
+`scenes/pipe.tscn` draws a 56x56 plate under each shape position, from **`res://art/box.png`** —
+the same image Lineup (`ooo`) and Glimpse (`pop`) use. All three games carried their own
+byte-identical copy of it until they were compared; the shared file is the only one now.
+
+The `ext_resource` line names the shared **uid** as well as the path. It used to carry a bare path
+and no uid at all, which is the weaker form: Godot resolves by UID first, so a line that names one
+cannot be silently repointed at the wrong image by a later path edit.
+
 ## The direction markers are real circles
 
 The eight yellow dots of the round's second step (`_create_dir_button`) get their outline from

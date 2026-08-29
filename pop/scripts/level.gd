@@ -44,7 +44,7 @@ var times_to_answer: Array = []
 # here a box exists only while a shape is on it and goes when the shape goes, so the screen carries
 # nothing the player is not being asked about. One sprite, created in code — a scene for one textured
 # node is more machinery than the thing deserves.
-var box_texture: Texture2D = preload("res://pop/art/box.png")
+var box_texture: Texture2D = preload("res://art/box.png")
 
 var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
 var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
