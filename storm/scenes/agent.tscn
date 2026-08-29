@@ -16,9 +16,6 @@ metadata/_edit_group_ = true
 [node name="AgentShape" type="CollisionShape2D" parent="." unique_id=657828774]
 shape = SubResource("RectangleShape2D_tu7kf")
 
-[node name="Skeleton" type="Line2D" parent="." unique_id=38592080]
-width = 5.0
-
 [node name="Head" parent="." unique_id=501414797 instance=ExtResource("2_lco73")]
 z_index = 1
 

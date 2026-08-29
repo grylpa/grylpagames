@@ -1467,7 +1467,6 @@ func add_player_at(p: Vector2i, direction: int):
 	player.reset()
 	player.direction = direction
 	player.board_pos = p
-	player.body_ids = []
 	# player.speed_scale = rng.randf_range(0.8, player_max_speed_scale)
 	player.speed_scale = player_max_speed_scale
 	# player.player_pressed.connect(on_agent_pressed)

@@ -275,3 +275,24 @@ wraps seamlessly and turning a cell breaks the wrap.
 `probe_lawn.gd` checks all eleven: the field exists, is the first child of its layer, is sown before
 any board is built, covers the board and the canvas, retires the tiled ground only once it has
 something in it, and that no cell shows its own grass again.
+
+## No snake body
+
+This game's agents are a head and nothing else. `agent.gd` and `player.gd` used to carry the whole
+trailing-body rig copied from the delivery games — `body_ids`, `bodies`, `nbody_parts`, a
+`time_back_positions` trail, `find_closest_dist()`, `add_body`/`remove_body`/`final_remove_body`, a
+`Skeleton` `Line2D` to string the segments on, and a `tube_animation.tscn` built from
+`agent_body2.png` / `agent_body3.png` — but the level always assigned an EMPTY `body_ids`, so the
+build loop never ran and not one segment was ever created. Measured by running the game and counting
+the nodes, not by reading it.
+
+All of it is gone: both scripts, the `Skeleton` node in `agent.tscn` and `player.tscn`, the
+`tube_animation` scene and script, and the two PNGs. `angles` keeps a single entry, the head's
+heading, which is all `set_rots()` ever read.
+
+**parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
+so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
+
+While it existed, this game's build loop called `anim.play("EnemyBody")` — an animation its
+`SpriteFrames` never defined; only `"main"` was there. It never raised anything because the loop
+never ran, but a single segment would have sat frozen on frame 0. storm had the identical bug.

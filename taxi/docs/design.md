@@ -16,7 +16,7 @@ taxi/scripts/
 ├── level.gd          the city: board, taxis, customers, targets, gas stations, pathing
 ├── agent.gd          one taxi OR one customer (is_taxi tells them apart); fuel lives here
 ├── target.gd         a building: sender / receiver / gas station, and its lobby + dropoff tiles
-├── door.gd, pipe.gd, empty_space.gd, player.gd, tube_animation.gd   board furniture
+├── door.gd, pipe.gd, empty_space.gd, player.gd   board furniture
 ```
 
 ## Board and difficulty
@@ -45,7 +45,7 @@ board is cut by (10, 6) tiles. `game.max_board_size` grows with the level even w
 
 ## Turning
 
-`agent.gd::set_rot()` keeps `angles[0]` as the logical heading (the body segments trail off it) and
+`agent.gd::set_rot()` keeps `angles[0]` as the logical heading and
 tweens a separate `_head_angle` that the sprite is drawn from, over `TURN_TIME_SEC` (0.12 s) and
 always the short way round. `_process` applies it every frame: `set_rots()` does not run on a
 standing taxi, so applying it only there left a stopped taxi snapping to its new heading.
@@ -125,3 +125,20 @@ wraps seamlessly and turning a cell breaks the wrap.
 `probe_lawn.gd` checks all eleven: the field exists, is the first child of its layer, is sown before
 any board is built, covers the board and the canvas, retires the tiled ground only once it has
 something in it, and that no cell shows its own grass again.
+
+## No snake body
+
+This game's agents are a head and nothing else. `agent.gd` used to carry the whole
+trailing-body rig copied from the delivery games — `body_ids`, `bodies`, `nbody_parts`, a
+`time_back_positions` trail, `find_closest_dist()`, `add_body`/`remove_body`/`final_remove_body`, a
+`Skeleton` `Line2D` to string the segments on, and a `tube_animation.tscn` built from
+`agent_body2.png` / `agent_body3.png` — but the level always assigned an EMPTY `body_ids`, so the
+build loop never ran and not one segment was ever created. Measured by running the game and counting
+the nodes, not by reading it.
+
+All of it is gone: the script, the `Skeleton` node in `agent.tscn`, the
+`tube_animation` scene and script, and the two PNGs. `angles` keeps a single entry, the head's
+heading, which is all `set_rots()` ever read.
+
+**parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
+so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.

@@ -395,7 +395,6 @@ func find_closest_non_allocated_target(p):
 var next_agent_id := 1
 func add_taxi_at(p: Vector2i, direction: int):
 	var agent = agent_scene.instantiate()
-	agent.body_ids = []
 	agent.direction = direction
 	agent.board_pos = p
 	agent.is_taxi = true
@@ -415,7 +414,6 @@ func add_taxi_at(p: Vector2i, direction: int):
 
 func add_agent_at(p: Vector2i, direction: int, color, sender, receiver):
 	var agent = agent_scene.instantiate()
-	agent.body_ids = []
 	agent.direction = direction
 	agent.scale = Vector2(0.8,0.8)
 	agent.board_pos = p
