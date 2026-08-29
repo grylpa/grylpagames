@@ -90,7 +90,7 @@ func _build_ui() -> void:
 
 	_instruction = _make_label(30, Color(1, 1, 1, 1))
 	_instruction.text = "Tap the two matching cards"
-	add_child(_instruction)
+	# add_child(_instruction)
 
 	_feedback = _make_label(84, Color(0.2, 0.8, 0.3, 1.0))
 	_feedback.text = ""
