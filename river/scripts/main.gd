@@ -121,7 +121,10 @@ func _input(event: InputEvent) -> void:
 		if $Help.is_visible():
 			_on_help_close()
 	elif event.is_action_pressed("new_board"):
-		new_game()
+		# During a tutorial this restarts the LESSON — new_game() alone would rebuild the board
+		# under the running coach and wedge it. See GenericGameUtil.restart_tutorial().
+		if not game.restart_tutorial():
+			new_game()
 	elif event.is_action_pressed("lost_focus"):
 		game.in_focus = false
 	elif event.is_action_pressed("resumed_focus"):

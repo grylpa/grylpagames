@@ -202,7 +202,10 @@ func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return
 	if event.is_action_pressed("new_board"):
-		update_score.emit(-1)
+		# Not during a tutorial: there N restarts the lesson (main.gd), and docking a point for it
+		# would be penalising the coach's own board.
+		if not game.tutorial_mode:
+			update_score.emit(-1)
 	# elif event.is_action_pressed("clue"):
 	# 	show_clue()
 	elif event.is_action_pressed("right") or event.is_action_pressed("ui_right"):
