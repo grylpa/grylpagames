@@ -238,6 +238,71 @@ clearance is 40.06 px against a 40 px tile. Consequences:
 - **Level timer**: 1 minute per round (or ends early when all coins are collected)
 - **Monster speed tiers**: each monster gets a speed spread evenly from `agent_speed_min` to `agent_speed_max` by spawn index. At level 1 with 3 monsters: 0.7×, 1.05×, 1.4× player speed. The max grows by 0.2 per level (capped at 2.5×); min stays at 0.7×.
 
+
+## The power coin
+
+`powers: 3` per level (`level_config.gd`) places three coins that carry
+`res://art/coin-orange-w-power.png`. Eating one calls `player.ate_power()` and opens a
+**five-second window** (`DURATION_TO_STOP_POWER`) in which touching a monster kills the MONSTER for
++10 instead of killing you.
+
+**Only the clock closes the window.** Eating a monster used to spend the power — one kill and it was
+over — which made the coin worth exactly one monster. It no longer does, so a well-timed run through
+a crowd is worth several, and that is the reason to go out of your way for the coin.
+
+**The clock stands still inside a wormhole.** `warp_to()` calls `pause_power_clock()` and the far
+end calls `resume_power_clock()`, which pushes `time_started_power` forward by however long the trip
+took. Entering a wormhole has to be free: a player who dives in with two seconds left has to come
+out with two, or they take the trip meaning to reach a monster on the far side and find the power
+gone on arrival. Read elapsed time through `power_elapsed_ms()` / `power_left_ms()` /
+`power_left_fraction()`, never by subtracting `time_started_power` by hand — that is what the pause
+accounting exists for.
+
+### Telling how much is left
+
+The powered head used to be a looping tween — a one-second breath, scale 1.0↔1.2 with a green tint —
+identical in the fifth second and the first. It said "powered" and never "powered for how much
+longer", and with a monster's touch fatal the moment it lapses, that difference decides the round.
+
+Two failed attempts are worth not repeating:
+
+- **Ramping the breath from slow to fast, alone.** Rhythm is the only thing that changes, and a
+  rhythm is not a quantity — the honest report was "I don't see any effect other than the change in
+  rhythm". A state cue cannot double as a gauge.
+- **Ending the power with a 6 Hz square-wave flash of the whole head.** It reads as a strobe and is
+  genuinely unpleasant to look at, quite apart from what high-contrast flashing does to
+  photosensitive players. **Do not flash this game's art.**
+
+So the two jobs are split across two things:
+
+| | |
+|---|---|
+| the head **breathes** | a smooth sine ramping `PULSE_HZ_START` 1.0 → `PULSE_HZ_END` 2.2 Hz across the five seconds, scale ×1.2 and a green tint over the player's blue. The STATE cue: powered, and running down. Nothing flashes, and the rate tops out well below anything strobe-like |
+| the ring **empties** | `PowerRing`, an arc **on the gorilla's own contour** — radius 16, the head's half-size — draining a full circle → nothing and colouring green → amber → red. The QUANTITY: a glance says how much is left without counting breaths, and the colour is a second reading of the same number for a glance too short to judge length |
+
+`PowerRing` is an inner class of `player.gd`, drawn at `z_index = z_index - 1` so it is a halo behind
+the head rather than a hoop over its face, with 64 segments — checked against the *zoomed* radius,
+which is the mistake Witness's 12-gon direction dots made. It is a copy of the same widget didi has,
+not a shared one: games here do not reach into each other's scripts.
+
+**Its radius is the head's, and it breathes by the same factor.** The head is a 128px frame at scale
+0.25 — 32 units across, radius 16 — and `_update_power_look()` sets `_power_ring.scale` to the same
+`swell` it gives `$Head.scale`. Both numbers come from the Head node, not from this game's player
+scene: the 0.25 lives inside `scenes/head_anim.tscn`. A wider ring (it was 22) reads as a separate
+hoop the gorilla is standing in, and one that does not breathe lets the head swell out through it.
+
+`_update_power_look()` runs from `_process` off the power **clock**, not from a tween, for two
+reasons. A looping tween cannot change its own duration, so the ramp is not expressible in one. And
+tween progress does not stop in a wormhole while the clock does — the old pulse froze during a warp
+while the power really was draining, so it lied at exactly the moment the player was deciding
+whether to dive in.
+
+The ring keeps updating through a warp (it is drawn at the player's origin and the warp only scales
+the head), so it simply stands still, which is what the frozen clock means. The head's half of the
+update is skipped while `_power_paused_at_ms > 0`, because the warp animation owns its scale then,
+and while `was_hit`, because `mark_hit()`'s death tween does. `stop_power()` hides the ring and
+restores `orig_head_scale` / `orig_head_color` exactly.
+
 ## Monster Spawn Safety
 
 - `MIN_ESCAPE_DIST = 4` cells: a monster may spawn facing the player only if it is ≥ 4 cells away. If closer, its initial direction must not point toward the player. This guarantees the player always has time to react before an approaching monster reaches them.

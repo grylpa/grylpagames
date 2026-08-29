@@ -904,8 +904,10 @@ func _check_agent_collisions():
 		var d:float = (a.position - player.position).length()
 		if d < 0.5 * game.tile_size:			
 			if player.has_power:
+				# Eating a monster does NOT spend the power. The power is a five-second window and
+				# nothing but the clock closes it, so a well-timed run through a crowd is worth
+				# more than one kill — which is the whole reason to chase the coin.
 				a.mark_hit()
-				player.stop_power()
 				time_to_spawn_agent = MainGlobals.timems() + 1000
 				game.add_score_and_time(10, 0)
 			else:

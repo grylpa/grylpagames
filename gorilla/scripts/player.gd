@@ -1,5 +1,35 @@
 extends Area2D
 
+# The ring that shows how much of the power coin is left.
+#
+# A separate node rather than more work on the head, because the head's OWN look is already the
+# "you are powered" state and a state cue cannot double as a quantity: the breath got faster and
+# that was all anyone could read from it. An arc that empties is a quantity you can glance at.
+#
+# Copied rather than shared: didi has the same widget as an inner class, and games in this project
+# do not reach into each other's scripts.
+class PowerRing extends Node2D:
+	var progress: float = 1.0
+	var radius: float = 22.0
+	var width: float = 3.0
+	# Green while there is time, amber as it goes, red at the end. The colour is a SECOND reading of
+	# the same number, so the ring says "nearly out" even at a glance too short to judge its length.
+	const FULL: Color = Color(0.35, 0.95, 0.40)
+	const HALF: Color = Color(1.00, 0.78, 0.15)
+	const LOW: Color = Color(1.00, 0.32, 0.20)
+
+	func _draw() -> void:
+		if progress <= 0.0:
+			return
+		# 64 segments: at this radius, magnified by the board camera, the flat on each edge is
+		# hundredths of a screen unit. (Witness's direction dots were a 12-gon for exactly the
+		# reason that number has to be checked against the ZOOMED size, not the authored one.)
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.0, 0.0, 0.0, 0.30), width + 1.5)
+		var col: Color = HALF.lerp(LOW, 1.0 - progress / 0.5) if progress < 0.5 \
+			else FULL.lerp(HALF, 1.0 - (progress - 0.5) / 0.5)
+		draw_arc(Vector2.ZERO, radius, -PI * 0.5, -PI * 0.5 + progress * TAU, 64, col, width)
+
+
 signal remove_player(arrived:bool)
 signal player_pressed(_transaction_id, _board_pos)
 signal sig_is_really_moving(is_really_moving)
@@ -32,6 +62,11 @@ var _pending_speed_scale_to_use := -1.0;
 var has_power:bool = false
 var time_started_power:int = 0
 var DURATION_TO_STOP_POWER:int = 5000
+# The power clock STANDS STILL inside a wormhole. Entering one has to be a free move: a player who
+# dives in with two seconds left has to come out with two seconds left, or they take the trip
+# expecting to reach a monster on the far side and find the power gone when they get there.
+# `_power_paused_at_ms` is when the clock stopped, 0 when it is running.
+var _power_paused_at_ms:int = 0
 
 var game:GenericGameUtil
 
@@ -54,28 +89,116 @@ func _ready() -> void:
 		hide_hand()
 	isready = true
 
-var _power_pulse_tween = null
+# The powered gorilla, and HOW LONG IS LEFT of it.
+#
+# The head alone cannot carry this. It used to be a looping tween — a one-second breath, scale
+# 1.0<->1.2 with a green tint — identical in the fifth second and the first, which said "powered"
+# and never "powered for how much longer". Ramping that breath from slow to fast was the first
+# attempt and it is not enough on its own: rhythm is the only thing that changes, and a rhythm is
+# not a quantity. The second attempt ended the power with a 6 Hz square-wave flash of the whole
+# head, which reads as a strobe and is genuinely unpleasant to look at — never do that.
+#
+# So the two jobs are split between two things:
+#
+#   the head BREATHES   a smooth sine, PULSE_HZ_START -> PULSE_HZ_END across the five seconds. This
+#                       is the STATE cue: you are powered, and it is running down. Nothing about it
+#                       flashes and its rate tops out well under anything strobe-like.
+#   the ring EMPTIES    an arc around the gorilla draining full circle -> nothing, green -> amber ->
+#                       red. This is the QUANTITY: a glance says how much is left, without counting
+#                       breaths.
+#
+# Driven from _process off the power CLOCK rather than from a tween, for two reasons. A looping
+# tween cannot change its own duration, so the ramp is not expressible in one. And tween progress
+# does not stop inside a wormhole while the clock does — the old pulse froze during a warp while
+# the power really was draining, so it lied at exactly the moment the player was deciding whether
+# to dive in.
+const PULSE_HZ_START: float = 1.0
+const PULSE_HZ_END: float = 2.2
+const POWER_TINT: Color = Color(1.3, 1.9, 1.0)
+const POWER_SCALE: float = 1.2
+# ON the head's contour, not around it: the head is a 128px frame at scale 0.25, so 32 units across
+# and a radius of 16. A wider ring reads as a separate hoop the gorilla happens to be standing in;
+# this one is the gorilla's own outline lighting up. Measured from the Head node rather than
+# guessed — the 0.25 lives inside scenes/head_anim.tscn, not in this game's player scene.
+const RING_RADIUS: float = 16.0
+
+var _power_phase: float = 0.0
+var _power_ring: PowerRing = null
 
 func ate_power():
 	has_power = true
 	time_started_power = MainGlobals.timems()
-	if _power_pulse_tween == null:
-		var nd = $Head
-		var t := create_tween().set_loops().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		t.tween_property(nd, "scale", orig_head_scale * Vector2(1.2, 1.2), 0.5)
-		t.parallel().tween_property(nd, "modulate", Color(1.3, 1.9, 1.0), 0.5)
-		t.tween_property(nd, "scale", orig_head_scale * Vector2(1.0, 1.0), 0.5)
-		t.parallel().tween_property(nd, "modulate", orig_head_color, 0.5)
-		_power_pulse_tween = t
+	_power_paused_at_ms = 0
+	_power_phase = 0.0
+	if _power_ring == null:
+		_power_ring = PowerRing.new()
+		_power_ring.radius = RING_RADIUS
+		_power_ring.width = 2.5
+		# Behind the head, which is at the player's own z_index, so the ring reads as a halo around
+		# it rather than a hoop drawn over its face.
+		_power_ring.z_index = z_index - 1
+		add_child(_power_ring)
+	_power_ring.progress = 1.0
+	_power_ring.scale = Vector2.ONE
+	_power_ring.show()
+	_power_ring.queue_redraw()
 
 func stop_power():
 	has_power = false
-	var nd = $Head
-	if _power_pulse_tween != null:
-		_power_pulse_tween.kill()
-		_power_pulse_tween = null
-	nd.scale = orig_head_scale
-	nd.modulate = orig_head_color
+	_power_paused_at_ms = 0
+	_power_phase = 0.0
+	$Head.scale = orig_head_scale
+	$Head.modulate = orig_head_color
+	if _power_ring != null and is_instance_valid(_power_ring):
+		_power_ring.hide()
+
+# Milliseconds of power actually spent — wormhole time does not count.
+func power_elapsed_ms() -> int:
+	if not has_power:
+		return 0
+	var now: int = _power_paused_at_ms if _power_paused_at_ms > 0 else MainGlobals.timems()
+	return now - time_started_power
+
+func power_left_ms() -> int:
+	return maxi(DURATION_TO_STOP_POWER - power_elapsed_ms(), 0) if has_power else 0
+
+func power_left_fraction() -> float:
+	if not has_power:
+		return 0.0
+	return clampf(float(power_left_ms()) / float(DURATION_TO_STOP_POWER), 0.0, 1.0)
+
+func pause_power_clock() -> void:
+	if has_power and _power_paused_at_ms == 0:
+		_power_paused_at_ms = MainGlobals.timems()
+
+func resume_power_clock() -> void:
+	if _power_paused_at_ms > 0:
+		# Push the start forward by however long the clock stood still, so everything downstream
+		# keeps reading elapsed time as `now - time_started_power`.
+		time_started_power += MainGlobals.timems() - _power_paused_at_ms
+		_power_paused_at_ms = 0
+
+func _update_power_look(delta: float) -> void:
+	var left: float = power_left_fraction()
+	if _power_ring != null and is_instance_valid(_power_ring):
+		# The ring keeps ticking down through a wormhole trip — it is drawn at the player's origin
+		# and the warp only scales the HEAD, so there is nothing to fight. It just stands still,
+		# which is exactly what the frozen clock means.
+		_power_ring.progress = left
+		_power_ring.queue_redraw()
+	# The head, though, belongs to the warp animation while it is shrinking to a point.
+	if _power_paused_at_ms > 0:
+		return
+	var hz: float = lerpf(PULSE_HZ_START, PULSE_HZ_END, 1.0 - left)
+	_power_phase = fmod(_power_phase + delta * hz, 1.0)
+	var amount: float = 0.5 - 0.5 * cos(_power_phase * TAU)
+	var swell: float = lerpf(1.0, POWER_SCALE, amount)
+	$Head.scale = orig_head_scale * swell
+	$Head.modulate = orig_head_color.lerp(POWER_TINT, amount)
+	# The ring breathes WITH the head, by the same factor, so it stays on the contour instead of
+	# the head swelling out through a ring that stands still.
+	if _power_ring != null and is_instance_valid(_power_ring):
+		_power_ring.scale = Vector2.ONE * swell
 
 func play():
 	# $Head.play("PlayerHeadEyes")
@@ -147,8 +270,14 @@ var velocity := Vector2.ZERO
 func _process(_delta: float) -> void:
 	_ease_head_angle(_delta)
 	$Head.rotation = _head_angle
-	if has_power and MainGlobals.timems() - time_started_power > DURATION_TO_STOP_POWER:
-		stop_power()
+	# Not while dying: mark_hit() is tweening the head's scale, and a pulse writing the same
+	# property every frame would fight it. (A monster cannot hit a powered player — that branch of
+	# _check_agent_collisions only runs unpowered — but the power outlives a kill now, so the two
+	# can overlap in ways they could not before.)
+	if has_power and not was_hit:
+		_update_power_look(_delta)
+		if power_elapsed_ms() > DURATION_TO_STOP_POWER:
+			stop_power()
 
 	velocity = (position - last_pos) / _delta
 	last_pos = position
@@ -244,8 +373,7 @@ func warp_to(q:Vector2i, board):
 	if warping:
 		return
 	warping = true
-	if _power_pulse_tween != null:
-		_power_pulse_tween.pause()
+	pause_power_clock()
 	var nd = $Head
 	var pcell = board[board_pos.y][board_pos.x]
 	var qcell = board[q.y][q.x]
@@ -268,8 +396,7 @@ func warp_to(q:Vector2i, board):
 			ppipe.deactivate_wormhole()
 			qpipe.deactivate_wormhole()
 			warping = false
-			if _power_pulse_tween != null:
-				_power_pulse_tween.play()
+			resume_power_clock()
 		)
 	)
 
