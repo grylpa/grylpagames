@@ -375,15 +375,11 @@ func _create_dir_button(dir_idx: int) -> Area2D:
 	shape.shape = circle
 	area.add_child(shape)
 
-	# Small dot to mark the tap target
+	# The dot marking the tap target.
 	var bg: Polygon2D = Polygon2D.new()
 	bg.color = Color(0.9, 0.85, 0.2, 0.9)
-	var pts: PackedVector2Array = PackedVector2Array()
 	var r: float = float(game.tile_size) * 0.35
-	for i in 12:
-		var angle: float = 2.0 * PI * i / 12.0
-		pts.append(Vector2(cos(angle), sin(angle)) * r)
-	bg.polygon = pts
+	bg.polygon = _circle_points(r)
 	area.add_child(bg)
 
 	area.input_event.connect(func(_v, ev, _si):
@@ -392,6 +388,29 @@ func _create_dir_button(dir_idx: int) -> Area2D:
 	)
 	add_child(area)
 	return area
+
+# A Polygon2D circle, with enough segments to still BE a circle once the camera has magnified it.
+#
+# This board is drawn through a zoomed camera (`create_camera`, capped at 6x and 2.43x in practice
+# for the fixed 7x7 board), so the 14-unit dot is 34 units on screen. The twelve segments this used
+# to have left a 1.16-unit flat on every edge at that size: the direction markers read as
+# dodecagons, not dots. Measured, not guessed — a polygon circle has to be judged at the size it is
+# SHOWN, and nothing about 12 segments looks wrong in the source.
+#
+# The count comes from the on-screen radius rather than being a fixed number, so it stays right if
+# the zoom is ever retuned. `n` is chosen so the sagitta — the gap between a segment's midpoint and
+# the true arc, `r * (1 - cos(PI / n))` — stays under a quarter of a screen unit.
+func _circle_points(r: float) -> PackedVector2Array:
+	var zoom: float = 1.0
+	if agent_cam != null and is_instance_valid(agent_cam):
+		zoom = maxf(agent_cam.zoom.x, 0.01)
+	var on_screen: float = maxf(r * zoom, 0.5)
+	var n: int = clampi(int(ceil(PI / acos(clampf(1.0 - 0.25 / on_screen, -1.0, 1.0)))), 24, 96)
+	var pts: PackedVector2Array = PackedVector2Array()
+	for i in n:
+		var angle: float = TAU * float(i) / float(n)
+		pts.append(Vector2(cos(angle), sin(angle)) * r)
+	return pts
 
 func _on_dir_button_pressed(dir_idx: int) -> void:
 	if not periph_question_active or game.paused() or game.level_is_done:

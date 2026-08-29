@@ -292,6 +292,20 @@ Specific to this game:
 - Points for the coach: `tutorial_model_pos`, `tutorial_periph_pos`, `tutorial_candidates_rect`,
   `tutorial_correct_dir_pos`.
 
+
+## The direction markers are real circles
+
+The eight yellow dots of the round's second step (`_create_dir_button`) get their outline from
+`_circle_points()`, which picks the segment count from the radius **as it appears on screen** —
+`r * agent_cam.zoom` — so the sagitta, `r * (1 - cos(PI / n))`, stays under a quarter of a screen
+unit. It comes out at 26 segments for the fixed 7x7 board.
+
+They used to be a hard-coded 12-gon. At a 14-unit radius that reads fine in the source, but the
+board is drawn through a camera zoomed to 2.43x, which makes the dot 34 units across and leaves a
+1.16-unit flat on every edge — visibly a dodecagon rather than a dot. **A polygon circle has to be
+judged at the size it is shown, not at the size it is written.** If the zoom is ever retuned the
+count follows it.
+
 ## The background
 
 This game has no world in it — a shape flashes and you answer — so there is no ground to draw. What
