@@ -19,7 +19,7 @@ var tail_dist_back = body_dist
 var angles = []
 var body_ids = [1,2,3]
 var agent_textures = [
-	preload("res://art/agent_body.png"),
+	preload("res://art/agent_body1.png"),
 	preload("res://art/agent_body2.png"),
 	preload("res://art/agent_body3.png"),
 	preload("res://art/agent_body4.png"),

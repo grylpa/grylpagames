@@ -21,16 +21,7 @@ var is_really_moving := false
 var need_to_stop := false
 var need_to_move := false
 
-var nbody_parts = 0
-var bodies = []
-var time_back_positions = []
-var back_total_len = 0
-var body_dist = 34
-var head_dist = 34
-var tail_dist_back = body_dist
 var angles = []
-var body_ids = []
-var body_scene: PackedScene = load("res://mmm/scenes/tube_animation.tscn")
 
 var color := Color(1,1,1,1)
 var isready = false
@@ -45,50 +36,24 @@ func _ready() -> void:
 	$Head.rotation = PI/2
 	$Head.play("HeadEyes")
 	$Head.speed_scale = 0.5
-	$Skeleton.modulate = color.darkened(0.1)
-	$Skeleton.add_point(Vector2.ZERO)
 	angles.append(0)
-	angles.append(0)
-	nbody_parts = body_ids.size()
-	tail_dist_back = body_dist * nbody_parts + head_dist
 	z_index = 10
 	$Head.z_index = z_index
-	$Skeleton.z_index = z_index-10
-	for i in nbody_parts:
-		var body = body_scene.instantiate()
-		var anim = body.get_node("animation")
-		body.mouse_click.connect(_on_body_input_event)
-		anim.play("main")
-		anim.frame = (i+2)%3
-		# anim.speed_scale = 1.0 - dsc * (i + 1)
-		anim.speed_scale = 0.5
-		body.modulate = color
-		body.z_index = z_index-i-1
-		add_child(body)
-		bodies.append(body)
-		body.hide()
-		angles.append(0)
 	isready = true
 
 func play():
 	# $Head.play("PlayerHeadEyes")
 	$Head.play("circular")
-	
+
 func reset():
 	reached_target_pos = true
-	for body in bodies:
-		body.queue_free()
-	bodies.clear()
 	# abs_time_supposed_to_reach_target_ms = 0
 	_pending_speed_scale_to_use = -1
 
 func set_color(_color):
 	color = _color
 	$Head.set_modulate(color)
-	$Skeleton.modulate = color.darkened(0.1)
-	for body in bodies:
-		body.modulate = color
-	
+
 func set_pos(p, dir):
 	direction = dir
 	angles[0] = dir * PI/2
@@ -100,7 +65,7 @@ func set_pos(p, dir):
 	if !isready:
 		return
 	position = p
-			
+
 func set_new_speed_scale(new_scale):
 	_pending_speed_scale_to_use = new_scale
 
@@ -138,67 +103,8 @@ func _process(delta: float) -> void:
 	last_time_moved = MainGlobals.timems()
 	set_rots()
 
-func find_closest_dist(dist):
-	if time_back_positions.size() == 0:
-		return -1
-	var idx = -1
-	var sum = 0
-	for i in range(time_back_positions.size()-2,-1,-1):
-		sum += (time_back_positions[i] - time_back_positions[i+1]).length()
-		if sum >= dist:
-			idx = i
-			break
-	return idx
-			
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]
-	for i in nbody_parts:
-		bodies[i].rotation = angles[i+1]
-	
-func add_body(_id):
-	pass
-	
-func remove_body_if_first(id):
-	var idx = body_ids.find(id)
-	return remove_body(id) if idx == 0 else false
-		
-var _pending_remove_ids := {}
-func remove_body(id):
-	if id in _pending_remove_ids:
-		return
-	_pending_remove_ids[id] = true
-	var idx = body_ids.find(id)
-	if idx >= 0:
-		var body = bodies[idx]
-		var tween_color = MainGlobals.make_tween()
-		tween_color.tween_property(body, "modulate", color.darkened(0.4), 0.45)
-		var tween_scale = MainGlobals.make_tween()
-		var oldscale = body.scale
-		tween_scale.tween_property(body, "scale", oldscale * 2, 0.2)
-		tween_scale.tween_property(body, "scale", Vector2(0.0,0.0), 0.3)
-		tween_scale.tween_callback(func(): final_remove_body(id))
-		return true
-	return false
-		
-func final_remove_body(id):
-	var idx = body_ids.find(id)
-	if idx >= 0:
-		nbody_parts -= 1
-		body_ids.remove_at(idx)
-		var body = bodies[idx]
-		for iidx in range(bodies.size()-1, idx, -1):
-			bodies[iidx].position = bodies[iidx-1].position
-			bodies[iidx].rotation = bodies[iidx-1].rotation
-		bodies.remove_at(idx)
-		if $Skeleton.get_point_count() > 0:
-			$Skeleton.remove_point($Skeleton.get_point_count()-1)
-		tail_dist_back = body_dist * nbody_parts + head_dist
-		angles.pop_back()
-		body.queue_free()		
-		set_rots()
-		_pending_remove_ids.erase(id)
-		return true
-	return false
 
 func mark_arrived():
 	arrived = true
@@ -230,14 +136,10 @@ func mark_hit():
 
 func distance_to_point(p):
 	var d = (position - p).length()
-	for body in bodies:
-		d = min(d, (position + body.position).distance_to(p))
 	return d
 
 func distance_to(a):
 	var d = a.distance_to_point(position)
-	for body in bodies:
-		d = min(d, a.distance_to_point(position + body.position))
 	return d
 
 func set_major_tick_now():
@@ -253,9 +155,6 @@ func need_to_major_tick():
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event.is_action_pressed("lclick"):
 		player_pressed.emit(transaction_id, board_pos)
-
-func _on_body_input_event() -> void:
-	player_pressed.emit(transaction_id, board_pos)
 
 func set_board_pos(q:Vector2i, board):
 	var p = board_pos

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://o826whpfg5w5"
-path="res://.godot/imported/agent_head2.png-3b402215a2d0ccdc008f51d6e4823d2b.ctex"
+uid="uid://bimdtoxrqjoxm"
+path="res://.godot/imported/tube_anim_frames.png-06155db1df786aaf491bb9c992c9af97.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://storm/art/agent_head2.png"
-dest_files=["res://.godot/imported/agent_head2.png-3b402215a2d0ccdc008f51d6e4823d2b.ctex"]
+source_file="res://art/tube_anim_frames.png"
+dest_files=["res://.godot/imported/tube_anim_frames.png-06155db1df786aaf491bb9c992c9af97.ctex"]
 
 [params]
 

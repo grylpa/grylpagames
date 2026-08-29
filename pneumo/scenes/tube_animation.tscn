@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dtow8afyji16l"]
 
-[ext_resource type="Texture2D" uid="uid://bimdtoxrqjoxm" path="res://art/agent_body_slot.png" id="1_bodyslot"]
+[ext_resource type="Texture2D" uid="uid://bimdtoxrqjoxm" path="res://art/tube_anim_frames.png" id="1_bodyslot"]
 [ext_resource type="Script" uid="uid://d4ei7hdptqt62" path="res://pneumo/scripts/tube_animation.gd" id="1_yipqa"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_hg2el"]

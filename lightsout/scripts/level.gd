@@ -559,7 +559,6 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	var agent = agent_scene.instantiate()
 	agent.direction = direction
 	agent.board_pos = p
-	agent.body_ids = range(1, LightsG.num_packets+1+num_more_packets)
 	# var rng = RandomNumberGenerator.new()
 	agent.speed_scale = rng.randf_range(0.8, max_speed_scale)
 	add_child(agent)
@@ -966,7 +965,6 @@ func add_player_at(p: Vector2i, direction: int):
 	player.reset()
 	player.direction = direction
 	player.board_pos = p
-	player.body_ids = []#range(1, LightsG.num_packets+1+num_more_packets)
 	player.speed_scale = rng.randf_range(0.8, max_speed_scale)
 	# player.player_pressed.connect(on_agent_pressed)
 	player.sig_is_really_moving.connect(on_player_is_really_moving)

@@ -563,7 +563,6 @@ func _spawn_agent(index:int,_far:bool = false) -> bool:
 			valid_dirs.append(d)
 	agent.direction = valid_dirs[rng.randi_range(0, valid_dirs.size() - 1)]
 	agent.board_pos = p
-	agent.body_ids = []
 	var t: float = min(1,float(index) / max(1, num_inside_monsters - 1))
 	agent.speed_scale = lerp(agent_speed_min, agent_speed_max, t)	# this is already capped below player speed scale in _apply_level
 	agent.set_type(1)

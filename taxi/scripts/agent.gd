@@ -43,16 +43,7 @@ var is_filling_gas := false
 var fuel_level := 1.0
 
 var path:Array[Vector2i] = []
-var nbody_parts = 0
-var bodies = []
-var time_back_positions = []
-var back_total_len = 0
-var body_dist = 34
-var head_dist = 34
-var tail_dist_back = body_dist
 var angles = []
-var body_ids = [1,2,3]
-var body_scene: PackedScene = load("res://taxi/scenes/tube_animation.tscn")
 var is_embarking := false
 
 var color := Color(1,1,1,1)
@@ -75,30 +66,9 @@ func _ready() -> void:
 	else:
 		$Head.play("HeadEyes")
 	$Head.speed_scale = 0.5
-	$Skeleton.modulate = color.darkened(0.1)
-	$Skeleton.add_point(Vector2.ZERO)
 	angles.append(0)
-	angles.append(0)
-	nbody_parts = body_ids.size()
-	tail_dist_back = body_dist * nbody_parts + head_dist
 	z_index = 10
 	$Head.z_index = z_index
-	$Skeleton.z_index = z_index-10
-	# var dsc = (1.0 - 0.4) / nbody_parts
-	for i in nbody_parts:
-		var body = body_scene.instantiate()
-		var anim = body.get_node("animation")
-		body.mouse_click.connect(_on_body_input_event)
-		anim.play("main")
-		anim.frame = (i+2)%3
-		# anim.speed_scale = 1.0 - dsc * (i + 1)
-		anim.speed_scale = 0.5
-		body.modulate = color
-		body.z_index = z_index-i-1
-		add_child(body)
-		bodies.append(body)
-		body.hide()
-		angles.append(0)
 	isready = true
 	time_created_ms = game.game_time
 	%GasSprite.visible = is_taxi
@@ -109,9 +79,6 @@ func set_id(_id):
 func set_color(_color):
 	color = _color
 	$Head.self_modulate = color
-	$Skeleton.modulate = color.darkened(0.1)
-	for body in bodies:
-		body.modulate = color
 
 func set_type(_agent_type):
 	agent_type = _agent_type
@@ -124,13 +91,13 @@ func set_type(_agent_type):
 	# 	coloridx = 2
 	# color = game.color_by_index(coloridx)
 	# set_color(color)
-	
+
 func set_pos(p, dir):
 	set_rot(dir)
 	if !isready:
 		return
 	position = p
-			
+
 # How long a taxi takes to swing round to a new heading. Kept well under the time it takes to cross
 # a tile, so the turn reads as a turn and not as a delay.
 const TURN_TIME_SEC: float = 0.12
@@ -179,7 +146,7 @@ func set_target_pos(p):
 	time_set_target_pos = game.game_time
 	set_target_once = true
 	# Log.dbg("set_target_pos p:", p, " position: ", position)
-	
+
 var last_vibrate_time := 0
 var is_actually_not_moving := false
 # var prev_pos := Vector2(-1000,-1000)
@@ -237,40 +204,13 @@ func _process(_delta: float) -> void:
 	# 		position += v
 	# 		angles[0] = last.angle_to_point(position)
 	# 		if Vector2i(target_position) != Vector2i(starting_position):
-	# 			time_back_positions.push_back(position.round())
-	# 		if time_back_positions.size() > 1:
-	# 			back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
-	# 		while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
-	# 			back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
-	# 			time_back_positions.pop_front()
 	# 		var idx
-	# 		for i in bodies.size():
-	# 			idx = find_closest_dist(i * body_dist + head_dist)
 	# 			if idx >= 0:
-	# 				last = bodies[i].position
-	# 				bodies[i].position = time_back_positions[idx] - position
-	# 				bodies[i].show()
-	# 				while $Skeleton.get_point_count() < i+2:
-	# 					$Skeleton.add_point(Vector2.ZERO)
-	# 				$Skeleton.set_point_position(i+1, bodies[i].position)
-	# 				angles[i+1] = $Skeleton.get_point_position(i+1).angle_to_point($Skeleton.get_point_position(i))
-			
+
 	# 		set_rots()
 	# 		is_actually_not_moving = prev_pos.distance_to(position) < 1
 	# 		prev_pos = position
 
-func find_closest_dist(dist):
-	if time_back_positions.size() == 0:
-		return -1
-	var idx = -1
-	var sum = 0
-	for i in range(time_back_positions.size()-2,-1,-1):
-		sum += (time_back_positions[i] - time_back_positions[i+1]).length()
-		if sum >= dist:
-			idx = i
-			break
-	return idx
-			
 func set_rots():
 	# Drawn from _head_angle, not angles[0]: this runs every frame while moving, and reading the
 	# logical heading here would snap the head back and undo the turn tween.
@@ -278,53 +218,6 @@ func set_rots():
 		_head_angle = angles[0]
 		_head_angle_set = true
 	$Head.rotation = _head_angle
-	for i in nbody_parts:
-		bodies[i].rotation = angles[i+1]
-	
-func add_body(_id):
-	pass
-	
-func remove_body_if_first(id):
-	var idx = body_ids.find(id)
-	return remove_body(id) if idx == 0 else false
-		
-var _pending_remove_ids := {}
-func remove_body(id):
-	if id in _pending_remove_ids:
-		return
-	_pending_remove_ids[id] = true
-	var idx = body_ids.find(id)
-	if idx >= 0:
-		var body = bodies[idx]
-		var tween_color = body.MainGlobals.make_tween()
-		tween_color.tween_property(body, "modulate", color.darkened(0.4), 0.45)
-		var tween_scale = body.MainGlobals.make_tween()
-		var oldscale = body.scale
-		tween_scale.tween_property(body, "scale", oldscale * 2, 0.2)
-		tween_scale.tween_property(body, "scale", Vector2(0.0,0.0), 0.3)
-		tween_scale.tween_callback(func(): final_remove_body(id))
-		return true
-	return false
-		
-func final_remove_body(id):
-	var idx = body_ids.find(id)
-	if idx >= 0:
-		nbody_parts -= 1
-		body_ids.remove_at(idx)
-		var body = bodies[idx]
-		for iidx in range(bodies.size()-1, idx, -1):
-			bodies[iidx].position = bodies[iidx-1].position
-			bodies[iidx].rotation = bodies[iidx-1].rotation
-		bodies.remove_at(idx)
-		if $Skeleton.get_point_count() > 0:
-			$Skeleton.remove_point($Skeleton.get_point_count()-1)
-		tail_dist_back = body_dist * nbody_parts + head_dist
-		angles.pop_back()
-		body.queue_free()		
-		set_rots()
-		_pending_remove_ids.erase(id)
-		return true
-	return false
 
 func mark_arrived():
 	arrived = true
@@ -370,14 +263,10 @@ func end_agent_timeout():
 
 func distance_to_point(p):
 	var d = (position - p).length()
-	for body in bodies:
-		d = min(d, (position + body.position).distance_to(p))
 	return d
 
 func distance_to(a):
 	var d = a.distance_to_point(position)
-	for body in bodies:
-		d = min(d, a.distance_to_point(position + body.position))
 	return d
 
 func get_major_tick():
@@ -386,9 +275,6 @@ func get_major_tick():
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event.is_action_pressed("lclick"):
 		agent_pressed.emit(self)
-
-func _on_body_input_event() -> void:
-	agent_pressed.emit(self)
 
 func set_selected(_selected: bool):
 	is_selected = _selected
@@ -414,7 +300,7 @@ func assign_taxi(taxi):
 
 func assign_customer(agent):
 	assigned_to_customer = agent
-	
+
 func set_blocked(_blocked: bool):
 	%Blocked.visible = _blocked
 	is_blocked = _blocked
@@ -461,7 +347,7 @@ func check_gas():
 			sig_out_of_gas.emit(self)
 		return out_of_gas
 	return false
-	
+
 func start_filling_gas(_gas_station):
 	# Log.dbg("starting to fill gas")
 	going_to_fill_gas = false
@@ -501,7 +387,7 @@ func stop_gas_station_anim():
 	# 	_current_gas_station.modulate = Color(1,1,1,1)
 	# $Head.scale = Vector2(1,1)
 	modulate = Color(1,1,1,1)
-	
+
 func get_state() -> Dictionary:
 	return {
 		"position": position,

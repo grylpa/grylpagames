@@ -17,9 +17,6 @@ metadata/_edit_group_ = true
 [node name="PlayerShape" type="CollisionShape2D" parent="." unique_id=1716621273]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="Skeleton" type="Line2D" parent="." unique_id=133362911]
-width = 5.0
-
 [node name="Head" parent="." unique_id=812901069 instance=ExtResource("2")]
 animation = &"circular"
 

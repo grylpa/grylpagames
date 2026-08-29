@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://da4h5nqshlg6f"
-path="res://.godot/imported/player_body2.png-699f83d3d7dc222ee75b24b87dcf5eb8.ctex"
+uid="uid://dmjo5v67b5f8j"
+path="res://.godot/imported/tube_segment.png-7415508f9304066bb3b3bccac20649e8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://lightsout/art/player_body2.png"
-dest_files=["res://.godot/imported/player_body2.png-699f83d3d7dc222ee75b24b87dcf5eb8.ctex"]
+source_file="res://art/tube_segment.png"
+dest_files=["res://.godot/imported/tube_segment.png-7415508f9304066bb3b3bccac20649e8.ctex"]
 
 [params]
 

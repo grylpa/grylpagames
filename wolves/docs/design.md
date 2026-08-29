@@ -200,7 +200,6 @@ wolves/
 │   ├── pipe.tscn              (floor/field/compound tile)
 │   ├── empty_space.tscn       (wall tile ring with fence rendering)
 │   ├── target.tscn            (unused target markers)
-│   └── tube_animation.tscn    (body segment animation)
 └── scripts/
     ├── globals.gd             (WolvesG autoload)
     ├── level_config.gd        (class_name WolvesLevelConfig; 5 levels)
@@ -211,7 +210,6 @@ wolves/
     ├── pipe.gd                (tile logic; fences, coins, bricks)
     ├── empty_space.gd         (wall visibility logic)
     ├── target.gd              (unused)
-    └── tube_animation.gd      (body segment, unused)
 ```
 
 ## Tutorial
@@ -278,3 +276,21 @@ Inside the fence the ground is a flat translucent green wash (`pipe.gd`'s `FIELD
 pipe itself so it sits under the bricks, coins and fences). Field cells used to show `%PipeGrass` —
 a randomly rotated, green-tinted copy of the same `grass.png` — which was a mosaic twice over. All
 that tint ever said was "this side of the fence is the farm", so that is all that is left.
+
+## No snake body
+
+This game's agents are a head and nothing else. `player.gd` used to carry the whole
+trailing-body rig copied from the delivery games — `body_ids`, `bodies`, `nbody_parts`, a
+`time_back_positions` trail, `find_closest_dist()`, `add_body`/`remove_body`/`final_remove_body`, a
+`Skeleton` `Line2D` to string the segments on, and a `tube_animation.tscn` built from
+`agent_body2.png` / `agent_body3.png` — but the level always assigned an EMPTY `body_ids`, so the
+build loop never ran and not one segment was ever created. Measured by running the game and counting
+the nodes, not by reading it.
+
+All of it is gone: the script, the `Skeleton` node in `player.tscn` (and the orphaned one in
+`agent.tscn`), the
+`tube_animation` scene and script, and the two PNGs. `angles` keeps a single entry, the head's
+heading, which is all `set_rots()` ever read.
+
+**parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
+so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.

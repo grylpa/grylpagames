@@ -16,9 +16,6 @@ metadata/_edit_group_ = true
 [node name="PlayerShape" type="CollisionShape2D" parent="." unique_id=1891174421]
 shape = SubResource("RectangleShape2D_tu7kf")
 
-[node name="Skeleton" type="Line2D" parent="." unique_id=1028423200]
-width = 5.0
-
 [node name="Head" parent="." unique_id=538040041 instance=ExtResource("2_cndav")]
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]

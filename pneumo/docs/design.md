@@ -136,7 +136,7 @@ instead of along it. Measured: 382 of 435 squash frames compressed the wrong wor
 whole train telescoped in towards the head. Measured with five packets: 170 px of train collapsing
 to about 21 px. An empty capsule looked fine, which is why it only showed up with packets.
 
-**The tubes use the same 24-frame rolling animation as the head** (`art/agent_body_slot.png`),
+**The tubes use the same 24-frame rolling animation as the head** (`art/tube_anim_frames.png`, a 180x100 atlas of 24 30x25 frames),
 staggered a third of a cycle apart with `((i+2) % 3) * 8`; a third of 24 frames is 8, which is what
 the old `(i+2)%3` did over 3.
 
@@ -248,7 +248,7 @@ repeatedly cannot farm the score.
 
 `pneumo/scripts/collision_icon.gd` (`PneumoCollisionIcon.make()`) builds it as a 64x64
 `ImageTexture`, halved to the 32px the shared HUD lays out. It is **this game's own capsule**:
-`res://pneumo/art/agent_body1.png`, the 30x25 body segment the capsules on the board are made of,
+`res://art/tube_segment.png`, the 30x25 tube segment the capsules on the board are made of,
 scaled, tinted and rotated onto the diagonal — TWO of them, running at each other along one 45
 degree track, each snapped off short of the middle with a ragged bite out of its end. The burst sits
 in the gap between the two torn ends, with impact strokes thrown out across the track.
