@@ -24,8 +24,8 @@ the decisions below — see "There is no board".
 pop/
 ├── docs/
 │   └── design.md           ← this file
-├── art/
-│   └── box.png               the plate a shape stands on
+├── art/                      (nothing of its own: the box is res://art/box.png, shared with
+│                              Lineup and Witness)
 ├── scripts/
 │   ├── globals.gd            (PopG autoload)
 │   ├── main.gd
@@ -209,7 +209,10 @@ the `Level` CanvasLayer and nothing else.
 
 ### The box
 
-A shape stands on one box: `art/box.png`, a plain `Sprite2D` created in code by `_add_box_at()`.
+A shape stands on one box: `res://art/box.png`, a plain `Sprite2D` created in code by
+`_add_box_at()`. The image is shared with Lineup (`ooo`) and Witness (`ddooo`), which draw the same
+56x56 plate under their candidate positions. All three carried a byte-identical private copy until
+they were compared.
 Lineup (`ooo`) is the near relative here and does it differently on purpose — Lineup frames every
 candidate position for the whole round, so the player can see where the answers will be before they
 arrive. Glimpse must not: it is played at the EDGE of vision, and a box sitting on an empty position
