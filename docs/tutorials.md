@@ -734,6 +734,65 @@ pass arguments.
 
 ---
 
+
+## Keys and the bottom bar, while a tutorial is running
+
+Every action a player can fire mid-lesson has to land in one of exactly two states:
+
+- **still coaching** — the runner alive and `tutorial_mode` true, and not wedged;
+- **cleanly ended** — the runner gone *and* `tutorial_mode` false.
+
+The state that must never happen is `tutorial_mode` true with no runner: every guard in
+`generic_game_util.gd` would go on suppressing the player's REAL scores for the rest of the session.
+`probe_tutkeys.gd` fires all fourteen actions in every game that has a tutorial and asserts this.
+
+| action | what happens |
+|---|---|
+| **ESC** | the runner's own `_input()` claims it on any step and calls `abort()` — the keyboard equivalent of Skip. Cleanly ended — **unless a screen is open on top of the lesson**, in which case that press closes the screen and only the next one reaches the tutorial (see below) |
+| **M** (main menu) | confirm dialog; Yes ends the lesson cleanly |
+| **N** (new board) | **restarts the lesson from its first step**, with no dialog — see below |
+| help, scores, instructions, pause, mute, zoom, clue, faster, slower, stop, reminder | pass through; the lesson keeps coaching |
+
+### An open screen owns the first ESC
+
+`TutorialRunner.OVERLAYS_OWNING_ESC` lists the screens that can sit on top of a lesson — help,
+instructions, scores, `game_popup`, `gpa_conf_dlg`, `level_done`. While any of them is registered
+visible, `_input()` lets the ESC through untouched, so the screen closes exactly as it would
+outside a tutorial and the lesson carries on. The next ESC, with nothing on top, ends the lesson.
+
+Before this, opening help from the hamburger and pressing ESC ended the entire tutorial and dropped
+you to the main menu **with the help screen still floating over it** — one press did two things,
+neither of them the one you asked for.
+
+`"tutorial"` is deliberately NOT in the list: that name is the runner's own freeze marker, set by
+`_set_frozen()`, so counting it as an overlay would disable ESC completely.
+
+The probe reports which overlays were actually up in each case, because an action that opened
+nothing proves nothing about who owns ESC — gorilla's `instructions` action opens no screen during a
+lesson, so ESC there correctly ends the tutorial.
+
+### N restarts the lesson
+
+`GenericGameUtil.restart_tutorial()` aborts the running coach and calls the host's
+`start_tutorial()` again, deferred so the next run is not built on top of a teardown still in
+progress. `handle_new_board()` tries it before showing the ordinary dialog.
+
+It used to fall through to that dialog, and confirming called the game's `new_game()` **underneath
+the running coach**: the overlay and spotlight stayed up and the step the runner was waiting on
+could never fire again, because the board it was watching had been rebuilt. Measured, the coach sat
+on step 0 indefinitely with nothing on screen to say it was dead.
+
+Restarting is also the only reading that leaves consistent state, because `start_tutorial()` does
+strictly more than `new_game()` — it snapshots the real session (`begin_tutorial()`) and forces the
+tutorial's own starting level. Calling `new_game()` alone leaves that setup half-applied.
+
+**`handle_new_board()` is not the only path.** Six games call `new_game()` straight off N with no
+dialog at all (`breathe`, `crack`, `mother`, `udbr`, plus `typit` and `river`, which have no
+tutorial), so each of those tests `game.restart_tutorial()` first. And four games
+(`lightsout`, `storm`, `wolves`, `mmm`) additionally dock a point for N in their `level.gd`; that is
+now skipped under `tutorial_mode`, since it would be penalising the coach's own board. Any new
+`is_action_pressed("new_board")` needs the same guard.
+
 ## Running long
 
 **The level clock cannot run out.** `_hold_clock()` re-applies `TUTORIAL_MINUTES` every frame it

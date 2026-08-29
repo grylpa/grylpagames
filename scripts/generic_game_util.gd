@@ -1405,8 +1405,37 @@ func handle_main_menu(parent, event, callback):
 		return true
 	return false
 
+# "New game" during a TUTORIAL restarts the lesson, from its first step.
+#
+# It used to fall through to the ordinary "lose your progress?" dialog, and confirming called the
+# game's new_game() underneath the running coach: the overlay and spotlight stayed up and the step
+# the runner was waiting on could never fire again, because the board it was watching had been
+# rebuilt. The tutorial sat there dead, with nothing on screen to say so.
+#
+# Restarting is what the key means here anyway — "give me a fresh one" — and it is the only reading
+# that leaves a consistent state, because start_tutorial() does strictly more than new_game(): it
+# snapshots the real session (begin_tutorial) and forces the tutorial's own starting level. Calling
+# new_game() alone leaves that setup half-applied.
+#
+# No confirmation: there is no progress to lose, and a dialog asking whether to restart a lesson
+# you are three steps into is more friction than the thing it guards.
+func restart_tutorial() -> bool:
+	if not tutorial_mode or tutorial_runner == null or not is_instance_valid(tutorial_runner):
+		return false
+	var host: Node = tutorial_runner.host()
+	if host == null or not is_instance_valid(host) or not host.has_method("start_tutorial"):
+		return false
+	tutorial_runner.abort()
+	# Deferred: abort() runs the game's own tutorial-done callback (menus, score restore) and then
+	# queue_free()s the runner. Starting the next one from inside that would build it on top of a
+	# teardown still in progress.
+	host.call_deferred("start_tutorial")
+	return true
+
 func handle_new_board(parent, event, callback):
 	if event.is_action_pressed("new_board"):
+		if restart_tutorial():
+			return true
 		show_yesno_dlg(parent, "New game", 
 			"Are you sure you want to start a new game and lose your progress ?", "Yes", "Oops, No", 
 			Callable(self,"_on_confirmed_dialog").bind(callback), Callable(self, "_on_cancelled_dialog"))

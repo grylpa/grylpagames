@@ -468,6 +468,11 @@ func notify(event_name: String) -> void:
 	if event_name == _await_event:
 		_advance()
 
+# The node whose start_tutorial() launched this run. Public so a restart does not have to reach
+# into _host, and so it survives whatever else the game does with its scene.
+func host() -> Node:
+	return _host
+
 func abort() -> void:
 	_finish(false)
 
@@ -665,11 +670,31 @@ func _follow_keep_clear() -> void:
 		_layout_panel()
 		return
 
+# Screens that can sit ON TOP of a lesson and own the ESC that closes them. While one of these is
+# up, that press belongs to it: pressing ESC once should close the thing you are looking at, exactly
+# as it does outside a tutorial, and only the NEXT one should reach the lesson. Without this, opening
+# help from the hamburger and pressing ESC ended the whole tutorial and dropped you to the main menu
+# with the help screen still floating over it.
+#
+# "tutorial" is deliberately absent — that is this runner's own freeze marker, registered by
+# _set_frozen(), so treating it as an overlay would disable ESC entirely.
+const OVERLAYS_OWNING_ESC: Array = ["help", "instructions", "scores", "game_popup",
+	"gpa_conf_dlg", "level_done"]
+
+func _overlay_owns_esc() -> bool:
+	for screen: String in OVERLAYS_OWNING_ESC:
+		if MainGlobals.is_screen_visible(screen):
+			return true
+	return false
+
 func _input(event: InputEvent) -> void:
 	if _finished:
 		return
-	# ESC leaves the tutorial, on any step — the keyboard equivalent of the Skip button.
+	# ESC leaves the tutorial, on any step — the keyboard equivalent of the Skip button. Unless
+	# something is open on top of it, in which case ESC closes that first.
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("esc"):
+		if _overlay_owns_esc():
+			return
 		get_viewport().set_input_as_handled()
 		abort()
 		return
