@@ -952,8 +952,8 @@ func _move_player_on_tick(force: bool):
 		var is_wormhole = cpipe.is_wormhole()
 		if is_wormhole:
 			#print("source active ", cpipe.is_wormhole_active(), " warping ", cpipe.warping, "  player warping ", player.warping)
-			var qpipe = bcell(cpipe.warp_to_pos).pipe
-			#print("target active ", qpipe.is_wormhole_active(), " warping ", qpipe.warping, "  has agent ", bcell(cpipe.warp_to_pos).has_agent)
+			var _qpipe = bcell(cpipe.warp_to_pos).pipe
+			#print("target active ", _qpipe.is_wormhole_active(), " warping ", _qpipe.warping, "  has agent ", bcell(cpipe.warp_to_pos).has_agent)
 			if cpipe.is_wormhole_active() and !player.warping and !cpipe.warping:
 				var tocell = bcell(cpipe.warp_to_pos)
 				if !tocell.has_agent:
