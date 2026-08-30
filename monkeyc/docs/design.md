@@ -370,3 +370,84 @@ The game is **Apprentice** to the player: you learn the robot's rule by watching
 being told. The folder, the `MonkeyCG` / `MonkeyCLevelConfig` autoloads and the save shortname stay
 `monkeyc` (from "monkey see", the development name) — renaming the shortname would orphan every
 `*_monkeyc.gru` score file on every device.
+
+## Belt spacing scales with the item
+
+The pitch between consecutive items on a conveyor is `item_h * randf_range(PITCH_MIN, PITCH_MAX)`,
+never a pixel range. `item_h` is 72 on desktop and **100 on mobile**, and the pitch used to be a flat
+`randf_range(80, 130)` — so the gap between boxes was 8..58 on desktop and **-20..30 on mobile**, and
+the items overlapped each other vertically on every phone.
+
+Measured, before and after, on the 680x1200 canvas: smallest gap **-19.2** then **+13.5** units.
+Desktop is unchanged by construction — the fractions reproduce the old pixels exactly at
+`item_h = 72` (72 x 1.111 = 80, 72 x 1.806 = 130).
+
+Two code paths spawn items and BOTH need the pitch: `_init_belts()` fills the belt at level start and
+`_scroll_belts()` adds new ones above as old ones leave the bottom. The second belt's head start
+(`STAGGER_*`) is a fraction of `item_h` for the same reason.
+
+## The belts hug the inside, the verdict lands on the item
+
+Each belt box is aligned to the INNER edge of its half — `LeftBox` is `size_flags_horizontal = 8`
+(shrink-end), `RightBox` is `0` (begin) — so the two conveyors sit together in the middle and the
+robots have the outside to stand in. They were both shrink-CENTER, which put the free space between
+them and pushed the robots almost entirely off a phone screen.
+
+That leaves no centre gap, which this game was already prepared for: its verdict has always been drawn on the judged item
+by `_mark_item()`, never in the centre.
+
+## Belt height comes from the room available
+
+`layout.offset_top` is `header_height + 12` and `_size_belts()` hands the belts whatever is left after
+the status line and the rule labels — the same arrangement sortingrobots uses. This game used to
+reserve a FIXED 148/192px top pad and hardcode the belt at `Vector2(220, 500)`, which is why its
+conveyors were visibly shorter than sortingrobots' on the same screen: neither number knew how much
+room there actually was. Measured after the fix, the two games agree within 6px at both canvas sizes
+(mobile 791 vs 797, desktop 466 vs 472).
+
+One knock-on: the tutorial's "this is the belt" step spotlights only the belt's TOP HALF now. A
+full-height belt leaves the caption nowhere to stand, and it ended up covering the very thing it
+points at.
+
+## One belt centres, two hug the inside
+
+`_align_belts()` runs whenever the belt count is applied. With **two** belts each hugs the inner edge
+of its half (`SHRINK_END` / `SHRINK_BEGIN`) so the free space is on the OUTSIDE, where the robots
+stand — authored as shrink-center, the slack sat between them and pushed the robots almost entirely
+off a phone screen. With **one** belt it centres instead: there is no inner edge to hug when there is
+nothing to be inside of, and a lone belt jammed against the middle of the screen just looks broken.
+
+## _size_belts measures the column, it does not list it
+
+The belt gets the room left after everything ELSE in `ContentVBox`, and that "everything else" is
+**measured** — every visible child's `get_combined_minimum_size().y`, plus the container separations
+and `LeftSide`'s own rule-to-belt separation — rather than written out by hand.
+
+A hand-written subtraction misses a child the moment one is added or one stops being reparented
+away, and that is exactly how it broke: sortingrobots lifts its `FeedbackLabel` out of the flow in
+`_ready()`, monkeyc left it in at **alpha 0** — invisible but still occupying its height — so the
+belt height copied across overshot by that label, the column outgrew its VBox, the spacer collapsed
+and the status line rode up under the app's top bar. monkeyc's label is now `visible = false`, since
+a transparent Control still takes space and this game does not use the label at all.
+
+Checked at both canvas sizes: the column's combined minimum is inside the room MainLayout gives it,
+with slack, rather than overflowing it.
+
+## The belt EXPANDS; the computed height is only a floor
+
+`ContentVBox`, `BoxesRow`, `LeftSide`/`RightSide` and the belt boxes all carry
+`size_flags_vertical = SIZE_EXPAND_FILL`, and the two spacers no longer expand — so the belt takes
+whatever height is actually left rather than the height `_size_belts()` predicted. That computed
+value is now a MINIMUM only, a floor for a very short window.
+
+This is deliberate after two failed attempts at getting the number right by arithmetic: the belt came
+out too short, and the sizer could not be checked here because the containers never sort in a
+headless run (every node reports the same `global_position.y`, so measured positions are worthless).
+Letting the container do the arithmetic removes the guess entirely.
+
+`LeftSide`'s rule-to-belt separation is **12**, not 4, so the belt's top edge is unmistakably clear
+of the rule text above it.
+
+`TopSpacer` reserves a fixed 34 rather than expanding. It used to expand, and removing that expand
+(so the belt could have the room instead) let the column start right under the header, where the
+game's status line collided with the app's level string.

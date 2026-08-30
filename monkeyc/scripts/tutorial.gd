@@ -41,7 +41,11 @@ static func steps(level: Node, _game) -> Array:
 				var r: Rect2 = level.tutorial_belt_rect()
 				if r.size.x <= 0.0:
 					return null
-				return r,
+				# The TOP of the belt, not all of it. The belt is sized from the room actually
+				# available now, so it is nearly full height, and a spotlight that tall leaves the
+				# caption nowhere to stand — it ended up covering the very thing it points at. The
+				# top is where items ride in, which is what this step is about.
+				return Rect2(r.position, Vector2(r.size.x, r.size.y * 0.5)),
 			"spot_pad": 4.0,
 		},
 		{

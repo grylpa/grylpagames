@@ -98,7 +98,22 @@ static func draw(bg: Control, base: Color) -> void:
 	if w < 4.0 or h < 4.0:
 		return
 	bg.draw_rect(Rect2(0.0, 0.0, w, h), base)
-	bg.draw_mesh(_lift_mesh(Vector2(w, h), base), null)
+	# The mesh is KEPT ALIVE on the node, not built inline into the draw call.
+	#
+	# draw_mesh() records the mesh in the canvas item's draw list, but the Ref lived only for the
+	# duration of draw() — so the ArrayMesh was freed the moment the function returned while the
+	# recorded command still pointed at it. On the GLES3 renderer that surfaced as
+	# "mesh_get_surface_count: Parameter mesh is null" on a device; the headless renderer is a dummy
+	# and never asks, which is why no probe here could have caught it.
+	#
+	# Stashing it also stops an ArrayMesh being rebuilt on every single redraw.
+	var key: String = "%.1fx%.1f|%s" % [w, h, str(base)]
+	if bg.get_meta("lift_key", "") != key:
+		bg.set_meta("lift_mesh", _lift_mesh(Vector2(w, h), base))
+		bg.set_meta("lift_key", key)
+	var lift: ArrayMesh = bg.get_meta("lift_mesh") as ArrayMesh
+	if lift != null:
+		bg.draw_mesh(lift, null)
 
 # A tone one step off the base, faded to nothing at the rim. Radius reaches the corners, so the fan
 # covers the rect; the spill past the edges lands on nothing, since this is the bottom-most node.
