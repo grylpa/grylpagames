@@ -35,13 +35,13 @@ static func steps(level: Node, _game) -> Array:
 			"text": "You are the dog.\n\nKeep the sheep inside the compound.",
 		},
 		{
-			"text": "Draw a route with your finger and the dog walks it — like this.\n\nArrow keys work too: one sets the dog going that way until something stops it.",
+			"text": "Draw a route with your finger or mouse and the dog walks it — like this.\n\nArrow keys work too: one sets the dog going that way until something stops it.",
 			"spot": dog_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,
 		},
 		{
-			"text": "Trace a route by drawing it with your finger.",
+			"text": "Trace a route by drawing it with your finger or mouse.",
 			"await": {"event": "path_drawn", "timeout": 60.0},
 			"demo_path": demo_path,
 			"hint_after": 10.0,

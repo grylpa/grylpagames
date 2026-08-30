@@ -41,6 +41,23 @@ const PANEL_MARGIN: float = 12.0
 # rather than overflowing — there is no hardcoded heading height anywhere in the layout.
 const TITLE_SIZE: int = 22
 const FIRST_TITLE_SIZE: int = 32
+# The opening balloon also shows the game's OWN chooser icon above its name, and an accent rule
+# under it. A bigger heading alone still reads as a heading; the icon is the thing the player
+# already associates with the game they picked, and it cannot be mistaken for chrome. Every game
+# that has a tutorial has art/game_screen_200.png — checked, all 29.
+#
+# Desktop sizes; scaled for mobile the same way type is.
+const ICON_SIZE: int = 64
+const RULE_H: int = 2
+const RULE_FRAC: float = 0.34    # of the balloon's inner width
+
+# The icon's frame, copied from the game chooser's LIST rows so the picture is dressed the same way
+# in both places: game_chooser.gd::add_game() duplicates game_select_button.tscn's frame stylebox and
+# sets exactly these two values over it. The radius is NOT scaled for mobile — it is not scaled in
+# the chooser either, so scaling it here would make the two disagree on the device.
+const ICON_FRAME_COLOR: Color = Color(155.0 / 255.0, 100.0 / 255.0, 0.0, 1.0)
+const ICON_FRAME_WIDTH: int = 2
+const ICON_FRAME_RADIUS: int = 8
 const PAD_X: float = 18.0        # caption inner padding, left/right
 const PAD_Y: float = 14.0        # caption inner padding, top/bottom
 const VBOX_SEP: int = 6
@@ -66,6 +83,11 @@ var _game = null
 var _dim: Control = null
 var _panel: Panel = null
 var _title_label: Label = null
+var _icon: Control = null
+var _icon_clip: PanelContainer = null
+var _icon_tex: TextureRect = null
+var _icon_frame: PanelContainer = null
+var _rule: ColorRect = null
 var _skip_btn: Button = null
 var _text_label: Label = null
 var _foot_label: Label = null
@@ -180,6 +202,51 @@ func _build() -> void:
 	# that size the panel, which makes the layout exact and frame-independent.
 	var vbox: Control = _panel
 
+	# Above the heading on step 0 only: the game's chooser tile, dressed exactly as the chooser's
+	# list rows dress it. That is TWO stacked panels over the picture, not one frame around it —
+	# scenes/game_select_button.tscn:
+	#
+	#   PanelClipper   rounded, borderless, clip_children = CLIP_CHILDREN_ONLY. Its drawn shape is
+	#                  the mask, which is what ROUNDS THE PICTURE'S CORNERS.
+	#   Texture        fills the clipper, scaled without regard to aspect (ignore_texture_size +
+	#                  STRETCH_SCALE), so the tile reaches the frame on every side.
+	#   PanelFrame     the bordered panel, drawn ON TOP, so the border sits over the image edge.
+	#
+	# Inset-and-centre was the first attempt: the tile floated inside the frame instead of filling
+	# it, and its square corners cut across the rounding. Both are what those three nodes exist to
+	# prevent, so they are reproduced rather than approximated.
+	_icon = Control.new()
+	_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_icon.visible = false
+	vbox.add_child(_icon)
+
+	_icon_clip = PanelContainer.new()
+	_icon_clip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_icon_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_icon_clip.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	var clip_sb: StyleBoxFlat = StyleBoxFlat.new()
+	clip_sb.set_corner_radius_all(ICON_FRAME_RADIUS)
+	_icon_clip.add_theme_stylebox_override("panel", clip_sb)
+	_icon.add_child(_icon_clip)
+
+	_icon_tex = TextureRect.new()
+	_icon_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_icon_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	_icon_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_icon_clip.add_child(_icon_tex)
+
+	_icon_frame = PanelContainer.new()
+	_icon_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_icon_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var frame: StyleBoxFlat = StyleBoxFlat.new()
+	frame.bg_color = Color(0, 0, 0, 0)
+	frame.set_border_width_all(ICON_FRAME_WIDTH)
+	frame.border_color = ICON_FRAME_COLOR
+	frame.border_blend = true
+	frame.set_corner_radius_all(ICON_FRAME_RADIUS)
+	_icon_frame.add_theme_stylebox_override("panel", frame)
+	_icon.add_child(_icon_frame)
+
 	_title_label = Label.new()
 	MainGlobals.set_font_size(_title_label, TITLE_SIZE)
 	_title_label.add_theme_color_override("font_color", SPOT_COLOR)
@@ -191,6 +258,14 @@ func _build() -> void:
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(_title_label)
+
+	# Under the heading on step 0 only: it separates the game's NAME from what the step says about
+	# it, which is the distinction the opening balloon exists to make.
+	_rule = ColorRect.new()
+	_rule.color = Color(SPOT_COLOR.r, SPOT_COLOR.g, SPOT_COLOR.b, 0.55)
+	_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rule.visible = false
+	vbox.add_child(_rule)
 
 	_text_label = Label.new()
 	MainGlobals.set_font_size(_text_label, 19)
@@ -308,6 +383,7 @@ func _enter_step(i: int) -> void:
 	# Set every step, not once at build: the opening step is the only one that names the game, and
 	# a run can arrive at step 0 more than once (N restarts the lesson).
 	MainGlobals.set_font_size(_title_label, FIRST_TITLE_SIZE if i == 0 else TITLE_SIZE)
+	_show_game_badge(i == 0 and not _title_label.text.is_empty())
 	_text_label.text = _resolve_text(step.get("text", ""))
 	# A step with nothing to say shows no caption at all. Some steps exist only to WAIT for the
 	# game to reach a state — didi holds its round until the player taps, then needs a step that
@@ -366,6 +442,43 @@ func _resolve_text(v) -> String:
 		var out = v.call()
 		return "" if out == null else String(out)
 	return String(v)
+
+# The icon-and-rule treatment that makes the FIRST balloon say which game you are in.
+#
+# A larger heading alone is still a heading — it was reported as "far from enough", and it is: size
+# distinguishes this heading from the next one, but nothing about it says *game*. The chooser icon
+# does, because it is the picture the player just tapped to get here.
+func _show_game_badge(on: bool) -> void:
+	if _icon == null or _rule == null:
+		return
+	if not on:
+		_icon.visible = false
+		_rule.visible = false
+		return
+	if _icon_tex.texture == null:
+		_icon_tex.texture = _load_game_icon()
+	var side: float = float(MainGlobals.ui_font_size(ICON_SIZE))
+	_icon.custom_minimum_size = Vector2(side, side)
+	_icon.visible = _icon_tex.texture != null
+	_rule.custom_minimum_size = Vector2(0, float(MainGlobals.ui_font_size(RULE_H)))
+	_rule.visible = true
+
+# The game's own chooser thumbnail. The folder comes from the HOST'S SCRIPT PATH rather than from
+# the game's save prefix or MainCfg: those two happen to equal the folder today, but they are
+# independent strings, and this must not be the thing that breaks if a folder is ever renamed.
+func _load_game_icon() -> Texture2D:
+	if _host == null or not is_instance_valid(_host):
+		return null
+	var script: Script = _host.get_script()
+	if script == null:
+		return null
+	var parts: PackedStringArray = script.resource_path.replace("res://", "").split("/")
+	if parts.size() < 2:
+		return null
+	var path: String = "res://%s/art/game_screen_200.png" % parts[0]
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
 
 func _update_footer() -> void:
 	# No "3/12" counter. Several steps exist only to unfreeze the game and wait for it to produce
@@ -1229,21 +1342,44 @@ func _place_labels(inner_w: float) -> void:
 			lbl.custom_minimum_size = Vector2(inner_w, 0)
 			lbl.size.x = inner_w
 	var y: float = PAD_Y
-	for lbl2: Label in [_title_label, _text_label, _foot_label]:
-		if lbl2 == null:
+	for row: Control in _rows():
+		if row == null:
 			continue
-		var h: float = _label_height(lbl2, inner_w)
+		var h: float = _row_height(row, inner_w)
 		if h <= 0.0:
 			continue
-		lbl2.position = Vector2(PAD_X, y)
-		lbl2.size = Vector2(inner_w, h)
+		# The rule is a short centred dash, not a full-width bar: a line spanning the balloon reads
+		# as a divider between two sections, and there is only one thing above it. The icon's frame
+		# is centred for the same reason — a frame stretched to the balloon's width is a box round
+		# the caption, not round the picture.
+		if row == _rule or row == _icon:
+			var rw: float = (inner_w * RULE_FRAC) if row == _rule else h
+			row.position = Vector2(PAD_X + (inner_w - rw) * 0.5, y)
+			row.size = Vector2(rw, h)
+		else:
+			row.position = Vector2(PAD_X, y)
+			row.size = Vector2(inner_w, h)
 		y += h + float(VBOX_SEP)
+
+# The balloon's rows, top to bottom. Everything that measures or places the caption walks THIS, so
+# adding a row cannot leave one of them behind — the icon and the rule were added by appending here.
+func _rows() -> Array:
+	return [_icon, _title_label, _rule, _text_label, _foot_label]
+
+# A row's height at the balloon's inner width. Labels wrap and have to be measured; the icon and the
+# rule are fixed, which is the whole reason they are nodes with a known size rather than drawings.
+func _row_height(row: Control, inner_w: float) -> float:
+	if row == null or not row.visible:
+		return 0.0
+	if row is Label:
+		return _label_height(row as Label, inner_w)
+	return row.custom_minimum_size.y
 
 func _measured_height(inner_w: float) -> float:
 	var total: float = 2.0 * PAD_Y
 	var shown: int = 0
-	for lbl: Label in [_title_label, _text_label, _foot_label]:
-		var h: float = _label_height(lbl, inner_w)
+	for row: Control in _rows():
+		var h: float = _row_height(row, inner_w)
 		if h > 0.0:
 			total += h
 			shown += 1
