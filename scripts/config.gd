@@ -1,7 +1,7 @@
 extends Node
 
 const CATEGORY_ORDER: Array = ["Brain twisters", "Attention & Speed", "Serenity", "Memory & Speed", "Reflexes", "Planning", "Memory & Navigation", 
-"Imagination & Recognition", "Language"]
+"Recognition", "Language"]
 
 # [0]=folder, [1]=display_name, [2]=description, [3]=category, [4]=needs_login (false), [5]=supports mobile (true), [6]=supports desktop (true))
 var games = [
@@ -22,8 +22,6 @@ var games = [
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
 	["movingcards",   "Moving Cards",   "Remember moving cards",                                  "Memory & Speed"],
-	["weris",         "Weris",          "Find people in a crowd",                                 "Memory & Speed"],
-	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Memory & Speed"],
 
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Planning"],
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
@@ -41,8 +39,10 @@ var games = [
 	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
 	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
 
-	["couples",       "Couples",        "Find the two identical cards",                           "Attention & Speed"],
-	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
+	["couples",       "Couples",        "Find the two identical cards",                           "Recognition"],
+	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Recognition"],
+	["weris",         "Weris",          "Find people in a crowd",                                 "Recognition"],
+	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Recognition"],
 
 	["mmm",           "Mind Palace",    "Explore and remember the room colors",                   "Memory & Navigation"],
 	["lightsout",     "Lights Out",     "Remember your path, goal, and obstacles",                "Memory & Navigation"],
