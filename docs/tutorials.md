@@ -76,7 +76,7 @@ Each step is a Dictionary:
 | Key | Meaning |
 |---|---|
 | `text` | the caption (required). A String, **or a Callable returning one**, evaluated when the step opens |
-| `title` | optional heading; also accepts a Callable |
+| `title` | optional heading; also accepts a Callable. **On step 0 it is drawn larger** — see "The opening heading names the game" |
 | `spot` | `Rect2`, `Vector2`, a `Control`, a `Node2D`, or a **`Callable` returning one**. Use a Callable for anything that moves or is recreated — it is re-evaluated every frame |
 | `spot_radius` | radius used when `spot` resolves to a point (default 60) |
 | `spot_pad` | how much to inflate the box (default 10) |
@@ -734,6 +734,30 @@ pass arguments.
 
 ---
 
+
+
+## The opening heading names the game
+
+Every tutorial's first step titles itself with the game's display name — "Witness", "Buoy",
+"Bucket Madness". At the ordinary heading size that was indistinguishable from "Counting", "The
+gate" or any other step heading further in, so the one line telling you which of thirty-seven games
+you had just opened read as ordinary chrome and was easy to miss.
+
+`_enter_step()` therefore sets the heading to `FIRST_TITLE_SIZE` (32) on step 0 and `TITLE_SIZE`
+(22) on every other. Both are DESKTOP sizes; `MainGlobals.set_font_size()` scales them for mobile,
+where they come out 51 and 35.
+
+The size is applied on every step entry rather than once in `_build()`, because a run can arrive at
+step 0 more than once — N restarts the lesson — and a heading left at 32 for the rest of the
+tutorial would undo the distinction entirely.
+
+**This was safe to change only because no part of the balloon hardcodes a heading height.**
+`_measured_height()` and `_place_labels()` both derive every row from `_label_height(lbl, inner_w)`,
+i.e. from the label itself, so a taller heading is reserved for rather than overflowed. That is worth
+stating because the opposite has bitten here: an auto-wrapping Label reports a minimum computed from
+whatever width it currently has, which once grew this panel to 2223 px. Verified across all 29
+tutorials at both canvas sizes — heading strictly larger than a later step's, caption still on
+screen, heading still inside the balloon's inner width.
 
 ## Keys and the bottom bar, while a tutorial is running
 

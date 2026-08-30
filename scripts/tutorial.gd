@@ -30,6 +30,17 @@ const HINT_COLOR: Color = Color(1.0, 0.82, 0.15, 1.0)
 const SPOT_PAD: float = 10.0
 const DEFAULT_SPOT_RADIUS: float = 60.0
 const PANEL_MARGIN: float = 12.0
+
+# The caption's heading. The FIRST step of every tutorial titles itself with the game's name, and at
+# the ordinary heading size that is indistinguishable from "Counting", "The gate" or any other step
+# heading further in — so the one line telling you which of thirty-seven games you just opened read
+# as just another header. It gets its own, larger size.
+#
+# Desktop numbers; MainGlobals.set_font_size scales them for mobile. The panel measures every label
+# from the label itself (_measured_height / _place_labels), so a bigger heading is accounted for
+# rather than overflowing — there is no hardcoded heading height anywhere in the layout.
+const TITLE_SIZE: int = 22
+const FIRST_TITLE_SIZE: int = 32
 const PAD_X: float = 18.0        # caption inner padding, left/right
 const PAD_Y: float = 14.0        # caption inner padding, top/bottom
 const VBOX_SEP: int = 6
@@ -136,8 +147,6 @@ func run(parent: Node, steps: Array, game_util, on_done: Callable = Callable()) 
 	_enter_step(0)
 
 func _build() -> void:
-	var is_mob: bool = MainGlobals.is_mobile()
-
 	_dim = Control.new()
 	_dim.name = "Dim"
 	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -172,7 +181,7 @@ func _build() -> void:
 	var vbox: Control = _panel
 
 	_title_label = Label.new()
-	MainGlobals.set_font_size(_title_label, 22)
+	MainGlobals.set_font_size(_title_label, TITLE_SIZE)
 	_title_label.add_theme_color_override("font_color", SPOT_COLOR)
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Must wrap like the others. Without this a title wider than the caption ("Up Down Breathe",
@@ -296,6 +305,9 @@ func _enter_step(i: int) -> void:
 	_hint_shown = false
 	_title_label.text = _resolve_text(step.get("title", ""))
 	_title_label.visible = not _title_label.text.is_empty()
+	# Set every step, not once at build: the opening step is the only one that names the game, and
+	# a run can arrive at step 0 more than once (N restarts the lesson).
+	MainGlobals.set_font_size(_title_label, FIRST_TITLE_SIZE if i == 0 else TITLE_SIZE)
 	_text_label.text = _resolve_text(step.get("text", ""))
 	# A step with nothing to say shows no caption at all. Some steps exist only to WAIT for the
 	# game to reach a state — didi holds its round until the player taps, then needs a step that
@@ -530,12 +542,13 @@ func _silence_everything() -> void:
 
 func _silence_now_and_shortly() -> void:
 	_silence_everything()
-	var host: Node = _host
-	if host != null and is_instance_valid(host):
+	# host_node, not host: host() is a method on this class now, and a local of that name shadows it.
+	var host_node: Node = _host
+	if host_node != null and is_instance_valid(host_node):
 		# Deliberately on the HOST, not on this node: the runner frees itself immediately.
 		MainGlobals.do_after(0.8, func():
-			if is_instance_valid(host):
-				_silence(host))
+			if is_instance_valid(host_node):
+				_silence(host_node))
 
 func _set_frozen(frozen: bool) -> void:
 	MainGlobals.set_visible("tutorial", frozen)

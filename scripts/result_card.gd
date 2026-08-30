@@ -410,7 +410,7 @@ static func _add_stat(table: VBoxContainer, label_text: String, value_text: Stri
 	table.add_child(row)
 	return [lab, val]
 
-static func _add_prose(rows: VBoxContainer, line: String, accent: Color, card_w: float, mob: bool) -> void:
+static func _add_prose(rows: VBoxContainer, line: String, accent: Color, card_w: float, _mob: bool) -> void:
 	var lab: Label = Label.new()
 	lab.text = line
 	lab.add_theme_font_override("font", MainGlobals.get_text_font())
