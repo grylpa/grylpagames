@@ -36,7 +36,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": "The roof leaks.\n\nKeep the water off your things.",
 		},
 		{
-			"text": "Draw a route with your finger and you walk it — like this.\n\nArrow keys work too: one sets you going that way until something stops you.",
+			"text": "Draw a route with your finger or mouse and you walk it — like this.\n\nArrow keys work too: one sets you going that way until something stops you.",
 			"spot": player_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,

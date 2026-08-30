@@ -736,28 +736,74 @@ pass arguments.
 
 
 
-## The opening heading names the game
+## The opening balloon says which game you are in
 
 Every tutorial's first step titles itself with the game's display name — "Witness", "Buoy",
-"Bucket Madness". At the ordinary heading size that was indistinguishable from "Counting", "The
-gate" or any other step heading further in, so the one line telling you which of thirty-seven games
-you had just opened read as ordinary chrome and was easy to miss.
+"Bucket Madness" — and at the ordinary heading size that was indistinguishable from "Counting",
+"The gate" or any other step heading further in. The one line telling you which of thirty-seven
+games you had just opened read as chrome.
 
-`_enter_step()` therefore sets the heading to `FIRST_TITLE_SIZE` (32) on step 0 and `TITLE_SIZE`
-(22) on every other. Both are DESKTOP sizes; `MainGlobals.set_font_size()` scales them for mobile,
-where they come out 51 and 35.
+Enlarging the heading was the first attempt and it is **not enough on its own**: size distinguishes
+this heading from the next one, but nothing about a bigger heading says *game*. The opening balloon
+now carries three things, applied together by `_show_game_badge()`:
 
-The size is applied on every step entry rather than once in `_build()`, because a run can arrive at
-step 0 more than once — N restarts the lesson — and a heading left at 32 for the rest of the
-tutorial would undo the distinction entirely.
+| | |
+|---|---|
+| the game's **icon** | its own `art/game_screen_200.png` — the picture the player just tapped in the chooser, which cannot be mistaken for chrome. All 29 games with a tutorial have one, wrapped exactly as the chooser's list rows wrap it (see below) |
+| the **name**, larger | `FIRST_TITLE_SIZE` 32 on step 0, `TITLE_SIZE` 22 on every other (51 / 35 on mobile) |
+| an accent **rule** | a short centred dash between them, `RULE_FRAC` of the inner width — not a full-width bar, which reads as a divider between two sections when there is only one thing above it |
 
-**This was safe to change only because no part of the balloon hardcodes a heading height.**
-`_measured_height()` and `_place_labels()` both derive every row from `_label_height(lbl, inner_w)`,
-i.e. from the label itself, so a taller heading is reserved for rather than overflowed. That is worth
-stating because the opposite has bitten here: an auto-wrapping Label reports a minimum computed from
-whatever width it currently has, which once grew this panel to 2223 px. Verified across all 29
-tutorials at both canvas sizes — heading strictly larger than a later step's, caption still on
-screen, heading still inside the balloon's inner width.
+All three are cleared on every other step. `_place_labels()` centres the icon the same way it
+centres the rule — a frame stretched to the balloon's width would be a box round the caption rather
+than round the picture.
+
+### The icon frame is the chooser's, reproduced node for node
+
+`scenes/game_select_button.tscn` does NOT put one bordered frame around a picture. It stacks three
+nodes, and each one is load-bearing:
+
+| | |
+|---|---|
+| `PanelClipper` | rounded, **borderless**, `clip_children = CLIP_CHILDREN_ONLY`. Its drawn shape is the mask — this is what rounds the picture's corners |
+| `Texture` | fills the clipper, scaled without regard to aspect (`ignore_texture_size` + `STRETCH_SCALE`), so the tile reaches the frame on every side |
+| `PanelFrame` | the bordered panel, drawn **on top**, so the border sits over the image edge |
+
+The runner builds the same three (`_icon_clip` / `_icon_tex` / `_icon_frame`) rather than
+approximating them. Approximating it — a single frame with the texture inset and
+`KEEP_ASPECT_CENTERED` — was the first attempt, and it failed in precisely the two ways those nodes
+exist to prevent: the tile floated inside the frame instead of filling it, and its square corners
+cut across the rounding.
+
+The border values (`ICON_FRAME_*`: 2px, `Color8(155, 100, 0)`) are the ones
+`game_chooser.gd::add_game()` applies over that stylebox in `list_mode`. The radius is deliberately
+**not** scaled for mobile, because the chooser does not scale it either.
+
+`probe_title.gd` asserts all of this against the chooser's own scene — it instantiates
+`game_select_button.tscn` and reads the radius, clip mode, fill and stacking order off it — so a
+restyle of the chooser fails the check instead of silently leaving the two out of step.
+
+**The folder comes from the host's script path** (`res://<folder>/scripts/main.gd`), not from the
+game's save prefix or `MainCfg`. Those equal the folder today but are independent strings, and the
+icon must not be the thing that breaks if a folder is ever renamed.
+
+The size and badge are applied on **every** step entry rather than once in `_build()`, because a run
+can arrive at step 0 more than once — N restarts the lesson — and a badge left up for the rest of
+the tutorial would undo the distinction entirely.
+
+### Adding a row to the balloon
+
+The caption is laid out by hand, and it has bitten before: an auto-wrapping Label reports a minimum
+computed from whatever width it currently has, which once grew this panel to 2223 px. So the rows
+now live in ONE place, `_rows()`, and everything that measures or positions the caption walks it —
+`_measured_height()` and `_place_labels()` both call `_row_height()`, which measures Labels (they
+wrap) and reads `custom_minimum_size.y` for fixed rows like the icon and the rule. Append to
+`_rows()` and both follow; there is no second list to forget.
+
+Two things to check when you do, because `_panel.clip_contents` is true and a balloon that reserves
+more than it gets simply loses the bottom of its text: that `_measured_height()` still equals the
+panel's actual height, and that it stays under `MAX_PANEL_FRAC` / `SIDE_MAX_FRAC`. Verified for the
+badge across all 29 tutorials at both canvas sizes — the tallest case is Buoy's side column at 648
+of a 960 cap on mobile.
 
 ## Keys and the bottom bar, while a tutorial is running
 
