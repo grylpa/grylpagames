@@ -29,6 +29,20 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # Endless conveyor — same dimensions as sorting robots
 var pair_font_size: int = 32
 var item_h: float = 72.0
+# The pitch between consecutive belt items is a MULTIPLE OF item_h, never a pixel range.
+#
+# It used to be a flat randf_range(80, 130) while item_h is 72 on desktop and 100 on mobile — so the
+# gap between boxes was 8..58 on desktop and MINUS 20..30 on mobile, and the items overlapped each
+# other vertically on every phone. The item grew for the bigger screen and the spacing that keeps
+# items apart did not.
+#
+# The fractions reproduce the old desktop pixels exactly at item_h = 72 (72 x 1.111 = 80,
+# 72 x 1.806 = 130), so the rhythm is unchanged there and merely scales with the item.
+const PITCH_MIN: float = 1.111       # x item_h
+const PITCH_MAX: float = 1.806
+const STAGGER_MIN: float = 0.556     # x item_h, the second belt's head start
+const STAGGER_MAX: float = 1.042
+
 # Claw pick-up timing: the item is first popped slightly larger (the claw closing and lifting it
 # off the belt), and only then yanked off the side.
 const _GRAB_SCALE: float = 1.18
@@ -184,17 +198,24 @@ func _ready() -> void:
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
 	_apply_sleek_chrome()
+	# Reserve the app's header and the bottom bar, then hand whatever is left to the belts — the
+	# same arrangement sortingrobots uses (_size_belts there). This game had a FIXED 148/192px top
+	# pad and a hardcoded 500px belt, which is why its conveyors were visibly shorter than
+	# sortingrobots' on the same screen: neither number knew how much room there actually was.
+	# sortingrobots carries a comment about having had exactly this bug; this is the same fix.
 	var layout: MarginContainer = $MainLayout
-	layout.offset_top = 148.0 if MainGlobals.is_mobile() else 192.0
-	layout.offset_bottom = -(MainGlobals.footer_height + 15.0)
+	var bar_h: float = 70.0 if MainGlobals.is_mobile() else 44.0
+	var bottom_reserve: float = maxf(20.0, bar_h - MainGlobals.footer_height + 10.0)
+	layout.offset_top = MainGlobals.header_height + 12.0
+	layout.offset_bottom = -(MainGlobals.footer_height + bottom_reserve)
+	var belt_w: float = 140.0
 	if MainGlobals.is_mobile():
 		pair_font_size = 48
 		item_h = 100.0
+		belt_w = 220.0
 		%LeftRuleLabel.add_theme_font_size_override("font_size", 32)
 		%RightRuleLabel.add_theme_font_size_override("font_size", 32)
 		%AvgTimeLabel.add_theme_font_size_override("font_size", 36)
-		$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox.custom_minimum_size = Vector2(220, 500)
-		$MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox.custom_minimum_size = Vector2(220, 500)
 	# Prose labels take the NO-FALLBACK face. The symbol font's line box is 2.09x the font size
 	# (the Noto Symbols fallback is very tall and a Font's line height is the MAX over its
 	# fallbacks), which on these WRAPPED rule labels nearly doubles the gap between lines --
@@ -212,6 +233,7 @@ func _ready() -> void:
 	var two_line_h: float = f.get_height(rule_fs) * 2.0 + 12.0
 	%LeftRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
 	%RightRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
+	_size_belts(f, belt_w, two_line_h, layout)
 	# 0, not -8: that was compensating for the symbol font's 2.09x line box, and these labels now
 	# use the prose face, where it would squeeze the wrapped lines together instead.
 	%LeftRuleLabel.add_theme_constant_override("line_spacing", 0)
@@ -506,6 +528,40 @@ func _share_pair_widths(lbl_l: Label, lbl_r: Label, total_w: float, base_size: i
 
 # --- Belt helpers ---
 
+# Give the belts exactly the height left after the status line and the rule labels, rather than a
+# fixed number that cannot know the screen. Copied from sortingrobots rather than shared: games here
+# do not reach into each other's scripts.
+func _size_belts(f: Font, belt_w: float, rule_h: float, layout: MarginContainer) -> void:
+	# offset_bottom is negative, so adding it subtracts the reserved bottom space
+	var layout_h: float = float(MainGlobals.full_screen_size.y) - layout.offset_top + layout.offset_bottom
+	var content: VBoxContainer = $MainLayout/VBox/ContentVBox
+	# Measure what ELSE is in the column instead of listing it by hand. A hand-written subtraction
+	# misses a child the moment one is added or one stops being reparented away — which is exactly
+	# how this went wrong: sortingrobots lifts its FeedbackLabel out of the flow in _ready, monkeyc
+	# left it in at alpha 0, and the belt height copied across overshot by that label's height,
+	# pushing the whole column up under the app's top bar.
+	var used: float = 0.0
+	var shown: int = 0
+	for child in content.get_children():
+		if child is Control and (child as Control).visible:
+			shown += 1
+			if (child as Control).name != "BoxesRow":
+				used += (child as Control).get_combined_minimum_size().y
+	var sep: float = float(content.get_theme_constant("separation")) * float(maxi(shown - 1, 0))
+	# The rule label sits above the belt inside LeftSide/RightSide, with that VBox's own separation.
+	var side_sep: float = float(
+		$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide.get_theme_constant("separation"))
+	# floor keeps the belt playable on a very short window; below that the content simply clips
+	var belt_h: float = maxf(200.0, layout_h - used - rule_h - side_sep - sep - 8.0)
+	$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox.custom_minimum_size = Vector2(belt_w, belt_h)
+	$MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox.custom_minimum_size = Vector2(belt_w, belt_h)
+func _align_belts() -> void:
+	var solo: bool = num_belts < 2
+	var left: Control = $MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox
+	var right: Control = $MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox
+	left.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if solo else Control.SIZE_SHRINK_END
+	right.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if solo else Control.SIZE_SHRINK_BEGIN
+
 func _containers() -> Array:
 	return [%LeftItemsContainer, %RightItemsContainer]
 
@@ -534,11 +590,11 @@ func _init_belts() -> void:
 		var bw: float = container.size.x
 		if h <= 0.0 or bw <= 0.0:
 			return
-		var y_offset: float = 0.0 if si == 0 else rng.randf_range(40.0, 75.0)
+		var y_offset: float = 0.0 if si == 0 else item_h * rng.randf_range(STAGGER_MIN, STAGGER_MAX)
 		var y: float = -item_h - y_offset
 		while y < h + item_h:
 			belt_items[si].append(_spawn_belt_item(si, y, bw))
-			y += rng.randf_range(80.0, 130.0)
+			y += item_h * rng.randf_range(PITCH_MIN, PITCH_MAX)
 	belt_initialized = true
 
 func _scroll_belts(delta: float) -> void:
@@ -562,7 +618,7 @@ func _scroll_belts(delta: float) -> void:
 			if entry["ctrl"].position.y < top_y:
 				top_y = entry["ctrl"].position.y
 		while top_y > -item_h:
-			top_y -= rng.randf_range(80.0, 130.0)
+			top_y -= item_h * rng.randf_range(PITCH_MIN, PITCH_MAX)
 			items.append(_spawn_belt_item(si, top_y, bw))
 
 func _clear_belts() -> void:
@@ -1055,11 +1111,14 @@ func new_game(from_scratch: bool = true) -> void:
 		question_panel.queue_free()
 		question_panel = null
 	_clear_belts()
-	%FeedbackLabel.modulate.a = 0.0
+	# hidden, not merely transparent: an alpha-0 Control still takes its height in the VBox, and
+	# this game does not use the label at all — its verdict is drawn on the item (_mark_item).
+	%FeedbackLabel.visible = false
 	%AvgTimeLabel.text = "Watch the robot..."
 	var right_side: Node = _containers()[1].get_parent().get_parent()
 	if right_side != null:
 		right_side.visible = num_belts == 2
+	_align_belts()
 	if game.tutorial_mode:
 		_tutorial_setup()
 	game.level_is_ready = true

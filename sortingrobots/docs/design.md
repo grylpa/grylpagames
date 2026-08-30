@@ -305,3 +305,109 @@ alarming. The visible rollback lands in `new_game()` along with the counters, wh
 pressed.
 
 Only the failed level's points go back. Everything earned in levels already passed is untouched.
+
+## Belt spacing scales with the item
+
+The pitch between consecutive items on a conveyor is `item_h * randf_range(PITCH_MIN, PITCH_MAX)`,
+never a pixel range. `item_h` is 72 on desktop and **100 on mobile**, and the pitch used to be a flat
+`randf_range(80, 130)` — so the gap between boxes was 8..58 on desktop and **-20..30 on mobile**, and
+the items overlapped each other vertically on every phone.
+
+Measured, before and after, on the 680x1200 canvas: smallest gap **-19.2** then **+13.5** units.
+Desktop is unchanged by construction — the fractions reproduce the old pixels exactly at
+`item_h = 72` (72 x 1.111 = 80, 72 x 1.806 = 130).
+
+Two code paths spawn items and BOTH need the pitch: `_init_belts()` fills the belt at level start and
+`_scroll_belts()` adds new ones above as old ones leave the bottom. The second belt's head start
+(`STAGGER_*`) is a fraction of `item_h` for the same reason.
+
+## The belts hug the inside, the verdict lands on the item
+
+Each belt box is aligned to the INNER edge of its half — `LeftBox` is `size_flags_horizontal = 8`
+(shrink-end), `RightBox` is `0` (begin) — so the two conveyors sit together in the middle and the
+robots have the outside to stand in. They were both shrink-CENTER, which put the free space between
+them and pushed the robots almost entirely off a phone screen.
+
+### The mark is monkeyc's, ported — not a variant of it
+
+`_mark_item()` / `_pop_mark()` here are monkeyc's, copied. Getting there took four wrong attempts,
+all of which came from one decision: this game discarded the highlight window BEFORE scoring, so the
+mark had nothing to attach to and had to invent its own frame, its own position and its own
+lifetime. Every problem followed from that — the tick appearing in the centre of the screen, a
+second frame around the item, a frame that did not match the yellow one it replaced, and a crash
+when the item was freed under the label.
+
+The order is now monkeyc's: **mark first, while the panel is alive; tear down after.**
+
+| | |
+|---|---|
+| the frame | the yellow highlight panel is RECOLOURED, never replaced — it keeps its exact rect, so the verdict frame lands precisely where the yellow one was. A separately drawn frame is always slightly the wrong size and reads as a second box |
+| the glyph | a Label child of that panel, sized to it |
+| the punch | on EVERY verdict: the glyph overshoots 0.3 -> 1.5 -> 1.0 and the panel flinches 1.0 -> 1.18 -> 1.0. That small increase-decrease is the decision landing |
+| growing further | is the PICK-UP, and belongs to the claw (`_claw_pull`). Nothing else swells |
+
+**A miss is marked like any other verdict, on the item, while it is still on the belt.** The timeout
+fires at `item_y >= h - item_h` — when the item reaches the BOTTOM of the belt — not at `item_y >= h`,
+after it has left. The old trigger came about 11 s after the window opened, at a moment when there
+was nothing on screen to attach a verdict to, so letting an item go by really did look like nothing
+had happened. It now calls `_mark_item(false)` with the panel still alive: same red X on the item,
+same red frame, same belt wash as a wrong answer. Measured: the miss scores at ~9.5 s with the panel
+and item both alive, glyph X, frame (1.0, 0.35, 0.0).
+
+**A timeout has to show something too.** Letting an item go by reaches `_score_answer()` with the
+window already discarded and the item scrolled off the bottom, so there is nothing left to stamp —
+and the belt wash was inside `_mark_item()`, which returns early without a panel. Missing an item
+therefore looked like nothing had happened at all: the score ticked down and the screen said
+nothing. `_flash_belt()` moved out to `_score_answer()`, where it runs on EVERY outcome, and
+`_discard_window()` remembers the belt in `_last_belt` so the wash still knows which one to colour
+after the window is gone.
+
+(The score is `min(3, score)`, so a miss costs nothing at zero. That is the game's own floor, not a
+missing penalty — worth knowing, because it makes a naive "did the score drop?" test fail.)
+
+`_track_window_panel()` keeps the frame on the item every frame while the verdict is up. The panel
+only ever followed the item while the window was ROLLING OUT; after an answer nothing moved it, which
+never showed while the panel was discarded the instant the player answered. Now that it lives through
+the verdict and the belt keeps scrolling underneath, a frame left at a fixed y slides off the item it
+marks — measured, it drifted 7.5 units in 18 frames, and holds to 0.0 with the tracking. It does not
+track an item the claw has carried off: `_claw_pull` reparents it into a flyer, and chasing a node in
+another coordinate space would throw the frame across the screen.
+
+`_discard_window()` is no longer called from `_evaluate_answer()`; `_score_answer()` frees the panel
+after the verdict has been seen. The old centre `FeedbackLabel` is removed from the tree outright in
+`_ready()` — an unused Label left in `ContentVBox` silently reserves its height.
+
+## _size_belts measures the column, it does not list it
+
+The belt gets the room left after everything ELSE in `ContentVBox`, and that "everything else" is
+**measured** — every visible child's `get_combined_minimum_size().y`, plus the container separations
+and `LeftSide`'s own rule-to-belt separation — rather than written out by hand.
+
+A hand-written subtraction misses a child the moment one is added or one stops being reparented
+away, and that is exactly how it broke: sortingrobots lifts its `FeedbackLabel` out of the flow in
+`_ready()`, monkeyc left it in at **alpha 0** — invisible but still occupying its height — so the
+belt height copied across overshot by that label, the column outgrew its VBox, the spacer collapsed
+and the status line rode up under the app's top bar. monkeyc's label is now `visible = false`, since
+a transparent Control still takes space and this game does not use the label at all.
+
+Checked at both canvas sizes: the column's combined minimum is inside the room MainLayout gives it,
+with slack, rather than overflowing it.
+
+## The belt EXPANDS; the computed height is only a floor
+
+`ContentVBox`, `BoxesRow`, `LeftSide`/`RightSide` and the belt boxes all carry
+`size_flags_vertical = SIZE_EXPAND_FILL`, and the two spacers no longer expand — so the belt takes
+whatever height is actually left rather than the height `_size_belts()` predicted. That computed
+value is now a MINIMUM only, a floor for a very short window.
+
+This is deliberate after two failed attempts at getting the number right by arithmetic: the belt came
+out too short, and the sizer could not be checked here because the containers never sort in a
+headless run (every node reports the same `global_position.y`, so measured positions are worthless).
+Letting the container do the arithmetic removes the guess entirely.
+
+`LeftSide`'s rule-to-belt separation is **12**, not 4, so the belt's top edge is unmistakably clear
+of the rule text above it.
+
+`TopSpacer` reserves a fixed 34 rather than expanding. It used to expand, and removing that expand
+(so the belt could have the room instead) let the column start right under the header, where the
+game's status line collided with the app's level string.

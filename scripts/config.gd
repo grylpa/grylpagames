@@ -1,6 +1,7 @@
 extends Node
 
-const CATEGORY_ORDER: Array = ["Brain twisters", "Attention & Speed", "Serenity", "Memory & Speed", "Reflexes", "Planning", "Memory & Navigation", "Imagination & Recognition", "Language"]
+const CATEGORY_ORDER: Array = ["Brain twisters", "Attention & Speed", "Serenity", "Memory & Speed", "Reflexes", "Planning", "Memory & Navigation", 
+"Imagination & Recognition", "Language"]
 
 # [0]=folder, [1]=display_name, [2]=description, [3]=category, [4]=needs_login (false), [5]=supports mobile (true), [6]=supports desktop (true))
 var games = [
@@ -11,12 +12,9 @@ var games = [
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
-	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Attention & Speed"],
 	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
-	["couples",       "Couples",        "Find the two identical cards",                           "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["didi",          "Pinpoint",       "Two clues, one shot",                                    "Attention & Speed"],
-	["taxi",          "Taxi",           "Be a station manager and owner",                         "Attention & Speed"],
 	["ddooo",         "Witness",        "You saw it happen. Now testify",                         "Attention & Speed"],
 	["pop",           "Glimpse",        "Catch it out of the corner of your eye",                 "Attention & Speed"],
 	["ooo",           "Lineup",         "Pick the culprit out of the lineup",                     "Attention & Speed"],
@@ -27,12 +25,14 @@ var games = [
 	["weris",         "Weris",          "Find people in a crowd",                                 "Memory & Speed"],
 	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Memory & Speed"],
 
+	["taxi",          "Taxi",           "Be a station manager and owner",                         "Planning"],
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
 	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],
 	["pneumo",        "Pneumo",         "Manage your pneumatic tubes deliveries",                 "Planning"],
 	["parkem",        "Parkem",         "Don't allow the monsters to reach their goals",          "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
+	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Reflexes"],
 	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes", false, true, false],
 
 	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
@@ -41,6 +41,7 @@ var games = [
 	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
 	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
 
+	["couples",       "Couples",        "Find the two identical cards",                           "Attention & Speed"],
 	["polkadots",     "Polka Dots",     "Identify the scatter of dots",                           "Imagination & Recognition"],
 
 	["mmm",           "Mind Palace",    "Explore and remember the room colors",                   "Memory & Navigation"],

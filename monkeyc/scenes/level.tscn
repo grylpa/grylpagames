@@ -37,12 +37,14 @@ theme_override_constants/margin_bottom = 0
 layout_mode = 2
 
 [node name="TopSpacer" type="Control" parent="MainLayout/VBox"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_vertical = 0
 
 [node name="ContentVBox" type="VBoxContainer" parent="MainLayout/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
+size_flags_vertical = 3
 
 [node name="AvgTimeLabel" type="Label" parent="MainLayout/VBox/ContentVBox"]
 unique_name_in_owner = true
@@ -59,11 +61,13 @@ horizontal_alignment = 1
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 24
+size_flags_vertical = 3
 
 [node name="LeftSide" type="VBoxContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 12
+size_flags_vertical = 3
 
 [node name="LeftRuleLabel" type="Label" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide"]
 unique_name_in_owner = true
@@ -82,8 +86,9 @@ autowrap_mode = 2
 [node name="LeftBox" type="PanelContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide"]
 custom_minimum_size = Vector2(140, 420)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_horizontal = 8
 theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+size_flags_vertical = 3
 
 [node name="LeftItemsContainer" type="Control" parent="MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox"]
 unique_name_in_owner = true
@@ -92,7 +97,8 @@ layout_mode = 2
 [node name="RightSide" type="VBoxContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 12
+size_flags_vertical = 3
 
 [node name="RightRuleLabel" type="Label" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide"]
 unique_name_in_owner = true
@@ -111,8 +117,9 @@ autowrap_mode = 2
 [node name="RightBox" type="PanelContainer" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide"]
 custom_minimum_size = Vector2(140, 420)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_horizontal = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_stripe")
+size_flags_vertical = 3
 
 [node name="RightItemsContainer" type="Control" parent="MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox"]
 unique_name_in_owner = true
@@ -129,4 +136,4 @@ vertical_alignment = 1
 
 [node name="BottomSpacer" type="Control" parent="MainLayout/VBox"]
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_vertical = 0

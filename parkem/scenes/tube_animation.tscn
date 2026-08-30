@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b4lm0j6go3d2y" path="res://parkem/scripts/tube_animation.gd" id="1_4huha"]
 [ext_resource type="Texture2D" uid="uid://lga7hhhu6dpm" path="res://art/enemy-body2.png" id="2_s1wj8"]
-[ext_resource type="Texture2D" uid="uid://vd0sioymks48" path="res://art/tube_segment.png" id="2_yvaj2"]
+[ext_resource type="Texture2D" uid="uid://dmjo5v67b5f8j" path="res://art/tube_segment.png" id="2_yvaj2"]
 [ext_resource type="Texture2D" uid="uid://qb353hoqdff6" path="res://art/enemy-body3.png" id="3_2lata"]
 [ext_resource type="Texture2D" uid="uid://dhj4p43lc506h" path="res://parkem/art/agent_body3.png" id="3_180dr"]
 [ext_resource type="Texture2D" uid="uid://cf2hqruegwstb" path="res://art/enemy-body4.png" id="4_3uk1x"]

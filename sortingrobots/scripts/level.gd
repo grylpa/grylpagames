@@ -21,6 +21,9 @@ var _score_at_level_start: int = 0
 var _rollback_score_on_next_level: bool = false
 var round_start_ms: float = 0.0
 var _showing_feedback: bool = false
+# The belt the last window was on, kept because a TIMEOUT discards the window before scoring and
+# the flash still has to know which belt to wash.
+var _last_belt: int = -1
 
 var current_pair: Array = []
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -56,6 +59,20 @@ const _CONFUSABLE_WITH: Dictionary = {
 # Endless conveyor
 var pair_font_size: int = 32
 var item_h: float = 72.0
+# The pitch between consecutive belt items is a MULTIPLE OF item_h, never a pixel range.
+#
+# It used to be a flat randf_range(80, 130) while item_h is 72 on desktop and 100 on mobile — so the
+# gap between boxes was 8..58 on desktop and MINUS 20..30 on mobile, and the items overlapped each
+# other vertically on every phone. The item grew for the bigger screen and the spacing that keeps
+# items apart did not.
+#
+# The fractions reproduce the old desktop pixels exactly at item_h = 72 (72 x 1.111 = 80,
+# 72 x 1.806 = 130), so the rhythm is unchanged there and merely scales with the item.
+const PITCH_MIN: float = 1.111       # x item_h
+const PITCH_MAX: float = 1.806
+const STAGGER_MIN: float = 0.556     # x item_h, the second belt's head start
+const STAGGER_MAX: float = 1.042
+
 const ITEM_SPACING: float = 95.0
 # Claw pick-up timing: the item is first popped slightly larger (the claw closing and lifting it
 # off the belt), and only then yanked off the side.
@@ -69,6 +86,8 @@ var belt_initialized: bool = false
 
 # Window (highlight box that enters and exits from top/bottom with its item)
 var window_panel: Panel = null
+# The item the current verdict belongs to, captured by _discard_window() before it clears the
+# window, since scoring happens after the window is gone.
 var window_belt: int = -1
 var window_open: bool = false        # accepting input
 var window_rolling_out: bool = false # answered/timed-out but still scrolling to exit
@@ -78,8 +97,6 @@ var window_timer: float = 0.0
 var next_window_timer: float = 2.0
 
 # The ✓/✗ overlay. Floated out of the vertical flow in _ready so it can sit exactly between the
-# two belts rather than below them; see _position_feedback.
-var _feedback: Label = null
 
 var _swipe_start: Vector2 = Vector2.ZERO
 var _swipe_tracking: bool = false
@@ -182,7 +199,11 @@ func _ready() -> void:
 		%LeftRuleLabel.add_theme_font_size_override("font_size", 32)
 		%RightRuleLabel.add_theme_font_size_override("font_size", 32)
 		%AvgTimeLabel.add_theme_font_size_override("font_size", 36)
-	_feedback = %FeedbackLabel
+	# The old centre label is removed from the tree outright: the verdict is drawn on the framed
+	# item (_mark_item), and an unused Label left in ContentVBox silently reserves its height.
+	var old_feedback: Node = %FeedbackLabel
+	old_feedback.get_parent().remove_child(old_feedback)
+	old_feedback.queue_free()
 	# Prose labels take the NO-FALLBACK face. The symbol font's line box is 2.09x the font size
 	# (the Noto Symbols fallback is very tall and a Font's line height is the MAX over its
 	# fallbacks), which on these WRAPPED rule labels nearly doubles the gap between lines --
@@ -193,7 +214,6 @@ func _ready() -> void:
 	%LeftRuleLabel.add_theme_font_override("font", ft)
 	%RightRuleLabel.add_theme_font_override("font", ft)
 	%AvgTimeLabel.add_theme_font_override("font", ft)
-	_feedback.add_theme_font_override("font", f)
 	# Fix both rule labels to a 2-line height so a 1-line and a 2-line rule
 	# occupy the same space (bottom-aligned), keeping the two belts aligned.
 	var rule_fs: int = 32 if MainGlobals.is_mobile() else 22
@@ -208,12 +228,6 @@ func _ready() -> void:
 	%LeftItemsContainer.clip_contents = true
 	%RightItemsContainer.clip_contents = true
 	# Float the ✓/✗ out of the VBox flow so it can be positioned freely over the belts.
-	_feedback.get_parent().remove_child(_feedback)
-	add_child(_feedback)
-	_feedback.z_index = 100
-	_feedback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_feedback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_add_belt_edges()
 	set_process(false)
 
@@ -223,14 +237,27 @@ func _ready() -> void:
 func _size_belts(f: Font, belt_w: float, rule_h: float, layout: MarginContainer) -> void:
 	# offset_bottom is negative, so adding it subtracts the reserved bottom space
 	var layout_h: float = float(MainGlobals.full_screen_size.y) - layout.offset_top + layout.offset_bottom
-	var avg_fs: int = 36 if MainGlobals.is_mobile() else 24
-	var avg_h: float = f.get_height(avg_fs) + 8.0
-	var spacing: float = 10.0 * 2.0 + 8.0   # ContentVBox separations plus a little slack
+	var content: VBoxContainer = $MainLayout/VBox/ContentVBox
+	# Measure what ELSE is in the column instead of listing it by hand. A hand-written subtraction
+	# misses a child the moment one is added or one stops being reparented away — which is exactly
+	# how this went wrong: sortingrobots lifts its FeedbackLabel out of the flow in _ready, monkeyc
+	# left it in at alpha 0, and the belt height copied across overshot by that label's height,
+	# pushing the whole column up under the app's top bar.
+	var used: float = 0.0
+	var shown: int = 0
+	for child in content.get_children():
+		if child is Control and (child as Control).visible:
+			shown += 1
+			if (child as Control).name != "BoxesRow":
+				used += (child as Control).get_combined_minimum_size().y
+	var sep: float = float(content.get_theme_constant("separation")) * float(maxi(shown - 1, 0))
+	# The rule label sits above the belt inside LeftSide/RightSide, with that VBox's own separation.
+	var side_sep: float = float(
+		$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide.get_theme_constant("separation"))
 	# floor keeps the belt playable on a very short window; below that the content simply clips
-	var belt_h: float = maxf(200.0, layout_h - avg_h - rule_h - spacing)
+	var belt_h: float = maxf(200.0, layout_h - used - rule_h - side_sep - sep - 8.0)
 	$MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox.custom_minimum_size = Vector2(belt_w, belt_h)
 	$MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox.custom_minimum_size = Vector2(belt_w, belt_h)
-
 func _add_belt_edges() -> void:
 	var edge_script: Script = load("res://sortingrobots/scripts/belt_edge.gd")
 	var boxes: Array = [
@@ -437,6 +464,7 @@ func _containers() -> Array:
 
 func _process(delta: float) -> void:
 	_position_robots()
+	_track_window_panel()
 	if game.paused() or game.level_is_done:
 		return
 	if not belt_initialized:
@@ -449,10 +477,17 @@ func _process(delta: float) -> void:
 		if window_target_item != null and is_instance_valid(window_target_item):
 			var h: float = _containers()[window_belt].size.y
 			var item_y: float = window_target_item.position.y
-			if item_y >= h:
-				# Item scrolled off while window still open — instant timeout
+			if item_y >= h - item_h:
+				# Out of time. Fired when the item reaches the BOTTOM of the belt, not after it has
+				# left: it used to wait for item_y >= h, which is ~11 s after the window opened and
+				# a moment when there is nothing on screen to attach the verdict to. The player let
+				# an item go by and saw nothing for it.
+				#
+				# Marked exactly like an answer — the same red X on the item, the same red frame —
+				# so a miss reads as a miss rather than as a silent score drop. _score_answer frees
+				# the window afterwards, as on every other path.
 				window_open = false
-				_discard_window()
+				_mark_item(false)
 				_score_answer(false, true)
 			else:
 				if window_panel != null and is_instance_valid(window_panel):
@@ -517,7 +552,7 @@ func _scroll_belts(delta: float) -> void:
 			if entry["ctrl"].position.y < top_y:
 				top_y = entry["ctrl"].position.y
 		while top_y > -item_h:
-			top_y -= rng.randf_range(80.0, 130.0)
+			top_y -= item_h * rng.randf_range(PITCH_MIN, PITCH_MAX)
 			items.append(_spawn_belt_item(si, top_y, bw))
 
 func _init_belts() -> void:
@@ -528,10 +563,10 @@ func _init_belts() -> void:
 		if h <= 0.0 or bw <= 0.0:
 			return
 		# Right belt starts with a vertical offset so the two belts are never aligned
-		var y: float = -item_h if si == 0 else -item_h - rng.randf_range(40.0, 75.0)
+		var y: float = -item_h if si == 0 else -item_h - item_h * rng.randf_range(STAGGER_MIN, STAGGER_MAX)
 		while y < h + item_h:
 			belt_items[si].append(_spawn_belt_item(si, y, bw))
-			y += rng.randf_range(80.0, 130.0)
+			y += item_h * rng.randf_range(PITCH_MIN, PITCH_MAX)
 	belt_initialized = true
 
 func _spawn_belt_item(si: int, y: float, bw: float) -> Dictionary:
@@ -655,7 +690,29 @@ func tutorial_hide_labels_now() -> void:
 	_hide_labels()
 	game.tutorial_notify("labels_hidden")
 
+# Keep the verdict frame ON the item while the verdict is up.
+#
+# The panel only followed the item while the window was ROLLING OUT; after an answer nothing moved
+# it. That never showed before, because the panel used to be discarded the instant the player
+# answered — now it lives through the 0.4 s of the verdict, and the belt keeps scrolling underneath,
+# so a frame left at a fixed y slides off the item it belongs to.
+#
+# Not while the item is being carried off: _claw_pull reparents it into a flyer, and chasing a node
+# in another coordinate space would throw the frame across the screen.
+func _track_window_panel() -> void:
+	if not _showing_feedback:
+		return
+	if window_panel == null or not is_instance_valid(window_panel):
+		return
+	if window_target_item == null or not is_instance_valid(window_target_item):
+		return
+	if window_belt < 0 or window_target_item.get_parent() != _containers()[window_belt]:
+		return
+	window_panel.position.y = window_target_item.position.y - 4.0
+
 func _discard_window() -> void:
+	if window_belt >= 0:
+		_last_belt = window_belt
 	window_open = false
 	window_rolling_out = false
 	if window_panel != null and is_instance_valid(window_panel):
@@ -741,7 +798,6 @@ func new_game(from_scratch: bool = true) -> void:
 	_clear_belts()
 	_show_labels()
 	_update_avg_label()
-	_feedback.modulate.a = 0.0
 	game.level_is_ready = true
 	started_playing.emit()
 	set_process(true)
@@ -805,6 +861,11 @@ func _evaluate_answer(user_picks_up: bool) -> void:
 	# Judgment made: let the belts run again until the next item settles.
 	tutorial_hold_belts = false
 	window_open = false
+	# The verdict lands on the framed item FIRST, while the highlight panel still exists — monkeyc's
+	# order (_mark_item, then _take_item). Everything that made this game's version awkward came from
+	# doing it the other way round: the panel was already freed, so the mark had to invent its own
+	# frame at its own size, and it never matched the yellow one it was replacing.
+	_mark_item(user_picks_up == window_target_truth)
 	# correct pick-up → a robot claw yanks the item off the nearest side (left belt→left, right→right)
 	if user_picks_up and user_picks_up == window_target_truth \
 			and window_target_item != null and is_instance_valid(window_target_item):
@@ -816,7 +877,8 @@ func _evaluate_answer(user_picks_up: bool) -> void:
 				belt_items[bi].remove_at(i)
 				break
 		_claw_pull(window_belt == 1)
-	_discard_window()  # remove immediately when player answers
+	# NOT discarded here any more: the mark lives on the highlight panel, so the panel has to
+	# outlast the verdict. _score_answer frees it once the mark has been seen.
 	_score_answer(user_picks_up, false)
 
 func _claw_pull(to_right: bool) -> void:
@@ -874,15 +936,55 @@ func _claw_pull(to_right: bool) -> void:
 # tell someone they got it wrong, on a screen where their eyes are on a belt somewhere else. It now
 # punches in past its final size and settles, and the belt that was being judged flashes with it, so
 # the answer is reported where the player was actually looking.
-func _pop_feedback(is_right: bool) -> void:
-	_feedback.modulate.a = 1.0
-	_feedback.pivot_offset = _feedback.size * 0.5
-	_feedback.scale = Vector2(0.35, 0.35)
+# The verdict, ON the item that was judged.
+#
+# It used to be a single label floated over the gap BETWEEN the two belts. Now that each belt hugs
+# the inner edge of its half — so the robots have room outside them — that gap is gone, and there is
+# nowhere in the centre for it to stand. monkeyc has always drawn its mark on the item itself
+# (_mark_item), and it reads fine there, so this is the same treatment rather than a new idea:
+# a label filling the window panel, over a tinted wash of the same colour.
+# The verdict, stamped on the framed item. This is monkeyc's _mark_item()/_pop_mark(), which is the
+# reference implementation of this idea in the project — ported rather than reinvented.
+#
+# The yellow highlight panel is RECOLOURED, not replaced: it keeps its exact rect, so the verdict
+# frame lands precisely where the yellow one was. A separately drawn frame is always a slightly
+# different size and reads as a second box.
+func _mark_item(is_right: bool) -> void:
+	if window_panel == null or not is_instance_valid(window_panel):
+		return
+	var col: Color = Color.GREEN if is_right else Color(1.0, 0.35, 0.0)
+	var sb: StyleBoxFlat = window_panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if sb != null:
+		sb.border_color = col
+		sb.bg_color = Color(col.r, col.g, col.b, 0.22)
+	var indicator: Label = Label.new()
+	indicator.add_theme_font_override("font", MainGlobals.get_system_sans_font())
+	indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	indicator.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	indicator.size = window_panel.size
+	indicator.text = "✓" if is_right else "✗"
+	indicator.add_theme_font_size_override("font_size", 36)
+	indicator.add_theme_color_override("font_color", col)
+	window_panel.add_child(indicator)
+	_pop_mark(indicator)
+
+# The punch-in, on EVERY verdict: the glyph overshoots and settles, and the panel flinches with it.
+# That small increase-decrease is the decision landing. Growing further is the PICK-UP, and that is
+# the claw's job (_claw_pull) — not this.
+func _pop_mark(indicator: Label) -> void:
+	indicator.pivot_offset = indicator.size * 0.5
+	indicator.scale = Vector2(0.3, 0.3)
 	var tw: Tween = create_tween()
-	tw.tween_property(_feedback, "scale", Vector2(1.45, 1.45), 0.16) \
+	tw.tween_property(indicator, "scale", Vector2(1.5, 1.5), 0.15) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(_feedback, "scale", Vector2.ONE, 0.14)
-	_flash_belt(window_belt, is_right)
+	tw.tween_property(indicator, "scale", Vector2.ONE, 0.14)
+	if window_panel != null and is_instance_valid(window_panel):
+		window_panel.pivot_offset = window_panel.size * 0.5
+		var tp: Tween = create_tween()
+		tp.tween_property(window_panel, "scale", Vector2(1.18, 1.18), 0.11) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tp.tween_property(window_panel, "scale", Vector2.ONE, 0.17)
 
 # A wash over the WHOLE belt the round was about, not a tint on its outline.
 #
@@ -916,19 +1018,6 @@ func _flash_belt(belt: int, is_right: bool) -> void:
 		sb.border_width_left = 2
 		sb.border_width_right = 2)
 
-func _position_feedback() -> void:
-	if _feedback == null:
-		return
-	var lb: Control = $MainLayout/VBox/ContentVBox/BoxesRow/LeftSide/LeftBox
-	var rb: Control = $MainLayout/VBox/ContentVBox/BoxesRow/RightSide/RightBox
-	if lb == null or rb == null:
-		return
-	var cx: float = ((lb.global_position.x + lb.size.x) + rb.global_position.x) * 0.5
-	var cy: float = lb.global_position.y + lb.size.y * 0.5
-	var sz: Vector2 = Vector2(160.0, 110.0)
-	_feedback.size = sz
-	_feedback.position = Vector2(cx - sz.x * 0.5, cy - sz.y * 0.5)
-
 func _score_answer(user_picks_up: bool, is_timeout: bool) -> void:
 	if _showing_feedback or game.level_is_done:
 		return
@@ -948,23 +1037,22 @@ func _score_answer(user_picks_up: bool, is_timeout: bool) -> void:
 		game.add_score_and_time(10 + speed_bonus, 0)
 		game.add_correct_or_mistake(1, 0)
 		game.play_sound("correct")
-		_feedback.text = "✓"
-		_feedback.modulate = Color.GREEN
 		_update_avg_label()
 	else:
 		var penalty: int = min(3, game.score)
 		game.add_score_and_time(-penalty, 0)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("wrong")
-		_feedback.text = "✗"
-		_feedback.modulate = Color.RED
-	_position_feedback()
-	_pop_feedback(is_right)
+	# Every outcome washes the belt, including a timeout — which reaches here with the window
+	# already discarded and the item scrolled off the bottom, so the wash is the ONLY thing there is
+	# to see. Without it, letting an item go by looked like nothing had happened at all: the score
+	# ticked down and the screen said nothing.
+	_flash_belt(window_belt if window_belt >= 0 else _last_belt, is_right)
 	if rounds_done >= rounds_before_hide and not labels_hidden:
 		labels_hidden = true
 		_hide_labels()
 	await get_tree().create_timer(0.4).timeout
-	_feedback.modulate.a = 0.0
+	_discard_window()
 	_showing_feedback = false
 	if game.level_is_done or game.paused():
 		return
