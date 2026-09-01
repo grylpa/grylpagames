@@ -2,10 +2,9 @@ extends Node
 
 var starting_level := 1
 
-# Study phase: time the player has to memorize the person (seconds)
+# Study phase: seconds to memorize the person. Set from WerisLevelConfig's `study_ms` on every level
+# change — it lives here only because the countdown label reads it. The TABLE is the source.
 var study_time_sec := 10
-# Find phase: time limit to find the person in the grid (seconds)
-var find_time_sec := 30
 
 var game := GenericGameUtil.new("Weris", "weris", 0, 5, 0)
 

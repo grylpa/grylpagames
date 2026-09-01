@@ -36,9 +36,7 @@ script = ExtResource("1_aarcl")
 metadata/_edit_group_ = true
 
 [node name="BackgroundPanel" type="PanelContainer" parent="." unique_id=794996302]
-clip_children = 1
 z_index = 1
-clip_contents = true
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

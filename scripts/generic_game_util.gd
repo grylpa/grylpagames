@@ -1166,6 +1166,9 @@ func show_instructions(parent, automatic: bool = true):
 	parent.add_child(popup)
 	popup.set_font_size(instructions_font_size)
 	popup.set_title(instructions_title)
+	# The game's own tile, beside its name in the title bar — same widget as the tutorial's opening
+	# balloon. `parent` is the game's main scene, which is what names the folder.
+	popup.set_game_icon(parent)
 	popup.set_text(instructions_text)
 	# A game with a tutorial offers it right here, under its own text. The chooser's "How to play"
 	# picker is gone, so this and the game's main menu are the two ways back to a tutorial.
