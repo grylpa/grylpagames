@@ -43,6 +43,47 @@ func close_window() -> void:
 func set_title(title):
 	%Title.text = title
 
+# The game's chooser tile, to the LEFT of the title, inside the title bar.
+#
+# The same framed tile the tutorial's opening balloon shows (scripts/game_tile.gd), for the same
+# reason: this screen names the game in text, and the picture the player tapped to get here says it
+# faster and cannot be mistaken for chrome.
+#
+# Added as a second child of the title's MarginContainer rather than put in an HBox with the title —
+# a MarginContainer gives both children the full rect, so the title stays centred on the BAR while
+# the tile sits at the left of it. In an HBox the title would be centred only in what the tile left
+# over, and would visibly shift right the moment the tile appeared.
+func set_game_icon(host: Node) -> void:
+	var bar: Control = %Title.get_parent() as Control
+	if bar == null:
+		return
+	# The bar grows if the tile is taller than the text, so the tile is never clipped by it.
+	bar.custom_minimum_size.y = maxf(bar.custom_minimum_size.y,
+		float(MainGlobals.ui_font_size(ICON_SIDE)) + ICON_PAD * 2.0)
+	var holder: Control = Control.new()
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(holder)
+	# Attached BEFORE the picture goes in — GameTile builds its clipper only once it is in the tree,
+	# which is what makes the rounded corners work at all.
+	var tile: Control = GameTile.attach(holder, ICON_SIDE)
+	if tile == null or not GameTile.set_icon(tile, GameTile.folder_of(host)):
+		# No icon for this game: drop the box rather than leave an empty frame on the title bar.
+		holder.queue_free()
+		return
+	# Flush with the CARD's left edge, the way "Got it" is flush with its right — the tile's inset is
+	# the card's own margin and nothing more. It used to add ICON_PAD on top of that, which left it
+	# 8px inside the card and reads as a near-miss rather than a choice.
+	holder.resized.connect(func() -> void:
+		var s: float = tile.custom_minimum_size.y
+		tile.position = Vector2(float(_card_margin("margin_left", 10)),
+			(holder.size.y - s) * 0.5)
+		tile.size = Vector2(s, s))
+
+const ICON_SIDE: int = 44
+# Breathing room above and below the tile, so the title bar grows to hold it rather than cropping it.
+# NOT used horizontally: the tile's left inset is the card's own margin, so the two line up exactly.
+const ICON_PAD: float = 8.0
+
 func set_text(text):
 	%Text.text = text
 

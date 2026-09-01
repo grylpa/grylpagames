@@ -331,33 +331,20 @@ func level_is_done(didwin: bool):
 		# MainGlobals.sleep(1.0)
 		sig_level_is_done.emit(didwin)
 
+# Every per-level value comes from FriendsLevelConfig. This was a `match level:` ladder, and the
+# level_config file beside it stated a DIFFERENT set of round counts that nothing read — the two had
+# already drifted. Read the table, and there is only one set of numbers to be wrong.
 func increase_difficulty(increase=true):
 	if game == null:
 		return
 	if increase:
 		level += 1
 	level = clamp(level, 1, max_difficulty)
-	match level:
-		1:	
-			num_friends = [2,0]
-			num_corrects_for_next_level = 5
-		2:	
-			num_friends = [3,0]
-			num_corrects_for_next_level = 10
-		3:	
-			num_friends = [4,0]
-			num_corrects_for_next_level = 5
-		4:	
-			num_friends = [3,2]
-			num_corrects_for_next_level = 20
-		5:	
-			num_friends = [3,3]
-			num_corrects_for_next_level = 20
-		6:	
-			num_friends = [4,3]
-			num_corrects_for_next_level = 20
-		
-	# if MainGlobals.is_mobile():
+	var cfg: Dictionary = FriendsLevelConfig.get_level(level)
+	num_friends = (cfg["num_friends"] as Array).duplicate()
+	num_corrects_for_next_level = int(cfg["rounds"])
+	dtime_to_show_all_friends_ms = int(cfg["study_ms"])
+	dtime_to_ignore_when_no_answer_ms = int(cfg["answer_ms"])
 	game.init_sizes()
 
 func _can_play():

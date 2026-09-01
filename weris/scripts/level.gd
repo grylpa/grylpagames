@@ -8,6 +8,10 @@ var num_corrects_in_level_so_far := 0
 var num_corrects_for_next_level := 3
 var grid_cols := 2
 var grid_rows := 2
+# Per level, from WerisLevelConfig. `find_ms` used to be a single WerisG.find_time_sec of 30 s for
+# every level; it is now the level's own, and the bar along the top counts it down.
+var study_ms := 5000
+var find_ms := 15000
 
 var times_to_answer := []
 
@@ -71,11 +75,61 @@ func _apply_look() -> void:
 	for label: Label in [%InstructionsLabel, %FindLabel, %FeedbackLabel]:
 		label.add_theme_font_override("font", MainGlobals.get_text_font())
 	%CountdownLabel.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
+	_make_timeout_bar()
+
+# The find-phase clock, along the top edge.
+#
+# The timeout existed before this and was invisible: the round simply ended in "Time's up!" with
+# nothing having warned the player it was coming, which reads as the game cheating rather than as
+# running out of time. The bar is scripts/session_bar.gd, the same widget the breathing games use,
+# so the geometry and the mobile alpha boost are shared rather than restated.
+#
+# It DRAINS — full at the start of the phase, empty when the round is lost — and its colour runs
+# green to amber to red on the way, so "nearly out" reads at a glance without reading a number.
+var _bar: Control = null
+
+# Bottom of the HUD's LevelLabel (scenes/generic_game_hud.tscn: offset_top 60, offset_bottom 104).
+const LEVEL_LABEL_BOTTOM: float = 104.0
+
+func _make_timeout_bar() -> void:
+	if _bar != null and is_instance_valid(_bar):
+		return
+	_bar = Control.new()
+	_bar.name = "TimeoutBar"
+	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	# In the GAP between the HUD's level label and this game's own instruction line.
+	#
+	# Two things are already up there. The HUD's header owns 0..60 (score, clock), and its LevelLabel
+	# owns 60..104 — the bar started at the header's edge and landed at 78, straight through the level
+	# string. This game's InstructionsLabel then starts at 116, so 104..116 is the one clear band.
+	#
+	# SessionBar draws at its own Y of 18 inside whatever control it is given, so the control is
+	# placed that much higher for the bar itself to come out at LEVEL_LABEL_BOTTOM.
+	_bar.position.y = LEVEL_LABEL_BOTTOM - SessionBar.Y
+	_bar.custom_minimum_size = Vector2(0, SessionBar.Y + 16.0)
+	_bar.z_index = 50
+	add_child(_bar)
+	_bar.draw.connect(_draw_timeout_bar)
+
+func _draw_timeout_bar() -> void:
+	# Only while a round is actually running against the clock. Drawn during STUDY it would be a
+	# second countdown competing with the number already on screen, and during FEEDBACK it would be
+	# counting down something that has already been decided.
+	if phase != Phase.FIND or game == null or game.level_is_done:
+		return
+	var left: float = clampf(1.0 - float(game.game_time - find_start_time_ms) / maxf(float(find_ms), 1.0),
+		0.0, 1.0)
+	var fill: Color = Color(1.0, 0.72, 0.15).lerp(Color(0.95, 0.25, 0.2), 1.0 - left) if left < 0.5 \
+		else Color(0.35, 0.9, 0.45).lerp(Color(1.0, 0.72, 0.15), (1.0 - left) * 2.0)
+	SessionBar.draw(_bar, _bar.size.x, left, Color(0.8, 0.85, 0.9), fill, 2.0)
 
 func _process(delta: float) -> void:
 	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
 		_bg_t += delta
 		_bg.queue_redraw()
+	if _bar != null and is_instance_valid(_bar):
+		_bar.queue_redraw()
 
 func new_game(from_scratch = true):
 	# The failed level's points go back HERE, on Continue, together with everything else that is
@@ -269,13 +323,13 @@ func tick():
 	match phase:
 		Phase.STUDY:
 			var elapsed = now - study_start_time_ms
-			var remaining_s = ceili((WerisG.study_time_sec * 1000 - elapsed) / 1000.0)
+			var remaining_s = ceili((study_ms - elapsed) / 1000.0)
 			%CountdownLabel.text = str(max(0, remaining_s))
-			if elapsed >= WerisG.study_time_sec * 1000:
+			if elapsed >= study_ms:
 				_start_find_phase()
 		Phase.FIND:
-			if now - find_start_time_ms >= WerisG.find_time_sec * 1000:
-				_resolve_find(false, WerisG.find_time_sec * 1000, true)
+			if now - find_start_time_ms >= find_ms:
+				_resolve_find(false, find_ms, true)
 		Phase.FEEDBACK:
 			if now - feedback_start_time_ms >= FEEDBACK_DURATION_MS:
 				if feedback_level_done:
@@ -333,31 +387,16 @@ func increase_difficulty(increase = true):
 	if increase:
 		level += 1
 	level = clamp(level, 1, max_difficulty)
-	match level:
-		1:
-			grid_cols = 2; grid_rows = 2
-			num_corrects_for_next_level = 3
-			WerisG.study_time_sec = 5
-		2:
-			grid_cols = 3; grid_rows = 2
-			num_corrects_for_next_level = 5
-			WerisG.study_time_sec = 4
-		3:
-			grid_cols = 3; grid_rows = 3
-			num_corrects_for_next_level = 5
-			WerisG.study_time_sec = 3
-		4:
-			grid_cols = 4; grid_rows = 3
-			num_corrects_for_next_level = 10
-			WerisG.study_time_sec = 3
-		5:
-			grid_cols = 4; grid_rows = 4
-			num_corrects_for_next_level = 10
-			WerisG.study_time_sec = 2
-		6:
-			grid_cols = 5; grid_rows = 4
-			num_corrects_for_next_level = 15
-			WerisG.study_time_sec = 2
+	# Every per-level value comes from WerisLevelConfig. This was a `match level:` ladder, and the
+	# level_config file beside it was read only for LEVELS.size().
+	var cfg: Dictionary = WerisLevelConfig.get_level(level)
+	grid_cols = int(cfg["grid_cols"])
+	grid_rows = int(cfg["grid_rows"])
+	num_corrects_for_next_level = int(cfg["rounds"])
+	study_ms = int(cfg["study_ms"])
+	find_ms = int(cfg["find_ms"])
+	# WerisG.study_time_sec is what the countdown label reads; keep it in step with the table.
+	WerisG.study_time_sec = int(round(float(study_ms) / 1000.0))
 	game.init_sizes()
 
 func _can_play() -> bool:
