@@ -93,7 +93,11 @@ func set_game(_game):
 	%Title.text = game.name
 	if MainCfg.show_reset_scores:
 		_add_reset_scores_button()
-	_maybe_add_tutorial_button()
+	# DEFERRED, because whether this game has instructions is not known yet. create_main_menu() runs
+	# early in a game's _ready (weris: line 17) while set_instructions() comes much later (line 37),
+	# so a check made here would find the text empty in every game and the button would never appear
+	# for the games that need it most. One frame later, _ready has finished and the answer is real.
+	call_deferred("_maybe_add_tutorial_button")
 	_restyle()
 	call_deferred("_ensure_full_width")
 
@@ -150,14 +154,27 @@ func _ensure_full_width() -> void:
 	%OptionsFrame.custom_minimum_size.x = MainGlobals.screen_size.x - 40
 
 # "How to play" on the game's OWN menu, for a player who is already inside the game and should not
-# have to go back out to the chooser to find the tutorial.
+# have to go back out to the chooser to find out how it works.
 #
-# Whether this game has a tutorial is read off the host scene — if its main.gd defines
-# start_tutorial(), it has one. That means no game has to opt in, and a game that gains a tutorial
-# later gets the button for free.
+# EVERY game gets the button; what it opens depends on what the game has:
+#
+#   a tutorial      its main.gd defines start_tutorial() -> the coached run
+#   no tutorial     its instructions text -> the instructions screen
+#
+# Both are read off the game itself rather than from a list, so nothing has to opt in: a game that
+# gains a tutorial later stops offering the text and starts offering the tutorial, for free, and a
+# game that has neither shows no button rather than one that opens nothing.
+var _howto_added: bool = false
+
 func _maybe_add_tutorial_button() -> void:
+	if _howto_added:
+		return
 	var host: Node = get_parent()
-	if host == null or not host.has_method("start_tutorial"):
+	if host == null:
+		return
+	var has_tutorial: bool = host.has_method("start_tutorial")
+	var has_text: bool = game != null and not String(game.instructions_text).strip_edges().is_empty()
+	if not has_tutorial and not has_text:
 		return
 	var vbox: Node = %MarginStartNewGame.get_parent()
 	var margin: MarginContainer = MarginContainer.new()
@@ -171,10 +188,18 @@ func _maybe_add_tutorial_button() -> void:
 	btn.pressed.connect(_on_tutorial_button_pressed)
 	margin.add_child(btn)
 	vbox.add_child(margin)
+	_howto_added = true
 
 func _on_tutorial_button_pressed() -> void:
 	var host: Node = get_parent()
-	if host == null or not host.has_method("start_tutorial"):
+	if host == null:
+		return
+	if not host.has_method("start_tutorial"):
+		# No coached run for this game — show it the text instead. `false` is the ON-DEMAND form:
+		# the automatic path suppresses itself once the player has seen it, which is right for a
+		# first-run popup and wrong for a button the player just pressed.
+		if game != null:
+			game.show_instructions(host, false)
 		return
 	# Safe to run mid-session: begin_tutorial() snapshots the player's score, level and ongoing
 	# row, every write is suppressed while it runs, and end_tutorial() puts all of it back.

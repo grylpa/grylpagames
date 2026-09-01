@@ -34,14 +34,12 @@ func _ready() -> void:
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 	$Level.started_playing.connect(_on_level_started_playing)
 
-	var _ins_font_sz = 36 if MainGlobals.is_mobile() else 22
-	game.set_instructions("Friends", 
+	game.set_instructions("Friends",
 		"You will see a group of your friends.\n" + 
 		"Memorize them.\n" + 
 		"After you have memorized them, you will see\n" + 
 		"various people. You need to decide if who you see\n" +
-		"is a friend of yours or not as quickly as possible", 
-		_ins_font_sz)
+		"is a friend of yours or not as quickly as possible")
 	if !game.shown_instructions:
 		game.show_instructions(self)
 		FriendsG.save_settings()

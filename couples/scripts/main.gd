@@ -47,7 +47,7 @@ func _ready() -> void:
 	game.set_instructions("Couples",
 		"A grid of cards appears. Exactly two of them are identical." +
 		"\n\n" +
-		"Find the matching pair and tap both cards before the board disappears.", 30)
+		"Find the matching pair and tap both cards before the board disappears.")
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		CouplesG.save_settings()
