@@ -33,13 +33,11 @@ func _ready() -> void:
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 	$Level.started_playing.connect(_on_level_started_playing)
 
-	var _ins_font_sz = 36 if MainGlobals.is_mobile() else 22
-	game.set_instructions("Lineup", 
+	game.set_instructions("Lineup",
 		"You will briefly see an image.\n" + 
 		"After some time, you will see a few images.\n" + 
 		"Out of these, you need to select the matching image \n" + 
-		"as quickly as possible\n", 
-		_ins_font_sz)
+		"as quickly as possible\n")
 	if !game.shown_instructions:
 		game.show_instructions(self)
 		OooG.save_settings()

@@ -1170,6 +1170,8 @@ func show_instructions(parent, automatic: bool = true):
 	# A game with a tutorial offers it right here, under its own text. The chooser's "How to play"
 	# picker is gone, so this and the game's main menu are the two ways back to a tutorial.
 	popup.offer_tutorial(parent, self)
+	# LAST, so "Got it" is the bottom row under the tutorial offer rather than above it.
+	popup.add_close_button()
 
 func handle_event(event, parent):
 	if MainGlobals.ignore_keyboard_actions:

@@ -33,14 +33,12 @@ func _ready() -> void:
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 	$Level.started_playing.connect(_on_level_started_playing)
 
-	var _ins_font_sz: int = 36 if MainGlobals.is_mobile() else 22
 	game.set_instructions("Whack",
 		"A red target will appear on screen.\n" +
 		"Tap it as fast as possible!\n" +
 		"The closer to the target center, the better.\n" +
 		"Avoid the decoy targets!\n" +
-		"Targets shrink at higher levels.\n",
-		_ins_font_sz)
+		"Targets shrink at higher levels.\n")
 	# Teach instead of showing the instructions wall when the tutorial was asked for, or on a
 	# first run. Consumed before the `shown_instructions` check below, which would otherwise put
 	# a page of text in front of the lesson that replaces it.

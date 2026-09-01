@@ -42,8 +42,7 @@ func _ready() -> void:
 	game.sig_save_game.connect(_on_save_game)
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 
-	var _ins_font_sz = 36 if MainGlobals.is_mobile() else 22
-	game.set_instructions("Taxi", 
+	game.set_instructions("Taxi",
 		"You are the owner of a taxi station\n" + 
 		"1. To move a taxi, select it and then its destination\n" + 
 		"2. When a customer appears, send a taxi to pick them up\n" + 
@@ -52,8 +51,7 @@ func _ready() -> void:
 		"5. A taxi that ran out of gas is stranded forever\n" +
 		"6. Fuel is expensive and you will pay for the distance that each taxi moves. Idle motor time also costs\n" + 
 		"7. Customers pay upon reaching their destination\n" +
-		"8. A customer will eventually give up if waiting too long\n", 
-		_ins_font_sz)
+		"8. A customer will eventually give up if waiting too long\n")
 	if !game.shown_instructions:
 		game.show_instructions(self)
 		TaxiG.save_settings()

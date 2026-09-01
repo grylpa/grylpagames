@@ -33,13 +33,11 @@ func _ready() -> void:
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 	$Level.started_playing.connect(_on_level_started_playing)
 
-	var _ins_font_sz = 36 if MainGlobals.is_mobile() else 22
 	game.set_instructions("Weris",
 		"A person will appear with their name.\n" +
 		"Memorize them.\n" +
 		"Then find them hidden among strangers\n" +
-		"as fast as you can!",
-		_ins_font_sz)
+		"as fast as you can!")
 	if !game.shown_instructions:
 		game.show_instructions(self)
 		WerisG.save_settings()
