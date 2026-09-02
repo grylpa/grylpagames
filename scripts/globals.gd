@@ -179,8 +179,40 @@ func _set_app_screen_size(sz: Vector2):
 # cards) can be measured on a desktop build. Nothing in the app writes it.
 var force_mobile: bool = false
 
+# Cached: is_mobile() is called for every label that sizes itself, and the web check below reaches
+# into JavaScript. -1 not yet asked, 0 no, 1 yes.
+var _web_mobile: int = -1
+
 func is_mobile():
-	return force_mobile or OS.has_feature("mobile")
+	return force_mobile or OS.has_feature("mobile") or _web_is_mobile()
+
+# The WEB export is a phone as often as it is a desktop, and `OS.has_feature("mobile")` does not
+# know: a web build reports "web" plus a tag for the host OS, never "mobile". So every phone playing
+# the browser build was getting the 680x788 desktop canvas and desktop type — the layout this
+# project is not authored for.
+#
+# Two steps, because neither alone is right:
+#
+#   web_android / web_ios   Godot's own host tags. Correct whenever the browser is honest.
+#   maxTouchPoints          the iPad problem: iPadOS Safari asks for desktop sites by default and
+#                           reports as macOS, so the tag says web_macos. A Mac has no touch screen
+#                           and an iPad has ten, which separates them cleanly. Same test rescues an
+#                           Android tablet in desktop mode.
+func _web_is_mobile() -> bool:
+	if not OS.has_feature("web"):
+		return false
+	if _web_mobile >= 0:
+		return _web_mobile == 1
+	var mobile: bool = OS.has_feature("web_android") or OS.has_feature("web_ios")
+	if not mobile:
+		# Guarded: JavaScriptBridge exists only on web, and eval can return null if the page blocks
+		# it. Anything unexpected leaves this as desktop, which is the safe way to be wrong — a
+		# desktop layout on a tablet is cramped, a mobile layout on a desktop is broken.
+		var touches = JavaScriptBridge.eval("navigator.maxTouchPoints || 0", true)
+		if typeof(touches) == TYPE_FLOAT or typeof(touches) == TYPE_INT:
+			mobile = int(touches) > 1
+	_web_mobile = 1 if mobile else 0
+	return mobile
 
 # ONE mobile type scale, derived rather than guessed per label.
 #
