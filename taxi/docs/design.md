@@ -142,3 +142,10 @@ heading, which is all `set_rots()` ever read.
 
 **parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
 so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Jobs assigned against jobs cancelled. Cancelling an assigned taxi that has not picked anyone up is the clearest available trace of a plan the player had to undo.

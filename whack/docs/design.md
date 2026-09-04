@@ -645,3 +645,14 @@ the row is replaced with "The last level. It keeps going for as long as you do."
 
 The tutorial is exempt: its session is one continuous lesson whose rounds are staged by the coach,
 so a briefing card in front of it would land on a caption.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
+
+All four outcomes map exactly: a real target tapped, a decoy tapped, a real target left to expire, and a decoy-only round survived by touching nothing. That makes the decoys a measure of holding back, which a mean reaction time cannot show.

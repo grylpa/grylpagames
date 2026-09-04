@@ -52,6 +52,9 @@ func _ready() -> void:
 	main_menu.show_continue_and_start_new(false)
 	game.scores_callback = Callable(self, "add_score_line_vals")
 	game.show_scores_level = true
+	# This game's save array is not the generic shape, so its columns are named here;
+	# otherwise the defaults would file each value under the wrong name.
+	game.score_columns = ["didwin", "aborted", "level", "react_mean", "dist_px"]
 	game.progress_level_pos = POS_SCORE_DIFFICULTY
 	game.progress_time_pos = POS_SCORE_MEAN_REACTION_MS
 	game.progress_pct_pos = POS_SCORE_MEAN_DIST_PX
@@ -180,6 +183,8 @@ var POS_SCORE_MEAN_REACTION_MS: int = 7
 var POS_SCORE_MEAN_DIST_PX: int = 8
 
 func get_game_score(_didwin: bool, _wasaborted: bool) -> Array:
+	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	game.record_times($Level._reaction_times, "react")
 	var last_level: int = $Level.level
 	if $Level.num_corrects_in_level_so_far == 0:
 		last_level = max(1, last_level - 1)

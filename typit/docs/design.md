@@ -207,3 +207,10 @@ To add a new language keyboard:
 - The text display uses per-character `draw_string()` calls for color coding — avoid very long passages (>200 chars) to keep frame time reasonable.
 - `_finish_session()` guards against double-call with `_session_complete` flag.
 - Score is only saved if `_correct_chars > 0` (prevents empty sessions from polluting stats).
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Declares its own `score_columns`: its array is not the generic shape, and without that its session length would be filed as `level` and its breathing rate as `pct_correct`.

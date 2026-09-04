@@ -211,3 +211,10 @@ with a coloured shape.
 `probe_lawn.gd` checks this game with the other three: backdrop present and first in its layer,
 populated before any board is built, covering board and canvas, the tiled ground retired only once
 it has something in it, and the centre lift both small and direction-free.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

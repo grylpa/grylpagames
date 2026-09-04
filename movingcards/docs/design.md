@@ -198,3 +198,10 @@ scene puts it.
 
 The counters are fed by `_finish_round` and cleared per level, like every other graded game, and
 `uses_session_clock = false` hides a countdown that nothing here ever runs.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+A wrong click records where in the sequence it broke and whether the player jumped ahead or fell back; a completed round records the span. Where it breaks distinguishes a lost place from a lost order.

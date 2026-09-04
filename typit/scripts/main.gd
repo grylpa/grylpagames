@@ -34,6 +34,9 @@ func _ready() -> void:
 	main_menu.show_continue_and_start_new(false)
 	# Score = speed cpm → "Score" chart tab shows speed over time
 	game.progress_score_label = "Speed"
+	# This game's save array is not the generic shape, so its columns are named here;
+	# otherwise the defaults would file each value under the wrong name.
+	game.score_columns = ["level", "correct_chars", "total_chars", "mistakes", "speed_cpm", "dist_pct", "mistake_rate"]
 	game.show_scores_level = true
 	game.show_scores_time = false
 	game.progress_level_pos = 4

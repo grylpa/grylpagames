@@ -396,6 +396,15 @@ func _load_level(id: int) -> void:
 	lure_rate = clampf(float(def.get("lure_rate", 0.15)), 0.0, 0.6)
 	partial_rate = clampf(float(def.get("partial_rate", 0.40)), 0.0, 0.9)
 
+	# Six card sources crossed with three n-back depths: "2-back with faces" and "2-back with
+	# shapes" are different tasks that would otherwise share nothing but a level number.
+	game.set_task_signature({
+		"source": str(def.get("source", "shapes")),
+		"n_back": n_back,
+		"rule": rule,
+		"card_time_sec": float(def.get("card_time_sec", 4.0)),
+	})
+
 	_categories = []
 	for part in str(def.get("source", "shapes")).split(","):
 		var f: String = part.strip_edges()
@@ -681,6 +690,10 @@ func _register_answer(said_match) -> void:
 		return
 	_answered = true
 	var correct: bool = (not timed_out) and (bool(said_match) == _cur_is_target)
+	if timed_out:
+		game.record_no_answer()
+	else:
+		game.record_answer(bool(said_match), _cur_is_target)
 	total_rounds += 1
 	if _cur_is_target:
 		targets_total += 1

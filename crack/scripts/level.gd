@@ -330,6 +330,17 @@ func _try_score() -> void:
 		return
 	var d: Array = CrackG.get_guided_durations()
 	var thr: float = CrackG.TIMING_THRESHOLD_MS
+	# Crack was the only game contributing nothing of its own beyond score and time. What it can
+	# measure is timing: how far each part of the cycle sat from its target, kept as a signed error
+	# so a habit of rushing reads differently from a habit of dragging.
+	if _seq_durations.size() == 4:
+		game.record_count("cycles")
+		var worst: float = 0.0
+		for i in 4:
+			var err: float = float(_seq_durations[i]) - float(d[i])
+			game.record_list("phase_err_ms", int(round(err)))
+			worst = maxf(worst, absf(err))
+		game.record_list("cycle_worst_ms", int(round(worst)))
 	if (_seq_durations.size() == 4 and
 		absf(_seq_durations[0] - d[0]) < thr and
 		absf(_seq_durations[1] - d[1]) < thr and
@@ -1015,6 +1026,12 @@ func _compute_phase_durations(keys: Array) -> Array:
 	for i in 4:
 		res[i] = float(sums[i]) / (float(nums[i]) + 1e-6) * 50.0
 	return res
+
+# The session as its three siblings report theirs. Crack had no such function at all, which is why
+# it has never written a score row -- convert_ongoing_score_to_permanent() is a no-op unless an
+# ongoing record exists, and nothing here ever created one.
+func get_session_score(didwin: bool, wasaborted: bool) -> Array:
+	return [didwin, wasaborted, int(_duration_ms / 60000.0), _score]
 
 func get_computed_phases() -> Array:
 	return _computed_phases

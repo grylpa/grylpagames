@@ -270,6 +270,29 @@ func add_entry(_id, _name, _min_val, _max_val, _is_bool):
 	slid.value_changed.connect(on_slider_val_changed)
 	sliders.append(slid)
 	_normalize_slider_widths()
+	_apply_row_rhythm()
+
+# Sliders land in a GridContainer and options in a VBox beside it, so without this the two halves
+# of one menu keep two different vertical rhythms. Set in code rather than the scene so the three
+# numbers cannot drift apart again.
+const ROW_SEPARATION: int = 14
+
+func _apply_row_rhythm() -> void:
+	if grid != null:
+		grid.add_theme_constant_override("v_separation", ROW_SEPARATION)
+		var inner: Node = grid.get_parent()
+		if inner is VBoxContainer:
+			inner.add_theme_constant_override("separation", ROW_SEPARATION)
+	if _option_rows_vbox != null:
+		_option_rows_vbox.add_theme_constant_override("separation", ROW_SEPARATION)
+	# An EMPTY container is not free: it still contributes the column's separation, so a menu with
+	# only a slider was pushed up by the empty option box below it and one with only a dropdown was
+	# pushed down by the empty slider grid above — off centre, in opposite directions, which is
+	# exactly the pair of symptoms reported. Hide whichever half has nothing in it.
+	if grid != null:
+		grid.visible = grid.get_child_count() > 0
+	if _option_rows_vbox != null:
+		_option_rows_vbox.visible = _option_rows_vbox.get_child_count() > 0
 
 func _normalize_slider_widths() -> void:
 	var max_w: float = 0.0
@@ -302,14 +325,17 @@ func add_option_entry(_id: int, _name: String, _options: Array) -> void:
 	btn.item_selected.connect(func(idx): sig_option_changed.emit(_id, idx))
 	_option_buttons.append({"id": _id, "btn": btn})
 	var hbox: HBoxContainer = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 30)
+	hbox.add_theme_constant_override("separation", 30)   # matches the slider grid's h_separation
 	hbox.add_child(lbl)
 	hbox.add_child(btn)
-	var row_margin: MarginContainer = MarginContainer.new()
-	row_margin.add_theme_constant_override("margin_top", 24)
-	row_margin.add_theme_constant_override("margin_bottom", 24)
-	row_margin.add_child(hbox)
-	_option_rows_vbox.add_child(row_margin)
+	# Added straight to the column, with no per-row padding.
+	#
+	# Each option row used to be wrapped in a MarginContainer with 24 top AND bottom, which a slider
+	# row does not have. Measured on buoy: slider rows came out 60 tall and option rows 108, so the
+	# menu had two different rhythms in it and the option half sat much further apart. The spacing
+	# between rows belongs to the container, once, not to every other row individually.
+	_option_rows_vbox.add_child(hbox)
+	_apply_row_rhythm()
 
 func update_option(_id: int, _idx: int) -> void:
 	for entry in _option_buttons:

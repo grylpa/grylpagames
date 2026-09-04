@@ -285,6 +285,11 @@ func _on_find_card_pressed(pressed_idx: int):
 	_resolve_find(pressed_idx == target_idx, elapsed, false)
 
 func _resolve_find(is_correct: bool, elapsed_ms: int, timed_out: bool):
+	# Time against crowd size. The SLOPE of that -- the cost of each extra face -- is steadier
+	# across sessions than raw speed, and the level table already sweeps the crowd from 4 to 20,
+	# so the range needed to fit it comes for free.
+	game.record_trial({"crowd": grid_cols * grid_rows, "ms": elapsed_ms,
+		"right": is_correct, "timeout": timed_out})
 	if phase != Phase.FIND:
 		return
 	phase = Phase.FEEDBACK
@@ -395,6 +400,13 @@ func increase_difficulty(increase = true):
 	num_corrects_for_next_level = int(cfg["rounds"])
 	study_ms = int(cfg["study_ms"])
 	find_ms = int(cfg["find_ms"])
+	# The crowd size is the interesting variable here: comparing find times across sizes gives the
+	# cost of each extra face, which is steadier session to session than raw speed.
+	game.set_task_signature({
+		"crowd": grid_cols * grid_rows,
+		"study_ms": study_ms,
+		"find_ms": find_ms,
+	})
 	# WerisG.study_time_sec is what the countdown label reads; keep it in step with the table.
 	WerisG.study_time_sec = int(round(float(study_ms) / 1000.0))
 	game.init_sizes()

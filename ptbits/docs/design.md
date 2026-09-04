@@ -169,3 +169,10 @@ itself, and `basket_front` (ribs, rims, rim lights, score flash) from `_basket_f
 spawn, so they always come later in the tree than any node created in `_ready`.
 
 Score pops (z 62) and the miss cross (z 60) stay above both.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

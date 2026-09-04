@@ -211,3 +211,10 @@ heading, which is all `set_rots()` ever read.
 
 **parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
 so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

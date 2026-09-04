@@ -28,6 +28,20 @@ const SCORES_TOP: Color = Color(0.098, 0.129, 0.176)
 const SCORES_BOT: Color = Color(0.031, 0.051, 0.078)
 const ACCENT: Color = Color(0.976, 0.792, 0.353)
 
+# --- the stats screens -----------------------------------------------------------------------
+#
+# The progress overlay, the baseline band's markers, the sparklines and the matrices all draw from
+# here rather than each inventing a yellow of their own. The first pass did invent one — a bright
+# Color(1, 0.72, 0.28) repeated across four files — which read as louder than anything else in the
+# app and belonged to no palette. These are the warm and semantic colors the app already uses.
+#
+# STATS_MARK is deliberately a deeper ORANGE than ACCENT: it marks a session outside the player's
+# usual range, and has to be tellable from the gold that frames the panel around it.
+const STATS_MARK: Color = Color(0.949, 0.545, 0.235)      # the app's orange
+const STATS_STEADY: Color = Color(0.243, 0.706, 0.400)    # the app's green
+const STATS_HOT: Color = Color(0.878, 0.267, 0.271)       # the app's red, for a matrix's hottest cell
+const STATS_QUIET: Color = Color(0.45, 0.47, 0.52)        # "not yet" — present, not shouting
+
 # Attaches a drawn backdrop as `parent`'s first child and returns it. The caller advances `t` and
 # calls queue_redraw(); keeping the clock outside means a hidden screen costs nothing.
 static func attach(parent: Control) -> Control:

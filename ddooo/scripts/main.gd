@@ -211,6 +211,8 @@ func _on_level_sig_periph_active(active: bool) -> void:
 	%PeriQLabel.visible = active
 
 func get_game_score(_didwin, _wasaborted):
+	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	game.record_times($Level.times_to_answer, "rt")
 	var last_level = $Level.level
 	if $Level.num_corrects_in_level_so_far == 0:
 		last_level = max(1, last_level - 1)

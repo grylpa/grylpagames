@@ -992,6 +992,9 @@ func tick():
 	# 	level_is_done(true)
 
 func add_leak():
+	# Leaks appearing and leaks overflowing are the two events worth counting: the share that
+	# overflowed says how well the player kept up, in a way the score cannot.
+	game.record_count("leaks_appeared")
 	next_duration_for_leak_ms = game.rng.randf_range(2000, 4000)
 	for i in range(100):
 		var room_id = game.rng.randi_range(0, rooms.size()-1)
@@ -1142,6 +1145,7 @@ func on_lives_depleted():
 	pass
 
 func _on_pipe_leak_overflow(_pipe):
+	game.record_count("overflows")
 	var val = _pipe.furniture_value if _pipe.furniture_value > 0 else 2
 	if _pipe.furniture_value > 0:
 		round_items_lost += 1

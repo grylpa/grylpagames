@@ -191,6 +191,8 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	game.save_score(get_game_score(_didwin, false))
 
 func get_game_score(_didwin, _wasaborted):
+	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	game.record_times($Level.times_to_answer, "rt")
 	return [_didwin, _wasaborted, $Level.level]
 
 func add_score_line_vals(score_row: Array) -> Array:

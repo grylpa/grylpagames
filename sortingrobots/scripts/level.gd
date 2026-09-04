@@ -865,6 +865,9 @@ func _evaluate_answer(user_picks_up: bool) -> void:
 	# order (_mark_item, then _take_item). Everything that made this game's version awkward came from
 	# doing it the other way round: the panel was already freed, so the mark had to invent its own
 	# frame at its own size, and it never matched the yellow one it was replacing.
+	# "Pick it up" is the yes. window_target_truth is whether the item really matched its belt's
+	# rule, so the two together give the four counts rather than a bare right/wrong.
+	game.record_answer(user_picks_up, window_target_truth)
 	_mark_item(user_picks_up == window_target_truth)
 	# correct pick-up → a robot claw yanks the item off the nearest side (left belt→left, right→right)
 	if user_picks_up and user_picks_up == window_target_truth \
@@ -1024,6 +1027,10 @@ func _score_answer(user_picks_up: bool, is_timeout: bool) -> void:
 	_showing_feedback = true
 	var elapsed: int = int(game.game_time - round_start_ms)
 	var is_right: bool = not is_timeout and (user_picks_up == window_target_truth)
+	# A timeout is not a "no" — no judgement was made, so it must not land in the four counts.
+	# (A real answer is recorded in _evaluate_answer, which is the only path that has one.)
+	if is_timeout:
+		game.record_no_answer()
 	total_rounds += 1
 	rounds_done += 1
 	game.tutorial_notify("judged_right" if is_right else "judged_wrong")   # no-ops outside tutorial

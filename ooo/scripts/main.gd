@@ -195,6 +195,8 @@ var POS_SCORE_DIFFICULTY: int = 6
 var POS_SCORE_MEAN_TIME_MS: int = 7
 var POS_SCORE_PCT_CORRECT: int = 8
 func get_game_score(_didwin, _wasaborted):
+	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	game.record_times($Level.times_to_answer, "rt")
 	var last_level = $Level.level
 	if $Level.num_corrects_in_level_so_far == 0:
 		last_level = max(1, last_level - 1)

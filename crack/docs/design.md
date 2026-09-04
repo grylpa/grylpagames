@@ -383,3 +383,10 @@ and mother. Geometry and the alpha policy are shared; **colors are the caller's*
 not a detail — the cyan the three cool-background games use reads as a foreign object on mother's
 dunes. `SessionBar.draw_cool()` is the cyan default; mother calls `SessionBar.draw()` with
 `MOTHER_COL` and an alpha lift for its lighter background.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+**Crack previously saved nothing at all.** It called only `convert_ongoing_score_to_permanent()`, which is a no-op without an ongoing record, and nothing here ever wrote one. It now has `get_session_score()` and a real save. Each completed cycle records the signed error of all four phases, so rushing reads differently from dragging.

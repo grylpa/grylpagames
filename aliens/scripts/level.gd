@@ -1711,8 +1711,11 @@ func _drop_dragged(now: float) -> void:
 		var matched: bool = _gate_wants(al, home)
 		# Both judgments COMMIT. A wrong call is scored against the player, not undone.
 		if kind == Region.INNER and idx == home:
+			# Boarding is the "yes"; _gate_wants is whether the gate really wanted this alien.
+			game.record_answer(true, matched)
 			_accept_into_inner(al, now, not matched)
 		elif kind == Region.FIELD:
+			game.record_answer(false, matched)
 			_send_to_field(al, now, matched)
 		else:
 			_reject(al, now)                 # OUTER(home) is a silent no-op; other areas illegal

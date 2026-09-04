@@ -42,6 +42,11 @@ func _ready() -> void:
 
 	main_menu.show_continue_and_start_new(false)
 	game.progress_score_label = "Accuracy"
+	# This game's save array is not the generic shape, so its columns are named here;
+	# otherwise the defaults would file each value under the wrong name.
+	game.score_columns = ["didwin", "aborted", "duration_min", "cycles_opened"]
+	# Steadiness is not a record to beat: no personal-best filter in the calm games.
+	game.show_monotonic_toggle = false
 	game.show_scores_level = false
 	game.show_scores_time = false
 
@@ -71,7 +76,9 @@ func new_game() -> void:
 
 func _on_level_session_done() -> void:
 	_did_per_level_save = true
-	game.convert_ongoing_score_to_permanent()
+	# Actually save it. This used to call only convert_ongoing_score_to_permanent(), which needs an
+	# ongoing record that nothing in this game ever wrote -- so every crack session was discarded.
+	game.save_score($Level.get_session_score(true, false))
 	if not CrackG.guided_mode:
 		var phases: Array = $Level.get_computed_phases()
 		if phases[0] + phases[2] > 100.0:

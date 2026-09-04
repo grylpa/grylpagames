@@ -1095,6 +1095,13 @@ func _on_answer_selected(chosen: int, true_count: int):
 	$UILayer/AnswerOverlay.hide()
 	var error: int = abs(chosen - true_count)
 	var correct: bool = error == 0
+	# Count error against how many actually went past. If accuracy falls away as the number grows,
+	# that is a load effect the mean error alone cannot show. Signed, so a habit of undercounting
+	# reads differently from one of overcounting.
+	#
+	# NOT the full dual-task cost: that needs occasional rounds with no counting to subtract
+	# against, which is a change to how the game plays and is left as its own decision.
+	game.record_trial({"true_count": true_count, "chose": chosen, "signed_err": chosen - true_count})
 	_error_sum += error
 	_rounds_answered += 1
 	# One building, one verdict. Only an exact count is right — that is already the rule the +20

@@ -37,6 +37,11 @@ func _ready() -> void:
 
 	main_menu.show_continue_and_start_new(false)
 	game.progress_score_label = "Accuracy"
+	# This game's save array is not the generic shape, so its columns are named here;
+	# otherwise the defaults would file each value under the wrong name.
+	game.score_columns = ["didwin", "aborted", "duration_min", "session_ps", "react_ms"]
+	# Steadiness is not a record to beat: no personal-best filter in the calm games.
+	game.show_monotonic_toggle = false
 	game.show_scores_level = false
 	game.show_scores_time = true
 	game.scores_time_col_name = "React Time"

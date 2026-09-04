@@ -227,3 +227,45 @@ alarming. The visible rollback lands in `new_game()` along with the counters, wh
 pressed.
 
 Only the failed level's points go back. Everything earned in levels already passed is untouched.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Each round logs which character was shown, which was chosen, the response time, and whether
+the option labels were still on screen when the answer was given (`hidden`). Individual
+response times are kept; the game previously held only a running sum, so it had no
+distribution to measure spread from.
+
+**Why there is no confusion matrix.** The obvious view here — a grid of what was shown
+against what was chosen — was built and then removed, for two reasons that are both
+properties of this game rather than of the data collected so far:
+
+- `_build_options()` deliberately excludes the look-alike group (`CONFUSABLE_GROUPS`) that
+  contains the correct character, so O/0/Q, I/1, S/5, Z/2, B/8 and G/6 can *never* appear as
+  each other's distractor. Precisely the confusions worth measuring are the ones the game
+  makes impossible; whatever is left is an arbitrary random distractor.
+- The grid would be 36x36 = 1296 cells against roughly 10-12 rounds a session and five
+  sessions kept — under two showings per character, let alone per pair.
+
+**What the Memory view shows instead.** A 2x2 of right/wrong against
+choices-on-screen / choices-hidden, built by `GameInstrument._visibility_split()`. Two
+buckets instead of 1296, so every cell fills, and the split is a real difference the game
+creates on purpose: the same perceptual task with and without a memory load on top. It
+appears in the Charts tab under the **Memory** button once each bucket has enough rounds,
+with a one-line caption above it — four numbers in a 2x2 are not self-explanatory, and a
+reader who has to guess what the two rows are guesses wrong.
+
+The rows are named after **what the player sees change**: `option_display_sec` is 0 on
+levels 1-3, so the characters stay; from level 4 it is 5s down to 2.5s, after which
+`_on_hide_options_timer_timeout()` makes each option button's glyph transparent. The button
+itself stays in place showing its index number, so the round is still answerable — from
+memory of which position held which character.
+
+**The `hidden` flag must come from `_options_hidden`, not from the buttons.** It used to be
+recorded as `not _options_visible()`, and that helper asked whether the option *buttons* were
+still visible — which they always are, because hiding only recolours the glyph Label inside
+them. The flag was therefore `false` in every round ever logged, on every level, and the
+choices-hidden half of the view could not fill at all. Do not reintroduce a check that reads
+the buttons.
