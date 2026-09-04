@@ -244,3 +244,10 @@ so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
 While it existed, this game's build loop called `anim.play("EnemyBody")` — an animation its
 `SpriteFrames` never defined; only `"main"` was there. It never raised anything because the loop
 never ran, but a single segment would have sat frozen on frame 0. storm had the identical bug.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Leaks appearing and leaks overflowing are both counted; the share that overflowed says how well the player kept up, which the 100-point score cannot.

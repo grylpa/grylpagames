@@ -548,3 +548,14 @@ heading, which is all `set_rots()` ever read.
 
 **parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
 so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Each answer logs the true count and the signed error, so the Counting panel can show whether accuracy falls away as the load grows.
+
+The full dual-task cost is NOT implemented: it needs occasional rounds with no counting to subtract against, which changes how the game plays and is left as its own decision.
+
+The Counting tab is always present. It needs 3 sessions and answers at two or more gorilla counts, 4+ each.

@@ -511,6 +511,18 @@ func _on_option_pressed(idx: int) -> void:
 
 	_rounds_done += 1
 	_total_response_time_ms += response_ms
+	# `hidden` reads the FLAG the hide timer sets, not the buttons.
+	#
+	# It used to ask a helper whether the option buttons were still visible -- and they always are.
+	# Hiding the choices does not touch the button: _on_hide_options_timer_timeout() sets the glyph
+	# LABEL's font colour to transparent, leaving the button in place with its index number. So the
+	# flag was false in every round ever logged and the from-memory half of the Memory view could
+	# not fill, on any level.
+	PolkadotsG.game.record_trial({"shown": _correct_char, "chose": _option_chars[idx],
+		"ms": int(response_ms), "hidden": _options_hidden})
+	# Polkadots kept only a running SUM of response times, so it had no distribution to measure
+	# spread from. Keeping the individual times is what makes consistency available here at all.
+	PolkadotsG.game.record_list("resp_ms", int(response_ms))
 
 	var btn: Button = _option_buttons[idx]
 	var btn_center: Vector2 = btn.global_position + btn.size * 0.5

@@ -46,6 +46,11 @@ func _ready() -> void:
 	main_menu.show_continue_and_start_new(false)
 	game.scores_callback = Callable(self, "add_score_line_vals")
 	game.progress_score_label = "Consistency"
+	# This game's save array is not the generic shape, so its columns are named here;
+	# otherwise the defaults would file each value under the wrong name.
+	game.score_columns = ["didwin", "aborted", "duration_min", "mean_interval_ms", "bpm", "num_reversals", "missed_cycles"]
+	# Steadiness is not a record to beat: no personal-best filter in the calm games.
+	game.show_monotonic_toggle = false
 	var level_names: Dictionary = {}
 	for m: int in range(1, 16):
 		level_names[m] = "%d min" % m

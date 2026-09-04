@@ -163,7 +163,21 @@ func is_screen_visible(screen_name):
 
 func _set_app_screen_size(sz: Vector2):
 	get_window().content_scale_size = sz
-	get_window().size = sz
+	# The REAL window is set only where a real window exists to set.
+	#
+	# `content_scale_size` above is the whole job: it declares the logical canvas, and stretch mode
+	# `canvas_items` + aspect `keep` scale that canvas into whatever the display actually is. Setting
+	# `Window.size` on top of it is a no-op on native mobile, where the OS owns a fullscreen window —
+	# which is the only place this function had ever run, so the line looked harmless.
+	#
+	# On WEB it is not a no-op: it resizes the browser canvas ELEMENT to 680x1200 CSS pixels, inside a
+	# viewport that is nothing of the sort. Once mobile detection started firing on web (see
+	# _web_is_mobile) that broke the build three ways at once — the game drew in a corner of the
+	# screen, it crawled because a phone's 3x pixel ratio made that canvas ~2040x3600 real pixels to
+	# render every frame, and taps landed on the wrong control because hit-testing used a canvas whose
+	# size and offset no longer matched what the browser was painting.
+	if not OS.has_feature("web"):
+		get_window().size = sz
 	screen_size = sz
 	full_screen_size = sz
 	# Log.dbg("screen size in main globals _ready: " + str(screen_size))
@@ -893,10 +907,10 @@ func _bulk_upload_unsynced_scores() -> void:
 	for entry in MainCfg.games:
 		var folder: String = entry[0]
 		var gu: GenericGameUtil = GenericGameUtil.new(folder, folder, 0, 5, 0)
-		var all_scores: Array = gu.read_scores()
+		var all_scores: Array = gu.read_sessions()
 		var uploaded: Dictionary = gu.read_uploaded_scores()
 		var to_upload: Array = all_scores.filter(
-			func(s): return s is Array and s.size() >= 4 and not uploaded.has(int(s[0])))
+			func(rec): return rec is Dictionary and rec.has("ts") and not uploaded.has(int(rec["ts"])))
 		if not to_upload.is_empty():
 			BE.bulk_upload_game_scores(folder, to_upload)
 
@@ -933,21 +947,32 @@ func _on_game_scores_downloaded(server_scores: Array, game_name: String) -> void
 	save_settings()
 
 func _merge_scores_locally(gu: GenericGameUtil, server_scores: Array) -> void:
-	var local_scores: Array = gu.read_scores()
+	var local_scores: Array = gu.read_sessions()
 	var local_ts_set: Dictionary = {}
-	for s in local_scores:
-		if s is Array and s.size() > 0:
-			local_ts_set[int(s[0])] = true
+	for rec in local_scores:
+		if rec is Dictionary and rec.has("ts"):
+			local_ts_set[int(rec["ts"])] = true
 	var added: bool = false
 	for ss in server_scores:
 		if ss is Dictionary:
 			var ts = ss.get("session_ts", null)
 			if ts != null and not local_ts_set.has(int(ts)):
-				var row: Array = [ts, ss.get("score", 0), ss.get("time_left", 0), ss.get("times_run", 0)]
-				var extra = ss.get("extra_data", [])
-				if extra is Array:
-					row.append_array(extra)
-				local_scores.append(row)
+				var rec: Dictionary = {
+					"ts": int(ts),
+					"score": ss.get("score", 0),
+					"time_left": ss.get("time_left", 0),
+					"times_run": ss.get("times_run", 0),
+				}
+				var extra = ss.get("extra_data", null)
+				if extra is Dictionary:
+					rec.merge(extra, true)
+				elif extra is Array:
+					# A row uploaded by a pre-v6 client: positional, so name it with this game's
+					# own column list rather than dropping it.
+					for i in extra.size():
+						if i < gu.score_columns.size():
+							rec[str(gu.score_columns[i])] = extra[i]
+				local_scores.append(rec)
 				added = true
 	if added:
 		var path: String = gu.get_scores_fname()

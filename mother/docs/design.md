@@ -679,3 +679,10 @@ the world instead of sitting on the glass like dirt on the lens.
 
 `_canvas.texture_repeat` must be `TEXTURE_REPEAT_ENABLED` or the region does not tile and the sheet
 is stretched across the whole screen instead.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Declares its own `score_columns`: its array is not the generic shape, and without that its session length would be filed as `level` and its breathing rate as `pct_correct`.

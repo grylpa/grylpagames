@@ -47,6 +47,10 @@ var progress_time_label: String = "Avg Time"
 var progress_time_format: String = "%d"
 var progress_time_is_pct: bool = false
 var progress_tab_name: String = ""
+# The monotonic "personal best" filter is the right frame for a SCORE and the wrong one for a
+# breathing session: steadiness is not a record to beat, and presenting it as one pushes against
+# what the four calm games are for. They set this false.
+var show_monotonic_toggle: bool = true
 var zoomed_in := false
 
 var game_over_on_time_out := true
@@ -84,6 +88,8 @@ var time_scale := 1.0
 var time_to_auto_start_moving_ms := 5000
 var time_last_saved_ongoing_score := 0
 
+# Every open scores window joins this group, so a second open can tell one is already up.
+const SCORES_GROUP: StringName = &"scores_window"
 var scores_scene = preload("res://scenes/scores_list.tscn")
 var instructions_scene: PackedScene = load("res://scenes/instructions_popup.tscn")
 var level_done_popup_scene: PackedScene = load("res://scenes/level_done_popup.tscn")
@@ -263,13 +269,22 @@ func get_settings_fname():
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
 	return "user://settings_v" + str(file_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
 
+# SCORES are versioned separately from settings on purpose.
+#
+# v6 changed a session from a positional array to a named dictionary, which the old history cannot
+# be converted into — the fields it would need were never recorded. But `file_ver` also names the
+# SETTINGS and game-data files, so bumping it would have thrown away every game's starting level and
+# options too. The player agreed to lose score history, not their preferences, so scores carry their
+# own number and settings stay on v5. See StatsMigration.
+var scores_ver: int = 6
+
 func get_scores_fname():
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://scores_v" + str(file_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://scores_v" + str(scores_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
 
 func get_ongoing_score_fname():
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://ongoing_score_v" + str(file_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://ongoing_score_v" + str(scores_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
 
 func get_uploaded_scores_fname() -> String:
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
@@ -338,24 +353,25 @@ func read_ongoing_score():
 		var file = FileAccess.open(path, FileAccess.READ)
 		if file == null:
 			return []
-		var score_array = file.get_var()
+		var rec = file.get_var()
 		file.close()
-		if score_array is Array:
-			stored_ongoing_score = score_array
-			# print(name + ": Loaded ongoing score " + str(stored_ongoing_score))
-			return score_array
-	return []
+		# v6 writes a Dictionary. An Array here is a v5 leftover that StatsMigration should already
+		# have removed, so it is ignored rather than trusted.
+		if rec is Dictionary and not rec.is_empty():
+			stored_ongoing_score = rec
+			return rec
+	return {}
 
 func clear_ongoing_score():
 	# In a tutorial this would erase a real session that is still in progress.
 	if tutorial_mode:
 		return
-	stored_ongoing_score = []
+	stored_ongoing_score = {}
 	# Log.dbg(name + ": clearing ongoing")
 	var save_path = get_ongoing_score_fname()
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
 	if file:
-		file.store_var([])
+		file.store_var({})
 		file.close()
 		time_last_saved_ongoing_score = MainGlobals.timems()
 
@@ -367,7 +383,7 @@ func save_ongoing_score(score_array:Array):
 	var save_path = get_ongoing_score_fname()
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
 	if file:
-		stored_ongoing_score = _internal_score_vars() + score_array
+		stored_ongoing_score = _build_session_record(score_array)
 		# Log.dbg(name + ": saving ongoing: ", stored_ongoing_score)
 		file.store_var(stored_ongoing_score)
 		file.close()
@@ -406,18 +422,30 @@ func strtime(unixtime):
 	var strdt := "%04d/%02d/%02d %02d:%02d" % [dt.year, dt.month, dt.day, dt.hour, dt.minute]
 	return strdt
 
+# The legacy positional view of the saved sessions.
+#
+# Sessions are stored as named dictionaries now (see _build_session_record), but the existing scores
+# window reads rows by index. Rather than rewrite that screen and the storage in one step, this
+# rebuilds the old shape from the new record — so the app keeps working at every point of the
+# migration, and the screen can move to `read_sessions()` on its own schedule.
+# A v6 record as the positional row the scores window and the per-game callbacks still expect.
+func _legacy_row(rec: Dictionary) -> Array:
+	var row: Array = [
+		int(rec.get("ts", 0)),
+		int(rec.get("score", 0)),
+		int(rec.get("time_left", 0)),
+		int(rec.get("times_run", 0)),
+	]
+	for col in score_columns:
+		if not rec.has(col):
+			break
+		row.append(rec[col])
+	return row
+
 func read_scores():
 	var scores: Array = []
-	var path = get_scores_fname()
-	if FileAccess.file_exists(path):
-		var file = FileAccess.open(path, FileAccess.READ)
-		if file == null:
-			return []
-		while file.get_position() < file.get_length():
-			var score_array = file.get_var()
-			if score_array and score_array is Array:
-				scores.append(score_array)
-		file.close()
+	for rec: Dictionary in read_sessions():
+		scores.append(_legacy_row(rec))
 	return scores
 
 func save_settings(settings_array:Array, version:int=1):
@@ -572,6 +600,12 @@ func reset(from_scratch:bool):
 		corrects = 0
 		mistakes = 0
 		need_to_increase_level = false
+		# A new session starts with no carried-over measurements, and its clock starts here. Done
+		# centrally so no game has to remember to do it — the previous session's numbers leaking
+		# into the next one would be invisible and would quietly corrupt a trend.
+		clear_session_metrics()
+		clear_trials()
+		mark_session_start()
 		convert_ongoing_score_to_permanent()
 
 func set_time_left(h,m,s):
@@ -735,6 +769,7 @@ func convert_ongoing_score_to_permanent():
 			# Log.dbg(name + ": converting ongoing to permanent: ", stored_ongoing_score)
 			file.store_var(stored_ongoing_score)
 			file.close()
+			save_trials()
 			BE.upload_game_score(file_names_prefix, stored_ongoing_score)
 			clear_ongoing_score()
 		_write_new_best_flag(true)
@@ -749,11 +784,12 @@ func save_score(score_array:Array):
 		return
 	var file = open_file_for_scores()
 	if file:
-		var to_save = _internal_score_vars() + score_array
+		var to_save: Dictionary = _build_session_record(score_array)
 		# Log.dbg(name + ": saving score: ", to_save)
 		file.store_var(to_save)
 		file.close()
 		clear_ongoing_score()
+		save_trials()
 		BE.upload_game_score(file_names_prefix, to_save)
 	_write_new_best_flag(true)
 	MainGlobals.sig_new_best_score.emit()
@@ -769,6 +805,217 @@ func _internal_score_vars():
 	var unixtime:int = int(Time.get_unix_time_from_system())
 	return [unixtime, int(score), int(time_left_sec), times_run]
 
+# --- v6 session record ------------------------------------------------------------------------
+
+# The names of the columns a game passes to save_score(), in order.
+#
+# This is what turns 34 games' positional arrays into named records WITHOUT editing 34 games: the
+# default covers the shape almost all of them already use — [didwin, aborted, level, rt_mean,
+# pct_correct] — truncated to whatever length the game actually passes. A game whose array means
+# something else overrides this in its main.gd (see gorilla, whack, typit, the breathing games).
+#
+# Games are then free to migrate to `session_metrics` at their own pace; both paths land in the same
+# dictionary.
+var score_columns: Array = ["didwin", "aborted", "level", "rt_mean", "pct_correct"]
+
+# Named metrics a game accumulates during play. Merged into the record LAST, so anything set here
+# wins over a positional column of the same name.
+var session_metrics: Dictionary = {}
+
+# The settings that define the task, for grouping sessions that were genuinely the same test.
+# A level number is only an index into an editable table — see SessionStats.task_key.
+var task_signature: Dictionary = {}
+
+# Wall-clock start of the session, for `session_ms`.
+var _session_started_ms: int = 0
+
+func mark_session_start() -> void:
+	_session_started_ms = MainGlobals.timems()
+
+func set_task_signature(sig: Dictionary) -> void:
+	task_signature = sig
+
+# Record one named metric for this session. Games use this instead of widening their array.
+func record_metric(key: String, value) -> void:
+	session_metrics[key] = value
+
+func record_metrics(d: Dictionary) -> void:
+	for k in d.keys():
+		session_metrics[k] = d[k]
+
+# Convenience: the whole response-time block from an array of per-trial times the game already has.
+func record_times(times_ms: Array, prefix: String = "rt") -> void:
+	record_metrics(SessionStats.rt_block(times_ms, prefix))
+
+func clear_session_metrics() -> void:
+	session_metrics = {}
+	task_signature = {}
+	_session_started_ms = 0
+
+# One yes/no answer, kept as FOUR counts rather than folded into a percentage.
+#
+#   tp  said yes, was yes      fp  said yes, was no   (a false alarm)
+#   tn  said no,  was no       fn  said no,  was yes  (a miss)
+#
+# A percentage smears together two independent things — how well the player TELLS THE CASES APART,
+# and how willing they are to SAY YES. Someone whose discrimination is slipping often compensates
+# by saying yes more: tp rises, fp rises with it, and the percentage barely moves. The percentage
+# then shows a steady player while these four counts show what is actually happening.
+func record_answer(said_yes: bool, was_yes: bool) -> void:
+	var key: String = ("tp" if was_yes else "fp") if said_yes else ("fn" if was_yes else "tn")
+	session_metrics[key] = int(session_metrics.get(key, 0)) + 1
+
+# A trial the player never answered. Deliberately NOT one of the four cells: no answer was given,
+# so calling it a "no" would invent a decision and quietly inflate the miss count.
+func record_no_answer() -> void:
+	session_metrics["no_answer"] = int(session_metrics.get("no_answer", 0)) + 1
+
+# --- general accumulators -----------------------------------------------------------------------
+#
+# The games that currently store nothing but a level number each need a handful of counts, a best,
+# or a small distribution. These three cover all of them, so no game grows its own bookkeeping.
+
+# Count an event. `record_count("leaks_missed")`.
+func record_count(key: String, n: int = 1) -> void:
+	session_metrics[key] = int(session_metrics.get(key, 0)) + n
+
+# Keep the best value seen this session — a memory span, a longest streak.
+func record_max(key: String, value: int) -> void:
+	if not session_metrics.has(key) or value > int(session_metrics[key]):
+		session_metrics[key] = value
+
+# Append to a small distribution: where a sequence broke, how long each leak waited.
+#
+# BOUNDED, because a session record is written to disk on a 60-second autosave tick and a game with
+# hundreds of events would otherwise grow the file without limit. The cap keeps the most RECENT
+# values, which is what a within-session trend is read from.
+const MAX_LIST_LEN: int = 200
+
+func record_list(key: String, value) -> void:
+	var arr: Array = session_metrics.get(key, [])
+	arr.append(value)
+	if arr.size() > MAX_LIST_LEN:
+		arr.remove_at(0)
+	session_metrics[key] = arr
+
+# --- the per-trial log ---------------------------------------------------------------------------
+#
+# A few of the best measurements cannot be rebuilt from session totals, because they are about the
+# SHAPE of something across trials rather than its average:
+#
+#   Dino    accuracy against how long ago a card was seen — the curve of forgetting
+#   Weris   time against crowd size, whose slope is the cost of each extra face
+#   Polka   which character was shown against which was chosen
+#   Gorilla the coin rate with and without the counting task, side by side
+#
+# These live in their OWN file, never in the session row: they are far bigger, they are only read by
+# one panel, and mixing them in would bloat every read of the score list. The file is capped at a
+# few recent sessions, because it exists to draw a shape and not to be a permanent archive.
+
+const TRIALS_VER: int = 1
+const MAX_TRIALS_PER_SESSION: int = 600
+const KEEP_TRIAL_SESSIONS: int = 5
+
+var _trials: Array = []
+
+func get_trials_fname() -> String:
+	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
+	return "user://trials_v%d_%s_%s.gpa" % [TRIALS_VER, key, file_names_prefix]
+
+# One trial. Games pass whatever that trial means for them — {"lag": 7, "right": true} in Dino,
+# {"crowd": 12, "ms": 2400} in Weris.
+func record_trial(d: Dictionary) -> void:
+	if tutorial_mode:
+		return
+	if _trials.size() >= MAX_TRIALS_PER_SESSION:
+		return
+	_trials.append(d)
+
+func clear_trials() -> void:
+	_trials = []
+
+# Called at session end, alongside the score. Keeps only the most recent sessions so the file
+# cannot grow without bound on a game someone plays every day for a year.
+func save_trials() -> void:
+	if tutorial_mode or _trials.is_empty():
+		return
+	var blocks: Array = read_trial_blocks()
+	blocks.append({
+		"ts": int(Time.get_unix_time_from_system()),
+		"task_key": SessionStats.task_key(task_signature),
+		"trials": _trials.duplicate(),
+	})
+	while blocks.size() > KEEP_TRIAL_SESSIONS:
+		blocks.remove_at(0)
+	var f: FileAccess = FileAccess.open(get_trials_fname(), FileAccess.WRITE)
+	if f != null:
+		for b: Dictionary in blocks:
+			f.store_var(b)
+		f.close()
+	_trials = []
+
+func read_trial_blocks() -> Array:
+	var out: Array = []
+	var path: String = get_trials_fname()
+	if not FileAccess.file_exists(path):
+		return out
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return out
+	while f.get_position() < f.get_length():
+		var b = f.get_var()
+		if b is Dictionary and b.has("trials"):
+			out.append(b)
+	f.close()
+	return out
+
+# Every recorded trial across the kept sessions, flattened — what a panel actually draws.
+func read_trials() -> Array:
+	var out: Array = []
+	for b: Dictionary in read_trial_blocks():
+		for t in b.get("trials", []):
+			out.append(t)
+	return out
+
+# One session as a named dictionary. Everything a trend needs travels with the row itself, so no
+# reader ever has to know a column order or consult a level table that may since have been retuned.
+func _build_session_record(score_array: Array) -> Dictionary:
+	var rec: Dictionary = {
+		"ts": int(Time.get_unix_time_from_system()),
+		"score": int(score),
+		"time_left": int(time_left_sec),
+		"times_run": times_run,
+	}
+	rec.merge(SessionStats.local_time_block(), true)
+	if _session_started_ms > 0:
+		rec["session_ms"] = MainGlobals.timems() - _session_started_ms
+	for i in score_array.size():
+		if i < score_columns.size():
+			rec[str(score_columns[i])] = score_array[i]
+		else:
+			rec["col%d" % i] = score_array[i]
+	rec.merge(session_metrics, true)
+	if not task_signature.is_empty():
+		rec["task"] = task_signature.duplicate()
+		rec["task_key"] = SessionStats.task_key(task_signature)
+	return rec
+
+# All saved sessions as dictionaries, newest last. This is the API the new stats screens use.
+func read_sessions() -> Array:
+	var out: Array = []
+	var path: String = get_scores_fname()
+	if not FileAccess.file_exists(path):
+		return out
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return out
+	while file.get_position() < file.get_length():
+		var rec = file.get_var()
+		if rec is Dictionary and not rec.is_empty():
+			out.append(rec)
+	file.close()
+	return out
+
 func fill_scores_scene(instantiated_scores_scene):
 	_write_new_best_flag(false)
 	MainGlobals.sig_scores_viewed.emit()
@@ -781,26 +1028,35 @@ func fill_scores_scene(instantiated_scores_scene):
 			table_row.append_array(scores_callback.call(score_row))
 		table.insert(0,table_row)
 	if stored_ongoing_score:
-		table_row = [strtime(stored_ongoing_score[POS_SCORE_DATETIME]), int(stored_ongoing_score[POS_SCORE_SCORE])]
+		var ongoing_row: Array = _legacy_row(stored_ongoing_score)
+		table_row = [strtime(int(ongoing_row[POS_SCORE_DATETIME])),
+			int(ongoing_row[POS_SCORE_SCORE])]
 		if scores_callback.is_valid():
-			table_row.append_array(scores_callback.call(stored_ongoing_score))
+			table_row.append_array(scores_callback.call(ongoing_row))
 		table.insert(0,table_row)
 	# Log.dbg("scores: " + str(scores))
 	instantiated_scores_scene.create_list(table)
 	var raw := scores.duplicate()
 	if stored_ongoing_score:
-		raw.append(stored_ongoing_score)
+		raw.append(_legacy_row(stored_ongoing_score))
 	instantiated_scores_scene.set_progress_data(raw, progress_level_pos, progress_time_pos, progress_pct_pos, progress_level_names, progress_pct_label, progress_pct_format, progress_time_label, progress_time_format, progress_time_is_pct, progress_tab_name, progress_score_label, progress_pct_integer)
 
 func test_open_scores_screen(event, parent):
 	if MainGlobals.ignore_keyboard_actions:
 		return
 	if event.is_action_pressed("scores"):
+		# Already open? Then this press has been handled by another listener. A game's own _input
+		# and the shared main menu's _input both call this, so without the guard one key press
+		# builds two windows on top of each other.
+		if parent != null and parent.is_inside_tree() \
+				and not parent.get_tree().get_nodes_in_group(SCORES_GROUP).is_empty():
+			return
 		var _scores_scene = scores_scene.instantiate()
 		_scores_scene.show_level = show_scores_level
 		_scores_scene.show_time = show_scores_time
 		_scores_scene.level_as_name = show_scores_level_as_name
 		_scores_scene.time_col_name = scores_time_col_name
+		_scores_scene.show_monotonic_toggle = show_monotonic_toggle
 		_scores_scene.game_key = file_names_prefix
 		var tab_pref = MainGlobals.progress_tab_by_game.get(file_names_prefix, "scores") if file_names_prefix != "" else "scores"
 		if typeof(tab_pref) == TYPE_BOOL:

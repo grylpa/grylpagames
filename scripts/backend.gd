@@ -962,25 +962,28 @@ func check_requests():
 					Log.dbg("Requeuing next request for queue %d" % queue_id)
 				_send_next_request(queue_id)
 
-func _score_to_payload(user_id: String, game_name: String, score_array: Array) -> Dictionary:
-	var extra: Array = []
-	if score_array.size() > 4:
-		extra = score_array.slice(4)
+# A session is a v6 named Dictionary. The four promoted columns keep their own SQL columns; every
+# other key rides along in `extra_data`, which is already a JSON blob server-side and so needs no
+# schema change as games gain metrics.
+func _score_to_payload(user_id: String, game_name: String, rec: Dictionary) -> Dictionary:
+	var extra: Dictionary = rec.duplicate()
+	for promoted: String in ["ts", "score", "time_left", "times_run"]:
+		extra.erase(promoted)
 	return {
 		"user_id": user_id,
 		"game_name": game_name,
-		"session_ts": score_array[GenericGameUtil.POS_SCORE_DATETIME],
-		"score": score_array[GenericGameUtil.POS_SCORE_SCORE],
-		"time_left": score_array[GenericGameUtil.POS_SCORE_TIME_LEFT],
-		"times_run": score_array[GenericGameUtil.POS_SCORE_TIMES_RUN],
+		"session_ts": int(rec.get("ts", 0)),
+		"score": int(rec.get("score", 0)),
+		"time_left": int(rec.get("time_left", 0)),
+		"times_run": int(rec.get("times_run", 0)),
 		"extra_data": extra,
 		"platform": MainGlobals.get_platform_id(),
 	}
 
-func upload_game_score(game_name: String, score_array: Array) -> void:
+func upload_game_score(game_name: String, rec: Dictionary) -> void:
 	if not MainCfg.use_BE or offline_mode or MainCfg.is_anonymous_user:
 		return
-	if score_array.size() < 4:
+	if not rec.has("ts"):
 		return
 	var access_token: String = get_access_token()
 	var user_id: String = get_user_id_from_token(access_token)
@@ -989,8 +992,8 @@ func upload_game_score(game_name: String, score_array: Array) -> void:
 	var url: String = SUPABASE_URL + "/rest/v1/game_scores?on_conflict=user_id,game_name,session_ts"
 	var headers: PackedStringArray = _auth_json_headers(access_token,
 		PackedStringArray(["Prefer: resolution=merge-duplicates"]))
-	var payload: Array = [_score_to_payload(user_id, game_name, score_array)]
-	var session_ts: int = int(score_array[GenericGameUtil.POS_SCORE_DATETIME])
+	var payload: Array = [_score_to_payload(user_id, game_name, rec)]
+	var session_ts: int = int(rec.get("ts", 0))
 	var ext_callable: Callable = Callable(MainGlobals, "mark_score_uploaded").bind(game_name, session_ts)
 	_add_request(Callable(self, "_on_score_uploaded"),
 		url, headers, HTTPClient.METHOD_POST, JSON.stringify(payload), ext_callable, 4, false, DATA_QUEUE)
@@ -1009,10 +1012,10 @@ func bulk_upload_game_scores(game_name: String, all_scores: Array) -> void:
 		PackedStringArray(["Prefer: resolution=merge-duplicates"]))
 	var payload: Array = []
 	var ts_list: Array = []
-	for s in all_scores:
-		if s is Array and s.size() >= 4:
-			payload.append(_score_to_payload(user_id, game_name, s))
-			ts_list.append(int(s[GenericGameUtil.POS_SCORE_DATETIME]))
+	for rec in all_scores:
+		if rec is Dictionary and rec.has("ts"):
+			payload.append(_score_to_payload(user_id, game_name, rec))
+			ts_list.append(int(rec["ts"]))
 	if payload.is_empty():
 		return
 	var ext_callable: Callable = Callable(MainGlobals, "mark_scores_uploaded_for_game").bind(game_name, ts_list)

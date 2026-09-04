@@ -11,6 +11,8 @@ var show_time := false
 var level_as_name := false
 var time_col_name: String = "Avg Time"
 
+# Set by GenericGameUtil before the window is shown. False hides the personal-best filter entirely.
+var show_monotonic_toggle: bool = true
 var progress_mode := false
 var initial_progress_mode := false
 var initial_chart_mode: bool = false
@@ -35,11 +37,22 @@ var _chart_mode: bool = false
 var _chart_metric: int = 0  # 0=score, 1=avg_time, 2=pct_correct
 var _chart_x_mode: int = 1  # 0=by date, 1=by index; default is index
 var _chart_tab_button: Button = null
+# The game's own instrument, for the four games that have one (see GameInstrument). Absent
+# everywhere else, so no game grows an empty fourth tab.
+var _inst_tab_button: Button = null
+var _inst_area: VBoxContainer = null
+var _inst_panel: PanelContainer = null
+# The game's verdict, shown under the title on EVERY tab. "Am I improving?" is a question about the
+# game, not about whichever tab happens to be open, and burying it in one tab both hid it and made
+# that tab look like two unrelated things stapled together.
+var _inst_mode: bool = false
 var _chart_area: VBoxContainer = null
 var _metric_bar: HBoxContainer = null
 var _metric_buttons: Array = []
 var _x_mode_switch: CheckButton = null
 var _pct_metric_btn: Button = null
+# The game's own chart, shown in place of the shared one when its metric is selected.
+var _own_chart: Control = null
 var _chart_control: ChartControl = null
 var _header_mc: Node = null
 
@@ -80,6 +93,8 @@ func _ready():
 	%TabMargin.visible = false
 	MainGlobals.set_visible("scores",true)
 
+	# So a second open can see that one is already up — see GenericGameUtil.SCORES_GROUP.
+	add_to_group(GenericGameUtil.SCORES_GROUP)
 	_header_mc = $ScoresWindow/ColorRect/VBoxContainer/MarginContainer2
 	# After _header_mc: the table surface is built around it.
 	_apply_look()
@@ -103,12 +118,20 @@ func _ready():
 	tab_bar.reparent(tab_bar_panel)
 
 	_chart_tab_button = Button.new()
-	_chart_tab_button.text = "Chart"
+	_chart_tab_button.text = "Charts"
 	_chart_tab_button.visible = false
 	_chart_tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	MainGlobals.set_font_size(_chart_tab_button, 20)
 	_chart_tab_button.pressed.connect(_on_chart_tab_pressed)
 	tab_bar.add_child(_chart_tab_button)
+
+	_inst_tab_button = Button.new()
+	_inst_tab_button.text = "Summary"
+	_inst_tab_button.visible = false
+	_inst_tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	MainGlobals.set_font_size(_inst_tab_button, 20)
+	_inst_tab_button.pressed.connect(_on_inst_tab_pressed)
+	tab_bar.add_child(_inst_tab_button)
 
 	# Build chart area: metric selector bar + chart control
 	_chart_area = VBoxContainer.new()
@@ -139,7 +162,10 @@ func _ready():
 	_metric_bar = HBoxContainer.new()
 	_metric_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_metric_bar.add_theme_constant_override("separation", 0)
-	var metric_labels: Array = ["Score", "Avg Time", "% Correct"]
+	# The fourth is the game's OWN chart — weris's search slope, dino's recall curve. It belongs
+	# beside the other charts rather than in a tab of its own: it is a chart, and a tab that holds
+	# one chart while the chart tab holds three is a distinction the player has to learn for nothing.
+	var metric_labels: Array = ["Score", "Avg Time", "% Correct", "Detail"]
 	for idx: int in range(metric_labels.size()):
 		var btn: Button = Button.new()
 		btn.text = metric_labels[idx]
@@ -230,6 +256,8 @@ func _apply_look() -> void:
 		MainGlobals.set_font_size(tab, 20)
 	ScreenBackdrop.style_close($ScoresWindow/ColorRect/XCloseScene, GOLD)
 	%MonotonicCheckButton.modulate = GOLD
+	# A calm practice has no personal best to chase — see GenericGameUtil.show_monotonic_toggle.
+	# Per-tab visibility is decided in _update_tab_visuals.
 	_build_table_panel()
 
 # The table needs a SURFACE, for two reasons that turn out to be the same one.
@@ -444,6 +472,9 @@ func add_line(texts, is_from_user):
 var saved_table = null
 
 func create_list(input_table):
+	# The instrument tab has to be decided as the window is filled: it only appears where the game
+	# has one AND has been played enough to draw it, so it cannot be settled in the scene.
+	call_deferred("_prepare_tabs_on_open")
 	var vis_cols: int = 2 + (1 if show_level else 0) + (1 if show_time else 0)
 	# DESKTOP sizes; add_line() puts them through the app's type scale. They are never 0 now: a row
 	# left to inherit its scene's size took the automatic mobile scale on top of a number written
@@ -503,9 +534,9 @@ func create_list(input_table):
 
 	var N = table.size()
 	if N == 0:
-		%OverlayMessage.show()
-		%OverlayMessage.disp("No scores saved yet")
+		_set_empty_state("No scores saved yet")
 		return
+	_clear_empty_state()
 	var last_update_time = 0
 	for i in N:
 		var row = table[i]
@@ -541,6 +572,7 @@ func _on_check_button_toggled(toggled_on:bool) -> void:
 		create_list(saved_table)
 
 func _on_scores_tab_pressed() -> void:
+	_leave_instrument()
 	_chart_mode = false
 	progress_mode = false
 	_save_tab_pref("scores")
@@ -553,8 +585,12 @@ func _on_scores_tab_pressed() -> void:
 		_set_header("Score", _progress_score_label, 1, true)
 		_set_header("Level", "Level", 2, show_level)
 		_set_header("Time", time_col_name, 3, show_time)
+		# Without this the card kept whatever the LAST tab had put in it — press Speed once and
+		# every tab went on saying "No avg time data yet", including this one.
+		_set_empty_state("No scores saved yet")
 
 func _on_speed_tab_pressed() -> void:
+	_leave_instrument()
 	_chart_mode = false
 	progress_mode = true
 	_save_tab_pref("speed")
@@ -562,12 +598,42 @@ func _on_speed_tab_pressed() -> void:
 	_show_table_area()
 	create_progress_list()
 
+# The game's own chart is built by GameInstrument and dropped into the same panel the shared chart
+# lives in, so it inherits the frame, the ground and the size behaviour without knowing about them.
+func _swap_in_own_chart() -> void:
+	if _chart_control == null or not is_instance_valid(_chart_control):
+		return
+	var own: Control = GameInstrument.chart_for(game_key)
+	if own == null:
+		_chart_metric = 0
+		create_chart()
+		return
+	var host: Node = _chart_control.get_parent()
+	if _own_chart != null and is_instance_valid(_own_chart):
+		_own_chart.queue_free()
+	_own_chart = own
+	own.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	own.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	host.add_child(own)
+	_chart_control.visible = false
+	own.visible = true
+
+func _restore_shared_chart() -> void:
+	if _own_chart != null and is_instance_valid(_own_chart):
+		_own_chart.queue_free()
+		_own_chart = null
+	if _chart_control != null and is_instance_valid(_chart_control):
+		_chart_control.visible = true
+
 func _on_chart_tab_pressed() -> void:
+	_leave_instrument()
 	_chart_mode = true
 	progress_mode = false
 	_save_tab_pref("chart")
 	_update_tab_visuals()
 	_show_chart_area()
+	# The chart draws its own "No data yet" inside the plot; the card would be a second voice.
+	%OverlayMessage.hide()
 	create_chart()
 
 func _show_table_area() -> void:
@@ -576,10 +642,23 @@ func _show_table_area() -> void:
 	%MarginContainer.visible = true
 	if _table_margin != null:
 		_table_margin.visible = true
+	# Both of the other surfaces, not just the chart — going back to a table from the instrument
+	# tab would otherwise leave the panel sitting under the list.
 	if _chart_area != null:
 		_chart_area.visible = false
+	if _inst_area != null:
+		_inst_area.visible = false
 
 func _show_chart_area() -> void:
+	_show_only(_chart_area)
+
+# Exactly one content surface at a time.
+#
+# Each tab used to hide the surfaces it happened to know about, and the instrument tab knew about
+# the chart but not the table — so arriving from Scores left the list on the top half of the window
+# with the panel underneath it, while arriving from Chart looked right. Naming the ONE surface that
+# should be visible makes that class of mistake impossible.
+func _show_only(area: Control) -> void:
 	if _header_mc != null:
 		_header_mc.visible = false
 	%MarginContainer.visible = false
@@ -588,18 +667,62 @@ func _show_chart_area() -> void:
 	if _table_margin != null:
 		_table_margin.visible = false
 	if _chart_area != null:
-		_chart_area.visible = true
+		_chart_area.visible = (area == _chart_area)
+	if _inst_area != null:
+		_inst_area.visible = (area == _inst_area)
+
+func _prepare_tabs_on_open() -> void:
+	_prepare_instrument_tab()
+	_sync_x_mode_switch()
+	# Named and shown as the window is filled, not only when the Charts tab happens to be opened —
+	# otherwise the button sits there generically labelled until someone visits that tab.
+	_sync_own_metric_button()
+
+# The fourth metric belongs only to games that have a chart of their own.
+# The date/index switch chooses how TIME is laid out along the x axis. On the game's own chart the
+# x is a crowd size or a lag, so the switch has nothing to act on — greyed there, and live again on
+# any chart it can actually change.
+func _sync_x_mode_switch() -> void:
+	if _x_mode_switch == null or not is_instance_valid(_x_mode_switch):
+		return
+	var relevant: bool = _chart_metric != 3
+	# GREYED, not DISABLED.
+	#
+	# `disabled` swaps the button to its disabled StyleBox, which carries different content margins
+	# and its own font colour — so the switch changed size, shifted position and lost its text. All
+	# that is wanted is "you cannot use this right now", so the look stays exactly as it is and only
+	# the tint and the input change.
+	_x_mode_switch.modulate = Color(1, 1, 1, 1) if relevant else Color(1, 1, 1, 0.35)
+	_x_mode_switch.mouse_filter = Control.MOUSE_FILTER_STOP if relevant \
+		else Control.MOUSE_FILTER_IGNORE
+	# Keyboard and gamepad would otherwise still reach it.
+	_x_mode_switch.focus_mode = Control.FOCUS_ALL if relevant else Control.FOCUS_NONE
+
+func _sync_own_metric_button() -> void:
+	if _metric_buttons.size() <= 3 or game_key == "":
+		return
+	var own: bool = GameInstrument.has_own_view(game_key)
+	_metric_buttons[3].visible = own
+	if own:
+		_metric_buttons[3].text = GameInstrument.chart_metric_name(game_key)
+	if _chart_metric == 3 and not own:
+		_chart_metric = 0
 
 func _update_tab_visuals() -> void:
 	var scores_active: bool = not progress_mode and not _chart_mode
 	var speed_active: bool = progress_mode and not _chart_mode
-	var chart_active: bool = _chart_mode
+	var chart_active: bool = _chart_mode and not _inst_mode
 	_apply_tab_style(%ScoresTabButton, scores_active)
 	_apply_tab_style(%SpeedTabButton, speed_active)
 	if _chart_tab_button != null:
 		_apply_tab_style(_chart_tab_button, chart_active)
+	if _inst_tab_button != null:
+		_apply_tab_style(_inst_tab_button, _inst_mode)
 	var mono: bool = MainGlobals.show_monotonic_speed if progress_mode else MainGlobals.show_monotonic_scores
 	%MonotonicCheckButton.set_pressed_no_signal(mono)
+	# Only the two table tabs have rows for a "personal best" filter to hide. On the Charts and
+	# Summary tabs it sat there doing nothing.
+	%MonotonicCheckButton.visible = show_monotonic_toggle and not _chart_mode and not _inst_mode
 	# Update metric button pill style
 	for i: int in range(_metric_buttons.size()):
 		_apply_metric_style(_metric_buttons[i], i == _chart_metric)
@@ -662,12 +785,19 @@ func _save_tab_pref(tab: String) -> void:
 func create_chart() -> void:
 	if _chart_control == null:
 		return
+	# Put the shared chart back before drawing anything else. Doing this in the button handler
+	# instead left the game's own chart sitting on top of every other metric once it had been
+	# selected — and a tab switch, which also lands here, would not have cleaned it up either.
+	if _chart_metric != 3:
+		_restore_shared_chart()
+	_sync_x_mode_switch()
 	var has_time: bool = _progress_time_pos >= 0
 	var has_level: bool = _progress_level_pos >= 0 and has_time
 	if _metric_buttons.size() > 1:
 		_metric_buttons[1].visible = has_time
 	if _pct_metric_btn != null:
 		_pct_metric_btn.visible = has_level and _progress_pct_pos >= 0
+	_sync_own_metric_button()
 	if _chart_metric == 1 and not has_time:
 		_chart_metric = 0
 	if _chart_metric == 2 and _progress_pct_pos < 0:
@@ -767,6 +897,33 @@ func create_chart() -> void:
 	else:
 		_chart_control.y_label_divisor = 1.0
 		_chart_control.y_label_format = ""
+	# The game's own curve: a different picture, plotted the same way and framed the same way.
+	if _chart_metric == 3:
+		_swap_in_own_chart()
+		return
+
+	# THE BASELINE BAND, and only where it means something.
+	#
+	# The chart draws one series per level, and a "usual range" spanning several difficulties would
+	# be a number about the mix of levels played rather than about the player. So the band appears
+	# only when a single series is on screen — which is exactly the comparable case — and the warm-up
+	# and the recent window are excluded by StatsBaseline (see band_from_values).
+	_chart_control.clear_band()
+	if series_list.size() == 1:
+		var pts_for_band: Array = series_list[0].get("points", [])
+		if pts_for_band.size() >= StatsBaseline.MIN_BASELINE_SESSIONS:
+			var ordered: Array = pts_for_band.duplicate()
+			ordered.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+			var vals: Array = []
+			for pt: Vector2 in ordered:
+				vals.append(pt.y)
+			var band_info: Dictionary = StatsBaseline.band_from_values(vals)
+			if bool(band_info.get("ok", false)):
+				_chart_control.set_band(float(band_info["lo"]), float(band_info["hi"]))
+	# EVERY chart names its axes, not just the game's own. y_label is already the metric's name;
+	# the x depends on what the date/index switch is showing.
+	_chart_control.y_title = _chart_control.y_label
+	_chart_control.x_title = "session" if _chart_x_mode == 1 else "date"
 	_chart_control.x_as_index = (_chart_x_mode == 1)
 	if _chart_x_mode == 1:
 		# Assign a single global chronological index across all series so that
@@ -818,6 +975,22 @@ func _add_centered_message(grid: Control, text: String) -> void:
 	lbl.size_flags_horizontal = Control.SIZE_FILL
 	grid.add_child(lbl)
 
+# ONE empty state for the whole window.
+#
+# The Scores tab put up a big centred card while the Speed tab added its own small line inside the
+# grid — so switching tabs showed both at once, saying the same thing twice in two different voices,
+# with the column headings still standing over a table that was not there.
+func _set_empty_state(msg: String) -> void:
+	if _header_mc != null and is_instance_valid(_header_mc):
+		(_header_mc as Control).visible = false
+	%OverlayMessage.show()
+	%OverlayMessage.disp(msg)
+
+func _clear_empty_state() -> void:
+	if _header_mc != null and is_instance_valid(_header_mc):
+		(_header_mc as Control).visible = true
+	%OverlayMessage.hide()
+
 func create_progress_list() -> void:
 	var has_pct_peek: bool = _progress_pct_pos >= 0
 	var vis_cols_p: int = 2 + (1 if has_pct_peek else 0)
@@ -837,7 +1010,7 @@ func create_progress_list() -> void:
 	await get_tree().process_frame
 
 	if _progress_time_pos < 0 or _raw_scores.is_empty():
-		_add_centered_message(grid, "No %s data available" % _progress_time_label.to_lower())
+		_set_empty_state("No %s data yet" % _progress_time_label.to_lower())
 		return
 
 	var has_pct: bool = _progress_pct_pos >= 0
@@ -866,8 +1039,9 @@ func create_progress_list() -> void:
 
 	var is_empty: bool = level_data.is_empty() if use_levels else all_entries.is_empty()
 	if is_empty:
-		_add_centered_message(grid, "No %s data yet — play some games first" % _progress_time_label.to_lower())
+		_set_empty_state("No %s data yet" % _progress_time_label.to_lower())
 		return
+	_clear_empty_state()
 
 	var monotonic: bool = MainGlobals.show_monotonic_speed
 
@@ -970,3 +1144,70 @@ func _on_scores_window_window_input(event:InputEvent) -> void:
 	elif event.is_action_pressed("change game"):
 		_on_x_close_scene_button_pressed()
 		MainGlobals.stop_active_game()
+
+
+# --- the game's own instrument -------------------------------------------------------------------
+
+# Shown only where GameInstrument has something for this game AND enough has been played to draw it.
+# A tab that opens onto an empty frame is worse than no tab, so both conditions are checked before
+# it appears at all.
+func _prepare_instrument_tab() -> void:
+	if _inst_tab_button == null or game_key == "":
+		return
+	# Always there, for every game: it holds the verdict, which every game has.
+	_inst_tab_button.text = "Summary"
+	_inst_tab_button.visible = true
+	var panel: Control = GameInstrument.summary_for(game_key)
+	if panel == null:
+		return
+	if _inst_area == null:
+		_inst_area = VBoxContainer.new()
+		_inst_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_inst_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_inst_area.visible = false
+		# The SAME framed surface the table and the chart sit on, built from content_frame() so the
+		# four tabs cannot drift apart.
+		_inst_panel = PanelContainer.new()
+		_inst_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_inst_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_inst_panel.add_theme_stylebox_override("panel", content_frame(ChartControl.GROUND))
+		_inst_area.add_child(_inst_panel)
+		if _chart_area != null and _chart_area.get_parent() != null:
+			_chart_area.get_parent().add_child(_inst_area)
+		# REGISTERED, like the chart and the table. _sync_stack_expand() only stretches the stack
+		# when one of these is visible; an unregistered surface leaves everything at its minimum.
+		_content_areas.append(_inst_area)
+	for c in _inst_panel.get_children():
+		c.queue_free()
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var margin: MarginContainer = MarginContainer.new()
+	for side: String in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 12)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(panel)
+	scroll.add_child(margin)
+	_inst_panel.add_child(scroll)
+
+func _on_inst_tab_pressed() -> void:
+	_inst_mode = true
+	_chart_mode = true          # the instrument lives in the chart half of the window
+	progress_mode = false
+	_prepare_instrument_tab()
+	# GameInstrument says what this game still needs, in its own words. The card would talk over it.
+	%OverlayMessage.hide()
+	_show_only(_inst_area)
+	_update_tab_visuals()
+	_save_tab_pref("instrument")
+
+# Leaving the instrument for any other tab has to put the chart area back, or the window would show
+# an empty pane where the chart used to be.
+func _leave_instrument() -> void:
+	_inst_mode = false
+	if _inst_area != null:
+		_inst_area.visible = false

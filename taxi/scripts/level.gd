@@ -982,6 +982,9 @@ func on_taxi_pressed(taxi):
 		return
 	if taxi.transaction_id >= 0:
 		if taxi.passangers.size() == 0:
+			# Pressing an assigned taxi that has not picked anyone up CANCELS the job. That is the
+			# clearest signal available here of a plan the player had to undo.
+			game.record_count("jobs_cancelled")
 			for a in agents:
 				if !a.is_taxi and a.transaction_id == taxi.transaction_id:
 					a.assign_taxi(null)
@@ -1005,6 +1008,7 @@ func on_agent_pressed(agent):
 			move_taxi_to_agent(taxi, agent)
 
 func move_taxi_to_agent(taxi, agent):
+	game.record_count("jobs_assigned")
 	agent.assign_taxi(taxi)
 	taxi.assign_customer(agent)
 	var trans_id = agent.transaction_id

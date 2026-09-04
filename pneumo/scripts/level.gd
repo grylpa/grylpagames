@@ -65,6 +65,8 @@ signal started_playing
 signal sig_level_is_done(didwin:bool)
 signal delivered_one
 signal collision
+# Counted for the session record as well as for the pass test: deliveries per door-turn is the
+# efficiency figure, and collisions are the cost of routing two capsules into each other.
 
 func _ready() -> void:
 	game = PneumoG.game
@@ -346,6 +348,9 @@ func reset_sender_receiver(transaction_id):
 			t.reset_sender_receiver()
 
 func on_clicked_door(pos: Vector2i):
+	# Door turns per capsule is the look-ahead measure: it climbs when planning turns into
+	# firefighting, well before the delivery count itself suffers.
+	game.record_count("door_actions")
 	for i in doors.size():
 		var door = doors[i]
 		if door.board_pos == pos:
@@ -406,6 +411,7 @@ func tick():
 				# A delivery is what the player is HERE for, and it pays (delivered_one), but it does
 				# not touch the crash allowance and does not end the level — the clock does that.
 				_deliveries += 1
+				game.record_count("deliveries")
 				delivered_transaction(agent.transaction_id)
 				var aid = agent.transaction_id
 				MainGlobals.do_after(2, func(): reset_sender_receiver(aid))
@@ -658,6 +664,7 @@ func check_agent_collisions():
 							if !game.is_sound_playing("explosion"):
 								game.play_sound("explosion")
 							game.tutorial_notify("capsules_collided")
+							game.record_count("collisions")
 							collision.emit()
 							# One of the allowance is spent. dec_packet() emits sig_no_more_packets when it
 							# reaches zero, which is where main.gd ends the session — so a crash under the

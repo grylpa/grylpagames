@@ -46,6 +46,9 @@ func _ready() -> void:
 		GorillaG.save_settings()
 
 	game.show_scores_level = true
+	# This game's save array is not the generic shape, so its columns are named here;
+	# otherwise the defaults would file each value under the wrong name.
+	game.score_columns = ["didwin", "aborted", "level", "count_error"]
 	game.progress_time_pos = 7
 	game.progress_time_label = "Avg Error"
 	game.progress_time_format = "%d"

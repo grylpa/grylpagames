@@ -296,3 +296,10 @@ so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
 While it existed, this game's build loop called `anim.play("EnemyBody")` — an animation its
 `SpriteFrames` never defined; only `"main"` was there. It never raised anything because the loop
 never ran, but a single segment would have sat frozen on frame 0. storm had the identical bug.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

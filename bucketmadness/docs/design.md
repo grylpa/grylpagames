@@ -566,3 +566,10 @@ alarming. The visible rollback lands in `new_game()` along with the counters, wh
 pressed.
 
 Only the failed level's points go back. Everything earned in levels already passed is untouched.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

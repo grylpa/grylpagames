@@ -253,3 +253,10 @@ The game is **Buoy** to the player. The folder, the `UdbrG` autoload and the sav
 shortname would orphan every `*_udbr.gru` score file on every device, so it is deliberately left
 alone. Only the display name in `scripts/config.gd`, `GenericGameUtil.new(...)`, the instructions
 title and the tutorial title changed.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Declares its own `score_columns`: its array is not the generic shape, and without that its session length would be filed as `level` and its breathing rate as `pct_correct`.

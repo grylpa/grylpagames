@@ -244,3 +244,14 @@ app uses (`scripts/screen_backdrop.gd`) in this game's own green, in place of th
 `friends/art/grass.png`; the answer buttons and the Ready button are `GameButton` (Say Hi filled,
 Ignore a ghost — the same weight relationship the confirmation dialog uses); the instruction and
 reaction labels take the app's prose font.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
+
+Say Hi is the yes. The auto-Ignore that fires when a card reaches full size sets `_auto_ignoring` first, so an unanswered arrival is recorded as a non-answer rather than as a deliberate Ignore — it would otherwise inflate the miss count with decisions the player never made.

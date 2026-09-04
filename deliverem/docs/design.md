@@ -222,3 +222,10 @@ wraps seamlessly and turning a cell breaks the wrap.
 `probe_lawn.gd` checks all eleven: the field exists, is the first child of its layer, is sown before
 any board is built, covers the board and the canvas, retires the tiled ground only once it has
 something in it, and that no cell shows its own grass again.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

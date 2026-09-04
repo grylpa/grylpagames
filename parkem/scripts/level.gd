@@ -452,6 +452,7 @@ func on_door_type_changed(pos: Vector2i):
 		agent.path = find_agent_path(agent)
 
 func on_clicked_door(pos: Vector2i):
+	game.record_count("door_actions")
 	for i in doors.size():
 		var door = doors[i]
 		if door.board_pos == pos:
@@ -719,6 +720,7 @@ func on_agent_remove_agent(agent_id, arrived):
 			board[agents[i].board_pos.y][agents[i].board_pos.x].has_agent = false
 			agents[i].queue_free()
 			agents.remove_at(i)
+			game.record_count("creatures_stopped" if not arrived else "creatures_parked")
 			if not arrived:
 				# Stopping one is the player's job, not a quota: it pays (delivered_one) but does not
 				# touch the allowance and does not end the level. The level ends when the clock does.

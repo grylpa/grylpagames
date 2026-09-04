@@ -24,6 +24,9 @@ enum modes {DISPLAY_ALL_FRIENDS, DISPLAY_SOMEONE }
 var mode = modes.DISPLAY_ALL_FRIENDS
 
 var dtime_to_ignore_when_no_answer_ms := 4 * 1000
+# True only while the grow-to-full-size timeout is driving the Ignore handler, so an unanswered
+# arrival is recorded as "no answer" rather than as a deliberate Ignore.
+var _auto_ignoring: bool = false
 var dtime_to_show_all_friends_ms := 60 * 1000
 var time_to_next_mode_ms = 0
 var time_shown_new_person_ms = 0
@@ -358,7 +361,11 @@ func _tick_person() -> void:
 		elif mode == modes.DISPLAY_SOMEONE and time_shown_new_person_ms > 0:
 			if !answered_current_person and now >= time_shown_new_person_ms + dtime_to_ignore_when_no_answer_ms:
 				time_shown_new_person_ms = 0
+				# Letting the card reach full size scores as an Ignore, but it is NOT a decision —
+				# the player answered nothing. It must not be counted as a deliberate "no".
+				_auto_ignoring = true
 				_on_ignore_button_pressed()
+				_auto_ignoring = false
 			else:
 				var dt = now - time_shown_new_person_ms
 				var pct = float(dt) / float(dtime_to_ignore_when_no_answer_ms)
@@ -480,6 +487,9 @@ func _on_say_hi_button_pressed() -> void:
 		%WrongText.show()
 		%CorrectText.hide()
 	# %Instructions.hide()
+	# Saying Hi is the "yes". Greeting more strangers as faces get harder would hold the percentage
+	# steady while the false alarms climbed, so the four counts are kept apart.
+	game.record_answer(true, _is_person_friend())
 	answered(_is_person_friend())
 
 func _on_ignore_button_pressed() -> void:
@@ -494,6 +504,10 @@ func _on_ignore_button_pressed() -> void:
 		%WrongText.show()
 		%CorrectText.hide()
 	# %Instructions.hide()
+	if _auto_ignoring:
+		game.record_no_answer()
+	else:
+		game.record_answer(false, _is_person_friend())
 	answered(!_is_person_friend())
 
 # What the player gets next, in words. An accuracy figure alone does not say whether they are

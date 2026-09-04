@@ -50,6 +50,11 @@ var phase: int = Phase.IDLE
 var _phase_start_ms: float = 0.0
 var _show_start_ms: float = 0.0
 var _cur_was_seen: bool = false
+# How many cards have gone by, and how many had gone by since THIS card was last shown. The gap is
+# the lag, and accuracy plotted against it is the shape of the player's forgetting -- far more
+# informative than one overall percentage, and impossible to rebuild from session totals.
+var _cards_shown: int = 0
+var _cur_lag: int = -1
 var _answered: bool = false
 
 # --- ui (built in code) ---
@@ -254,6 +259,7 @@ func new_game(_from_scratch: bool = true) -> void:
 	game.corrects = 0
 	game.mistakes = 0
 	times_to_answer.clear()
+	_cards_shown = 0
 	_clear_card()
 	_answered = false
 	_pressing = false
@@ -366,6 +372,16 @@ func _load_level(id: int) -> void:
 			_folders.append(f)
 	if _folders.is_empty():
 		_folders = ["dinos"]
+
+	# Group sessions by what the task WAS, not by a level number that can be renumbered when a
+	# level is inserted or retuned. `source` matters most: recognising faces is not the same
+	# ability as recognising dinosaur pictures.
+	game.set_task_signature({
+		"source": str(def.get("source", "dinos")),
+		"card_time_sec": float(def.get("card_time_sec", 5.0)),
+		"card_size": card_size_key,
+		"start_cards": start_cards,
+	})
 
 	_folder_colors = []
 	var bc = def.get("border_colors", null)
@@ -533,6 +549,11 @@ func _show_next_card() -> void:
 	_cur_was_seen = pick["was_seen"]
 	_answered = false
 	var entry: Dictionary = pick["entry"]
+	_cards_shown += 1
+	# Entries are shared Dictionaries held in _introduced, so stamping the position here is what
+	# lets the NEXT showing of this card know how long it has been.
+	_cur_lag = (_cards_shown - int(entry.get("last_at", 0))) if _cur_was_seen else -1
+	entry["last_at"] = _cards_shown
 	var tex = entry["tex"]
 	# fit the card to the image's own aspect ratio (full image, no crop), scaled by the
 	# level's size fraction, inside the available area.
@@ -579,6 +600,13 @@ func _register_answer(said_seen) -> void:
 		return
 	_answered = true
 	var correct: bool = (not timed_out) and (bool(said_seen) == _cur_was_seen)
+	# Four counts, not one percentage: saying "seen" more often as recognition slips would keep
+	# the percentage flat while the hits and false alarms both climbed.
+	if timed_out:
+		game.record_no_answer()
+	else:
+		game.record_answer(bool(said_seen), _cur_was_seen)
+		game.record_trial({"lag": _cur_lag, "seen": _cur_was_seen, "right": correct})
 	total_rounds += 1
 	if correct:
 		total_corrects += 1

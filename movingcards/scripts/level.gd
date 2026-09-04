@@ -366,8 +366,14 @@ func find_card(card_id: int):
 # counting it, so `num_rounds` measured successes and the level always ended in a win.
 func _finish_round(was_correct: bool) -> void:
 	rounds_done_this_level += 1
+	game.record_count("rounds")
 	if was_correct:
 		rounds_correct_this_level += 1
+		# The longest order held in full this session -- a real capacity figure, unlike a score.
+		game.record_count("rounds_right")
+		game.record_max("span", num_cards)
+	else:
+		game.record_count("rounds_wrong")
 	game.add_correct_or_mistake(1 if was_correct else 0, 0 if was_correct else 1)
 	MainGlobals.global_update_hud()
 	if rounds_done_this_level < int(current_level_cfg["num_rounds"]):
@@ -419,6 +425,14 @@ func _on_card_pressed(_p: Vector2, _card_id: int) -> void:
 	var c = find_card(_card_id)
 	if _card_id != card_click_order[expected_card_idx_clicked]:
 		# Wrong card
+		# WHERE it broke matters: an early slip and a late one mean different things, and whether
+		# the player jumped ahead or fell back distinguishes a lost place from a lost order.
+		game.record_list("break_pos", expected_card_idx_clicked)
+		game.record_list("seq_len", num_cards)
+		var clicked_pos: int = card_click_order.find(_card_id)
+		if clicked_pos >= 0:
+			game.record_count("jumped_ahead" if clicked_pos > expected_card_idx_clicked
+				else "fell_back")
 		game.play_sound("wrong")
 		if c != null:
 			c.reveal_card()

@@ -3,6 +3,10 @@ extends Node2D
 # var login_scene = load("res://scenes/login.tscn").instantiate()
 var level_is_done_audio := preload("res://art/sounds/game-level-done.mp3")
 
+# What StatsMigration did at startup, so the one-time notice can be shown after the chooser is up
+# rather than in the middle of _ready(). See _show_stats_migration_notice.
+var _stats_migration_outcome: int = StatsMigration.Outcome.ALREADY_DONE
+
 func _ready() -> void:
 	var ev := InputEventScreenTouch.new()
 	InputMap.action_add_event("touch", ev)
@@ -47,6 +51,12 @@ func _ready() -> void:
 	#   viewport.set_size_override_stretch(true) # Enable stretch for custom size.
 
 	MainGlobals.load_settings()
+
+	# Before any game can write a session. v6 records cannot be built from v5 history, so the old
+	# score files are cleared here — and the player is told, ONCE, but only if they actually had
+	# history to lose. A fresh install just gets the marker written silently. See StatsMigration.
+	_stats_migration_outcome = StatsMigration.run()
+
 	BE.sig_created_player.connect(_on_BE_sig_created_player)
 	BE.sig_logged_in.connect(_on_BE_sig_logged_in)
 	BE.sig_show_login_screen.connect(_on_show_login_screen)
@@ -57,6 +67,9 @@ func _ready() -> void:
 	MainGlobals.sig_update_bottom_bar.connect(_on_sig_update_bottom_bar)
 	MainGlobals.sig_global_level_is_done.connect(_on_global_level_is_done)
 	show_game_chooser()
+	if _stats_migration_outcome == StatsMigration.Outcome.UPGRADED:
+		# After the chooser exists, so the notice has something to sit on.
+		call_deferred("_show_stats_migration_notice")
 
 	if _should_force_guest_name() and not MainGlobals.has_named_guest():
 		$LoginScreen.show_guest_name_only()
@@ -632,3 +645,9 @@ func _on_global_level_is_done(didwin:bool):
 func _on_session_expired() -> void:
 	var popup: ReauthPopup = preload("res://scenes/reauth_popup.tscn").instantiate() as ReauthPopup
 	add_child(popup)
+
+# Shown once, and only to a player who had score history before v6. A person who kept a year of
+# scores deserves to be told plainly rather than to open the stats screen and find it empty.
+func _show_stats_migration_notice() -> void:
+	MainGlobals.game.show_game_popup(self,
+		StatsMigration.notice_title(), StatsMigration.notice_text())

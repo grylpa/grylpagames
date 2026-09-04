@@ -170,6 +170,8 @@ func _on_level_show_main_menu() -> void:
 		game.convert_ongoing_score_to_permanent()
 
 func get_game_score(_didwin, _wasaborted):
+	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	game.record_times($Level.times_to_answer, "rt")
 	return [_didwin, _wasaborted, $Level.current_level_id,
 		$Level.mean_response_time_ms(), $Level.pct_correct()]
 

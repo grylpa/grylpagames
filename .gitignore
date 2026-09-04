@@ -12,5 +12,14 @@ dbbackup/
 .vscode/
 export_presets.cfg
 
-# Throwaway tutorial test harness, regenerated per session
-probe_tut.*
+# Dev-only harnesses. The FILES live in the private repo, at ../devtools/, and what is here is a
+# symlink into it -- Godot needs them under res:// to run them, and the public repo must not carry
+# them. Adding a probe means adding it there and symlinking it in, not dropping it here.
+#   probe_*      headless checks, run as `godot --headless --path . res://probe_X.tscn`
+#   seed_demo    fills every game with simulated history so the stats screens can be looked at
+#   clear_demo   removes exactly what seed_demo wrote, by manifest
+#   verify_demo  reads the seeded history back
+probe_*
+seed_demo.*
+clear_demo.*
+verify_demo.*

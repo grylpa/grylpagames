@@ -186,6 +186,8 @@ func _on_hud_start_game() -> void:
 	new_game(true)
 
 func get_game_score(_didwin, _wasaborted) -> Array:
+	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	game.record_times($Level._times_to_answer, "rt")
 	var last_level: int = $Level.level
 	var total: int = game.corrects + game.mistakes
 	var pct: int = 100 if total == 0 else int(100.0 * game.corrects / total)

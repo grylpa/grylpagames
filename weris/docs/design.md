@@ -332,3 +332,14 @@ the app used to wear. The instruction, find and feedback labels take the app's p
 countdown takes the app's accent.
 
 Nothing about the layout, the flow or the logic changed: only what it is made of.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+Each find logs crowd size and time to the per-trial log; the Search panel fits the slope, which is the cost of each extra face and is steadier across sessions than raw speed. Failed and timed-out finds are excluded — they say nothing about search time.
+
+The Search tab is always present. It needs 3 sessions and correct finds at two or more crowd sizes, 4+ each — the crowd grows with the level, so the message says so rather than leaving the player guessing.

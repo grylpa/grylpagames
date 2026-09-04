@@ -300,3 +300,14 @@ Two things follow from that and both matter when editing the text:
 
 Play still starts when the card closes, now via `MainGlobals.sig_game_popup_closed` (connected
 once, guarded with `is_connected`) instead of the popup instance's own `closed` signal.
+
+## What this game measures
+
+Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
+and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+
+Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
+
+The task signature stores `source` and `n_back`. "2-back with faces" and "2-back with shapes" are different tasks that would otherwise share only a level number.

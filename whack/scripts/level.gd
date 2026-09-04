@@ -454,11 +454,13 @@ func _on_round_timeout() -> void:
 	if _round_has_real:
 		if had_real:
 			_pop_at(expired_at, -5)
+		game.record_answer(false, true)     # a real target left to expire: a miss
 		game.add_score_and_time(-5, -5)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("wrong")
 	elif not _round_was_tapped:
-		# Nothing to hit, and the player did not tap anything either.
+		# Nothing to hit, and the player did not tap anything either — correctly held back.
+		game.record_answer(false, false)
 		_pop_at(decoy_center, NO_TARGET_REWARD)
 		game.add_score_and_time(NO_TARGET_REWARD, NO_TARGET_REWARD)
 		game.add_correct_or_mistake(1, 0)
@@ -538,6 +540,7 @@ func _on_draw_area_input(event: InputEvent) -> void:
 	# Tapping empty space in a no-real round: no penalty
 
 func _on_hit(tap_pos: Vector2, dist: float) -> void:
+	game.record_answer(true, true)          # tapped, and it was real
 	var reaction_ms: int = int(game.game_time - _round_shown_time_ms)
 	_reaction_times.append(reaction_ms)
 	_accuracies.append(int(dist))
@@ -559,6 +562,7 @@ func _on_hit(tap_pos: Vector2, dist: float) -> void:
 	_end_of_target()
 
 func _on_decoy_hit(tap_pos: Vector2, decoy_idx: int) -> void:
+	game.record_answer(true, false)         # tapped a decoy: a failure to hold back
 	_decoys.remove_at(decoy_idx)
 	game.add_score_and_time(-5, -5)
 	_pop_at(tap_pos, -5)

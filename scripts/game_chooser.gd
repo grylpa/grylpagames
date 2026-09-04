@@ -21,6 +21,8 @@ var _about_btn: Button = null
 var _about_icon: Control = null
 var _about_icon_d: float = 0.0
 var _about_pill_h: float = 0.0
+var _progress_screen = null
+var _progress_btn: Button = null
 var _about_screen: CanvasLayer = null
 var _settings_screen: CanvasLayer = null
 
@@ -139,6 +141,11 @@ func _create_about_button() -> void:
 	# App settings live on their own overlay, reached from About.
 	_settings_screen = load("res://scripts/settings_screen.gd").new()
 	add_child(_settings_screen)
+
+	# Across-games progress. It belongs here rather than inside a game because its whole job is to
+	# compare games with each other; a per-game window has nothing to compare against.
+	_progress_screen = load("res://scripts/progress_screen.gd").new()
+	add_child(_progress_screen)
 	_about_screen.connect("sig_open_settings", Callable(self, "_open_settings"))
 
 	# The scene's plain version label is superseded by this pill.
@@ -193,6 +200,29 @@ func _create_about_button() -> void:
 
 	vlabel.get_parent().add_child(_about_btn)
 
+	_progress_btn = Button.new()
+	_progress_btn.name = "ProgressButton"
+	_progress_btn.text = "Progress"
+	_progress_btn.add_theme_font_size_override("font_size", font_size)
+	for c: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		_progress_btn.add_theme_color_override(c, _ICON_COLOR)
+	_progress_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_progress_btn.pressed.connect(_open_progress)
+	# This button has no icon, so it reserves no room for one. EVERY state needs that same margin:
+	# reusing About's hover style here left the normal state at 18px and the hover state at
+	# icon+18, so the padding jumped on hover and the label was pushed clean out of a button whose
+	# width had been measured for the narrower style — the text simply vanished under the cursor.
+	var ppill: StyleBoxFlat = pill.duplicate() as StyleBoxFlat
+	ppill.content_margin_left = 18.0
+	var ppill_hover: StyleBoxFlat = pill_hover.duplicate() as StyleBoxFlat
+	ppill_hover.content_margin_left = 18.0
+	_progress_btn.add_theme_stylebox_override("normal", ppill)
+	_progress_btn.add_theme_stylebox_override("hover", ppill_hover)
+	_progress_btn.add_theme_stylebox_override("pressed", ppill_hover)
+	_progress_btn.add_theme_stylebox_override("focus", ppill)
+	_progress_btn.custom_minimum_size = Vector2(0, _about_pill_h)
+	vlabel.get_parent().add_child(_progress_btn)
+
 	call_deferred("_position_about_button")
 
 # The classic info mark: a filled disc with a dot and a stem, both symmetric about the disc's
@@ -227,6 +257,18 @@ func _position_about_button() -> void:
 	_about_btn.offset_top = _about_btn.offset_bottom - sz.y
 	if _about_icon != null:
 		_about_icon.position = Vector2(10.0, (sz.y - _about_icon_d) / 2.0)
+	if _progress_btn != null:
+		var psz: Vector2 = _progress_btn.get_combined_minimum_size()
+		psz.y = max(psz.y, _about_pill_h)
+		_progress_btn.size = psz
+		_progress_btn.anchor_left = 0.0
+		_progress_btn.anchor_top = 1.0
+		_progress_btn.anchor_right = 0.0
+		_progress_btn.anchor_bottom = 1.0
+		_progress_btn.offset_left = 2.0
+		_progress_btn.offset_bottom = -2.0
+		_progress_btn.offset_right = _progress_btn.offset_left + psz.x
+		_progress_btn.offset_top = _progress_btn.offset_bottom - psz.y
 
 func _open_about() -> void:
 	if _about_screen != null:
@@ -235,6 +277,10 @@ func _open_about() -> void:
 func _open_settings() -> void:
 	if _settings_screen != null:
 		_settings_screen.call("open")
+
+func _open_progress() -> void:
+	if _progress_screen != null:
+		_progress_screen.call("open")
 
 func create_grid():
 	await get_tree().process_frame
