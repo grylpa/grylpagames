@@ -690,6 +690,9 @@ func _ready() -> void:
 
 func new_game() -> void:
 	_duration_ms = MotherG.duration_min * 60000.0
+	# Both settings define the task, so both go in the signature: without the mode the baseline
+	# compares a 4-7-8 session against a 4-2-4-2 one and calls the difference a change in you.
+	game.set_task_signature({"duration_min": MotherG.duration_min, "mode": MotherG.selected_mode})
 	_elapsed_ms = 0.0
 	_session_complete = false
 	_anim_time = 0.0
@@ -1547,7 +1550,9 @@ func _draw_props(canvas: CanvasItem) -> void:
 
 
 func get_session_score(didwin: bool, wasaborted: bool) -> Array:
-	return [didwin, wasaborted, int(_duration_ms / 60000.0), _session_ps, _rt_ms]
+	var mins: int = int(_duration_ms / 60000.0)
+	return [didwin, wasaborted, mins, _session_ps, _rt_ms,
+		MotherG.selected_mode, MotherG.level_id(mins, MotherG.selected_mode)]
 
 func get_computed_phases() -> Array:
 	return _computed_phases

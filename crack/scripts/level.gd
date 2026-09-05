@@ -146,6 +146,9 @@ func _ready() -> void:
 
 func new_game() -> void:
 	_duration_ms = CrackG.duration_min * 60000.0
+	# Both settings define the task, so both go in the signature: without the mode the baseline
+	# compares a 4-7-8 session against a 4-2-4-2 one and calls the difference a change in you.
+	game.set_task_signature({"duration_min": CrackG.duration_min, "mode": CrackG.selected_mode})
 	_elapsed_ms = 0.0
 	_session_complete = false
 	_long_angle = 0.0
@@ -1031,7 +1034,9 @@ func _compute_phase_durations(keys: Array) -> Array:
 # it has never written a score row -- convert_ongoing_score_to_permanent() is a no-op unless an
 # ongoing record exists, and nothing here ever created one.
 func get_session_score(didwin: bool, wasaborted: bool) -> Array:
-	return [didwin, wasaborted, int(_duration_ms / 60000.0), _score]
+	var mins: int = int(_duration_ms / 60000.0)
+	return [didwin, wasaborted, mins, _score,
+		CrackG.selected_mode, CrackG.level_id(mins, CrackG.selected_mode)]
 
 func get_computed_phases() -> Array:
 	return _computed_phases

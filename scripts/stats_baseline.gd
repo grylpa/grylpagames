@@ -22,11 +22,34 @@ const WARMUP_SESSIONS: int = 3
 # Sessions needed AFTER the warm-up before a baseline means anything.
 const MIN_BASELINE_SESSIONS: int = 5
 # How wide the "usual range" is, in standard deviations either side of the player's own mean.
-const BAND_SD: float = 1.5
+# 2 sigma: about 19 sessions in 20 land inside it.
+const BAND_SD: float = 2.0
 # How many of the recent sessions must sit outside the band, in the same direction, before anything
 # is said. One unusual session is a bad night, not a finding.
 const RECENT_WINDOW: int = 6
-const RECENT_TRIGGER: int = 4
+const RECENT_TRIGGER: int = 3
+
+# THESE TWO NUMBERS ONLY MEAN ANYTHING TOGETHER, so do not change one without the other.
+#
+# The band is not just a picture: state_for() reports a drift when RECENT_TRIGGER of the last
+# RECENT_WINDOW sessions fall outside it on the same side. So the pair sets both how often the app
+# cries wolf and how small a real decline it can still see. Opening the progress screen performs
+# about 88 such checks (31 games with a baseline, ~3 metrics each), which is what turns a
+# per-check false-alarm rate into a rate per visit:
+#
+#   band    trigger   false alarm/visit   catches 1.5 sigma   2 sigma   3 sigma
+#   1.0     4 of 6          72%                 --              --        --
+#   1.5     4 of 6         4.6%                 34%             73%      99.5%
+#   2.0     4 of 6        0.07%                7.7%             34%        94%
+#   2.0     3 of 6         3.9%                 27%             66%      99.3%
+#
+# 1 sigma is unusable: it would flag something on nearly every visit. 2 sigma at 4 of 6 fails the
+# other way -- it sees a 1.5 sigma drift only 8% of the time, and a slow drift is the entire point.
+# The pair above is the operating point in between, stated in the conventional unit.
+#
+# Both figures are NOMINAL. They assume sessions are normal and independent; response times have a
+# long slow tail, and sleep, mood and illness arrive in streaks, so the real false-alarm rate runs
+# above the table for any choice here.
 
 enum State { UNKNOWN, STEADY, WATCH, IMPROVING }
 

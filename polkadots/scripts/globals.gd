@@ -14,12 +14,17 @@ func init_globals() -> void:
 	# `game.playing = true` or `restart_time_left_timer()`, so the countdown never ran. It just
 	# sat at 00:05:00 in the HUD and printed "Time left: 00:05:00" on every level summary.
 	game.uses_session_clock = false
-	game.progress_level_pos = 6
-	game.progress_time_pos = 7
-	game.progress_pct_pos = 8
-	game.progress_level_names = {}
-	for cfg in PolkadotsLevelConfig.LEVELS:
-		game.progress_level_names[cfg["level"]] = "L" + str(cfg["level"])
+	# THE SCORES WIRING LIVES IN main.gd, not here.
+	#
+	# It was in both, with different values: this set the level names to "L1" while main.gd set
+	# them to "1", so what the screens said depended on which ran last -- an initialisation order
+	# nobody chose. main.gd wins that race today, which is the only reason the naming looked right.
+	# It also spelled the column positions as literals 6/7/8 beside main.gd's POS_LEVEL,
+	# POS_TIME_MS and POS_PCT, so adding a column would have had to be remembered twice.
+	#
+	# The names it now supplies are bare numbers, deliberately: the shared display rules turn a
+	# numeric level name into "Level 1" for a table heading and "L1" for a chart legend, which is
+	# exactly the pair wanted here. Prefixing "L" at the source produced "L1" in both.
 
 func save_settings() -> void:
 	game.save_settings([starting_level])

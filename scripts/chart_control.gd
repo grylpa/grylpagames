@@ -57,6 +57,12 @@ var fit_line: bool = false
 var fit_color: Color = ScreenBackdrop.STATS_MARK
 
 var _series: Array = []
+# Whether a numeric series label is a LEVEL NUMBER. Set by whoever supplies the series, because
+# only they know: a chart's series are levels here, but crowd sizes or lags in a game's own chart,
+# where an "L" prefix would be a lie. Affects the legend only -- the labels themselves are used
+# elsewhere and are not rewritten.
+var legend_numbers_are_levels: bool = false
+
 # Which corner the legend last chose, for tests. See _draw_legend.
 var _last_legend_corner: String = ""
 
@@ -84,6 +90,23 @@ func fit_slope() -> float:
 		num += dx * (p2.y - my)
 		den += dx * dx
 	return 0.0 if den == 0.0 else num / den
+
+# What the key will say, in order. Public so it can be checked without rendering.
+func legend_entries() -> Array:
+	var out: Array = []
+	for si: int in range(_series.size()):
+		var lbl: String = str(_series[si].get("label", ""))
+		# A bare "3" in a key beside a coloured line says nothing. Most games fall back to "L3"
+		# already; the ones that NAME their levels can name them with digits, and those are the
+		# legends this is for. Only the key is rewritten -- the label is used elsewhere.
+		if legend_numbers_are_levels and lbl.is_valid_int():
+			lbl = "L" + lbl
+		out.append({"label": lbl,
+			"color": _series[si].get("color", SERIES_COLORS[si % SERIES_COLORS.size()]),
+			"dashed": false})
+	if fit_line and not _series.is_empty():
+		out.append({"label": "trend", "color": fit_color, "dashed": true})
+	return out
 
 func set_band(lo: float, hi: float) -> void:
 	band_lo = minf(lo, hi)
@@ -273,13 +296,7 @@ func _draw() -> void:
 	# repeated the y-axis title. It was wrong once a fit was added: the plot then had two lines and
 	# nothing named either, which is harder to read than the redundancy ever was. A word at the end
 	# of the line was tried first and is too easy to miss.
-	var entries: Array = []
-	for si2: int in range(_series.size()):
-		entries.append({"label": str(_series[si2].get("label", "")),
-			"color": _series[si2].get("color", SERIES_COLORS[si2 % SERIES_COLORS.size()]),
-			"dashed": false})
-	if fit_line and not _series.is_empty():
-		entries.append({"label": "trend", "color": fit_color, "dashed": true})
+	var entries: Array = legend_entries()
 	# Behind the data lines: they pass over the key rather than stopping at it. So this cannot
 	# return early any more — the series are still to be drawn below.
 	if entries.size() >= 2:

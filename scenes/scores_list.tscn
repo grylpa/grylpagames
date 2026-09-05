@@ -7,14 +7,6 @@
 [ext_resource type="PackedScene" uid="uid://cqeplswuxbtii" path="res://scenes/x_close_scene.tscn" id="4_7vbyi"]
 [ext_resource type="PackedScene" uid="uid://cvgjmhh1nk5k2" path="res://scenes/OverlayMessage.tscn" id="4_tssfn"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6pfw3"]
-bg_color = Color(0.254902, 0.254902, 0.254902, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0, 0, 0, 1)
-
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_w6c2s"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_8w0ty"]
@@ -83,7 +75,6 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 0, 1)
 theme_override_font_sizes/font_size = 46
-theme_override_styles/normal = SubResource("StyleBoxFlat_6pfw3")
 text = "Stats"
 horizontal_alignment = 1
 vertical_alignment = 1

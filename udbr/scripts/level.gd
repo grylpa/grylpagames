@@ -204,6 +204,9 @@ func _ready() -> void:
 
 func new_game(_from_scratch: bool = true) -> void:
 	_duration_ms = UdbrG.duration_min * 60000.0
+	# Both settings define the task, so both go in the signature: without the mode the baseline
+	# compares a 4-7-8 session against a 4-2-4-2 one and calls the difference a change in you.
+	game.set_task_signature({"duration_min": UdbrG.duration_min, "mode": UdbrG.selected_mode})
 	_elapsed_ms = 0.0
 	_session_complete = false
 	_reversal_times_ms.clear()
@@ -742,12 +745,15 @@ func _compute_phase_durations(keys: Array) -> Array:
 	return res
 
 func get_session_score(didwin: bool, wasaborted: bool) -> Array:
+	var mins: int = int(_duration_ms / 60000.0)
 	return [didwin, wasaborted,
-		int(_duration_ms / 60000.0),
+		mins,
 		int(_mean_ms),
 		_bpm,
 		_reversal_times_ms.size(),
-		_missed_cycles]
+		_missed_cycles,
+		UdbrG.selected_mode,
+		UdbrG.level_id(mins, UdbrG.selected_mode)]
 
 func get_swipe_draw_state() -> Dictionary:
 	var active: bool = not _session_complete and game.level_is_ready

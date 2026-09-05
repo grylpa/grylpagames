@@ -26,6 +26,9 @@ const METRICS: Dictionary = {
 	"session_ps": true,    # how closely the path was followed
 	"speed_cpm": true,
 	"mistake_rate": false,
+	# Crack the Safe counts nothing else. Without it that game had no metric any of these screens
+	# recognised, so its Summary rows were empty and its category could never contribute.
+	"cycles_opened": true,
 }
 
 # Sessions to draw in a row's sparkline.

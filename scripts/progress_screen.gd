@@ -109,8 +109,11 @@ func _build() -> void:
 	# WHAT THE ROWS MEAN. Without this the reader is looking at eight lines on eight grey bands with
 	# nothing saying what either is — and the obvious guess ("a 67% band"?) is wrong.
 	var key: Label = Label.new()
+	# SAYS HOW WIDE THE BAND IS, in sessions rather than in sigmas. "Your usual range" alone left
+	# the obvious question — how usual? — unanswered, and the obvious guess is wrong.
 	key.text = "Each line is how you have been doing lately against your own usual. The band is "
-	key.text += "your usual range — inside it is ordinary."
+	key.text += "your usual range: about 19 sessions in 20 land inside it, so a point outside is "
+	key.text += "ordinary on its own. Only a run of them is worth a look."
 	key.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	key.add_theme_font_override("font", MainGlobals.get_text_font())
 	MainGlobals.set_font_size(key, 12)
@@ -155,9 +158,16 @@ func _build() -> void:
 	close_btn.pressed.connect(close)
 	col.add_child(close_btn)
 
+# The divider between sections of this panel. The FRAME's colour, like the Summary tab's -- these
+# lines sit inside a panel bordered in the accent, and a grey hairline across it reads as a seam
+# rather than as a division the panel is making.
+#
+# PANEL_FRAME rather than the border's own full-strength _ACCENT: same hue, at the weight a divider
+# wants. A hairline at full strength competes with the border it is sitting inside, and it would
+# also make this screen's dividers heavier than the identical ones in each game's Summary tab.
 func _rule() -> Control:
 	var line: ColorRect = ColorRect.new()
-	line.color = Color(1, 1, 1, 0.10)
+	line.color = ScreenBackdrop.PANEL_FRAME
 	line.custom_minimum_size = Vector2(0, 1)
 	return line
 
@@ -221,44 +231,12 @@ func _title_of(folder: String) -> String:
 # Adds this row's three cells to the grid. Returns nothing: the grid owns the layout, and a row
 # that packed itself into its own container is exactly what broke the alignment before.
 func _add_row(row: Dictionary) -> void:
-	var name_lbl: Label = Label.new()
-	name_lbl.text = str(row["category"])
-	name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(name_lbl, 15)
-	_rows_box.add_child(name_lbl)
+	# The cells come from ScreenBackdrop so that this overlay and each game's Summary tab are
+	# literally the same row, built once. See ScreenBackdrop.stats_row_cells.
+	for cell: Control in ScreenBackdrop.stats_row_cells(
+			str(row["category"]), row.get("values", []), int(row["state"])):
+		_rows_box.add_child(cell)
 
-	var spark: Sparkline = Sparkline.new()
-	# Width fixed; HEIGHT is assigned by _even_row_heights() once the panel's size is known, so
-	# every row is exactly the same. Expanding here instead let the container distribute the
-	# remainder unevenly — the first row came out a pixel taller than the other seven.
-	spark.custom_minimum_size = Vector2(MainGlobals.ui_font_size(150), MainGlobals.ui_font_size(40))
-	spark.size_flags_vertical = Control.SIZE_FILL
-	spark.set_values(row.get("values", []))
-	# Every value is already a distance from that game's own usual, in its own units, so the band a
-	# row should be sitting in is simply "near zero" — the same for every category.
-	spark.set_band(-StatsBaseline.BAND_SD, StatsBaseline.BAND_SD)
-	# ONE scale for every row. These are all distances from each game's own baseline in units of its
-	# own spread, so they are directly comparable — and only a shared scale lets the reader compare
-	# them. It also makes the band the same height in every row, which is what made the backgrounds
-	# look mismatched.
-	spark.fixed_lo = -3.0
-	spark.fixed_hi = 3.0
-	_rows_box.add_child(spark)
-
-	var state_lbl: Label = Label.new()
-	state_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(state_lbl, 13)
-	match int(row["state"]):
-		StatsBaseline.State.WATCH:
-			state_lbl.text = "watch"
-			state_lbl.add_theme_color_override("font_color", _WATCH)
-		StatsBaseline.State.STEADY:
-			state_lbl.text = "steady"
-			state_lbl.add_theme_color_override("font_color", _STEADY)
-		_:
-			state_lbl.text = "not yet"
-			state_lbl.add_theme_color_override("font_color", _UNKNOWN)
-	_rows_box.add_child(state_lbl)
 
 func _on_backdrop_input(event: InputEvent) -> void:
 	# A CLICK, not any mouse button event. The wheel arrives as an InputEventMouseButton with

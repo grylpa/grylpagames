@@ -4,6 +4,10 @@ var game: GenericGameUtil
 var main_menu
 var _did_per_level_save: bool = false
 
+# Appended after the existing score columns, so a session saved before this change simply stops
+# before them -- GenericGameUtil._legacy_row() breaks at the first column a record does not carry.
+const POS_MODE: int = 9
+const POS_LEVEL: int = 10
 func _ready() -> void:
 	game = MotherG.game
 	MainGlobals.digitized_swipe_mode = true
@@ -39,7 +43,17 @@ func _ready() -> void:
 	game.progress_score_label = "Accuracy"
 	# This game's save array is not the generic shape, so its columns are named here;
 	# otherwise the defaults would file each value under the wrong name.
-	game.score_columns = ["didwin", "aborted", "duration_min", "session_ps", "react_ms"]
+	game.score_columns = ["didwin", "aborted", "duration_min", "session_ps", "react_ms",
+		"mode", "level"]
+	# THE LEVEL IS THE PAIR (duration, mode) -- see MotherG.level_id. This game has no levels of its
+	# own; what it has are two settings that both change what the session is. Grouped on nothing
+	# before this, so every pattern and every length shared one series and one baseline.
+	var level_names: Dictionary = {}
+	for m: int in range(1, 16):
+		for mode: int in MotherG.mode_count():
+			level_names[MotherG.level_id(m, mode)] = MotherG.level_label(m, mode)
+	game.progress_level_names = level_names
+	game.progress_level_pos = POS_LEVEL
 	# Steadiness is not a record to beat: no personal-best filter in the calm games.
 	game.show_monotonic_toggle = false
 	game.show_scores_level = false

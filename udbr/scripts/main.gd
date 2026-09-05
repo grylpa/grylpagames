@@ -9,6 +9,10 @@ const POS_MEAN_INTERVAL_MS: int = 7
 const POS_BPM: int = 8
 const POS_NUM_REVERSALS: int = 9
 const POS_MISSED_CYCLES: int = 10
+# Appended after the columns above, so an older save simply stops before them -- _legacy_row breaks
+# at the first missing column, and the scores window falls back where the row is short.
+const POS_MODE: int = 11
+const POS_LEVEL: int = 12
 
 func _ready() -> void:
 	game = UdbrG.game
@@ -48,16 +52,21 @@ func _ready() -> void:
 	game.progress_score_label = "Consistency"
 	# This game's save array is not the generic shape, so its columns are named here;
 	# otherwise the defaults would file each value under the wrong name.
-	game.score_columns = ["didwin", "aborted", "duration_min", "mean_interval_ms", "bpm", "num_reversals", "missed_cycles"]
+	game.score_columns = ["didwin", "aborted", "duration_min", "mean_interval_ms", "bpm",
+		"num_reversals", "missed_cycles", "mode", "level"]
 	# Steadiness is not a record to beat: no personal-best filter in the calm games.
 	game.show_monotonic_toggle = false
+	# THE LEVEL IS THE PAIR (duration, mode) -- see UdbrG.level_id. This game has no levels of its
+	# own; what it has are two settings that both change what the session is. Grouping on duration
+	# alone put five minutes of 4-7-8 and five minutes of 4-2-4-2 in the same series.
 	var level_names: Dictionary = {}
 	for m: int in range(1, 16):
-		level_names[m] = "%d min" % m
+		for mode: int in UdbrG.mode_count():
+			level_names[UdbrG.level_id(m, mode)] = UdbrG.level_label(m, mode)
 	game.progress_level_names = level_names
 	game.show_scores_level = false
 	game.show_scores_time = false
-	game.progress_level_pos = POS_DURATION_MIN
+	game.progress_level_pos = POS_LEVEL
 	game.progress_time_pos = POS_MEAN_INTERVAL_MS
 	game.progress_time_label = "Avg Interval"
 	game.progress_time_format = "%d ms"

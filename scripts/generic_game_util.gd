@@ -1058,13 +1058,47 @@ func test_open_scores_screen(event, parent):
 		_scores_scene.time_col_name = scores_time_col_name
 		_scores_scene.show_monotonic_toggle = show_monotonic_toggle
 		_scores_scene.game_key = file_names_prefix
-		var tab_pref = MainGlobals.progress_tab_by_game.get(file_names_prefix, "scores") if file_names_prefix != "" else "scores"
-		if typeof(tab_pref) == TYPE_BOOL:
-			tab_pref = "speed" if tab_pref else "scores"
-		_scores_scene.initial_progress_mode = progress_level_pos >= 0 and tab_pref == "speed"
-		_scores_scene.initial_chart_mode = tab_pref == "chart"
+		var tab_pref = MainGlobals.progress_tab_by_game.get(file_names_prefix, TAB_SCORES) \
+			if file_names_prefix != "" else TAB_SCORES
+		apply_tab_pref(_scores_scene, tab_pref, progress_level_pos >= 0)
 		parent.add_child(_scores_scene)
 		fill_scores_scene(_scores_scene)
+
+# THE SAVED-TAB NAMES, written by the scores window and read here.
+#
+# They were string literals in two files, and the two disagreed: the Summary tab's handler saved
+# "instrument" while this read "summary", so choosing it was recorded faithfully and then never
+# restored -- the window fell back to Scores every time. Naming them once is what makes that
+# impossible; a literal on one side only cannot be seen to be wrong from the other.
+const TAB_SCORES: String = "scores"
+const TAB_SPEED: String = "speed"
+const TAB_CHART: String = "chart"
+const TAB_SUMMARY: String = "summary"
+# Written by an older build, and it meant the Summary tab. Accepted so a player who chose it before
+# this fix lands where they chose rather than back on Scores.
+const TAB_SUMMARY_LEGACY: String = "instrument"
+
+# Which mode a saved preference means: {"progress":, "chart":, "inst":}.
+#
+# Returns the answer rather than writing it into a node, so it can be checked without building a
+# scores window -- and so the check can be the one that matters: that what a tab handler SAVES is
+# something this recognises.
+static func tab_pref_modes(tab_pref, has_levels: bool) -> Dictionary:
+	var pref: String = str(tab_pref)
+	if typeof(tab_pref) == TYPE_BOOL:
+		pref = TAB_SPEED if tab_pref else TAB_SCORES      # the boolean this field used to be
+	return {
+		"progress": has_levels and pref == TAB_SPEED,
+		"chart": pref == TAB_CHART,
+		"inst": pref == TAB_SUMMARY or pref == TAB_SUMMARY_LEGACY,
+	}
+
+# Point a freshly built scores window at the tab the player last used.
+static func apply_tab_pref(scene: Node, tab_pref, has_levels: bool) -> void:
+	var m: Dictionary = tab_pref_modes(tab_pref, has_levels)
+	scene.initial_progress_mode = bool(m["progress"])
+	scene.initial_chart_mode = bool(m["chart"])
+	scene.initial_inst_mode = bool(m["inst"])
 
 func reset_lives():
 	lives_left = _reset_lives_val

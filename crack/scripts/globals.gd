@@ -33,6 +33,42 @@ var guided_mode: bool:
 	get:
 		return selected_mode != 0
 
+# THE "LEVEL" OF A Crack the Safe SESSION is the pair (duration, mode).
+#
+# This game has no levels of its own -- nothing gets harder, and nothing is unlocked. What it has
+# are two settings the player picks, and both change what the session IS: five minutes of 4-7-8 and
+# five minutes of 4-2-4-2 are not the same test, and neither are five minutes and twelve minutes of
+# the same pattern. Without this the charts group on nothing at all and the baseline compares one
+# pattern against another, reporting the difference as a change in the player.
+#
+# One integer, because that is what the scores window groups on -- it reads a single column as the
+# level id. Encoded here rather than at the call sites so the id, its name and the task signature
+# cannot disagree about what a session was.
+#
+# COPIED from Buoy (udbr) rather than shared: games in this project stay independent of each other.
+const MODE_STRIDE: int = 100
+
+func level_id(duration_min_val: int, mode: int) -> int:
+	return duration_min_val * MODE_STRIDE + mode
+
+# The pattern, or the name of the mode where there is no pattern to state.
+func mode_label(mode: int) -> String:
+	if mode == 0:
+		return "Active"
+	if mode == 1:
+		return "Your own"
+	var idx: int = clampi(mode - 2, 0, GUIDED_PRESETS.size() - 1)
+	var p: Array = GUIDED_PRESETS[idx]
+	return "%d-%d-%d-%d" % [int(p[0]), int(p[1]), int(p[2]), int(p[3])]
+
+# What a chart legend entry and a table heading say for one of those pairs.
+func level_label(duration_min_val: int, mode: int) -> String:
+	return "%d min - %s" % [duration_min_val, mode_label(mode)]
+
+# How many modes exist, so callers can enumerate the pairs without knowing the encoding.
+func mode_count() -> int:
+	return 2 + GUIDED_PRESETS.size()
+
 var game: GenericGameUtil = GenericGameUtil.new("Crack the Safe", "crack", 16, 0, 0)
 
 func init_globals() -> void:

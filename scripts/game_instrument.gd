@@ -26,9 +26,8 @@ const CHART_GAMES: Dictionary = {
 	"gorilla": "Counting",
 }
 
-# Polka Dots is the exception, and deliberately: a confusion matrix is a table, not a plot. It has
-# no shared axis with score or time and would make no sense sitting beside them, so it lives in the
-# Summary tab with the rest of what a game says about itself.
+# Polka Dots has a view of its own too, but not a curve: it compares two CONDITIONS rather than
+# plotting a metric against a scale, so it sits in the Charts tab as a pair of bars.
 
 # SUFFICIENCY, and it is not the same thing as variety.
 #
@@ -39,15 +38,12 @@ const CHART_GAMES: Dictionary = {
 const MIN_SESSIONS: int = 3        # separate sittings that contributed trials
 const MIN_PER_BUCKET: int = 4      # samples before a bucket is worth averaging
 const MIN_BUCKETS: int = 2         # points needed to have a shape at all
-# A confusion matrix is a table, not a fit, so it needs characters rather than buckets.
-const MIN_CHARS: int = 2
-const MAX_MATRIX_ROWS: int = 12
 
 # A game's OWN VIEW: the one picture it is uniquely placed to draw. It occupies a single extra
 # metric slot in the Charts tab, whether it happens to be a curve or a table.
 #
 #   dino / weris / gorilla   a curve      (accuracy against lag, time against crowd, error vs load)
-#   polkadots                a 2x2        (right and wrong with the options up, and from memory)
+#   polkadots                two bars     (accuracy with the choices up, against from memory)
 #   the other yes/no games   a 2x2        (said yes / said no against was yes / was no)
 #
 # All of them are PICTURES, so all of them belong with the charts. The Summary tab is words and
@@ -67,9 +63,8 @@ static func chart_metric_name(folder: String) -> String:
 	if CHART_GAMES.has(folder):
 		return str(CHART_GAMES[folder])
 	if folder == "polkadots":
-		# Not "Letters": the view stopped being about individual characters when the confusion
-		# matrix went. What it separates now is the round played with the options on screen from
-		# the same round played from memory.
+		# Not "Letters": the view is not about individual characters. What it separates is the
+		# round played with the choices on screen from the same round played from memory.
 		return "Memory"
 	if YES_NO_GAMES.has(folder):
 		return "Answers"
@@ -84,7 +79,11 @@ const METRIC_LABELS: Dictionary = {
 	"jobs_assigned": "Jobs assigned", "jobs_cancelled": "Jobs cancelled",
 	"span": "Longest order held", "rounds_right": "Rounds correct", "rounds_wrong": "Rounds wrong",
 	"cycles": "Cycles completed", "no_answer": "Left unanswered",
-	"rt_lapses": "Lapses", "rt_sd": "Steadiness (spread, ms)", "rt_mean": "Typical answer (ms)",
+	# Both say what the number IS, not just what it is called. "Lapses" and "spread" are the terms
+	# the code uses; neither tells a player what was counted or what it was measured across.
+	"rt_lapses": "Lapses (extra slow rounds)",
+	"rt_sd": "Steadiness (spread of answer time, ms)",
+	"rt_mean": "Typical answer (ms)",
 	"jumped_ahead": "Jumped ahead", "fell_back": "Fell back",
 	# The breathing games and typit keep their own vocabulary, and without these their Detail tab
 	# fell through to "play a session" even with a full history behind it.
@@ -114,6 +113,95 @@ static func chart_for(folder: String) -> Control:
 			return null
 		return _body_for(folder)
 	return _four_cells(gu)
+
+# The rows the Summary tab shows, in this order, and what to call each one.
+#
+# The same shape as the global "Your progress" overlay, one zoom level in: a row per METRIC this
+# game measures rather than a row per category, drawn from this game's own sessions only. A game
+# shows the rows it actually has -- most have the first three, the calm games and typit speak their
+# own vocabulary, and nothing invents a row out of data that was never recorded.
+#
+# Direction (which way is better) is NOT repeated here; it comes from StatsOverview.METRICS, so the
+# two screens cannot disagree about whether a rising line is good news.
+const SUMMARY_ROWS: Dictionary = {
+	"rt_cv": "Consistency",
+	"rt_mean": "Speed",
+	"pct_correct": "Accuracy",
+	"missed_breaths": "Rhythm",
+	"missed_cycles": "Rhythm",
+	"session_ps": "Following the path",
+	"speed_cpm": "Typing speed",
+	"mistake_rate": "Mistakes",
+	"cycles_opened": "Safe turns",
+}
+
+# Sessions drawn in a Summary row's sparkline.
+const SUMMARY_SPARK_LEN: int = 12
+
+# This game's own rows, or null when it has recorded nothing that can fill one.
+static func summary_rows_for(folder: String) -> Control:
+	var gu: GenericGameUtil = GenericGameUtil.new(folder, folder, 0, 5, 0)
+	var all: Array = gu.read_sessions()
+	if all.is_empty():
+		return null
+	var sessions: Array = StatsBaseline.for_task(all, StatsBaseline.busiest_task(all))
+	if sessions.is_empty():
+		return null
+
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 6)
+	var rows: int = 0
+	var shown_names: Array = []
+	for metric: String in SUMMARY_ROWS.keys():
+		if not StatsOverview.METRICS.has(metric):
+			continue
+		# The game has to have RECORDED it. Without this every game grows every row, and a breathing
+		# row on a sorting game says "not yet" forever.
+		var seen: bool = false
+		for rec: Dictionary in sessions:
+			if rec.has(metric):
+				seen = true
+				break
+		if not seen:
+			continue
+		# ONE ROW PER NAME. missed_breaths and missed_cycles are both "Rhythm" -- different games
+		# count a different thing and only one of them is ever real for a given game -- so a record
+		# carrying both (a game that changed its columns, or seeded data) drew the row twice.
+		if shown_names.has(str(SUMMARY_ROWS[metric])):
+			continue
+		shown_names.append(str(SUMMARY_ROWS[metric]))
+		var higher_better: bool = bool(StatsOverview.METRICS[metric])
+		var st: Dictionary = StatsBaseline.state_for(sessions, metric, higher_better)
+		var vals: Array = _z_for(sessions, metric, higher_better)
+		for cell: Control in ScreenBackdrop.stats_row_cells(
+				str(SUMMARY_ROWS[metric]), vals, int(st.get("state", StatsBaseline.State.UNKNOWN))):
+			grid.add_child(cell)
+		rows += 1
+	if rows == 0:
+		grid.free()
+		return null
+	return grid
+
+# One metric's recent sessions as "how far from your usual, in your own units, positive = better".
+# Empty when there is no baseline yet, which is the honest answer -- a flat line at zero would read
+# as "exactly average" for a player the app has barely met.
+static func _z_for(sessions: Array, metric: String, higher_better: bool) -> Array:
+	var b: Dictionary = StatsBaseline.band(sessions, metric)
+	if not bool(b.get("ok", false)) or float(b.get("sd", 0.0)) <= 0.0:
+		return []
+	var out: Array = []
+	for rec: Dictionary in sessions:
+		if not rec.has(metric):
+			continue
+		var z: float = (float(rec[metric]) - float(b["mean"])) / float(b["sd"])
+		if not higher_better:
+			z = -z
+		out.append(z)
+	if out.size() > SUMMARY_SPARK_LEN:
+		out = out.slice(out.size() - SUMMARY_SPARK_LEN)
+	return out
 
 # THE SUMMARY TAB: what this game says about how you are doing.
 #
@@ -146,6 +234,15 @@ static func summary_for(folder: String) -> Control:
 		ch.add_theme_color_override("font_color", Color(0.72, 0.75, 0.80, 1.0))
 		col.add_child(ch)
 
+	# THE BREAKDOWN BEHIND THE VERDICT, in the same rows the global overlay uses -- but one per
+	# metric of THIS game, from this game's own sessions. The verdict above is a single sentence
+	# drawn from these, so showing them under it says which part of the game it came from.
+	var rows: Control = summary_rows_for(folder)
+	if rows != null:
+		col.add_child(_rule())
+		rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(rows)
+
 	# Where the game's own picture is a CHART it is not repeated here — it is a metric in the
 	# Charts tab. Its headline is worth a line of prose, though, since that is the finding.
 	if has_chart(folder):
@@ -168,13 +265,19 @@ static func summary_for(folder: String) -> Control:
 	if not has_own_view(folder):
 		var readout: Control = _summary(GenericGameUtil.new(folder, folder, 0, 5, 0))
 		if readout != null:
-			var rule: ColorRect = ColorRect.new()
-			rule.color = Color(1, 1, 1, 0.10)
-			rule.custom_minimum_size = Vector2(0, 1)
-			col.add_child(rule)
+			col.add_child(_rule())
 			readout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			col.add_child(readout)
 	return col
+
+# The divider between two sections of the Summary tab. The FRAME's colour, not a grey: these lines
+# sit inside the framed panel, and a grey hairline across it reads as a seam rather than as a
+# division the panel itself is making.
+static func _rule() -> Control:
+	var line: ColorRect = ColorRect.new()
+	line.color = ScreenBackdrop.PANEL_FRAME
+	line.custom_minimum_size = Vector2(0, 1)
+	return line
 
 # The fitted line's headline, in words and rounded to whole units: a person's response has no
 # meaningful fraction of a millisecond, and a bare number beside a chart names nothing.
@@ -357,11 +460,9 @@ static func _search_slope(trials: Array) -> Control:
 # separates a perceptual task from the same task with a memory load on top, which is a real
 # difference the game creates deliberately.
 static func _visibility_split(trials: Array) -> Control:
-	var counts: Dictionary = {
-		Vector2i(0, 0): 0, Vector2i(1, 0): 0,   # options shown: right, wrong
-		Vector2i(0, 1): 0, Vector2i(1, 1): 0,   # from memory:   right, wrong
-	}
-	var seen: int = 0
+	var right: Dictionary = {false: 0, true: 0}
+	var total: Dictionary = {false: 0, true: 0}
+	var times: Dictionary = {false: [], true: []}
 	for t in trials:
 		if not (t is Dictionary):
 			continue
@@ -369,23 +470,97 @@ static func _visibility_split(trials: Array) -> Control:
 		var chose: String = str(t.get("chose", ""))
 		if shown == "" or chose == "":
 			continue
-		seen += 1
-		var row: int = 1 if bool(t.get("hidden", false)) else 0
-		var col: int = 0 if shown == chose else 1
-		counts[Vector2i(col, row)] = int(counts[Vector2i(col, row)]) + 1
-	if seen < MIN_PER_BUCKET * 2:
+		var hid: bool = bool(t.get("hidden", false))
+		total[hid] = int(total[hid]) + 1
+		if shown == chose:
+			right[hid] = int(right[hid]) + 1
+		var ms: int = int(t.get("ms", 0))
+		if ms > 0:
+			times[hid].append(float(ms))
+	if int(total[false]) < MIN_PER_BUCKET and int(total[true]) < MIN_PER_BUCKET:
 		return null
-	var m: MatrixControl = MatrixControl.new()
-	# The diagonal is not "correct" in this table, so its cool colouring would mislead.
-	m.cool_diagonal = false
-	# NOT "Options shown" / "From memory", which said nothing about what the player saw. The
-	# characters on the option buttons are what disappears; the buttons stay, showing their
-	# numbers. Naming the thing that changes on screen is what makes the two rows readable.
-	m.set_matrix(["Choices on screen", "Choices hidden"], ["Right", "Wrong"], counts)
-	return _captioned(m,
+
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	for hid2: bool in [false, true]:
+		if int(total[hid2]) < MIN_PER_BUCKET:
+			# Honest about which half is missing, and says how to fill it. A row of zeroes would
+			# read as "you get everything wrong from memory".
+			box.add_child(_note("From memory: not yet — the choices only disappear from level 4."
+				if hid2 else "With the choices on screen: not yet."))
+			continue
+		box.add_child(_accuracy_row(
+			"When choices were hidden" if hid2 else "When choices were visible",
+			int(right[hid2]), int(total[hid2]),
+			SessionStats.median(times[hid2]) if not times[hid2].is_empty() else 0.0))
+	return _captioned(box,
 		"On the harder levels the characters on the option buttons disappear part-way through "
 		+ "the round, leaving only their numbers, so the same puzzle has to be answered from "
-		+ "memory. This splits your answers by which kind of round it was.")
+		+ "memory. This is how you did in each kind of round.")
+
+# One condition, as a bar you can compare by length plus the figures behind it.
+#
+# NOT a 2x2 of counts, which is what this was. A matrix shades each cell by its raw count, so the
+# biggest cell -- the CORRECT answers -- came out the hottest red while the worst cell was nearly
+# invisible, and the two rows were only comparable when they happened to hold the same number of
+# rounds. Which levels you played decides that, so usually they do not: levels 1-3 produce only
+# on-screen rounds and 4-8 only hidden ones. A percentage is comparable by construction.
+static func _accuracy_row(title: String, n_right: int, n_total: int, median_ms: float) -> Control:
+	var pct: float = 100.0 * float(n_right) / float(maxi(1, n_total))
+	var row: VBoxContainer = VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+
+	var head: HBoxContainer = HBoxContainer.new()
+	var name_lbl: Label = Label.new()
+	name_lbl.text = title
+	name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(name_lbl, 15)
+	name_lbl.add_theme_color_override("font_color", Color(0.86, 0.88, 0.92, 1.0))
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(name_lbl)
+
+	var pct_lbl: Label = Label.new()
+	# NAMED, not a bare number. A percentage on its own beside a bar does not say what it is a
+	# percentage OF, and the honest guesses -- share of rounds, share of the session, progress --
+	# are not the same thing.
+	pct_lbl.text = "Accuracy: %d%%" % int(round(pct))
+	pct_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(pct_lbl, 15)
+	pct_lbl.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
+	head.add_child(pct_lbl)
+	row.add_child(head)
+
+	# Two rectangles sharing the width in proportion. No drawing code, and it cannot disagree with
+	# the number printed beside it, because both come from `pct`.
+	var bar: HBoxContainer = HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 0)
+	bar.custom_minimum_size = Vector2(0, MainGlobals.ui_font_size(10))
+	var fill: ColorRect = ColorRect.new()
+	fill.color = ScreenBackdrop.STATS_STEADY
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fill.size_flags_stretch_ratio = maxf(0.001, pct)
+	bar.add_child(fill)
+	var rest: ColorRect = ColorRect.new()
+	rest.color = Color(1, 1, 1, 0.10)
+	rest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rest.size_flags_stretch_ratio = maxf(0.001, 100.0 - pct)
+	bar.add_child(rest)
+	row.add_child(bar)
+
+	var detail: String = "Correct in %d out of %d rounds" % [n_right, n_total]
+	if median_ms > 0.0:
+		detail += " · typically %.1f s" % (median_ms / 1000.0)
+	row.add_child(_note(detail))
+	return row
+
+static func _note(text: String) -> Label:
+	var lbl: Label = Label.new()
+	lbl.text = text
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(lbl, 12)
+	lbl.add_theme_color_override("font_color", Color(0.72, 0.74, 0.78, 1.0))
+	return lbl
 
 # A picture plus the one line that says what it is. Four numbers in a 2x2 are not self-explanatory,
 # and the reader who has to guess the rows guesses wrong.
@@ -480,7 +655,14 @@ static func _summary(gu: GenericGameUtil) -> Control:
 	box.add_child(grid)
 	var keys: Array = totals.keys()
 	keys.sort()
+	# ONE LINE PER NAME, for the same reason the Summary rows need it: missed_breaths and
+	# missed_cycles are both "Out of rhythm", so a record carrying both listed it twice with two
+	# different numbers beside it -- which reads as a bug in the readout rather than in the data.
+	var listed: Array = []
 	for k2 in keys:
+		if listed.has(str(METRIC_LABELS[k2])):
+			continue
+		listed.append(str(METRIC_LABELS[k2]))
 		var name_lbl: Label = Label.new()
 		name_lbl.text = str(METRIC_LABELS[k2])
 		name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())

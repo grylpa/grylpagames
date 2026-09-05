@@ -102,6 +102,9 @@ func _ready() -> void:
 
 func new_game(_from_scratch: bool = true) -> void:
 	_duration_ms = BreatheG.duration_min * 60000.0
+	# The duration is the whole task here: the ambient sound is background audio and does not
+	# change what is being measured, so it is deliberately NOT part of the signature.
+	game.set_task_signature({"duration_min": BreatheG.duration_min})
 	_elapsed_ms = 0.0
 	_session_complete = false
 	_tap_times_ms.clear()

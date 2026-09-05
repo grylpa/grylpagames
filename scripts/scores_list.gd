@@ -16,6 +16,8 @@ var show_monotonic_toggle: bool = true
 var progress_mode := false
 var initial_progress_mode := false
 var initial_chart_mode: bool = false
+# The Summary tab, which is present for every game — it holds the verdict, and every game has one.
+var initial_inst_mode: bool = false
 var game_key := ""
 var _raw_scores := []
 var _progress_level_pos := -1
@@ -62,12 +64,22 @@ var _header_mc: Node = null
 # the bar is the card color, so the tabs match the app instead of only matching each other.
 const GOLD: Color = ScreenBackdrop.ACCENT
 const BAR_BG: Color = ResultCard.CARD_BG
+# An INACTIVE tab. It used to be fully transparent, which meant it was the bar: nothing marked
+# where one tab ended and the next began, so three of the four tabs read as a single dark strip
+# with one gold pill sitting on it. Derived from BAR_BG rather than picked, so it stays a step
+# above whatever the bar is.
+# = BAR_BG.lightened(0.10), written out because a const cannot call a method. Recompute it if
+# BAR_BG moves; the point is one clear step above the bar, about 1.75x its luminance.
+const TAB_IDLE_BG: Color = Color(0.188, 0.206, 0.258, 0.99)
+# The gap between neighbouring tabs, in both rows. Nothing is drawn in it — it is the bar showing
+# through, which is what separates one tab from the next.
+const TAB_GAP: int = 2
 const INK: Color = ResultCard.HEADER_INK
 const TEXT: Color = ResultCard.TEXT
 const MUTED: Color = ResultCard.MUTED
 # The hairline around a tab's content. One line, the accent at a quarter: the panel has to read as
 # the tab's own without competing with what is inside it.
-const FRAME: Color = Color(ScreenBackdrop.ACCENT.r, ScreenBackdrop.ACCENT.g, ScreenBackdrop.ACCENT.b, 0.45)
+const FRAME: Color = ScreenBackdrop.PANEL_FRAME
 # What a tab's content sits on. A step LIGHTER than the bar above it: the score rows are drawn with
 # a 38%-black backing, so the paler the surface under them the more each row separates from the next
 # — on the bar's own color the list read as one slab.
@@ -101,6 +113,10 @@ func _ready():
 
 	# Add Chart tab button to TabBar alongside Scores/Speed
 	var tab_bar: HBoxContainer = %SpeedTabButton.get_parent()
+	# A hairline of the bar between neighbouring tabs. They used to butt straight together, which
+	# was invisible while the idle ones were transparent; now that every tab is filled, without
+	# this their rounded corners meet and the row reads as one continuous block again.
+	tab_bar.add_theme_constant_override("separation", TAB_GAP)
 
 	# Wrap TabBar in a PanelContainer for dark bg + top-rounded outer corners
 	var tab_bar_panel: PanelContainer = PanelContainer.new()
@@ -161,7 +177,7 @@ func _ready():
 	bar_panel.add_theme_stylebox_override("panel", bar_bg)
 	_metric_bar = HBoxContainer.new()
 	_metric_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_metric_bar.add_theme_constant_override("separation", 0)
+	_metric_bar.add_theme_constant_override("separation", TAB_GAP)
 	# The fourth is the game's OWN chart — weris's search slope, dino's recall curve. It belongs
 	# beside the other charts rather than in a tab of its own: it is a chart, and a tab that holds
 	# one chart while the chart tab holds three is a distinction the player has to learn for nothing.
@@ -393,6 +409,10 @@ func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos
 		_chart_tab_button.visible = true
 	# Restore saved x-mode preference (default 1 = by index)
 	_chart_x_mode = MainGlobals.chart_x_mode_by_game.get(game_key, 1) if game_key != "" else 1
+	# ... and which chart the Charts tab opens on. create_chart() falls back to Score on its own if
+	# the remembered one is not available for this game any more, so a stale value is harmless.
+	if game_key != "":
+		_chart_metric = int(MainGlobals.chart_metric_by_game.get(game_key, 0))
 	if _x_mode_switch != null:
 		_x_mode_switch.set_pressed_no_signal(_chart_x_mode == 1)
 	if initial_chart_mode:
@@ -404,7 +424,12 @@ func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_update_x_height()
-	if initial_chart_mode:
+	if initial_inst_mode:
+		# Through the button's own handler, not a copy of it: the Summary tab has to build its
+		# panel, hide the chart and the monotonic toggle, and set the tab visuals, and a second
+		# version of that sequence here would drift out of step with the first.
+		_on_inst_tab_pressed()
+	elif initial_chart_mode:
 		_show_chart_area()
 		create_chart()
 	elif initial_progress_mode:
@@ -575,7 +600,7 @@ func _on_scores_tab_pressed() -> void:
 	_leave_instrument()
 	_chart_mode = false
 	progress_mode = false
-	_save_tab_pref("scores")
+	_save_tab_pref(GenericGameUtil.TAB_SCORES)
 	_update_tab_visuals()
 	_show_table_area()
 	if saved_table != null:
@@ -593,7 +618,7 @@ func _on_speed_tab_pressed() -> void:
 	_leave_instrument()
 	_chart_mode = false
 	progress_mode = true
-	_save_tab_pref("speed")
+	_save_tab_pref(GenericGameUtil.TAB_SPEED)
 	_update_tab_visuals()
 	_show_table_area()
 	create_progress_list()
@@ -629,7 +654,7 @@ func _on_chart_tab_pressed() -> void:
 	_leave_instrument()
 	_chart_mode = true
 	progress_mode = false
-	_save_tab_pref("chart")
+	_save_tab_pref(GenericGameUtil.TAB_CHART)
 	_update_tab_visuals()
 	_show_chart_area()
 	# The chart draws its own "No data yet" inside the plot; the card would be a second voice.
@@ -742,9 +767,10 @@ func _apply_tab_style(btn: Button, is_active: bool) -> void:
 		btn.add_theme_color_override("font_hover_color", INK)
 		btn.add_theme_color_override("font_pressed_color", INK)
 	else:
-		style.bg_color = Color(0, 0, 0, 0)
-		style.corner_radius_top_left = 0
-		style.corner_radius_top_right = 0
+		# The top corners stay rounded, like the active tab's. They used to be squared off here,
+		# which cost nothing while an idle tab was fully transparent -- there was no shape to see.
+		# With a fill behind them the squared corners made three blocks sitting beside one pill.
+		style.bg_color = TAB_IDLE_BG
 		btn.add_theme_color_override("font_color", MUTED)
 		btn.add_theme_color_override("font_hover_color", TEXT)
 		btn.add_theme_color_override("font_pressed_color", TEXT)
@@ -768,7 +794,11 @@ func _apply_metric_style(btn: Button, is_active: bool) -> void:
 		btn.add_theme_color_override("font_hover_color", INK)
 		btn.add_theme_color_override("font_pressed_color", INK)
 	else:
-		style.bg_color = Color(0, 0, 0, 0)
+		# Filled and rounded, exactly like an idle tab in the row above. Transparent, an idle
+		# button showed no shape of its own, so the row read as one strip with the outer corners
+		# of the bar panel behind it and a single rounded pill somewhere in the middle -- which
+		# stopped matching the top tabs the moment those were given a fill.
+		style.bg_color = TAB_IDLE_BG
 		btn.add_theme_color_override("font_color", MUTED)
 		btn.add_theme_color_override("font_hover_color", TEXT)
 		btn.add_theme_color_override("font_pressed_color", TEXT)
@@ -778,9 +808,12 @@ func _apply_metric_style(btn: Button, is_active: bool) -> void:
 	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 func _save_tab_pref(tab: String) -> void:
-	if game_key != "":
-		MainGlobals.progress_tab_by_game[game_key] = tab
-		MainGlobals.save_settings()
+	if game_key == "":
+		return
+	if str(MainGlobals.progress_tab_by_game.get(game_key, "")) == tab:
+		return          # restoring a tab re-enters its handler; that is not a change to save
+	MainGlobals.progress_tab_by_game[game_key] = tab
+	MainGlobals.save_settings()
 
 func create_chart() -> void:
 	if _chart_control == null:
@@ -803,6 +836,9 @@ func create_chart() -> void:
 	if _chart_metric == 2 and _progress_pct_pos < 0:
 		_chart_metric = 0
 	_update_tab_visuals()
+	# All three shared metrics split their series by level; the game's own chart (metric 3) does
+	# not, and takes its own path below.
+	_chart_control.legend_numbers_are_levels = _progress_level_pos >= 0
 	var series_list: Array = []
 	match _chart_metric:
 		0:
@@ -811,7 +847,7 @@ func create_chart() -> void:
 				for row in _raw_scores:
 					if row.size() <= 1 or int(row[1]) < 0:
 						continue
-					var level: int = row[_progress_level_pos] if row.size() > _progress_level_pos else 0
+					var level: int = _level_of(row)
 					if not level_pts.has(level):
 						level_pts[level] = []
 					level_pts[level].append(Vector2(float(row[0]), float(row[1])))
@@ -838,7 +874,7 @@ func create_chart() -> void:
 					var time_ms: int = row[_progress_time_pos]
 					if time_ms <= 0 or time_ms == 9999:
 						continue
-					var level: int = row[_progress_level_pos]
+					var level: int = _level_of(row)
 					if not level_pts.has(level):
 						level_pts[level] = []
 					level_pts[level].append(Vector2(float(row[0]), float(time_ms)))
@@ -873,7 +909,7 @@ func create_chart() -> void:
 				var pct: int = int(row[_progress_pct_pos])
 				if pct < 0:
 					continue
-				var level: int = row[_progress_level_pos]
+				var level: int = _level_of(row)
 				if not level_pts.has(level):
 					level_pts[level] = []
 				level_pts[level].append(Vector2(float(row[0]), float(pct)))
@@ -923,28 +959,41 @@ func create_chart() -> void:
 	# EVERY chart names its axes, not just the game's own. y_label is already the metric's name;
 	# the x depends on what the date/index switch is showing.
 	_chart_control.y_title = _chart_control.y_label
-	_chart_control.x_title = "session" if _chart_x_mode == 1 else "date"
+	# Named for what the number now means. With one series per level and each counting from 1, a
+	# bare "session" would still read as the global count this used to be.
+	if _chart_x_mode != 1:
+		_chart_control.x_title = "date"
+	elif series_list.size() > 1:
+		_chart_control.x_title = "session at this level"
+	else:
+		_chart_control.x_title = "session"
 	_chart_control.x_as_index = (_chart_x_mode == 1)
 	if _chart_x_mode == 1:
-		# Assign a single global chronological index across all series so that
-		# older sessions always appear further left regardless of which series they belong to.
-		var all_pts: Array = []
+		# EACH LEVEL COUNTS ITS OWN SESSIONS, from 1.
+		#
+		# This used to be a single global index across every series, so that an older session always
+		# sat further left whichever level it belonged to. That reads as a timeline -- which is what
+		# the DATE mode is for. Numbered globally, a level's line is a sparse scatter strung across
+		# the whole width with a gap wherever another level's sessions fell, and your third session
+		# at level 4 sits at x=27 for no reason a player can see.
+		#
+		# Counting per level puts the question the chart is for back on the x axis: how you did on
+		# your 1st, 2nd, 3rd try AT THAT LEVEL. It also lines the levels up against each other, so a
+		# level that starts where the previous one ended is visible at a glance.
 		for si: int in range(series_list.size()):
-			for pt: Vector2 in series_list[si]["points"]:
-				all_pts.append({"x": pt.x, "y": pt.y, "si": si})
-		all_pts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["x"] < b["x"])
-		var new_pts: Array = []
-		for si: int in range(series_list.size()):
-			new_pts.append([])
-		for i: int in range(all_pts.size()):
-			var entry: Dictionary = all_pts[i]
-			new_pts[entry["si"]].append(Vector2(float(i + 1), entry["y"]))
-		for si: int in range(series_list.size()):
-			series_list[si]["points"] = new_pts[si]
+			var pts: Array = series_list[si]["points"]
+			pts.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+			var renum: Array = []
+			for i: int in range(pts.size()):
+				renum.append(Vector2(float(i + 1), (pts[i] as Vector2).y))
+			series_list[si]["points"] = renum
 	_chart_control.set_series(series_list)
 
 func _on_metric_button_pressed(idx: int) -> void:
 	_chart_metric = idx
+	if game_key != "":
+		MainGlobals.chart_metric_by_game[game_key] = _chart_metric
+		MainGlobals.save_settings()
 	_update_tab_visuals()
 	create_chart()
 
@@ -955,6 +1004,30 @@ func _on_x_mode_switch_toggled(toggled_on: bool) -> void:
 		MainGlobals.save_settings()
 	_update_tab_visuals()
 	create_chart()
+
+# The heading over one level's block of rows.
+#
+# A game may name its levels, and some name them with digits -- polkadots hands over str(level),
+# and any level_config whose "name" is a number does the same. A bare "3" sitting above a block of
+# scores is not a heading; it reads as data that has lost its column. Only the DISPLAY is changed,
+# never the stored name, and a name that is not purely a number is left exactly as the game wrote
+# it. The chart legend has the same rule but abbreviates to "L3", because a key has to stay narrow.
+# A row's level id, or 0 where the row is too short to have one.
+#
+# Rows are positional and a game may ADD a column: _legacy_row() stops at the first name the record
+# does not carry, so every session saved before that change is short. Indexing straight into it
+# threw. Buoy is the case that found this -- its level became the (duration, mode) pair, which
+# lives past the end of every row written before.
+func _level_of(row: Array) -> int:
+	return int(row[_progress_level_pos]) if row.size() > _progress_level_pos else 0
+
+func _level_header(level: int) -> String:
+	var nm: String = str(_progress_level_names.get(level, ""))
+	if nm == "":
+		return "Level %d" % level
+	if nm.is_valid_int():
+		return "Level %s" % nm
+	return nm
 
 func _fmt_date(unixtime: int) -> String:
 	var dt: Dictionary = Time.get_datetime_dict_from_unix_time(unixtime)
@@ -1030,7 +1103,7 @@ func create_progress_list() -> void:
 		if has_pct and row.size() > _progress_pct_pos:
 			entry["pct"] = int(row[_progress_pct_pos])
 		if use_levels:
-			var level: int = row[_progress_level_pos]
+			var level: int = _level_of(row)
 			if not level_data.has(level):
 				level_data[level] = []
 			level_data[level].append(entry)
@@ -1090,7 +1163,7 @@ func create_progress_list() -> void:
 		levels.reverse()
 		for level in levels:
 			var hdr := Label.new()
-			hdr.text = "  " + _progress_level_names.get(level, "Level %d" % level)
+			hdr.text = "  " + _level_header(level)
 			hdr.size_flags_horizontal = Control.SIZE_FILL
 			hdr.add_theme_color_override("font_color", Color(1, 0.8, 0, 1))
 			hdr.add_theme_font_size_override("font_size", 26)
@@ -1203,7 +1276,7 @@ func _on_inst_tab_pressed() -> void:
 	%OverlayMessage.hide()
 	_show_only(_inst_area)
 	_update_tab_visuals()
-	_save_tab_pref("instrument")
+	_save_tab_pref(GenericGameUtil.TAB_SUMMARY)
 
 # Leaving the instrument for any other tab has to put the chart area back, or the window would show
 # an empty pane where the chart used to be.

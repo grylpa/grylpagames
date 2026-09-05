@@ -27,6 +27,11 @@ const LOGIN_BOT: Color = Color(0.035, 0.043, 0.075)
 const SCORES_TOP: Color = Color(0.098, 0.129, 0.176)
 const SCORES_BOT: Color = Color(0.031, 0.051, 0.078)
 const ACCENT: Color = Color(0.976, 0.792, 0.353)
+# The hairline a tab's content is framed with -- and, inside that frame, the line that separates one
+# section from the next. Defined once here because two files draw it: scores_list frames the panel,
+# GameInstrument divides the Summary tab inside it. A separator in some unrelated grey reads as a
+# seam where the panel was joined; in the frame's own colour it reads as part of the frame.
+const PANEL_FRAME: Color = Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.45)
 
 # --- the stats screens -----------------------------------------------------------------------
 #
@@ -106,6 +111,54 @@ static func card_style(radius: int = 24) -> StyleBoxFlat:
 	sb.content_margin_right = hmar
 	sb.content_margin_bottom = vmar
 	return sb
+
+# ONE ROW of the stats look: a name, a sparkline, and a word for how it is going.
+#
+# Built here rather than in either screen because BOTH use it -- the global "Your progress" overlay,
+# a row per category, and each game's Summary tab, a row per metric of that game. They are meant to
+# read as the same thing at two zoom levels, and two copies of this would drift apart the first time
+# one of them was adjusted.
+#
+# `values` are distances from the player's own baseline in units of their own spread, positive =
+# better, whatever direction the underlying metric runs in. That is what lets one fixed scale serve
+# every row, and it is why the band is the same height in all of them.
+static func stats_row_cells(row_name: String, values: Array, state: int) -> Array:
+	var name_lbl: Label = Label.new()
+	name_lbl.text = row_name
+	name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(name_lbl, 15)
+
+	var spark: Sparkline = Sparkline.new()
+	# Width fixed; the HEIGHT is a minimum the caller may raise once it knows its own size, so
+	# every row can be made exactly equal. Expanding here instead lets the container hand the
+	# remainder out unevenly and the first row comes out a pixel taller than the rest.
+	spark.custom_minimum_size = Vector2(MainGlobals.ui_font_size(150), MainGlobals.ui_font_size(40))
+	spark.size_flags_vertical = Control.SIZE_FILL
+	spark.set_values(values)
+	# Every value is already a distance from a baseline in units of its own spread, so the band a
+	# row should be sitting in is simply "near zero" -- the same for every row.
+	spark.set_band(-StatsBaseline.BAND_SD, StatsBaseline.BAND_SD)
+	spark.fixed_lo = -3.0
+	spark.fixed_hi = 3.0
+
+	var state_lbl: Label = Label.new()
+	state_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(state_lbl, 13)
+	match state:
+		StatsBaseline.State.WATCH:
+			state_lbl.text = "watch"
+			state_lbl.add_theme_color_override("font_color", STATS_MARK)
+		StatsBaseline.State.STEADY:
+			state_lbl.text = "steady"
+			state_lbl.add_theme_color_override("font_color", STATS_STEADY)
+		StatsBaseline.State.IMPROVING:
+			state_lbl.text = "improving"
+			state_lbl.add_theme_color_override("font_color", STATS_STEADY)
+		_:
+			state_lbl.text = "not yet"
+			state_lbl.add_theme_color_override("font_color", STATS_QUIET)
+	return [name_lbl, spark, state_lbl]
+
 
 static func style_title(label: Label, accent: Color) -> void:
 	label.add_theme_font_override("font", MainGlobals.get_text_font())
