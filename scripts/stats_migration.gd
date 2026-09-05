@@ -80,10 +80,9 @@ static func run() -> Outcome:
 # Shown once, only to a player who had history. Short, and honest about what was lost — a person
 # who kept a year of scores deserves to be told plainly rather than to discover an empty list.
 static func notice_title() -> String:
-	return "Progress tracking has changed"
+	return "Progress measurement has changed"
 
 static func notice_text() -> String:
-	return ("This version measures your progress in a new way, recording much more about how you " +
-		"play than before.\n\n" +
-		"Your previous scores could not be carried over, so tracking starts fresh from today.\n\n" +
+	return ("This version measures your progress in a new and better way.\n\n" +
+		"Your previous scores could not be carried over, so measurements start fresh from today.\n\n" +
 		"Your game settings have been kept.")
