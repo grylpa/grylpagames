@@ -249,13 +249,24 @@ properties of this game rather than of the data collected so far:
 - The grid would be 36x36 = 1296 cells against roughly 10-12 rounds a session and five
   sessions kept — under two showings per character, let alone per pair.
 
-**What the Memory view shows instead.** A 2x2 of right/wrong against
-choices-on-screen / choices-hidden, built by `GameInstrument._visibility_split()`. Two
-buckets instead of 1296, so every cell fills, and the split is a real difference the game
+**What the Memory view shows instead.** Accuracy in each of the two conditions, one bar
+each, built by `GameInstrument._visibility_split()`. The split is a real difference the game
 creates on purpose: the same perceptual task with and without a memory load on top. It
-appears in the Charts tab under the **Memory** button once each bucket has enough rounds,
-with a one-line caption above it — four numbers in a 2x2 are not self-explanatory, and a
-reader who has to guess what the two rows are guesses wrong.
+appears in the Charts tab under the **Memory** button once a condition has enough rounds,
+captioned, with the rounds and the typical answer time under each bar.
+
+**It is not a 2x2, and must not go back to being one.** It was, and that was wrong twice
+over. `MatrixControl` shades each cell in proportion to its raw count, and the polkadots
+table set `cool_diagonal = false` because "correct" here is a whole column rather than the
+diagonal — so nothing was exempted from the heat scale and the two CORRECT cells, being the
+largest counts, were painted the hottest red while the worst cell was nearly invisible. The
+picture said the opposite of what it meant. Second, two rows of counts only compare when
+they hold the same number of rounds, and which levels were played decides that: levels 1-3
+produce only on-screen rounds and 4-8 only hidden ones, so a player who mostly plays level 2
+gets a large top row and a tiny bottom one. A percentage is comparable by construction.
+
+(The yes/no games' 2x2 in `_four_cells()` keeps `cool_diagonal = true`, so its correct cells
+go green and only the mistakes take the red scale. That one is fine.)
 
 The rows are named after **what the player sees change**: `option_display_sec` is 0 on
 levels 1-3, so the characters stay; from level 4 it is 5s down to 2.5s, after which
@@ -269,3 +280,18 @@ still visible — which they always are, because hiding only recolours the glyph
 them. The flag was therefore `false` in every round ever logged, on every level, and the
 choices-hidden half of the view could not fill at all. Do not reintroduce a check that reads
 the buttons.
+
+## Level naming, and where the scores wiring lives
+
+The game supplies its level names as **bare numbers** (`str(cfg["level"])`), from
+`main.gd` and nowhere else. The shared display rules produce both forms wanted:
+`ScoresList._level_header()` turns a numeric name into `Level 3` for the heading over a block
+of rows, and `ChartControl.legend_entries()` turns it into `L3` in a chart legend, where a key
+has to stay narrow. Prefixing "L" at the source would give `L3` in both.
+
+`globals.gd` used to set the same names to `"L" + str(level)`, and also set
+`progress_level_pos/time_pos/pct_pos` as the literals 6/7/8 beside `main.gd`'s `POS_LEVEL`,
+`POS_TIME_MS`, `POS_PCT`. Which form the screens showed therefore depended on which file ran
+last - main.gd does, which is the only reason the naming looked right - and adding a column
+would have had to be remembered in two places. That block is gone from `globals.gd`; the
+scores wiring lives in `main.gd`.

@@ -390,3 +390,32 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 **Crack previously saved nothing at all.** It called only `convert_ongoing_score_to_permanent()`, which is a no-op without an ongoing record, and nothing here ever wrote one. It now has `get_session_score()` and a real save. Each completed cycle records the signed error of all four phases, so rushing reads differently from dragging.
+
+## What counts as a level
+
+Crack the Safe has no levels: nothing gets harder and nothing is unlocked. What it has are two
+settings the player picks, and **both change what the session is** - five minutes of 4-7-8
+and five minutes of 4-2-4-2 are not the same test, and neither are five and twelve minutes
+of the same pattern. Before this the sessions were grouped on nothing at all, so the charts drew one
+series over everything and the baseline compared one pattern against another.
+
+The level id is the PAIR, encoded by `CrackG.level_id(duration_min, mode)` as
+`duration * 100 + mode`. One integer, because the scores window groups on a single column.
+`CrackG.level_label()` names it (`5 min - 4-2-4-2`) and `CrackG.mode_label()` handles the two modes
+with no pattern to state, `Active` and `Your own`. All three live in `globals.gd` rather than
+at the call sites, so the id, its display name and the task signature cannot disagree about
+what a session was. They are **copied** from Buoy rather than shared: games in this project
+stay independent of one another.
+
+`score_columns` ends `..., mode, level`, `progress_level_pos = POS_LEVEL`, and `new_game()`
+sets `task_signature = {duration_min, mode}`.
+
+**These two columns are appended, never inserted.** Rows are positional and
+`GenericGameUtil._legacy_row()` stops at the first column a record does not carry, so every
+session saved before this change is short. The scores window reads the level through
+`_level_of()`, which returns 0 for such a row.
+
+**Splitting by the pair costs sessions per bucket.** A baseline needs five after the warm-up
+is skipped, so a player who varies both settings freely will read "not yet" for longer than
+one who has a habit. That is correct - those sessions are not the same test - but it is the
+reason the seeded demo data gives its player a dominant pair.

@@ -14,6 +14,10 @@ enum ViewMode { GRID = 0, LIST = 1, CATEGORIZED = 2 }
 var game_chooser_view_mode: int = ViewMode.CATEGORIZED
 var progress_tab_by_game: Dictionary = {}
 var chart_x_mode_by_game: Dictionary = {}  # game_key -> 0=date, 1=index
+# Which chart the Charts tab opens on, per game: 0=score, 1=avg time, 2=% correct, 3=the game's own.
+# The main tab is already remembered (progress_tab_by_game); returning to Charts only to have to
+# re-pick the chart every time made that half-remembered.
+var chart_metric_by_game: Dictionary = {}
 var last_played_order: Array = []  # game folders in most-recently-played-first order
 
 # --- Tutorials ---
@@ -292,7 +296,7 @@ func save_settings():
 	_save_last_profile_hint()
 	# Keep slot 1 reserved for backward compatibility with older settings files that
 	# stored a password there. New saves intentionally persist an empty string instead.
-	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name(), shown_tutorial_offer, tutorials_done, tutorials_auto_shown])
+	game.save_settings([BE.stored_username, "", BE.stored_email, show_monotonic_scores, game_chooser_view_mode, progress_tab_by_game, show_monotonic_speed, last_played_order, chart_x_mode_by_game, scores_last_synced_ts, MainCfg.is_anonymous_user, user_file_key, guest_names_used, game_font_name(), shown_tutorial_offer, tutorials_done, tutorials_auto_shown, chart_metric_by_game])
 	# var s:SavedGrylpaBrainSettings = SavedGrylpaBrainSettings.new()
 	# s.username = BE.stored_username
 	# s.email = BE.stored_email
@@ -359,6 +363,8 @@ func load_settings():
 		tutorials_done = settings[15]
 	if settings.size() > 16 and settings[16] is Array:
 		tutorials_auto_shown = settings[16]
+	if settings.size() > 17 and settings[17] is Dictionary:
+		chart_metric_by_game = settings[17]
 	apply_game_font()
 	# if !ResourceLoader.exists(settings_name):
 	# 	return
