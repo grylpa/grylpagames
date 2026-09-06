@@ -572,4 +572,20 @@ Only the failed level's points go back. Everything earned in levels already pass
 Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
+**The Answers tab is a 3x3, not a 2x2.** Three destinations means "wrong" splits three ways —
+a matching item sent to the dumpster, a non-matching item sent to a bucket, and one bucket taken
+for the other — and which way it split is the only thing a grid adds to a percentage.
+`_evaluate_answer()` calls `game.record_choice(correct_bucket, bucket)`, which stores nine counts
+`c00`..`c22`; `GameInstrument.THREE_WAY_GAMES` names the axes. Letting an item land is not a
+missing answer: it *is* choosing the dumpster, so it goes through the same call as any other
+choice and there is nothing here for `record_no_answer()` to count.
+
+**Why the axis is the bucket POSITION and not the rule.** `_pick_pair_from_pool()` draws the two
+rules at random *and in random order*, so a given rule is on the left in one session and the
+right in the next. That is what makes a positional reading honest: pooling a level's sessions
+averages the rule identity out, so a left/right lean that survives is about the side rather than
+about one rule being harder. The confound would be a FIXED layout, not a shuffled one — and it
+does mean a single session's grid confounds the two, since within one session the sides hold
+still.
+
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.

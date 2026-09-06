@@ -266,7 +266,11 @@ produce only on-screen rounds and 4-8 only hidden ones, so a player who mostly p
 gets a large top row and a tiny bottom one. A percentage is comparable by construction.
 
 (The yes/no games' 2x2 in `_four_cells()` keeps `cool_diagonal = true`, so its correct cells
-go green and only the mistakes take the red scale. That one is fine.)
+go green and only the mistakes take the red scale. That one is fine. It shows ONE task now,
+opening on the one played most, with a `LevelPicker` row to change it and an accuracy line
+underneath. It used to sum every session ever played, which is the same mistake in a different
+shape: a bias that only appears at the hard levels was diluted by the easy ones. A round left
+unanswered is in the accuracy denominator — running the clock down must not read as perfect.)
 
 The rows are named after **what the player sees change**: `option_display_sec` is 0 on
 levels 1-3, so the characters stay; from level 4 it is 5s down to 2.5s, after which
