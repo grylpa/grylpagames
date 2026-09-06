@@ -31,7 +31,7 @@ var games = [
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
 	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Reflexes"],
-	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes", false, true, false],
+	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes", false, true, true],
 
 	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],
 	["udbr",          "Buoy",           "Float up and down with your breath",                     "Serenity"],

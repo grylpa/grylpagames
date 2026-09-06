@@ -270,6 +270,11 @@ func _apply_look() -> void:
 	# so on a phone they lost the full 34% while the Chart tab beside them is set from the scale.
 	for tab: Button in [%ScoresTabButton, %SpeedTabButton]:
 		MainGlobals.set_font_size(tab, 20)
+	# The strip is re-fitted whenever it is given a width. A deferred call alone was not enough:
+	# on the first open the fit ran before layout, measured a bar 0 wide and gave up.
+	var strip: HBoxContainer = %ScoresTabButton.get_parent() as HBoxContainer
+	if strip != null and not strip.resized.is_connected(fit_tab_fonts):
+		strip.resized.connect(fit_tab_fonts)
 	ScreenBackdrop.style_close($ScoresWindow/ColorRect/XCloseScene, GOLD)
 	%MonotonicCheckButton.modulate = GOLD
 	# A calm practice has no personal best to chase — see GenericGameUtil.show_monotonic_toggle.
@@ -661,18 +666,13 @@ func _on_chart_tab_pressed() -> void:
 	%OverlayMessage.hide()
 	create_chart()
 
+# The two table tabs, Scores and Speed. Same switch as every other tab -- this used to name the
+# surfaces it hid, which is the bug _show_only was written to end: it knew the chart and the
+# instrument, so typit's Keys page stayed on screen underneath the score list.
 func _show_table_area() -> void:
+	_show_only(_table_margin)
 	if _header_mc != null:
 		_header_mc.visible = true
-	%MarginContainer.visible = true
-	if _table_margin != null:
-		_table_margin.visible = true
-	# Both of the other surfaces, not just the chart — going back to a table from the instrument
-	# tab would otherwise leave the panel sitting under the list.
-	if _chart_area != null:
-		_chart_area.visible = false
-	if _inst_area != null:
-		_inst_area.visible = false
 
 func _show_chart_area() -> void:
 	_show_only(_chart_area)
@@ -686,15 +686,15 @@ func _show_chart_area() -> void:
 func _show_only(area: Control) -> void:
 	if _header_mc != null:
 		_header_mc.visible = false
-	%MarginContainer.visible = false
-	# The whole surface goes, not just its contents: an empty panel under the chart tab would leave
-	# the tab attached to a blank slab.
-	if _table_margin != null:
-		_table_margin.visible = false
-	if _chart_area != null:
-		_chart_area.visible = (area == _chart_area)
-	if _inst_area != null:
-		_inst_area.visible = (area == _inst_area)
+	%MarginContainer.visible = (area == _table_margin)
+	# EVERY registered surface, not the two this function used to name. typit appends a Keys page
+	# to _content_areas, and a switch that only knew about the chart and the instrument left the
+	# Keys list on screen underneath whichever tab replaced it -- half one tab, half the other.
+	# The whole surface goes, not just its contents: an empty panel under the chart tab would
+	# leave the tab attached to a blank slab.
+	for a: Variant in _content_areas:
+		if a != null and is_instance_valid(a):
+			(a as Control).visible = (a == area)
 
 func _prepare_tabs_on_open() -> void:
 	_prepare_instrument_tab()
@@ -751,6 +751,60 @@ func _update_tab_visuals() -> void:
 	# Update metric button pill style
 	for i: int in range(_metric_buttons.size()):
 		_apply_metric_style(_metric_buttons[i], i == _chart_metric)
+	# A tab may have just become visible (Speed appears only when there is speed data), so the
+	# strip is re-fitted rather than measured once at build time.
+	call_deferred("fit_tab_fonts")
+
+# The tab strip has to hold however many tabs it is given. Four fit at the standard size; typit
+# adds a fifth and "Summary" then drew straight over its neighbours, because a Button neither
+# shrinks nor clips its text to the width an HBoxContainer hands it. So the size is measured
+# against the width actually available and applied to every tab, which keeps them a set -- a
+# strip where one tab is a size smaller than the rest is the bug this started as.
+const TAB_FONT_DESKTOP: int = 20
+const TAB_FONT_MIN_DESKTOP: int = 11
+
+func fit_tab_fonts() -> void:
+	var anchor: Node = get_node_or_null("%ScoresTabButton")
+	if anchor == null or not is_instance_valid(anchor):
+		return                                  # the window is going away
+	var bar: HBoxContainer = anchor.get_parent() as HBoxContainer
+	if bar == null or not is_instance_valid(bar):
+		return
+	var tabs: Array[Button] = []
+	for c: Node in bar.get_children():
+		if c is Button and (c as Button).visible:
+			tabs.append(c as Button)
+	if tabs.is_empty():
+		return
+	# Measure the CONTAINER, never the strip. The strip's width comes from the buttons' own
+	# minimum sizes -- the very thing this function sets -- so reading it back made the fit chase
+	# its own tail, settling on 13px one frame and 32px the next. Same shape of mistake as the
+	# progress dialog measuring a grid it then wrote a minimum size into. TabMargin is a
+	# full-rect child of a fullscreen, unresizable window: its width is the screen's, and
+	# nothing the tabs do can move it.
+	var host: MarginContainer = get_node_or_null("%TabMargin") as MarginContainer
+	if host == null or not is_instance_valid(host):
+		return
+	var avail: float = host.size.x \
+		- float(host.get_theme_constant("margin_left")) \
+		- float(host.get_theme_constant("margin_right"))
+	if avail <= 1.0:
+		return                                  # laid out yet? the resized signal brings us back
+	var share: float = (avail - float(TAB_GAP) * float(tabs.size() - 1)) / float(tabs.size())
+	share -= 10.0                               # the button's own horizontal padding
+	var tab_font: Font = MainGlobals.get_text_font()
+	var fs: int = MainGlobals.ui_font_size(TAB_FONT_DESKTOP)
+	var fs_floor: int = MainGlobals.ui_font_size(TAB_FONT_MIN_DESKTOP)
+	while fs > fs_floor:
+		var widest: float = 0.0
+		for b: Button in tabs:
+			widest = maxf(widest, tab_font.get_string_size(
+				b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		if widest <= share:
+			break
+		fs -= 1
+	for b: Button in tabs:
+		b.add_theme_font_size_override("font_size", fs)
 
 func _apply_tab_style(btn: Button, is_active: bool) -> void:
 	var style: StyleBoxFlat = StyleBoxFlat.new()

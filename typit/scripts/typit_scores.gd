@@ -24,15 +24,35 @@ func _set_header(field_name, text, widthidx, _is_panel_visible = false):
 			text = "Distance %"
 	super._set_header(field_name, text, widthidx, _is_panel_visible)
 
-# Column widths (logical px). Fixed so header and data rows align perfectly.
-const COL_KEY: float = 56.0
-const COL_GFX: float = 70.0
-const COL_NPAD: float = 18.0
-const COL_N: float = 56.0
-const COL_VAL: float = 104.0
-const COL_STD: float = 92.0
-const ROW_PAD_LEFT: float = 10.0
-const SIDE_MARGIN: int = 10
+# Column widths and row metrics, in logical px, fixed so header and data rows align perfectly.
+#
+# Every number here is the DESKTOP value and MainGlobals scales it for a phone (x1.6), the way
+# the rest of the app does it. They used to be flat constants, which is why this tab was typeset
+# a size larger than the screen around it on desktop: the tab button carried a bare 26 while
+# every other tab goes through set_font_size(20), and the header row carried a bare 24 against
+# the standard table header's set_font_size(16). The PHONE numbers are the authored ones --
+# typit only ships on a phone -- so the desktop bases below are chosen to reproduce them
+# exactly: 56 / 70 / 18 / 56 / 104 / 93 wide, a 48px graphic and a 10px gutter.
+var _col_key: float
+var _col_gfx: float
+var _col_npad: float
+var _col_n: float
+var _col_val: float
+var _col_std: float
+var _row_pad_left: float
+var _side_pad: int
+var _gfx_h: float
+
+func _init_metrics() -> void:
+	_col_key = float(MainGlobals.ui_font_size(35))
+	_col_gfx = float(MainGlobals.ui_font_size(44))
+	_col_npad = float(MainGlobals.ui_font_size(11))
+	_col_n = float(MainGlobals.ui_font_size(35))
+	_col_val = float(MainGlobals.ui_font_size(65))
+	_col_std = float(MainGlobals.ui_font_size(58))
+	_row_pad_left = float(MainGlobals.ui_font_size(6))
+	_side_pad = MainGlobals.ui_font_size(6)
+	_gfx_h = float(MainGlobals.ui_font_size(30))
 
 # Override: clamp distance values to DIST_Y_MAX so the chart never draws off-screen,
 # then build the standard screen and inject the Keys tab.
@@ -94,17 +114,18 @@ func _add_keys_tab() -> void:
 	_keys_btn = Button.new()
 	_keys_btn.text = "Keys"
 	_keys_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_keys_btn.add_theme_font_size_override("font_size", 26)
+	MainGlobals.set_font_size(_keys_btn, 20)   # the size every other tab is set to
 	_keys_btn.pressed.connect(_on_keys_tab_pressed)
 	tab_bar.add_child(_keys_btn)
 	_apply_tab_style(_keys_btn, false)
 
-	speed_btn.pressed.connect(_on_standard_tab_pressed)
-	var scores_tab: Node = find_child("ScoresTabButton", true, false)
-	if scores_tab:
-		scores_tab.pressed.connect(_on_standard_tab_pressed)
-	if _chart_tab_button:
-		_chart_tab_button.pressed.connect(_on_standard_tab_pressed)
+	# Every OTHER tab in the strip, found rather than named. Naming them is what broke this:
+	# Scores, Speed and Charts were listed here and the Summary tab, added to scores_list later,
+	# was not -- so pressing Summary left the Keys page on screen and the Keys tab lit.
+	for b: Button in _sibling_tabs():
+		b.pressed.connect(_on_standard_tab_pressed)
+	# The strip now has one more tab than the base class sized it for.
+	fit_tab_fonts()
 
 	var vbox: Node = get_node_or_null("ScoresWindow/ColorRect/VBoxContainer")
 	if vbox == null:
@@ -144,26 +165,29 @@ func _add_keys_tab() -> void:
 	if pref == "keys":
 		_on_keys_tab_pressed()
 
+# The tab buttons other than this game's own, in strip order.
+func _sibling_tabs() -> Array[Button]:
+	var out: Array[Button] = []
+	if _keys_btn == null or not is_instance_valid(_keys_btn):
+		return out
+	for c: Node in _keys_btn.get_parent().get_children():
+		if c is Button and c != _keys_btn:
+			out.append(c as Button)
+	return out
+
 func _on_keys_tab_pressed() -> void:
 	_save_tab_pref("keys")
-	_show_chart_area()
-	if _chart_area:
-		_chart_area.visible = false
-	if _keys_margin:
-		_keys_margin.visible = true
+	# One surface, chosen by name -- the same switch every other tab goes through. This used to
+	# show the chart and then hide it again, which left the window's empty-state card up.
+	_show_only(_keys_margin)
+	%OverlayMessage.hide()
+	_sync_stack_expand()
 	_apply_tab_style(_keys_btn, true)
-	var scores_tab: Node = find_child("ScoresTabButton", true, false)
-	if scores_tab:
-		_apply_tab_style(scores_tab, false)
-	var speed_tab: Node = find_child("SpeedTabButton", true, false)
-	if speed_tab:
-		_apply_tab_style(speed_tab, false)
-	if _chart_tab_button:
-		_apply_tab_style(_chart_tab_button, false)
+	for b: Button in _sibling_tabs():
+		_apply_tab_style(b, false)
 
 func _on_standard_tab_pressed() -> void:
-	if _keys_margin:
-		_keys_margin.visible = false
+	# The surfaces are already handled by _show_only; only this tab's own lit state is left.
 	if _keys_btn:
 		_apply_tab_style(_keys_btn, false)
 
@@ -177,12 +201,14 @@ func _rebuild_keys() -> void:
 	_build_keys_content(_keys_area as VBoxContainer)
 
 func _build_keys_content(page: VBoxContainer) -> void:
+	_init_metrics()
 	var key_stats: Dictionary = _aggregate_key_stats()
-	var mobile: bool = MainGlobals.is_mobile()
-	var fs_info: int = 24 if mobile else 18
-	var fs_hdr: int = 24                       # matches standard table headers
-	var fs_name: int = 26 if mobile else 20
-	var fs_stats: int = 24 if mobile else 18
+	var fs_info: int = MainGlobals.ui_font_size(15)
+	# The one size that is not free to be chosen: scores_list._set_header sets the standard
+	# table header from 16, and this table sits behind a tab beside that one.
+	var fs_hdr: int = MainGlobals.ui_font_size(16)
+	var fs_name: int = MainGlobals.ui_font_size(16)
+	var fs_stats: int = MainGlobals.ui_font_size(15)
 
 	# Level selector row (1..5)
 	_build_level_selector(page, fs_info)
@@ -199,7 +225,7 @@ func _build_keys_content(page: VBoxContainer) -> void:
 
 	# Fixed header row (NOT scrolled)
 	var hdr_margin: MarginContainer = _side_margin()
-	hdr_margin.add_theme_constant_override("margin_bottom", -6)
+	hdr_margin.add_theme_constant_override("margin_bottom", MainGlobals.ui_font_size(-4))
 	page.add_child(hdr_margin)
 	hdr_margin.add_child(_build_header_row(fs_hdr))
 
@@ -214,7 +240,7 @@ func _build_keys_content(page: VBoxContainer) -> void:
 
 	var data_vbox: VBoxContainer = VBoxContainer.new()
 	data_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	data_vbox.add_theme_constant_override("separation", 4)
+	data_vbox.add_theme_constant_override("separation", MainGlobals.ui_font_size(2))
 	data_margin.add_child(data_vbox)
 
 	var key_order: String = "qwertyuiopasdfghjklzxcvbnm "
@@ -234,14 +260,14 @@ func _build_keys_content(page: VBoxContainer) -> void:
 func _side_margin() -> MarginContainer:
 	var mc: MarginContainer = MarginContainer.new()
 	mc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mc.add_theme_constant_override("margin_left", SIDE_MARGIN)
-	mc.add_theme_constant_override("margin_right", SIDE_MARGIN)
+	mc.add_theme_constant_override("margin_left", _side_pad)
+	mc.add_theme_constant_override("margin_right", _side_pad)
 	return mc
 
 func _build_level_selector(page: VBoxContainer, fs: int) -> void:
 	var margin: MarginContainer = _side_margin()
 	margin.add_theme_constant_override("margin_top", 4)
-	margin.add_theme_constant_override("margin_bottom", -10)
+	margin.add_theme_constant_override("margin_bottom", MainGlobals.ui_font_size(-6))
 	page.add_child(margin)
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
@@ -288,15 +314,15 @@ func _on_level_selected(lvl: int) -> void:
 func _build_header_row(fs: int) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
-	_spacer(row, ROW_PAD_LEFT)
-	_cell(row, "Key", COL_KEY, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "", COL_GFX, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
-	_spacer(row, COL_NPAD)
-	_cell(row, "n", COL_N, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "dx avg", COL_VAL, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "dx std", COL_STD, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "dy avg", COL_VAL, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "dy std", COL_STD, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_spacer(row, _row_pad_left)
+	_cell(row, "Key", _col_key, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "", _col_gfx, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_spacer(row, _col_npad)
+	_cell(row, "n", _col_n, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "dx avg", _col_val, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "dx std", _col_std, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "dy avg", _col_val, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "dy std", _col_std, fs, HDR_YELLOW, HORIZONTAL_ALIGNMENT_CENTER)
 	return row
 
 func _build_key_row(parent: Node, ch: String, ks: Dictionary,
@@ -324,8 +350,8 @@ func _build_key_row(parent: Node, ch: String, ks: Dictionary,
 	# Zero horizontal content margins so card content aligns with the header row
 	sty.content_margin_left = 0
 	sty.content_margin_right = 0
-	sty.content_margin_top = 2
-	sty.content_margin_bottom = 2
+	sty.content_margin_top = float(MainGlobals.ui_font_size(1))
+	sty.content_margin_bottom = float(MainGlobals.ui_font_size(1))
 	card.add_theme_stylebox_override("panel", sty)
 	parent.add_child(card)
 
@@ -333,14 +359,14 @@ func _build_key_row(parent: Node, ch: String, ks: Dictionary,
 	row.add_theme_constant_override("separation", 4)
 	card.add_child(row)
 
-	_spacer(row, ROW_PAD_LEFT)
+	_spacer(row, _row_pad_left)
 
 	var key_txt: String = ch.to_upper() if ch != " " else "SPC"
-	_cell(row, key_txt, COL_KEY, fs_name, Color(0.92, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, key_txt, _col_key, fs_name, Color(0.92, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
 
 	# Fixed cell size for ALL levels — only the key's aspect ratio (kw:kh) varies per key
-	var gw: float = COL_GFX
-	var gh: float = 48.0
+	var gw: float = _col_gfx
+	var gh: float = _gfx_h
 	var graphic: Control = Control.new()
 	graphic.custom_minimum_size = Vector2(gw, gh)
 	graphic.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -350,14 +376,14 @@ func _build_key_row(parent: Node, ch: String, ks: Dictionary,
 	row.add_child(graphic)
 	graphic.queue_redraw()
 
-	_spacer(row, COL_NPAD)
-	_cell(row, str(count), COL_N, fs_stats, Color(0.78, 0.85, 1.0, 0.90), HORIZONTAL_ALIGNMENT_CENTER)
+	_spacer(row, _col_npad)
+	_cell(row, str(count), _col_n, fs_stats, Color(0.78, 0.85, 1.0, 0.90), HORIZONTAL_ALIGNMENT_CENTER)
 	var sx: String = "+" if dx_pct >= 0.0 else ""
-	_cell(row, "%s%.0f" % [sx, dx_pct], COL_VAL, fs_stats, Color(0.90, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "%.0f" % sdx_pct, COL_STD, fs_stats, Color(0.70, 0.78, 0.95, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "%s%.0f" % [sx, dx_pct], _col_val, fs_stats, Color(0.90, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "%.0f" % sdx_pct, _col_std, fs_stats, Color(0.70, 0.78, 0.95, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
 	var sy: String = "+" if dy_pct >= 0.0 else ""
-	_cell(row, "%s%.0f" % [sy, dy_pct], COL_VAL, fs_stats, Color(0.90, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
-	_cell(row, "%.0f" % sdy_pct, COL_STD, fs_stats, Color(0.70, 0.78, 0.95, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "%s%.0f" % [sy, dy_pct], _col_val, fs_stats, Color(0.90, 0.95, 1.0, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
+	_cell(row, "%.0f" % sdy_pct, _col_std, fs_stats, Color(0.70, 0.78, 0.95, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
 	_ignore_pointer(card)
 
 # Every control in a row ignores the pointer — which is what the standard score rows do too
@@ -408,7 +434,7 @@ func _info_label(parent: Node, text: String, fs: int) -> void:
 # err_dx,err_dy = mean SPINE error (for color only).
 func _draw_key_graphic(canvas: Control, ax: float, ay: float,
 		sax: float, say: float, err_dx: float, err_dy: float, kw: float, kh: float) -> void:
-	var inset: float = 8.0
+	var inset: float = float(MainGlobals.ui_font_size(5))
 	var cw: float = canvas.size.x - inset * 2.0
 	var ch: float = canvas.size.y - inset * 2.0
 	var key_scale: float = minf(cw / kw, ch / kh)
@@ -435,7 +461,8 @@ func _draw_key_graphic(canvas: Control, ax: float, ay: float,
 		canvas.draw_circle(Vector2(cx, cy), r,
 			Color(blob_col.r, blob_col.g, blob_col.b, exp(-2.0 * frac * frac) * 0.75),
 			true, -1.0, true)
-	canvas.draw_circle(Vector2(cx, cy), 3.0, Color(1.0, 1.0, 1.0, 0.95), true, -1.0, true)
+	canvas.draw_circle(Vector2(cx, cy), float(MainGlobals.ui_font_size(2)),
+		Color(1.0, 1.0, 1.0, 0.95), true, -1.0, true)
 
 # ---- Aggregate key stats ----
 
