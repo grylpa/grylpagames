@@ -200,6 +200,42 @@ To add a new language keyboard:
 3. In `new_game()`, select the appropriate build function based on the flag.
 4. The measurement, hit-test, heat map, and bias code are language-agnostic.
 
+## The Keys tab (`typit_scores.gd`)
+
+Typit is the only game that adds a tab of its own to the shared scores window
+(`scenes/typit_scores.tscn` inherits `scenes/scores_list.tscn` and replaces the script). That
+makes it the one tab that goes stale when the shared window changes, and it has now done so
+twice — both times silently, because nothing about the shared window fails when a game's extra
+tab stops matching it.
+
+**Every size comes from `MainGlobals`.** `_init_metrics()` states each column width, the graphic
+height and the side gutter as its DESKTOP value and lets `ui_font_size()` scale it for a phone;
+the type sizes do the same. They used to be flat constants and hand-written
+`24 if mobile else 18` pairs, so on desktop this one tab was typeset a size larger than the
+screen around it: the tab button carried a bare `26` while every other tab goes through
+`set_font_size(20)`, and the header row carried a bare `24` against the standard table header's
+`set_font_size(16)`. The phone numbers are the authored ones — typit only ships on a phone — so
+the desktop bases are chosen to reproduce them exactly.
+
+**Sibling tabs are found, never named.** `_sibling_tabs()` walks the strip. Listing them by name
+is what broke it the second time: Scores, Speed and Charts were named here, the Summary tab was
+added to `scores_list` later, and pressing Summary then left the Keys page on screen with the
+Keys tab still lit — half one tab, half the other.
+
+**Switching goes through `_show_only()`.** The base class hides every surface in
+`_content_areas` and shows the one named, which is why the Keys page has to be registered there.
+`_on_keys_tab_pressed` used to show the chart and then hide it again, which left the window's
+"No scores saved yet" card standing over a full table. Note there are TWO ways out of a tab:
+Charts and Summary leave through `_show_only()`, Scores and Speed leave through
+`_show_table_area()`. Both had to stop naming the surfaces they hide — fixing one and checking
+only that one is how "Summary works, Scores does not" happened.
+
+`devtools/probe_typitkeys.gd` checks all of this on desktop and under `force_mobile`. It checks
+sizes against the SIBLING tabs rather than against numbers, and it walks EVERY tab in the strip
+rather than spot-checking one, forcing the Speed tab visible so the five-tab strip typit
+actually ships is the one under test. The next change to the shared window either keeps them
+equal or fails the probe.
+
 ## Pitfalls & Notes
 
 - **No `:=`** anywhere — always use explicit `var x: Type = value`.
