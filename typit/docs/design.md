@@ -217,6 +217,13 @@ screen around it: the tab button carried a bare `26` while every other tab goes 
 `set_font_size(16)`. The phone numbers are the authored ones — typit only ships on a phone — so
 the desktop bases are chosen to reproduce them exactly.
 
+**The level selector is `scripts/level_picker.gd`, not this file's own.** It started here and was
+then rebuilt by eye for the yes/no games' confusion matrix, which came out a different font at a
+different size in different colours — two controls doing the same job and looking unrelated. One
+`LevelPicker.build()` now serves both. Its only deliberate change from the original is a lighter
+idle button: `Color(0.16, 0.18, 0.26)` sat close enough to the panel behind it that the levels
+you were not on read as empty space rather than as choices.
+
 **Sibling tabs are found, never named.** `_sibling_tabs()` walks the strip. Listing them by name
 is what broke it the second time: Scores, Speed and Charts were named here, the Summary tab was
 added to `scores_list` later, and pressing Summary then left the Keys page on screen with the

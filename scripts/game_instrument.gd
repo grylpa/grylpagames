@@ -51,11 +51,21 @@ const MIN_BUCKETS: int = 2         # points needed to have a shape at all
 # the "these two things are unrelated" problem twice over.
 const YES_NO_GAMES: Array = ["aliens", "sortingrobots", "dino", "dinoback", "friends", "whack"]
 
+# Games whose answer is a THREE-way choice, drawn as a 3x3 of what was right against what was
+# chosen. The 2x2 cannot express these: with three destinations "wrong" splits three ways, and
+# which way it split is the only thing a matrix adds to a percentage.
+#
+# Each entry is the option labels in the game's own index order, used for both axes.
+const THREE_WAY_GAMES: Dictionary = {
+	"bucketmadness": ["Left", "Dumpster", "Right"],
+}
+
 static func has_chart(folder: String) -> bool:
 	return CHART_GAMES.has(folder)
 
 static func has_own_view(folder: String) -> bool:
-	return has_chart(folder) or folder == "polkadots" or YES_NO_GAMES.has(folder)
+	return has_chart(folder) or folder == "polkadots" or YES_NO_GAMES.has(folder) \
+		or THREE_WAY_GAMES.has(folder)
 
 # What the extra metric button says. Named after the measurement, since it sits beside "Score" and
 # "Avg Time" which are also named after theirs.
@@ -66,7 +76,7 @@ static func chart_metric_name(folder: String) -> String:
 		# Not "Letters": the view is not about individual characters. What it separates is the
 		# round played with the choices on screen from the same round played from memory.
 		return "Memory"
-	if YES_NO_GAMES.has(folder):
+	if YES_NO_GAMES.has(folder) or THREE_WAY_GAMES.has(folder):
 		return "Answers"
 	return "Detail"
 
@@ -112,6 +122,8 @@ static func chart_for(folder: String) -> Control:
 		if gu.read_trial_blocks().size() < MIN_SESSIONS:
 			return null
 		return _body_for(folder)
+	if THREE_WAY_GAMES.has(folder):
+		return _choice_cells(gu, THREE_WAY_GAMES[folder] as Array)
 	return _four_cells(gu)
 
 # The rows the Summary tab shows, in this order, and what to call each one.
@@ -307,11 +319,13 @@ static func _verdict_color(state: int) -> Color:
 static func _body_for(folder: String) -> Control:
 	var gu: GenericGameUtil = GenericGameUtil.new(folder, folder, 0, 5, 0)
 	if not (CHART_GAMES.has(folder) or folder == "polkadots"):
-		# No bespoke instrument: the four cells where the game asks a yes/no question, and its own
-		# recorded numbers otherwise.
-		var four: Control = _four_cells(gu)
-		if four != null:
-			return four
+		# No bespoke instrument: the grid where the game records what it asked against what the
+		# player answered, and its own recorded numbers otherwise. Routed the same way as
+		# chart_for(), so the two cannot disagree about which panel a game gets.
+		var grid: Control = _choice_cells(gu, THREE_WAY_GAMES[folder] as Array) \
+			if THREE_WAY_GAMES.has(folder) else _four_cells(gu)
+		if grid != null:
+			return grid
 		return _summary(gu)
 	var blocks: Array = gu.read_trial_blocks()
 	var sessions: int = blocks.size()
@@ -600,28 +614,200 @@ static func _count_load(trials: Array) -> Control:
 # THE FOUR CELLS, for the six games that ask a yes/no question. Drawn as a 2x2 so the shape of a
 # player's answers is visible at once: a column that has grown means they are saying yes more often,
 # which a percentage would have hidden entirely.
-static func _four_cells(gu: GenericGameUtil) -> Control:
-	var tp: int = 0
-	var fp: int = 0
-	var tn: int = 0
-	var fn: int = 0
-	var found: bool = false
+# ONE TASK AT A TIME, and a way to change which.
+#
+# The answer panel for every game that records what it was asked against what the player said,
+# whether that is a 2x2 or a 3x3. It used to sum every session ever played into one grid and it
+# was the only panel that did: the Summary rows, the baseline and the verdict all narrow to
+# `busiest_task` first. Pooling a game's levels hides exactly what the matrix is for -- a bias
+# that appears at the hard levels is diluted by the easy ones, and the harder a level gets the
+# fewer sessions it has to speak with.
+#
+# Narrowing alone was not enough either: it left one grid covering one level with the player's
+# other levels simply absent. The tasks played are a LevelPicker row, the same control typit's
+# Keys tab uses.
+#
+#   fields     the session metrics to sum, INCLUDING no_answer -- a round left unanswered is a
+#              round got wrong, so it belongs in the accuracy denominator
+#   cells_of   {Vector2i(col, row): count} for one task's totals
+#   right_of   how many of those were correct, i.e. the diagonal
+static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols: Array,
+		cells_of: Callable, right_of: Callable) -> Control:
+	var per: Dictionary = {}                # task_key -> {field: total, "n": sessions}
 	for rec: Dictionary in gu.read_sessions():
-		if rec.has("tp") or rec.has("fp") or rec.has("tn") or rec.has("fn"):
-			found = true
-			tp += int(rec.get("tp", 0))
-			fp += int(rec.get("fp", 0))
-			tn += int(rec.get("tn", 0))
-			fn += int(rec.get("fn", 0))
-	if not found or tp + fp + tn + fn == 0:
+		var any: bool = false
+		for f: String in fields:
+			if rec.has(f):
+				any = true
+				break
+		if not any:
+			continue
+		var k: String = str(rec.get("task_key", ""))
+		if not per.has(k):
+			var fresh: Dictionary = {"n": 0}
+			for f2: String in fields:
+				fresh[f2] = 0
+			per[k] = fresh
+		var e: Dictionary = per[k]
+		e["n"] = int(e["n"]) + 1
+		for f3: String in fields:
+			e[f3] = int(e[f3]) + int(rec.get(f3, 0))
+	for k: String in per.keys():
+		if _asked(per[k], fields) == 0:
+			per.erase(k)
+	if per.is_empty():
 		return null
+
+	var keys: Array = per.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool:
+		return _task_order(a) < _task_order(b))
+	var sel: int = 0
+	for i in keys.size():
+		if int(per[keys[i]]["n"]) > int(per[keys[sel]]["n"]):
+			sel = i                          # open on the one played most
+	var picked: Dictionary = _varying(keys)
+
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+
 	var m: MatrixControl = MatrixControl.new()
-	# Rows are what was true, columns what the player said, so the diagonal is "right".
-	m.set_matrix(["Was yes", "Was no"], ["Said yes", "Said no"], {
-		Vector2i(0, 0): tp, Vector2i(1, 0): fn,
-		Vector2i(0, 1): fp, Vector2i(1, 1): tn,
-	})
-	return m
+	# MatrixControl draws into whatever rect it is given and declares no minimum of its own, so
+	# without this it collapses to nothing inside a VBox and the panel comes up blank.
+	m.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var foot: Label = Label.new()
+	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	foot.add_theme_font_override("font", MainGlobals.get_system_sans_font())
+	foot.add_theme_font_size_override("font_size", LevelPicker.font_size())
+	foot.add_theme_color_override("font_color", LevelPicker.TITLE_FG)
+
+	var buttons: Array = []
+	var show: Callable = func(i: int) -> void:
+		var e2: Dictionary = per[keys[i]]
+		m.set_matrix(rows, cols, cells_of.call(e2))
+		var right: int = int(right_of.call(e2))
+		var asked: int = _asked(e2, fields)
+		# The number the grid is for. Reading it off the cells is arithmetic nobody should have
+		# to do to answer "how am I doing".
+		foot.text = "Accuracy %d%%, correct %d out of %d answers" % [
+			int(round(100.0 * float(right) / float(maxi(asked, 1)))), right, asked]
+		LevelPicker.select(buttons, i)
+
+	if keys.size() > 1:
+		var made: Dictionary = LevelPicker.build(str(picked["title"]) + ":",
+			(picked["labels"] as Array), show)
+		# APPENDED, never reassigned. A lambda captures the VALUE of a local, and for an Array
+		# that value is the reference -- so mutating it in place is visible inside `show`, while
+		# `buttons = made["buttons"]` left the closure holding the original empty array and no
+		# button was ever lit.
+		buttons.append_array(made["buttons"] as Array)
+		box.add_child(made["row"])
+	else:
+		# A single task is not a choice; say which one it is and leave it at that.
+		var made2: Dictionary = LevelPicker.build(task_label(keys[0]), [], show)
+		box.add_child(made2["row"])
+	box.add_child(m)
+	box.add_child(foot)
+	show.call(sel)
+	return box
+
+static func _asked(e: Dictionary, fields: Array) -> int:
+	var n: int = 0
+	for f: String in fields:
+		n += int(e.get(f, 0))
+	return n
+
+# The six yes/no games. Rows are what was true, columns what the player said, so the diagonal is
+# "right".
+static func _four_cells(gu: GenericGameUtil) -> Control:
+	return _answer_panel(gu, ["tp", "fp", "tn", "fn", "no_answer"],
+		["Was yes", "Was no"], ["Said yes", "Said no"],
+		func(e: Dictionary) -> Dictionary:
+			return {
+				Vector2i(0, 0): int(e["tp"]), Vector2i(1, 0): int(e["fn"]),
+				Vector2i(0, 1): int(e["fp"]), Vector2i(1, 1): int(e["tn"]),
+			},
+		func(e: Dictionary) -> int:
+			return int(e["tp"]) + int(e["tn"]))
+
+# A three-way choice, as nine counts written by GenericGameUtil.record_choice.
+static func _choice_cells(gu: GenericGameUtil, labels: Array) -> Control:
+	var n: int = labels.size()
+	var fields: Array = ["no_answer"]
+	for was in n:
+		for chose in n:
+			fields.append("c%d%d" % [was, chose])
+	var rows: Array = []
+	var cols: Array = []
+	for l: String in labels:
+		rows.append("Was " + l.to_lower())
+		cols.append("Chose " + l.to_lower())
+	return _answer_panel(gu, fields, rows, cols,
+		func(e: Dictionary) -> Dictionary:
+			var out: Dictionary = {}
+			for was in n:
+				for chose in n:
+					out[Vector2i(chose, was)] = int(e.get("c%d%d" % [was, chose], 0))
+			return out,
+		func(e: Dictionary) -> int:
+			var r: int = 0
+			for i in n:
+				r += int(e.get("c%d%d" % [i, i], 0))
+			return r)
+
+# What actually differs between the tasks played, so the picker can be one short button per value
+# instead of the whole signature repeated on each. dino's tasks are four fields wide and usually
+# only one of them moves; "Level 1 / Level 2" spelled out in full is the same problem smaller.
+static func _varying(keys: Array) -> Dictionary:
+	var fields: Dictionary = {}              # field -> {value: true}
+	var parsed: Dictionary = {}              # key -> {field: value}
+	for k: String in keys:
+		var d: Dictionary = {}
+		for pair: String in k.split("|"):
+			var kv: PackedStringArray = pair.split("=")
+			if kv.size() == 2:
+				d[kv[0]] = kv[1]
+				if not fields.has(kv[0]):
+					fields[kv[0]] = {}
+				(fields[kv[0]] as Dictionary)[kv[1]] = true
+		parsed[k] = d
+	var moving: Array = []
+	for f: String in fields.keys():
+		if (fields[f] as Dictionary).size() > 1:
+			moving.append(f)
+	moving.sort()
+	var labels: Array = []
+	for k: String in keys:
+		var parts: Array = []
+		for f: String in moving:
+			parts.append(str((parsed[k] as Dictionary).get(f, "?")))
+		labels.append(" · ".join(parts) if not parts.is_empty() else task_label(k))
+	var title: String = "Task"
+	if moving.size() == 1:
+		title = "Level" if moving[0] == "level" else str(METRIC_LABELS.get(moving[0], moving[0]))
+	return {"labels": labels, "title": title}
+
+# Sort key for a task, so the buttons read 1, 2, 3 rather than "level=1", "level=10", "level=2".
+static func _task_order(key: String) -> float:
+	for pair: String in key.split("|"):
+		var kv: PackedStringArray = pair.split("=")
+		if kv.size() == 2 and kv[1].is_valid_float():
+			return float(kv[1])
+	return INF
+
+# A task key ("level=3", "duration_min=5|mode=2") as something to put under a panel.
+static func task_label(key: String) -> String:
+	if key == "":
+		return "All sessions"
+	var parts: Array = []
+	for pair: String in key.split("|"):
+		var kv: PackedStringArray = pair.split("=")
+		if kv.size() != 2:
+			continue
+		parts.append("Level %s" % kv[1] if kv[0] == "level" else "%s %s" % [kv[0], kv[1]])
+	return " · ".join(parts) if not parts.is_empty() else key
 
 # A plain readout of the numbers this game keeps, for games with neither a bespoke panel nor a
 # yes/no question. Not a chart: these are counts, and a count is best simply stated.

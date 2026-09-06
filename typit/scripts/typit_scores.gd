@@ -264,46 +264,21 @@ func _side_margin() -> MarginContainer:
 	mc.add_theme_constant_override("margin_right", _side_pad)
 	return mc
 
-func _build_level_selector(page: VBoxContainer, fs: int) -> void:
+# The row of level buttons, from the shared LevelPicker so it and the yes/no games' confusion
+# matrix are one control rather than two that were drawn to look alike and then drifted.
+func _build_level_selector(page: VBoxContainer, _fs: int) -> void:
 	var margin: MarginContainer = _side_margin()
 	margin.add_theme_constant_override("margin_top", 4)
 	margin.add_theme_constant_override("margin_bottom", MainGlobals.ui_font_size(-6))
 	page.add_child(margin)
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	margin.add_child(row)
 
-	var lbl: Label = Label.new()
-	lbl.text = "Level:"
-	if _typit_font:
-		lbl.add_theme_font_override("font", _typit_font)
-	lbl.add_theme_font_size_override("font_size", fs)
-	lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(lbl)
-
+	var levels: Array = []
 	for lvl in range(1, TypitG.num_levels() + 1):
-		var btn: Button = Button.new()
-		btn.text = str(lvl)
-		btn.custom_minimum_size = Vector2(float(fs) * 2.4, float(fs) + 14.0)
-		if _typit_font:
-			btn.add_theme_font_override("font", _typit_font)
-		btn.add_theme_font_size_override("font_size", fs)
-		var active: bool = lvl == _view_level
-		var st: StyleBoxFlat = StyleBoxFlat.new()
-		st.bg_color = ORANGE if active else Color(0.16, 0.18, 0.26, 1.0)
-		st.corner_radius_top_left = 6
-		st.corner_radius_top_right = 6
-		st.corner_radius_bottom_left = 6
-		st.corner_radius_bottom_right = 6
-		btn.add_theme_stylebox_override("normal", st)
-		btn.add_theme_stylebox_override("hover", st)
-		btn.add_theme_stylebox_override("pressed", st)
-		btn.add_theme_color_override("font_color",
-			Color(0.10, 0.08, 0.0, 1.0) if active else Color(0.70, 0.78, 0.95, 0.85))
-		btn.pressed.connect(_on_level_selected.bind(lvl))
-		row.add_child(btn)
+		levels.append(str(lvl))
+	var made: Dictionary = LevelPicker.build("Level:", levels,
+		func(i: int) -> void: _on_level_selected(i + 1))
+	LevelPicker.select(made["buttons"], _view_level - 1)
+	margin.add_child(made["row"])
 
 func _on_level_selected(lvl: int) -> void:
 	if lvl == _view_level:

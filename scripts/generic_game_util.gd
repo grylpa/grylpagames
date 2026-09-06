@@ -826,6 +826,10 @@ var session_metrics: Dictionary = {}
 # A level number is only an index into an editable table — see SessionStats.task_key.
 var task_signature: Dictionary = {}
 
+# The signature the last built session record actually used, so the trial log filed alongside it
+# carries the same key. Both save paths build the record before calling save_trials().
+var _effective_task: Dictionary = {}
+
 # Wall-clock start of the session, for `session_ms`.
 var _session_started_ms: int = 0
 
@@ -850,6 +854,7 @@ func record_times(times_ms: Array, prefix: String = "rt") -> void:
 func clear_session_metrics() -> void:
 	session_metrics = {}
 	task_signature = {}
+	_effective_task = {}
 	_session_started_ms = 0
 
 # One yes/no answer, kept as FOUR counts rather than folded into a percentage.
@@ -863,6 +868,16 @@ func clear_session_metrics() -> void:
 # then shows a steady player while these four counts show what is actually happening.
 func record_answer(said_yes: bool, was_yes: bool) -> void:
 	var key: String = ("tp" if was_yes else "fp") if said_yes else ("fn" if was_yes else "tn")
+	session_metrics[key] = int(session_metrics.get(key, 0)) + 1
+
+# One answer from a THREE-way choice, as nine counts. `was` and `chose` are the same small
+# integers the game already uses for its options.
+#
+# The four-cell version above cannot express this: with three destinations "wrong" splits three
+# ways, not two, and which way it split is the whole reason to draw a matrix rather than state a
+# percentage. Bucket Madness is the case -- left bucket, dumpster, right bucket.
+func record_choice(was: int, chose: int) -> void:
+	var key: String = "c%d%d" % [was, chose]
 	session_metrics[key] = int(session_metrics.get(key, 0)) + 1
 
 # A trial the player never answered. Deliberately NOT one of the four cells: no answer was given,
@@ -942,7 +957,8 @@ func save_trials() -> void:
 	var blocks: Array = read_trial_blocks()
 	blocks.append({
 		"ts": int(Time.get_unix_time_from_system()),
-		"task_key": SessionStats.task_key(task_signature),
+		"task_key": SessionStats.task_key(
+			task_signature if not task_signature.is_empty() else _effective_task),
 		"trials": _trials.duplicate(),
 	})
 	while blocks.size() > KEEP_TRIAL_SESSIONS:
@@ -995,10 +1011,26 @@ func _build_session_record(score_array: Array) -> Dictionary:
 		else:
 			rec["col%d" % i] = score_array[i]
 	rec.merge(session_metrics, true)
-	if not task_signature.is_empty():
-		rec["task"] = task_signature.duplicate()
-		rec["task_key"] = SessionStats.task_key(task_signature)
+	_effective_task = _task_for(rec)
+	if not _effective_task.is_empty():
+		rec["task"] = _effective_task.duplicate()
+		rec["task_key"] = SessionStats.task_key(_effective_task)
 	return rec
+
+# What test this session was, so a screen can compare like with like.
+#
+# A game that declares its own signature keeps it -- the breathing games are a duration and a
+# pattern, not a level. Every other game falls back to its LEVEL, which is the setting that
+# changes the task. Without this fallback only seven games tagged anything at all and every
+# screen that filters by task silently pooled level 1 with level 8: `for_task` matches the empty
+# key against the empty key, so an untagged history is one undifferentiated bucket that looks
+# exactly like a correctly filtered one.
+func _task_for(rec: Dictionary) -> Dictionary:
+	if not task_signature.is_empty():
+		return task_signature.duplicate()
+	if rec.has("level"):
+		return {"level": int(rec["level"])}
+	return {}
 
 # All saved sessions as dictionaries, newest last. This is the API the new stats screens use.
 func read_sessions() -> Array:

@@ -718,6 +718,11 @@ func _evaluate_answer(bucket: int) -> void:
 
 	total_rounds += 1
 	rounds_done += 1
+	# Which destination was right against which was chosen, as a 3x3. A percentage cannot say
+	# whether the mistakes are matches sent to the dumpster, non-matches sent to a bucket, or
+	# one bucket taken for the other -- and the rules swap sides between sessions, so a lean to
+	# one side that survives pooling is positional rather than about a particular rule.
+	game.record_choice(correct_bucket, bucket)
 
 	if is_right:
 		total_corrects += 1
