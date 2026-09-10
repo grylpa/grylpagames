@@ -161,6 +161,11 @@ var _robots: RobotBay = null
 
 # Keeps each robot beside its belt. Done every frame from the belts' own rects because the layout
 # resizes with the window and the belt height is computed at runtime (_size_belts).
+# One robot per belt, so the line has to count them. It said "the robot" on a two-belt level,
+# where there are two of them working side by side.
+func _watching_text() -> String:
+	return "Watch the robots..." if num_belts > 1 else "Watch the robot..."
+
 func _position_robots() -> void:
 	if _robots == null or not is_instance_valid(_robots):
 		return
@@ -1000,6 +1005,18 @@ func _on_option_pressed(chosen_key: String, correct_key: String, vbox: VBoxConta
 	waiting_for_input = false
 	total_rounds += 1
 	var is_right: bool = chosen_key == correct_key
+	# The only three things in this game the PLAYER decides: which rule they named, whether it
+	# was right, and how long they took once every option was on screen. Everything before that
+	# — how many examples the robot showed, how fast the belt ran — is the level's, not theirs,
+	# so it is not measured as if it were. The rule key travels with the answer because the
+	# interesting question is which KINDS of rule are hard to see, not the overall percentage.
+	game.record_trial({
+		"rule": correct_key,
+		"rule_name": _rule_display(correct_key),
+		"chose": chosen_key,
+		"right": is_right,
+		"ms": int(game.game_time - _question_start_time),
+	})
 	if is_right:
 		total_corrects += 1
 		game.add_score_and_time(10, 0)
@@ -1035,6 +1052,19 @@ func _on_option_pressed(chosen_key: String, correct_key: String, vbox: VBoxConta
 #   3. any remaining modality, so num_options can exceed the pool size and still be safe
 # If too few candidates survive, FEWER options are shown. That is deliberate: a smaller honest
 # question beats a full-size one containing an unanswerable option.
+# A short NOUN for the stats screen. The option buttons ask a question ("Is it a digit?"), which
+# reads badly as a row heading, and even_odd's wording flips between "even" and "odd" from round
+# to round while the rule behind it is one thing. The name travels with the trial so the shared
+# stats code needs to know nothing about this game's vocabulary.
+const RULE_NAMES: Dictionary = {
+	"digit": "Digit", "square": "Square", "even_odd": "Even or odd", "vowel": "Vowel",
+	"prime": "Prime", "filled": "Filled shape", "hollow": "Hollow shape",
+	"stroop": "Color matches word", "color_shape": "Blue or red", "lines": "Straight lines",
+}
+
+func _rule_display(key: String) -> String:
+	return str(RULE_NAMES.get(key, key.capitalize()))
+
 func _build_options(correct_key: String, belt_idx: int) -> Array:
 	var correct_mod: Dictionary = _build_modality(correct_key)
 	var tried: Array = [correct_key]
@@ -1114,7 +1144,7 @@ func new_game(from_scratch: bool = true) -> void:
 	# hidden, not merely transparent: an alpha-0 Control still takes its height in the VBox, and
 	# this game does not use the label at all — its verdict is drawn on the item (_mark_item).
 	%FeedbackLabel.visible = false
-	%AvgTimeLabel.text = "Watch the robot..."
+	%AvgTimeLabel.text = _watching_text()
 	var right_side: Node = _containers()[1].get_parent().get_parent()
 	if right_side != null:
 		right_side.visible = num_belts == 2
@@ -1195,7 +1225,7 @@ func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
 # belt they're watching and just reads as noise mid-level. It is still tracked in
 # `times_to_answer` for the score row (POS_SCORE_MEAN_TIME_MS) and the level-end popup.
 func _update_avg_label() -> void:
-	%AvgTimeLabel.text = "Watch the robot..."
+	%AvgTimeLabel.text = _watching_text()
 
 func _level_done() -> void:
 	set_process(false)

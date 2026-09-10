@@ -29,6 +29,13 @@ const METRICS: Dictionary = {
 	# Crack the Safe counts nothing else. Without it that game had no metric any of these screens
 	# recognised, so its Summary rows were empty and its category could never contribute.
 	"cycles_opened": true,
+	# Whack times its taps under the `react` prefix rather than `rt`, because a reaction is not
+	# an answer. Nothing here knew those names, so the one game in the app that is purely about
+	# reaction time had NO rows at all and its category could never say anything about it.
+	"react_cv": false,
+	"react_mean": false,
+	# Gorilla's only measurement: how far out the gorilla count was. Lower is better.
+	"count_error": false,
 }
 
 # Sessions to draw in a row's sparkline.

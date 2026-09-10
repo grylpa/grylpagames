@@ -454,7 +454,27 @@ game's status line collided with the app's level string.
 
 ## What this game measures
 
-Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
-and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
+**This is a watched game, so most of what happens is not the player's.** The belt speed
+(`belt_spd`), how many examples the robot shows before asking (`min_examples`) and how long it
+takes over each one (`robot_answer_time`) are all set by the level. The player decides exactly
+three things:
 
-Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+1. which rule they name,
+2. whether that was right,
+3. how long they take **once every option is on screen** — `_question_start_time` is set at the
+   moment the options appear, so the watching phase is not in it.
+
+Those three go into one trial per question (`game.record_trial`), carrying the rule KEY and a
+short display name. `GameInstrument._rule_breakdown()` draws a row per kind of rule, hardest
+first: the overall percentage is the least interesting of the three, and a player who reads
+"is it prime?" off four examples but never spots the Stroop rule has a specific difficulty that
+one number for the session hides.
+
+**No "Consistency" row.** A level is 3–4 rounds, so a session yields 3–8 answers, and the spread
+of three numbers is noise. `GameInstrument.summary_rows_for()` drops `rt_cv` when the typical
+`rt_n` is below `SessionStats.MIN_TRIALS_FOR_TREND`. Accuracy over those same answers is kept —
+three out of three is a real three — so the gate is per METRIC, not per session.
+
+**Nothing measures "how many examples you needed".** It is fixed by `min_examples`; the player
+cannot ask to see more or answer early, so it says nothing about them.
+
