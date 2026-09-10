@@ -24,6 +24,7 @@ const CHART_GAMES: Dictionary = {
 	"dino": "Recall",
 	"weris": "Search",
 	"gorilla": "Counting",
+	"monkeyc": "Rules",
 }
 
 # Polka Dots has a view of its own too, but not a curve: it compares two CONDITIONS rather than
@@ -135,9 +136,34 @@ static func chart_for(folder: String) -> Control:
 #
 # Direction (which way is better) is NOT repeated here; it comes from StatsOverview.METRICS, so the
 # two screens cannot disagree about whether a rising line is good news.
+# WHERE A SPREAD OF ANSWER TIMES MEANS ANYTHING.
+#
+# The number is how much the answer times vary within a session. That is about the PLAYER only
+# where a round is the same job as the round before it: the occasional very slow answer is
+# attention going elsewhere, and it moves before the average does.
+#
+# Where each round is a different amount of work the number still moves, but it is measuring the
+# ROUNDS. In Change one board is four coins and the next is nine. In the planning and navigation
+# games a "round" is a whole level, so its length is the level's design. Those games keep Speed
+# and Accuracy, which survive uneven rounds, and lose the spread.
+const EVEN_ROUNDS: Array = [
+	# one quick judgement per item, repeated
+	"aliens", "sortingrobots", "bucketmadness", "whack", "ptbits",
+	# one flash, one answer
+	"didi", "ddooo", "pop", "ooo", "polkadots",
+	# one card, one answer
+	"dino", "dinoback", "movingcards", "couples", "friends", "weris",
+]
+
 const SUMMARY_ROWS: Dictionary = {
-	"rt_cv": "Consistency",
-	"rt_mean": "Speed",
+	# NAMED SO IT EXPLAINS ITSELF. "Consistency" said nothing about what was consistent or which
+	# way was good, and the same idea was already written properly one screen away, in
+	# METRIC_LABELS: "Steadiness (spread of answer time, ms)". Two names for one number, with the
+	# opaque one in the more prominent place.
+	"rt_cv": "Steadiness (how even your answer times are)",
+	"react_cv": "Steadiness (how even your answer times are)",
+	"rt_mean": "Speed (typical answer time)",
+	"react_mean": "Speed (typical answer time)",
 	"pct_correct": "Accuracy",
 	"missed_breaths": "Rhythm",
 	"missed_cycles": "Rhythm",
@@ -145,10 +171,38 @@ const SUMMARY_ROWS: Dictionary = {
 	"speed_cpm": "Typing speed",
 	"mistake_rate": "Mistakes",
 	"cycles_opened": "Safe turns",
+	# Gorilla stores neither an answer time nor a percentage — its whole measurement is how far
+	# out the count was. Without this it had NO rows and contributed nothing to its category.
+	"count_error": "Counting (how far out you were)",
 }
 
 # Sessions drawn in a Summary row's sparkline.
 const SUMMARY_SPARK_LEN: int = 12
+
+# How many timed answers a session of this game typically has. Zero when it never recorded one,
+# which reads as "not enough" and is the right answer for a game with no timed answers at all.
+# Fills pct_correct in from tp/tn/fp/fn/no_answer where the game recorded cells rather than a
+# percentage, and reports whether it could. An unanswered round counts as wrong.
+static func _derive_pct_correct(sessions: Array) -> bool:
+	var any: bool = false
+	for rec: Dictionary in sessions:
+		if rec.has("pct_correct") or not (rec.has("tp") or rec.has("tn")):
+			continue
+		var right: int = int(rec.get("tp", 0)) + int(rec.get("tn", 0))
+		var asked: int = right + int(rec.get("fp", 0)) + int(rec.get("fn", 0)) \
+			+ int(rec.get("no_answer", 0))
+		if asked <= 0:
+			continue
+		rec["pct_correct"] = int(round(100.0 * float(right) / float(asked)))
+		any = true
+	return any
+
+static func _typical_n(sessions: Array, key: String) -> float:
+	var ns: Array = []
+	for rec: Dictionary in sessions:
+		if rec.has(key):
+			ns.append(float(rec[key]))
+	return SessionStats.median(ns) if not ns.is_empty() else 0.0
 
 # This game's own rows, or null when it has recorded nothing that can fill one.
 static func summary_rows_for(folder: String) -> Control:
@@ -176,8 +230,33 @@ static func summary_rows_for(folder: String) -> Control:
 			if rec.has(metric):
 				seen = true
 				break
+		# Accuracy can be DERIVED where a game keeps the four cells instead of a percentage.
+		# Whack does — it is the one game whose rounds are "tap or hold back" — so it showed
+		# Speed and Steadiness and no Accuracy, which is the number it is most about.
+		if not seen and metric == "pct_correct":
+			seen = _derive_pct_correct(sessions)
 		if not seen:
 			continue
+		# A SPREAD needs samples. "Consistency" is rt_cv, the variability of the answer times
+		# within a session -- and Apprentice asks three questions a session, so it was a standard
+		# deviation over three numbers presented as a finding.
+		#
+		# SessionStats.MIN_TRIALS_FOR_TREND exists for exactly this and StatsBaseline.for_task()
+		# enforces it, but reads `n_trials` with a default of "enough" and almost no game writes
+		# one -- so the guard has been inert everywhere except the yes/no games. Gated here per
+		# METRIC rather than per session, because a session too short for a spread can still be
+		# perfectly good for accuracy: three answers out of three is a real three answers.
+		# A SPREAD needs both comparable rounds and enough of them. Apprentice asks three
+		# questions a session, so its row was a standard deviation over three numbers; Change
+		# has more, but each board is a different amount of arithmetic, so the spread is about
+		# the boards. Gated per METRIC rather than per session: a session too short for a spread
+		# can still be perfectly good for accuracy — three answers out of three is a real three.
+		if metric.ends_with("_cv"):
+			if not EVEN_ROUNDS.has(folder):
+				continue
+			if _typical_n(sessions, metric.trim_suffix("_cv") + "_n") \
+					< SessionStats.MIN_TRIALS_FOR_TREND:
+				continue
 		# ONE ROW PER NAME. missed_breaths and missed_cycles are both "Rhythm" -- different games
 		# count a different thing and only one of them is ever real for a given game -- so a record
 		# carrying both (a game that changed its columns, or seeded data) drew the row twice.
@@ -343,6 +422,8 @@ static func _body_for(folder: String) -> Control:
 			panel = _visibility_split(trials)
 		"gorilla":
 			panel = _count_load(trials)
+		"monkeyc":
+			panel = _rule_breakdown(trials)
 	if panel != null:
 		return panel
 	# Enough sessions, but not yet the right SPREAD of them. Say which, in the game's own terms.
@@ -592,6 +673,62 @@ static func _captioned(body: Control, text: String) -> Control:
 	box.add_child(body)
 	return box
 
+# APPRENTICE — accuracy per KIND of rule.
+#
+# This game is watched, not played: the belt speed, how many examples the robot shows and how
+# long it takes are all the level's. The player decides exactly three things — which rule they
+# name, whether it is right, and how long they take once every option is on screen — so those
+# are what is measured, and nothing else is dressed up as if it were theirs.
+#
+# The overall percentage is the least interesting of the three. Which KINDS of rule go unseen is
+# the finding: someone who reads "is it prime?" off four examples but never spots the Stroop rule
+# has a specific difficulty, and one number for the session hides it. Worst first, because the
+# rule you cannot see is the reason to open this panel.
+static func _rule_breakdown(trials: Array, caption: String = "") -> Control:
+	var per: Dictionary = {}
+	for t in trials:
+		if not (t is Dictionary) or not (t as Dictionary).has("right"):
+			continue
+		var d: Dictionary = t as Dictionary
+		var nm: String = str(d.get("rule_name", d.get("rule", "")))
+		if nm == "":
+			continue
+		if not per.has(nm):
+			per[nm] = {"n": 0, "right": 0, "ms": []}
+		var e: Dictionary = per[nm]
+		e["n"] = int(e["n"]) + 1
+		if bool(d.get("right", false)):
+			e["right"] = int(e["right"]) + 1
+		if int(d.get("ms", 0)) > 0:
+			(e["ms"] as Array).append(float(d["ms"]))
+	if per.is_empty():
+		return null
+
+	var names: Array = per.keys()
+	names.sort_custom(func(a: String, b: String) -> bool:
+		var pa: float = float(per[a]["right"]) / float(maxi(1, int(per[a]["n"])))
+		var pb: float = float(per[b]["right"]) / float(maxi(1, int(per[b]["n"])))
+		if is_equal_approx(pa, pb):
+			return int(per[a]["n"]) > int(per[b]["n"])
+		return pa < pb)
+
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	var asked: int = 0
+	var right: int = 0
+	for nm2: String in names:
+		var e2: Dictionary = per[nm2]
+		asked += int(e2["n"])
+		right += int(e2["right"])
+		box.add_child(_accuracy_row(nm2, int(e2["right"]), int(e2["n"]),
+			SessionStats.median(e2["ms"] as Array)))
+	var cap: String = caption
+	if cap == "":
+		cap = ("Accuracy %d%%, correct %d out of %d rules named. Hardest first; the time is "
+			% [int(round(100.0 * float(right) / float(maxi(asked, 1)))), right, asked]
+			+ "from the options appearing to your answer.")
+	return _captioned(box, cap)
+
 # GORILLA — count error against how many actually went past, which shows whether accuracy falls
 # away as the load grows.
 static func _count_load(trials: Array) -> Control:
@@ -683,9 +820,22 @@ static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols:
 	foot.add_theme_font_size_override("font_size", LevelPicker.font_size())
 	foot.add_theme_color_override("font_color", LevelPicker.TITLE_FG)
 
+	# Under the grid: the same answers broken down by KIND OF RULE, where the game records one.
+	# Both sorting games draw their rules from a pool at random, so the grid says which mistake
+	# was made and this says on which rules -- neither is the other's answer.
+	var extra: VBoxContainer = VBoxContainer.new()
+	extra.add_theme_constant_override("separation", 8)
+
 	var buttons: Array = []
 	var show: Callable = func(i: int) -> void:
 		var e2: Dictionary = per[keys[i]]
+		for c: Node in extra.get_children():
+			extra.remove_child(c)
+			c.queue_free()
+		var by_rule: Control = _rules_for_task(gu, keys[i])
+		if by_rule != null:
+			extra.add_child(_rule())
+			extra.add_child(by_rule)
 		m.set_matrix(rows, cols, cells_of.call(e2))
 		var right: int = int(right_of.call(e2))
 		var asked: int = _asked(e2, fields)
@@ -710,8 +860,31 @@ static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols:
 		box.add_child(made2["row"])
 	box.add_child(m)
 	box.add_child(foot)
+	box.add_child(extra)
 	show.call(sel)
-	return box
+	# The grid alone fits its pane; the grid plus a row per rule does not, and a panel that is
+	# simply cut off at the bottom looks like a bug rather than like more to read.
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	m.custom_minimum_size = Vector2(0, MainGlobals.ui_font_size(150))
+	scroll.add_child(box)
+	return scroll
+
+# This task's trials, grouped by rule. Null where the game records none.
+static func _rules_for_task(gu: GenericGameUtil, task_key: String) -> Control:
+	var trials: Array = []
+	for b: Dictionary in gu.read_trial_blocks():
+		if str(b.get("task_key", "")) != task_key:
+			continue
+		for t in b.get("trials", []):
+			if t is Dictionary and (t as Dictionary).has("rule_name"):
+				trials.append(t)
+	if trials.is_empty():
+		return null
+	return _rule_breakdown(trials, "And by the kind of rule, hardest first:")
 
 static func _asked(e: Dictionary, fields: Array) -> int:
 	var n: int = 0

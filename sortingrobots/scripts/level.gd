@@ -855,6 +855,19 @@ func _find_rule_pair(pool: Array, avoid_last: bool) -> Array:
 			return [pool[i], pool[j]]
 	return []
 
+# A short NOUN for the stats screen. The option/rule labels are questions ("Is it a digit?"),
+# which read badly as a row heading, and even_odd's wording flips between "even" and "odd" while
+# the rule behind it is one thing. The name travels with the trial so the shared stats code needs
+# to know nothing about this game's vocabulary.
+const RULE_NAMES: Dictionary = {
+	"digit": "Digit", "square": "Square", "even_odd": "Even or odd", "vowel": "Vowel",
+	"prime": "Prime", "filled": "Filled shape", "hollow": "Hollow shape",
+	"stroop": "Color matches word", "color_shape": "Blue or red", "lines": "Straight lines",
+}
+
+func _rule_display(key: String) -> String:
+	return str(RULE_NAMES.get(key, key.capitalize()))
+
 func _evaluate_answer(user_picks_up: bool) -> void:
 	if not window_open or _showing_feedback or game.paused() or game.level_is_done:
 		return
@@ -868,6 +881,20 @@ func _evaluate_answer(user_picks_up: bool) -> void:
 	# "Pick it up" is the yes. window_target_truth is whether the item really matched its belt's
 	# rule, so the two together give the four counts rather than a bare right/wrong.
 	game.record_answer(user_picks_up, window_target_truth)
+	# WHICH RULE, and whether its label was still up. Both belts draw from a pool at random, so
+	# one percentage for the session cannot say that the player reads "is it prime?" easily and
+	# never sees the Stroop rule -- and the whole difficulty curve here is the labels going away,
+	# which the same percentage also hides.
+	var _rk: String = str(current_pair[window_belt].get("key", "")) if window_belt >= 0 \
+		and window_belt < current_pair.size() else ""
+	if _rk != "":
+		game.record_trial({
+			"rule": _rk,
+			"rule_name": _rule_display(_rk),
+			"right": user_picks_up == window_target_truth,
+			"hidden": labels_hidden,
+			"ms": int(game.game_time - round_start_ms),
+		})
 	_mark_item(user_picks_up == window_target_truth)
 	# correct pick-up → a robot claw yanks the item off the nearest side (left belt→left, right→right)
 	if user_picks_up and user_picks_up == window_target_truth \

@@ -123,10 +123,38 @@ static func card_style(radius: int = 24) -> StyleBoxFlat:
 # better, whatever direction the underlying metric runs in. That is what lets one fixed scale serve
 # every row, and it is why the band is the same height in all of them.
 static func stats_row_cells(row_name: String, values: Array, state: int) -> Array:
+	# "Name (what it is)" becomes two lines: the name stays scannable at full size and the
+	# explanation sits under it, quieter and smaller. A row label has to explain itself — a bare
+	# "Consistency" told a player neither what was consistent nor which way was good — but as one
+	# long wrapped string it pushed the grid wider than the window.
+	var name_cell: VBoxContainer = VBoxContainer.new()
+	name_cell.add_theme_constant_override("separation", 0)
+	name_cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	var head: String = row_name
+	var note: String = ""
+	var open_at: int = row_name.find(" (")
+	if open_at > 0 and row_name.ends_with(")"):
+		head = row_name.substr(0, open_at)
+		note = row_name.substr(open_at + 2, row_name.length() - open_at - 3)
+
 	var name_lbl: Label = Label.new()
-	name_lbl.text = row_name
+	name_lbl.text = head
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
 	MainGlobals.set_font_size(name_lbl, 15)
+	name_cell.add_child(name_lbl)
+	if note != "":
+		var note_lbl: Label = Label.new()
+		note_lbl.text = note
+		note_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		note_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		note_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+		MainGlobals.set_font_size(note_lbl, 11)
+		note_lbl.add_theme_color_override("font_color", Color(0.72, 0.74, 0.78, 1.0))
+		name_cell.add_child(note_lbl)
 
 	var spark: Sparkline = Sparkline.new()
 	# Width fixed; the HEIGHT is a minimum the caller may raise once it knows its own size, so
@@ -157,7 +185,7 @@ static func stats_row_cells(row_name: String, values: Array, state: int) -> Arra
 		_:
 			state_lbl.text = "not yet"
 			state_lbl.add_theme_color_override("font_color", STATS_QUIET)
-	return [name_lbl, spark, state_lbl]
+	return [name_cell, spark, state_lbl]
 
 
 static func style_title(label: Label, accent: Color) -> void:

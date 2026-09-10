@@ -703,6 +703,19 @@ func _on_fall_reached_bottom() -> void:
 	if not item_answered:
 		_evaluate_answer(1)  # timeout → dumpster (center)
 
+# A short NOUN for the stats screen. The rule labels are questions ("Is it a digit?"), which
+# read badly as a row heading, and even_odd's wording flips between "even" and "odd" while the
+# rule behind it is one thing. The name travels with the trial so the shared stats code needs to
+# know nothing about this game's vocabulary.
+const RULE_NAMES: Dictionary = {
+	"digit": "Digit", "square": "Square", "even_odd": "Even or odd", "vowel": "Vowel",
+	"prime": "Prime", "filled": "Filled shape", "hollow": "Hollow shape",
+	"stroop": "Color matches word", "color_shape": "Blue or red", "lines": "Straight lines",
+}
+
+func _rule_display(key: String) -> String:
+	return str(RULE_NAMES.get(key, key.capitalize()))
+
 func _evaluate_answer(bucket: int) -> void:
 	if not waiting_for_input or game.level_is_done or item_answered:
 		return
@@ -723,6 +736,20 @@ func _evaluate_answer(bucket: int) -> void:
 	# one bucket taken for the other -- and the rules swap sides between sessions, so a lean to
 	# one side that survives pooling is positional rather than about a particular rule.
 	game.record_choice(correct_bucket, bucket)
+	# WHICH RULE, and whether its label was still up. The two rules are drawn from a pool at
+	# random, so one percentage for the session cannot say which kinds the player reads easily
+	# and which go unseen. An item matching NEITHER rule belongs to no rule, so it is filed under
+	# the dumpster rather than credited to one of them.
+	var _rk: String = ""
+	if active_category < 2 and active_category < current_pair.size():
+		_rk = str(current_pair[active_category].get("key", ""))
+	game.record_trial({
+		"rule": _rk if _rk != "" else "dumpster",
+		"rule_name": _rule_display(_rk) if _rk != "" else "Matched neither",
+		"right": is_right,
+		"hidden": labels_hidden,
+		"ms": elapsed,
+	})
 
 	if is_right:
 		total_corrects += 1

@@ -39,6 +39,7 @@ func _ready() -> void:
 	game.set_instructions("Apprentice",
 		"Watch the robot sort items on the belt.\n" +
 		"The robot always follows a hidden rule.\n" +
+		"Later levels run two belts, each with its own robot and its own rule.\n" +
 		"After several rounds, guess the rule!\n" +
 		"Pick the correct answer from the options.", 30)
 	if not game.shown_instructions:
