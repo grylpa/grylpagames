@@ -549,6 +549,54 @@ heading, which is all `set_rots()` ever read.
 **parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
 so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
 
+## The tutorial button, and the spotlight
+
+This game passes `$Level` to `game.handle_event(event, parent)`, and the instructions screen used
+to test THAT node for `start_tutorial()` — so the "Interactive tutorial" button never appeared
+here, nor in Lights Out, Mind Palace, Storm or Wolves, which pass the same thing. The offer walks
+up to the main scene now; see the note in the root `CLAUDE.md`.
+
+**The spotlights are measured, not authored.** `spot_radius` is a number of SCREEN units, and
+everything in this game is drawn through a camera that zooms
+(`create_camera(min(2.0, 1.0 / board_part_of_width))`) — so no literal can be right: the same 70
+is snug at one zoom and a halo the size of the wall at another. Every frame in this tutorial was
+too big for that reason, and tuning the numbers one at a time only moved the problem.
+
+`spot` also accepts a Callable returning a Rect2, which `_rect_for()` hands straight back, so
+`_tight()` builds the rect from the node's own sprites put through the same canvas transform the
+player sees. The zoom cancels out and the authored radii are gone, so there is no dead number
+left to tune. The spots came out 46x46 screen units against the 140x140 a radius of 70 produced.
+
+`_visual_half()` cannot just read a node's size, because the player is an Area2D whose picture
+lives in a child. It tries three things in order, and each was added because the one before it
+left a step with **no frame at all** — which looks exactly like a step that was never written:
+
+1. **The node's own `visual_half()`**, if it has one. The peripheral gorilla is a bare Node2D that
+   DRAWS ITSELF: no sprite child exists to measure, so nothing else in this list can see it, and
+   the "second job" step showed a bare screen. `peripheral_gorilla.gd` now answers for its own
+   extent (`Vector2(body_height * 0.62, body_height * 0.55)`, from the shape it draws). Any
+   self-drawing node a spotlight points at has to do the same.
+2. **`_sprite_half(n)` on the node ITSELF** — not only its children, so a Sprite2D handed over
+   directly (the super-food's `PipeCoin1`) is measurable.
+3. **Its children**, for the player and the monsters.
+
+Sprite2D and AnimatedSprite2D get DIFFERENT questions: only the first has `get_rect()`, and
+asking both the same one is what made every spot silently fall back to nothing on the first
+attempt.
+
+The **Super-foods** step had a different fault with the same symptom — it carried no `spot` key
+whatsoever. `superfood_spot` scans `level.board` for the first pipe with `has_coin == 1000` and
+points at its sprite.
+
+Because the failure is invisible, `probe_gorilla` now asserts that **every** step carrying a
+`spot` resolves to a Rect2, and spawns a gorilla first (`tutorial_spawn_gorilla`) so the
+peripheral spot has something real to measure instead of passing vacuously. Checking "at least
+two resolved" is what let two broken frames ship.
+
+Sixteen games' tutorials still use authored `spot_radius` values, and eleven of them also zoom or
+pan a camera, so the same mismatch is latent there. Left alone deliberately: nobody has reported
+them, and `_tight()` is here to be copied when someone does.
+
 ## Hunger: the centre task is mandatory
 
 The point of this game is what you notice at the EDGE of your attention while your hands are

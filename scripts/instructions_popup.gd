@@ -253,13 +253,20 @@ func _min_w(b: Button) -> float:
 # play" picker is gone: a game with a tutorial teaches itself on the first run, and after that the
 # offer belongs next to the text it replaces.
 #
-# `host` is the game's main scene. Whether it HAS a tutorial is read off the scene — if its main.gd
-# defines start_tutorial(), it has one — the same test main_menu.gd uses, so no game opts in and a
-# game that gains a tutorial later gets the button for free.
+# `host` is meant to be the game's main scene. Whether it HAS a tutorial is read off the scene — if
+# its main.gd defines start_tutorial(), it has one — the same test main_menu.gd uses, so no game
+# opts in and a game that gains a tutorial later gets the button for free.
+#
+# WALKED UP, not trusted. The on-demand route here is `handle_event(event, parent)` and the node a
+# game passes there is its own business: five of them pass `$Level`, and for those the test failed
+# on a node that was never going to have the method, so Gorilla, Lights Out, Mind Palace, Storm
+# and Wolves all silently lost the button. Whose node it is does not matter as long as the game's
+# main scene is somewhere above it.
 func offer_tutorial(host: Node, game_util) -> void:
-	if host == null or not host.has_method("start_tutorial"):
+	var owner_node: Node = _tutorial_owner(host)
+	if owner_node == null:
 		return
-	_tutorial_host = host
+	_tutorial_host = owner_node
 	_tutorial_game = game_util
 	_tut_btn = Button.new()
 	_tut_btn.text = "Interactive tutorial"
@@ -294,6 +301,17 @@ func add_close_button() -> void:
 	_style_footer_button(_close_btn)
 	_footer_row().add_child(_close_btn)
 	_layout_footer()
+
+# The nearest node at or above `n` that defines start_tutorial(), or null.
+func _tutorial_owner(n: Node) -> Node:
+	var at: Node = n
+	var guard: int = 0
+	while at != null and is_instance_valid(at) and guard < 8:
+		if at.has_method("start_tutorial"):
+			return at
+		at = at.get_parent()
+		guard += 1
+	return null
 
 func _on_tutorial_pressed() -> void:
 	var host: Node = _tutorial_host

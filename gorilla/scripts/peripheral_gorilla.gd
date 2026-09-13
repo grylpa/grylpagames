@@ -74,6 +74,12 @@ func _process(delta: float) -> void:
 		exited_screen.emit()
 		queue_free()
 
+# Half its own drawn extent, for the tutorial spotlight. This node has no sprite to measure —
+# every part of it is drawn from `body_height` — so it has to answer for itself. Slightly wider
+# than tall, which is what a gorilla on all fours is.
+func visual_half() -> Vector2:
+	return Vector2(body_height * 0.62, body_height * 0.55)
+
 func _draw() -> void:
 	var u: float = body_height
 	var ground: float = 0.48 * u
