@@ -422,3 +422,20 @@ Response times are handed to the shared session record as a whole distribution, 
 Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
 
 Picking up is the yes and `window_target_truth` the truth. Timeouts are recorded separately in `_score_answer()`.
+
+**Which RULE each judgement was against, and whether its label was still up.**
+`_evaluate_answer()` calls `game.record_trial({rule, rule_name, right, hidden, ms})` beside the
+four counts. Both belts draw from a pool at random (`_pick_pair_from_pool`), so one percentage
+for the session cannot say that the player reads "is it prime?" easily and never sees the Stroop
+rule — and the difficulty curve here IS the labels going away, which the same percentage also
+hides. `GameInstrument._rule_breakdown()` draws a row per kind of rule under the 2x2, hardest
+first, for the level the picker is on.
+
+`RULE_NAMES` is a short noun per key, kept here rather than in the shared stats code: the rule
+labels are questions ("Is it a digit?"), which read badly as a row heading, and even_odd's
+wording flips between "even" and "odd" while the rule behind it is one thing. The name travels
+with the trial, so `scripts/game_instrument.gd` needs to know nothing about this game's
+vocabulary.
+
+`hidden` is recorded but nothing draws it yet — the "accuracy before the labels fade, against
+after" split is one panel away, and the data is accumulating for it now.
