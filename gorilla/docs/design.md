@@ -559,3 +559,8 @@ Each answer logs the true count and the signed error, so the Counting panel can 
 The full dual-task cost is NOT implemented: it needs occasional rounds with no counting to subtract against, which changes how the game plays and is left as its own decision.
 
 The Counting tab is always present. It needs 3 sessions and answers at two or more gorilla counts, 4+ each.
+
+**`count_error` is its only Summary row**, and for a while it had none: this game stores neither
+an answer time nor a percentage, and `StatsOverview.METRICS` knew only the metrics other games
+keep — so Gorilla contributed nothing at all to Attention & Speed in "Your progress". The metric
+is registered now as "Counting (how far out you were)", lower being better.

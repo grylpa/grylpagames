@@ -589,3 +589,16 @@ does mean a single session's grid confounds the two, since within one session th
 still.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+**Which RULE each item was against, alongside the 3x3.** `_evaluate_answer()` also calls
+`game.record_trial({rule, rule_name, right, hidden, ms})`. The two rules are drawn from a pool
+at random, so the grid says which KIND of mistake was made and the rule rows under it say ON
+WHICH RULES — neither answers the other's question. An item matching NEITHER rule belongs to no
+rule, so it is filed under "Matched neither" rather than credited to one of them.
+
+`RULE_NAMES` is this game's own short noun per key, for the same reason as sortingrobots': the
+rule labels are questions, and the name has to travel with the trial so the shared stats code
+stays ignorant of this game's vocabulary.
+
+`hidden` is recorded but nothing draws it yet — "accuracy before the rules are hidden, against
+after" is one panel away.

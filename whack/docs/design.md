@@ -656,3 +656,17 @@ Response times are handed to the shared session record as a whole distribution, 
 Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
 
 All four outcomes map exactly: a real target tapped, a decoy tapped, a real target left to expire, and a decoy-only round survived by touching nothing. That makes the decoys a measure of holding back, which a mean reaction time cannot show.
+
+**Its times are under the `react` prefix, not `rt`** — a reaction is not an answer — and for a
+while nothing in the stats screens knew those names, so the one game in the app that is purely
+about reaction time had NO Summary rows at all and its category could never hear from it.
+`StatsOverview.METRICS` and `GameInstrument.SUMMARY_ROWS` carry `react_cv` and `react_mean` now.
+
+**Accuracy is DERIVED here.** This game keeps the four counts and no `pct_correct`, so
+`GameInstrument._derive_pct_correct()` fills it in from tp/tn/fp/fn with `no_answer` in the
+denominator. Without that it showed Speed and Steadiness and no Accuracy, which is the number it
+is most about.
+
+Note the one case where not answering is CORRECT: a round with no real target where the player
+held back is `record_answer(false, false)` — a true negative — not a missing answer. The two
+falses mean different things, and this game never calls `record_no_answer()`.
