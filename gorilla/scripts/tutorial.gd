@@ -67,8 +67,8 @@ static func steps(level: Node, _game) -> Array:
 			"spot_radius": 95.0,
 		},
 		{
-			"title": "The marked coin",
-			"text": "The marked coin makes you dangerous for a few seconds — monsters run from you.\n\nIt still has to go: the room is not clear until you have taken it too.",
+			"title": "Super-foods",
+			"text": "A super-food makes you dangerous for a few seconds — monsters run from you.\n\nThere are a few of them. Eat them too: the room is not clear while any is left.",
 		},
 		{
 			"title": "Keep eating",

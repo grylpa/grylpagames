@@ -614,11 +614,18 @@ break it.
 is what keeps the outline an even width at any radius. The stalk and leaf are laid down with the
 dark rim behind them first, so the outline wraps the whole silhouette and not just the body.
 
-**The power piece keeps its own texture.** `coin-orange-w-power.png` at 1.5x with the pulse tween,
-as it always was. It was never a big coin and it must not become a big piece of food either: size
-says "more of the same", and this one does something different. What size cannot say — that it
-still counts toward clearing the room, so the round will not end while it is there — the
-instructions and the tutorial say in words. A player who took it for scenery cleared every
+**THE SUPER-FOODS keep their own texture.** `coin-orange-w-power.png` at 1.5x with the pulse tween,
+as it always was. They were never big coins and must not become big apples either: size
+says "more of the same", and this one does something different. What size cannot say — that they still have to be
+eaten before the room is clear, so the round will not end while one is left — the instructions
+and the tutorial say in words.
+
+They are never called coins to the player, in either of them. They are FOOD: eating one resets
+the hunger clock through the same branch as any apple, so the word has to match the rule.
+"Super-food" because it is a term people already know; "pill" was avoided on purpose, since this
+app keeps clear of medical framing everywhere else and there is nothing to gain by inviting it
+here. PLURAL throughout: `level_config` gives every level `"powers": 3`, so a player never meets
+just one. A player who took it for scenery cleared every
 ordinary piece, stood about waiting for the count question, and starved, which is the likeliest
 explanation for the one starving report the wormhole fix does not cover.
 
