@@ -35,8 +35,8 @@ func _ready() -> void:
 
 	game.set_instructions("Gorilla",
 		"Eat all the apples while monsters chase you!\n" +
-		"The marked coin counts too — the room is not\n" +
-		"clear until it is gone as well.\n\n" +
+		"The super-foods count too — the room is not\n" +
+		"clear until you have eaten them as well.\n\n" +
 		"Keep eating — go too long without an apple\n" +
 		"and you starve. The ring around you\n" +
 		"shows how long you have.\n\n" +

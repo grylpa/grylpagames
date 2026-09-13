@@ -104,7 +104,7 @@ func can_fill():
 var _pulse_tween = null
 var _deactivated_sprite = null
 
-# The ordinary pieces are DRAWN (see scripts/food_bit.gd); the power piece and the wormhole keep
+# The apples are DRAWN (see scripts/food_bit.gd); the super-foods and the wormhole keep
 # their textures, because one is a sparkling special and the other is not food at all.
 var _food: FoodBit = null
 
@@ -124,10 +124,10 @@ func set_coin():
 	else:
 		var coin_text = str(has_coin)
 		if has_coin == 1000:
-			# The power piece keeps its OWN texture, marked with the power bolt. It was never a
-			# big coin and it must not become a big piece of food either: size says "more of
-			# the same", and this one does something different. The tutorial carries the part
-			# size cannot say — that it still counts toward clearing the room.
+			# THE SUPER-FOODS keep their own texture, marked with the power bolt. It was never a
+			# big coin and it must not become a big apple either: size says "more of the same",
+			# and this one does something different. The tutorial carries the part size cannot
+			# say — that it still has to be eaten before the room is clear.
 			if _food != null and is_instance_valid(_food):
 				_food.hide()
 			coin.texture = power_coin_texture
