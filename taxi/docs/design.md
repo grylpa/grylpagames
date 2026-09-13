@@ -149,3 +149,7 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Jobs assigned against jobs cancelled. Cancelling an assigned taxi that has not picked anyone up is the clearest available trace of a plan the player had to undo.
+
+**Its counts are now metrics.** `jobs_cancelled` is registered in `StatsOverview.METRICS` as a plan revised after it was made, lower being better. Before that this game recorded two counts that nothing could read, and had no Summary rows.
+
+A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.

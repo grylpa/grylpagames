@@ -17,6 +17,18 @@ class PowerRing extends Node2D:
 	const FULL: Color = Color(0.35, 0.95, 0.40)
 	const HALF: Color = Color(1.00, 0.78, 0.15)
 	const LOW: Color = Color(1.00, 0.32, 0.20)
+	# ONE RING, TWO CLOCKS. Power and hunger never run at once -- eating a power coin stops the
+	# hunger clock -- so they share the contour rather than fighting over the body. A wedge drawn
+	# inside the gorilla was the first attempt and it was two gauges on one small sprite; this is
+	# one gauge that always means the same thing, "time left on whatever is running".
+	#
+	# Hunger starts COOL rather than green, so a glance still says which clock it is, and both end
+	# red because both mean the same thing at the end: it is about to run out.
+	const HUNGER_FULL: Color = Color(0.45, 0.72, 1.00)
+	const HUNGER_HALF: Color = Color(0.85, 0.80, 0.35)
+	var hunger_mode: bool = false
+	# Driven by the player for the last moments of the hunger clock only.
+	var alpha: float = 1.0
 
 	func _draw() -> void:
 		if progress <= 0.0:
@@ -25,8 +37,11 @@ class PowerRing extends Node2D:
 		# hundredths of a screen unit. (Witness's direction dots were a 12-gon for exactly the
 		# reason that number has to be checked against the ZOOMED size, not the authored one.)
 		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.0, 0.0, 0.0, 0.30), width + 1.5)
-		var col: Color = HALF.lerp(LOW, 1.0 - progress / 0.5) if progress < 0.5 \
-			else FULL.lerp(HALF, 1.0 - (progress - 0.5) / 0.5)
+		var hi: Color = HUNGER_FULL if hunger_mode else FULL
+		var mid: Color = HUNGER_HALF if hunger_mode else HALF
+		var col: Color = mid.lerp(LOW, 1.0 - progress / 0.5) if progress < 0.5 \
+			else hi.lerp(mid, 1.0 - (progress - 0.5) / 0.5)
+		col.a *= alpha
 		draw_arc(Vector2.ZERO, radius, -PI * 0.5, -PI * 0.5 + progress * TAU, 64, col, width)
 
 
@@ -124,20 +139,27 @@ const RING_RADIUS: float = 16.0
 
 var _power_phase: float = 0.0
 var _power_ring: PowerRing = null
+var _hunger_phase: float = 0.0
+
+func _ensure_ring() -> void:
+	if _power_ring != null and is_instance_valid(_power_ring):
+		return
+	_power_ring = PowerRing.new()
+	_power_ring.radius = RING_RADIUS
+	_power_ring.width = 2.5
+	# Behind the head, which is at the player's own z_index, so the ring reads as a halo around
+	# it rather than a hoop drawn over its face.
+	_power_ring.z_index = z_index - 1
+	add_child(_power_ring)
 
 func ate_power():
 	has_power = true
 	time_started_power = MainGlobals.timems()
 	_power_paused_at_ms = 0
 	_power_phase = 0.0
-	if _power_ring == null:
-		_power_ring = PowerRing.new()
-		_power_ring.radius = RING_RADIUS
-		_power_ring.width = 2.5
-		# Behind the head, which is at the player's own z_index, so the ring reads as a halo around
-		# it rather than a hoop drawn over its face.
-		_power_ring.z_index = z_index - 1
-		add_child(_power_ring)
+	_ensure_ring()
+	_power_ring.hunger_mode = false
+	_power_ring.alpha = 1.0
 	_power_ring.progress = 1.0
 	_power_ring.scale = Vector2.ONE
 	_power_ring.show()
@@ -149,8 +171,10 @@ func stop_power():
 	_power_phase = 0.0
 	$Head.scale = orig_head_scale
 	$Head.modulate = orig_head_color
+	# NOT hidden: the hunger clock takes the ring straight back, and a ring that blinks out for a
+	# frame between the two would read as a glitch. _tick_hunger sets it again next frame.
 	if _power_ring != null and is_instance_valid(_power_ring):
-		_power_ring.hide()
+		_power_ring.scale = Vector2.ONE
 
 # Milliseconds of power actually spent — wormhole time does not count.
 func power_elapsed_ms() -> int:
@@ -178,7 +202,38 @@ func resume_power_clock() -> void:
 		time_started_power += MainGlobals.timems() - _power_paused_at_ms
 		_power_paused_at_ms = 0
 
+# `left` is the share of the allowance still to run: 1 just eaten, 0 starving. Ignored while
+# powered, which owns the ring until its own clock stops.
+func set_hunger(left: float, active: bool) -> void:
+	if has_power:
+		return
+	if not active:
+		if _power_ring != null and is_instance_valid(_power_ring):
+			_power_ring.hide()
+		return
+	_ensure_ring()
+	_power_ring.hunger_mode = true
+	_power_ring.scale = Vector2.ONE
+	_power_ring.progress = clampf(left, 0.0, 1.0)
+	_power_ring.show()
+	_power_ring.queue_redraw()
+
+func _update_hunger_look(delta: float) -> void:
+	if _power_ring == null or not is_instance_valid(_power_ring) \
+			or has_power or not _power_ring.visible:
+		return
+	# The blink is held back for the last moments on purpose: urgency that arrives as a NEW
+	# behaviour cuts through, urgency that is just more of the same gets tuned out.
+	if _power_ring.progress > 0.15:
+		_hunger_phase = 0.0
+		_power_ring.alpha = 1.0
+		return
+	_hunger_phase = fmod(_hunger_phase + delta * 4.0, 1.0)
+	_power_ring.alpha = 0.4 + 0.6 * (0.5 + 0.5 * cos(_hunger_phase * TAU))
+	_power_ring.queue_redraw()
+
 func _update_power_look(delta: float) -> void:
+	_update_hunger_look(delta)
 	var left: float = power_left_fraction()
 	if _power_ring != null and is_instance_valid(_power_ring):
 		# The ring keeps ticking down through a wormhole trip — it is drawn at the player's origin

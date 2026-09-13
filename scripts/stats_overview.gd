@@ -36,6 +36,20 @@ const METRICS: Dictionary = {
 	"react_mean": false,
 	# Gorilla's only measurement: how far out the gorilla count was. Lower is better.
 	"count_error": false,
+	# The main task failing: caught by a monster, or stood still too long to eat.
+	"rounds_lost": false,
+	# THE COUNTING GAMES. Five games -- the whole Planning category bar one, plus Moving Cards --
+	# keep nothing but counts, and a count was not a metric any of these screens recognised. So
+	# they had no Summary rows at all and their categories could never hear from them, while the
+	# numbers they need were being recorded all along.
+	#
+	# A raw count is only comparable against the same task, which is exactly what a baseline is
+	# built from -- the same reasoning that already let crack's `cycles_opened` work.
+	"span": true,                 # Moving Cards: the longest order held
+	"jobs_cancelled": false,      # Taxi: a plan revised after it was made
+	"overflows": false,           # Storm: water on the floor
+	"collisions": false,          # Pneumo
+	"creatures_stopped": true,    # Parkem: creatures turned back
 }
 
 # Sessions to draw in a row's sparkline.

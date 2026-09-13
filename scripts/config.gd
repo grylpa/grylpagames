@@ -12,7 +12,7 @@ var games = [
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
-	["gorilla",       "Gorilla",        "Pick up coins while counting the gorillas",              "Attention & Speed"],
+	["gorilla",       "Gorilla",        "Eat apples while counting gorillas"            ,              "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["didi",          "Pinpoint",       "Two clues, one shot",                                    "Attention & Speed"],
 	["ddooo",         "Witness",        "You saw it happen. Now testify",                         "Attention & Speed"],

@@ -62,13 +62,13 @@ var round_in_level: int = 0
 # The counting error is a STAT and lives here. It used to ride on game.corrects / game.mistakes —
 # add_correct_or_mistake(error, 1) banked the SIZE of the error as "corrects" and a mistake on
 # every round, right or wrong — so those two counters said nothing about whether the player got a
-# building right, and an accuracy gate had nothing honest to read. They now mean what their names
+# round right, and an accuracy gate had nothing honest to read. They now mean what their names
 # say; the error stat is these two.
 var _error_sum: int = 0
 var _rounds_answered: int = 0
 
 # Set when the level's last round has been answered, so the next new_game() knows it is starting a
-# LEVEL and not just the next building.
+# LEVEL and not just the next round.
 var _level_is_over: bool = false
 # What the score was when this level began; a level that misses the gate goes back to it.
 var _score_at_level_start: int = 0
@@ -157,7 +157,7 @@ func new_game(from_scratch: bool = true):
 	$BuildingLabel.show()
 	$UILayer/AnswerOverlay.hide()
 	await get_tree().process_frame
-	# A round is one building; a LEVEL is `rounds_per_level` of them. Only a level boundary clears
+	# A round is one run at the room; a LEVEL is `rounds_per_level` of them. Only a level boundary clears
 	# the counters, because the gate is judged over the whole level.
 	var level_starts: bool = from_scratch or _level_is_over
 	if from_scratch:
@@ -278,6 +278,9 @@ func create_board():
 	$BuildingLabel.hide()
 	create_camera()
 	game.level_is_ready = true
+	# The clock starts with the round, not with the first coin: standing still from the word
+	# go has to cost something too.
+	_restart_hunger()
 
 	# for x in game.board_size.x:
 	# 	bcell(Vector2i(x,0)).pipe.modulate=Color(1,0,0,1)
@@ -484,8 +487,39 @@ func _on_player_is_really_moving(is_moving: bool):
 func _on_player_removed(arrived: bool):
 	if arrived:
 		return
-	# Player was hit — level fails
-	_level_done(false)
+	_lose_life("Caught!\nThat round is lost")
+
+# ONE LIFE, ONE ROUND. Being caught used to end the whole LEVEL outright, while the three
+# lives in the constructor were never spent by anything — the HUD showed hearts that could not
+# go down beside a rule where one touch wiped a level.
+#
+# Now a life is the currency of a round: lose one and that round is failed and scored as a
+# miss, and the run ends only when the last one goes. A correct count hands one back, so paying
+# attention to the edge of the screen is what keeps you alive.
+const LIFE_PENALTY: int = -15
+
+func _lose_life(why: String) -> void:
+	if game.level_is_done or not game.level_is_ready:
+		return
+	game.add_score_and_time(LIFE_PENALTY, 0)
+	if game.kill_and_did_lives_run_out():
+		game.mark_lives_depleted()          # -> on_lives_depleted -> the run is over
+		return
+	MainGlobals.global_update_hud()
+	# The round counts, and it counts as missed. Skipping it would make starving the cheapest
+	# way to duck a count you were not sure of.
+	game.add_correct_or_mistake(0, 1)
+	# A round you never finished is a fact about the session, not just a lost life: it is the
+	# main task failing, which is the other half of what this game is for.
+	game.record_count("rounds_lost")
+	_rounds_answered += 1
+	game.level_is_done = true
+	last_level_was_a_win = false
+	round_in_level += 1
+	if round_in_level >= rounds_per_level:
+		_finish_level(why)
+	else:
+		game.show_game_popup(self, "Oh no!", why)
 
 const MIN_ESCAPE_DIST: int = 4  # cells required if monster spawns facing the player
 
@@ -890,10 +924,110 @@ func _process(_delta: float) -> void:
 	if player != null and not player.was_hit:
 		_start_playing()
 		_check_agent_collisions()
+		_tick_hunger()
 
 		if time_to_spawn_agent != 0 and MainGlobals.timems() > time_to_spawn_agent:
 			time_to_spawn_agent = 0
 			_spawn_agent(num_inside_monsters-1)
+
+# HUNGER: the player must keep eating, so the main task cannot be abandoned.
+#
+# The whole point of this game is what you notice at the EDGE of your attention while your hands
+# are busy. Nothing used to keep them busy: a player could park in a corner, watch the gorillas
+# and answer perfectly, and the count stopped measuring divided attention at all.
+#
+# The allowance is set from the BOARD, not from a clock. It is the walking time to the nearest
+# remaining coin plus a base, so four coins in four corners at the end of a round give four
+# generous windows rather than four death sentences. Set when a coin is eaten and never
+# shortened afterwards — walking away from the nearest coin is the player's own choice, not a
+# moving goalpost.
+# ONE RING, ONE DEATH. An expired clock used to get a second chance, re-measured from where the
+# player stood -- which meant the ring filled TWICE before a death, and a gauge that quietly
+# restarts is worse than a tight one: it makes the whole graphic mean nothing. The allowance is
+# generous instead, which is the honest way to be kind.
+#
+# The player walks a tile in `major_tick_time_ms / speed_scale` = 400ms, and crossing a 7x7 room
+# is a dozen steps. Five seconds plus three times the walking time means anyone heading for food
+# will reach it; standing still for six seconds will not.
+const HUNGER_BASE_MS: int = 5000
+# Manhattan distance under-counts a path that has to go round a wall, so the walking time is
+# multiplied out. Generous on purpose: this is meant to keep the player moving, not to catch
+# them out.
+const HUNGER_SLACK: float = 3.0
+
+var _hunger_started_ms: int = 0
+var _hunger_window_ms: int = 0
+var _hunger_paused_ms: int = 0
+var _hunger_pause_began_ms: int = 0
+var _was_warping: bool = false
+
+func _step_ms() -> float:
+	var scale: float = player.speed_scale if player != null else 1.0
+	return float(game.major_tick_time_ms) * game.time_scale / maxf(scale, 0.01)
+
+func _steps_to_nearest_coin() -> int:
+	if player == null or coins.is_empty():
+		return 0
+	var best: int = 1 << 30
+	for p: Vector2i in coins.keys():
+		best = mini(best, absi(p.x - player.board_pos.x) + absi(p.y - player.board_pos.y))
+	return 0 if best == (1 << 30) else best
+
+func _restart_hunger() -> void:
+	_hunger_paused_ms = 0
+	_hunger_pause_began_ms = 0
+	if coins.is_empty():
+		_hunger_window_ms = 0
+		return
+	_hunger_window_ms = HUNGER_BASE_MS \
+		+ int(float(_steps_to_nearest_coin()) * _step_ms() * HUNGER_SLACK)
+	_hunger_started_ms = int(game.game_time)
+
+# THE CLOCK ONLY RUNS WHILE THE PLAYER CAN ACTUALLY EAT.
+#
+# Two things stop it, and both are cases where the player has no way to reach a coin:
+#
+#   power    you are chasing monsters, not collecting, and a power coin that starved you would
+#            be a trap rather than a reward.
+#   warping  _move_player_on_tick() returns immediately while `player.warping`, so a coin cannot
+#            be eaten at all — and a warp shrinks the player to a point, so it LOOKS like the
+#            player is gone. Without this the first long warp near the end of a round starved
+#            the player while they were mid-flight and the count question never arrived. The
+#            power clock has always been paused across a warp for the same reason
+#            (pause_power_clock); this one was not, which was the bug.
+func _tick_hunger() -> void:
+	if player == null or not is_instance_valid(player) or player.was_hit or player.arrived:
+		return
+	if game.level_is_done or not game.level_is_ready or in_answering_mode or game.paused():
+		return
+	if _hunger_window_ms <= 0 or coins.is_empty():
+		player.set_hunger(1.0, false)
+		return
+	if player.has_power or player.warping:
+		if _hunger_pause_began_ms == 0:
+			_hunger_pause_began_ms = int(game.game_time)
+		_was_warping = _was_warping or player.warping
+	else:
+		if _hunger_pause_began_ms > 0:
+			_hunger_paused_ms += int(game.game_time) - _hunger_pause_began_ms
+			_hunger_pause_began_ms = 0
+		if _was_warping:
+			# MEASURED FROM WHERE YOU LANDED. board_pos is still the near end while warp_to is
+			# running, so the allowance can only be taken once the flight is over -- the coin
+			# nearest the far end is a different coin, and a warp across the room would
+			# otherwise leave someone else's walking time on the clock.
+			_was_warping = false
+			_restart_hunger()
+			return
+
+	var paused: int = _hunger_paused_ms
+	if _hunger_pause_began_ms > 0:
+		paused += int(game.game_time) - _hunger_pause_began_ms
+	var elapsed: int = int(game.game_time) - _hunger_started_ms - paused
+	var left: float = clampf(1.0 - float(elapsed) / float(_hunger_window_ms), 0.0, 1.0)
+	player.set_hunger(left, true)
+	if left <= 0.0:
+		_lose_life("Starved!\nKeep eating — you cannot stand still")
 
 func _check_agent_collisions():
 	if player == null or player.was_hit:
@@ -966,6 +1100,7 @@ func _move_player_on_tick(force: bool):
 			cell.pipe.remove_coin()
 			cell.pipe.set_rot(board)
 			coins.erase(player.board_pos)
+			_restart_hunger()
 			game.tutorial_notify("coin_taken")   # no-op outside tutorial mode
 			if is_power_coin:
 				player.ate_power()
@@ -1104,11 +1239,15 @@ func _on_answer_selected(chosen: int, true_count: int):
 	game.record_trial({"true_count": true_count, "chose": chosen, "signed_err": chosen - true_count})
 	_error_sum += error
 	_rounds_answered += 1
-	# One building, one verdict. Only an exact count is right — that is already the rule the +20
+	# One round, one verdict. Only an exact count is right — that is already the rule the +20
 	# bonus follows, and "nearly" is not a thing you can be asked to count.
 	game.add_correct_or_mistake(1 if correct else 0, 0 if correct else 1)
 	if correct:
 		game.add_score_and_time(20, 0)
+		# A life back for an exact count — capped at what you started with, so lives can be
+		# recovered but not stockpiled into a buffer that makes the hunger clock meaningless.
+		if game.lives_left < game.max_lives():
+			game.add_life()
 
 	last_level_was_a_win = true
 	game.level_is_done = true
@@ -1121,7 +1260,7 @@ func _on_answer_selected(chosen: int, true_count: int):
 	else:
 		popup_text = "Off by %d\nThere were %d gorillas" % [error, true_count]
 
-	# The coach's session is one building, not a level: its rounds must not add up to a level end,
+	# The coach's session is one round, not a level: its rounds must not add up to a level end,
 	# and a level card landing on a caption is the failure mmm taught us to guard against.
 	if game.tutorial_mode:
 		game.show_game_popup(self, "Time's up!", popup_text)
@@ -1133,7 +1272,7 @@ func _on_answer_selected(chosen: int, true_count: int):
 	else:
 		game.show_game_popup(self, "Time's up!", popup_text)
 
-# A level is `rounds_per_level` buildings, and it is PASSED on the share of them counted exactly
+# A level is `rounds_per_level` rounds, and it is PASSED on the share of them counted exactly
 # right. Below the bar the same level comes round again.
 #
 # Before this, a wrong answer simply did not count toward the level at all — round_in_level only
@@ -1165,7 +1304,7 @@ func _on_level_done_popup_closed() -> void:
 # moving on, which is the only thing they want to know at that moment.
 func _progress_line(passed: bool, need: int, is_last: bool) -> String:
 	if not passed:
-		return "You need at least %d%% of the buildings counted right to pass to the next level." % need
+		return "You need at least %d%% of the rounds counted right to pass to the next level." % need
 	if is_last:
 		return "Level passed — this is the last one, so it comes round again."
 	return "Level passed — on to level %d." % (level + 1)

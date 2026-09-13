@@ -192,7 +192,18 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 
 func get_game_score(_didwin, _wasaborted):
 	# Keep the WHOLE distribution, not just its mean: spread and drift are what move first.
+	# The interval from a sheep getting out to the player barking it back — the one measurement a
+	# vigilance game is about. `times_to_answer` was declared and never filled, so this used to
+	# record rt_n = 0 and nothing else.
 	game.record_times($Level.times_to_answer, "rt")
+	# The flock share IS the level's own pass mark, so it is the accuracy of a session here.
+	# Without it this game returned three values, none of them a measurement, and was the one
+	# game in the app whose Summary tab was empty.
+	#
+	# As a NAMED metric, not the positional column: pct_correct sits at index 4 and rt_mean at 3,
+	# so filling it positionally would mean writing a response time this game does not have, and
+	# a Speed row reading 0 ms is worse than no Speed row.
+	game.record_metric("pct_correct", $Level.pct_flock_kept_now())
 	return [_didwin, _wasaborted, $Level.level]
 
 func add_score_line_vals(score_row: Array) -> Array:

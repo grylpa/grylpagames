@@ -44,7 +44,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Gorilla",
-			"text": "You are in a walled room with coins all over the floor.\n\nCollect every one of them.",
+			"text": "You are in a walled room with apples all over the floor.\n\nEat every one of them.",
 		},
 		{
 			"text": "This is you. You walk by yourself, and keep going the same way until you turn.",
@@ -67,18 +67,28 @@ static func steps(level: Node, _game) -> Array:
 			"spot_radius": 95.0,
 		},
 		{
+			"title": "The marked coin",
+			"text": "The marked coin makes you dangerous for a few seconds — monsters run from you.\n\nIt still has to go: the room is not clear until you have taken it too.",
+		},
+		{
+			"title": "Keep eating",
+			"text": "You cannot stand still and watch. Go too long without an apple and you starve.\n\nThe ring around you is the time you have left; it fills again with every one you eat.",
+			"spot": player_spot,
+			"spot_radius": 70.0,
+		},
+		{
 			"title": "Two things at once",
-			"text": "Clear the coins, and keep count.\n\nThe coins hold your eyes in the center of the room; the gorillas only ever appear round the outside.",
+			"text": "Clear the apples, and keep count.\n\nThey hold your eyes in the center of the room; the gorillas only ever appear round the outside.",
 		},
 		{
 			"setup": func(): level.tutorial_show_a_monster(),
 			"title": "Monsters",
-			"text": "Monsters share the room and chase you. Being caught costs a life.",
+			"text": "Monsters share the room and chase you. Being caught costs a life, and so does starving.\n\nAn exact gorilla count wins one back.",
 			"spot": monster_spot,
 			"spot_radius": 60.0,
 		},
 		{
 			"title": "Ready",
-			"text": "When the coins are gone, or the time is up, you are asked how many gorillas went past.\n\nGet it right for a bonus.",
+			"text": "When the room is clear, or the time is up, you are asked how many gorillas went past.\n\nGet it right for a bonus, and a life back.",
 		},
 	]

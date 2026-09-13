@@ -20,6 +20,14 @@ var agent_time_to_show_alternatives_after_model: int = 1000
 var agent_time_to_show_model_after_alternatives: int = 1000
 
 var agent_model_color = null
+# The edge the current model flashed at, for the per-direction breakdown. -1 between rounds.
+var _model_dir: int = -1
+
+# This game's `dir` is an EDGE, not one of eight compass points: 0 left, 1 top, 2 right, 3
+# bottom, as add_agent_pos_dir() assigns them. Mapped to the 3x3 the stats screen draws so the
+# shared panel needs to know nothing about either scheme.
+const DIR_SLOT: Array = [3, 1, 5, 7]
+const DIR_NAME: Array = ["Left edge", "Top edge", "Right edge", "Bottom edge"]
 var agent_model_texture_idx: int = 0
 var agent_can_use_two_colors: int = 0
 var agent_use_same_color_for_all: int = 0
@@ -401,6 +409,12 @@ func _dispatch_new_agent(is_model=false, is_correct=false):
 				while color == skip_color:
 					color = _get_color_for_agent(use_two_colors)
 				var agent = add_agent_at(p, dir, color, is_model, is_correct)
+				# WHERE IT FLASHED. The shape appears at one spot around the edge and the
+				# question is whether you caught it there; a percentage for the session cannot
+				# show an edge the player never sees. Kept from the model, because the
+				# alternatives that follow stand somewhere else entirely.
+				if is_model:
+					_model_dir = int(dir)
 				if is_model:
 					agent_model_color = color.duplicate(true)
 					agent_model_texture_idx = agent.set_rand_texture()
@@ -441,6 +455,8 @@ func _process(_delta: float) -> void:
 			
 func on_agent_need_to_remove_agent(agent):	
 	if agent.timed_out and not agent.is_model and agent.is_correct:
+		# The right answer expired untouched: a miss at that edge, not a round that never was.
+		_record_dir_trial(false, 0)
 		game.add_score_and_time(-1,-5)
 		game.play_sound("swoosh")
 		game.add_correct_or_mistake(0,1)
@@ -460,11 +476,19 @@ func on_agent_need_to_remove_agent(agent):
 			need_to_show_model = true
 			time_to_show_model_ms = game.game_time + agent_time_to_show_model_after_alternatives
 
+func _record_dir_trial(right: bool, ms: int) -> void:
+	if _model_dir < 0:
+		return
+	game.record_trial({"dir": _model_dir, "slot": DIR_SLOT[_model_dir],
+		"dir_name": DIR_NAME[_model_dir], "right": right, "ms": ms})
+	_model_dir = -1
+
 func on_agent_pressed(agent):
 	if !agent.is_model and !game.paused():
 		if agent.is_correct:
 			var time_since_shown_alternatives_ms = game.game_time - time_shown_alternatives_ms
 			var score_to_add = max(1, int(10 - time_since_shown_alternatives_ms / 200))
+			_record_dir_trial(true, int(time_since_shown_alternatives_ms))
 			_add_time_to_answer_ms(time_since_shown_alternatives_ms)
 			game.add_score_and_time(score_to_add,15)
 			game.add_correct_or_mistake(1,0)
@@ -474,6 +498,7 @@ func on_agent_pressed(agent):
 			if num_corrects_in_level_so_far >= num_corrects_for_next_level:
 				level_is_done(true)
 		else:
+			_record_dir_trial(false, int(game.game_time - time_shown_alternatives_ms))
 			game.add_score_and_time(-1,-5)
 			game.add_correct_or_mistake(0,1)
 			game.play_sound("swoosh")

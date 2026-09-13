@@ -1107,11 +1107,22 @@ func move_player_on_tick(force: bool):
 
 	for agent in agents:
 		var c = bcell(agent.board_pos)
+		# A sheep out of its room is a call for attention that has not been answered yet. Stamped
+		# on the way out and read when the player finally reaches it.
+		if agent.agent_type == 0 and not agent.was_removed:
+			if c.room_id < 0:
+				if agent.strayed_ms == 0:
+					agent.strayed_ms = MainGlobals.timems()
+			else:
+				agent.strayed_ms = 0
 		if (player.position - agent.position).length() < game.tile_size * _dist_to_scare and !agent.scared:
 			if (agent.agent_type == 1 and !c.is_outside) or (agent.agent_type == 0 and c.room_id < 0):
 				game.play_sound("sheep" if agent.agent_type == 0 else "bark")
 				player.bark_towards(agent.position)
 				agent.mark_scared()
+				if agent.agent_type == 0 and agent.strayed_ms > 0:
+					_record_response_ms(MainGlobals.timems() - agent.strayed_ms)
+					agent.strayed_ms = 0
 				# No-ops outside tutorial mode.
 				game.tutorial_notify("scared_wolf" if agent.agent_type == 1 else "scared_sheep")
 				game.tutorial_notify("scared_one")
@@ -1355,6 +1366,16 @@ func calc_cost_to_move_sheep_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i,
 		return 20
 	return 1
 
+# How long a stray sheep waited before the player got to it. NOT capped: a sheep that wandered
+# unnoticed for most of the level is the finding, not an outlier to be thrown away, and
+# SessionStats already reports the far-slower ones separately as lapses.
+func _record_response_ms(ms: int) -> void:
+	if ms <= 0:
+		return
+	times_to_answer.append(float(ms))
+	while times_to_answer.size() > 20:
+		times_to_answer.remove_at(0)
+
 func get_num_sheep_left():
 	var n = 0
 	for agent in agents:
@@ -1420,6 +1441,12 @@ func level_is_done(didwin: bool):
 		_rollback_score_on_next_level = true
 		game.show_game_popup(self, "Oh no!", "Level %d\n\nnot completed" % [level])
 		return
+
+# The share of the flock still inside, for the session record. The level already computes it to
+# decide whether the player moves on; it just never travelled with the score, so this game stored
+# nothing but a level number and its Summary tab had not one row in it.
+func pct_flock_kept_now() -> int:
+	return _pct_flock_kept(get_num_sheep_left())
 
 func _pct_flock_kept(saved: int) -> int:
 	if _sheep_at_level_start <= 0:

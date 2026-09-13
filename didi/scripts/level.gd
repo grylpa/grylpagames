@@ -15,6 +15,13 @@ class TimerArc extends Node2D:
 var game: GenericGameUtil = null
 
 # 8 directions: up, down, left, right, TL, TR, BL, BR
+# Where each direction sits in the 3x3 the stats screen draws: row * 3 + column, with 4 the
+# centre. The stats code stays ignorant of this game's own index order, the same way the rule
+# games hand over a rule NAME rather than a key.
+const DIR_SLOT: Array = [1, 7, 3, 5, 0, 2, 6, 8]
+const DIR_NAME: Array = ["Up", "Down", "Left", "Right",
+	"Top left", "Top right", "Bottom left", "Bottom right"]
+
 const DIR_POSITIONS: Array = [
 	Vector2i(3, 0),  # 0: up
 	Vector2i(3, 6),  # 1: down
@@ -464,6 +471,19 @@ func _on_answer_agent_pressed(agent) -> void:
 	var elapsed_ms: float = game.game_time - _answer_start_game_time
 	var board_pos: Vector2i = agent.board_pos
 
+	# WHICH DIRECTION the dot was in, and what survived of the round. A percentage for the
+	# session cannot show a corner the player keeps missing, and it cannot separate losing the
+	# shape from losing the place — which is the whole question this game asks.
+	game.record_trial({
+		"dir": _periph_dir_idx,
+		"slot": DIR_SLOT[_periph_dir_idx],
+		"dir_name": DIR_NAME[_periph_dir_idx],
+		"right": agent.is_correct,
+		"got_dir": agent.is_correct_direction,
+		"got_shape": agent.is_correct_shape,
+		"ms": int(elapsed_ms),
+	})
+
 	if agent.is_correct:
 		var score_to_add: int = max(1, int(10 - elapsed_ms / 300.0))
 		_add_time_to_answer_ms(int(elapsed_ms))
@@ -504,6 +524,13 @@ func _on_answer_agent_pressed(agent) -> void:
 	_schedule_next_round(500.0)
 
 func _on_answer_timeout() -> void:
+	# A round that ran out is a round got wrong in that direction, not a round that never
+	# happened. Leaving it out would flatter whichever direction the player freezes on.
+	if _answer_active and _periph_dir_idx >= 0:
+		game.record_trial({"dir": _periph_dir_idx, "slot": DIR_SLOT[_periph_dir_idx],
+			"dir_name": DIR_NAME[_periph_dir_idx], "right": false,
+			"got_dir": false, "got_shape": false, "ms": 0})
+
 	if not _answer_active:
 		return
 	game.add_score_and_time(-1, -5)

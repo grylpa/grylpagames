@@ -407,3 +407,7 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Deliveries, collisions and door turns. Turns per capsule is the look-ahead measure: it climbs when planning gives way to firefighting, before the delivery count itself suffers.
+
+**Its counts are now metrics.** `collisions` is registered in `StatsOverview.METRICS`, lower being better. Before that this game recorded three counts that nothing could read, and had no Summary rows.
+
+A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.

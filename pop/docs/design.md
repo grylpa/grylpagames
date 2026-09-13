@@ -271,3 +271,22 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+**Per-direction accuracy, drawn as a 3x3.** Every direction asks the same question, so there is
+no reason to be better at one than another and a corner the player keeps missing is a finding —
+which one percentage for the session cannot show. Each answer records a `slot` (row * 3 + column,
+4 the centre) and a `dir_name`, so `scripts/direction_rose.gd` knows nothing about this game's
+own index order; it is the same arrangement as the rule games handing over a rule name rather
+than a key.
+
+**A direction that stands out is outlined.** Under "direction makes no difference" the hits in
+one direction are binomial with the player's overall rate, so the deviation is measured in its
+own standard errors. `DirectionRose.FLAG_SD` is 2.5, not the 2.0 the baseline band uses, because
+this is EIGHT tests at once: at 2.0 the chance of at least one false mark across eight is about
+31%, which would mark a healthy player most sessions; at 2.5 it is about 9.5%. A direction with
+fewer than `MIN_PER_DIR` rounds is never marked — a proportion out of four is not a finding.
+
+**This game's `dir` is an EDGE, not a compass point:** 0 left, 1 top, 2 right, 3 bottom, as
+`add_agent_pos_dir()` assigns them. `DIR_SLOT` maps those four onto the same 3x3, which is why
+the shared panel needs no knowledge of either scheme. The direction recorded is the MODEL's —
+where the shape flashed — because the alternatives that follow stand somewhere else entirely.
