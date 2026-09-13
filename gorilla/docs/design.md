@@ -17,7 +17,7 @@ Trains peripheral awareness while maintaining a central task under pressure.
 7. Exactly right → +20 bonus and the round counts as correct; anything else counts as wrong
 8. A new round begins on the same level (score carries over, timer resets) — a round is one
    BUILDING, and the level's difficulty does not change between them
-9. After `rounds_per_level` buildings the level is judged: at or above `pass_pct` the next level
+9. After `rounds_per_level` rounds the level is judged: at or above `pass_pct` the next level
    follows, below it the same level is played again (see "Passing a level")
 
 If all lives are lost before collecting all coins: game over.
@@ -63,7 +63,7 @@ not a thing a player can be asked to count.
 
 ## Passing a level
 
-A round is one building. A **level is `rounds_per_level` buildings** (`rounds` in
+A round is one run at the room. A **level is `rounds_per_level` rounds** (`rounds` in
 `GorillaLevelConfig`), and it is passed on the share of them counted exactly right:
 
 ```
@@ -99,13 +99,13 @@ passed"** with none. Under it: the last round's own verdict ("Off by 1 / There w
 then `Counted right: 2 of 3`, `Accuracy: 66%`, and a line saying what happens next —
 
 - passed -> `Level passed — on to level N.`
-- failed -> `You need at least 60% of the buildings counted right to pass to the next level.`
+- failed -> `You need at least 60% of the rounds counted right to pass to the next level.`
 
 Mid-level rounds keep the small `show_game_popup` "Time's up!" panel they always had.
 `MainGlobals.global_level_is_done()` takes the gate result, so the fanfare does not play over a
 level that was not passed.
 
-**The tutorial is exempt.** Its session is one building, not a level: `_on_answer_selected` returns
+**The tutorial is exempt.** Its session is one room, not a level: `_on_answer_selected` returns
 after the round popup when `game.tutorial_mode` is set, so the coach's rounds never add up to a
 level end and no card lands on a caption.
 
@@ -521,7 +521,7 @@ game's own — 13 — so no two games show the same field.
 It is called twice: at the end of `_ready()`, so the lawn is already there before the first board is
 built, and at the START of `create_board()`, for a level that changes the board's size. `fit()`
 re-sows only when the rect actually changed, because the field is a `MultiMeshInstance2D` of tens to
-hundreds of thousands of blades and building it is not something to redo between rounds.
+hundreds of thousands of blades and room it is not something to redo between rounds.
 
 Every empty cell used to carry its own 40x40 `grass.png`; `empty_space.gd`'s `_ready()` now hides it.
 That per-cell sprite was the real reason the board looked tiled — the background alone was never
@@ -548,6 +548,120 @@ heading, which is all `set_rots()` ever read.
 
 **parkem is the one game that really does grow a body** (four segments on level 1, two on level 2),
 so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
+
+## Hunger: the centre task is mandatory
+
+The point of this game is what you notice at the EDGE of your attention while your hands are
+busy. Nothing used to keep them busy — a player could park in a corner, watch the gorillas and
+answer perfectly, and the count stopped measuring divided attention at all. Eating is now a
+deadline.
+
+**The allowance comes from the BOARD, not from a clock.** `_restart_hunger()` sets it to
+`HUNGER_BASE_MS` plus the walking time to the nearest remaining coin
+(`_steps_to_nearest_coin() * _step_ms() * HUNGER_SLACK`). The board empties as a round goes
+on, so a fixed timer would turn the last four coins in four corners into four death sentences;
+sized this way they are four generous windows. Set when a coin is eaten and when the round
+opens, and never shortened afterwards — walking away from the nearest coin is the player's own
+choice, not a moving goalpost. Manhattan distance under-counts a path around a wall, which is
+what the slack is for.
+
+**The clock only runs while the player can actually eat.** Two things stop it, and both are
+cases where no coin is reachable:
+
+- **power** — you are chasing monsters, not collecting, and a power coin that starved you would
+  be a trap rather than a reward.
+- **warping** — `_move_player_on_tick()` returns immediately while `player.warping`, so a coin
+  cannot be eaten at all. This one was a real bug: a wormhole near the end of a round starved
+  the player mid-flight, and because a warp shrinks the player to a point it looked as though
+  they had simply vanished and then died of nothing. The count question never arrived. The POWER
+  clock had always been paused across a warp for exactly this reason (`pause_power_clock`);
+  hunger was not.
+
+**ONE EMPTIED RING IS A DEATH.** An expired clock briefly got a second chance, re-measured from
+where the player stood — which meant the ring filled TWICE before a death, and that makes the
+whole graphic mean nothing: a gauge that quietly restarts is worse than a tight one. Marking the
+second pass red did not save it either; the honest way to be kind is a generous allowance, not a
+gauge that lies once.
+
+`HUNGER_BASE_MS` is 5000 and `HUNGER_SLACK` is 3.0, against a walking speed of one tile per
+400ms. Anyone heading for food reaches it; standing still for six seconds does not.
+
+**The floor holds FOOD, not coins.** Coins are treasure: you pick them up because they are worth
+something, and leaving one behind costs you a prize. The rule is now "keep eating or starve", and
+nobody starves for want of a coin — so the objects match the rule. They are DRAWN
+(`scripts/food_bit.gd`), for the same reason the lawn and the sorting shapes are drawn: there is
+no food art in the project, and a shape made of a few circles is more adjustable than a PNG per
+size. `pipe.gd` hides `PipeCoin1` for food.
+
+**What makes it an apple is the SILHOUETTE, not the colour.** The first attempt tried to earn
+contrast by choosing a hue that stood off every floor, which meant giving up the stalk and the
+leaf — and what was left was a yellow disc, barely different from the coin it replaced and food
+only if you were told so. The identifying marks are back: two lobes with a dip between them, a
+stalk, and a leaf.
+
+**Contrast is the OUTLINE's job, which is why the colour can be free.** The room floor is
+`color_by_index(room_id).darkened(0.3)` with the index drawn at random from
+`AGENT_COLOR_INDICES`: dark red, green, yellow, blue, orange, purple, cyan, magenta, pink, olive,
+deep green, brown. No hue is safe — red vanishes on the dark red floor, green on the green and
+olive ones. A TWO-TONE outline, dark outside and light inside, separates the shape from all of
+them, because a mid-dark floor cannot be close to both. Measured across the palette the weaker of
+the two still manages **4.48** contrast at worst (the dark ring alone drops to 1.42 on the deep
+green floor, the light ring to 2.47 on the dark yellow one), and `probe_gorilla` walks every
+index and requires 3.0, so a change to either the apple or the shared palette cannot quietly
+break it.
+
+`_lobes()` inflates each circle by the same number of PIXELS rather than scaling the shape, which
+is what keeps the outline an even width at any radius. The stalk and leaf are laid down with the
+dark rim behind them first, so the outline wraps the whole silhouette and not just the body.
+
+**The power piece keeps its own texture.** `coin-orange-w-power.png` at 1.5x with the pulse tween,
+as it always was. It was never a big coin and it must not become a big piece of food either: size
+says "more of the same", and this one does something different. What size cannot say — that it
+still counts toward clearing the room, so the round will not end while it is there — the
+instructions and the tutorial say in words. A player who took it for scenery cleared every
+ordinary piece, stood about waiting for the count question, and starved, which is the likeliest
+explanation for the one starving report the wormhole fix does not cover.
+
+`_tick_hunger()` accumulates the paused time rather than restarting, so the clock resumes where
+it stopped — and on the falling edge of a warp it takes a FRESH allowance, because `board_pos` is
+still the near end while `warp_to` is running and the coin nearest the far end is a different
+coin. It also stands down entirely for `in_answering_mode`, a paused game, and a player that has
+been hit or removed.
+
+**One ring, two clocks.** Power and hunger never run at once — eating a power coin stops the
+hunger clock — so they share the contour instead of fighting over the body. `PowerRing` takes a
+`hunger_mode` flag and draws the same arc from a cooler palette, so the ring always means one
+thing, "time left on whatever is running", and a glance still says which clock it is. Both
+palettes end red, because at the end both mean the same thing.
+
+A wedge drawn inside the gorilla was the first attempt and it was wrong: two gauges on one small
+sprite, when the two quantities can never be shown at the same moment anyway.
+
+Power owns the ring while it lasts — `set_hunger()` returns early if `has_power` — and
+`stop_power()` deliberately does NOT hide it, because `_tick_hunger()` takes it back the next
+frame and a ring that blanks for a frame between the two reads as a glitch.
+
+The blink in the last sixth is held back on purpose: urgency that arrives as a NEW behaviour cuts
+through, urgency that is just more of the same gets tuned out.
+
+## Lives are the currency of a round
+
+Being caught used to call `_level_done(false)` directly — one touch wiped a whole level — while
+the three lives in the constructor were never spent by anything, so the HUD showed hearts that
+could not go down beside a rule that ignored them.
+
+- A life goes on being caught or on starving, through `_lose_life()`. That round is failed,
+  scored as a miss, and `LIFE_PENALTY` comes off the score. The run ends only when the last life
+  goes, through the `sig_lives_depleted` path that was already there.
+- **An exact count hands one back**, capped at `game.max_lives()` so lives cannot be stockpiled
+  into a buffer that makes the hunger clock meaningless. Noticing the edge of the screen is what
+  keeps you alive, which is the loop this game wanted all along.
+- A failed round still counts and as a miss. Skipping it would make starving the
+  cheapest way to duck a count you were not sure of.
+
+`devtools/probe_gorilla.gd` drives the real scene: it checks the allowance is sized from the
+board, that starving spends a life and ends the round, and that a correct count hands one
+back and stops at the starting number.
 
 ## What this game measures
 

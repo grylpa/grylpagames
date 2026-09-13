@@ -22,6 +22,10 @@ var time_created_ms := 0
 var angles = []
 
 var scared:bool = false
+# When this sheep first stepped outside a room, in ms. The gap from here to the player barking it
+# back is the one measurement this game is really about: long quiet stretches, then how fast you
+# notice. Zero means it is where it belongs.
+var strayed_ms: int = 0
 var trying_to_enter:bool = false
 var to_sheep:bool = false
 

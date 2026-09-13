@@ -45,6 +45,13 @@ var periph_time_to_show_flash_ms: float = 0.0
 var pending_main_correct = false   # center was correct; awaiting periph resolution
 
 # 8 directions: up, down, left, right, TL, TR, BL, BR
+# Where each direction sits in the 3x3 the stats screen draws: row * 3 + column, with 4 the
+# centre. The stats code stays ignorant of this game's own index order, the same way the rule
+# games hand over a rule NAME rather than a key.
+const DIR_SLOT: Array = [1, 7, 3, 5, 0, 2, 6, 8]
+const DIR_NAME: Array = ["Up", "Down", "Left", "Right",
+	"Top left", "Top right", "Bottom left", "Bottom right"]
+
 const DIR_POSITIONS: Array = [
 	Vector2i(3, 0),  # 0: up
 	Vector2i(3, 6),  # 1: down
@@ -530,6 +537,17 @@ func _finish_periph_question(is_correct: bool, _timed_out: bool) -> void:
 		return
 	periph_question_active = false
 	sig_periph_active.emit(false)
+
+	# WHICH DIRECTION was asked, before the index is cleared below. One accuracy for the session
+	# cannot show a corner the player keeps missing.
+	if periph_dir_idx >= 0:
+		game.record_trial({
+			"dir": periph_dir_idx,
+			"slot": DIR_SLOT[periph_dir_idx],
+			"dir_name": DIR_NAME[periph_dir_idx],
+			"right": is_correct,
+			"ms": int(game.game_time - time_shown_periph_question_ms),
+		})
 
 	for c in periph_dir_buttons:
 		if is_instance_valid(c):

@@ -301,3 +301,20 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+**It used to record nothing.** `get_game_score()` returned `[didwin, aborted, level]` — not one
+measurement — and `record_times($Level.times_to_answer)` was handed an array that `level.gd`
+declares and never appends to, so the session stored `rt_n: 0` and stopped there. This was the
+only game in the app whose Summary tab had no rows at all, and its category could never hear
+from it.
+
+It now records the **share of the flock still inside**, which is the level's own pass mark
+(`_pct_flock_kept`, exposed as `pct_flock_kept_now()`). As a NAMED metric rather than the
+positional column: `pct_correct` sits at index 4 and `rt_mean` at 3, so filling it positionally
+would mean writing a response time this game does not have, and a Speed row reading 0 ms is
+worse than no Speed row at all.
+
+**Still missing, and it is the measurement this game most wants:** the interval from a sheep
+getting out to the player reaching it. That is what a vigilance game is about — long quiet
+stretches, then how fast you respond — and `times_to_answer` exists to hold it. The
+`record_times` call is left in place for when it is filled.

@@ -1,8 +1,8 @@
 class_name GorillaLevelConfig
 
 # Per-level configuration for Gorilla.
-# rounds            : buildings played at this level before it is judged
-# pass_pct          : share of those buildings that must be counted EXACTLY right to move on.
+# rounds            : rounds played at this level before it is judged
+# pass_pct          : share of those rounds that must be counted EXACTLY right to move on.
 #                     Below it the SAME level is played again.
 #
 #                     A level is a fixed number of rounds, so only some percentages exist: out of

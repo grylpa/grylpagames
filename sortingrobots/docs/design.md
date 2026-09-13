@@ -439,3 +439,10 @@ vocabulary.
 
 `hidden` is recorded but nothing draws it yet — the "accuracy before the labels fade, against
 after" split is one panel away, and the data is accumulating for it now.
+
+**Before the rule labels fade, against after.** That is the difficulty curve of a level: up to then the rule is on
+screen to read, after it the same judgement has to come from memory, and one accuracy for the
+session averages the two together. `hidden` travels with every trial and
+`GameInstrument._memory_split()` draws the two as accuracy bars under the grid. Generic over the
+flag rather than reusing Polka Dots' `_visibility_split`, which reads a shown/chose pair this
+game does not keep; both halves need `MIN_PER_BUCKET` rounds or the comparison is not one.

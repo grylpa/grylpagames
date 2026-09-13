@@ -262,6 +262,11 @@ func level_label_changed(level_text:String):
 func emit_sig_level_is_done(_didwin: bool) -> void:
 	sig_level_is_done.emit(_didwin)
 	
+# What a game started with, so one that hands lives back can cap them there. Without a ceiling a
+# generous game turns its own lives into a buffer and whatever they were protecting stops biting.
+func max_lives() -> int:
+	return _reset_lives_val
+
 func add_life():
 	sig_add_life.emit()
 	
@@ -929,6 +934,9 @@ func record_list(key: String, value) -> void:
 
 const TRIALS_VER: int = 1
 const MAX_TRIALS_PER_SESSION: int = 600
+# Kept PER TASK, not per game. A player who moves up a level used to lose the per-round detail
+# for the level below within five sessions, so its panel went blank while its grid stayed — and
+# the levels are exactly what these panels are compared across.
 const KEEP_TRIAL_SESSIONS: int = 5
 
 var _trials: Array = []
@@ -951,6 +959,21 @@ func clear_trials() -> void:
 
 # Called at session end, alongside the score. Keeps only the most recent sessions so the file
 # cannot grow without bound on a game someone plays every day for a year.
+# The most recent KEEP_TRIAL_SESSIONS blocks FOR EACH task, oldest first. Walked from the newest
+# end so the count is per key, then put back in the order it was read in.
+func _trim_trial_blocks(blocks: Array) -> Array:
+	var seen: Dictionary = {}
+	var keep: Array = []
+	for i in range(blocks.size() - 1, -1, -1):
+		var k: String = str((blocks[i] as Dictionary).get("task_key", ""))
+		var n: int = int(seen.get(k, 0))
+		if n >= KEEP_TRIAL_SESSIONS:
+			continue
+		seen[k] = n + 1
+		keep.append(blocks[i])
+	keep.reverse()
+	return keep
+
 func save_trials() -> void:
 	if tutorial_mode or _trials.is_empty():
 		return
@@ -961,8 +984,7 @@ func save_trials() -> void:
 			task_signature if not task_signature.is_empty() else _effective_task),
 		"trials": _trials.duplicate(),
 	})
-	while blocks.size() > KEEP_TRIAL_SESSIONS:
-		blocks.remove_at(0)
+	blocks = _trim_trial_blocks(blocks)
 	var f: FileAccess = FileAccess.open(get_trials_fname(), FileAccess.WRITE)
 	if f != null:
 		for b: Dictionary in blocks:

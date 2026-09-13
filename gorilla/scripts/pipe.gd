@@ -104,12 +104,32 @@ func can_fill():
 var _pulse_tween = null
 var _deactivated_sprite = null
 
+# The ordinary pieces are DRAWN (see scripts/food_bit.gd); the power piece and the wormhole keep
+# their textures, because one is a sparkling special and the other is not food at all.
+var _food: FoodBit = null
+
+func _food_bit() -> FoodBit:
+	if _food == null or not is_instance_valid(_food):
+		_food = FoodBit.new()
+		_food.z_index = coin.z_index
+		_food.position = coin.position
+		add_child(_food)
+	return _food
+
 func set_coin():	
 	if has_coin < 0:
 		coin.hide()
+		if _food != null and is_instance_valid(_food):
+			_food.hide()
 	else:
 		var coin_text = str(has_coin)
 		if has_coin == 1000:
+			# The power piece keeps its OWN texture, marked with the power bolt. It was never a
+			# big coin and it must not become a big piece of food either: size says "more of
+			# the same", and this one does something different. The tutorial carries the part
+			# size cannot say — that it still counts toward clearing the room.
+			if _food != null and is_instance_valid(_food):
+				_food.hide()
 			coin.texture = power_coin_texture
 			coin_text = ""
 			_coin_more_scale = 1.5
@@ -121,6 +141,8 @@ func set_coin():
 				t.parallel().tween_property(coin, "modulate", Color(1, 1, 1), 0.5)
 				_pulse_tween = t
 		elif has_coin >= 2000 and has_coin < 2010:
+			if _food != null and is_instance_valid(_food):
+				_food.hide()
 			coin.texture = worm_hole_texture
 			coin_text = ""
 			_coin_more_scale = 2.3
@@ -145,8 +167,17 @@ func set_coin():
 			# 	t.parallel().tween_property(coin, "modulate", Color(1, 1, 1), 0.5)
 			# 	_pulse_tween = t
 		else:
-			coin.texture = regular_coin_texture
+			# An ordinary piece of food: drawn, and the sprite stays hidden.
+			coin.hide()
+			var fbr: FoodBit = _food_bit()
+			fbr.scale = Vector2.ONE
+			fbr.modulate = Color(1, 1, 1, 1)
+			fbr.show()
+			fbr.queue_redraw()
 			_coin_more_scale = 1.0
+			%CoinLabelShadow.text = ""
+			%CoinLabelText.text = ""
+			return
 		coin.show()
 		coin.scale = _coin_natural_scale * _coin_more_scale
 		coin.modulate = Color(1,1,1,1)

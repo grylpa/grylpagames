@@ -25,6 +25,11 @@ const CHART_GAMES: Dictionary = {
 	"weris": "Search",
 	"gorilla": "Counting",
 	"monkeyc": "Rules",
+	# The three games that flash something off to one side. Their panel is a 3x3 laid out like
+	# the screen, because "which corner do I keep missing" is a question about a place.
+	"didi": "Directions",
+	"ddooo": "Directions",
+	"pop": "Edges",
 }
 
 # Polka Dots has a view of its own too, but not a curve: it compares two CONDITIONS rather than
@@ -174,6 +179,14 @@ const SUMMARY_ROWS: Dictionary = {
 	# Gorilla stores neither an answer time nor a percentage — its whole measurement is how far
 	# out the count was. Without this it had NO rows and contributed nothing to its category.
 	"count_error": "Counting (how far out you were)",
+	"rounds_lost": "Rounds lost (caught, or starved)",
+	# The games that keep counts rather than answers. Named for what the number IS, since a bare
+	# "Overflows" beside a sparkline says nothing about which way is good.
+	"span": "Longest order held",
+	"jobs_cancelled": "Changes of plan (jobs assigned then cancelled)",
+	"overflows": "Overflows (water reaching the floor)",
+	"collisions": "Collisions",
+	"creatures_stopped": "Turned back (creatures you stopped)",
 }
 
 # Sessions drawn in a Summary row's sparkline.
@@ -186,7 +199,18 @@ const SUMMARY_SPARK_LEN: int = 12
 static func _derive_pct_correct(sessions: Array) -> bool:
 	var any: bool = false
 	for rec: Dictionary in sessions:
-		if rec.has("pct_correct") or not (rec.has("tp") or rec.has("tn")):
+		if rec.has("pct_correct"):
+			continue
+		# Moving Cards counts its rounds instead of keeping either a percentage or the four
+		# cells, so it gets the same treatment rather than a row of its own.
+		if rec.has("rounds_right") or rec.has("rounds_wrong"):
+			var rr: int = int(rec.get("rounds_right", 0))
+			var rw: int = int(rec.get("rounds_wrong", 0))
+			if rr + rw > 0:
+				rec["pct_correct"] = int(round(100.0 * float(rr) / float(rr + rw)))
+				any = true
+			continue
+		if not (rec.has("tp") or rec.has("tn")):
 			continue
 		var right: int = int(rec.get("tp", 0)) + int(rec.get("tn", 0))
 		var asked: int = right + int(rec.get("fp", 0)) + int(rec.get("fn", 0)) \
@@ -424,6 +448,8 @@ static func _body_for(folder: String) -> Control:
 			panel = _count_load(trials)
 		"monkeyc":
 			panel = _rule_breakdown(trials)
+		"didi", "ddooo", "pop":
+			panel = _direction_rose(trials, folder == "didi")
 	if panel != null:
 		return panel
 	# Enough sessions, but not yet the right SPREAD of them. Say which, in the game's own terms.
@@ -673,6 +699,62 @@ static func _captioned(body: Control, text: String) -> Control:
 	box.add_child(body)
 	return box
 
+# PINPOINT / WITNESS / GLIMPSE — accuracy by WHERE on the screen it happened.
+#
+# Every direction asks the same question, so there is no reason to be better at one than another,
+# and a corner the player keeps missing is the finding. Drawn where it happened rather than
+# listed, and a direction that stands out further than chance explains is outlined — see
+# DirectionRose for the threshold and why it is stricter than the baseline band's.
+#
+# `with_loss` adds Pinpoint's second question: when it went wrong, was it the SHAPE that was
+# lost or the PLACE? It taps a cluster in a direction, so the two failures are separable there
+# and nowhere else.
+static func _direction_rose(trials: Array, with_loss: bool) -> Control:
+	var by_slot: Dictionary = {}
+	var lost_shape: int = 0
+	var lost_place: int = 0
+	for t in trials:
+		if not (t is Dictionary) or not (t as Dictionary).has("slot"):
+			continue
+		var d: Dictionary = t as Dictionary
+		var slot: int = int(d["slot"])
+		if not by_slot.has(slot):
+			by_slot[slot] = {"name": str(d.get("dir_name", "?")), "right": 0, "n": 0}
+		by_slot[slot]["n"] = int(by_slot[slot]["n"]) + 1
+		if bool(d.get("right", false)):
+			by_slot[slot]["right"] = int(by_slot[slot]["right"]) + 1
+		elif with_loss:
+			# Got the place but not the shape, against the other way round. A round that was
+			# wrong on both counts says nothing about which one went first.
+			if bool(d.get("got_dir", false)) and not bool(d.get("got_shape", false)):
+				lost_shape += 1
+			elif bool(d.get("got_shape", false)) and not bool(d.get("got_dir", false)):
+				lost_place += 1
+	if by_slot.is_empty():
+		return null
+
+	var rose: DirectionRose = DirectionRose.new()
+	rose.set_directions(by_slot)
+	rose.custom_minimum_size = Vector2(0, MainGlobals.ui_font_size(200))
+	rose.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(rose)
+	var note: String = rose.imbalance_note()
+	box.add_child(_note(note if note != ""
+		else "Nothing here stands out: no direction is further from your own average than "
+		+ "chance would explain."))
+	if with_loss and lost_shape + lost_place > 0:
+		box.add_child(_rule())
+		box.add_child(_accuracy_row("Kept the place, lost the shape",
+			lost_shape, lost_shape + lost_place, 0.0))
+		box.add_child(_note("Of the rounds you got wrong where one half survived, this is how "
+			+ "often it was the shape that went rather than the direction."))
+	return _captioned(box,
+		"Where the dot flashed, and how you did there. Every direction asks the same question, "
+		+ "so a weak corner is about the corner and not about the round.")
+
 # APPRENTICE — accuracy per KIND of rule.
 #
 # This game is watched, not played: the belt speed, how many examples the robot shows and how
@@ -832,10 +914,28 @@ static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols:
 		for c: Node in extra.get_children():
 			extra.remove_child(c)
 			c.queue_free()
-		var by_rule: Control = _rules_for_task(gu, keys[i])
+		var these: Array = _trials_for_task(gu, keys[i])
+		var by_rule: Control = _rule_breakdown(these, "And by the kind of rule, hardest first:") \
+			if not these.is_empty() else null
 		if by_rule != null:
 			extra.add_child(_rule())
 			extra.add_child(by_rule)
+		elif _keeps_trials(gu):
+			# SAYS SO rather than showing nothing. The per-round detail is kept for the last few
+			# sessions only (GenericGameUtil.KEEP_TRIAL_SESSIONS), each tagged with the task it
+			# was played at — so a level you have not touched lately has a grid and no breakdown
+			# under it, and a silent gap reads as a bug rather than as an answer.
+			extra.add_child(_rule())
+			extra.add_child(_note("No per-round detail for this level yet — it is kept for your "
+				+ "last %d sessions, and none of them was at this one."
+				% GenericGameUtil.KEEP_TRIAL_SESSIONS))
+		var split: Control = _memory_split(these,
+			["While the rule was on screen", "After it faded, from memory"],
+			"The rule is written up until part-way through a level and then goes away, so the "
+			+ "same judgement has to come from memory. This is how you did on each kind of round.")
+		if split != null:
+			extra.add_child(_rule())
+			extra.add_child(split)
 		m.set_matrix(rows, cols, cells_of.call(e2))
 		var right: int = int(right_of.call(e2))
 		var asked: int = _asked(e2, fields)
@@ -873,18 +973,53 @@ static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols:
 	scroll.add_child(box)
 	return scroll
 
+# BEFORE THE LABELS FADE, AGAINST AFTER. Both sorting games hide the rule part-way through a
+# level, and that is the difficulty curve: up to then the rule is on screen to read, after it the
+# same judgement has to come from memory. One accuracy for the session averages the two together
+# and cannot show which half is slipping.
+#
+# Generic over the `hidden` flag rather than Polka Dots' `_visibility_split`, which reads a
+# shown/chose pair this game does not keep.
+static func _memory_split(trials: Array, labels: Array, caption: String) -> Control:
+	var right: Dictionary = {false: 0, true: 0}
+	var total: Dictionary = {false: 0, true: 0}
+	var times: Dictionary = {false: [], true: []}
+	for t in trials:
+		if not (t is Dictionary) or not (t as Dictionary).has("hidden"):
+			continue
+		var hid: bool = bool((t as Dictionary).get("hidden", false))
+		total[hid] = int(total[hid]) + 1
+		if bool((t as Dictionary).get("right", false)):
+			right[hid] = int(right[hid]) + 1
+		var ms: int = int((t as Dictionary).get("ms", 0))
+		if ms > 0:
+			(times[hid] as Array).append(float(ms))
+	if int(total[false]) < MIN_PER_BUCKET or int(total[true]) < MIN_PER_BUCKET:
+		return null                 # both halves, or the comparison is not one
+
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	for hid2: bool in [false, true]:
+		box.add_child(_accuracy_row(str(labels[1 if hid2 else 0]),
+			int(right[hid2]), int(total[hid2]),
+			SessionStats.median(times[hid2] as Array)))
+	return _captioned(box, caption)
+
+# Whether this game keeps a per-round log at all, so a game that never did is not told it has
+# none "yet".
+static func _keeps_trials(gu: GenericGameUtil) -> bool:
+	return not gu.read_trial_blocks().is_empty()
+
 # This task's trials, grouped by rule. Null where the game records none.
-static func _rules_for_task(gu: GenericGameUtil, task_key: String) -> Control:
+static func _trials_for_task(gu: GenericGameUtil, task_key: String) -> Array:
 	var trials: Array = []
 	for b: Dictionary in gu.read_trial_blocks():
 		if str(b.get("task_key", "")) != task_key:
 			continue
 		for t in b.get("trials", []):
-			if t is Dictionary and (t as Dictionary).has("rule_name"):
+			if t is Dictionary:
 				trials.append(t)
-	if trials.is_empty():
-		return null
-	return _rule_breakdown(trials, "And by the kind of rule, hardest first:")
+	return trials
 
 static func _asked(e: Dictionary, fields: Array) -> int:
 	var n: int = 0

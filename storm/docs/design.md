@@ -251,3 +251,7 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Leaks appearing and leaks overflowing are both counted; the share that overflowed says how well the player kept up, which the 100-point score cannot.
+
+**Its counts are now metrics.** `overflows` is registered in `StatsOverview.METRICS`, lower being better. Before that this game recorded two counts that nothing could read, and had no Summary rows.
+
+A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.

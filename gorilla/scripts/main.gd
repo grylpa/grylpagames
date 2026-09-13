@@ -34,12 +34,18 @@ func _ready() -> void:
 	game.sig_add_life.connect(_on_add_life)
 
 	game.set_instructions("Gorilla",
-		"Collect all the coins while monsters chase you!\n\n" +
+		"Eat all the apples while monsters chase you!\n" +
+		"The marked coin counts too — the room is not\n" +
+		"clear until it is gone as well.\n\n" +
+		"Keep eating — go too long without an apple\n" +
+		"and you starve. The ring around you\n" +
+		"shows how long you have.\n\n" +
 		"All along, gorillas walk past outside your room.\n\n" +
-		"Once you collect all coins (or time runs out),\n" +
+		"Once they are gone (or time runs out),\n" +
 		"you will be asked:\n" +
 		"How many gorillas did you count?\n\n" +
-		"Avoid the monsters inside your room to survive!"
+		"An exact count wins a life back.\n" +
+		"Being caught or starving costs one."
 	)
 	if not game.shown_instructions:
 		game.show_instructions(self)

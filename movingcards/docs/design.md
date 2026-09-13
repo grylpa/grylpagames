@@ -205,3 +205,10 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 A wrong click records where in the sequence it broke and whether the player jumped ahead or fell back; a completed round records the span. Where it breaks distinguishes a lost place from a lost order.
+
+**It keeps counts, not a percentage.** `rounds_right` / `rounds_wrong` / `jumped_ahead` /
+`fell_back`, a `span` high-water mark, and `break_pos` / `seq_len` lists. None of those were
+metrics any stats screen recognised, so this game had no Summary rows despite recording more
+than most. `StatsOverview.METRICS` now carries `span`, and `GameInstrument._derive_pct_correct()`
+builds the Accuracy row from `rounds_right` / `rounds_wrong` the same way it does from the four
+answer cells elsewhere.
