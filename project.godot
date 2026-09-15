@@ -73,6 +73,8 @@ AliensG="*res://aliens/scripts/globals.gd"
 AliensLevelConfig="*res://aliens/scripts/level_config.gd"
 DinobackG="*res://dinoback/scripts/globals.gd"
 DinobackLevelConfig="*res://dinoback/scripts/level_config.gd"
+AntsG="*res://ants/scripts/globals.gd"
+AntsLevelConfig="*res://ants/scripts/level_config.gd"
 
 [debug]
 
