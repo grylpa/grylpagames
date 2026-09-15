@@ -18,6 +18,7 @@ var games = [
 	["ddooo",         "Witness",        "You saw it happen. Now testify",                         "Attention & Speed"],
 	["pop",           "Glimpse",        "Catch it out of the corner of your eye",                 "Attention & Speed"],
 	["ooo",           "Lineup",         "Pick the culprit out of the lineup",                     "Attention & Speed"],
+	["ants",          "Ants",           "Watch a colony find its way to the food",                "Attention & Speed"],
 
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
