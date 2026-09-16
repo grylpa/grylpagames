@@ -9,16 +9,49 @@ extends RefCounted
 # cannot disagree about where the edge is. That lesson came from the food pile, where a fixed
 # pickup radius and a shrinking drawn radius quietly parted company.
 
-enum Kind { STONE, TWIG, WATER }
+enum Kind { STONE, TWIG, WATER, LURE }
 
-const KINDS: Array = [Kind.STONE, Kind.TWIG, Kind.WATER]
-const NAMES: Dictionary = {Kind.STONE: "Stone", Kind.TWIG: "Twig", Kind.WATER: "Water"}
+const KINDS: Array = [Kind.STONE, Kind.TWIG, Kind.WATER, Kind.LURE]
+const NAMES: Dictionary = {Kind.STONE: "Stone", Kind.TWIG: "Twig", Kind.WATER: "Water",
+	Kind.LURE: "Bait"}
+# One line each, for the tooltip a long press opens.
+const TIPS: Dictionary = {
+	Kind.STONE: "A rock. They must walk around it.\nPick it up and move it as the trail shifts.",
+	Kind.TWIG: "A long branch, laid ACROSS the trail\nwherever you drop it. A proper wall.",
+	Kind.WATER: "A pool they will not cross.\nOnce poured you cannot take it back.",
+	Kind.LURE: "Food you do not mind losing. They will\ncarry it home instead, and it costs you\nnothing. Runs out.",
+}
+# Bait is FOOD, and food is eaten. How many crumbs one holds -- every trip spent carrying these is a
+# trip not spent on the pile you are defending.
+const BAIT_CRUMBS: int = 45
+# SOLID things are walked around. Bait is not: an ant walks onto it, which is the whole idea.
+#
+# Every solid tool says "not through here". Bait says "here is something easier", and the colony
+# answers it by itself -- finds it, recruits to it, and spends its trips carrying away food you were
+# never defending. It is the only tool that works WITH the colony's own machinery rather than
+# against it, and it needs no special pleading in the ant to do so.
+const SOLID: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: true, Kind.LURE: false}
+# A stone or a twig can be lifted and carried to wherever the trail has moved to -- that is the
+# whole game. Water cannot: once it is poured it is poured, and mopping it up does not put it back
+# in the bottle. So water is the decision you cannot take back, and it is priced by being scarce.
+const REUSABLE: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: false,
+	Kind.LURE: false}
+
+static func is_reusable(k: int) -> bool:
+	return bool(REUSABLE.get(k, true))
+
+static func is_solid(k: int) -> bool:
+	return bool(SOLID.get(k, true))
+
+func solid() -> bool:
+	return is_solid(kind)
 
 # half extents (along, across), lobe amplitude
 const SHAPE: Dictionary = {
 	Kind.STONE: [Vector2(34.0, 27.0), 0.13],
 	Kind.TWIG:  [Vector2(76.0, 9.0), 0.06],
 	Kind.WATER: [Vector2(46.0, 36.0), 0.20],
+	Kind.LURE:  [Vector2(30.0, 30.0), 0.16],
 }
 const LOBES: Array = [3.0, 5.0, 7.0]
 
@@ -28,6 +61,9 @@ var angle: float = 0.0
 var half: Vector2 = Vector2(30.0, 24.0)
 var amp: float = 0.13
 var seed_val: int = 0
+# Bait only: what is left of it. Nothing else uses this.
+var crumbs: int = 0
+var crumbs_at_start: int = 1
 
 func _init(which: int, at: Vector2, rot: float, which_seed: int) -> void:
 	kind = which
@@ -36,6 +72,9 @@ func _init(which: int, at: Vector2, rot: float, which_seed: int) -> void:
 	seed_val = which_seed
 	half = SHAPE[which][0]
 	amp = SHAPE[which][1]
+	if which == Kind.LURE:
+		crumbs = BAIT_CRUMBS
+		crumbs_at_start = BAIT_CRUMBS
 
 func _h01(k: int) -> float:
 	var h: int = seed_val * 374761393 + k * 668265263

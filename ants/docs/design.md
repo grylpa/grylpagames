@@ -1,11 +1,31 @@
 # Ants — design
 
-A colony simulation. There is no task for the player yet: you watch ants leave a nest, find food
-they were never told the location of, and wear a trail between the two. Everything the colony does
-emerges from one ant's local rules — nothing anywhere plans a route.
+**Keep the colony from carrying the food home.** A nest wants a pile; you have a few stones, twigs,
+pools of water and a can of repellent. Block the trail and the colony wears a new one around your
+wall within a minute, so the game is not walling off a route once — it is watching where the next
+road is forming and getting there first, by lifting what you already placed and moving it.
 
-**Status: not yet a game.** What it will ask of a player is undecided, so it measures nothing and
-saves nothing (see *Scoring*, below). The category in `MainCfg.games` is provisional.
+Everything the colony does emerges from one ant's local rules. Nothing anywhere plans a route,
+which is exactly why interdicting it is a task: the thing you are playing against adapts, and it
+adapts by a mechanism you can learn to read.
+
+## The rules
+
+- **The allowance is the score.** It starts at the level's `allowance` and every crumb that reaches
+  a nest takes one off it. At zero the colony has had what it came for and the round is lost
+  (`game_over_on_zero_score`). Survive the clock with anything left and you win — so
+  `game_over_on_time_out` is **false** here and `sig_time_over` is taken as the win.
+- **Crushing ants is not the job.** An obstacle dropped on an ant kills it, and each one costs
+  `KILL_PENALTY` (5) off the same allowance. The way to win is to turn them, not to flatten them.
+- **Clearing every pile is the colony's win.** If the last crumb reaches a nest the round ends as a
+  loss however much allowance is left, because there was nothing more to protect.
+
+Allowances are set from measurement, not taste: an unopposed colony delivers 181 / 237 / 520 / 769 /
+996 over each level's time, and the allowances ask for the same **58% cut on every level**.
+Difficulty is the number of routes to cover against a stock that grows more slowly — not a harder
+sum. Ant counts came *down* when the game arrived (level 5 went from 400 to 120): a bigger colony
+only raises the rate past anything nine obstacles could answer, and it was what made a phone
+struggle.
 
 ## Files
 
@@ -27,14 +47,56 @@ units and an ant's position is a `Vector2` anywhere inside it.
 
 ## The world
 
-`"world": [x, y]` in the level config is a **multiple of the 680-unit screen width** — `[1,1]` is
-680×680, `[10,10]` is 6800×6800. Nothing in the simulation is sized against the world, so there is
-no hard cap; a bigger number costs only what the extra ants and longer trails cost.
+`"world": [x, y]` in the level config is a size in **screenfuls** — `[1,1]` is one screen wide by
+one screen tall. A screenful is 680 units wide everywhere and as tall as the **usable band**: the
+canvas less the HUD above and the button bar below. So a world is square on a desktop (680×688) and
+tall on a phone (680×1100), and fills the space either way. It used to take the canvas *width* for
+both axes, which made every world square by accident of one constant and left about 420 units of
+perfectly good ground unused below the colony on a phone. The ladder runs 1, 1.25, 1.5, 2, 3. Nothing in the simulation is
+sized against the world, so 3×3 is an *intention*, not a limit: this table is the only place that
+decides, and a bigger number costs only what the extra ants and longer trails cost.
 
-The camera fits the world to the screen, but **only down to `MIN_ZOOM` (0.42)**. A 10×10 world fits
-at zoom 0.1, where an 11-unit ant is one pixel and there is nothing to watch; past the floor the
-camera shows part of the world, starts on colony 0 and pans by drag. Level 1 is 1×1 precisely so
-that the whole world *is* the screen and nothing has to be panned to see the trail form.
+## Creature scale on a phone
+
+An ant is the same fraction of the canvas on both devices — the canvas is 680 units wide on each —
+but that fraction is **4.85 mm on a desktop window and 1.13 mm on a phone**, about 2.1x smaller to
+the eye at normal viewing distances. It is physical size, not resolution, and it made the ants very
+hard to see on a phone. `AntsG.creature_scale` is 2.0 there.
+
+**Only the ant grows.** The world, the nest, the piles, the obstacles, every sensing distance, the
+scent field and every journey time are exactly as they are on a desktop. What follows the ant is the
+two things that are genuinely about its body: `contact_d`, the room it takes from its neighbours
+(or a colony at double size is a heap of overlapping bodies), and the clearance its bulk needs from
+the wall.
+
+The first attempt did it the other way — shrinking the world in units and zooming the camera, which
+is the same photograph enlarged. It looked right in isolation and was wrong in two ways at once: the
+nest and the pile grew with the ants, and because an ant's speed is in *units per second* it crossed
+a smaller world far quicker, so journeys fell from 11.7 s to 3.9 s and the phone played a different,
+much easier game. `devtools/probe_antscale.gd` plays level 1 at both scales against one seed and now
+asserts what must NOT move: world size, journey length, camera zoom, nest and pile radii.
+
+**Arriving is a question about the ant's head, not its centre.** `Ant.head_pos()` is what reaches
+the food and what enters the nest. Testing the centre meant an ant had to walk its whole half-length
+inside before it counted — wrong at any size, and biting at a larger one: at double scale the
+contact distance is 18 units against a 13-unit nest entrance, so ants shoved each other out of the
+doorway they were queueing for. Fixing it lifted phone throughput from 103 to 117 crumbs in 120 s.
+
+**What still differs, and why it is left alone.** A bigger ant queues more at an entrance that has
+not grown with it, so the phone colony delivers about 70% of the desktop rate (117 against 167 in
+120 s, measured after the colony has turned out). Greetings are *not* the cause — those are the same
+at both scales (310 against 340 ant-seconds) — it is simply crowding at the nest hole and the pile.
+Closing that gap would mean growing the nest entrance and the pickup radius with the ant, which is
+exactly the "everything got bigger" that was rejected. The levers, if it ever matters, are those two
+radii or a smaller `ants_per_colony` on a phone.
+
+**The camera never zooms out.** `cam_zoom_out` is a per-level parameter and is 1.0 everywhere, so
+the camera sits at 1:1 and a world larger than the screen is **panned**, never shrunk to fit. It
+used to fit the world automatically and stop only at a legibility floor, which silently made every
+ant smaller on the big levels instead of letting the player move around a full-size world. Level 1
+is 1×1 precisely so that the whole world *is* the screen and nothing has to be panned to see the
+trail form.
+
 
 ## Why the scent field has no grid
 
@@ -64,6 +126,81 @@ Two details keep the store bounded:
 
 The falloff is linear in distance, not in distance squared. A squared falloff is nearly flat across
 most of the sensing disc, and a flat field carries no gradient for the ant to read.
+
+## The level briefing, and the edge of the world
+
+Each level opens with the shared briefing card (`GenericGameUtil.show_game_popup`, the same
+"Level N" card every other game uses), listing **nests, food piles, ant speed and world size**.
+Nothing has to gate on it: `paused()` is true while any screen is visible and `_process` checks
+that, so the colony stands still until the card is dismissed — and the HUD clock checks the same
+flag, so reading the briefing does not eat the level's time.
+
+Three of the four lines can be **withheld** — `tell_world`, `tell_colonies` and `tell_food` in the
+level config — and read "Unknown" instead. All are true today; they exist so a level can send the
+player in knowing less than they would like. The ants' pace is never withheld: it is the one fact
+a player can check by watching, so hiding it would be a nuisance rather than a difficulty.
+
+The text is built by `briefing_text()` and the probe asserts on that string, so the check is about
+what the player is told rather than about a CanvasLayer.
+
+**The world has a wall.** `walkable` is the world less `AntsArt.WALL_W`, and every rule that used
+to be stated against `world` is stated against that instead — so the border is a *place*, not a
+painted line, and an ant is turned at its inner face with its body clear of it.
+
+It went through two wrong versions. First it was a wide, faint band shaded *inside* the walkable
+area: too dim to notice, and ants walked straight over it. Thin and loud is the combination that
+works — 7 units of near-black (5.4:1 against the light soil) with a pale lip on the inner face, so
+it keeps a hard edge against the ground rather than fading into it.
+
+The wall lies **inside** the world rect, which matters: the camera is clamped to the world, so
+anything drawn outside it can never be seen, and the first version's border vanished the moment you
+panned to an edge. Obstacles are checked against `walkable` too — the wall is not ground.
+
+**A wall the camera cannot bring into view might as well not be drawn**, and that took two goes to
+get right. `_clamp_cam` now works against the **usable band** — the viewport less the HUD at the top
+and the button bar at the bottom — not the raw viewport. Clamping against the raw viewport parked the
+world's top edge at screen y = 0, underneath the HUD, so above level 1 the top wall could never be
+seen at all.
+
+The second mistake was subtler and is worth keeping in mind for any clamp of this shape: the
+overshoot that keeps the wall off the bezel was folded into the same pair of numbers that decides
+whether the world is big enough to pan. Level 1's world (680) only just fits the desktop band (688),
+so the overshoot handed it 40 units of spurious range to slide about in, and it used them to tuck its
+top edge under the HUD — which is what "the top border is very narrow on level 1" was. The fit is
+decided **without** the overshoot; the overshoot is applied only after, and only when the world
+really is pannable. A world that does not fill the band is centred **in the band**.
+
+## Panning, and why it was bad on a phone in three separate ways
+
+1. **Applied per event.** Every drag event moved the camera and asked for a redraw, so how far the
+   view travelled depended on how many touch events the device happened to deliver. Deltas are
+   gathered into `_pan_accum` and applied once in `_process`.
+2. **Tap-or-pan was decided from the mouse.** The slop test asked the viewport for the mouse
+   position — which on a touch screen is not where the finger is, so on a phone it was comparing
+   against a number with nothing to do with the gesture. It uses the event's own `position` now.
+3. **Every finger panned.** A second finger, or a palm on the glass, added its own drag to the same
+   camera, so the view shot off at twice the speed or fought itself. `_press_index` records which
+   pointer owns the gesture (-2 none, -1 mouse, >= 0 a touch index) and only that one pans.
+
+Panning and redrawing also sit **outside** the paused guard now. They used to be behind it with the
+simulation, so a drag while anything was paused piled up in `_pan_accum` and went off in one jump
+when play resumed.
+
+## Turning out
+
+A colony does not leave home all at once. Every ant used to be created at t=0 inside an 18-unit disc
+around the nest, so the whole colony set off together and spread as a single visible wavefront — a
+ring expanding out of every nest at the start of every level, which is not a thing ants do.
+
+They come up out of the hole in a trickle instead, over `EMERGE_WINDOW` (20 s), each ant's turn drawn
+uniformly at random rather than evenly spaced — an even spacing is its own pattern, and a trickle is
+irregular. Until then an ant sits in `AntColony.pending`: not stepped, not drawn, not in the contact
+grid. Two counts therefore exist and mean different things — `ant_count()` is ants out and working,
+`population()` is the size of the colony.
+
+A ring is ants all at **the same distance from home**, so that is what `probe_ants` measures: the
+spread of those distances against their mean, nine seconds in. One cohort walking out together holds
+formation and scores near zero; the trickle scores 0.57.
 
 ## What one ant does
 
@@ -210,11 +347,19 @@ irregular. `contains()` and the drawing read the same geometry, so what an ant c
 and what the player sees cannot disagree. That is the food pile's lesson applied before the fact.
 
 An obstacle is refused if it would sit on a nest or a pile (which would strand a colony for good
-rather than making it work), if it would **overlap** an existing one, or if the player has none of
-that kind left. A refused drop costs nothing.
+rather than making it work) or if the player has none of that kind left. A refused drop costs
+nothing.
 
-Overlap is refused for a reason beyond tidiness: two obstacles sharing ground make a combined shape
-whose outline is neither one's outline, and edge following reads exactly that outline to get round.
+Two obstacles may not share ground — the combined shape would have an outline that is neither one's
+outline, and edge following reads exactly that outline to get round. But a drop that *would* overlap
+is **not thrown away**: it slides outward until it fits, along the line from the blocking obstacle's
+centre through the tap, so it comes to rest against the side that was tapped. Tapping the flank of
+something already placed is a reasonable way to say "another one, here", and it used to do nothing
+whatever — menu closed, stock untouched, no obstacle, no explanation. Steps are small, so it lands
+*adjacent* rather than a shape's width away.
+
+Only an overlap slides. A drop refused for sitting on a nest or a pile stays refused: sliding it
+would put an obstacle somewhere the player never pointed at.
 
 **Each kind is a limited stock**, set per level (`"stock": [stone, twig, water]`). Placing spends
 one, picking the thing up again returns it — a budget for the level rather than a rate. A kind with
@@ -367,7 +512,83 @@ was simply the first thing to trigger.
   it should never have been able to enter. The exit is now searched for: eight bearings in the
   shape's frame, so the short axis is always among them, marched outwards, nearest wins.
 
-## Contact, and the greeting
+## Bait, the one tool that is not a wall
+
+`AntObstacle.SOLID` splits them. A stone, a twig and a pool are walked around; **bait** is walked
+onto, because bait is food. Nothing in the ant knows it is a trick: the colony smells it, recruits to
+it, and carries it away by exactly the machinery it uses on a real pile. What it costs the colony is
+**trips**; what it costs the player is nothing, because `Ant.carrying_bait` follows the crumb to the
+nest and the allowance is only charged for real ones.
+
+An ant carries bait in **the bait's own colour**, so a stream of ants working your bait is visibly
+that, and not a raid on the pile you are defending.
+
+Measured with bait on the road: **45 bait crumbs carried home against 31 real ones in the same
+window, and the allowance charged exactly 31.** It has to go where ants will find it — food is
+smelled from about 78 units, so bait dropped 150 units off the trail was found by one ant in seventy
+seconds.
+
+Bait is not reusable and vanishes when eaten. It is the only tool that works *with* the colony's
+machinery rather than against it, and it needed no special pleading anywhere in the ant to do so.
+
+**A fan was tried and removed.** It dispersed the scent under it, which severed the road with no
+reply available: searchers stop arriving once a trail thins, so no traffic remains to hold it up,
+and a carrier homes by dead reckoning — straight back through the middle — so no road formed beside
+it either. Tuning the rot rate did not fix it (0.90 left a whisper, 0.95 left nothing: whether a
+thinning road survives is chaotic). A floor and a draught made it *work*, at 37 crumbs per 30 s
+against 23 with a fan on the road — and it still read as an arbitrary dead zone rather than a thing,
+so it went. Bait does the same job by being legible.
+
+## Laying a twig
+
+A twig is 152 units long and 18 wide, so its angle is nearly all of what it does — and dropped at a
+random angle it lands parallel to the trail as often as across it, doing nothing whatever. A tap
+says *where*, and where is enough: `trail_axis()` samples the scent a little way along each bearing
+and a little way back, scoring an **axis** rather than a direction (a trail has no preferred end),
+and the twig is laid square to it. With no road there yet it falls back to the line from the nearest
+nest to the nearest pile, which is the road the colony is going to want anyway. Measured: three
+twigs dropped with no angle given land within 15° of square.
+
+Only elongated tools get this. A stone's angle is variety and stays random.
+
+## Tooltips
+
+A phone has no hover, so the only gesture left that does not already mean "use this" is a **hold**:
+`HOLD_MS` on a menu cell opens the tooltip instead of picking the tool. A desktop keeps its hover as
+well — a mouse has one, and holding a button down to read a label is a phone's compromise rather
+than a desktop's — on the same delay, cancelled if the pointer leaves.
+
+**The menu is a CanvasLayer over the viewport, not a PopupPanel** — which is where it parts company
+with storm's version, and the reason is the tooltip. A Window clips everything to its own rect, so a
+tooltip has to live inside the menu's own three-by-three square: cropped, and lying across the very
+tool it describes. Growing the window to make room made the menu enormous. Over the viewport there
+is no rect to be clipped by, so the ring stays exactly the size it always was and the tooltip goes
+wherever it reads best.
+
+It is placed **radially outward** from the cell being held, because anywhere else needs a line back
+across the middle of the menu and over the other tools. Near a screen edge, though, outward is off
+the screen — and clamping it back drops the box onto the tools, sometimes onto the very one being
+held. So `place_tip()` walks the whole circle, nearest bearing first, and takes the first position
+that both fits the screen and touches no tool. There is always one: the ring is small and the screen
+is not. It is a plain function of its inputs so it can be checked directly, and `probe_ants` checks
+all 36 combinations of corner, edge and held slot rather than anyone looking at one.
+
+The connector is **one straight segment**, from the middle of the tool to the edge of the box, drawn
+*over* the tools rather than under them. It briefly elbowed outward first whenever the straight line
+would cross another tool — but from a corner cell "outward" is the corner of the screen, so the line
+shot up into the corner and came back down, which reads as a mistake rather than a route. Crossing a
+tool is legible when the line is on top; a dog-leg never is.
+
+The scrim underneath takes any press outside the ring, so the tap that dismisses a menu never
+reaches the world behind it — and a single `acted` flag on the menu means one tap is one action.
+Godot emulates a mouse click from every touch, so a tap on a phone arrives twice, once as
+`InputEventScreenTouch` and again as `InputEventMouseButton`, and the menu obligingly placed two
+obstacles for it.
+
+It has to be taught, which is why the instructions say so in as many words. The tutorial is still
+the placeholder described below and will need to show it too.
+
+## Contact, and the greeting## Contact, and the greeting
 
 One pass over an `AntGrid` (cell = `CONTACT_D`) does both jobs, because both are answers to "who is
 next to me" and the hash is the expensive part:
@@ -405,9 +626,56 @@ fraction is just the positional jump moved into the heading.
 
 ## Drawing
 
-Everything is drawn, in world space, by `level.gd`'s single `_draw()` — no sprite, no tile. Ants are
+**Drawing is split across three layers by how often each actually changes**, and the split is worth
+more than everything else in this section put together. It all used to be one `_draw()` that ran
+every frame because the ants had moved — and the *ground* went with it. At a phone viewport that is
+**4,795 `draw_circle` calls rebuilt sixty times a second, 288,000 a second**, for a surface that does
+not change at all. Godot keeps each CanvasItem's command list and re-issues it without running
+`_draw()` again, so a layer that is not marked dirty is free: the ground is built once per level,
+the trail redraws at `TRAIL_HZ` (12), and only the things that actually move redraw every frame.
+`probe_ants` asserts the three layers and their order, because collapsing them back would be
+invisible on a desktop and ruinous on a phone.
+
+**The trail is stored coarsely and drawn cheaply.** `MERGE_R` is how finely the field is *stored* —
+not how it is sensed, which is `SENSE_R` and unchanged — and raising it from 6 to 10 thinned a formed
+trail from about 1,800 marks to 817 without altering its shape, since a sensed value is the sum of
+everything within 26 units under a smooth falloff. That cost arrived exactly when the game got
+interesting: with no trail a `sense()` call evaluates 2 marks, with one it evaluated 70, the whole
+simulation tripled the moment the ants found the food, and the trail layer had 1,800 circles to
+redraw eight times a second. The marks are rects now for the same reason the soil grain is.
+
+**The ground is drawn for the WHOLE WORLD, once — not for the view.** The first version of the split
+generated it for the visible rect plus a margin, and rebuilt it whenever the camera had eaten half
+that margin. That is worse than it sounds: on a phone it put all 4,795 draw calls into *one frame in
+the middle of a swipe*, so panning became free frames, hitch, free frames. The ants stayed smooth
+throughout, because their motion is dt-based — which made it look like a camera problem when it was
+a drawing problem. Covering the whole world costs 21,000 commands at the largest level, built once
+behind the briefing card, after which **no camera movement can cost anything at all**.
+
+The grains are `draw_rect`, not `draw_circle`. A circle tessellates into a fan and there are twenty
+thousand of them; a rect is two triangles. At one to two units across the difference is invisible,
+and it is the difference between 42,000 triangles a frame and several hundred thousand.
+
+Worth recording how this was found, since it was twice nearly missed: profiling the *simulation* said
+`Ant.step` was 79% of it, at 3.4 ms a tick for 400 ants — true, and a red herring both times. The
+simulation was never the expensive half. Scheduling scent sampling at 20 Hz (`SCENT_EVERY`, also
+closer to the real animal's 8–10 Hz antennal sweep) bought 7%; the drawing changes removed two
+orders of magnitude more work than that.
+
+Everything is drawn, in world space — no sprite, no tile. Ants are
 plain `RefCounted`, not nodes: a colony is tens to hundreds of them and a `Node2D` apiece (let alone
 a physics body) buys nothing.
+
+**The ground is light, and that is a constraint rather than a taste.** The ant is near-black by
+design, and against the original dark soil it stood at a contrast ratio of **1.46:1** — not dim,
+invisible, and on a phone the game was unplayable. The palette now puts it at 5.19:1 (WCAG AA is
+4.5) with the worst speckle at 3.01:1, and `probe_ants` asserts both so it cannot drift back.
+
+Lightening it was not a one-line change. `CRUMB`, `FOOD_BODY`, `STONE_BODY` and the nest had all
+been picked to read against something dark, and at the new mid luminance they landed within
+1.2–1.6:1 of the soil — differing from it in **hue alone**, which is what a colour-blind player, or
+a phone in sunlight, cannot use. Every one was re-picked for a luminance difference, and the probe
+now checks each of them too.
 
 The ground follows the same principle as the eleven lawns (`scripts/grass_field.gd`): one continuous
 surface, never a repeated image. It differs in how it is produced, because a lawn covers a board of
@@ -427,29 +695,165 @@ cost more than they show. The gaster carries one highlight, which is what keeps 
 a dark soil. The food pile **shrinks as it is carried away**: it is the only readout of progress the
 world itself gives.
 
-## Scoring — deliberately none
+## What it measures
 
-`GenericGameUtil.add_score_and_time(1, 0, false)` counts a crumb in the HUD with
-`is_actual_score = false`, so `score_was_changed` stays clear and `save_score()` returns before
-writing anything. A session therefore writes no row, the Scores screen stays empty, and the stats
-screen is never told this game measures something it does not.
+Two numbers, both direct consequences of where the player put things — no derived statistics, and
+nothing the game does not actually record:
 
-`ants` is listed in `probe_audit.gd`'s `NOT_MEASURED` for the same reason, and that check is
-symmetric: a game on the list that *has* started recording is reported as a gap too, so the
-exemption cannot quietly outlive its reason. When Ants acquires a task it leaves the list at the
-same time as it gains a `SUMMARY_ROWS` entry in `scripts/game_instrument.gd` — and not before.
+- **`crumbs_through`** — what got past you. The whole game in one number.
+- **`ants_killed`** — crushed under a dropped obstacle, which is not the job.
+
+Both are in `score_columns`, in `SUMMARY_ROWS`, and registered in `StatsOverview.METRICS` (lower is
+better for both). A `SUMMARY_ROWS` entry alone is not enough: the Summary tab skips any metric
+`METRICS` does not know, which is why Ants first showed twenty sessions and no rows at all.
+
+Ants has left `probe_audit`'s `NOT_MEASURED` list, which it was on while nothing was asked of the
+player. That check is symmetric — a game on the list that *has* started recording is reported as a
+gap too — so the exemption could not outlive its reason.
+
+**The probes must not record.** Ants keeps a real score now, so every level a probe ends calls
+`save_score` against the player's own guest profile; one suite run left 24 MB of invented sessions
+in it and gave the Planning category a history it had never earned. All three Ants probes set
+`tutorial_mode` before their first `new_game` — the switch the game already has for "play it,
+record nothing" — and it has to be before, because `reset()` commits an ongoing score too.
 
 ## Tutorial
 
-`scripts/tutorial.gd` is a placeholder and is **not wired up**: `ants` is absent from
-`MainCfg.tutorials` and `main.gd` defines no `start_tutorial()`, which is what the instructions
-screen and the main menu test before offering the "Interactive tutorial" button. Defining the
-method with no steps behind it would put the button in front of players and open an empty coached
-session — worse than not offering one.
+`scripts/tutorial.gd` is a real coached tutorial now — fourteen steps, `ants` is in
+`MainCfg.tutorials`, and `main.gd` has the `start_tutorial` / `_on_tutorial_done` pair on the ptbits
+model. The **instructions no longer describe the tools one by one**: they say a tool explains itself
+on a long press, and the tutorial shows each one working instead.
 
-When it is written: spotlights must be **measured, not authored**. This game runs under a camera
-whose zoom depends on the world size, so a `spot_radius` in screen units means something different
-on every level. See the `_tight()` note in `gorilla/docs/design.md`, which is the worked example.
+What it teaches, in the order a player gets it wrong:
+
+1. A wall is not permanent — block the road and the colony wears a new one round it. A player who
+   never learns this places four stones, watches them become scenery, and decides the tools do not
+   work. It is a `watch_only` step ended by `advance_when` on the trail re-forming, because it has
+   to be seen rather than told.
+2. **What you placed can be picked up and moved.** That single action is the whole loop; without it
+   the stock is four decisions rather than four tools.
+3. Bait, which reads as helping the enemy and is the strongest move available, so it is shown
+   working rather than described.
+4. Crushing ants costs five times a crumb, and nothing on screen says so until the number drops.
+5. The long press.
+
+**Spotlights are measured, never authored.** `level.tutorial_*_rect()` return screen-space boxes
+built from the live nest, pile and trail through the camera transform. This game draws through a
+camera whose zoom depends on the device's creature scale, so an authored radius is right on one
+machine and wrong on the next — the mistake gorilla's tutorial made and had to be rebuilt to undo.
+
+`game.initial_score` is raised to 100000 in tutorial mode: a coached run must not be able to lose on
+the allowance while the coach is still talking, and the lesson about the road re-forming takes a
+minute of real colony time to land.
+
+**What the coach must never sit on**, and the trap in saying so: the runner re-places a caption only
+once it buries **half of a zone's area**, so the tool menu goes into `keep_clear` **cell by cell**.
+Registered as one ring-sized zone it stayed put, because a caption lying across the bottom row of
+tools covers barely a third of the square. The last thing placed is a zone too — a step that says
+"tap what you placed" is unusable if the balloon is on it.
+
+**A step that names a tool opens the menu and lights that tool.** The three tool steps (twig, the
+red cross, bait) carry a `setup` calling `level.tutorial_open_menu()` — `(true)` for the cross,
+which only exists in a menu raised over something already placed — and a `spot` calling
+`level.tutorial_menu_cell_of(kind)`. Naming a tool and leaving the player to find it among eight
+small pictures teaches the ring, not the tool, and the ring was taught two steps earlier.
+`tutorial_open_menu` is **idempotent**: a menu the player already has open is left where it is,
+because re-opening it would move it out from under a finger already on its way to a box. The cell is
+asked for **by kind, never by slot** — `obstacle_menu.gd` publishes a `cell_kinds` meta beside
+`cell_rects`, since which boxes exist depends on what the player has left. `probe_ants` runs each
+step's `setup` before reading its `spot`, with the menu closed first, which is the only thing in the
+suite that checks a setup does what its step needs.
+
+**A menu that has been picked from is gone the instant it is picked from** — and it is still in the
+tree for the rest of the frame. `ObstacleMenu`'s cell calls `close()` (a `queue_free`) and *then*
+`on_pick`, and `on_pick` is what notifies the tutorial, so the next step's `setup` runs while the
+free is still pending. `is_instance_valid()` is true there, so `tutorial_open_menu()` decided a menu
+was already open and returned — and the bait step came up with its caption over nothing, which is
+exactly what "the caption appears before the popup" was. Every tutorial hook that asks about the
+menu now goes through `level._menu_open()`, which also rules out `is_queued_for_deletion()`.
+
+**Watch steps put the caption in the top-right corner.** The nest is top left and the food bottom
+right, so the whole story of a `watch_only` step happens along that diagonal. `caption_side: right`
+alone was not enough: `TutorialRunner` **centres** a side caption in its column, which still lands
+on the diagonal. The runner now also takes `caption_side_align` (`"top"` / `"bottom"`, default
+centred), and the three watch steps set `"right"` + `"top"`; `probe_ants` requires every `watch_only`
+step to carry both.
+
+**Captions are short on purpose.** A balloon is sized by its text, and two steps ask the player to
+*watch* a road form. The first draft explained the mechanism in two paragraphs and then sat across
+the very thing it was pointing at; `probe_ants` caps caption length so that cannot come back.
+
+**The failure mode of a tutorial is not a wrong caption — it is a step waiting for ever on an event
+nothing emits.** `level.TUTORIAL_EVENTS` lists every name the level passes to `tutorial_notify`, and
+`probe_ants` checks every awaited event against it, along with every spotlight resolving and no step
+carrying a radius. `probe_tut` carries a hardcoded list of nine games and does not cover this one, so
+without that nothing would check it at all.
+
+## The top strip
+
+**One counter: ants crushed.** Crushing is not the job and it costs five times a crumb, and nothing
+said so until the score dropped — which left the player to work out which of the two things that had
+just happened was responsible.
+
+It used to be the shared **paired** corrects/mistakes counter, whose left slot showed *bait carried
+home* purely so the right one would not sit beside a stuck zero. That was a second job for a number
+nobody wanted, and "correct" is the wrong word for a game with no right answers. `GenericGameHUD`
+now takes `show_tally(value_fn)`, which lights the lives widget — same place, same look — and
+**reads** the number every `update_all()` instead of being pushed it. Nothing in the game writes that
+label, so it cannot drift from what it is meant to be showing. It is not `lives_left` and not
+`packets_left`: ants crushed goes *up*, must never be decremented by the shared machinery, and is
+already persisted properly as the `ants_killed` score column.
+
+**The ant icon is drawn, not imported** (`AntsG.ant_icon()`), as a dark shape inside a light rim —
+one pass over the pixels measuring distance to the shape's skeleton, so the rim comes free rather
+than being a second drawing.
+
+**The rim is load-bearing, and it is a rim, not an aura.** The counters sit inside the HUD's
+`BkLabel`, a 60 px band of flat dark grey — *not* the soil, which the strip covers. On that band the
+dark body alone measures **1.9:1**; the rim carries it at **9.3:1**, and 17.7:1 against the ant
+itself. But the legs are `0.030` wide and the first rim was `0.085`, nearly three times what it was
+outlining, so the glow between the legs merged into one white blob and the icon read as a bright
+badge with an ant somewhere in it. Now `0.034` with a squared alpha falloff — opaque where it
+touches the body, gone quickly after, since a linear ramp spends half its width above 50% alpha and
+that is the part that shouts. Coverage went from 39% rim / 22% shape to **13% / 22%**, and
+`probe_ants` requires the rim to cover no more than the shape it outlines. It measures the contrast
+against the live `BkLabel` color rather than an assumed background: the first version of that check
+measured the ant against the ground and proved a 5.4:1 the player never sees. It is passed with `Color.WHITE` so it keeps its own colors instead of
+the strip's yellow tint, and at **half scale**: `set_lives_icon` sizes the box as *texture size x
+scale*, the icon is baked at 64 px for a clean edge, and every other icon on the strip is a 32 px
+box — so a scale of 1 put a double-size ant next to normal-size everything else. `probe_ants` pins
+the size and the tint.
+
+The tool menu is closed when the level is hidden and on
+`MainGlobals.sig_need_to_close_info_popups`. It is a CanvasLayer on the level rather than a child of
+the board, so hiding the board does not hide it: pressing M with one open left it floating over the
+main menu.
+
+## The probes## The top strip
+
+The two counters on the HUD (`hud.show_corrects_mistakes()`) carry **bait carried home** and **ants
+crushed** — both things the player caused, one wanted and one not. Crushing costs five times a crumb
+and nothing said so until the score dropped, which left the player to work out which of the two
+things that just happened had done it. A pair of counters with one of them stuck at zero reads as
+broken, which is why both halves are used.
+
+**Both icons are drawn, not imported** (`AntsG.ant_icon()` / `bait_icon()`), as a dark shape inside a
+light halo — one pass over the pixels measuring distance to the shape's skeleton, so the halo comes
+free rather than being a second drawing. The strip sits over whatever the game is drawing, which
+here is pale soil: a single tinted pictogram would be a yellow ant on sandy ground, and the icon
+nobody can see is the one telling the player they are crushing ants. Measured 5.4:1 against the
+soil, with the halo 17.7:1 against the ant itself. They are passed with `Color.WHITE` so they keep
+their own colours instead of the strip's yellow tint.
+
+The tool menu is closed when the level is hidden and on
+`MainGlobals.sig_need_to_close_info_popups`. It is a CanvasLayer on the level rather than a child of
+the board, so hiding the board does not hide it: pressing M with one open left it floating over the
+main menu.
+
+`set_counter_icons()` is new on the shared HUD, alongside the lives and packets setters. It uses
+full node paths rather than `%`: those two icons are the only ones on the strip without
+`unique_name_in_owner` set in the scene, so the shorthand silently finds nothing and errors at
+runtime.
 
 ## The probes
 

@@ -21,13 +21,35 @@ const HOME_TURN: float = 3.0          # a laden ant turns more heavily
 const SHOVE_TURN: float = 1.6         # rad/s: the most a shove will turn an ant. A RATE, because
 									  # a shove answered as a flat fraction of the angle is just the
 									  # positional jump moved into the heading
-const LENGTH: float = 11.0            # nose to gaster, in world units
+const LENGTH: float = 11.0            # nose to gaster, in world units, at desktop scale
+# How much larger this device draws an ant. Set once per level from AntsG. It multiplies the drawn
+# body, the room an ant takes from its neighbours and the clearance its bulk needs from the wall --
+# and deliberately nothing else. Sensing, speed, the scent field and every distance in the world
+# are untouched, so the colony behaves identically; the ants are simply easier to see.
+static var draw_scale: float = 1.0
+
+static func body_len() -> float:
+	return LENGTH * draw_scale
+
+# Where its head is. Arriving at the nest and reaching the food are questions about the ant
+# TOUCHING something, and they used to be asked of its centre -- so an ant had to walk its whole
+# half-length inside the thing before it counted. That is wrong at any size and it bites at a
+# larger one: at double scale the contact distance is 18 units and the nest entrance is 13 across,
+# so ants shoved each other out of the very doorway they were queueing for.
+func head_pos() -> Vector2:
+	return pos + Vector2.from_angle(heading) * (body_len() * 0.36)
 
 # --- antennae ---------------------------------------------------------------
 const ANTENNA_REACH: float = 17.0
 const ANTENNA_SPREAD: float = 0.55    # rad off the mid-line, ~32 degrees
 const FOLLOW_THRESHOLD: float = 0.12  # below this the field is noise, and the ant explores
 const FOLLOW_GAIN: float = 2.6
+# Scent is sampled on a SCHEDULE, not every tick, and the turn it produced is held in between.
+# Sampling at 60 Hz was 79% of the whole simulation's cost at 400 ants, and it bought nothing: an
+# ant moves under a unit per tick and the field barely changes. Sampling at 20 Hz is also closer to
+# the animal, which sweeps its antennae at something like 8-10 Hz. The phase is per-ant so the
+# colony does not all sample on the same tick and spike one frame in three.
+const SCENT_EVERY: float = 0.05
 
 # --- joining a trail --------------------------------------------------------
 # Three antennae spread 32 degrees either side can CLIMB a gradient but cannot recognise a RIDGE.
@@ -55,6 +77,13 @@ const FOOD_TURN: float = 4.0
 # is what made a delivered crumb look like it evaporated rather than like it was carried in.
 const PICKUP_PAUSE: Array = [0.18, 0.32]
 const DEPOSIT_PAUSE: Array = [0.28, 0.45]
+
+# --- repellent ---------------------------------------------------------------
+# The spray is steered AWAY from by exactly the machinery that steers toward a trail: sample either
+# side of the head, turn down the gradient. So a sprayed strip bends a column aside instead of
+# stopping it, and an ant with nowhere better to go will still cross rather than stand and starve.
+const AVERSION: float = 3.4           # how hard it turns from the stuff
+const AVERSION_FELT: float = 0.35     # below this the ground is merely stale, not sprayed
 
 # --- obstacles: thigmotaxis -------------------------------------------------
 # An ant that meets something solid does not re-plan; it FOLLOWS THE EDGE until its own way is
@@ -179,8 +208,15 @@ var lost: bool = false
 var lost_time: float = 0.0            # seconds spent in the widening search for a mislaid nest
 var lost_dir: float = 1.0             # which way this ant's search spiral turns
 var pause_amt: float = 0.0            # 0..1, how far into a greeting's stop the ant is
+var emerge_at: float = 0.0            # seconds into the level when this one leaves the nest
+# Whether the crumb it is carrying came from bait. The ant neither knows nor cares -- it is the
+# PLAYER who is not charged for these -- but something has to remember it between the pile and the
+# nest, and the ant is what makes the journey.
+var carrying_bait: bool = false
 var best_home: float = INF            # closest its own reckoning has said it is, this trip
 var stale_time: float = 0.0           # how long since that improved
+var scent_cd: float = 0.0
+var scent_turn: float = 0.0
 var join_cd: float = 0.0
 var join_want: float = 0.0            # bearing of the trail it is following
 var joined: bool = false
@@ -206,13 +242,14 @@ func _init(start: Vector2, dir: float, scale_factor: float, which_colony: int, h
 	gait = randf() * TAU
 	# Unsynchronised, or the whole colony sweeps its antennae as one animal.
 	sweep_phase = randf() * TAU
+	scent_cd = randf() * SCENT_EVERY
 
 func speed() -> float:
 	return BASE_SPEED * speed_scale
 
 # One tick of sensing and movement. Food, nest and neighbours are the level's business; this is
 # only "where does my own head tell me to go".
-func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array) -> void:
+func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: Repellent) -> void:
 	contact_cd = maxf(0.0, contact_cd - dt)
 	if stop_timer > 0.0:
 		stop_timer -= dt
@@ -227,7 +264,11 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array) -> void:
 	var turn: float = 0.0
 	var turn_cap: float = MAX_TURN
 	if state == State.SEARCHING:
-		turn = _follow_scent(marks, dt)
+		scent_cd -= dt
+		if scent_cd <= 0.0:
+			scent_cd += SCENT_EVERY
+			scent_turn = _follow_scent(marks, SCENT_EVERY)
+		turn = scent_turn
 	else:
 		turn = _steer_home(dt)
 		turn_cap = HOME_TURN
@@ -240,6 +281,8 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array) -> void:
 	elif has_smelled_food:
 		wander_w = 0.15
 	turn += wander_bias * wander_w
+	if spray != null and not spray.is_empty():
+		turn += _turn_from_spray(spray)
 	turn = clampf(turn, -turn_cap, turn_cap)
 	if wall_side != 0.0:
 		turn *= WALL_GOAL_DAMP
@@ -462,6 +505,17 @@ func _edge_turn(obstacles: Array, dt: float) -> float:
 	wall_err = err
 	return clampf(wall_side * (WALL_KP * err + WALL_KD * rate), -AVOID_TURN, AVOID_TURN)
 
+# Down the gradient of the stuff, sampled at the same two points the ant already smells with. It is
+# added to whatever the ant wanted rather than replacing it, so a laden ant fighting to get home
+# will push through a weak patch while an idle one is turned by it.
+func _turn_from_spray(spray: Repellent) -> float:
+	var l: float = spray.sense(pos + Vector2.from_angle(heading - ANTENNA_SPREAD) * ANTENNA_REACH)
+	var r: float = spray.sense(pos + Vector2.from_angle(heading + ANTENNA_SPREAD) * ANTENNA_REACH)
+	if maxf(l, r) < AVERSION_FELT:
+		return 0.0
+	var away: float = (l - r) / maxf(l + r, 0.001)
+	return away * AVERSION
+
 # Where the ant would go if nothing were in the way -- the bearing its own business gives it. INF
 # when it has no opinion, in which case following simply continues.
 func _goal_bearing() -> float:
@@ -490,9 +544,11 @@ func _feel(obstacles: Array, ang: float, reach: float) -> float:
 		d += 1.5
 	return INF
 
-# The world's edge turns an ant back rather than stopping it dead against a wall.
+# The wall turns an ant back rather than stopping it dead against it. The rect passed in is the
+# WALKABLE area, which is inset from the world by the wall's own width -- so an ant is turned at the
+# wall's inner face and its body never overlaps the border it is being stopped by.
 func _keep_inside(world: Rect2) -> void:
-	var margin: float = LENGTH
+	var margin: float = body_len() * 0.55
 	var lo: Vector2 = world.position + Vector2(margin, margin)
 	var hi: Vector2 = world.position + world.size - Vector2(margin, margin)
 	var bounced: bool = false

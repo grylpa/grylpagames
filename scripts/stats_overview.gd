@@ -49,6 +49,8 @@ const METRICS: Dictionary = {
 	"jobs_cancelled": false,      # Taxi: a plan revised after it was made
 	"overflows": false,           # Storm: water on the floor
 	"collisions": false,          # Pneumo
+	"crumbs_through": false,      # Ants: what the colony got past the player
+	"ants_killed": false,         # Ants: crushed under a dropped obstacle, which is not the job
 	"creatures_stopped": true,    # Parkem: creatures turned back
 }
 

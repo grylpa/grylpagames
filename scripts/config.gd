@@ -18,7 +18,6 @@ var games = [
 	["ddooo",         "Witness",        "You saw it happen. Now testify",                         "Attention & Speed"],
 	["pop",           "Glimpse",        "Catch it out of the corner of your eye",                 "Attention & Speed"],
 	["ooo",           "Lineup",         "Pick the culprit out of the lineup",                     "Attention & Speed"],
-	["ants",          "Ants",           "Watch a colony find its way to the food",                "Attention & Speed"],
 
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
@@ -29,6 +28,7 @@ var games = [
 	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],
 	["pneumo",        "Pneumo",         "Manage your pneumatic tubes deliveries",                 "Planning"],
 	["parkem",        "Parkem",         "Don't allow the monsters to reach their goals",          "Planning"],
+	["ants",          "Ants",           "Keep the colony from carrying the food home",            "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
 	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Reflexes"],
@@ -59,7 +59,7 @@ var games = [
 # two buttons that offer a tutorial (the game's main menu and its instructions screen) instead test
 # whether the game's main.gd defines start_tutorial(). Add a folder here as each tutorial is
 # written — see docs/tutorials.md for the recipe.
-var tutorials: Array = ["aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
+var tutorials: Array = ["ants", "aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials

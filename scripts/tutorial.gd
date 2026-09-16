@@ -111,6 +111,8 @@ var _watch_only: bool = false
 # A step that names its own list replaces the runner's for as long as it is up; a step that does
 # not, inherits it.
 var keep_clear: Array = []
+# "top", "bottom", or anything else for centred. Only consulted for a side caption.
+var caption_side_align: String = "center"
 # The runner-level list, kept so a per-step list can be a temporary override rather than a
 # permanent one.
 var _base_keep_clear: Array = []
@@ -1191,6 +1193,17 @@ static func dim_rects(full: Rect2, holes: Array) -> Array:
 # --- Caption placement ------------------------------------------------------
 
 # Which placement this step wants: its own `caption_side` if it has one, else the runner default.
+# Where a SIDE caption sits in its column. Centred by default, which is right when the caption is
+# the subject -- and wrong when the step is asking the player to watch the board, because a board
+# whose interesting parts run corner to corner has its free space in the corners. Ants' nest is top
+# left and its food bottom right, so a centred right-hand column still lies across the diagonal.
+func _effective_side_align() -> String:
+	if _idx >= 0 and _idx < _steps.size():
+		var a = _steps[_idx].get("caption_side_align", "")
+		if a is String and not (a as String).is_empty():
+			return String(a)
+	return caption_side_align
+
 func _effective_side() -> String:
 	if _idx >= 0 and _idx < _steps.size():
 		var s = _steps[_idx].get("caption_side", "")
@@ -1238,7 +1251,12 @@ func _layout_panel() -> void:
 	if is_side:
 		panel_h = minf(panel_h, maxf(low_limit - top_y, 1.0))
 		var x_side: float = (screen.x - avail_w - PANEL_MARGIN) if side == "right" else PANEL_MARGIN
+		var align: String = _effective_side_align()
 		var y_side: float = top_y + maxf(low_limit - top_y - panel_h, 0.0) * 0.5
+		if align == "top":
+			y_side = top_y
+		elif align == "bottom":
+			y_side = maxf(low_limit - panel_h, top_y)
 		if _has_spot:
 			var here: Rect2 = Rect2(x_side, y_side, avail_w, panel_h)
 			if here.intersects(_spot_rect):
