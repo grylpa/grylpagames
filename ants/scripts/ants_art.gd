@@ -10,20 +10,36 @@ extends RefCounted
 # from a hash of its own cell coordinates -- deterministic, so it never crawls or flickers, and
 # generated ONLY for the part of the world on screen, so the cost is the same at either size.
 
-const SOIL: Color = Color(0.262, 0.184, 0.129)
-const SOIL_DARK: Color = Color(0.207, 0.141, 0.098)
-const SOIL_LIGHT: Color = Color(0.320, 0.233, 0.164)
-const GRAIN_DARK: Color = Color(0.170, 0.112, 0.076, 0.55)
-const GRAIN_LIGHT: Color = Color(0.404, 0.309, 0.223, 0.50)
+# LIGHT ground, and it has to be. The ant is near-black by design, and against the old dark soil
+# it stood at a contrast ratio of 1.46:1 -- which is not dim, it is invisible, and on a phone it was
+# unusable. This palette puts it at 5.19:1 (WCAG AA is 4.5), and the speckle at worst 3.01:1.
+#
+# Lightening the ground is not a one-line change: CRUMB, FOOD, STONE and the nest were all picked
+# to read against something dark, and at mid luminance they came out within 1.2-1.6:1 of the new
+# soil -- differing from it in hue alone, which is exactly what a colour-blind player, or a phone in
+# sunlight, cannot use. Every one of them was re-picked for a LUMINANCE difference instead.
+const SOIL: Color = Color(0.608, 0.518, 0.416)
+const SOIL_DARK: Color = Color(0.533, 0.447, 0.353)
+const SOIL_LIGHT: Color = Color(0.682, 0.596, 0.494)
+const GRAIN_DARK: Color = Color(0.451, 0.369, 0.286, 0.55)
+const GRAIN_LIGHT: Color = Color(0.757, 0.678, 0.573, 0.50)
 
 const ANT_BODY: Color = Color(0.106, 0.070, 0.055)
 const ANT_SHEEN: Color = Color(0.310, 0.192, 0.125)
-const CRUMB: Color = Color(0.564, 0.741, 0.310)
-const FOOD_BODY: Color = Color(0.478, 0.674, 0.251)
-const FOOD_DARK: Color = Color(0.325, 0.486, 0.164)
-const NEST_RIM: Color = Color(0.372, 0.278, 0.196)
+const CRUMB: Color = Color(0.729, 0.902, 0.463)
+const FOOD_BODY: Color = Color(0.639, 0.827, 0.353)
+const FOOD_DARK: Color = Color(0.125, 0.259, 0.071)
+const NEST_RIM: Color = Color(0.400, 0.302, 0.208)
 const NEST_HOLE: Color = Color(0.094, 0.062, 0.043)
-const TRAIL: Color = Color(0.415, 0.360, 0.180)
+const TRAIL: Color = Color(0.298, 0.243, 0.086)
+
+# The wall around the patch. THIN and LOUD, which is the combination that was wanted: a wide, faint
+# band read as a smudge of darker ground, and ants walked over it besides. Near-black against the
+# light soil is 5.4:1, and the pale lip on its inner face gives it a second edge so it still reads
+# as a rim at a glance.
+const WALL_W: float = 7.0
+const WALL_DARK: Color = Color(0.106, 0.078, 0.059)
+const WALL_LIP: Color = Color(0.878, 0.827, 0.729)
 
 # Obstacles. Each reads by SILHOUETTE and value before colour, so they stay apart on dark soil and
 # for a colour-blind player: the stone is pale and blocky, the twig is long and dark, the water is
@@ -34,14 +50,14 @@ const COXA: Array = [0.17, 0.01, -0.16]
 const KNEE_SPLAY: Array = [0.46, 0.00, -0.52]
 const FOOT_SPLAY: Array = [0.80, 0.04, -0.95]
 
-const STONE_BODY: Color = Color(0.560, 0.545, 0.514)
-const STONE_LIT: Color = Color(0.701, 0.686, 0.650)
-const STONE_DARK: Color = Color(0.352, 0.337, 0.317)
-const TWIG_BODY: Color = Color(0.376, 0.254, 0.152)
-const TWIG_LIT: Color = Color(0.501, 0.352, 0.215)
-const TWIG_DARK: Color = Color(0.200, 0.129, 0.078)
-const WATER_BODY: Color = Color(0.141, 0.286, 0.352)
-const WATER_LIT: Color = Color(0.407, 0.639, 0.709)
+const STONE_BODY: Color = Color(0.808, 0.800, 0.776)
+const STONE_LIT: Color = Color(0.898, 0.890, 0.867)
+const STONE_DARK: Color = Color(0.482, 0.475, 0.455)
+const TWIG_BODY: Color = Color(0.298, 0.196, 0.114)
+const TWIG_LIT: Color = Color(0.412, 0.286, 0.173)
+const TWIG_DARK: Color = Color(0.161, 0.106, 0.063)
+const WATER_BODY: Color = Color(0.129, 0.290, 0.376)
+const WATER_LIT: Color = Color(0.451, 0.686, 0.765)
 
 # A grain cell is chosen from a fixed ladder so it is ANCHORED IN THE WORLD: panning never shifts
 # the grain, and the cell only changes size when the zoom does, which happens once at level start.
@@ -69,22 +85,30 @@ static func cell_for_zoom(zoom: float) -> float:
 			best = c
 	return best
 
-static func draw_ground(ci: CanvasItem, vis: Rect2, world: Rect2, zoom: float, seed_val: int) -> void:
-	var area: Rect2 = vis.intersection(world)
-	if area.size.x <= 0.0 or area.size.y <= 0.0:
-		return
-	ci.draw_rect(area, SOIL, true)
-
-	# Two scales of variation. The coarse one is always drawn -- it is what stops a large world from
-	# reading as a flat brown sheet when zoomed out. The fine grain only appears once a grain would
-	# be more than a pixel across; below that it is invisible anyway and merely costs frames.
-	_scatter(ci, area, 256.0, 2, seed_val, 1, 58.0, 96.0, SOIL_DARK, SOIL_LIGHT, 0.22)
+# The ground, drawn ONCE for the WHOLE WORLD -- not for the view.
+#
+# It used to be generated for the visible rect, which meant it had to be rebuilt whenever the camera
+# moved far enough. On a phone that put all 4,795 of its draw calls into a single frame in the
+# middle of a swipe: free frames, then a hitch, then free frames. The ants stayed smooth because
+# their motion is dt-based, and the PANNING lurched, which is exactly backwards from what it looks
+# like. Drawn for the whole world it is built once at level start -- 21,000 commands at the largest
+# level, behind the briefing card -- and no camera movement can ever cost anything again.
+#
+# The grains are `draw_rect`, not `draw_circle`. A circle tessellates into a fan of triangles and
+# there are twenty thousand of them; a rect is two. At one to two units across the difference is
+# invisible, and it is the difference between 42,000 triangles a frame and several hundred thousand.
+static func draw_ground(ci: CanvasItem, world: Rect2, zoom: float, seed_val: int) -> void:
+	ci.draw_rect(world, SOIL, true)
+	# Two scales of variation. The coarse one is what stops a large world from reading as a flat
+	# brown sheet; the fine grain only appears once a grain would be more than a pixel across.
+	_scatter(ci, world, 256.0, 2, seed_val, 1, 58.0, 96.0, SOIL_DARK, SOIL_LIGHT, 0.22, false)
 	var cell: float = cell_for_zoom(zoom)
 	if cell * zoom >= 10.0:
-		_scatter(ci, area, cell, 5, seed_val, 7, 0.9, 2.4, GRAIN_DARK, GRAIN_LIGHT, 1.0)
+		_scatter(ci, world, cell, 5, seed_val, 7, 0.9, 2.4, GRAIN_DARK, GRAIN_LIGHT, 1.0, true)
 
 static func _scatter(ci: CanvasItem, area: Rect2, cell: float, per_cell: int, seed_val: int,
-		salt: int, r_lo: float, r_hi: float, col_a: Color, col_b: Color, alpha: float) -> void:
+		salt: int, r_lo: float, r_hi: float, col_a: Color, col_b: Color, alpha: float,
+		as_rect: bool) -> void:
 	var x0: int = floori(area.position.x / cell)
 	var y0: int = floori(area.position.y / cell)
 	var x1: int = floori((area.position.x + area.size.x) / cell)
@@ -98,20 +122,62 @@ static func _scatter(ci: CanvasItem, area: Rect2, cell: float, per_cell: int, se
 				var rr: float = lerpf(r_lo, r_hi, _hash01(cx, cy, k + 2, seed_val))
 				var col: Color = col_a if _hash01(cx, cy, k + 3, seed_val) < 0.5 else col_b
 				col.a *= alpha
-				ci.draw_circle(Vector2(px, py), rr, col)
+				if as_rect:
+					ci.draw_rect(Rect2(px - rr, py - rr, rr * 2.0, rr * 2.0), col, true)
+				else:
+					ci.draw_circle(Vector2(px, py), rr, col)
 
 # The trail, drawn as what it is: a scatter of scent points, each fading with its own strength.
 # Deliberately faint -- it is the thing the whole level exists to show forming, but an ant is the
 # subject and a bright trail would out-shout it.
 static func draw_marks(ci: CanvasItem, pts: PackedFloat32Array, zoom: float) -> void:
+	# Rects, not circles, for the same reason as the soil grain: a circle is a fan of triangles and
+	# there are hundreds of these, a rect is two. At four pixels across, under 0.42 alpha, heavily
+	# overlapping, the difference cannot be seen.
 	var rr: float = maxf(2.2, 3.0 / maxf(zoom, 0.2))
 	var i: int = 0
 	while i < pts.size():
 		var s: float = pts[i + 2]
 		var col: Color = TRAIL
 		col.a = clampf(s * 0.085, 0.0, 0.42)
+		ci.draw_rect(Rect2(pts[i] - rr, pts[i + 1] - rr, rr * 2.0, rr * 2.0), col, true)
+		i += 3
+
+# The spray on the ground: a pale bloom, deliberately unlike the trail, which is a dark warm
+# scatter. It is drawn under the ants on the same layer as the trail, and it thins as it fades, so
+# a patch you laid a minute ago looks like one that is nearly gone.
+const SPRAY_TINT: Color = Color(0.792, 0.886, 0.945)
+
+static func draw_spray(ci: CanvasItem, pts: PackedFloat32Array, zoom: float) -> void:
+	var rr: float = maxf(13.0, 15.0 / maxf(zoom, 0.2))
+	var i: int = 0
+	while i < pts.size():
+		var v: float = pts[i + 2]
+		var col: Color = SPRAY_TINT
+		col.a = clampf(v * 0.055, 0.0, 0.30)
 		ci.draw_circle(Vector2(pts[i], pts[i + 1]), rr, col)
 		i += 3
+
+# The can itself, for the menu swatch: a body with a window showing how much is left, and a puff.
+static func draw_spray_can(ci: CanvasItem, mid: Vector2, h: float, left: float) -> void:
+	var w: float = h * 0.52
+	var body: Rect2 = Rect2(mid.x - w * 0.5, mid.y - h * 0.34, w, h * 0.72)
+	ci.draw_rect(body, Color(0.647, 0.690, 0.729), true)
+	# The nozzle was 0.28 grey on a 0.10 cell and simply could not be seen; the swatch looked like a
+	# can with its top cut off.
+	ci.draw_rect(Rect2(mid.x - w * 0.22, mid.y - h * 0.52, w * 0.44, h * 0.18),
+		Color(0.529, 0.573, 0.612), true)
+	# The level inside, filling from the bottom: the swatch IS the gauge.
+	var inner: Rect2 = body.grow(-maxf(1.5, h * 0.05))
+	var fill_h: float = inner.size.y * clampf(left, 0.0, 1.0)
+	ci.draw_rect(Rect2(inner.position.x, inner.position.y + inner.size.y - fill_h,
+		inner.size.x, fill_h), SPRAY_TINT, true)
+	ci.draw_rect(body, Color(0.20, 0.23, 0.26), false, maxf(1.0, h * 0.045))
+	for k in 3:
+		var a: float = -0.9 + float(k) * 0.45
+		var from: Vector2 = mid + Vector2(w * 0.32, -h * 0.5)
+		ci.draw_line(from, from + Vector2.from_angle(a) * h * 0.24,
+			Color(SPRAY_TINT.r, SPRAY_TINT.g, SPRAY_TINT.b, 0.8), maxf(1.0, h * 0.05), true)
 
 static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> void:
 	ci.draw_circle(at, r * 1.55, Color(NEST_RIM.r, NEST_RIM.g, NEST_RIM.b, 0.45))
@@ -164,12 +230,13 @@ static func draw_food(ci: CanvasItem, at: Vector2, r: float, left_frac: float, s
 static func draw_ant(ci: CanvasItem, a: Ant, zoom: float) -> void:
 	var fwd: Vector2 = Vector2.from_angle(a.heading)
 	var side: Vector2 = Vector2(-fwd.y, fwd.x)
-	var body_len: float = Ant.LENGTH
+	var body_len: float = Ant.body_len()
 	if body_len * zoom < 5.0:
 		ci.draw_line(a.pos - fwd * body_len * 0.4, a.pos + fwd * body_len * 0.4,
 			ANT_BODY, maxf(1.0, 2.2 / maxf(zoom, 0.1)), false)
 		if a.state == Ant.State.HOMING:
-			ci.draw_circle(a.pos + fwd * body_len * 0.55, maxf(1.0, 1.6 / maxf(zoom, 0.1)), CRUMB)
+			ci.draw_circle(a.pos + fwd * body_len * 0.55, maxf(1.0, 1.6 / maxf(zoom, 0.1)),
+				LURE_TINT if a.carrying_bait else CRUMB)
 		return
 
 	var gaster: Vector2 = a.pos - fwd * body_len * 0.34
@@ -214,7 +281,10 @@ static func draw_ant(ci: CanvasItem, a: Ant, zoom: float) -> void:
 		Color(ANT_SHEEN.r, ANT_SHEEN.g, ANT_SHEEN.b, 0.55))
 
 	if a.state == Ant.State.HOMING:
-		ci.draw_circle(head + fwd * body_len * 0.26, body_len * 0.20, CRUMB)
+		# What it is carrying, in the colour of where it came from -- so a stream of ants working
+		# your bait is visibly a stream working your bait, and not a raid on the real pile.
+		ci.draw_circle(head + fwd * body_len * 0.26, body_len * 0.20,
+			LURE_TINT if a.carrying_bait else CRUMB)
 
 
 # One obstacle, drawn from the SAME outline its collision uses (AntObstacle.outline), so what an
@@ -227,6 +297,11 @@ static func draw_obstacle(ci: CanvasItem, o: AntObstacle) -> void:
 		shadow.append(p + Vector2(2.5, 3.5))
 	ci.draw_colored_polygon(shadow, Color(0.0, 0.0, 0.0, 0.30))
 
+	# The two that are not solid are drawn as air and light, with no filled body at all, so nothing
+	# about them says "you cannot walk here" -- because you can.
+	if o.kind == AntObstacle.Kind.LURE:
+		_draw_lure(ci, o)
+		return
 	var body: Color = STONE_BODY
 	var lit: Color = STONE_LIT
 	var dark: Color = STONE_DARK
@@ -262,8 +337,47 @@ static func draw_obstacle(ci: CanvasItem, o: AntObstacle) -> void:
 			ci.draw_line(o.pos - along * o.half.x * 0.72 + side * o.half.y * k,
 				o.pos + along * o.half.x * 0.72 + side * o.half.y * k, dark, 1.2, true)
 
+# BAIT: a pile of food, drawn like the real one and dwindling like the real one, but in a colour the
+# player can tell apart at a glance. The ants cannot, which is the point.
+const LURE_TINT: Color = Color(0.949, 0.780, 0.353)
+const LURE_DARK: Color = Color(0.588, 0.412, 0.098)
+
+static func _draw_lure(ci: CanvasItem, o: AntObstacle) -> void:
+	var left: float = float(o.crumbs) / maxf(float(o.crumbs_at_start), 1.0)
+	var rr: float = maxf(o.half.x * sqrt(clampf(left, 0.0, 1.0)), 7.0)
+	var ring: PackedVector2Array = PackedVector2Array()
+	for i in 34:
+		var a: float = TAU * float(i) / 34.0
+		ring.append(o.pos + Vector2.from_angle(a) * pile_edge(rr * 1.06, a, o.seed_val))
+	ci.draw_colored_polygon(ring, Color(LURE_DARK.r, LURE_DARK.g, LURE_DARK.b, 0.55))
+	var n: int = maxi(5, int(rr * 0.9))
+	for i in n:
+		var a: float = _hash01(i, o.seed_val, 3, o.seed_val) * TAU
+		var d: float = pile_edge(rr, a, o.seed_val) * 0.80 * sqrt(_hash01(i, o.seed_val, 5, o.seed_val))
+		var p: Vector2 = o.pos + Vector2.from_angle(a) * d
+		var cr: float = lerpf(rr * 0.16, rr * 0.30, _hash01(i, o.seed_val, 9, o.seed_val))
+		ci.draw_circle(p, cr, LURE_TINT if (i % 3) != 0 else LURE_DARK)
+
 static func _closed(ring: PackedVector2Array) -> PackedVector2Array:
 	var out: PackedVector2Array = ring.duplicate()
 	if out.size() > 0:
 		out.append(out[0])
 	return out
+
+
+# The world's limits, drawn as something solid rather than as a shaded rule.
+#
+# The wall lies INSIDE the world rect, in the band between it and the walkable area, so it is
+# visible wherever the camera can reach -- the camera is clamped to the world, so anything drawn
+# outside it could never be seen at all, which is why the first version's border vanished the
+# moment you panned to an edge. Ants are turned at the wall's inner face and never stand on it.
+static func draw_border(ci: CanvasItem, world: Rect2, w: float) -> void:
+	var p: Vector2 = world.position
+	var sz: Vector2 = world.size
+	ci.draw_rect(Rect2(p, Vector2(sz.x, w)), WALL_DARK, true)
+	ci.draw_rect(Rect2(p + Vector2(0.0, sz.y - w), Vector2(sz.x, w)), WALL_DARK, true)
+	ci.draw_rect(Rect2(p + Vector2(0.0, w), Vector2(w, sz.y - w * 2.0)), WALL_DARK, true)
+	ci.draw_rect(Rect2(p + Vector2(sz.x - w, w), Vector2(w, sz.y - w * 2.0)), WALL_DARK, true)
+	# The lip: a bright line on the inner face, so the wall has a hard edge against the ground
+	# instead of fading into it.
+	ci.draw_rect(Rect2(p + Vector2(w, w), sz - Vector2(w, w) * 2.0).grow(1.0), WALL_LIP, false, 2.0)

@@ -3,6 +3,9 @@ extends CanvasLayer
 signal start_game
 
 var gameover_audio := preload("res://art/sounds/gameover-1.mp3")
+# Finishing is not losing. This panel is shown for both, and it played the game-over sting either
+# way -- so every game in the app has been congratulating the player with the sound of failure.
+var finished_audio := preload("res://art/sounds/game-level-done.mp3")
 var game:GenericGameUtil
 
 var _last_countdown_time := 0
@@ -114,6 +117,7 @@ func game_over(_didwin: bool, _wasaborted: bool):
 	MainGlobals.kill_active_tweens()
 	$Panel.add_theme_stylebox_override("panel", _scrim_style())
 	$Panel.show()
+	$GameOverAudio.stream = finished_audio if _didwin else gameover_audio
 	$GameOverAudio.play()
 	_style_banner(_didwin)
 	_style_restart_button(_didwin)
@@ -439,7 +443,24 @@ func collided():
 	check_killed_and_lives_run_out()
 	update_all()
 
+# A single top-strip counter a game drives ITSELF, in the lives widget's place and look.
+#
+# Ants counts ants CRUSHED: a number that goes UP, is not a life and is not a packet, and must
+# never be decremented by the shared machinery or written into a saved score -- so neither
+# lives_left nor packets_left could hold it honestly. The alternative on offer was the PAIRED
+# corrects/mistakes counter with one slot given a second job, which is what it used to be: the
+# left number showed bait carried home purely so the right one would not sit beside a stuck zero.
+var _tally_fn: Callable = Callable()
+
+func show_tally(value_fn: Callable) -> void:
+	_tally_fn = value_fn
+	$LivesContainer.show()
+	update_lives()
+
 func update_lives():
+	if _tally_fn.is_valid():
+		%LivesLabel.text = str(_tally_fn.call())
+		return
 	if game and game.count_lives:
 		%LivesLabel.text = str(game.lives_left)
 
@@ -557,6 +578,23 @@ func set_lives_icon(_texture, _scale:Vector2 = Vector2(1,1), _modulate = null):
 # `_modulate` exists because the icon carries a yellow tint from the scene, to match the yellow
 # number beside it. That is right for a one-color pictogram and wrong for an icon made of a game's
 # own sprite art, which comes out muddy under it — pneumo's crash icon passes white.
+# The two counters on the top strip. Same shape of setter as the lives and packets icons above, and
+# the same reason for `_modulate`: the icons carry a yellow tint from the scene to match the yellow
+# number beside them, which is right for a one-color pictogram and wrong for one that brings its own
+# colors -- pass Color.WHITE to keep them.
+func set_counter_icons(_correct_tex, _mistake_tex, _modulate = null) -> void:
+	# Full paths, not % -- these two are the only icons on the strip without unique_name_in_owner
+	# set in the scene, so the shorthand finds nothing and errors at runtime.
+	var ci: TextureRect = $CorrectsMistakesContainer/CorrectsIcon
+	var mi: TextureRect = $CorrectsMistakesContainer/MistakesIcon
+	if _correct_tex != null:
+		ci.texture = _correct_tex
+	if _mistake_tex != null:
+		mi.texture = _mistake_tex
+	if _modulate != null:
+		ci.modulate = _modulate
+		mi.modulate = _modulate
+
 func set_packets_icon(_texture, _scale := 1.0, _modulate = null):
 	%PacketsIcon.texture = _texture
 	var tex_size = %PacketsIcon.texture.get_size()

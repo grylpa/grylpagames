@@ -187,6 +187,10 @@ const SUMMARY_ROWS: Dictionary = {
 	"overflows": "Overflows (water reaching the floor)",
 	"collisions": "Collisions",
 	"creatures_stopped": "Turned back (creatures you stopped)",
+	# Ants is an interdiction game: the colony is trying to carry food home and the player is
+	# trying to stop it. Both numbers are direct consequences of where things were put.
+	"crumbs_through": "Crumbs that got past you",
+	"ants_killed": "Ants crushed (they are not the target)",
 }
 
 # Sessions drawn in a Summary row's sparkline.

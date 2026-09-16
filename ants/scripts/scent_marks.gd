@@ -21,7 +21,13 @@ extends RefCounted
 
 const SENSE_R: float = 26.0        # how far an antenna smells
 const CELL: float = SENSE_R        # so a query is always a 3x3 block
-const MERGE_R: float = 6.0         # a new drop this close to an old one strengthens it instead
+# How coarsely the field is STORED -- not how it is sensed, which is SENSE_R and unchanged. Raising
+# it from 6 thinned a formed trail from about 1,800 marks to 650 without altering its shape: a
+# sensed value is the sum of everything within 26 units under a smooth falloff, so fewer, stronger
+# marks describe the same field. The cost it removes is real and it arrives exactly when the game
+# gets interesting -- with no trail a sense() call evaluates 2 marks, with one it evaluated 70, and
+# the whole simulation tripled in cost the moment the ants found the food.
+const MERGE_R: float = 10.0
 const MAX_STRENGTH: float = 8.0    # saturation: a trail cannot outshout every alternative forever
 const STRIDE: int = 3              # x, y, strength
 
@@ -144,6 +150,84 @@ func any_where(pred: Callable) -> bool:
 				return true
 			i += STRIDE
 	return false
+
+# Erase only where something is actually happening. erase_if walks EVERY cell of the field, which
+# is right for a one-off (an obstacle dropped on a trail) and quite wrong ten times a second: a fan
+# sitting on the board was rebuilding the colony's entire scent store at 10 Hz for the sake of the
+# few cells under it.
+func erase_near(centre: Vector2, radius: float, pred: Callable) -> int:
+	var gone: int = 0
+	var lo: Vector2i = _key(centre - Vector2.ONE * radius)
+	var hi: Vector2i = _key(centre + Vector2.ONE * radius)
+	var empties: Array = []
+	for cy in range(lo.y, hi.y + 1):
+		for cx in range(lo.x, hi.x + 1):
+			var k: Vector2i = Vector2i(cx, cy)
+			if not _cells.has(k):
+				continue
+			var arr: PackedFloat32Array = _cells[k]
+			var kept: PackedFloat32Array = PackedFloat32Array()
+			var i: int = 0
+			while i < arr.size():
+				if pred.call(Vector2(arr[i], arr[i + 1])):
+					gone += 1
+					_count -= 1
+				else:
+					kept.append(arr[i])
+					kept.append(arr[i + 1])
+					kept.append(arr[i + 2])
+				i += STRIDE
+			if kept.is_empty():
+				empties.append(k)
+			else:
+				_cells[k] = kept
+	for k: Vector2i in empties:
+		_cells.erase(k)
+	return gone
+
+# Weather over a patch of ground: everything here fades faster than elsewhere. Used by the fan,
+# which used to ERASE what was under it outright -- and an outright erase cannot be argued with. A
+# trail could never re-form through a fan however many ants walked it, because their deposits were
+# wiped in the same tick they were laid, so the road was severed for as long as the thing sat there
+# and the colony had no answer at all. Fading it fast leaves an answer: traffic. A road busy enough
+# to be re-laid faster than it rots stays open, a thin one dies.
+func scale_near(centre: Vector2, radius: float, factor: float, floor_at: float = 0.0) -> void:
+	var lo: Vector2i = _key(centre - Vector2.ONE * radius)
+	var hi: Vector2i = _key(centre + Vector2.ONE * radius)
+	var r2: float = radius * radius
+	var empties: Array = []
+	for cy in range(lo.y, hi.y + 1):
+		for cx in range(lo.x, hi.x + 1):
+			var k: Vector2i = Vector2i(cx, cy)
+			if not _cells.has(k):
+				continue
+			var arr: PackedFloat32Array = _cells[k]
+			var kept: PackedFloat32Array = PackedFloat32Array()
+			var i: int = 0
+			while i < arr.size():
+				var v: float = arr[i + 2]
+				var dx: float = arr[i] - centre.x
+				var dy: float = arr[i + 1] - centre.y
+				if dx * dx + dy * dy <= r2:
+					# Thinned to a whisper, never rubbed out. A mark already below the floor is left
+					# where it is; one above it is pushed down towards it and no further. That is
+					# what makes a fan answerable: the road under it is always still faintly
+					# followable, so the colony can work it back up, where an outright erase left it
+					# nothing to work with at all.
+					v = maxf(v * factor, minf(arr[i + 2], floor_at))
+				if v > 0.02:
+					kept.append(arr[i])
+					kept.append(arr[i + 1])
+					kept.append(v)
+				else:
+					_count -= 1
+				i += STRIDE
+			if kept.is_empty():
+				empties.append(k)
+			else:
+				_cells[k] = kept
+	for k: Vector2i in empties:
+		_cells.erase(k)
 
 func clear() -> void:
 	_cells.clear()
