@@ -524,7 +524,7 @@ func _lose_life(why: String) -> void:
 const MIN_ESCAPE_DIST: int = 4  # cells required if monster spawns facing the player
 
 var next_agent_id: int = 1
-func _spawn_agent(index:int,_far:bool = false) -> bool:
+func _spawn_agent(idx:int,_far:bool = false) -> bool:
 	var p:Vector2i
 	if _far:
 		var player_pos: Vector2i = Vector2i(room_rect.position.x + room_size / 2, room_rect.position.y + room_size / 2) if player == null else player.board_pos
@@ -597,7 +597,7 @@ func _spawn_agent(index:int,_far:bool = false) -> bool:
 			valid_dirs.append(d)
 	agent.direction = valid_dirs[rng.randi_range(0, valid_dirs.size() - 1)]
 	agent.board_pos = p
-	var t: float = min(1,float(index) / max(1, num_inside_monsters - 1))
+	var t: float = min(1,float(idx) / max(1, num_inside_monsters - 1))
 	agent.speed_scale = lerp(agent_speed_min, agent_speed_max, t)	# this is already capped below player speed scale in _apply_level
 	agent.set_type(1)
 	add_child(agent)
@@ -962,8 +962,8 @@ var _hunger_pause_began_ms: int = 0
 var _was_warping: bool = false
 
 func _step_ms() -> float:
-	var scale: float = player.speed_scale if player != null else 1.0
-	return float(game.major_tick_time_ms) * game.time_scale / maxf(scale, 0.01)
+	var scl: float = player.speed_scale if player != null else 1.0
+	return float(game.major_tick_time_ms) * game.time_scale / maxf(scl, 0.01)
 
 func _steps_to_nearest_coin() -> int:
 	if player == null or coins.is_empty():

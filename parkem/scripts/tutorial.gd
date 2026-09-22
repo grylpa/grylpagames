@@ -1,10 +1,10 @@
 extends RefCounted
 
-# Parkem's coached tutorial. See docs/tutorials.md for the step schema.
+# Detour's coached tutorial. See docs/tutorials.md for the step schema.
 #
 # What a first-time player actually gets wrong:
 #   1. They play it as a delivery game. Every other game in this family is about GETTING something
-#      somewhere; here the creatures drive themselves to their own parking spots and the player's
+#      somewhere; here the creatures drive themselves to their own goals and the player's
 #      whole job is to stop them arriving. Nothing on screen says the goal is inverted.
 #   2. They do not know the doors are the controls, or that a door is a TOGGLE with a timer — one
 #      tap swings it shut, and it springs back open after four seconds on its own.
@@ -36,8 +36,8 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Parkem",
-			"text": "Creatures are looking for their parking spots.\n\nYour job is the opposite of helping: keep them from ever getting there.",
+			"title": "Detour",
+			"text": "Creatures are looking for their goals.\n\nYour job is the opposite of helping: keep them from ever getting there.",
 		},
 		{
 			"await": {"event": "agent_dispatched", "timeout": 60.0},
@@ -50,7 +50,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot_pad": 0.0,
 		},
 		{
-			"text": "And that is the spot it is heading for — its own color. Let it park and you have lost that one.",
+			"text": "And that is the goal it is heading for — its own color. Let it arrive and you have lost that one.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_spot_pos()
 				if p == Vector2.ZERO:

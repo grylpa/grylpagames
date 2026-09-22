@@ -198,11 +198,11 @@ func _gen_stroop(is_correct: bool) -> Dictionary:
 
 func _gen_colored_shape(is_correct: bool) -> Dictionary:
 	var shapes: Array = ["■", "●", "▲", "★"]
-	var shape: String = shapes[rng.randi_range(0, shapes.size() - 1)]
+	var shp: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
-		return {"shape": shape, "color": [Color.BLUE, Color.RED][rng.randi_range(0, 1)]}
+		return {"shp": shp, "color": [Color.BLUE, Color.RED][rng.randi_range(0, 1)]}
 	var others: Array = [Color(0.0, 0.75, 0.0), Color.YELLOW, Color(0.6, 0.0, 0.9), Color.WHITE, Color.ORANGE]
-	return {"shape": shape, "color": others[rng.randi_range(0, others.size() - 1)]}
+	return {"shp": shp, "color": others[rng.randi_range(0, others.size() - 1)]}
 
 # --- Rendering ---
 

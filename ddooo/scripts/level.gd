@@ -376,11 +376,11 @@ func _create_dir_button(dir_idx: int) -> Area2D:
 	area.position = px
 	area.z_index = 20
 
-	var shape: CollisionShape2D = CollisionShape2D.new()
+	var shp: CollisionShape2D = CollisionShape2D.new()
 	var circle: CircleShape2D = CircleShape2D.new()
 	circle.radius = float(game.tile_size) * 0.5
-	shape.shape = circle
-	area.add_child(shape)
+	shp.shape = circle
+	area.add_child(shp)
 
 	# The dot marking the tap target.
 	var bg: Polygon2D = Polygon2D.new()

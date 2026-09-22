@@ -255,3 +255,24 @@ Leaks appearing and leaks overflowing are both counted; the share that overflowe
 **Its counts are now metrics.** `overflows` is registered in `StatsOverview.METRICS`, lower being better. Before that this game recorded two counts that nothing could read, and had no Summary rows.
 
 A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.
+
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`), not grabbed. The old tile was a
+screenshot of one room — a pink floor with a few small objects on it, which at 200 px says neither
+"storm" nor "your things are getting wet", and whose most prominent feature was the colour pink.
+
+It is now the weather and nothing else: cloud, slanting rain and a lightning bolt. A pail catching
+the drips was drawn first, on the reasoning that weather alone is not a game — but it dragged a
+second subject and a second palette into a 200 px tile and made the storm share the frame. The
+chooser only has to say which game this is.
+
+**The cloud is drawn in two passes with the bolt between them.** Drawn whole with a bolt laid under
+it, the bolt began in clear air below the cloud and read as a sticker pasted on the sky. Its top has
+to disappear *into* the cloud, which means some of the cloud is in front of it — and the cloud is
+lit from inside where the bolt leaves it, because the light has to land on something. The rain is
+brightened near the flash for the same reason.
+
+`devtools/install_thumbs.py` copies it in; the published thumbnail under `docs/src/thumbs/` is
+derived from it by the games-doc build and must not be written by hand.

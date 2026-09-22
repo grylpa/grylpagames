@@ -427,8 +427,8 @@ func _generate_and_show_dots(rid: int) -> void:
 		if _round_id != rid or not is_inside_tree():
 			return
 
-	var texture: Texture2D = $CharViewport.get_texture()
-	%DotsDisplay.set_dots(positions, dot_radius, texture, Rect2(Vector2.ZERO, display_size), _dots_color)
+	var tex: Texture2D = $CharViewport.get_texture()
+	%DotsDisplay.set_dots(positions, dot_radius, tex, Rect2(Vector2.ZERO, display_size), _dots_color)
 
 # ── Option buttons ─────────────────────────────────────────────────────────────
 

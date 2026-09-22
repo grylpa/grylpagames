@@ -35,8 +35,8 @@ func _ready() -> void:
 	game.sig_no_more_packets.connect(on_game_no_more_packets)	
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 
-	game.set_instructions("Parkem", 
-		"Prevent the creatures from reaching their parking spots\n\n" + 
+	game.set_instructions("Detour", 
+		"Prevent the creatures from reaching their goals\n\n" + 
 		"You can do this by causing doors to appear on their way forcing them to " + 
 		"change direction")
 	if !game.shown_instructions:

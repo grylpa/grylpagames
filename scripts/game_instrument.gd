@@ -191,6 +191,10 @@ const SUMMARY_ROWS: Dictionary = {
 	# trying to stop it. Both numbers are direct consequences of where things were put.
 	"crumbs_through": "Crumbs that got past you",
 	"ants_killed": "Ants crushed (they are not the target)",
+	"obstacles_moved": "Walls lifted and re-used",
+	"placements_wasted": "Placed where nothing was walking",
+	"roads_missed": "New roads never answered",
+	"roads_unseen": "New roads never even looked at",
 }
 
 # Sessions drawn in a Summary row's sparkline.

@@ -1,8 +1,30 @@
-# Parkem — design
+# Detour — design
 
 "Don't allow the monsters to reach their goals." Creatures drive themselves around a pipe maze
-toward their own parking spots. The player never steers anything — they shut **doors** at the
-junctions to turn creatures aside, and win by keeping every creature from ever parking.
+toward their own goals. The player never steers anything — they shut **doors** at the junctions to
+turn creatures aside, and wins by keeping every creature from ever arriving.
+
+## The name
+
+The game was called **Parkem** and its creatures were said to be looking for *goals*. Both
+were dropped: parking was the one piece of pure metaphor in the game, and it described the thing the
+player is trying to **prevent** rather than the thing the player **does**. "Detour" is the action,
+it stays neutral about what the creatures want, and it pairs with `deliverem`, its inverse, where
+you route something *to* its dock.
+
+**Three things the rename did NOT touch**, and must never touch:
+
+| Stays `parkem` | Why |
+|---|---|
+| the folder `parkem/` | the same way Glimpse lives in `pop/` and Lineup in `ooo/` |
+| `file_names_prefix` in `globals.gd` | it names every file under `user://`; changing it orphans every saved score and setting |
+| `BE.upsert_game_state("Parkem", …)` / `BE.send_event(…, "Parkem", …)` | the backend's identifier for the game — Lineup still reports `"OOO"` and Glimpse still reports `"Pop"` |
+| `ParkemG`, `ParkemLevelConfig` | autoload and class names, registered in `project.godot` and tied to the folder — Glimpse's is still `PopG`, Lineup's still `OooG` |
+
+The display name lives in exactly two places: the first argument to `GenericGameUtil.new()` and the
+app's game list in `scripts/config.gd`. `docs/src/build_games_doc.py` builds its
+`{display name: folder}` map from that list, so the games document's `@game` line has to be renamed
+in the same commit or the build cannot find the thumbnail.
 
 It is the inverse of `deliverem`, which shares the same skeleton: there you route a truck *to* its
 docks, here you keep creatures *away* from their spots.
@@ -232,3 +254,47 @@ Creatures stopped against creatures parked, plus door actions.
 **Its counts are now metrics.** `creatures_stopped` is registered in `StatsOverview.METRICS`, higher being better. Before that this game recorded its counts and had no Summary rows.
 
 A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.
+
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`), not grabbed: the creature, the
+receiver it wants, and the door shut between them, with a faint ghost of the route it meant to take
+and a solid one showing where it has to go instead.
+
+**Laid on the diagonal**, which buys about 1.4× the length a horizontal layout gets, and both ends
+are *rotated* onto it rather than merely placed along it. The creature runs top-left to
+bottom-right — +45° on a screen whose y grows downward — so the door lies at **−45°**, perpendicular
+to the route, because a door parallel to it would block nothing.
+
+**The door sits well down the diagonal, close to the receiver.** Centred, it cut the tile in half
+and the turn had to be drawn underneath it — and a yellow line under a green bar is a yellow line
+nobody sees at 200 px. Pushed towards the receiver, the whole upper-left is free for the turn.
+
+**The turn is one swept curve, not line segments.** Segments meet at visible corners however many
+are used; a disc swept along a bezier has no joints at all. The arrowhead is the single polygon
+left, aimed along the curve's own tangent so it continues the stroke rather than sitting across
+it.
+
+**Everything in it is the game's own.** The creature is the one from the board; the receiver is
+`art/receiver-w-grad-4x.png` tinted to its colour exactly as `target.gd` tints it; the door is the
+pale green of `parkem/art/door_diag.png` (`114,179,120`). The ghost route is drawn *under* the door,
+so the block reads as an interruption rather than being implied.
+
+Four tiles were made for this game and the first three are worth knowing about:
+
+1. A **screenshot of the whole lot** — a dark grid with a dozen specks on it, unreadable at the size
+   it is actually shown.
+2. A monster and a **no-parking sign** on opposite corners. Legible, but two unrelated objects
+   sharing a tile rather than one event, and a road sign is not something this world contains. It
+   also died with the name.
+3. The junction drawn properly: roads, kerbs, a door, a route and a creature. At 200 px it came out
+   as a grey T with a thin yellow line, because four things sharing a frame leave each a quarter of
+   it.
+4. The same three objects with a **red-and-white road barrier** for the door and a **blob monster
+   invented in `make_thumbs.py`** for the creature. Neither exists in this game: the barrier is a
+   sign borrowed from outside it, and the board's creature is the `Enemy` head from
+   `art/enemy_head_sway.png` that `agent.gd` plays and tints.
+
+`devtools/install_thumbs.py` copies it in; the published thumbnail under `docs/src/thumbs/` is
+derived from it by the games-doc build and must not be written by hand.

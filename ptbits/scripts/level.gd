@@ -247,11 +247,11 @@ func _build_world() -> void:
 func _add_static_box(rect: Rect2, layer_bit: int) -> void:
 	var body: StaticBody2D = StaticBody2D.new()
 	body.position = rect.position + rect.size * 0.5
-	var shape: CollisionShape2D = CollisionShape2D.new()
+	var shp: CollisionShape2D = CollisionShape2D.new()
 	var rs: RectangleShape2D = RectangleShape2D.new()
 	rs.size = rect.size
-	shape.shape = rs
-	body.add_child(shape)
+	shp.shape = rs
+	body.add_child(shp)
 	_set_layers(body, [layer_bit], [])
 	add_child(body)
 	_walls.append(body)
@@ -275,21 +275,21 @@ func _build_outer_walls() -> void:
 	_add_side_bumper(false, cy, 52.0)
 	_bumper_glow.resize(_bumpers.size())
 
-func _add_side_bumper(on_left: bool, cy: float, size: float) -> void:
+func _add_side_bumper(on_left: bool, cy: float, sz: float) -> void:
 	var wall_x: float = play_left if on_left else play_right
-	var apex_x: float = (play_left + size) if on_left else (play_right - size)
+	var apex_x: float = (play_left + sz) if on_left else (play_right - sz)
 	var tri: PackedVector2Array = PackedVector2Array([
-		Vector2(wall_x, cy - size),   # top, on the wall
+		Vector2(wall_x, cy - sz),   # top, on the wall
 		Vector2(apex_x, cy),          # inward apex
-		Vector2(wall_x, cy + size),   # bottom, on the wall
+		Vector2(wall_x, cy + sz),   # bottom, on the wall
 	])
 	var body: StaticBody2D = StaticBody2D.new()
 	_set_layers(body, [LAYER_OUTER], [])
-	var shape: CollisionShape2D = CollisionShape2D.new()
+	var shp: CollisionShape2D = CollisionShape2D.new()
 	var poly: ConvexPolygonShape2D = ConvexPolygonShape2D.new()
 	poly.points = tri
-	shape.shape = poly
-	body.add_child(shape)
+	shp.shape = poly
+	body.add_child(shp)
 	add_child(body)
 	_walls.append(body)
 	_bumpers.append(tri)
@@ -374,14 +374,14 @@ func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: fl
 	_basket_rects[color_id] = Rect2(cx - iw * 0.5, top_y + height * 0.50, iw, height * 0.44)
 	_basket_polys[color_id] = PackedVector2Array([tl, _tr, br, bl])
 
-func _add_wall_shape(body: StaticBody2D, center: Vector2, size: Vector2, rot: float) -> void:
-	var shape: CollisionShape2D = CollisionShape2D.new()
+func _add_wall_shape(body: StaticBody2D, center: Vector2, sz: Vector2, rot: float) -> void:
+	var shp: CollisionShape2D = CollisionShape2D.new()
 	var rs: RectangleShape2D = RectangleShape2D.new()
-	rs.size = size
-	shape.shape = rs
-	shape.position = center
-	shape.rotation = rot
-	body.add_child(shape)
+	rs.size = sz
+	shp.shape = rs
+	shp.position = center
+	shp.rotation = rot
+	body.add_child(shp)
 
 func _build_tools() -> void:
 	_tools.resize(num_colors)
@@ -407,11 +407,11 @@ func _make_tool(color_id: int) -> AnimatableBody2D:
 
 	# Collision is ONLY the disc (origin) — the stem/loop are a visual grab handle
 	# and don't push balls. The disc is round so a ball can't rest on it.
-	var shape: CollisionShape2D = CollisionShape2D.new()
+	var shp: CollisionShape2D = CollisionShape2D.new()
 	var cs: CircleShape2D = CircleShape2D.new()
 	cs.radius = tool_radius
-	shape.shape = cs
-	tool.add_child(shape)
+	shp.shape = cs
+	tool.add_child(shp)
 
 	# One art node for the whole tool (see PtbitsArt.tool). It was four primitives — a Line2D stem,
 	# a Line2D loop, a flat Polygon2D disc and a rim — which is why the tool read as a colored
@@ -450,11 +450,11 @@ func _spawn_ball(force_color: int = -1, at_x: float = -1.0) -> void:
 	pmat.friction = 0.9
 	ball.physics_material_override = pmat
 
-	var shape: CollisionShape2D = CollisionShape2D.new()
+	var shp: CollisionShape2D = CollisionShape2D.new()
 	var cs: CircleShape2D = CircleShape2D.new()
 	cs.radius = ball_radius
-	shape.shape = cs
-	ball.add_child(shape)
+	shp.shape = cs
+	ball.add_child(shp)
 
 	# Halo first (so it sits behind), then the tinted sphere, then the untinted white sheen. The
 	# halo is what lifts a ball off a dark backdrop; the sheen is what makes it look like glass
@@ -716,9 +716,9 @@ func _grab_at(pos: Vector2) -> AnimatableBody2D:
 	return best
 
 # Single entry point for picking a tool up, so the tutorial notify covers touch and mouse alike.
-func _begin_drag(t: AnimatableBody2D, index: int, pos: Vector2) -> void:
+func _begin_drag(t: AnimatableBody2D, idx: int, pos: Vector2) -> void:
 	_dragging_tool = t
-	_drag_index = index
+	_drag_index = idx
 	_drag_target = pos
 	_bring_tool_to_front(t)
 	_has_grabbed = true

@@ -471,10 +471,10 @@ func _show_game_badge(on: bool) -> void:
 func _load_game_icon() -> Texture2D:
 	if _host == null or not is_instance_valid(_host):
 		return null
-	var script: Script = _host.get_script()
-	if script == null:
+	var scr: Script = _host.get_script()
+	if scr == null:
 		return null
-	var parts: PackedStringArray = script.resource_path.replace("res://", "").split("/")
+	var parts: PackedStringArray = scr.resource_path.replace("res://", "").split("/")
 	if parts.size() < 2:
 		return null
 	var path: String = "res://%s/art/game_screen_200.png" % parts[0]

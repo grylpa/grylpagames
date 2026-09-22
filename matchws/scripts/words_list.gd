@@ -15,15 +15,15 @@ func _ready():
 	
 func add_line(texts, is_from_user):
 	var row = word_list_row.instantiate()
-	var texture = row.get_node("HBox/TextureIcon")
+	var tex = row.get_node("HBox/TextureIcon")
 	var lpanel = row.get_node("HBox/LPanel")
 	var rpanel = row.get_node("HBox/RPanel")
 	var llabel = lpanel.get_node("Label")
 	var rlabel = rpanel.get_node("Label")
 	if is_from_user:
-		texture.texture = user_texture
+		tex.texture = user_texture
 	else:
-		texture.texture = no_user_texture
+		tex.texture = no_user_texture
 	llabel.text = MainGlobals.cap_first_word(texts[0])
 	rlabel.text = MainGlobals.cap_first_word(texts[1])
 	lpanel.custom_minimum_size = Vector2(cell_width, 1)

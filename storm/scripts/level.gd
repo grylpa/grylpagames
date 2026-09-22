@@ -334,9 +334,9 @@ var board_margin = 5
 
 #region create_rooms
 
-func _carve_room(pos: Vector2i, size: Vector2i, room_id:int) -> void:
-	for y in range(pos.y, pos.y + size.y):
-		for x in range(pos.x, pos.x + size.x):
+func _carve_room(pos: Vector2i, sz: Vector2i, room_id:int) -> void:
+	for y in range(pos.y, pos.y + sz.y):
+		for x in range(pos.x, pos.x + sz.x):
 			add_pipe(Vector2i(x, y), room_id)
 
 var rooms:Array[Rect2i] = []

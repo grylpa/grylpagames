@@ -398,11 +398,11 @@ func _trail_bearing(marks: ScentMarks) -> float:
 	var away: Vector2 = Vector2.ZERO
 	if home_vec.length_squared() > 1.0:
 		away = -home_vec.normalized()
-	var step: float = 2.0 * JOIN_ARC / float(JOIN_RAYS - 1)
+	var ray_step: float = 2.0 * JOIN_ARC / float(JOIN_RAYS - 1)
 	var v: PackedFloat32Array = PackedFloat32Array()
 	var best: int = 0
 	for i in JOIN_RAYS:
-		var a: float = heading - JOIN_ARC + step * float(i)
+		var a: float = heading - JOIN_ARC + ray_step * float(i)
 		var sc: float = marks.sense(pos + Vector2.from_angle(a) * JOIN_REACH)
 		if away != Vector2.ZERO:
 			sc *= 1.0 + JOIN_AWAY_BIAS * Vector2.from_angle(a).dot(away)
@@ -419,7 +419,7 @@ func _trail_bearing(marks: ScentMarks) -> float:
 		var denom: float = v[best - 1] - 2.0 * v[best] + v[best + 1]
 		if absf(denom) > 0.0001:
 			off = clampf(0.5 * (v[best - 1] - v[best + 1]) / denom, -0.5, 0.5)
-	return heading - JOIN_ARC + step * (float(best) + off)
+	return heading - JOIN_ARC + ray_step * (float(best) + off)
 
 func _steer_home(dt: float) -> float:
 	var to_nest: Vector2 = nest_pos - pos

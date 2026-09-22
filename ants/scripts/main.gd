@@ -29,7 +29,11 @@ func _ready() -> void:
 	game.game_over_on_time_out = false
 	game.game_over_on_zero_score = true
 	game.sig_time_over.connect(_on_time_over)
-	game.score_columns = ["didwin", "aborted", "level", "crumbs_through", "ants_killed"]
+	# react_mean is the headline: how long after a road matures before the player does something
+	# about it. The counts say how the session went; the latency says whether the player is getting
+	# quicker at NOTICING, which is the thing this game actually trains.
+	game.score_columns = ["didwin", "aborted", "level", "react_mean", "crumbs_through",
+		"ants_killed", "obstacles_moved", "roads_missed"]
 
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3a2e24ff))
@@ -51,8 +55,11 @@ func _ready() -> void:
 	# strip's yellow tint -- a yellow ant on pale soil is the one icon nobody can see.
 	# set_lives_icon sizes the box as TEXTURE SIZE x scale, and the icon is baked at 64 px, so a
 	# scale of 1 makes it twice the 32 px every other icon on the strip is.
-	hud.set_lives_icon(AntsG.ant_icon(), Vector2.ONE * (float(HUD_ICON_PX) / float(AntsG.ICON_PX)),
-		Color.WHITE)
+	# The ant stands on a plate of the counter's own yellow, taken from the label so the two can
+	# never end up nearly the same color -- which reads as a mistake rather than as a pair.
+	var counter: Label = hud.get_node("LivesContainer/LivesLabel")
+	hud.set_lives_icon(AntsG.ant_icon(counter.get_theme_color("font_color")),
+		Vector2.ONE * (float(HUD_ICON_PX) / float(AntsG.ICON_PX)), Color.WHITE)
 	hud.show_tally(func() -> int: return $Level.ants_killed())
 	hud.update_all()
 
@@ -208,8 +215,37 @@ func _on_level_show_main_menu() -> void:
 # The saved row. Must stay in step with score_columns above and with SUMMARY_ROWS in
 # scripts/game_instrument.gd, which is what names these two numbers on the summary.
 func get_game_score(_didwin, _wasaborted):
-	return [_didwin, _wasaborted, $Level.current_level_id,
-		$Level.crumbs_through, $Level.ants_killed()]
+	# The whole distribution, not just the mean: record_times() stores spread, median, slope and
+	# lapse count beside it, and the spread is what moves first.
+	game.record_times($Level.road_times_ms, "react")
+	game.record_metrics({
+		"obstacles_moved": $Level.obstacles_moved,
+		"placements_wasted": $Level.placements_wasted,
+		"roads_missed": $Level.roads_missed,
+		"roads_unseen": $Level.roads_unseen,
+	})
+	# WHAT MAKES TWO SESSIONS THE SAME TEST. A level number is only an index into an editable
+	# table, so the signature carries the settings themselves -- and here the world's SIZE is the
+	# one that matters most. Level 1 is a single screenful and level 5 is nine of them with no
+	# zoom-out, which is not a harder version of the same task but a different one: the first is
+	# noticing a change in front of you, the second is covering ground as well. Pooling their
+	# reaction times would compare two things that are not comparable.
+	var cfg: Dictionary = AntsLevelConfig.get_level($Level.current_level_id)
+	game.set_task_signature({
+		"world": "%sx%s" % [cfg["world"][0], cfg["world"][1]],
+		"colonies": int(cfg["colonies"]),
+		"food_piles": int(cfg["food_piles"]),
+		"speed": "%s-%s" % [cfg["speed_scale"][0], cfg["speed_scale"][1]],
+	})
+	var react: int = 0
+	if not ($Level.road_times_ms as Array).is_empty():
+		var tot: int = 0
+		for t in $Level.road_times_ms:
+			tot += int(t)
+		react = int(round(float(tot) / float(($Level.road_times_ms as Array).size())))
+	return [_didwin, _wasaborted, $Level.current_level_id, react,
+		$Level.crumbs_through, $Level.ants_killed(),
+		$Level.obstacles_moved, $Level.roads_missed]
 
 func on_game_is_done(_didwin: bool, _wasaborted: bool) -> void:
 	# The round is over, so nothing more is scored. Without this the level goes on taking crumbs off

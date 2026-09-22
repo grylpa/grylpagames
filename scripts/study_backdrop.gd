@@ -117,9 +117,9 @@ static func draw(bg: Control, base: Color) -> void:
 
 # A tone one step off the base, faded to nothing at the rim. Radius reaches the corners, so the fan
 # covers the rect; the spill past the edges lands on nothing, since this is the bottom-most node.
-static func _lift_mesh(size: Vector2, base: Color) -> ArrayMesh:
-	var c: Vector2 = size * 0.5
-	var radius: float = size.length() * 0.5
+static func _lift_mesh(sz: Vector2, base: Color) -> ArrayMesh:
+	var c: Vector2 = sz * 0.5
+	var radius: float = sz.length() * 0.5
 	var lift: Color = base.lerp(Color(0.75, 0.80, 0.95), 0.5)
 	var inner: Color = Color(lift.r, lift.g, lift.b, LIFT_ALPHA)
 	var outer: Color = Color(lift.r, lift.g, lift.b, 0.0)

@@ -87,7 +87,19 @@ static func open(host: Node, screen_pos: Vector2, on_pick: Callable, can_remove:
 	# on a phone arrives twice -- once as InputEventScreenTouch and again as InputEventMouseButton --
 	# and the menu obligingly placed two obstacles for it. The guard is on the MENU rather than on
 	# the event, because it is the menu that may only be used once.
+	# "This menu is over." Everything that could still be called after the menu is gone checks it
+	# FIRST, before touching anything the menu owns.
+	#
+	# It is not enough to guard INSIDE the tip lambdas: `hide_tip` captures `tip` and `line`, and
+	# the engine reports "Lambda capture at index 1 was freed" when the Callable is INVOKED, before
+	# a line of its body runs. So the guard has to be at every call site.
+	#
+	# And the flag cannot be set only by close(): level.gd frees the menu directly when the level is
+	# hidden or when M is pressed, and Godot emits mouse_exited for a hovered control as it is torn
+	# down -- which called hide_tip with both of its captures already freed. tree_exiting catches
+	# every route out, and this lambda captures nothing but the array, which cannot be freed.
 	var acted: Array = [false]
+	menu.tree_exiting.connect(func() -> void: acted[0] = true)
 	var from_at: Array = [Vector2.ZERO]
 	# Filled in as the cells are laid out below, and read by the tooltip placement above it -- so it
 	# is declared here, where both can see it.
@@ -115,6 +127,10 @@ static func open(host: Node, screen_pos: Vector2, on_pick: Callable, can_remove:
 		tip_text.text = text
 		tip.reset_size()
 		await host.get_tree().process_frame
+		# The menu can be dismissed across that await, which leaves this coroutine resuming into a
+		# half-freed menu.
+		if bool(acted[0]) or not is_instance_valid(tip):
+			return
 		var sz: Vector2 = tip.size
 		var base: Vector2 = (cell_mid - mid).normalized()
 		if base.length_squared() < 0.01:
@@ -183,6 +199,9 @@ static func open(host: Node, screen_pos: Vector2, on_pick: Callable, can_remove:
 	menu.set_meta("ring_rect", Rect2(mid - Vector2(half, half), Vector2(half, half) * 2.0))
 	menu.set_meta("cell_rects", cell_rects)
 	menu.set_meta("cell_kinds", cell_kinds)
+	# Published so the guarantee is testable: once this is true, nothing that outlives the menu will
+	# touch anything the menu owned.
+	menu.set_meta("acted", acted)
 	MainGlobals.set_popup_open(true)
 	return menu
 
@@ -318,12 +337,18 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 	# A mouse has a hover; holding a button down to read a label is a phone's compromise.
 	var hovering: Array = [false]
 	cell.mouse_entered.connect(func() -> void:
+		if bool(acted[0]):
+			return
 		hovering[0] = true
 		var t: SceneTreeTimer = cell.get_tree().create_timer(float(HOVER_MS) / 1000.0)
 		t.timeout.connect(func() -> void:
-			if bool(hovering[0]) and is_instance_valid(cell):
+			if bool(hovering[0]) and not bool(acted[0]) and is_instance_valid(cell):
 				show_tip.call(cell.global_position + cell.size * 0.5, _tip_for(choice))))
 	cell.mouse_exited.connect(func() -> void:
 		hovering[0] = false
+		# Godot emits this for a hovered control as it is torn down, so by here the tip and its
+		# connector line can already be freed.
+		if bool(acted[0]):
+			return
 		hide_tip.call())
 	return cell

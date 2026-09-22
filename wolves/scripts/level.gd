@@ -337,28 +337,28 @@ var board_margin = 3
 
 #region create_rooms
 
-func _carve_room(pos: Vector2i, size: Vector2i, room_id:int) -> void:
-	for y in range(pos.y, pos.y + size.y):
-		for x in range(pos.x, pos.x + size.x):
+func _carve_room(pos: Vector2i, sz: Vector2i, room_id:int) -> void:
+	for y in range(pos.y, pos.y + sz.y):
+		for x in range(pos.x, pos.x + sz.x):
 			var p := Vector2i(x,y)
 			add_pipe(p, room_id)
 			var c = bcell(p)
 			if x == pos.x:
 				c.pipe.fences[2] = true
 				room_outsizes.append(p + Vector2i(-1,0))
-			if y == pos.y + size.y-1:
+			if y == pos.y + sz.y-1:
 				c.pipe.fences[1] = true
 				room_outsizes.append(p + Vector2i(0,1))
-			if x == pos.x + size.x-1:
+			if x == pos.x + sz.x-1:
 				c.pipe.fences[0] = true
 				room_outsizes.append(p + Vector2i(1,0))
 			if y == pos.y:
 				c.pipe.fences[3] = true
 				room_outsizes.append(p + Vector2i(0,-1))
 	room_outsizes.append(Vector2i(pos.x-1,pos.y-1))
-	room_outsizes.append(Vector2i(pos.x-1,pos.y+size.y))
-	room_outsizes.append(Vector2i(pos.x+size.x,pos.y-1))
-	room_outsizes.append(Vector2i(pos.x+size.x,pos.y+size.y))
+	room_outsizes.append(Vector2i(pos.x-1,pos.y+sz.y))
+	room_outsizes.append(Vector2i(pos.x+sz.x,pos.y-1))
+	room_outsizes.append(Vector2i(pos.x+sz.x,pos.y+sz.y))
 
 var rooms:Array[Rect2i] = []
 var rooms_checked_connections = {}

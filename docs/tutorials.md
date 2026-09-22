@@ -993,7 +993,7 @@ name it. A pause-aware countdown can even be frozen *on screen* while the coach 
 together.
 
 **When a frame "does not appear", check whether the thing it is looked up FROM is still alive.**
-Parkem's spot and hatch accessors both start from the creature, and the creature's give-up timer
+Detour's spot and hatch accessors both start from the creature, and the creature's give-up timer
 ran on the WALL clock — so it expired while the player read a caption, vanished, and every frame
 derived from it silently resolved to nothing. Three separate-looking complaints ("it disappears
 while I read", "which door is open?", "no frame") were one bug. Fix the clock, not the accessors.

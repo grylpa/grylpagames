@@ -2,17 +2,19 @@
 
 ## Concept
 
-A dual-attention game. The player is in a single room collecting coins while monsters chase them. Around the room's periphery, gorillas walk past in straight lines. When all coins are collected (or time runs out), the player is asked: **how many gorillas did you see?**
+A dual-attention game. The player is in a single room eating food while monsters chase them. Around the room's periphery, gorillas walk past in straight lines. When all the food is eaten (or time runs out), the player is asked: **how many gorillas did you see?**
+
+**The floor holds FOOD, not coins** — see "The floor holds FOOD" below for why, and note that the *code* still says `coin` everywhere (`has_coin`, `_fill_coins()`, `coins[]`, `PipeCoin1`). Every mention of a coin below is either that identifier or the super-food's texture; nothing the player sees is a coin.
 
 Trains peripheral awareness while maintaining a central task under pressure.
 
 ## Game Flow
 
 1. Level starts: player is placed at center of a room
-2. All non-brick room tiles are filled with coins at the start
+2. All non-brick room tiles are filled with food at the start
 3. Inside monsters roam the room (kill on contact → lose a life)
 4. Gorillas walk across the screen edges (above/below/left/right of the room)
-5. When all coins are collected **or** the timer hits 0: the answer popup appears
+5. When all the food is eaten **or** the timer hits 0: the answer popup appears
 6. Player picks how many gorillas they counted
 7. Exactly right → +20 bonus and the round counts as correct; anything else counts as wrong
 8. A new round begins on the same level (score carries over, timer resets) — a round is one
@@ -20,7 +22,7 @@ Trains peripheral awareness while maintaining a central task under pressure.
 9. After `rounds_per_level` rounds the level is judged: at or above `pass_pct` the next level
    follows, below it the same level is played again (see "Passing a level")
 
-If all lives are lost before collecting all coins: game over.
+If all lives are lost before the food is gone: game over.
 
 ## Controls
 
@@ -31,7 +33,7 @@ If all lives are lost before collecting all coins: game over.
 
 ## Scoring
 
-- **+1** per coin collected
+- **+1** per food eaten
 - **+20** for correct gorilla count answer at end of round (error = 0 only)
 
 ## Gorilla Count Accuracy (Avg Error)
@@ -124,7 +126,7 @@ level and could not pass it even played perfectly.
 `_score_at_level_start` is stamped when a level begins and a level that misses the gate goes back to
 it (`_rollback_score_on_next_level`, applied in `new_game()` when Continue is pressed). Otherwise
 the gate is a scoring exploit: the score is cumulative across a session, so every failed attempt
-banked its coins and the retry cost nothing.
+banked its food and the retry cost nothing.
 
 The rollback lands on Continue rather than at the moment the level ends, because watching the score
 drop out from under a summary you are still reading is alarming. gorilla does not emit
@@ -151,7 +153,7 @@ to reuse the shared `art/enemy_head1-3.png` monster head tinted brown, which rea
 creature", not as a gorilla.
 
 The whole design constraint is that this figure is **never looked at directly**: the player is
-collecting coins in the room while it crosses the edge of the screen. So the silhouette has to
+eating in the room while it crosses the edge of the screen. So the silhouette has to
 carry the entire read at about one tile tall, out of the corner of the eye:
 
 - heavy hunched mass, shoulders clearly **higher** than the hips (a rump ellipse, a barrel ellipse
@@ -228,27 +230,28 @@ clearance is 40.06 px against a 40 px tile. Consequences:
 - Room floor tiles colored with a random color (from `AGENT_COLOR_INDICES`, same palette as mmm)
 - Player color: `Color(0.1, 0.5, 0.99)` — same blue as mmm player
 - Bricks: one at each wall's center (±1 random shift along wall axis) + `num_bricks` random interior ones; neither player nor monsters can enter brick cells; `_ensure_room_connected()` flood-fills from player start after placement and removes blocking bricks until the room is fully reachable
-- All non-brick room tiles start with a coin; `_fill_coins()` places coins after bricks are laid
+- All non-brick room tiles start with food; `_fill_coins()` places it after bricks are laid
 - Outside walls rendered on the 1-cell ring around the room (using `empty_space.tscn`, same as mmm)
 - `game.zoomed_in = true` always set (single room, always fully visible)
 
 ## Speed
 
 - **Player**: `speed_scale = 1.3` (fixed); moves 30% faster than the base tick rate
-- **Level timer**: 1 minute per round (or ends early when all coins are collected)
+- **Level timer**: 1 minute per round (or ends early when all the food is eaten)
 - **Monster speed tiers**: each monster gets a speed spread evenly from `agent_speed_min` to `agent_speed_max` by spawn index. At level 1 with 3 monsters: 0.7×, 1.05×, 1.4× player speed. The max grows by 0.2 per level (capped at 2.5×); min stays at 0.7×.
 
 
-## The power coin
+## The super-food
 
-`powers: 3` per level (`level_config.gd`) places three coins that carry
-`res://art/coin-orange-w-power.png`. Eating one calls `player.ate_power()` and opens a
+`powers: 3` per level (`level_config.gd`) places three super-foods, the one collectible that keeps
+a texture rather than being drawn: `res://art/coin-orange-w-power.png`. Eating one calls
+`player.ate_power()` and opens a
 **five-second window** (`DURATION_TO_STOP_POWER`) in which touching a monster kills the MONSTER for
 +10 instead of killing you.
 
 **Only the clock closes the window.** Eating a monster used to spend the power — one kill and it was
-over — which made the coin worth exactly one monster. It no longer does, so a well-timed run through
-a crowd is worth several, and that is the reason to go out of your way for the coin.
+over — which made it worth exactly one monster. It no longer does, so a well-timed run through
+a crowd is worth several, and that is the reason to go out of your way for one.
 
 **The clock stands still inside a wormhole.** `warp_to()` calls `pause_power_clock()` and the far
 end calls `resume_power_clock()`, which pushes `time_started_power` forward by however long the trip
@@ -416,7 +419,7 @@ redrawn. It currently measures 2 px, against a 40×40 texture drawn 1:1 over a 4
 - `coins[p]` stores `true`; erased on pickup; `coins.is_empty()` triggers the gorilla question
 - `_fill_coins()` iterates all room tiles after bricks are placed; only puts coins on `is_fillable()` cells
 - All sounds loaded from `res://art/sounds/` (shared root folder); gorilla-specific art in `gorilla/art/` (graphics only)
-- Coin pickup sound: `Retro PickUp Coin 07.ogg`
+- Pickup sound: `Retro PickUp Coin 07.ogg` (the file keeps its name; the object is food)
 
 ## Scene / Script Structure
 
@@ -451,7 +454,8 @@ gorilla/
 Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
 
 - **Entry**: as for the other games; `GorillaG.starting_level` is saved/restored by hand.
-- **Hooks in `level.gd`** (no-ops outside tutorial mode): coin pickup emits `coin_taken`; a
+- **Hooks in `level.gd`** (no-ops outside tutorial mode): eating emits `coin_taken` (the signal
+  kept the old name); a
   peripheral spawn emits `gorilla_appeared`; `on_time_over` emits `answer_time`; `_on_answer_selected`
   emits `answered`.
 - **`peripheral_gorilla.gd` now takes a `game` reference and returns early from `_process` when
@@ -465,13 +469,13 @@ Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for t
   That is what made the tutorial's stage numbers skip. Spawning and holding now happen in the
   setup of the step that talks about the gorilla.
 - Gorillas are spawned **on demand** by the tutorial (`tutorial_spawn_gorilla`), not on the level's
-  timed schedule: on the schedule one ran past while the coach was still talking about coins, and a
+  timed schedule: on the schedule one ran past while the coach was still talking about food, and a
   different one was held up later, which read as a gorilla appearing from nowhere. It prefers a
   horizontal lane (the only kind phones get, and a vertical one held mid-lane sits oddly in the
   center of the screen edge) but falls back to any available side — insisting on horizontal on a
   screen where the top/bottom bands do not fit produced no gorilla at all.
 - The **`player_steered`** hook exists because `GorillaG.always_moving` starts the player walking by
-  itself: a "collect a coin" step is satisfied by the game wandering into one, so the coach
+  itself: an "eat something" step is satisfied by the game wandering into food, so the coach
   congratulated the player for doing nothing. The movement step waits on a real steer, which is
   only ever reachable from `_input`.
 - **`tutorial_show_a_monster()`** spawns one monster, far from the player, on the last teaching
@@ -605,20 +609,20 @@ answer perfectly, and the count stopped measuring divided attention at all. Eati
 deadline.
 
 **The allowance comes from the BOARD, not from a clock.** `_restart_hunger()` sets it to
-`HUNGER_BASE_MS` plus the walking time to the nearest remaining coin
+`HUNGER_BASE_MS` plus the walking time to the nearest remaining food
 (`_steps_to_nearest_coin() * _step_ms() * HUNGER_SLACK`). The board empties as a round goes
-on, so a fixed timer would turn the last four coins in four corners into four death sentences;
-sized this way they are four generous windows. Set when a coin is eaten and when the round
-opens, and never shortened afterwards — walking away from the nearest coin is the player's own
+on, so a fixed timer would turn the last four apples in four corners into four death sentences;
+sized this way they are four generous windows. Set when something is eaten and when the round
+opens, and never shortened afterwards — walking away from the nearest food is the player's own
 choice, not a moving goalpost. Manhattan distance under-counts a path around a wall, which is
 what the slack is for.
 
 **The clock only runs while the player can actually eat.** Two things stop it, and both are
-cases where no coin is reachable:
+cases where no food is reachable:
 
-- **power** — you are chasing monsters, not collecting, and a power coin that starved you would
+- **power** — you are chasing monsters, not eating, and a super-food that starved you would
   be a trap rather than a reward.
-- **warping** — `_move_player_on_tick()` returns immediately while `player.warping`, so a coin
+- **warping** — `_move_player_on_tick()` returns immediately while `player.warping`, so food
   cannot be eaten at all. This one was a real bug: a wormhole near the end of a round starved
   the player mid-flight, and because a warp shrinks the player to a point it looked as though
   they had simply vanished and then died of nothing. The count question never arrived. The POWER
@@ -679,11 +683,11 @@ explanation for the one starving report the wormhole fix does not cover.
 
 `_tick_hunger()` accumulates the paused time rather than restarting, so the clock resumes where
 it stopped — and on the falling edge of a warp it takes a FRESH allowance, because `board_pos` is
-still the near end while `warp_to` is running and the coin nearest the far end is a different
-coin. It also stands down entirely for `in_answering_mode`, a paused game, and a player that has
+still the near end while `warp_to` is running and the food nearest the far end is a different
+apple. It also stands down entirely for `in_answering_mode`, a paused game, and a player that has
 been hit or removed.
 
-**One ring, two clocks.** Power and hunger never run at once — eating a power coin stops the
+**One ring, two clocks.** Power and hunger never run at once — eating a super-food stops the
 hunger clock — so they share the contour instead of fighting over the body. `PowerRing` takes a
 `hunger_mode` flag and draws the same arc from a cooler palette, so the ring always means one
 thing, "time left on whatever is running", and a glance still says which clock it is. Both

@@ -27,7 +27,7 @@ var games = [
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
 	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],
 	["pneumo",        "Pneumo",         "Manage your pneumatic tubes deliveries",                 "Planning"],
-	["parkem",        "Parkem",         "Don't allow the monsters to reach their goals",          "Planning"],
+	["parkem",        "Detour",         "Don't allow the monsters to reach their goals",          "Planning"],
 	["ants",          "Ants",           "Keep the colony from carrying the food home",            "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
