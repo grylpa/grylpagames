@@ -574,19 +574,19 @@ func dist_from_array(p, arr):
 			mind = d
 	return mind
 	
-func clamp_popup_rect(pos: Vector2, size: Vector2, margin := 4) -> Rect2i:
+func clamp_popup_rect(pos: Vector2, sz: Vector2, margin := 4) -> Rect2i:
 	var vr: Rect2 = get_viewport().get_visible_rect()
 	var vp_size := Vector2(vr.size)
 
-	var x = clamp(pos.x, margin, vp_size.x - size.x - margin)
-	var y = clamp(pos.y, margin, vp_size.y - size.y - margin)
+	var x = clamp(pos.x, margin, vp_size.x - sz.x - margin)
+	var y = clamp(pos.y, margin, vp_size.y - sz.y - margin)
 
-	if size.x > vp_size.x - margin * 2:
+	if sz.x > vp_size.x - margin * 2:
 		x = margin
-	if size.y > vp_size.y - margin * 2:
+	if sz.y > vp_size.y - margin * 2:
 		y = margin
 
-	return Rect2(Vector2(x, y), size)
+	return Rect2(Vector2(x, y), sz)
 
 func cumsum(arr: Array) -> Array:
 	var out := []

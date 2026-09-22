@@ -33,8 +33,8 @@ const PALETTE: Dictionary = {
 
 const NAMES: Array = ["RED", "BLUE", "GREEN", "YELLOW", "PURPLE"]
 
-static func color_of(name: String) -> Color:
-	return PALETTE.get(name, PALETTE["WHITE"])
+static func color_of(nm: String) -> Color:
+	return PALETTE.get(nm, PALETTE["WHITE"])
 
 # --- shapes -----------------------------------------------------------------------------------
 

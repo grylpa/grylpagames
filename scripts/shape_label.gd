@@ -45,9 +45,9 @@ func _draw() -> void:
 	Sleek.draw_shape(self, text, box, base_color)
 
 # `shape` is one of Sleek.FILLED / Sleek.HOLLOW.
-static func make(shape: String, color: Color, font_size: int) -> ShapeLabel:
+static func make(shp: String, color: Color, font_size: int) -> ShapeLabel:
 	var l: ShapeLabel = ShapeLabel.new()
-	l.text = shape
+	l.text = shp
 	l.base_color = color
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_font_override("font", MainGlobals.get_system_sans_font())

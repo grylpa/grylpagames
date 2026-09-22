@@ -108,6 +108,11 @@ func new_game(from_scratch=true):
 	# $HUD.new_game()
 	started_playing.emit()
 	if not game.tutorial_mode:
+		# "Parkem", not "Detour", ON PURPOSE. This is the backend's identifier for the game, not
+		# the name shown to a player, and the display name was changed long after rows under this
+		# one existed. Lineup still reports "OOO" and Glimpse still reports "Pop" for exactly the
+		# same reason. The folder, the save key (file_names_prefix) and this string are the three
+		# things a rename must NOT touch.
 		BE.upsert_game_state("Parkem",
 			{"state":"new","starting_level": level, "num_packets": ParkemG.num_packets})
 	if !game.is_sound_playing("motor"):

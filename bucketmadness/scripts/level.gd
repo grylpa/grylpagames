@@ -405,13 +405,13 @@ func _gen_stroop(is_correct: bool) -> Dictionary:
 
 func _gen_colored_shape(is_correct: bool) -> Dictionary:
 	var shapes: Array = ["■", "●", "▲", "★"]
-	var shape: String = shapes[rng.randi_range(0, shapes.size() - 1)]
+	var shp: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
-		return {"shape": shape, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
+		return {"shp": shp, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
 	# Anything that is NOT the blue/red the rule accepts. Named, then looked up, so these stay the
 	# same objects the equality test compares against.
 	var others: Array = ["GREEN", "YELLOW", "PURPLE", "WHITE", "ORANGE"]
-	return {"shape": shape, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
+	return {"shp": shp, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
 
 func _make_text(item: Variant) -> Label:
 	# Shapes go through here too, not only through _make_colored_shape: the "square", "filled" and

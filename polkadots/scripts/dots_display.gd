@@ -29,7 +29,7 @@ func clear_reveal() -> void:
 	_reveal_alpha = 0.0
 	queue_redraw()
 
-func set_dots(positions: Array, radius: float, texture: Texture2D, dot_rect: Rect2, _color: Color) -> void:
+func set_dots(positions: Array, radius: float, tex: Texture2D, dot_rect: Rect2, _color: Color) -> void:
 	dot_color = _color
 	if _reveal_tween:
 		_reveal_tween.kill()
@@ -37,7 +37,7 @@ func set_dots(positions: Array, radius: float, texture: Texture2D, dot_rect: Rec
 		reveal_finished.emit()
 	dot_positions = positions
 	dot_radius = radius
-	_reveal_texture = texture
+	_reveal_texture = tex
 	_reveal_rect = dot_rect
 	_reveal_alpha = 0.0
 	queue_redraw()

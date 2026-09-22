@@ -318,3 +318,35 @@ worse than no Speed row at all.
 getting out to the player reaching it. That is what a vigilance game is about — long quiet
 stretches, then how fast you respond — and `times_to_answer` exists to hold it. The
 `record_times` call is left in place for when it is filled.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`), not grabbed: three sheep on
+grass, arranged in depth so no two of them share any part of the tile.
+
+**There is no wolf in it, and no dog.** The cast shrank twice. It began as a dog, a sheep and a
+wolf, because the game's own sprites are *heads* — a cyan ball with eyes for the player, a speckled
+ball for the sheep — which are the right assets and the wrong picture, since nobody reads
+"sheepdog" off a circle. The dog went first: a collie is a black-and-white shape that argues with
+itself at 200 px, and every pass spent on its blaze, its ear and its tail was a pass not spent on
+the picture.
+
+Then the wolf went, after four rebuilds — discs with hackles stuck on; a hand-listed outline polygon
+that came out slab-sided; smooth masses that were too long and too low, with a dark saddle and a
+pale belly patch big enough to look like markings painted on a bench; and finally one with honest
+proportions that still did not look good. A tile is 200 px and is seen for about a second. An animal
+that takes four attempts and still needs defending is the wrong thing to spend it on. `wolf()` is
+kept in `make_thumbs.py` if that judgement is revisited.
+
+So the tile names the game by **what you are protecting** rather than by what you are protecting it
+from. That is a real cost — the threat is the reason the game exists — and it is accepted because
+sheep read instantly at this size and nothing else tried did.
+
+**They face inward** — the two on the left look right, the one on the right looks left. Drawn all
+one way they read as a queue; turned towards each other they read as a flock.
+
+**The rim is light, on all of them.** Each animal is composited from its own layer with its alpha
+dilated into an even outline — the trick `FoodBit` uses to survive any floor. A *dark* rim was tried
+first: it did nothing for a near-white fleece and actively hid each sheep's dark face against dark
+grass, so heads and legs vanished and a sheep read as a cloud on sticks. The faces were lightened to
+a warm mid-grey for the same reason.

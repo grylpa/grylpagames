@@ -40,7 +40,7 @@ struggle.
 | `scripts/scent_marks.gd` | `ScentMarks`: the trail, as points rather than cells |
 | `scripts/ant_grid.gd` | `AntGrid`: sparse spatial hash, for "who is next to me" |
 | `scripts/ants_art.gd` | `AntsArt`: soil, nest, food, trail and ants, all drawn |
-| `scripts/tutorial.gd` | a placeholder, deliberately not wired up |
+| `scripts/tutorial.gd` | the coached tutorial: fourteen steps, see **Tutorial** below |
 
 `Level` is a bare `Node2D`. There is no board, no cell and no tile: the world is a `Rect2` in world
 units and an ant's position is a `Vector2` anywhere inside it.
@@ -585,10 +585,10 @@ Godot emulates a mouse click from every touch, so a tap on a phone arrives twice
 `InputEventScreenTouch` and again as `InputEventMouseButton`, and the menu obligingly placed two
 obstacles for it.
 
-It has to be taught, which is why the instructions say so in as many words. The tutorial is still
-the placeholder described below and will need to show it too.
+It has to be taught, which is why the instructions say so in as many words, and why the tutorial
+spends a `watch_only` step on it.
 
-## Contact, and the greeting## Contact, and the greeting
+## Contact, and the greeting
 
 One pass over an `AntGrid` (cell = `CONTACT_D`) does both jobs, because both are answers to "who is
 next to me" and the hash is the expensive part:
@@ -690,12 +690,66 @@ antennae up close. **The legs are not parallel**: the front pair reaches forward
 straight out and the hind pair sweeps back, so from above the front and hind legs cross into an X
 with the middle pair through it, and the knee splays less than the foot so a leg has an elbow
 rather than being a straight spoke. Drawn as three parallel oars, which is what they were, an ant
-reads like a woodlouse. `devtools/make_ants_thumb.py` carries the same three constants; a dash with a crumb on it when `LENGTH * zoom` drops below 5 px, since 200 smears
-cost more than they show. The gaster carries one highlight, which is what keeps a near-black ant off
+reads like a woodlouse. Below `LENGTH * zoom` of 5 px an ant becomes a dash with a crumb on it,
+since 200 smears cost more than they show. The chooser tile is drawn from these same constants —
+see **Art** below. The gaster carries one highlight, which is what keeps a near-black ant off
 a dark soil. The food pile **shrinks as it is carried away**: it is the only readout of progress the
 world itself gives.
 
 ## What it measures
+
+**The problem this game had.** A level is one continuous run — no rounds, no prompts, nothing that
+announces itself — so it recorded two end-of-session *counts* (`crumbs_through`, `ants_killed`) and
+no distribution at all. Counts say how a session went. They cannot say whether the player is getting
+quicker at **noticing**, which is the thing this game actually trains.
+
+**The trials were already there; they only had to be named.** The colony re-forms a road within
+about a minute of losing one, and that is an event with an onset: the moment a route's scent crosses
+from "nothing much" into "a road". The player's next action on that route is the response. So every
+road that matures is a trial and the gap is a reaction time — and it is the right kind of reaction
+time for this game, because a forming road is a *low-salience change in the corner of the board*
+rather than a prompt.
+
+| Recorded | What it means |
+|---|---|
+| `react_*` (`record_times`) | mean, median, spread, slope and lapses of the gap between a road maturing and the player acting on it |
+| `roads_missed` | a road matured and was never answered inside `ROAD_WINDOW` — kept **apart** from the times |
+| `obstacles_moved` | walls lifted and re-used; the action the tutorial says nobody discovers unaided |
+| `placements_wasted` | dropped where nothing was walking — acting, but not usefully |
+| `crumbs_through`, `ants_killed` | the outcome and its cost, as before |
+
+**Non-responses are counted separately rather than folded in at a capped time.** A cap would quietly
+inflate the mean with events the player never engaged with at all, which is the opposite of what the
+number is for.
+
+**Detection uses hysteresis.** A point fires at `ROAD_ON` and cannot fire again until it falls back
+under `ROAD_OFF`. Against a single threshold a route hovering at the line emits a trial every tick
+and the distribution becomes noise; `probe_ants` checks that a live road does not re-fire.
+
+**The clock starts when the road is VISIBLE, not when it matures.** From level 3 the world is
+larger than the screen and the camera never zooms out, so a road can form where the player is not
+looking. Timing that from maturation measures where the camera happened to be pointing: the same
+player, panning in a moment later, posts a "slow reaction" to something they could not have seen. So
+each road waits for its first frame on screen and is timed from there. On level 1, where the whole
+world is in view, the two are identical. What that leaves out gets its own number — `roads_unseen`,
+a road that matured off-screen and never came into view at all, which is not a slow response but
+board the player never covered.
+
+**Levels are different TASKS, not difficulties of one.** `game.set_task_signature()` carries the
+world size, colony count, pile count and speed range, because a level number is only an index into
+an editable table. Level 1 is a single screenful and level 5 is nine of them with no zoom-out —
+noticing a change in front of you versus covering ground as well. Without a signature their reaction
+times would have been pooled, comparing two things that are not comparable.
+
+**Timed on the level's own `_clock`, not on the wall.** `_clock` only advances inside `sim_step`,
+which only runs while the game is playing — so a player who opens the tool menu, reads a tooltip or
+takes a phone call mid-road is not charged for it, where a wall clock would file all of that as a
+slow reaction. It also makes the measurement independent of frame rate, which is what had a probe
+stepping the simulation by hand recording every reaction as 0 ms.
+
+### The old section
+
+
 
 Two numbers, both direct consequences of where the player put things — no derived statistics, and
 nothing the game does not actually record:
@@ -789,6 +843,55 @@ nothing emits.** `level.TUTORIAL_EVENTS` lists every name the level passes to `t
 carrying a radius. `probe_tut` carries a hardcoded list of nine games and does not cover this one, so
 without that nothing would check it at all.
 
+## What you did is left on the ground
+
+**Every obstacle kills — the stone, the twig, the water and the bait alike.** All four are things
+dropped on a busy road, and the kill loop in `place_obstacle()` does not care which. The spray does
+not kill; neither does picking something up.
+
+The counter on the top strip says *how many*. It does not say **where**, or **on what**, and those
+are the parts a player can act on: a stone dropped across the thick of the traffic reads differently
+from one dropped on empty ground. So every crushed ant leaves a **body** where it was crushed —
+`level.corpses`, drawn by `AntsArt.draw_crushed()` on top of whatever crushed it and under anything
+still walking.
+
+A body is the ant's own geometry, flattened across the body (`CRUSHED_SQUASH`, varied per corpse so
+a row of them is not stamped) with the **elbows gone and the legs splayed and straightened**, which
+is most of what makes it read as flattened rather than as an ant standing still.
+
+**There are two colors, picked against the background, and "light gray" is not one of them.** The
+obvious choice fails on the obstacle a player reaches for first: the stone is *pale* (0.81) while
+the twig and the water are dark, so one fixed color would be invisible on half of them. Worse, the
+soil is mid-toned — a merely light gray sat at **2.6:1** on it, and going darker instead was worse,
+because a dark body on soil is a live ant. So `CRUSHED_PALE` is nearly **white** (3.1:1 on soil,
+8–10:1 on the twig and water) and `CRUSHED_DARK` is a **mid** gray used only on the stone and the
+bait, where anything darker would look like an ant standing on a rock. `crushed_color_on()` splits
+them at 0.62, not at a half, because the soil sits at 0.53 and belongs on the pale side.
+
+**A body takes its color at the moment it is made**, from the obstacle that is crushing it — which
+is known right there. Giving it a default and leaving `_recolor_corpses()` to fix it up does not
+work, because `_resolid()` has already run by the time the kill loop executes, so a body kept its
+default until the *next* time anything was placed or taken. On the pale stone that meant a white ant
+on a near-white rock: invisible until you happened to put something else down.
+
+That also exposed a bad test. The check read the bodies once at the end, by which time every one of
+them had been through a later `_resolid()` and been re-colored — so the one state that matters, how
+a body looks the instant it is made, was the one state never inspected. And it dropped each obstacle
+*near* the road and hoped: the stone and the bait killed nobody, so the only kind ever measured was
+the twig, which is dark and was the case already right. It now drops each kind **straight onto a
+living ant** and checks each new body against what is crushing it before anything else happens.
+
+**Bodies are not cleared when the thing that crushed them is picked up.** Taking the stone away does
+not bring the ants back, and the evidence is the point — but what they are lying *on* has changed,
+so `_recolor_corpses()` hangs off `_resolid()`, which is called from every path that changes the
+obstacle set: a drop, a pick-up, and bait eaten down to nothing. Doing it per frame would mean a
+`contains()` test for every body against every obstacle sixty times a second, for a picture that
+only changes when something is placed or taken.
+
+`probe_obstacles` checks that every kind can crush, that the tally and the bodies never disagree,
+that the faintest body clears 3:1 against whatever it lies on, and that picking up what crushed them
+leaves the bodies behind and re-colors them for the bare soil.
+
 ## The top strip
 
 **One counter: ants crushed.** Crushing is not the job and it costs five times a crumb, and nothing
@@ -804,56 +907,66 @@ label, so it cannot drift from what it is meant to be showing. It is not `lives_
 `packets_left`: ants crushed goes *up*, must never be decremented by the shared machinery, and is
 already persisted properly as the `ants_killed` score column.
 
-**The ant icon is drawn, not imported** (`AntsG.ant_icon()`), as a dark shape inside a light rim —
-one pass over the pixels measuring distance to the shape's skeleton, so the rim comes free rather
-than being a second drawing.
+**The ant icon is drawn, not imported** (`AntsG.ant_icon(plate_color)`): a dark ant standing on an
+opaque disc, baked at 64 px and shown at 32. One pass over the pixels off two signed distances —
+the disc's, which decides the alpha, and the ant's, which decides the color — so both edges come out
+antialiased for free.
 
-**The rim is load-bearing, and it is a rim, not an aura.** The counters sit inside the HUD's
-`BkLabel`, a 60 px band of flat dark grey — *not* the soil, which the strip covers. On that band the
-dark body alone measures **1.9:1**; the rim carries it at **9.3:1**, and 17.7:1 against the ant
-itself. But the legs are `0.030` wide and the first rim was `0.085`, nearly three times what it was
-outlining, so the glow between the legs merged into one white blob and the icon read as a bright
-badge with an ant somewhere in it. Now `0.034` with a squared alpha falloff — opaque where it
-touches the body, gone quickly after, since a linear ramp spends half its width above 50% alpha and
-that is the part that shouts. Coverage went from 39% rim / 22% shape to **13% / 22%**, and
-`probe_ants` requires the rim to cover no more than the shape it outlines. It measures the contrast
-against the live `BkLabel` color rather than an assumed background: the first version of that check
-measured the ant against the ground and proved a 5.4:1 the player never sees. It is passed with `Color.WHITE` so it keeps its own colors instead of
-the strip's yellow tint, and at **half scale**: `set_lives_icon` sizes the box as *texture size x
-scale*, the icon is baked at 64 px for a clean edge, and every other icon on the strip is a 32 px
-box — so a scale of 1 put a double-size ant next to normal-size everything else. `probe_ants` pins
-the size and the tint.
+**The icon's ant is the game's ant**, off the same `AntsArt` constants `draw_ant` uses — the
+gaster/thorax/head proportions, `COXA`, `KNEE_SPLAY`, `FOOT_SPLAY` and `ANT_BODY` — with the gait
+frozen mid-stride. The first version drew six **straight spokes** and did not read as an ant, which
+is the exact mistake `ants_art.gd` calls out and fixed once already for the real ones: *"drawn as
+three parallel oars… an ant reads like a woodlouse."* The knee splays less than the foot, which is
+what gives a leg its elbow; the front and hind pairs bend 0.115 and 0.142 body-lengths off the
+coxa→foot line, and the middle pair is straight on purpose because it sticks out sideways.
+`probe_ants` requires those constants to be **read** rather than copied, checks the two elbows, and
+checks the baked ant mirrors left to right (which is also what says the gait was frozen rather than
+left running on one arbitrary frame).
+
+**Its size and position on the plate are measured, not authored.** `_ant_fit()` samples the shape
+once per bake and returns the middle of its ink box and the radius that contains it; the plate is
+drawn about that, with `ICON_MARGIN` of clear ground between the ant and the rim (0.085, which
+leaves the ant covering 18% of the plate). Two hand-set numbers used to do this — a scale and a vertical offset — and both
+were silently wrong the moment the art changed, which is precisely what happened when the ant was
+rebuilt from `AntsArt`: it is a different size and it sits at a different height.
+
+**The plate is not decoration.** The counters sit inside the HUD's `BkLabel`, a 60 px band of flat
+dark grey — *not* the soil, which the strip covers. On that band the ant's own color measures
+**1.9:1**. Two earlier versions gave it a light *halo* instead and both were wrong the same way: the
+legs are `0.030` wide, so an outline thick enough to read at 32 px was thicker than the thing it
+outlined, and the glow between the legs merged into a blob. A plate is one shape rather than seven
+glowing slivers, and it puts every part of the ant on the same background. It measures 9.5:1 on the
+band, with the ant 18:1 on the plate.
+
+**Its yellow is the counter's yellow, read from the label rather than matched by hand.** `main.gd`
+passes `LivesLabel`'s own `font_color` into `ant_icon()`, which re-bakes if it changes. Two yellows
+that are close but not equal read as a mistake, and a hand-copied constant is exactly what drifts
+into almost-equal; `probe_ants` samples a plate pixel and requires it to equal the label's color.
+The icon goes to the HUD with `Color.WHITE` so the strip's own yellow tint does not repaint the ant
+along with it.
+
+**The ant is centered in its own texture, which is what lines it up with the number.** The container
+centers the icon's box and the label's, and the digit's ink sits within half a pixel of its own box
+center — so any visible mismatch is the art sitting off-center inside the texture, and it was, because
+the shape is not centered on its origin (the gaster reaches one way, an antenna tip much further the
+other). `probe_ants` measures the baked ink's bounding box and allows one baked pixel of slop.
 
 The tool menu is closed when the level is hidden and on
 `MainGlobals.sig_need_to_close_info_popups`. It is a CanvasLayer on the level rather than a child of
 the board, so hiding the board does not hide it: pressing M with one open left it floating over the
 main menu.
 
-## The probes## The top strip
-
-The two counters on the HUD (`hud.show_corrects_mistakes()`) carry **bait carried home** and **ants
-crushed** — both things the player caused, one wanted and one not. Crushing costs five times a crumb
-and nothing said so until the score dropped, which left the player to work out which of the two
-things that just happened had done it. A pair of counters with one of them stuck at zero reads as
-broken, which is why both halves are used.
-
-**Both icons are drawn, not imported** (`AntsG.ant_icon()` / `bait_icon()`), as a dark shape inside a
-light halo — one pass over the pixels measuring distance to the shape's skeleton, so the halo comes
-free rather than being a second drawing. The strip sits over whatever the game is drawing, which
-here is pale soil: a single tinted pictogram would be a yellow ant on sandy ground, and the icon
-nobody can see is the one telling the player they are crushing ants. Measured 5.4:1 against the
-soil, with the halo 17.7:1 against the ant itself. They are passed with `Color.WHITE` so they keep
-their own colours instead of the strip's yellow tint.
-
-The tool menu is closed when the level is hidden and on
-`MainGlobals.sig_need_to_close_info_popups`. It is a CanvasLayer on the level rather than a child of
-the board, so hiding the board does not hide it: pressing M with one open left it floating over the
-main menu.
-
-`set_counter_icons()` is new on the shared HUD, alongside the lives and packets setters. It uses
-full node paths rather than `%`: those two icons are the only ones on the strip without
-`unique_name_in_owner` set in the scene, so the shorthand silently finds nothing and errors at
-runtime.
+**Closing it from outside has to tell it so, before freeing it.** The tip and its connector line are
+*captured* by the menu's `hide_tip` lambda, and Godot emits `mouse_exited` for whichever cell the
+pointer was over as the menu is torn down — which called that lambda with both captures already
+freed: *"Lambda capture at index 1 was freed. Passed null instead."* Guarding inside the lambda
+cannot help, because the engine reports it when the Callable is **invoked**, before a line of its
+body runs. So an `acted` flag (a plain Array, which cannot be freed) is checked at every call site,
+and it is set three ways: by `close()` on a pick, by the menu's own `tree_exiting` for any other
+route, and **eagerly by `level._close_menu()`** — because `queue_free()` defers teardown to the end
+of the frame, so `tree_exiting` would tell it too late. `probe_ants` checks the flag is clear while
+the menu is open and set the instant the level closes it. `show_tip` re-checks after its `await`,
+which is the other window where the menu can vanish mid-call.
 
 ## The probes
 
@@ -941,8 +1054,32 @@ by design, and folding them in would hide what is being measured behind four leg
 
 ## Art
 
-`art/game_screen_200.png` is a **placeholder** generated by `devtools/make_ants_thumb.py`, to be
-replaced with a real screenshot like every other game's tile. It is not invented: the script reads
-its colors and proportions from `ants_art.gd` and `ant.gd` and lays the nest and food where
-`level.gd` puts them for level 1. The chooser loads that path unguarded, so the game cannot appear
-in the list without a file there.
+`art/game_screen_200.png` is generated by **`devtools/make_thumbs.py`** and installed by
+`devtools/install_thumbs.py`. The chooser loads that path unguarded, so the game cannot appear in
+the list without a file there.
+
+**It is an emblem, not a screenshot.** A grab of the board shows soil, a nest, a pile and a trail —
+a landscape with nothing at stake and no player in it. The tile is three big ants carrying crumbs
+instead. What was tried first and thrown away was the better idea and the worse picture: a stone
+laid across the road with the colony's detour already worn round it, which says the whole game in
+one image and **cannot be read at 200 px**. Two roads, a stone, a body and three ants is more than
+the tile holds; straightening the roads and cutting the element count only got it as far as
+"unclear".
+
+**Five ants on bare soil, all heading the same way.** Two of them used to meet nose to nose across
+the middle at nearly a third of the tile's width each, and on a phone the pair merged into one dark
+mass with a green dot on it. A column going one way is also what ants actually look like.
+
+**There is no trail under them**, which costs the tile the mechanic the game is built on. A worn
+scent road is a *dark band* and the ants are dark, so every ant standing on it lost its legs. Bare
+soil buys five legible ants instead, and at 200 px that is the trade. Nothing sits closer than `0.8b`
+to an edge either — an ant reaches about that far from its own centre once legs and antennae are
+counted, and two of them lost their hind legs off the bottom before that was measured.
+
+Nothing in it is invented. The ants come from `AntsArt`'s own constants — the same
+gaster/thorax/head proportions and the same `COXA` / `KNEE_SPLAY` / `FOOT_SPLAY` elbowed legs — and
+the soil and crumb colours are read from `ants_art.gd`, so the tile cannot drift from the game it
+advertises. The superseded `devtools/make_ants_thumb.py` is gone.
+
+Ants has no entry in `docs/the-nomizo-games.md`, so unlike every other game it has a tile and no
+published thumbnail; `build_games_doc.py` prints a warning saying exactly that.

@@ -106,9 +106,9 @@ func _on_start_game_button_pressed() -> void:
 	MatchwsG.words.create_words_from_collection()
 	menu_start_game.emit()
 
-func _on_new_lang_list_item_selected(index: int) -> void:
+func _on_new_lang_list_item_selected(idx: int) -> void:
 	if MatchwsG.words != null:
-		var id = %NewLangList.get_item_id(index)
+		var id = %NewLangList.get_item_id(idx)
 		MatchwsG.words.selected_new_lang_id = id
 		if id == MatchwsG.words.selected_known_lang_id:
 			var another = MatchwsG.words.get_another_lang(id)
@@ -117,9 +117,9 @@ func _on_new_lang_list_item_selected(index: int) -> void:
 				%OldLangList.select(max(0,MainGlobals.find_id_in_option_button(%OldLangList, MatchwsG.words.selected_known_lang_id)))
 		MatchwsG.words.get_words_per_langs()
 
-func _on_old_lang_list_item_selected(index: int) -> void:
+func _on_old_lang_list_item_selected(idx: int) -> void:
 	if MatchwsG.words != null:
-		var id = %OldLangList.get_item_id(index)
+		var id = %OldLangList.get_item_id(idx)
 		MatchwsG.words.selected_known_lang_id = id
 		if id == MatchwsG.words.selected_new_lang_id:
 			var another = MatchwsG.words.get_another_lang(id)
@@ -134,9 +134,9 @@ func do_on_got_words() -> void:
 func do_failed_getting_words() -> void:
 	refresh()
 
-func _on_collection_list_item_selected(index: int) -> void:
+func _on_collection_list_item_selected(idx: int) -> void:
 	if MatchwsG.words != null:
-		var id = %CollectionList.get_item_id(index)
+		var id = %CollectionList.get_item_id(idx)
 		MatchwsG.words.selected_collection_id = id
 		MatchwsG.words.create_words_from_collection()
 

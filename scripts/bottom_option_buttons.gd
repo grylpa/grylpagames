@@ -199,14 +199,14 @@ func _make_rev_stylebox(col: Color) -> StyleBoxFlat:
 	sb.content_margin_right = 4.0
 	return sb
 
-func set_button_font_size(size: int) -> void:
+func set_button_font_size(sz: int) -> void:
 	for child in buttons_node.get_children():
 		if child is Button:
-			child.add_theme_font_size_override("font_size", size)
-			# child.add_theme_constant_override("icon_max_width", size*5)
-			# child.add_theme_constant_override("icon_max_height", size*5)
-			child.custom_minimum_size.y = size# + 12
-			child.custom_minimum_size.x = size# + 12
+			child.add_theme_font_size_override("font_size", sz)
+			# child.add_theme_constant_override("icon_max_width", sz*5)
+			# child.add_theme_constant_override("icon_max_height", sz*5)
+			child.custom_minimum_size.y = sz# + 12
+			child.custom_minimum_size.x = sz# + 12
 			# for state in ["normal", "hover", "pressed", "disabled", "focus"]:
 			# 	var sb = child.get_theme_stylebox(state)
 			# 	if sb and sb is StyleBoxFlat:

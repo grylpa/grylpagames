@@ -50,8 +50,14 @@ const METRICS: Dictionary = {
 	"overflows": false,           # Storm: water on the floor
 	"collisions": false,          # Pneumo
 	"crumbs_through": false,      # Ants: what the colony got past the player
+	# Ants again, and these are the ones worth watching. A road re-forming is a low-salience change
+	# with an onset, so the gap before the player acts on it is a reaction time -- and `react_cv`
+	# and `react_mean` above already carry it, since Whack taught these screens that vocabulary.
+	"obstacles_moved": true,      # Ants: lifted and re-used rather than left as scenery
+	"roads_missed": false,        # Ants: a road matured and was never answered
+	"roads_unseen": false,        # Ants: a road the player never had on screen at all
 	"ants_killed": false,         # Ants: crushed under a dropped obstacle, which is not the job
-	"creatures_stopped": true,    # Parkem: creatures turned back
+	"creatures_stopped": true,    # Detour (folder parkem): creatures turned back
 }
 
 # Sessions to draw in a row's sparkline.

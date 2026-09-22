@@ -227,6 +227,69 @@ static func draw_food(ci: CanvasItem, at: Vector2, r: float, left_frac: float, s
 # An ant is drawn at two levels of detail. Legs and antennae on a 3-px ant are a smear, and 200
 # smears cost more than they show, so past a certain zoom the ant becomes the dash it looks like
 # from that distance anyway.
+# A crushed ant, left where it was crushed. The tally on the top strip says HOW MANY; this says
+# WHERE, and on what, which is the part a player can act on -- the stone you dropped across the busy
+# half of the road reads differently from the one you dropped on empty ground.
+#
+# TWO colors, chosen against the background rather than fixed. "Light gray" is the obvious pick and
+# it fails on the one obstacle a player is most likely to use: the stone is PALE (0.81) while the
+# twig and the water are dark, so a single pale corpse would be invisible on exactly half of them.
+# Both of these read as a dead ant -- washed out, no sheen, the color drained -- and the drawing
+# picks whichever separates from what it is lying on.
+# The pale one is nearly WHITE, not a light gray, and it has to be: the soil is mid-toned (relative
+# luminance 0.24), so a merely light gray sat at 2.6:1 on it -- and going darker instead was worse,
+# because a dark body on soil is a live ant. The dark one is a MID gray for the same reason in
+# reverse: it only ever lands on the pale stone or the bait, where it needs 3:1, and taking it any
+# darker would have made it look like an ant standing on a rock.
+const CRUSHED_PALE: Color = Color(0.945, 0.937, 0.921, 0.92)
+const CRUSHED_DARK: Color = Color(0.404, 0.396, 0.380, 0.92)
+# Flattened ACROSS the body. A corpse drawn at an ant's own proportions is just a gray ant.
+const CRUSHED_SQUASH: float = 0.45
+
+# Which of the two to use on a given background, by luminance -- the same question the palette at
+# the top of this file answers for everything else, and for the same reason: hue alone is not
+# available to a color-blind player or to a phone in sunlight.
+static func body_color_of(kind: int) -> Color:
+	match kind:
+		AntObstacle.Kind.STONE:
+			return STONE_BODY
+		AntObstacle.Kind.TWIG:
+			return TWIG_BODY
+		AntObstacle.Kind.WATER:
+			return WATER_BODY
+		AntObstacle.Kind.LURE:
+			return LURE_TINT
+	return SOIL
+
+static func crushed_color_on(bg: Color) -> Color:
+	# 0.62, not a half: the soil sits at 0.53 and belongs on the PALE side of the line. Only the
+	# stone (0.80) and the bait (0.79) are light enough to need the dark body.
+	var l: float = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b
+	return CRUSHED_DARK if l > 0.62 else CRUSHED_PALE
+
+# `at` and `heading` are where the ant was standing when something landed on it. `squash` is a
+# per-corpse variation so a row of them does not look stamped.
+static func draw_crushed(ci: CanvasItem, at: Vector2, heading: float, squash: float,
+		col: Color) -> void:
+	var b: float = Ant.body_len()
+	# Local space after this: +x is the way it was facing, +y is its side, flattened.
+	ci.draw_set_transform(at, heading, Vector2(1.0, clampf(squash, 0.2, 1.0)))
+	var lw: float = maxf(0.8, b * 0.075)
+	# Legs splayed and straightened -- the elbow is gone, which is most of what makes this read as
+	# flattened rather than as an ant standing still. They reach further than a live ant's, too.
+	for i in 3:
+		var base: Vector2 = Vector2(b * (0.04 + float(COXA[i])), 0.0)
+		for s in [-1.0, 1.0]:
+			var fa: float = float(FOOT_SPLAY[i]) * 0.55
+			ci.draw_line(base, base + Vector2(sin(fa), s * cos(fa)) * b * 0.74, col, lw, true)
+	for s2 in [-1.0, 1.0]:
+		ci.draw_line(Vector2(b * 0.42, 0.0),
+			Vector2(b * 0.58, s2 * b * 0.42), col, lw * 0.8, true)
+	ci.draw_circle(Vector2(-b * 0.34, 0.0), b * 0.235, col)
+	ci.draw_circle(Vector2(b * 0.04, 0.0), b * 0.150, col)
+	ci.draw_circle(Vector2(b * 0.36, 0.0), b * 0.175, col)
+	ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+
 static func draw_ant(ci: CanvasItem, a: Ant, zoom: float) -> void:
 	var fwd: Vector2 = Vector2.from_angle(a.heading)
 	var side: Vector2 = Vector2(-fwd.y, fwd.x)

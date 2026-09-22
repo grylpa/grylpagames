@@ -124,6 +124,43 @@ const SPRAY_PICK: int = -2            # the menu's code for "the can", not an An
 # allowance minus that, so it reads as "how much more can I afford to let past".
 var delivered: int = 0
 var crumbs_through: int = 0
+# Every ant something was dropped on, left where it was dropped on. {pos, heading, squash, col}.
+# The counter on the top strip says how many; these say WHERE and on what, which is the part a
+# player can act on. They are NOT cleared when the thing that crushed them is picked up again --
+# taking the stone away does not bring the ants back, and the evidence is the point.
+var corpses: Array = []
+
+# --- what this game MEASURES ------------------------------------------------
+#
+# THE PROBLEM: this level is one continuous run. There are no rounds, no trials and no prompts, so
+# there is nothing to time -- and until now the game recorded two end-of-session COUNTS (crumbs
+# through, ants crushed) and no distribution at all. Counts say how it went; they cannot say
+# whether the player is getting quicker at noticing, which is the thing worth watching.
+#
+# THE TRIALS ARE ALREADY THERE, they just have to be named. The colony re-forms a road within about
+# a minute of losing one, and that is an EVENT with an onset: the moment a route's scent crosses
+# from "nothing much" into "a road". The player's next action on that route is the response. So
+# every road that matures is a trial and the gap is a reaction time -- which is exactly the
+# vigilance this game trains, a forming road being a low-salience change in the corner of the board
+# rather than a prompt that announces itself.
+#
+# Non-responses are counted SEPARATELY as roads_missed rather than folded in at some capped time: a
+# cap would quietly inflate the mean with events the player never engaged with at all.
+const ROAD_ON: float = 3.2            # scent at a sample point that counts as "a road"
+const ROAD_OFF: float = 1.4           # and what it must fall back under to re-arm
+const ROAD_NEAR: float = 150.0        # an action this close to a road answers it
+const ROAD_WINDOW: float = 25.0       # past this, the road is missed rather than answered slowly
+const ROAD_STEP: float = 70.0         # spacing of the sample points along a nest->pile corridor
+
+var road_times_ms: Array = []         # one entry per road answered
+var roads_missed: int = 0
+var road_onsets: int = 0              # how many formed at all, answered or not
+var roads_unseen: int = 0             # matured off-screen and never came into view
+var obstacles_moved: int = 0          # picked up again, which is the whole loop
+var placements_wasted: int = 0        # dropped where nothing was walking
+var _road_pending: Array = []         # [{pos, at}] roads formed and not yet answered
+var _road_armed: Array = []           # per sample point: ready to fire again?
+var _road_pts: Array = []
 var bait_taken: int = 0
 # Crushing ants is not the way to win and is priced accordingly: an ant is worth several crumbs.
 const KILL_PENALTY: int = 5
@@ -153,6 +190,7 @@ func new_game(_from_scratch: bool = true) -> void:
 	var cfg: Dictionary = AntsLevelConfig.get_level(current_level_id)
 	_art_seed = randi()
 	obstacles.clear()
+	corpses.clear()
 	_solid.clear()
 	spray.clear()
 	spray_left = int(cfg.get("spray_presses", 0))
@@ -169,6 +207,14 @@ func new_game(_from_scratch: bool = true) -> void:
 	_place_food(cfg)
 	delivered = 0
 	crumbs_through = 0
+	road_times_ms.clear()
+	roads_missed = 0
+	road_onsets = 0
+	roads_unseen = 0
+	obstacles_moved = 0
+	placements_wasted = 0
+	_road_pending.clear()
+	_build_road_samples()
 	bait_taken = 0
 	_evap_accum = 0.0
 	_clock = 0.0
@@ -380,7 +426,7 @@ func _place_food(cfg: Dictionary) -> void:
 		var at: Vector2 = _food_position(i, n)
 		food.append({"pos": at, "crumbs": crumbs, "start": crumbs, "seed": _art_seed + i * 977})
 
-func _food_position(i: int, n: int) -> Vector2:
+func _food_position(_i: int, n: int) -> Vector2:
 	# With one colony and one pile the answer is the opposite corner -- the brief was to watch ants
 	# cross the world to find it.
 	if colonies.size() == 1 and n == 1:
@@ -426,8 +472,98 @@ func _process(delta: float) -> void:
 	_refresh_layers(dt)
 
 # Split out so a headless probe can run the colony forward without a display or a clock.
+# The corridor a road can form in: the straight run from each nest to each pile, sampled every
+# ROAD_STEP. It is not where the ants WILL go -- they wander, and they go round whatever you put
+# down -- but a road that carries crumbs has to get from one end to the other, so it passes near
+# this line somewhere.
+func _build_road_samples() -> void:
+	_road_pts.clear()
+	_road_armed.clear()
+	for c: AntColony in colonies:
+		for f: Dictionary in food:
+			var a: Vector2 = c.nest
+			var b: Vector2 = f["pos"]
+			var n: int = maxi(1, int(a.distance_to(b) / ROAD_STEP))
+			for i in range(1, n):
+				_road_pts.append({"p": a.lerp(b, float(i) / float(n)), "c": c})
+				_road_armed.append(true)
+
+# One road maturing is one trial onset. A point fires when its scent crosses ROAD_ON and cannot
+# fire again until it has fallen back under ROAD_OFF -- hysteresis, because a route hovering at a
+# single threshold would emit a trial every tick and the distribution would be noise.
+# TIMED ON THE LEVEL'S OWN CLOCK, not on the wall.
+#
+# `_clock` only advances inside sim_step, which only runs while the game is playing -- so a player
+# who opens the tool menu, reads a tooltip or takes a phone call in the middle of a road forming is
+# not charged for it. A wall clock would file all of that as a slow reaction. It also makes the
+# measurement independent of frame rate, which is what let a probe stepping the simulation by hand
+# record every reaction as 0 ms.
+func _watch_roads() -> void:
+	var now: float = _clock
+	for i in _road_pts.size():
+		var pt: Dictionary = _road_pts[i]
+		var v: float = (pt["c"] as AntColony).marks.sense(pt["p"])
+		if bool(_road_armed[i]):
+			if v >= ROAD_ON:
+				_road_armed[i] = false
+				_road_pending.append({"pos": pt["p"], "at": now, "seen": -1.0})
+				road_onsets += 1
+		elif v <= ROAD_OFF:
+			_road_armed[i] = true
+	# THE CLOCK STARTS WHEN THE ROAD IS VISIBLE, NOT WHEN IT MATURES.
+	#
+	# From level 3 the world is larger than the screen and the camera does not zoom out, so a road
+	# can form somewhere the player is not looking. Timing that from maturation measures where the
+	# camera happened to be pointing, not how quickly the player noticed anything -- the same
+	# player, panning in a moment later, would post a "slow reaction" to something they could not
+	# have seen. So each road waits for its first frame ON SCREEN, and the reaction is measured
+	# from there. On level 1, where the whole world is in view, the two are the same thing.
+	#
+	# What that leaves out is worth its own number: a road that matured off-screen and never came
+	# into view at all is `roads_unseen` -- not a slow response, but board the player never covered.
+	var view: Rect2 = visible_world()
+	for e in _road_pending:
+		if float(e["seen"]) < 0.0 and view.has_point(e["pos"]):
+			e["seen"] = now
+	for k in range(_road_pending.size() - 1, -1, -1):
+		if now - float(_road_pending[k]["at"]) > ROAD_WINDOW:
+			if float(_road_pending[k]["seen"]) < 0.0:
+				roads_unseen += 1
+			else:
+				roads_missed += 1
+			_road_pending.remove_at(k)
+
+# The player acted at `at`. Any road within reach of it counts as answered.
+func _answer_roads(at: Vector2) -> void:
+	for k in range(_road_pending.size() - 1, -1, -1):
+		if (_road_pending[k]["pos"] as Vector2).distance_to(at) <= ROAD_NEAR:
+			# Acting on it proves it was visible, so a road answered before _watch_roads had a
+			# chance to mark it seen is timed from now -- which is a reaction of zero, and rare.
+			var seen: float = float(_road_pending[k]["seen"])
+			if seen < 0.0:
+				seen = _clock
+			road_times_ms.append(int(round(maxf(_clock - seen, 0.0) * 1000.0)))
+			_road_pending.remove_at(k)
+
+# Was anything actually using this spot? A stone dropped on empty ground costs a tool and changes
+# nothing, and telling those from useful placements is most of what separates acting from acting
+# usefully.
+func _traffic_at(at: Vector2) -> bool:
+	for c: AntColony in colonies:
+		if c.marks.sense(at) >= ROAD_OFF:
+			return true
+	# Tighter than ROAD_NEAR: answering a road is about the road's neighbourhood, but "was anything
+	# walking HERE" is about the spot. On a busy level a wandering ant is within 90 units of almost
+	# anywhere, which would make nothing ever count as wasted.
+	for a: Ant in _all:
+		if a.pos.distance_to(at) <= 55.0:
+			return true
+	return false
+
 func sim_step(dt: float) -> void:
 	_clock += dt
+	if game.playing:
+		_watch_roads()
 	var came_up: int = 0
 	for c: AntColony in colonies:
 		came_up += c.release_due(_clock)
@@ -498,6 +634,11 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 		if block == null or not _slide_clear(o, at, block):
 			return false
 	obstacles.append(o)
+	if game.playing:
+		if _traffic_at(at):
+			_answer_roads(at)
+		else:
+			placements_wasted += 1
 	_resolid()
 	stock[kind] = stock_of(kind) - 1
 	game.tutorial_notify("obstacle_placed")
@@ -511,6 +652,15 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 		for a: Ant in c.ants:
 			if o.contains(a.pos):
 				c.killed += 1
+				# Colored against the thing that is crushing it, HERE, because we know exactly
+				# what that is. Defaulting the color and leaving _recolor_corpses() to fix it up
+				# does not work: _resolid() has already run by this point, so a body stayed on its
+				# default until the NEXT time anything was placed or taken -- which on the pale
+				# stone meant a white ant on a near-white rock, invisible until you happened to
+				# put something else down.
+				corpses.append({"pos": a.pos, "heading": a.heading,
+					"squash": AntsArt.CRUSHED_SQUASH * randf_range(0.75, 1.2),
+					"col": AntsArt.crushed_color_on(AntsArt.body_color_of(o.kind))})
 				if game.playing:
 					game.add_score_and_time(-KILL_PENALTY, 0, true)
 			else:
@@ -618,6 +768,8 @@ func use_spray(at: Vector2) -> bool:
 	if spray_left <= 0 or not walkable.has_point(at):
 		return false
 	spray_left -= 1
+	if game.playing:
+		_answer_roads(at)
 	spray.spray(at)
 	game.tutorial_notify("sprayed")
 	_redraw_all()
@@ -628,6 +780,11 @@ func remove_obstacle_at(at: Vector2) -> int:
 		if obstacles[i].contains(at):
 			var kind: int = obstacles[i].kind
 			obstacles.remove_at(i)
+			# Picking something up to use it elsewhere is the action the whole game runs on, and
+			# the one the tutorial says nobody discovers unaided. A player who never does it has
+			# four decisions rather than four tools.
+			if game.playing:
+				obstacles_moved += 1
 			_resolid()
 			# Only what can be carried away comes back. Water poured out is gone.
 			if AntObstacle.is_reusable(kind):
@@ -643,11 +800,26 @@ func obstacle_at(at: Vector2) -> bool:
 			return true
 	return false
 
+# A corpse is drawn against whatever it is lying ON, and what it is lying on changes: crushed under
+# an obstacle, then the obstacle is picked up again, or eaten down to nothing. Recomputed here,
+# where the obstacle set changes, rather than per frame -- the alternative is a contains() test for
+# every corpse against every obstacle sixty times a second, for a picture that only changes when
+# something is placed or taken.
+func _recolor_corpses() -> void:
+	for cp: Dictionary in corpses:
+		var under: Color = AntsArt.SOIL
+		for o: AntObstacle in obstacles:
+			if o.contains(cp["pos"]):
+				under = AntsArt.body_color_of(o.kind)
+				break
+		cp["col"] = AntsArt.crushed_color_on(under)
+
 func _resolid() -> void:
 	_solid.clear()
 	for o: AntObstacle in obstacles:
 		if o.solid():
 			_solid.append(o)
+	_recolor_corpses()
 
 
 func _rebuild_all() -> void:
@@ -936,6 +1108,14 @@ func _screen_to_world(at: Vector2) -> Vector2:
 
 func _close_menu() -> void:
 	if _menu != null and is_instance_valid(_menu):
+		# Told it is over BEFORE it is freed. queue_free defers the teardown to the end of the
+		# frame, and during that teardown Godot emits mouse_exited for whichever cell the pointer
+		# was over -- which calls the menu's hide_tip lambda, whose captured tip and connector line
+		# are by then freed ("Lambda capture at index 1 was freed"). The menu also sets this from
+		# its own tree_exiting, but that is emitted during the teardown rather than now, so a menu
+		# closed from out here would be told too late.
+		if _menu.has_meta("acted"):
+			(_menu.get_meta("acted") as Array)[0] = true
 		_menu.queue_free()
 		MainGlobals.set_popup_open(false)
 	_menu = null
@@ -1007,6 +1187,10 @@ func _draw_fg() -> void:
 		if vis.intersects(Rect2(o.pos - Vector2.ONE * o.bound_radius(),
 				Vector2.ONE * o.bound_radius() * 2.0)):
 			AntsArt.draw_obstacle(_fg, o)
+	# On top of whatever crushed them, and under anything still walking.
+	for cp: Dictionary in corpses:
+		if vis.has_point(cp["pos"]):
+			AntsArt.draw_crushed(_fg, cp["pos"], cp["heading"], cp["squash"], cp["col"])
 	for c: AntColony in colonies:
 		if vis.has_point(c.nest):
 			AntsArt.draw_nest(_fg, c.nest, AntColony.NEST_RADIUS, c.tint)

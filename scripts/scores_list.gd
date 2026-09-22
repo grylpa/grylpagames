@@ -463,7 +463,7 @@ func _set_header(field_name, text, widthidx, _is_panel_visible:=false):
 
 func add_line(texts, is_from_user):
 	var row = list_row.instantiate()
-	var texture = row.get_node("HBox/TextureIcon")
+	var tex = row.get_node("HBox/TextureIcon")
 	var lpanel = row.get_node("HBox/DatePanel")
 	var rpanel = row.get_node("HBox/ScorePanel")
 	var level_panel = row.get_node("HBox/LevelPanel")
@@ -474,10 +474,10 @@ func add_line(texts, is_from_user):
 	var rlabel = rpanel.get_node("Label")
 	# rlabel.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	if is_from_user:
-		texture.texture = user_texture
+		tex.texture = user_texture
 	else:
-		texture.texture = no_user_texture
-	texture.hide()
+		tex.texture = no_user_texture
+	tex.hide()
 	llabel.text = MainGlobals.cap_first_word(texts[0])
 	rlabel.text = MainGlobals.cap_first_word(texts[1])
 	# Every cell is sized here, none left to its scene: see create_list().

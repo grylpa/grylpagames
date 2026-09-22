@@ -1,6 +1,6 @@
 class_name ParkemLevelConfig
 
-# Per-level configuration for Parkem.
+# Per-level configuration for Detour (the folder and the class name stay `parkem`/`Parkem*`).
 #
 # The level's whole shape lives here rather than in a `match level:` ladder inside level.gd, so
 # adding or retuning a level is one line in one place.

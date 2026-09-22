@@ -102,8 +102,8 @@ static func load_icon(folder: String) -> Texture2D:
 static func folder_of(host: Node) -> String:
 	if host == null or not is_instance_valid(host):
 		return ""
-	var script: Script = host.get_script()
-	if script == null:
+	var scr: Script = host.get_script()
+	if scr == null:
 		return ""
-	var parts: PackedStringArray = script.resource_path.replace("res://", "").split("/")
+	var parts: PackedStringArray = scr.resource_path.replace("res://", "").split("/")
 	return parts[0] if parts.size() >= 2 else ""
