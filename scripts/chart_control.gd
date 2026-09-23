@@ -30,19 +30,13 @@ var y_min_padding: float = 0.0    # when > 0, y_min = data_min - padding * span 
 var y_label_divisor: float = 1.0  # divide raw value before formatting y-axis labels
 var y_label_format: String = ""   # if set, used instead of _fmt_y for axis labels
 
-# THE BASELINE BAND. A trend line on its own cannot answer the only question that matters for
-# noticing change — "is this different from how I usually am?" — because the reader has no idea
-# which wobbles are ordinary. The band draws the player's own usual range behind the line, so a
-# point inside it is unremarkable at a glance and most points should be.
-#
-# Set band_lo/band_hi in DATA units and the band is drawn; leave them equal and it is skipped.
-# Points outside get a ring so an unusual session is visible without reading the axis.
-var band_lo: float = 0.0
-var band_hi: float = 0.0
-var band_color: Color = Color(0.45, 0.75, 0.85, 0.13)
-var band_edge: Color = Color(0.45, 0.75, 0.85, 0.30)
-var mark_outliers: bool = true
-var outlier_color: Color = ScreenBackdrop.STATS_MARK
+# NO "USUAL RANGE" BAND AND NO RINGED POINTS. Both were here: a shaded band of the player's own
+# mean +/- 2 sd behind the line, and an orange ring round every session outside it. Neither was
+# asked for, and in the Charts tab they did more harm than good -- a ring meant "unusual" in either
+# direction, so an unusually GOOD session wore the same orange as the word that means worse; and
+# for a game like Ants, whose sessions differ as much by which roads formed where as by the player,
+# the band was a claim about normal that the data could not support. The small graphs on the
+# Summary tab and the Progress screen keep their band; this is only the full-size chart.
 
 # AXIS TITLES. Without them a chart whose x is not time is unreadable — "12" on the x axis says
 # nothing unless something says "faces in the crowd".
@@ -107,19 +101,6 @@ func legend_entries() -> Array:
 	if fit_line and not _series.is_empty():
 		out.append({"label": "trend", "color": fit_color, "dashed": true})
 	return out
-
-func set_band(lo: float, hi: float) -> void:
-	band_lo = minf(lo, hi)
-	band_hi = maxf(lo, hi)
-	queue_redraw()
-
-func clear_band() -> void:
-	band_lo = 0.0
-	band_hi = 0.0
-	queue_redraw()
-
-func has_band() -> bool:
-	return band_hi > band_lo
 
 func set_series(series_list: Array) -> void:
 	_series = series_list
@@ -263,22 +244,9 @@ func _draw() -> void:
 	draw_line(Vector2(px_left, px_top), Vector2(px_right, px_top), axis_color, 1.0)
 	draw_line(Vector2(px_right, px_top), Vector2(px_right, px_bottom), axis_color, 1.0)
 
-	# The band goes down BEFORE the lines, so it reads as ground the data sits on rather than as
-	# another series competing with it.
-	if has_band():
-		var by_hi: float = px_bottom - ((band_hi - y_min) / y_range) * plot_h
-		var by_lo: float = px_bottom - ((band_lo - y_min) / y_range) * plot_h
-		var top_y: float = maxf(px_top, minf(by_hi, by_lo))
-		var bot_y: float = minf(px_bottom, maxf(by_hi, by_lo))
-		if bot_y > top_y:
-			draw_rect(Rect2(px_left, top_y, plot_w, bot_y - top_y), band_color, true)
-			draw_line(Vector2(px_left, top_y), Vector2(px_right, top_y), band_edge, 1.0)
-			draw_line(Vector2(px_left, bot_y), Vector2(px_right, bot_y), band_edge, 1.0)
-
 	# Screen positions for every series, computed once. The legend needs them to find an empty
 	# corner, and the drawing below would otherwise recompute the same thing.
 	var screen_series: Array = []
-	var sorted_series: Array = []
 	for sidx: int in range(_series.size()):
 		var raw: Array = _series[sidx].get("points", [])
 		var sp_sorted: Array = raw.duplicate()
@@ -287,7 +255,6 @@ func _draw() -> void:
 		for pt2: Vector2 in sp_sorted:
 			sp.append(Vector2(px_left + (pt2.x - x_min) / (x_max - x_min) * plot_w,
 					px_bottom - ((pt2.y - y_min) / y_range) * plot_h))
-		sorted_series.append(sp_sorted)
 		screen_series.append(sp)
 
 	# Legend whenever the plot shows more than one line — and the fitted line counts as one.
@@ -307,7 +274,6 @@ func _draw() -> void:
 	for si: int in range(_series.size()):
 		var s: Dictionary = _series[si]
 		var series_color: Color = s.get("color", SERIES_COLORS[si % SERIES_COLORS.size()])
-		var sorted_pts: Array = sorted_series[si]
 		var screen_pts: PackedVector2Array = screen_series[si]
 		if screen_pts.is_empty():
 			continue
@@ -316,12 +282,6 @@ func _draw() -> void:
 		for pi: int in range(screen_pts.size()):
 			var sp: Vector2 = screen_pts[pi]
 			draw_circle(sp, 4.0, series_color)
-			# A session outside the player's usual range is ringed rather than recoloured, so the
-			# series stays readable as one line and the ring reads as an annotation on it.
-			if mark_outliers and has_band():
-				var v: float = sorted_pts[pi].y
-				if v < band_lo or v > band_hi:
-					draw_arc(sp, 7.5, 0.0, TAU, 20, outlier_color, 2.0)
 
 	# The fitted line and its slope, for the panels where the slope IS the measurement.
 	if fit_line and not _series.is_empty():

@@ -992,24 +992,6 @@ func create_chart() -> void:
 		_swap_in_own_chart()
 		return
 
-	# THE BASELINE BAND, and only where it means something.
-	#
-	# The chart draws one series per level, and a "usual range" spanning several difficulties would
-	# be a number about the mix of levels played rather than about the player. So the band appears
-	# only when a single series is on screen — which is exactly the comparable case — and the warm-up
-	# and the recent window are excluded by StatsBaseline (see band_from_values).
-	_chart_control.clear_band()
-	if series_list.size() == 1:
-		var pts_for_band: Array = series_list[0].get("points", [])
-		if pts_for_band.size() >= StatsBaseline.MIN_BASELINE_SESSIONS:
-			var ordered: Array = pts_for_band.duplicate()
-			ordered.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
-			var vals: Array = []
-			for pt: Vector2 in ordered:
-				vals.append(pt.y)
-			var band_info: Dictionary = StatsBaseline.band_from_values(vals)
-			if bool(band_info.get("ok", false)):
-				_chart_control.set_band(float(band_info["lo"]), float(band_info["hi"]))
 	# EVERY chart names its axes, not just the game's own. y_label is already the metric's name;
 	# the x depends on what the date/index switch is showing.
 	_chart_control.y_title = _chart_control.y_label

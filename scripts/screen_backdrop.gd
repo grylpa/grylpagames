@@ -174,7 +174,7 @@ static func stats_row_cells(row_name: String, values: Array, state: int) -> Arra
 	MainGlobals.set_font_size(state_lbl, 13)
 	match state:
 		StatsBaseline.State.WATCH:
-			state_lbl.text = "watch"
+			state_lbl.text = "getting worse"
 			state_lbl.add_theme_color_override("font_color", STATS_MARK)
 		StatsBaseline.State.STEADY:
 			state_lbl.text = "steady"

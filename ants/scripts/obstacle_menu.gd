@@ -175,7 +175,14 @@ static func open(host: Node, screen_pos: Vector2, on_pick: Callable, can_remove:
 		var left: int = 0
 		if level != null:
 			left = int(level.call("stock_of", int(k)))
-		choices.append({"kind": int(k), "remove": false, "spray": false, "left": left})
+		# Water shows a JUG WITH A LEVEL rather than a swatch of puddle, because it is spent like
+		# the spray rather than placed and recovered like a stone.
+		var had: int = 0
+		if level != null:
+			had = int((level.get("stock_at_start") as Dictionary).get(int(k), 0))
+		choices.append({"kind": int(k), "remove": false, "spray": false, "left": left,
+			"jug": int(k) == AntObstacle.Kind.WATER,
+			"full": float(left) / maxf(float(had), 1.0)})
 	if level != null and int(level.get("spray_presses_total")) > 0:
 		var total: float = maxf(float(level.get("spray_presses_total")), 1.0)
 		choices.append({"kind": SPRAY_PICK, "remove": false, "spray": true,
@@ -262,6 +269,7 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 
 	var is_remove: bool = bool(choice["remove"])
 	var is_spray: bool = bool(choice["spray"])
+	var is_jug: bool = bool(choice.get("jug", false))
 	var kind: int = int(choice["kind"])
 	var left: int = int(choice["left"])
 	var spent: bool = (not is_remove) and left <= 0
@@ -273,7 +281,7 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 
 	var swatch: AntObstacle = null
 	var swatch_scale: float = 1.0
-	if not is_remove and not is_spray:
+	if not is_remove and not is_spray and not is_jug:
 		swatch = AntObstacle.new(kind, Vector2.ZERO, -0.35, 7)
 		swatch_scale = (float(box) * 0.34) / maxf(swatch.half.x, swatch.half.y)
 
@@ -284,6 +292,8 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 		var mid: Vector2 = cell.size * 0.5
 		if is_spray:
 			AntsArt.draw_spray_can(cell, mid, float(box) * 0.62, full)
+		elif is_jug:
+			AntsArt.draw_water_jug(cell, mid, float(box) * 0.62, full)
 		elif is_remove:
 			var a: float = float(box) * 0.22
 			cell.draw_line(mid - Vector2(a, a), mid + Vector2(a, a), Color(0.93, 0.44, 0.40), 4.0, true)

@@ -30,6 +30,12 @@ var fixed_hi: float = 0.0
 var end_color: Color = ScreenBackdrop.STATS_MARK
 var mark_end: bool = true
 
+# A picture, not a control: it takes no input, so a tap on it reaches whatever it sits in. Left
+# at Control's default (STOP) it swallowed every click -- which made the Progress screen, where any
+# tap closes the panel, close on a tap anywhere EXCEPT on its graphs.
+func _init() -> void:
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 func set_values(v: Array) -> void:
 	values = v
 	queue_redraw()

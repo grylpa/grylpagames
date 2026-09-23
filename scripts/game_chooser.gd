@@ -170,7 +170,9 @@ func _create_about_button() -> void:
 
 	# One pill background; the left content margin reserves space for the icon.
 	var pill: StyleBoxFlat = StyleBoxFlat.new()
-	pill.bg_color = Color(0.0, 0.0, 0.0, 0.35)
+	# Mostly opaque. At 0.35 the two buttons (About and Progress) were see-through over the tile
+	# grid behind them, so their text competed with whatever tile happened to be underneath.
+	pill.bg_color = Color(0.0, 0.0, 0.0, 0.75)
 	pill.set_corner_radius_all(int(_about_pill_h / 2.0))
 	pill.set_border_width_all(2)
 	pill.border_color = _ICON_COLOR
@@ -179,7 +181,7 @@ func _create_about_button() -> void:
 	pill.content_margin_top = 4.0
 	pill.content_margin_bottom = 4.0
 	var pill_hover: StyleBoxFlat = pill.duplicate() as StyleBoxFlat
-	pill_hover.bg_color = Color(0.16, 0.16, 0.16, 0.65)
+	pill_hover.bg_color = Color(0.18, 0.18, 0.18, 0.92)
 	_about_btn.add_theme_stylebox_override("normal", pill)
 	_about_btn.add_theme_stylebox_override("hover", pill_hover)
 	_about_btn.add_theme_stylebox_override("pressed", pill_hover)

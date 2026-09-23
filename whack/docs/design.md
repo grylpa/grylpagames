@@ -664,8 +664,8 @@ about reaction time had NO Summary rows at all and its category could never hear
 
 **Accuracy is DERIVED here.** This game keeps the four counts and no `pct_correct`, so
 `GameInstrument._derive_pct_correct()` fills it in from tp/tn/fp/fn with `no_answer` in the
-denominator. Without that it showed Speed and Steadiness and no Accuracy, which is the number it
-is most about.
+denominator. Without that it showed Answer time and Unevenness (then called Speed and Steadiness)
+and no Accuracy, which is the number it is most about.
 
 Note the one case where not answering is CORRECT: a round with no real target where the player
 held back is `record_answer(false, false)` — a true negative — not a missing answer. The two

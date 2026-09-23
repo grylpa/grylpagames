@@ -494,6 +494,11 @@ func hide_dispatch() -> void:
 # the tally blink out and back on every single round. A line 60px lower is the cheaper cost.
 #
 # A game that does not show counters is untouched: the offsets stay exactly as the scene set them.
+# THE GREY STRIP IS 56 PX, NOT 60. BkLabel is 60 tall but its bottom 4 are a black border
+# (border_width_bottom, blended), so the grey a player sees runs 0-56 and its middle is y=28. Score,
+# the clock and the three counter containers are sized 0-56 in the scene to centre on THAT --
+# sized to the full 60 they centred on the border's middle as well and every game's HUD sat two
+# pixels low. Dispatch and Reminder (3-53) were already right. probe_ants checks all of them.
 const _TOP_STRIP_DROP: float = 62.0
 var _counters_wanted: bool = false
 
