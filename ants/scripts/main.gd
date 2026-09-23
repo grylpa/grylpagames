@@ -253,11 +253,46 @@ func on_game_is_done(_didwin: bool, _wasaborted: bool) -> void:
 	# run drove thousands of end-of-round chains and slowed to a fiftieth of its speed.
 	game.playing = false
 	game.save_score(get_game_score(_didwin, _wasaborted))
+	if not game.tutorial_mode and not _wasaborted:
+		_finish_level(_didwin)
+
+# THE LEVEL GATE. Ants had none: `starting_level_id` moved only when the player dragged the menu
+# slider, so winning promoted nobody and a player who could hold level 1 stayed on level 1 for ever
+# unless they thought to change it themselves. That is not a difficulty setting going unused, it is
+# the difficulty never tracking the player -- and it also made the `level` column meaningless, since
+# in every other game that column records the difficulty REACHED and here it recorded a preference.
+#
+# One level is one whole round here, not `rounds_per_level` of them, so the gate is the round's own
+# verdict: survive the clock with allowance left and you move up.
+func _finish_level(didwin: bool) -> void:
+	var lvl: int = $Level.current_level_id
+	var is_last: bool = lvl >= AntsLevelConfig.max_level()
+	game.need_to_increase_level = didwin and not is_last
+	MainGlobals.global_level_is_done(didwin)
+	var left: int = maxi(game.score, 0)
+	var textadd: String = "\n\nCrumbs they got past you: %d\nAllowance left: %d\n\n%s" % [
+		$Level.crumbs_through, left, _progress_line(didwin, is_last)]
+	game.show_level_done_popup(self, "", "", lvl, textadd, didwin)
+
+# What happens next, in words. Whether they are moving on is the only thing anyone wants to know at
+# that moment, and a pair of counts does not say it.
+func _progress_line(didwin: bool, is_last: bool) -> String:
+	if not didwin:
+		return "Hold them off until the clock runs out to pass to the next level."
+	if is_last:
+		return "Level passed -- this is the last one, so it comes round again."
+	return "Level passed -- on to level %d." % (AntsLevelConfig.next_id($Level.current_level_id))
 
 func _save_ongoing_score() -> void:
 	game.save_ongoing_score(get_game_score(false, false))
 
+# Promotion lands HERE, on the way into the next round, so the card the player just read was still
+# describing the level they actually played.
 func _on_hud_start_game() -> void:
+	if game.need_to_increase_level:
+		game.need_to_increase_level = false
+		AntsG.starting_level_id = AntsLevelConfig.next_id(AntsG.starting_level_id)
+		AntsG.save_settings()
 	new_game(true)
 
 func _on_help_close_help() -> void:

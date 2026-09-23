@@ -65,6 +65,14 @@ var LEVELS: Array = [
 func max_level() -> int:
 	return int(LEVELS[LEVELS.size() - 1]["id"])
 
+# The level after this one, or this one again at the top of the ladder. IDs are read from the table
+# rather than assumed to be 1..n, because the table is meant to be editable.
+func next_id(id: int) -> int:
+	var i: int = id_to_index(id)
+	if i < 0 or i >= LEVELS.size() - 1:
+		return int(LEVELS[LEVELS.size() - 1]["id"])
+	return int(LEVELS[i + 1]["id"])
+
 func get_level(id: int) -> Dictionary:
 	for lvl: Dictionary in LEVELS:
 		if lvl["id"] == id:
