@@ -32,6 +32,11 @@ var killed: int = 0
 var tint: Color = Color(0.36, 0.22, 0.12)
 var idx: int = 0
 
+# WHAT KIND OF COLONY THIS IS. One type for the whole nest, not per ant: mixed types average out
+# into one grey behaviour and the player has nothing to read. Nothing on screen names it -- you
+# learn which nest is which by watching what it does to your walls.
+var behavior: int = Ant.Behavior.NORMAL
+
 func _init(at: Vector2, which: int, col: Color) -> void:
 	nest = at
 	idx = which
@@ -46,6 +51,7 @@ func populate(how_many: int, speed_lo: float, speed_hi: float) -> void:
 		# Drawn ONCE, at spawn, and kept for the ant's life. Re-rolling it per tick would average
 		# every ant to the same pace; keeping it is what makes a column look like individuals.
 		var a: Ant = Ant.new(nest, dir, randf_range(speed_lo, speed_hi), idx, nest)
+		a.behavior = behavior
 		# Uniform over the window rather than evenly spaced: an even spacing is its own pattern,
 		# and a trickle is irregular.
 		a.emerge_at = randf() * EMERGE_WINDOW

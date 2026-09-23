@@ -49,7 +49,20 @@ const FOLLOW_GAIN: float = 2.6
 # ant moves under a unit per tick and the field barely changes. Sampling at 20 Hz is also closer to
 # the animal, which sweeps its antennae at something like 8-10 Hz. The phase is per-ant so the
 # colony does not all sample on the same tick and spike one frame in three.
-const SCENT_EVERY: float = 0.05
+# HOW OFTEN AN ANT RE-READS THE SCENT FIELD -- as a DISTANCE, not a time.
+#
+# It was 0.05 s, which is 2.8 units at BASE_SPEED. That is fine until the level speeds go up: at
+# 2.5x the ant re-reads every 7 units and at 4.4x every 12, so it crosses a trail on a third of the
+# samples it used to and often fails to latch onto it at all. The probe caught exactly that -- an
+# ant dropped beside a trail went 98 units along it and 91 across, when joining means going mostly
+# along.
+#
+# Sensing by distance makes the behaviour identical at every pace, which is the same reasoning as
+# Ant.turn_scale() and as DEPOSIT_EVERY, which was already a distance. It costs proportionally more
+# CPU on a fast level, and that is the honest price: a fast level really is running more ant-metres
+# per second.
+const SCENT_STEP: float = 2.8         # px of travel between reads of the field
+const SCENT_EVERY: float = 0.05       # the old timer, kept for join_cd's sake (see _follow_scent)
 
 # --- joining a trail --------------------------------------------------------
 # Three antennae spread 32 degrees either side can CLIMB a gradient but cannot recognise a RIDGE.
@@ -167,6 +180,51 @@ const LOST_TURN_MIN: float = 0.12     # a loop this wide is already 467px across
 # crumb that the level is waiting on, and it keeps laying trail over ground it is lost on. Real
 # ants abandon loads. Measured before this existed: three ants of forty still carrying after three
 # minutes with the pile long empty, and the "unused" trail GREW while they circled.
+# --- BEHAVIOUR TYPES --------------------------------------------------------
+#
+# A colony is not just faster or more numerous than another: it can want different things. Every
+# one of these is the SAME ant with three numbers moved, so the rules stay one set of rules and
+# nothing here is a special case in the movement code -- each type is a multiplier on a constant
+# that already existed and was already doing this job.
+#
+# The point is that they are DISCOVERABLE. Nothing tells the player which colony is which; you
+# learn it by watching what they do to your walls, and then you know which tool to spend on which
+# nest. That is the part that keeps teaching after the first session.
+enum Behavior { NORMAL, WALL_FOLLOW, PERSISTENT, SCOUT }
+
+# join   how hard it swings onto a trail it has found (JOIN_GAIN)
+# wall   how long it keeps hugging an edge after losing contact (WALL_HOLD)
+# damp   how much the wall overrides where it WANTED to go (WALL_GOAL_DAMP; lower = more slavish)
+# give   how long it carries a crumb while lost before dropping it (LOST_GIVEUP)
+# cling  units it must run ALONG an edge before it is allowed to let go of one
+#
+# `cling` is the knob that actually makes a wall-follower, and finding that took two wrong
+# guesses. The dominant exit from wall-following is not the WALL_HOLD grace period at all -- it is
+# the release below, which drops the latch the instant the ant's GOAL bearing comes clear ("I can
+# go where I wanted again, so let go"). Multiplying WALL_HOLD by nine therefore changed almost
+# nothing, and the probe kept reporting the wall-follower as the worse wall-follower. What
+# distinguishes the type is being RELUCTANT TO LET GO: it keeps running the edge for a while even
+# once its way is open, which is what turns a twig into a rail.
+const BEHAVIORS: Array = [
+	{"join": 1.00, "wall": 1.00, "damp": 1.00, "give": 1.00, "cling": 0.0},    # NORMAL
+	# Runs the length of whatever it meets instead of rounding the end of it. A twig laid across
+	# its road becomes a rail it follows, so walls redirect this colony rather than stopping it.
+	{"join": 0.85, "wall": 3.00, "damp": 0.35, "give": 1.00, "cling": 70.0},   # WALL_FOLLOW
+	# Commits. Follows a trail hard and keeps carrying long after a sensible ant would give up, so
+	# a road it has learned is expensive to break -- but it is slow to find a new one.
+	{"join": 1.70, "wall": 0.60, "damp": 1.00, "give": 2.20, "cling": 0.0},    # PERSISTENT
+	# Barely follows its own kind. Spreads out, finds the way round a new wall quickly, and is the
+	# one colony a single well-placed obstacle will not hold.
+	{"join": 0.35, "wall": 0.50, "damp": 1.00, "give": 0.70, "cling": 0.0},    # SCOUT
+]
+
+# Which of the four this ant is. Set by its colony, which takes one type for all of its ants --
+# per-ant types would average out into one grey behaviour and there would be nothing to read.
+var behavior: int = Behavior.NORMAL
+
+func _b(key: String) -> float:
+	return float(BEHAVIORS[clampi(behavior, 0, BEHAVIORS.size() - 1)][key])
+
 const LOST_GIVEUP: float = 45.0
 # The other way dead reckoning fails. LOST_R catches an ant whose vector has shrunk to nothing in
 # the wrong place; this catches one whose vector is confidently WRONG and never shrinks at all. The
@@ -231,6 +289,7 @@ var wall_side: float = 0.0
 var wall_time: float = 0.0
 var sweep_phase: float = 0.0
 var wall_err: float = INF               # last contact error, for the derivative term
+var wall_run: float = 0.0               # units run since this latch was taken, for `cling`
 
 func _init(start: Vector2, dir: float, scale_factor: float, which_colony: int, home_at: Vector2) -> void:
 	pos = start
@@ -242,10 +301,26 @@ func _init(start: Vector2, dir: float, scale_factor: float, which_colony: int, h
 	gait = randf() * TAU
 	# Unsynchronised, or the whole colony sweeps its antennae as one animal.
 	sweep_phase = randf() * TAU
-	scent_cd = randf() * SCENT_EVERY
+	scent_cd = randf() * SCENT_STEP
 
 func speed() -> float:
 	return BASE_SPEED * speed_scale
+
+# A TURN RATE HAS TO SCALE WITH PACE, because what the movement is really made of is a turning
+# RADIUS: r = v / w. Every constant in this file was chosen at BASE_SPEED -- MAX_TURN 3.8 rad/s
+# against 56 px/s is a circle of 14.7 units, tighter than the ant is long -- and leaving those
+# rates alone while doubling v doubles every radius with it.
+#
+# That is not a cosmetic change. The wall-following PD controller holds a 5-unit gap using an
+# antenna that reaches 17, so an ant whose turning circle has gone from 15 units to 36 cannot
+# follow the edge of a twig at all: it overshoots the contact band, oscillates, and drops the
+# latch. Raising the level speeds for tempo silently broke thigmotaxis, and the probe caught it as
+# a wall-follower that followed walls LESS than a normal ant.
+#
+# Scaling every rate by the ant's own pace keeps the geometry exactly as designed, so a fast level
+# is a time-lapse of a slow one rather than a different animal.
+func turn_scale() -> float:
+	return speed_scale
 
 # One tick of sensing and movement. Food, nest and neighbours are the level's business; this is
 # only "where does my own head tell me to go".
@@ -264,10 +339,12 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: R
 	var turn: float = 0.0
 	var turn_cap: float = MAX_TURN
 	if state == State.SEARCHING:
-		scent_cd -= dt
+		# Counted down in UNITS TRAVELLED, so a fast ant reads the field as often per metre as a
+		# slow one. `speed()` rather than the realised step, because the step is not known yet.
+		scent_cd -= speed() * (1.0 - pause_amt) * dt
 		if scent_cd <= 0.0:
-			scent_cd += SCENT_EVERY
-			scent_turn = _follow_scent(marks, SCENT_EVERY)
+			scent_cd += SCENT_STEP
+			scent_turn = _follow_scent(marks, SCENT_STEP / maxf(speed(), 1.0))
 		turn = scent_turn
 	else:
 		turn = _steer_home(dt)
@@ -283,19 +360,21 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: R
 	turn += wander_bias * wander_w
 	if spray != null and not spray.is_empty():
 		turn += _turn_from_spray(spray)
-	turn = clampf(turn, -turn_cap, turn_cap)
+	turn = clampf(turn, -turn_cap, turn_cap) * turn_scale()
 	if wall_side != 0.0:
-		turn *= WALL_GOAL_DAMP
+		turn *= WALL_GOAL_DAMP * _b("damp")
 	heading = wrapf(heading + turn * dt, -PI, PI)
 
 	# Applied to the heading the ant has just chosen, as a reflex on top of whatever it wanted --
 	# so an ant rounding a stone is still homing, or still following its trail, the whole way.
 	if not obstacles.is_empty():
-		heading = wrapf(heading + _edge_turn(obstacles, dt) * dt, -PI, PI)
+		heading = wrapf(heading + _edge_turn(obstacles, dt) * turn_scale() * dt, -PI, PI)
 
 	var pace: float = speed() * (1.0 - pause_amt)
 	if state == State.HOMING:
 		pace *= 1.0 - NEST_CREEP * nest_pull
+	if wall_side != 0.0:
+		wall_run += pace * dt
 	var delta: Vector2 = Vector2.from_angle(heading) * pace * dt
 	pos += delta
 	gait += delta.length() * 0.62
@@ -321,7 +400,7 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: R
 		lost_time = 0.0
 		best_home = INF
 		stale_time = 0.0
-	elif state == State.HOMING and lost and lost_time > LOST_GIVEUP:
+	elif state == State.HOMING and lost and lost_time > LOST_GIVEUP * _b("give"):
 		abandon_load()
 
 	if state == State.HOMING and not lost:
@@ -374,7 +453,7 @@ func _follow_scent(marks: ScentMarks, dt: float) -> float:
 			# Eased, so a scan that reads slightly differently from the last one nudges the ant
 			# rather than yanking it.
 			join_want = lerp_angle(join_want, _trail_bearing(marks), JOIN_SETTLE)
-		return wrapf(join_want - heading, -PI, PI) * JOIN_GAIN
+		return wrapf(join_want - heading, -PI, PI) * JOIN_GAIN * _b("join")
 	joined = false
 
 	var l: float = marks.sense(pos + Vector2.from_angle(heading - ANTENNA_SPREAD) * ANTENNA_REACH)
@@ -461,12 +540,13 @@ func _edge_turn(obstacles: Array, dt: float) -> float:
 	# WALL_HOLD is easy; a thin one is a racetrack.
 	#
 	# This is the exit condition every wall-following algorithm needs and this one was missing.
-	if wall_side != 0.0 and ahead >= REACT_AHEAD:
+	if wall_side != 0.0 and ahead >= REACT_AHEAD and wall_run >= _b("cling"):
 		var goal: float = _goal_bearing()
 		if goal != INF and is_inf(_feel(obstacles, goal, ANTENNA_REACH)):
 			wall_side = 0.0
 			wall_err = INF
 			wall_time = 0.0
+			wall_run = 0.0
 			return 0.0
 
 	if ahead < REACT_AHEAD:
@@ -474,7 +554,8 @@ func _edge_turn(obstacles: Array, dt: float) -> float:
 		# whichever antenna is NOT touching, or the one touching further off.
 		if wall_side == 0.0:
 			wall_side = 1.0 if right < left else -1.0
-		wall_time = WALL_HOLD
+			wall_run = 0.0
+		wall_time = WALL_HOLD * _b("wall")
 		wall_err = INF
 		return -wall_side * AVOID_TURN
 
@@ -483,6 +564,7 @@ func _edge_turn(obstacles: Array, dt: float) -> float:
 		if minf(left, right) >= ANTENNA_REACH:
 			return 0.0                  # nothing within reach of either feeler
 		wall_side = 1.0 if right < left else -1.0
+		wall_run = 0.0
 		touch = minf(left, right)
 
 	if touch >= ANTENNA_REACH:
@@ -493,11 +575,15 @@ func _edge_turn(obstacles: Array, dt: float) -> float:
 		if wall_time <= 0.0:
 			wall_side = 0.0
 			wall_err = INF
+			wall_run = 0.0
 			return 0.0
 		wall_err = INF
 		return wall_side * WALL_SEEK
 
-	wall_time = WALL_HOLD
+	# Both places that arm this budget have to scale with the behaviour, not just the first. This
+	# one -- refilled on every tick of contact -- is the one that decides how long the ant keeps
+	# hugging after the wall ends, so patching only the other left the multiplier with no effect.
+	wall_time = WALL_HOLD * _b("wall")
 	var err: float = touch - WALL_GAP       # positive: drifting away from the wall
 	var rate: float = 0.0
 	if wall_err != INF and dt > 0.0:

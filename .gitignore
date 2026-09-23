@@ -19,7 +19,9 @@ export_presets.cfg
 #   seed_demo    fills every game with simulated history so the stats screens can be looked at
 #   clear_demo   removes exactly what seed_demo wrote, by manifest
 #   verify_demo  reads the seeded history back
+#   measure_*    calibration runs that print numbers for the level tables
 probe_*
+measure_*
 seed_demo.*
 clear_demo.*
 verify_demo.*

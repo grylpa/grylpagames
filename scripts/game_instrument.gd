@@ -98,7 +98,7 @@ const METRIC_LABELS: Dictionary = {
 	# Both say what the number IS, not just what it is called. "Lapses" and "spread" are the terms
 	# the code uses; neither tells a player what was counted or what it was measured across.
 	"rt_lapses": "Lapses (extra slow rounds)",
-	"rt_sd": "Steadiness (spread of answer time, ms)",
+	"rt_sd": "Spread of answer time (ms)",
 	"rt_mean": "Typical answer (ms)",
 	"jumped_ahead": "Jumped ahead", "fell_back": "Fell back",
 	# The breathing games and typit keep their own vocabulary, and without these their Detail tab
@@ -109,12 +109,19 @@ const METRIC_LABELS: Dictionary = {
 	"session_ps": "Following the path (%)", "react_ms": "Reaction (ms)",
 	"cycles_opened": "Safe turns", "speed_cpm": "Typing speed (cpm)",
 	"mistake_rate": "Mistakes (%)", "dist_pct": "Off key centre (%)",
+	# Ants. Without these its readout listed nothing and fell through to "play a session" under
+	# twenty sessions' worth of graphs -- the same trap the breathing games fell into above.
+	"crumbs_through": "Crumbs that got past you", "ants_killed": "Ants crushed",
+	"obstacles_moved": "Obstacles lifted and re-used",
+	"placements_wasted": "Placed where nothing was walking",
+	"roads_missed": "New roads never answered", "roads_unseen": "New roads never looked at",
+	"react_mean": "Typical time to act (ms)",
 }
 
 # Keys that are a RATE or a TYPICAL value, so a total across sessions would be meaningless — a
 # breathing rate summed over five sittings is not a number about anything.
 const AVERAGED: Array = ["rt_mean", "rt_sd", "mean_interval_ms", "bpm", "session_ps", "react_ms",
-	"speed_cpm", "mistake_rate", "dist_pct", "duration_min"]
+	"speed_cpm", "mistake_rate", "dist_pct", "duration_min", "react_mean"]
 
 # What the tab should show: either the panel, or a plain statement of what is still missing.
 # Always returns a Control for a game that has an instrument.
@@ -160,25 +167,31 @@ const EVEN_ROUNDS: Array = [
 	"dino", "dinoback", "movingcards", "couples", "friends", "weris",
 ]
 
+# EVERY NAME HERE NAMES THE QUANTITY ITS LINE PLOTS, not a virtue. The row's small graph draws the
+# number itself -- a falling line under "Answer time" is a player getting faster -- so a name like
+# "Speed" or "Steadiness" over a lower-is-better number contradicted its own line: speed went up
+# while the line went down. The verdict word beside it (improving / steady / worse) is what says
+# which way is good. Rows on the Progress screen are different: they are CATEGORIES mixing several
+# games' metrics, so there "up = better" is the only thing that can work.
 const SUMMARY_ROWS: Dictionary = {
-	# NAMED SO IT EXPLAINS ITSELF. "Consistency" said nothing about what was consistent or which
-	# way was good, and the same idea was already written properly one screen away, in
-	# METRIC_LABELS: "Steadiness (spread of answer time, ms)". Two names for one number, with the
-	# opaque one in the more prominent place.
-	"rt_cv": "Steadiness (how even your answer times are)",
-	"react_cv": "Steadiness (how even your answer times are)",
-	"rt_mean": "Speed (typical answer time)",
-	"react_mean": "Speed (typical answer time)",
+	# NAMED SO IT EXPLAINS ITSELF, and named for what it COUNTS. "Consistency" said nothing about
+	# what was consistent; "Steadiness", which replaced it, named a virtue over a number where
+	# higher means LESS steady, and once the row's line stopped being sign-flipped that name ran
+	# the opposite way to its own graph. "Unevenness" goes up when the line goes up.
+	"rt_cv": "Unevenness (how much your answer times vary)",
+	"react_cv": "Unevenness (how much your answer times vary)",
+	"rt_mean": "Answer time (typical)",
+	"react_mean": "Answer time (typical)",
 	"pct_correct": "Accuracy",
-	"missed_breaths": "Rhythm",
-	"missed_cycles": "Rhythm",
+	"missed_breaths": "Out of rhythm",
+	"missed_cycles": "Out of rhythm",
 	"session_ps": "Following the path",
 	"speed_cpm": "Typing speed",
 	"mistake_rate": "Mistakes",
 	"cycles_opened": "Safe turns",
 	# Gorilla stores neither an answer time nor a percentage — its whole measurement is how far
 	# out the count was. Without this it had NO rows and contributed nothing to its category.
-	"count_error": "Counting (how far out you were)",
+	"count_error": "Counting error (how far out you were)",
 	"rounds_lost": "Rounds lost (caught, or starved)",
 	# The games that keep counts rather than answers. Named for what the number IS, since a bare
 	# "Overflows" beside a sparkline says nothing about which way is good.
@@ -191,7 +204,7 @@ const SUMMARY_ROWS: Dictionary = {
 	# trying to stop it. Both numbers are direct consequences of where things were put.
 	"crumbs_through": "Crumbs that got past you",
 	"ants_killed": "Ants crushed (they are not the target)",
-	"obstacles_moved": "Walls lifted and re-used",
+	"obstacles_moved": "Obstacles lifted and re-used",
 	"placements_wasted": "Placed where nothing was walking",
 	"roads_missed": "New roads never answered",
 	"roads_unseen": "New roads never even looked at",
@@ -307,7 +320,14 @@ static func summary_rows_for(folder: String) -> Control:
 		return null
 	return grid
 
-# One metric's recent sessions as "how far from your usual, in your own units, positive = better".
+# One metric's recent sessions as "how far from your usual", in the metric's OWN direction.
+#
+# This used to flip the sign of every lower-is-better metric so that up always meant better -- and
+# every row is named after the quantity, not the goodness. So a player letting fewer crumbs through
+# saw a RISING line under "Crumbs that got past you", and a player getting faster saw "Speed" with
+# a line that disagreed with its own name. The line now shows the number named on the row, and the
+# verdict word beside it says whether that is good. `higher_better` is kept in the signature only
+# because the verdict is computed alongside.
 # Empty when there is no baseline yet, which is the honest answer -- a flat line at zero would read
 # as "exactly average" for a player the app has barely met.
 static func _z_for(sessions: Array, metric: String, higher_better: bool) -> Array:
@@ -319,8 +339,6 @@ static func _z_for(sessions: Array, metric: String, higher_better: bool) -> Arra
 		if not rec.has(metric):
 			continue
 		var z: float = (float(rec[metric]) - float(b["mean"])) / float(b["sd"])
-		if not higher_better:
-			z = -z
 		out.append(z)
 	if out.size() > SUMMARY_SPARK_LEN:
 		out = out.slice(out.size() - SUMMARY_SPARK_LEN)
@@ -437,7 +455,10 @@ static func _body_for(folder: String) -> Control:
 			if THREE_WAY_GAMES.has(folder) else _four_cells(gu)
 		if grid != null:
 			return grid
-		return _summary(gu)
+		var readout: Control = _summary(gu)
+		if readout != null:
+			return readout
+		return _waiting("Nothing this game counts has a place in this readout yet.")
 	var blocks: Array = gu.read_trial_blocks()
 	var sessions: int = blocks.size()
 	if sessions < MIN_SESSIONS:
@@ -1138,8 +1159,11 @@ static func _summary(gu: GenericGameUtil) -> Control:
 		for k in sessions[i].keys():
 			if METRIC_LABELS.has(k) and typeof(sessions[i][k]) in [TYPE_INT, TYPE_FLOAT]:
 				totals[k] = float(totals.get(k, 0.0)) + float(sessions[i][k])
+	# SESSIONS EXIST, nothing here has a label. That is not "play a session" -- the player has, and
+	# telling them otherwise under a set of graphs drawn from those very sessions reads as a bug.
+	# Null, so the Summary tab simply shows no readout; the Detail tab's caller says something true.
 	if totals.is_empty():
-		return _waiting("Play a session and what this game keeps track of will appear here.")
+		return null
 
 	var box: VBoxContainer = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)

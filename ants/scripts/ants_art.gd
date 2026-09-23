@@ -31,7 +31,15 @@ const FOOD_BODY: Color = Color(0.639, 0.827, 0.353)
 const FOOD_DARK: Color = Color(0.125, 0.259, 0.071)
 const NEST_RIM: Color = Color(0.400, 0.302, 0.208)
 const NEST_HOLE: Color = Color(0.094, 0.062, 0.043)
-const TRAIL: Color = Color(0.298, 0.243, 0.086)
+# THE TRAIL MUST NOT LOOK LIKE THE GROUND. It was 0.298/0.243/0.086 at up to 0.42 alpha, drawn as
+# 4 px rects -- and the soil grain is 0.451/0.369/0.286 at 0.55 alpha in 2-5 px rects. Two scatters
+# of small brown marks on brown soil: measured against the soil, the trail reached 1.5:1 and the
+# grain sat at 1.3:1, so at a glance a road was indistinguishable from the speckle it lay on.
+#
+# Darker, more opaque, and larger, so marks overlap into a continuous band instead of reading as
+# dots. It stays a warm near-black rather than taking a hue of its own: green would collide with
+# the food and the crumbs, and blue is the spray's.
+const TRAIL: Color = Color(0.180, 0.142, 0.092)
 
 # The wall around the patch. THIN and LOUD, which is the combination that was wanted: a wide, faint
 # band read as a smudge of darker ground, and ants walked over it besides. Near-black against the
@@ -131,16 +139,20 @@ static func _scatter(ci: CanvasItem, area: Rect2, cell: float, per_cell: int, se
 # Deliberately faint -- it is the thing the whole level exists to show forming, but an ant is the
 # subject and a bright trail would out-shout it.
 static func draw_marks(ci: CanvasItem, pts: PackedFloat32Array, zoom: float) -> void:
-	# Rects, not circles, for the same reason as the soil grain: a circle is a fan of triangles and
-	# there are hundreds of these, a rect is two. At four pixels across, under 0.42 alpha, heavily
-	# overlapping, the difference cannot be seen.
-	var rr: float = maxf(2.2, 3.0 / maxf(zoom, 0.2))
+	# CIRCLES. This was rects, on the reasoning that a circle is a fan of triangles where a rect is
+	# two, and that at four pixels under 0.42 alpha nobody could tell. Both halves stopped being
+	# true: the marks are larger and much more opaque now, so the corners show and a road reads as
+	# a chain of little squares. probe_ants times level 5 -- 120 ants over a 3x3 world -- and the
+	# cost of the change is visible there rather than argued about here.
+	# Bigger than the grain on purpose: at 4 px these were the same size as the soil speckle and
+	# sat in the gaps between it rather than covering it.
+	var rr: float = maxf(3.4, 4.6 / maxf(zoom, 0.2))
 	var i: int = 0
 	while i < pts.size():
 		var s: float = pts[i + 2]
 		var col: Color = TRAIL
-		col.a = clampf(s * 0.085, 0.0, 0.42)
-		ci.draw_rect(Rect2(pts[i] - rr, pts[i + 1] - rr, rr * 2.0, rr * 2.0), col, true)
+		col.a = clampf(s * 0.125, 0.0, 0.64)
+		ci.draw_circle(Vector2(pts[i], pts[i + 1]), rr, col)
 		i += 3
 
 # The spray on the ground: a pale bloom, deliberately unlike the trail, which is a dark warm
@@ -178,6 +190,31 @@ static func draw_spray_can(ci: CanvasItem, mid: Vector2, h: float, left: float) 
 		var from: Vector2 = mid + Vector2(w * 0.32, -h * 0.5)
 		ci.draw_line(from, from + Vector2.from_angle(a) * h * 0.24,
 			Color(SPRAY_TINT.r, SPRAY_TINT.g, SPRAY_TINT.b, 0.8), maxf(1.0, h * 0.05), true)
+
+# The water jug, and how much is left in it -- the same idea as the spray can above, for the same
+# reason: water is the one other tool the player SPENDS rather than places and recovers, so the
+# swatch should be the supply and not just a picture of a puddle. A pool swatch said nothing about
+# how many more you could pour, and the count in the corner is easy to miss mid-game.
+static func draw_water_jug(ci: CanvasItem, mid: Vector2, h: float, left: float) -> void:
+	var w: float = h * 0.56
+	var body: Rect2 = Rect2(mid.x - w * 0.5, mid.y - h * 0.26, w, h * 0.64)
+	var clay: Color = Color(0.612, 0.545, 0.478)
+	var clay_dk: Color = Color(0.26, 0.22, 0.19)
+	# Handle first, so the body is drawn over where it meets.
+	ci.draw_arc(Vector2(mid.x + w * 0.52, mid.y + h * 0.02), h * 0.20, -1.25, 1.25, 14,
+		clay, maxf(2.0, h * 0.085), true)
+	# Neck and a poured lip.
+	ci.draw_rect(Rect2(mid.x - w * 0.20, mid.y - h * 0.46, w * 0.40, h * 0.22), clay, true)
+	ci.draw_rect(Rect2(mid.x - w * 0.30, mid.y - h * 0.50, w * 0.60, h * 0.09), clay, true)
+	ci.draw_rect(body, clay, true)
+	# What is left, filling from the bottom: the swatch IS the gauge.
+	var inner: Rect2 = body.grow(-maxf(1.5, h * 0.055))
+	var fill_h: float = inner.size.y * clampf(left, 0.0, 1.0)
+	ci.draw_rect(Rect2(inner.position.x, inner.position.y + inner.size.y - fill_h,
+		inner.size.x, fill_h), WATER_LIT, true)
+	ci.draw_rect(body, clay_dk, false, maxf(1.0, h * 0.05))
+	ci.draw_rect(Rect2(mid.x - w * 0.30, mid.y - h * 0.50, w * 0.60, h * 0.09), clay_dk, false,
+		maxf(1.0, h * 0.04))
 
 static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> void:
 	ci.draw_circle(at, r * 1.55, Color(NEST_RIM.r, NEST_RIM.g, NEST_RIM.b, 0.45))
@@ -227,68 +264,37 @@ static func draw_food(ci: CanvasItem, at: Vector2, r: float, left_frac: float, s
 # An ant is drawn at two levels of detail. Legs and antennae on a 3-px ant are a smear, and 200
 # smears cost more than they show, so past a certain zoom the ant becomes the dash it looks like
 # from that distance anyway.
-# A crushed ant, left where it was crushed. The tally on the top strip says HOW MANY; this says
-# WHERE, and on what, which is the part a player can act on -- the stone you dropped across the busy
-# half of the road reads differently from the one you dropped on empty ground.
+# A dead ant, left where it died: drawn exactly like a living one, in red. Nothing else.
 #
-# TWO colors, chosen against the background rather than fixed. "Light gray" is the obvious pick and
-# it fails on the one obstacle a player is most likely to use: the stone is PALE (0.81) while the
-# twig and the water are dark, so a single pale corpse would be invisible on exactly half of them.
-# Both of these read as a dead ant -- washed out, no sheen, the color drained -- and the drawing
-# picks whichever separates from what it is lying on.
-# The pale one is nearly WHITE, not a light gray, and it has to be: the soil is mid-toned (relative
-# luminance 0.24), so a merely light gray sat at 2.6:1 on it -- and going darker instead was worse,
-# because a dark body on soil is a live ant. The dark one is a MID gray for the same reason in
-# reverse: it only ever lands on the pale stone or the bait, where it needs 3:1, and taking it any
-# darker would have made it look like an ant standing on a rock.
-const CRUSHED_PALE: Color = Color(0.945, 0.937, 0.921, 0.92)
-const CRUSHED_DARK: Color = Color(0.404, 0.396, 0.380, 0.92)
-# Flattened ACROSS the body. A corpse drawn at an ant's own proportions is just a gray ant.
-const CRUSHED_SQUASH: float = 0.45
+# Several cleverer versions came before this -- flattened bodies, straightened legs, one and two
+# outlines, pale limbs on a red body -- each chasing contrast on every possible ground, and each
+# looking worse than the last. An ant that is red is plainly a dead ant, and that is all this needs
+# to say.
+const DEAD_ANT: Color = Color(0.620, 0.100, 0.080)
 
-# Which of the two to use on a given background, by luminance -- the same question the palette at
-# the top of this file answers for everything else, and for the same reason: hue alone is not
-# available to a color-blind player or to a phone in sunlight.
-static func body_color_of(kind: int) -> Color:
-	match kind:
-		AntObstacle.Kind.STONE:
-			return STONE_BODY
-		AntObstacle.Kind.TWIG:
-			return TWIG_BODY
-		AntObstacle.Kind.WATER:
-			return WATER_BODY
-		AntObstacle.Kind.LURE:
-			return LURE_TINT
-	return SOIL
-
-static func crushed_color_on(bg: Color) -> Color:
-	# 0.62, not a half: the soil sits at 0.53 and belongs on the PALE side of the line. Only the
-	# stone (0.80) and the bait (0.79) are light enough to need the dark body.
-	var l: float = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b
-	return CRUSHED_DARK if l > 0.62 else CRUSHED_PALE
-
-# `at` and `heading` are where the ant was standing when something landed on it. `squash` is a
-# per-corpse variation so a row of them does not look stamped.
-static func draw_crushed(ci: CanvasItem, at: Vector2, heading: float, squash: float,
-		col: Color) -> void:
-	var b: float = Ant.body_len()
-	# Local space after this: +x is the way it was facing, +y is its side, flattened.
-	ci.draw_set_transform(at, heading, Vector2(1.0, clampf(squash, 0.2, 1.0)))
-	var lw: float = maxf(0.8, b * 0.075)
-	# Legs splayed and straightened -- the elbow is gone, which is most of what makes this read as
-	# flattened rather than as an ant standing still. They reach further than a live ant's, too.
+static func draw_dead_ant(ci: CanvasItem, at: Vector2, heading: float) -> void:
+	var fwd: Vector2 = Vector2.from_angle(heading)
+	var side: Vector2 = Vector2(-fwd.y, fwd.x)
+	var body_len: float = Ant.body_len()
+	var gaster: Vector2 = at - fwd * body_len * 0.34
+	var thorax: Vector2 = at + fwd * body_len * 0.04
+	var head: Vector2 = at + fwd * body_len * 0.36
+	var lw: float = maxf(0.8, body_len * 0.075)
 	for i in 3:
-		var base: Vector2 = Vector2(b * (0.04 + float(COXA[i])), 0.0)
+		var base: Vector2 = thorax + fwd * (body_len * COXA[i])
 		for s in [-1.0, 1.0]:
-			var fa: float = float(FOOT_SPLAY[i]) * 0.55
-			ci.draw_line(base, base + Vector2(sin(fa), s * cos(fa)) * b * 0.74, col, lw, true)
+			var ka: float = float(KNEE_SPLAY[i])
+			var fa: float = float(FOOT_SPLAY[i])
+			var knee: Vector2 = base + (side * s * cos(ka) + fwd * sin(ka)) * body_len * 0.34
+			var foot: Vector2 = base + (side * s * cos(fa) + fwd * sin(fa)) * body_len * 0.60
+			ci.draw_line(base, knee, DEAD_ANT, lw, true)
+			ci.draw_line(knee, foot, DEAD_ANT, lw * 0.85, true)
 	for s2 in [-1.0, 1.0]:
-		ci.draw_line(Vector2(b * 0.42, 0.0),
-			Vector2(b * 0.58, s2 * b * 0.42), col, lw * 0.8, true)
-	ci.draw_circle(Vector2(-b * 0.34, 0.0), b * 0.235, col)
-	ci.draw_circle(Vector2(b * 0.04, 0.0), b * 0.150, col)
-	ci.draw_circle(Vector2(b * 0.36, 0.0), b * 0.175, col)
-	ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+		var tip: Vector2 = head + fwd * body_len * 0.42 + side * s2 * body_len * 0.30
+		ci.draw_line(head + fwd * body_len * 0.10, tip, DEAD_ANT, lw * 0.8, true)
+	ci.draw_circle(gaster, body_len * 0.235, DEAD_ANT)
+	ci.draw_circle(thorax, body_len * 0.150, DEAD_ANT)
+	ci.draw_circle(head, body_len * 0.175, DEAD_ANT)
 
 static func draw_ant(ci: CanvasItem, a: Ant, zoom: float) -> void:
 	var fwd: Vector2 = Vector2.from_angle(a.heading)

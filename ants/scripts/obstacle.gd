@@ -18,12 +18,22 @@ const NAMES: Dictionary = {Kind.STONE: "Stone", Kind.TWIG: "Twig", Kind.WATER: "
 const TIPS: Dictionary = {
 	Kind.STONE: "A rock. They must walk around it.\nPick it up and move it as the trail shifts.",
 	Kind.TWIG: "A long branch, laid ACROSS the trail\nwherever you drop it. A proper wall.",
-	Kind.WATER: "A pool they will not cross.\nOnce poured you cannot take it back.",
+	Kind.WATER: "A pool they will not cross. It dries\nas you watch, and you cannot take it back.",
 	Kind.LURE: "Food you do not mind losing. They will\ncarry it home instead, and it costs you\nnothing. Runs out.",
 }
 # Bait is FOOD, and food is eaten. How many crumbs one holds -- every trip spent carrying these is a
 # trip not spent on the pile you are defending.
 const BAIT_CRUMBS: int = 45
+# HOW LONG A POOL LASTS, in seconds, before it has dried to nothing.
+#
+# Water is the only tool that is neither permanent nor recoverable. A stone is forever until you
+# move it; bait ends when it is eaten. A pool just goes -- it shrinks the whole time, so what it
+# buys you is TIME rather than ground, and the decision it asks for is when to spend it rather
+# than where. Against a 90-115 s level, 40 s is most of a phase of the game and not the whole of
+# it.
+const WATER_DRY_SEC: float = 40.0
+# It stops being a wall before it stops being visible: the last of it is a damp mark.
+const WATER_MIN_SCALE: float = 0.18
 # SOLID things are walked around. Bait is not: an ant walks onto it, which is the whole idea.
 #
 # Every solid tool says "not through here". Bait says "here is something easier", and the colony
@@ -62,6 +72,9 @@ var half: Vector2 = Vector2(30.0, 24.0)
 var amp: float = 0.13
 var seed_val: int = 0
 # Bait only: what is left of it. Nothing else uses this.
+# 1 when freshly poured, 0 when gone. Only water uses it.
+var wet: float = 1.0
+var half_at_start: Vector2 = Vector2.ZERO
 var crumbs: int = 0
 var crumbs_at_start: int = 1
 
@@ -72,6 +85,7 @@ func _init(which: int, at: Vector2, rot: float, which_seed: int) -> void:
 	seed_val = which_seed
 	half = SHAPE[which][0]
 	amp = SHAPE[which][1]
+	half_at_start = half
 	if which == Kind.LURE:
 		crumbs = BAIT_CRUMBS
 		crumbs_at_start = BAIT_CRUMBS
@@ -114,6 +128,19 @@ func contains_margin(p: Vector2, m: float) -> bool:
 	if d < 0.0001:
 		return true
 	return d <= _edge(l.angle())
+
+# One tick of evaporation. Returns true once the pool is finished.
+#
+# It shrinks `half`, which is the same number contains(), outline() and the drawing all read -- so
+# the pool an ant refuses to cross is exactly the pool the player can see, at every moment of its
+# life. That is the lesson this file opens with, and drying is precisely the case that would have
+# broken it if the drawn size and the collision size had been kept apart.
+func dry(dt: float) -> bool:
+	if kind != Kind.WATER:
+		return false
+	wet = maxf(wet - dt / WATER_DRY_SEC, 0.0)
+	half = half_at_start * lerpf(WATER_MIN_SCALE, 1.0, wet)
+	return wet <= 0.0
 
 func bound_radius() -> float:
 	return maxf(half.x, half.y) * (1.0 + amp)

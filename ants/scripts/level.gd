@@ -29,7 +29,14 @@ const CONTACT_D: float = 9.0          # ants are solid to each other at this dis
 # half an ant's length, which is a teleport and not a nudge. The more ants shared the trail the
 # more often it happened, which is the other half of why the movement got jumpier as the colony
 # organised itself. Separation is now a SPEED: an overlap still clears, over two or three ticks.
-const MAX_PUSH_RATE: float = 90.0     # units/s
+const MAX_PUSH_RATE: float = 90.0     # units/s at PUSH_REF pace
+# The pace this rate was tuned against -- the fastest an ant could be when it was chosen. Two ants
+# closing head-on approach at twice their own speed, so the separation has to be able to undo in a
+# tick what a tick of walking created: at 1.25x that is 2.9 units a tick against a 1.5-unit push,
+# which clears in two or three ticks as intended, and at 4.4x it is 10 units against the same 1.5
+# and the overlap simply persists. So the rate scales with the level's top speed and the geometry
+# holds at any pace -- the same reasoning as Ant.turn_scale().
+const PUSH_REF: float = 1.25
 const OPPOSITE_DOT: float = -0.25     # headings this far apart count as a head-on meeting
 const EVAPORATE_HZ: float = 10.0
 const EVAPORATE_DECAY: float = 0.985  # per evaporation tick, so ~0.86 a second
@@ -124,7 +131,8 @@ const SPRAY_PICK: int = -2            # the menu's code for "the can", not an An
 # allowance minus that, so it reads as "how much more can I afford to let past".
 var delivered: int = 0
 var crumbs_through: int = 0
-# Every ant something was dropped on, left where it was dropped on. {pos, heading, squash, col}.
+var stock_at_start: Dictionary = {}
+# Every ant something was dropped on, left where it was dropped on. {pos, heading}.
 # The counter on the top strip says how many; these say WHERE and on what, which is the part a
 # player can act on. They are NOT cleared when the thing that crushed them is picked up again --
 # taking the stone away does not bring the ants back, and the evidence is the point.
@@ -199,7 +207,8 @@ func new_game(_from_scratch: bool = true) -> void:
 	# its body follow from it.
 	Ant.draw_scale = AntsG.creature_scale
 	contact_d = CONTACT_D * Ant.draw_scale
-	push_rate = MAX_PUSH_RATE * Ant.draw_scale
+	push_rate = MAX_PUSH_RATE * Ant.draw_scale \
+		* maxf(float(cfg["speed_scale"][1]) / PUSH_REF, 1.0)
 	_grid = AntGrid.new(contact_d)
 	_stock_up(cfg)
 	_build_world(cfg)
@@ -223,6 +232,10 @@ func new_game(_from_scratch: bool = true) -> void:
 	_fit_camera()
 	_running = true
 	_redraw_all()
+	# Which level this is, over the world and under the HUD -- the shared LevelLabel every other
+	# game uses. Ants never called it, so during play there was nothing on screen that said where
+	# you were, and the level is the whole difficulty ladder.
+	game.level_label_changed("Level %d" % current_level_id)
 	started_playing.emit()
 	# Shown last, so the world behind it is already built. Nothing else has to gate on it:
 	# GenericGameUtil.paused() is true while any screen is visible, and _process checks that, so
@@ -358,9 +371,14 @@ func briefing_text() -> String:
 
 func _stock_up(cfg: Dictionary) -> void:
 	stock.clear()
+	stock_at_start.clear()
 	var have: Array = cfg.get("stock", [])
 	for i in AntObstacle.KINDS.size():
-		stock[int(AntObstacle.KINDS[i])] = int(have[i]) if i < have.size() else 0
+		var n: int = int(have[i]) if i < have.size() else 0
+		stock[int(AntObstacle.KINDS[i])] = n
+		# Kept so a tool can show how much of its supply is left as a LEVEL and not only a count --
+		# the jug does, the way the spray can does.
+		stock_at_start[int(AntObstacle.KINDS[i])] = n
 
 func stock_of(kind: int) -> int:
 	return int(stock.get(kind, 0))
@@ -400,9 +418,22 @@ func _place_colonies(cfg: Dictionary) -> void:
 	_all.clear()
 	var n: int = int(cfg["colonies"])
 	var sp: Array = cfg["speed_scale"]
+	# WHICH KINDS OF COLONY THIS LEVEL MAY HAVE. An empty list means all of them; anything else is
+	# the allow-list. Dealt ROUND-ROBIN rather than rolled per colony, so a level that names two
+	# kinds actually gets both -- rolling twice from a list of two comes up the same about half the
+	# time, and a player cannot learn to tell two colonies apart when there is only one kind on the
+	# board. The list is shuffled first so which NEST is which kind still varies between runs.
+	var kinds: Array = []
+	for v in (cfg.get("behaviors", []) as Array):
+		kinds.append(clampi(int(v), 0, Ant.BEHAVIORS.size() - 1))
+	if kinds.is_empty():
+		for k in Ant.BEHAVIORS.size():
+			kinds.append(k)
+	kinds.shuffle()
 	for i in n:
 		var at: Vector2 = _nest_position(i, n)
 		var c: AntColony = AntColony.new(at, i, COLONY_TINTS[i % COLONY_TINTS.size()])
+		c.behavior = int(kinds[i % kinds.size()])
 		c.populate(int(cfg["ants_per_colony"]), float(sp[0]), float(sp[1]))
 		colonies.append(c)
 		_all.append_array(c.ants)
@@ -476,6 +507,18 @@ func _process(delta: float) -> void:
 # ROAD_STEP. It is not where the ants WILL go -- they wander, and they go round whatever you put
 # down -- but a road that carries crumbs has to get from one end to the other, so it passes near
 # this line somewhere.
+# Pools shrink the whole time they are down and then go. Handled here rather than in the ant loop
+# because it changes the SET of obstacles, which _resolid() and the drawing both cache.
+func _dry_water(dt: float) -> void:
+	var gone: bool = false
+	for i in range(obstacles.size() - 1, -1, -1):
+		if obstacles[i].dry(dt):
+			obstacles.remove_at(i)
+			gone = true
+	if gone:
+		_resolid()
+		_redraw_all()
+
 func _build_road_samples() -> void:
 	_road_pts.clear()
 	_road_armed.clear()
@@ -562,6 +605,7 @@ func _traffic_at(at: Vector2) -> bool:
 
 func sim_step(dt: float) -> void:
 	_clock += dt
+	_dry_water(dt)
 	if game.playing:
 		_watch_roads()
 	var came_up: int = 0
@@ -652,15 +696,8 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 		for a: Ant in c.ants:
 			if o.contains(a.pos):
 				c.killed += 1
-				# Colored against the thing that is crushing it, HERE, because we know exactly
-				# what that is. Defaulting the color and leaving _recolor_corpses() to fix it up
-				# does not work: _resolid() has already run by this point, so a body stayed on its
-				# default until the NEXT time anything was placed or taken -- which on the pale
-				# stone meant a white ant on a near-white rock, invisible until you happened to
-				# put something else down.
-				corpses.append({"pos": a.pos, "heading": a.heading,
-					"squash": AntsArt.CRUSHED_SQUASH * randf_range(0.75, 1.2),
-					"col": AntsArt.crushed_color_on(AntsArt.body_color_of(o.kind))})
+				# Where it died and which way it faced -- it is drawn as an ordinary ant in red.
+				corpses.append({"pos": a.pos, "heading": a.heading})
 				if game.playing:
 					game.add_score_and_time(-KILL_PENALTY, 0, true)
 			else:
@@ -716,11 +753,20 @@ func _spot_ok(o: AntObstacle) -> bool:
 	# Walkable, not world: the wall is not ground, so nothing may be dropped into it.
 	if not walkable.has_point(o.pos):
 		return false
+	# THE SHAPE, NOT ITS BOUNDING CIRCLE. This used to compare the distance from the nest to the
+	# obstacle's CENTRE against bound_radius(), which is the longest half-extent -- so a twig, 152
+	# units end to end, carried a 100-unit exclusion circle round every nest and pile whichever way
+	# it pointed. Laid neatly across a road with both ends pointing away from a nest it was still
+	# refused, and nothing on screen explained why: the rule was reading a number the player cannot
+	# see instead of the outline they can.
+	#
+	# contains_margin() grows the real outline by the clearance wanted, so orientation counts. A
+	# twig side-on to a nest now fits; one pointing into it still does not.
 	for c: AntColony in colonies:
-		if o.contains(c.nest) or c.nest.distance_to(o.pos) < o.bound_radius() + AntColony.NEST_RADIUS:
+		if o.contains_margin(c.nest, AntColony.NEST_RADIUS):
 			return false
 	for f: Dictionary in food:
-		if o.contains(f["pos"] as Vector2) or (f["pos"] as Vector2).distance_to(o.pos) < o.bound_radius() + FOOD_RADIUS:
+		if o.contains_margin(f["pos"] as Vector2, FOOD_RADIUS):
 			return false
 	# Two of these may not share ground: the combined shape would have an outline that is neither
 	# one's outline, and edge following reads exactly that outline to get round.
@@ -800,26 +846,11 @@ func obstacle_at(at: Vector2) -> bool:
 			return true
 	return false
 
-# A corpse is drawn against whatever it is lying ON, and what it is lying on changes: crushed under
-# an obstacle, then the obstacle is picked up again, or eaten down to nothing. Recomputed here,
-# where the obstacle set changes, rather than per frame -- the alternative is a contains() test for
-# every corpse against every obstacle sixty times a second, for a picture that only changes when
-# something is placed or taken.
-func _recolor_corpses() -> void:
-	for cp: Dictionary in corpses:
-		var under: Color = AntsArt.SOIL
-		for o: AntObstacle in obstacles:
-			if o.contains(cp["pos"]):
-				under = AntsArt.body_color_of(o.kind)
-				break
-		cp["col"] = AntsArt.crushed_color_on(under)
-
 func _resolid() -> void:
 	_solid.clear()
 	for o: AntObstacle in obstacles:
 		if o.solid():
 			_solid.append(o)
-	_recolor_corpses()
 
 
 func _rebuild_all() -> void:
@@ -1190,7 +1221,7 @@ func _draw_fg() -> void:
 	# On top of whatever crushed them, and under anything still walking.
 	for cp: Dictionary in corpses:
 		if vis.has_point(cp["pos"]):
-			AntsArt.draw_crushed(_fg, cp["pos"], cp["heading"], cp["squash"], cp["col"])
+			AntsArt.draw_dead_ant(_fg, cp["pos"], cp["heading"])
 	for c: AntColony in colonies:
 		if vis.has_point(c.nest):
 			AntsArt.draw_nest(_fg, c.nest, AntColony.NEST_RADIUS, c.tint)

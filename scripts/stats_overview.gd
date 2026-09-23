@@ -56,6 +56,7 @@ const METRICS: Dictionary = {
 	"obstacles_moved": true,      # Ants: lifted and re-used rather than left as scenery
 	"roads_missed": false,        # Ants: a road matured and was never answered
 	"roads_unseen": false,        # Ants: a road the player never had on screen at all
+	"placements_wasted": false,   # Ants: a wall dropped where nothing was walking
 	"ants_killed": false,         # Ants: crushed under a dropped obstacle, which is not the job
 	"creatures_stopped": true,    # Detour (folder parkem): creatures turned back
 }

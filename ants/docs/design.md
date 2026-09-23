@@ -696,6 +696,192 @@ see **Art** below. The gaster carries one highlight, which is what keeps a near-
 a dark soil. The food pile **shrinks as it is carried away**: it is the only readout of progress the
 world itself gives.
 
+## Tempo, and fronts you cannot all cover
+
+The game used to give the player **one decision every twenty or thirty seconds**. Level 1 was one
+colony, one pile and 150 seconds; a road took most of a minute to form; and the rest was watching.
+Whatever else that is, it is not a task that loads anyone.
+
+Two config changes, no new mechanics:
+
+**Pace is a difficulty axis of its own now, and it climbs**: 2.1× on level 1 up to 3.8× on level 5,
+over 90–115 s. A road forms while you are still looking at it and a wall shows its effect almost at
+once. Level 1's unopposed rate went from 1.2 crumbs a second to 2.4; level 5's is 21.
+
+**More fronts, not more ants.** Colonies 1/2/3/4/6 and piles 1/2/4/5/8 across the ladder, with
+`ants_per_colony` cut to keep the totals about where they were (40/64/84/104/120). Stock grows more
+slowly than fronts do, so from level 3 you cannot be everywhere — which is the point, and which
+matches what this table always said difficulty was: routes to cover, not ants.
+
+### Speeding the ants up broke the movement, and the fix is a real one
+
+A turn rate is in rad/s but what the movement is actually made of is a turning **radius**, `r = v/w`.
+Every constant here was chosen at `BASE_SPEED`: `MAX_TURN` of 3.8 rad/s against 56 px/s is a circle
+of 14.7 units, tighter than the ant is long. Doubling `v` and leaving the rates alone doubled every
+radius with it — and the wall-following PD controller holds a 5-unit gap with a 17-unit antenna, so
+an ant whose circle had gone from 15 units to 36 could no longer follow the edge of a twig at all.
+It overshot the contact band, oscillated and dropped the latch.
+
+`Ant.turn_scale()` now scales every steering rate by the ant's own pace, so a fast level is a
+**time-lapse** of a slow one rather than a different animal. The probe caught this as a
+wall-follower that followed walls *less* than a normal ant.
+
+Pushing on from 2× to 4.4× broke three more things, each the same shape — a constant tuned when the
+fastest ant was 1.25×:
+
+- **Sensing was on a timer** (`SCENT_EVERY`, 0.05 s = 2.8 units at base pace). At 4.4× an ant re-read
+  the field every 12 units, crossed a trail on a third of the samples it used to, and often failed
+  to latch on at all. It now reads every `SCENT_STEP` of *travel*. Deposition was already a distance
+  (`DEPOSIT_EVERY`, 7 px), which is why the trails themselves never thinned.
+- **Separation could not keep up.** Two ants closing head-on approach at twice their own speed, and
+  `MAX_PUSH_RATE` could undo 1.5 units a tick against 10 units of closing, so overlaps persisted. It
+  now scales with the level's top speed off `PUSH_REF`.
+- **Piles ran dry on three levels.** A faster colony eats the whole world before the clock runs out,
+  and `_is_finished()` ends that as a **loss** whatever the allowance is. `crumbs_per_pile` had to
+  rise with the pace; `measure_ants.gd` prints `(PILES RAN DRY)` when a level is in that state.
+
+The pattern is worth naming: **anything expressed per second rather than per unit of travel is a
+constant in disguise.** Three of the four broke; the one already expressed as a distance did not.
+
+### Two probe tests measured over a fixed TIME, and stopped meaning anything
+
+"An ant meeting a trail joins it" ran its subject for six seconds and compared displacement along
+the trail against displacement across it. Six seconds was a partial run along the trail at 1×. At
+today's speeds the ant covers the whole trail inside that window, reaches the food, turns for home
+and comes back — so **net** displacement collapses and the test reports "it did not join" when what
+actually happened is that it joined, ran the trail to its end and returned. It and its bare-ground
+control now run for a fixed *distance*, `6.0 / speed_scale`. The same trap as the game constants,
+one layer up: a window in seconds is a window in metres in disguise.
+
+### The allowances had to be re-measured
+
+`allowance` is 42% of what an unopposed colony takes, so every one of those numbers depended on
+speed, time, colonies, piles and ants — all of which changed. The table had always said "set from
+measurement" and there was no tool that took the measurement; `devtools/measure_ants.gd` is that
+tool now. Unopposed 215/617/1192/1961/2394, giving **90/259/501/824/1005**.
+
+Each figure is the **mean of three runs**. One pass is not a measurement: the colony's search is
+random, and the same level came back 710 and then 548 on consecutive runs — a 25% swing, wider than
+the gap between two rungs of the ladder.
+
+## Colonies behave differently, and nothing tells you how
+
+A colony is not only faster or more numerous than another — it can **want different things**. Four
+types, `Ant.Behavior`:
+
+| | What it does to you |
+|---|---|
+| `NORMAL` | the baseline ant |
+| `WALL_FOLLOW` | runs the length of whatever it meets instead of rounding the end. A twig across its road becomes a rail, so walls *redirect* this colony rather than stopping it |
+| `PERSISTENT` | commits. Follows a trail hard and carries far longer while lost, so a road it has learned is expensive to break — and it is slow to find a new one |
+| `SCOUT` | barely follows its own kind. Spreads out, finds the way round a new wall fast, and is the one colony a single well-placed obstacle will not hold |
+
+**The knob that makes a wall-follower is `cling`, and two guesses missed it.** The dominant exit
+from wall-following is not the `WALL_HOLD` grace period — it is the release that drops the latch the
+instant the ant's *goal* bearing comes clear ("I can go where I wanted again, so let go"). Scaling
+`WALL_HOLD` by nine therefore changed almost nothing. What distinguishes the type is being
+**reluctant to let go**: `cling` is how far it must run along an edge before it is allowed to
+release, which is what turns a twig into a rail. One stretch of wall-following: 0.14 s normal
+against 0.83 s for a wall-follower.
+
+**Every type is the same ant with a few numbers moved.** `Ant.BEHAVIORS` holds multipliers on
+`JOIN_GAIN`, `WALL_HOLD`, `WALL_GOAL_DAMP` and `LOST_GIVEUP` — constants that already existed and
+were already doing that job — so the movement code has no special cases and the rules stay one set
+of rules.
+
+**A colony takes ONE type for all of its ants.** Mixed types average into a single grey behaviour
+and there is nothing for the player to read.
+
+**They are meant to be discovered.** Nothing on screen names a colony's type; you learn which nest
+is which by watching what it does to your walls, and then you know which tool to spend where. That
+is the part of the game that keeps teaching after the first session.
+
+### Which types a level may use
+
+`level_config.gd` carries `behaviors` per level: a list of `Ant.Behavior` values, and an **empty
+list means all of them**. Levels 1–2 are `[0]` so the mechanic is learned before it varies; 3 is
+`[0, 1]`, 4 is `[0, 1, 2]`, 5 is `[]`.
+
+The list is **shuffled and then dealt round-robin**, not rolled per colony. Rolling twice from a
+list of two comes up the same about half the time, and a player cannot learn to tell two colonies
+apart when only one kind is on the board. Shuffling first keeps *which nest* is which kind varying
+between runs.
+
+### Two things that went wrong building it
+
+**`wall_time` is armed in two places** — once on a head-on collision and once refilled on every tick
+of contact — and only the first was scaled by the behaviour. The second silently reset it to the
+base value, so the multiplier had no effect at all. The one that matters is the refill, since it is
+what decides how long the ant keeps hugging *after the wall ends*.
+
+**Two natural measures of "does it follow walls" have the wrong sign.** Seconds spent near the
+obstacle, and seconds spent latched to it, both reported the NORMAL colony as the better
+wall-follower — because a wall-follower runs the length of a twig and is gone, while a normal ant
+bumps it, turns off, wanders back and bumps it again. Totals measure how *often* ants meet a wall.
+`probe_ants` measures the **mean length of one episode** instead, which is what the behaviour
+actually claims, and requires it to be 1.4× the baseline — a difference a person could notice,
+rather than merely one a test can detect.
+
+### Where a twig may go depends on which way it points
+
+The nest and pile clearance compared the distance from their centre to the obstacle's centre against
+`bound_radius()` — the **longest** half-extent. A twig is 152 units end to end, so it carried a
+~100-unit exclusion circle around every nest and pile *whichever way it was lying*: laid neatly
+across a road with both ends pointing away, it was still refused, and nothing on screen explained
+why. The rule was reading a number the player cannot see instead of the outline they can.
+
+`_spot_ok()` now uses `contains_margin()`, which grows the real outline by the clearance wanted, so
+orientation counts. A twig side-on to a nest fits; one pointing into it still does not.
+
+### Three things that were hard to see
+
+**The scent marks are circles.** They were rects, on the reasoning that a circle is a fan of
+triangles where a rect is two, and that at four pixels under 0.42 alpha nobody could tell. Both
+halves stopped being true once the marks grew and became opaque — the corners showed and a road read
+as a chain of little squares. Level 5 (120 ants, 3×3 world) still simulates at **2.2 ms a tick**.
+
+**A road looked like the ground it was on.** Both are scatters of small dark marks on brown soil, and
+measured against the soil the trail reached 1.5:1 while the grain sat at 1.3:1 — close enough that a
+worn road read as speckle. `TRAIL` is darker, more opaque (0.64 ceiling) and drawn larger, so marks
+overlap into a band instead of reading as dots: **2.53:1 against the grain's 1.34:1**. It stays a warm
+near-black rather than taking a hue of its own, since green would collide with the food and the
+crumbs and blue is the spray's.
+
+**Nothing on screen said which level you were on.** Every other game calls
+`game.level_label_changed()`, which puts the name in the shared `LevelLabel` just under the HUD. Ants
+never did — and the level is the whole difficulty ladder.
+
+**The top strip is centred on the GREY, which is 56 px, not 60.** `BkLabel` is 60 tall but its bottom
+4 px are a blended black border, so the grey a player sees runs 0–56 and its middle is y=28. Two
+fixes in the shared scene, both affecting every game: the three counter containers were 50 tall and
+sat five pixels high, and `Score`, the clock and the counters were then all sized to the full 60 and
+sat two pixels low, because centring on the whole bar centres on the border too. They are all 0–56
+now (including the counter labels' own `custom_minimum_size`, which otherwise forced their container
+back to 60). `Dispatch` and `Reminder` were already 3–53 and right. `probe_ants` checks all seven
+against the grey's middle, read from the stylebox's `border_width_bottom`.
+
+## Levels, and how you move between them
+
+**Win** — outlast `time_sec` with allowance left. `game_over_on_time_out` is off and `sig_time_over`
+is taken instead, because running out of time is how you *win* here.
+**Lose** — the allowance reaches zero (`game_over_on_zero_score`), or the colony carries off every
+crumb in the world (`_is_finished()`).
+
+**A win promotes; a loss repeats the level.** One level is one whole round here rather than
+`rounds_per_level` of them, so the gate is simply the round's own verdict — no percentage, no
+`corrects_for_next_level`. Promotion is applied in `_on_hud_start_game()`, on the way *into* the
+next round, so the card the player just read still described the level they actually played. At the
+top of the ladder the last level comes round again; `AntsLevelConfig.next_id()` reads the table
+rather than assuming ids run 1..n, because the table is meant to be editable.
+
+**This did not exist until it was asked about.** `starting_level_id` moved in exactly one place —
+the main-menu slider — so winning promoted nobody, and a player who could hold level 1 stayed on
+level 1 for ever unless they thought to change it themselves. Two things followed from that. The
+difficulty never tracked the player, which is the *structural* reason the numbers would flatten and
+stay flat. And the `level` column in `score_columns`, which in every other game records the
+difficulty **reached**, here recorded a preference — so any chart reading it was comparing settings,
+not performance.
+
 ## What it measures
 
 **The problem this game had.** A level is one continuous run — no rounds, no prompts, nothing that
@@ -717,6 +903,23 @@ rather than a prompt.
 | `obstacles_moved` | walls lifted and re-used; the action the tutorial says nobody discovers unaided |
 | `placements_wasted` | dropped where nothing was walking — acting, but not usefully |
 | `crumbs_through`, `ants_killed` | the outcome and its cost, as before |
+
+**What the Summary tab shows**, seven rows: Answer time (the `react` mean), crumbs through, ants
+crushed, obstacles lifted and re-used, placements wasted, roads never answered, roads never looked at. A metric
+appears only if it is in **both** `GameInstrument.SUMMARY_ROWS` and `StatsOverview.METRICS` —
+`placements_wasted` was in the first alone and silently never showed.
+
+**Under the graphs is a plain readout of the last five sessions**, and it lists only keys that have
+a label in `GameInstrument.METRIC_LABELS`. Ants had none, so the readout came back empty — and the
+empty case returned "Play a session and what this game keeps track of will appear here." directly
+beneath twenty sessions' worth of graphs. Two fixes: Ants' counters are labelled (a third registry a
+new metric has to be added to, after `SUMMARY_ROWS` and `METRICS`), and a game that HAS sessions but
+no labelled counters now shows no readout at all rather than a false placeholder. The breathing
+games fell into the same hole earlier, so `probe_sumrows` now guards it for any game.
+
+**Unevenness (`react_cv`) is deliberately absent.** Ants is not in `EVEN_ROUNDS`, and should not be:
+one road forms beside you and the next at the far edge of the board, so a spread across them would
+measure the roads rather than the player.
 
 **Non-responses are counted separately rather than folded in at a capped time.** A cap would quietly
 inflate the mean with events the player never engaged with at all, which is the opposite of what the
@@ -855,38 +1058,36 @@ from one dropped on empty ground. So every crushed ant leaves a **body** where i
 `level.corpses`, drawn by `AntsArt.draw_crushed()` on top of whatever crushed it and under anything
 still walking.
 
-A body is the ant's own geometry, flattened across the body (`CRUSHED_SQUASH`, varied per corpse so
-a row of them is not stamped) with the **elbows gone and the legs splayed and straightened**, which
-is most of what makes it read as flattened rather than as an ant standing still.
+**A dead ant is drawn exactly like a living one, in red** (`AntsArt.draw_dead_ant`, `DEAD_ANT`).
+Nothing else — same legs, same body, same antennae.
 
-**There are two colors, picked against the background, and "light gray" is not one of them.** The
-obvious choice fails on the obstacle a player reaches for first: the stone is *pale* (0.81) while
-the twig and the water are dark, so one fixed color would be invisible on half of them. Worse, the
-soil is mid-toned — a merely light gray sat at **2.6:1** on it, and going darker instead was worse,
-because a dark body on soil is a live ant. So `CRUSHED_PALE` is nearly **white** (3.1:1 on soil,
-8–10:1 on the twig and water) and `CRUSHED_DARK` is a **mid** gray used only on the stone and the
-bait, where anything darker would look like an ant standing on a rock. `crushed_color_on()` splits
-them at 0.62, not at a half, because the soil sits at 0.53 and belongs on the pale side.
-
-**A body takes its color at the moment it is made**, from the obstacle that is crushing it — which
-is known right there. Giving it a default and leaving `_recolor_corpses()` to fix it up does not
-work, because `_resolid()` has already run by the time the kill loop executes, so a body kept its
-default until the *next* time anything was placed or taken. On the pale stone that meant a white ant
-on a near-white rock: invisible until you happened to put something else down.
-
-That also exposed a bad test. The check read the bodies once at the end, by which time every one of
-them had been through a later `_resolid()` and been re-colored — so the one state that matters, how
-a body looks the instant it is made, was the one state never inspected. And it dropped each obstacle
-*near* the road and hoped: the stone and the bait killed nobody, so the only kind ever measured was
-the twig, which is dark and was the case already right. It now drops each kind **straight onto a
-living ant** and checks each new body against what is crushing it before anything else happens.
+Several cleverer versions came first: a flattened body with straightened legs; colours picked per
+background (which repainted every body under a stone when the stone was lifted); a grey body inside
+two outlines; a red body inside one; pale limbs on a red body. Each chased contrast on every
+possible surface and each looked worse than the last — an outline around hairline legs reads as a
+twig with branches. The simple version reads less well on the darkest grounds (twig, water) and it
+is still the right one: an ant that is red is plainly a dead ant.
 
 **Bodies are not cleared when the thing that crushed them is picked up.** Taking the stone away does
-not bring the ants back, and the evidence is the point — but what they are lying *on* has changed,
-so `_recolor_corpses()` hangs off `_resolid()`, which is called from every path that changes the
-obstacle set: a drop, a pick-up, and bait eaten down to nothing. Doing it per frame would mean a
-`contains()` test for every body against every obstacle sixty times a second, for a picture that
-only changes when something is placed or taken.
+not bring the ants back, and the evidence is the point.
+
+### Water dries
+
+Water is the only tool that is neither permanent nor recoverable. A stone lasts until you move it;
+bait lasts until it is eaten; a pool just **goes**, shrinking the whole time it is down
+(`WATER_DRY_SEC`, 40 s against a 90–115 s level). What it buys is **time rather than ground**, and the
+question it asks is *when* to spend it rather than where.
+
+Drying shrinks `half` — the single number `contains()`, `outline()` and the drawing all read — so the
+pool an ant refuses to cross is exactly the pool the player can see, at every moment of its life.
+That is the principle `obstacle.gd` opens with, and drying is precisely the case that would have
+broken it had the drawn size and the collision size been kept apart, the way the food pile once did.
+
+Because it is *spent* rather than placed and recovered, its menu swatch is a **jug with a level in
+it**, like the spray can: a puddle swatch said nothing about how many more you could pour, and the
+count in the corner is easy to miss mid-game. `level.stock_at_start` exists so the jug has a figure
+to draw its level against.
+
 
 `probe_obstacles` checks that every kind can crush, that the tally and the bodies never disagree,
 that the faintest body clears 3:1 against whatever it lies on, and that picking up what crushed them
