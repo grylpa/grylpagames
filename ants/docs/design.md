@@ -13,7 +13,8 @@ adapts by a mechanism you can learn to read.
 
 - **The allowance is the score.** It starts at the level's `allowance` and every crumb that reaches
   a nest takes one off it. At zero the colony has had what it came for and the round is lost
-  (`game_over_on_zero_score`). Survive the clock with anything left and you win — so
+  (`level.gd`'s `_charge()` reports it; `game_over_on_zero_score` is **off**, see below). Survive
+  the clock with anything left and you win — so
   `game_over_on_time_out` is **false** here and `sig_time_over` is taken as the win.
 - **Crushing ants is not the job.** An obstacle dropped on an ant kills it, and each one costs
   `KILL_PENALTY` (5) off the same allowance. The way to win is to turn them, not to flatten them.
@@ -539,6 +540,51 @@ thinning road survives is chaotic). A floor and a draught made it *work*, at 37 
 against 23 with a fan on the road — and it still read as an arbitrary dead zone rather than a thing,
 so it went. Bait does the same job by being legible.
 
+## The eraser, the one tool that takes something away
+
+Every other tool adds something to the ground; the eraser removes the scent the ants follow, inside
+`ERASE_R` (44) of where the menu was opened, from every colony (`level.use_eraser()`) -- and the
+rubbed ground then **stays clean for `CLEAN_SEC` (9 s)**: nothing laid on it sticks. The spray is left
+alone on purpose: the spray adds a smell they avoid and the eraser removes the one they follow, and the
+two should stay apart. Picked from the popup like the spray (`ERASER_PICK = -3`), spent like it,
+`erasers` per level in `level_config.gd` (3, 4, 4, 5, 6). A rub also answers a road there
+(`_answer_roads`), exactly as any other tool does.
+
+**How "clean" works.** `ScentMarks.clean_zones` is a short list of `Vector3(x, y, radius)`, and
+`deposit()` refuses any mark inside one. `level._age_rubs()` runs every `sim_step`, drops the rubs that
+have worn off and pushes the live ones to every colony's store (`_push_clean_zones()`). Sensing is
+untouched: there is simply nothing there to sense.
+
+**It looks like a school eraser**: a stubby, square-cut block of pink rubber in a blue paper sleeve,
+drawn flat and side-on like the can and the jug (`AntsArt.draw_eraser`), its working corner worn to a
+slant and a few pink crumbs beside it -- the crumbs are what say "rubbing out". Three versions were
+dropped: a bare slanted strip (a tag), a three-quarter-view block (the only 3-D thing in the ring, and
+its faces did not agree), and a slim one with a rounded end and a white band on the sleeve, which
+read as a lipstick. The rubber shortens as rubs are spent and the sleeve stays -- the swatch is the gauge, like the can and
+the jug. The rubbed patch is drawn pale for as long as it stays clean, fading over its last two
+seconds, with a few pink crumbs in its first second (`draw_rub`): the player needs to see where the
+ground is clean and when it will start taking scent again.
+
+**Why the clean window exists.** The first eraser only wiped the marks, and
+`devtools/measure_eraser.gd` showed it did nothing: every road, young or busy, was back in 2-7 s and
+deliveries did not move (level 1: 31 -> 30 crumbs in 10 s). A laden ant walks home by its own
+reckoning, not by scent, and lays scent as it goes, so the first one through re-laid the gap. With the
+ground held clean (3 runs per level, colony 0's road to its nearest pile):
+
+| level | young road back (3 of 3 each) | busy road back to half strength | crumbs home 10 s before -> after |
+|---|---|---|---|
+| 1 | mean 10.5 s | >30, 14.8, 20.0 s | 31 -> 27 |
+| 2 | mean 12.9 s | 17.5, 24.8, 20.8 s | 50 -> 26 |
+| 3 | mean 10.6 s | 14.0, 17.2, 18.0 s | 53 -> 26 |
+| 4 | mean 11.0 s | >30, >30, 21.2 s | 57 -> 56 |
+| 5 | mean 9.9 s | >30, 18.0, 13.0 s | 45 -> 39 |
+
+A young road still comes back once the patch wears off -- nothing is wiped for good -- but a busy one
+takes two to three times the clean window to recover, and on levels 2 and 3 the colony's deliveries
+halve. Level 4's colony 0 feeds several piles, so cutting the one road measured barely shows in its
+total; that is the measurement's limit, not the tool's. `probe_obstacles` checks that nothing sticks
+to rubbed ground and that the road does come back once it wears off.
+
 ## Laying a twig
 
 A twig is 152 units long and 18 wide, so its angle is nearly all of what it does — and dropped at a
@@ -864,12 +910,31 @@ against the grey's middle, read from the stylebox's `border_width_bottom`.
 
 **Win** — outlast `time_sec` with allowance left. `game_over_on_time_out` is off and `sig_time_over`
 is taken instead, because running out of time is how you *win* here.
-**Lose** — the allowance reaches zero (`game_over_on_zero_score`), or the colony carries off every
+**Lose** — the allowance reaches zero (`_charge()` in `level.gd`), or the colony carries off every
 crumb in the world (`_is_finished()`).
+
+**A round ends with the level card and nothing else.** Every ending goes through `main.gd`'s
+`_end_round(didwin)`, which saves the row itself and shows the card; the card's close
+(`MainGlobals.sig_level_done_popup_closed`, taken only while `_awaiting_card`) starts the next round
+through `_next_round()`. It does **not** go through `game_is_done`: that is the shared "the whole
+game is over" path, and the HUD answers it with its "You Finished!" / "Game Over" banner and a
+"Restart Game" button. Ants used to end every round there, and `game_over_on_zero_score` did the
+same for a loss, so the banner went up *behind* the card — a player who won level 1 read "on to
+level 2", pressed Continue, and found "You Finished!" and "Restart Game" instead of level 2. Only the
+tutorial still takes `game_is_done` (its coach decides what comes next), which is all
+`on_game_is_done()` and the HUD's `_on_hud_start_game()` are left serving. `probe_ants` drives the
+real round end and the card's own close, and checks the banner stays down — its old version called
+`_finish_level` and the HUD button directly, which is how it passed while this was broken.
+
+`_end_round` also closes the tool menu (`level.close_tool_menu()`), and `level.new_game()` closes it
+again. So does any card going up over the game (`game.sig_card_shown`, emitted by the shared card
+helpers). The menu is a `CanvasLayer` of its own, so nothing about a round ending touches it: one left
+open when the clock ran out was still there at the same spot when the next level started, offering
+the old level's stock over a world that no longer had it.
 
 **A win promotes; a loss repeats the level.** One level is one whole round here rather than
 `rounds_per_level` of them, so the gate is simply the round's own verdict — no percentage, no
-`corrects_for_next_level`. Promotion is applied in `_on_hud_start_game()`, on the way *into* the
+`corrects_for_next_level`. Promotion is applied in `_next_round()`, on the way *into* the
 next round, so the card the player just read still described the level they actually played. At the
 top of the ladder the last level comes round again; `AntsLevelConfig.next_id()` reads the table
 rather than assuming ids run 1..n, because the table is meant to be editable.
@@ -1009,8 +1074,8 @@ Registered as one ring-sized zone it stayed put, because a caption lying across 
 tools covers barely a third of the square. The last thing placed is a zone too — a step that says
 "tap what you placed" is unusable if the balloon is on it.
 
-**A step that names a tool opens the menu and lights that tool.** The three tool steps (twig, the
-red cross, bait) carry a `setup` calling `level.tutorial_open_menu()` — `(true)` for the cross,
+**A step that names a tool opens the menu and lights that tool.** The four tool steps (twig, the
+red cross, the eraser, bait) carry a `setup` calling `level.tutorial_open_menu()` — `(true)` for the cross,
 which only exists in a menu raised over something already placed — and a `spot` calling
 `level.tutorial_menu_cell_of(kind)`. Naming a tool and leaving the player to find it among eight
 small pictures teaches the ring, not the tool, and the ring was taught two steps earlier.

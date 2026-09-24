@@ -119,6 +119,27 @@ static func steps(level: Node, game) -> Array:
 			"hint": "Tap the thing you placed, then choose the red cross.",
 		},
 		{
+			# After the twig and the cross on purpose: the player has just watched a road re-form, and
+			# the eraser is the tool that acts on the road itself rather than on the ground under it.
+			"title": "The eraser",
+			"setup": func(): level.tutorial_open_menu(),
+			"text": "The eraser rubs out their road where you tapped.",
+			"spot": func(): return level.tutorial_menu_cell_of(ObstacleMenu.ERASER_PICK),
+			"spot_pad": 6.0,
+			"await": {"event": "erased", "timeout": 90.0},
+			"hint_after": 10.0,
+			"hint": "Tap the pink eraser.",
+		},
+		{
+			"text": "The pale patch stays clean for a while, and they lose the way there.\nWhen it fades, the road can form again.",
+			"caption_side": "right",
+			"caption_side_align": "top",
+			"watch_only": true,
+			# Ends on its own after a few seconds of them casting about; nothing is emitted for it.
+			# Shorter than the patch lasts (CLEAN_SEC), so the step is over while it is still there.
+			"await": {"event": "_watch_only_never_fires", "timeout": 8.0},
+		},
+		{
 			"title": "Bait",
 			"setup": func(): level.tutorial_open_menu(),
 			"text": "This is bait: food you do not mind losing.\nDrop some on their road.",

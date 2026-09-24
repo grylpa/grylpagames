@@ -310,7 +310,7 @@ static func summary_rows_for(folder: String) -> Control:
 		shown_names.append(str(SUMMARY_ROWS[metric]))
 		var higher_better: bool = bool(StatsOverview.METRICS[metric])
 		var st: Dictionary = StatsBaseline.state_for(sessions, metric, higher_better)
-		var vals: Array = _z_for(sessions, metric, higher_better)
+		var vals: Array = _z_for(sessions, metric)
 		for cell: Control in ScreenBackdrop.stats_row_cells(
 				str(SUMMARY_ROWS[metric]), vals, int(st.get("state", StatsBaseline.State.UNKNOWN))):
 			grid.add_child(cell)
@@ -326,11 +326,10 @@ static func summary_rows_for(folder: String) -> Control:
 # every row is named after the quantity, not the goodness. So a player letting fewer crumbs through
 # saw a RISING line under "Crumbs that got past you", and a player getting faster saw "Speed" with
 # a line that disagreed with its own name. The line now shows the number named on the row, and the
-# verdict word beside it says whether that is good. `higher_better` is kept in the signature only
-# because the verdict is computed alongside.
+# verdict word beside it says whether that is good.
 # Empty when there is no baseline yet, which is the honest answer -- a flat line at zero would read
 # as "exactly average" for a player the app has barely met.
-static func _z_for(sessions: Array, metric: String, higher_better: bool) -> Array:
+static func _z_for(sessions: Array, metric: String) -> Array:
 	var b: Dictionary = StatsBaseline.band(sessions, metric)
 	if not bool(b.get("ok", false)) or float(b.get("sd", 0.0)) <= 0.0:
 		return []

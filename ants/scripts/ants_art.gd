@@ -216,6 +216,76 @@ static func draw_water_jug(ci: CanvasItem, mid: Vector2, h: float, left: float) 
 	ci.draw_rect(Rect2(mid.x - w * 0.30, mid.y - h * 0.50, w * 0.60, h * 0.09), clay_dk, false,
 		maxf(1.0, h * 0.04))
 
+# THE ERASER: a chunky block of pink rubber in a blue paper sleeve, drawn FLAT and side-on like every
+# other swatch in the menu (the can, the jug), with its working corner worn to a slant and a few
+# rubber crumbs beside it -- the crumbs are what say "rubbing out". Three versions were dropped: a bare
+# slanted strip (a tag), a three-quarter-view block (the only 3-D thing in the ring, and its faces did
+# not agree), and a slim one with a rounded end and a white band on the sleeve, which read as a
+# LIPSTICK -- a round end and a band are exactly what a lipstick has. So: square-cut, stubby, no band.
+# `left` is the share of rubs remaining, and the rubber WEARS DOWN with it while the sleeve stays.
+const ERASER_PINK: Color = Color(0.945, 0.604, 0.659)
+const ERASER_PINK_LIT: Color = Color(0.984, 0.780, 0.812)
+const SLEEVE: Color = Color(0.180, 0.431, 0.780)
+const SLEEVE_DARK: Color = Color(0.118, 0.310, 0.588)
+const ERASER_INK: Color = Color(0.200, 0.090, 0.110)
+
+static func draw_eraser(ci: CanvasItem, mid: Vector2, h: float, left: float) -> void:
+	var thick: float = h * 0.44
+	var sleeve_len: float = h * 0.38
+	# Never shorter than a stub of rubber, so a nearly spent eraser still shows some.
+	var rubber: float = h * lerpf(0.10, 0.38, clampf(left, 0.0, 1.0))
+	var full_len: float = sleeve_len + h * 0.38
+	var x1: float = full_len * 0.5
+	var xs: float = x1 - sleeve_len
+	var x0: float = xs - rubber
+	var y0: float = -thick * 0.5
+	var y1: float = thick * 0.5
+	var lw: float = maxf(1.0, h * 0.035)
+	var wear: float = minf(thick * 0.35, rubber * 0.8)   # the slanted, worn corner
+	var ang: float = -0.5
+	ci.draw_set_transform(mid, ang, Vector2.ONE)
+	var rub: PackedVector2Array = PackedVector2Array([Vector2(x0, y0), Vector2(xs, y0),
+		Vector2(xs, y1), Vector2(x0 + wear, y1), Vector2(x0, y1 - wear)])
+	ci.draw_colored_polygon(rub, ERASER_PINK)
+	ci.draw_line(Vector2(x0 + lw, y0 + thick * 0.16), Vector2(xs - lw, y0 + thick * 0.16),
+		ERASER_PINK_LIT, maxf(1.0, thick * 0.14), true)
+	var sleeve: PackedVector2Array = PackedVector2Array([Vector2(xs, y0 - thick * 0.05),
+		Vector2(x1, y0 - thick * 0.05), Vector2(x1, y1 + thick * 0.05), Vector2(xs, y1 + thick * 0.05)])
+	ci.draw_colored_polygon(sleeve, SLEEVE)
+	# The sleeve's folded edge, a darker strip where it wraps round the rubber.
+	ci.draw_line(Vector2(xs + lw * 1.5, y0 - thick * 0.05), Vector2(xs + lw * 1.5, y1 + thick * 0.05),
+		SLEEVE_DARK, maxf(1.0, h * 0.05), true)
+	for poly in [rub, sleeve]:
+		var loop: PackedVector2Array = poly.duplicate()
+		loop.append(poly[0])
+		ci.draw_polyline(loop, ERASER_INK, lw, true)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# Crumbs, below the worn end in screen space so they lie on the "ground" whatever the tilt.
+	var tip: Vector2 = mid + Vector2(x0, y1).rotated(ang)
+	for k in 3:
+		var at: Vector2 = tip + Vector2(-h * 0.02 + float(k) * h * 0.09, h * (0.10 + 0.04 * float(k % 2)))
+		ci.draw_circle(at, maxf(1.2, h * 0.035), ERASER_PINK)
+
+# Rubbed ground: a pale patch, there for as long as the ground stays clean and fading out over its
+# last seconds (`fade` 1 -> 0), with a few rubber crumbs just after the rub (`fresh`). Pale because
+# the trail is dark, so the patch reads as "cleaned" rather than as a new mark.
+static func draw_rub(ci: CanvasItem, at: Vector2, r: float, fade: float, fresh: bool) -> void:
+	var f: float = clampf(fade, 0.0, 1.0)
+	var pale: Color = SOIL_LIGHT
+	pale.a = 0.45 * f
+	ci.draw_circle(at, r, pale)
+	var edge: Color = GRAIN_LIGHT
+	edge.a = 0.8 * f
+	ci.draw_arc(at, r, 0.0, TAU, 32, edge, 2.0, true)
+	if not fresh:
+		return
+	var crumb: Color = ERASER_PINK
+	crumb.a = f
+	for k in 7:
+		var a: float = float(k) * 2.39996
+		var d: float = r * (0.35 + 0.08 * float(k))
+		ci.draw_circle(at + Vector2.from_angle(a) * d, 2.2, crumb)
+
 static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> void:
 	ci.draw_circle(at, r * 1.55, Color(NEST_RIM.r, NEST_RIM.g, NEST_RIM.b, 0.45))
 	ci.draw_circle(at, r * 1.15, NEST_RIM)

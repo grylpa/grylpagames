@@ -8,6 +8,9 @@ extends CanvasLayer
 # `set_title()` and `set_text()` are still the only two entry points, and the popup still frees
 # itself through MainGlobals.global_level_done_popup_closed().
 
+# THIS card closed -- see the same signal in game_popup.gd.
+signal closed
+
 var _closing: bool = false
 var _parts: Dictionary = {}
 # Most games cannot fail a level — reaching the end IS finishing it — so this stays true unless a
@@ -50,6 +53,7 @@ func close_window() -> void:
 
 func _close_async() -> void:
 	await get_tree().process_frame
+	closed.emit()
 	MainGlobals.global_level_done_popup_closed()
 	queue_free()
 

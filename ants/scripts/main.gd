@@ -3,9 +3,15 @@ extends Node
 # Ants orchestrator. The standard skeleton from how_to_add_a_new_game.txt.
 #
 # The score IS the allowance: initial_score is the level's, every crumb the colony gets home takes
-# one off it, and a crushed ant takes KILL_PENALTY. game_over_on_zero_score ends the round when the
-# colony has had what it came for; outlasting the clock is the win, which is why
-# game_over_on_time_out is off and sig_time_over is taken instead.
+# one off it, and a crushed ant takes KILL_PENALTY. The round is lost when it reaches zero (the
+# level reports that itself) and won by outlasting the clock, which is why game_over_on_time_out is
+# off and sig_time_over is taken instead.
+#
+# A ROUND ENDS WITH THE LEVEL CARD AND NOTHING ELSE. game_is_done is the shared "the whole game is
+# over" path and the HUD answers it with "You Finished!" / "Game Over" and a "Restart Game" button.
+# Ants used to end every round through it, so the card sat on top of that banner and pressing
+# Continue on "on to level 2" uncovered it. _end_round saves the row itself and the card's close
+# starts the next round. Only the tutorial still goes through game_is_done.
 #
 # This was a simulation with nothing to measure for most of its life, and the HUD counter was fed
 # through add_score_and_time(..., is_actual_score = false) so that no session would ever write a
@@ -27,7 +33,7 @@ func _ready() -> void:
 	# on it -- sig_time_over is taken below instead. Losing is the colony getting its allowance
 	# home, which is the score reaching zero.
 	game.game_over_on_time_out = false
-	game.game_over_on_zero_score = true
+	game.game_over_on_zero_score = false
 	game.sig_time_over.connect(_on_time_over)
 	# react_mean is the headline: how long after a road matures before the player does something
 	# about it. The counts say how the session went; the latency says whether the player is getting
@@ -64,6 +70,7 @@ func _ready() -> void:
 	hud.update_all()
 
 	game.sig_game_is_done.connect(on_game_is_done)
+	MainGlobals.sig_level_done_popup_closed.connect(_on_level_card_closed)
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 	$Level.started_playing.connect(_on_level_started_playing)
 
@@ -178,7 +185,7 @@ func _on_time_over() -> void:
 	if _time_over or not game.playing:
 		return
 	_time_over = true
-	game.game_is_done(true, false)
+	_end_round(true)
 
 func _on_level_started_playing() -> void:
 	game.playing = true
@@ -190,8 +197,31 @@ func _on_game_tick_timeout() -> void:
 		_save_ongoing_score()
 
 func _on_level_sig_level_is_done(didwin: bool) -> void:
-	if game.playing:
+	_end_round(didwin)
+
+# Set while the level card this game showed is open, so the one global "a level card closed" signal
+# only starts a round when it was ours.
+var _awaiting_card: bool = false
+
+func _end_round(didwin: bool) -> void:
+	if not game.playing:
+		return
+	if game.tutorial_mode:
+		# The coach owns what happens next; the old path is kept for it unchanged.
 		game.game_is_done(didwin, false)
+		return
+	game.playing = false
+	$Level.close_tool_menu()
+	game.save_score(get_game_score(didwin, false))
+	_did_per_level_save = true
+	_awaiting_card = true
+	_finish_level(didwin)
+
+func _on_level_card_closed() -> void:
+	if not _awaiting_card:
+		return
+	_awaiting_card = false
+	_next_round()
 
 func _on_main_menu_start_game(_start_new: bool) -> void:
 	AntsG.save_settings()
@@ -247,14 +277,11 @@ func get_game_score(_didwin, _wasaborted):
 		$Level.crumbs_through, $Level.ants_killed(),
 		$Level.obstacles_moved, $Level.roads_missed]
 
+# Reached only from the tutorial now -- a real round ends in _end_round. The round is over, so
+# nothing more is scored.
 func on_game_is_done(_didwin: bool, _wasaborted: bool) -> void:
-	# The round is over, so nothing more is scored. Without this the level goes on taking crumbs off
-	# an allowance that is already at zero, and each one calls straight back in here -- one probe
-	# run drove thousands of end-of-round chains and slowed to a fiftieth of its speed.
 	game.playing = false
 	game.save_score(get_game_score(_didwin, _wasaborted))
-	if not game.tutorial_mode and not _wasaborted:
-		_finish_level(_didwin)
 
 # THE LEVEL GATE. Ants had none: `starting_level_id` moved only when the player dragged the menu
 # slider, so winning promoted nobody and a player who could hold level 1 stayed on level 1 for ever
@@ -286,9 +313,13 @@ func _progress_line(didwin: bool, is_last: bool) -> String:
 func _save_ongoing_score() -> void:
 	game.save_ongoing_score(get_game_score(false, false))
 
+# The HUD's own "Restart Game" button, which only the tutorial's game_is_done can still bring up.
+func _on_hud_start_game() -> void:
+	_next_round()
+
 # Promotion lands HERE, on the way into the next round, so the card the player just read was still
 # describing the level they actually played.
-func _on_hud_start_game() -> void:
+func _next_round() -> void:
 	if game.need_to_increase_level:
 		game.need_to_increase_level = false
 		AntsG.starting_level_id = AntsLevelConfig.next_id(AntsG.starting_level_id)
