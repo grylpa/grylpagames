@@ -301,7 +301,11 @@ static func set_body(parts: Dictionary, text: String, accent: Color) -> void:
 	var rows: VBoxContainer = parts["rows"]
 	if rows == null or not is_instance_valid(rows):
 		return
+	# Removed NOW, not just queued: a queued child still counts in get_child_count() until the frame
+	# ends, so text set a second time (game_popup.release()) saw the old lines as still there and put
+	# a gap above its first line -- the card grew 20 px when Storm's briefing was released.
 	for child in rows.get_children():
+		rows.remove_child(child)
 		child.queue_free()
 	var mob: bool = bool(parts["mobile"])
 	var card_w: float = float(parts["width"])

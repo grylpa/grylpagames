@@ -106,6 +106,11 @@ signal sig_esc_pressed
 signal sig_save_game
 signal sig_level_is_done
 signal sig_level_label_changed(level_text:String)
+# A card is about to go up over the game -- a round result, a level summary, the instructions. Anything
+# of the game's own that floats above the board (a tool inventory, a tooltip) should close on it:
+# those are separate windows or layers, so a card appearing does not hide them, and Storm's tool
+# inventory stayed open on top of "Oh no!".
+signal sig_card_shown
 
 const DirArray = [Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0), Vector2i(0,-1)]
 
@@ -1506,6 +1511,7 @@ func show_instructions(parent, automatic: bool = true):
 		if MainCfg.has_tutorial(file_names_prefix):
 			return
 	shown_instructions = true
+	sig_card_shown.emit()
 	var popup = instructions_scene.instantiate()
 	parent.add_child(popup)
 	popup.set_font_size(instructions_font_size)
@@ -1562,6 +1568,7 @@ func show_level_done_popup(parent, title, text, level_id=0, text_add="", passed=
 		if uses_session_clock and time_left_sec > 0:
 			text += "\nTime left: %s" % time_left_str()
 	text += text_add
+	sig_card_shown.emit()
 	var ldp = level_done_popup_scene.instantiate()
 	parent.add_child(ldp)
 	# Before set_title: the card is built on the first of these calls, and whether the level was
@@ -1569,6 +1576,8 @@ func show_level_done_popup(parent, title, text, level_id=0, text_add="", passed=
 	ldp.set_passed(passed)
 	ldp.set_title(title)
 	ldp.set_text(text)
+	# Returned so a caller can wait for THIS card (its `closed` signal) rather than for any card.
+	return ldp
 
 func show_game_popup(parent, title, text, text_add=""):
 	if title == null:
@@ -1576,10 +1585,12 @@ func show_game_popup(parent, title, text, text_add=""):
 	if text == null:
 		text = ""
 	text += text_add
+	sig_card_shown.emit()
 	var ldp = game_popup_scene.instantiate()
 	parent.add_child(ldp)
 	ldp.set_title(title)
 	ldp.set_text(text)
+	return ldp
 
 # Storm-style intro/info popup: a centered yellow panel with dark-green, \n-formatted text
 # (it sizes to the text, so use short lines and \n, not auto-wrap) and a "Tap anywhere to

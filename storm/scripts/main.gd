@@ -5,6 +5,13 @@ extends Node
 var game:GenericGameUtil
 var main_menu
 var _did_per_level_save: bool = false
+# THE WORST ROOM, IN THE HUD STRIP: "Worst: 7%", centered on the strip, at the clock's size and on
+# the same 56 px of grey. Storm leaves the strip's middle free (no lives, packets or paired counters). A round
+# is lost the moment any room is ruined, so the number that decides it is in front of the player the
+# whole time. It was a small label in each room's corner (easy to miss, and out of sight whenever that
+# room was), then a line under the strip.
+var _flood_label: Label = null
+var _flood_accum: int = 0
 
 func _ready() -> void:
 	game = StormG.game
@@ -28,6 +35,19 @@ func _ready() -> void:
 	hud.show()
 	# hud.show_corrects_mistakes()	
 	hud.update_all()
+	_flood_label = Label.new()
+	# The HUD scene's sizes are phone-first, like every scene's, so this matches the clock's 26 as is.
+	_flood_label.add_theme_font_size_override("font_size", 26)
+	_flood_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
+	_flood_label.add_theme_constant_override("outline_size", 4)
+	_flood_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_flood_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# The whole width of the strip, text centered in it.
+	_flood_label.position = Vector2.ZERO
+	_flood_label.size = Vector2(get_viewport().get_visible_rect().size.x, 56.0)
+	_flood_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flood_label.hide()
+	hud.add_child(_flood_label)
 	game.game_over_on_time_out = false
 	game.sig_game_is_done.connect(on_game_is_done)
 	game.sig_add_life.connect(on_add_life)
@@ -39,7 +59,7 @@ func _ready() -> void:
 		"You can work on a problem only if it is close to you.\n\n" +
 		"When you are close to a leak, click on it and select the tool to solve it, or click it again to take the filled container for emptying.\n\n" + 
 		"When you are close to a drain, click on it and select the tool that needs emptying.\n\n" +
-		"A level is done when the storm has passed and failed when too many tiles overflow.\n\n" +
+		"A round is lost if any room floods (each room shows how much of it is under water),\nand won when the storm has passed.\n\n" +
 		"Good luck!"
 	)
 	if !game.shown_instructions:
@@ -65,6 +85,8 @@ func _ready() -> void:
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()
+	if _flood_label != null:
+		_flood_label.hide()
 	MainGlobals.draw_path_mode = false
 	MainGlobals.update_bottom_bar(["help","mute","scores"])
 
@@ -84,6 +106,17 @@ func new_game(from_scratch=true):
 	game.reset(from_scratch)
 	$Level.new_game(from_scratch)
 
+func _update_flood_label() -> void:
+	_flood_accum += 1
+	if _flood_label == null or _flood_accum % 5 != 0:     # four times a second
+		return
+	var worst: float = $Level.worst_room_share()
+	_flood_label.text = "Worst: %d%%" % int(round(worst * 100.0))
+	# White while safe, warming toward red as it nears the line.
+	var t: float = clampf(worst / $Level.room_ruin(), 0.0, 1.0)
+	_flood_label.add_theme_color_override("font_color", Color(1.0, lerpf(1.0, 0.35, t), lerpf(1.0, 0.3, t)))
+	_flood_label.show()
+
 func _on_level_started_playing() -> void:
 	game.playing = true
 	hud.restart_time_left_timer()
@@ -92,6 +125,7 @@ func _on_game_tick_timeout() -> void:
 	game.tick_game_time()
 	if game.playing and not game.paused():
 		$Level.tick()
+		_update_flood_label()
 	if game.time_since_saved_ongoing_score_sec() >= 60:
 		_save_ongoing_score()
 
@@ -132,6 +166,7 @@ func _on_level_show_help() -> void:
 	if $Help.is_visible():
 		close_help_window()
 	else:
+		$Level.close_inventory()
 		$Help.show()
 
 func _on_level_pressed_esc() -> void:
@@ -139,6 +174,7 @@ func _on_level_pressed_esc() -> void:
 		close_help_window()
 
 func _on_hud_help_button_pressed() -> void:
+	$Level.close_inventory()
 	$Help.show()
 
 func _on_level_delivered_one() -> void:

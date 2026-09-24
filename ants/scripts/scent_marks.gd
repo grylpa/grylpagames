@@ -38,9 +38,16 @@ var _count: int = 0
 func _key(p: Vector2) -> Vector2i:
 	return Vector2i(floori(p.x / CELL), floori(p.y / CELL))
 
+# Rubbed ground, where nothing sticks: Vector3(x, y, radius) each. Set by level.gd while an eraser
+# rub is still fresh. Checked on every deposit, so it is kept to the handful actually live.
+var clean_zones: Array = []
+
 func deposit(p: Vector2, amount: float) -> void:
 	if amount <= 0.0:
 		return
+	for z: Vector3 in clean_zones:
+		if (p.x - z.x) * (p.x - z.x) + (p.y - z.y) * (p.y - z.y) <= z.z * z.z:
+			return
 	var k: Vector2i = _key(p)
 	var arr: PackedFloat32Array = _cells.get(k, PackedFloat32Array())
 	var mr2: float = MERGE_R * MERGE_R

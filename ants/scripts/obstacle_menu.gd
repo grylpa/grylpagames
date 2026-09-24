@@ -22,6 +22,7 @@ const SEP: int = 3
 const RIM: Color = Color(0.92, 0.80, 0.42)
 const SPENT: Color = Color(1.0, 1.0, 1.0, 0.30)   # modulate for an item with none left
 const SPRAY_PICK: int = -2
+const ERASER_PICK: int = -3
 # A phone has no hover, so the only gesture left that does not already mean "use this" is a HOLD.
 # A desktop keeps its hover as well, on the same delay.
 const HOLD_MS: int = 400
@@ -188,6 +189,10 @@ static func open(host: Node, screen_pos: Vector2, on_pick: Callable, can_remove:
 		choices.append({"kind": SPRAY_PICK, "remove": false, "spray": true,
 			"left": int(level.get("spray_left")),
 			"full": float(level.get("spray_left")) / total})
+	if level != null and int(level.get("erasers_total")) > 0:
+		choices.append({"kind": ERASER_PICK, "remove": false, "spray": false, "eraser": true,
+			"left": int(level.get("eraser_left")),
+			"full": float(level.get("eraser_left")) / maxf(float(level.get("erasers_total")), 1.0)})
 	if can_remove:
 		choices.append({"kind": -1, "remove": true, "spray": false, "left": -1})
 
@@ -258,6 +263,8 @@ static func _tip_for(choice: Dictionary) -> String:
 		return "Pick up what is here and put it back in your hand."
 	if bool(choice["spray"]):
 		return "A repellent they will not walk on. One squirt where you tapped. It fades."
+	if bool(choice.get("eraser", false)):
+		return "Rubs out their road where you tapped, and the spot stays clean for a while. They lose the way there until it wears off."
 	return str(AntObstacle.TIPS.get(int(choice["kind"]), "")).replace("\n", " ")
 
 static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: Callable,
@@ -270,6 +277,7 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 	var is_remove: bool = bool(choice["remove"])
 	var is_spray: bool = bool(choice["spray"])
 	var is_jug: bool = bool(choice.get("jug", false))
+	var is_eraser: bool = bool(choice.get("eraser", false))
 	var kind: int = int(choice["kind"])
 	var left: int = int(choice["left"])
 	var spent: bool = (not is_remove) and left <= 0
@@ -281,7 +289,7 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 
 	var swatch: AntObstacle = null
 	var swatch_scale: float = 1.0
-	if not is_remove and not is_spray and not is_jug:
+	if not is_remove and not is_spray and not is_jug and not is_eraser:
 		swatch = AntObstacle.new(kind, Vector2.ZERO, -0.35, 7)
 		swatch_scale = (float(box) * 0.34) / maxf(swatch.half.x, swatch.half.y)
 
@@ -294,6 +302,8 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 			AntsArt.draw_spray_can(cell, mid, float(box) * 0.62, full)
 		elif is_jug:
 			AntsArt.draw_water_jug(cell, mid, float(box) * 0.62, full)
+		elif is_eraser:
+			AntsArt.draw_eraser(cell, mid, float(box) * 0.66, full)
 		elif is_remove:
 			var a: float = float(box) * 0.22
 			cell.draw_line(mid - Vector2(a, a), mid + Vector2(a, a), Color(0.93, 0.44, 0.40), 4.0, true)

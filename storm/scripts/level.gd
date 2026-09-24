@@ -54,6 +54,20 @@ var furniture = {
 }
 	
 var rounds_per_level: int = 3
+# A ROUND IS LOST WHEN A ROOM IS RUINED, and won by getting through the storm without that. A room
+# is ruined when the level's room_ruin of its floor is covered -- each tile counting as covered once it holds
+# FILM of water, and in part below that, the same measure the water is drawn by -- and with several
+# rooms, one ruined room loses the round. _check_floods() runs every major tick.
+#
+# It replaced two rules. "More than 30% of the room tiles overflowed" stopped firing once water
+# leveled out instead of piling up, because a tile now rarely fills to the brim. And the "rain
+# caught" bar -- a share of leaked water that had to be kept off the floor -- existed only so that
+# an empty house would lose; it does now anyway, by flooding a room, and one rule is easier to say
+# and to show. The share is still worked out (rain_stats) and shown on the round card.
+var _ruined_room: int = -1
+var _fill_rate: float = 1.0
+# Each room's covered share as of the last check, indexed like `rooms` -- read by main.gd's HUD line.
+var room_shares: Array = []
 var board: Array
 var pipes = []
 var empties = []
@@ -126,6 +140,11 @@ signal sig_blackout
 func _ready() -> void:
 	game = StormG.game
 	game.sig_time_over.connect(on_time_over)
+	game.sig_card_shown.connect(close_inventory)
+	MainGlobals.sig_need_to_close_info_popups.connect(close_inventory)
+	visibility_changed.connect(func() -> void:
+		if not visible:
+			close_inventory())
 	game.sig_lives_depleted.connect(on_lives_depleted)
 	level = StormG.starting_level
 	round_in_level = 0
@@ -145,14 +164,11 @@ func _ready() -> void:
 	game.add_sound(self, "tap", tap_audio)
 	game.add_sound(self, "water_pour", water_pour_audio)
 
-	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
-		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
-	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
-		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
 	MainGlobals.sig_path_drawn.connect(_on_path_drawn)  
 	_fit_ground_to_board()
 	
 func reset():
+	close_inventory()
 	# Every one of these is a baseline in game_time, and game_time RESTARTS at zero on each round
 	# (main.gd -> game.reset() -> _game_start_ms = now). Carried over from the round before, they
 	# sit far in the future: "now - last_time_added_leak" stays negative for the whole round, so
@@ -167,6 +183,7 @@ func reset():
 	last_major_tick_ms = -10000.0
 
 	round_items_lost = 0
+	_ruined_room = -1
 	next_player_dir = -1
 	play_start_sound_once = true
 	started_sounds = true
@@ -192,11 +209,31 @@ func reset():
 
 	time_started_level_ms = 0
 
+# THE BRIEFING GOES UP AT ONCE, HELD, WHILE THE BOARD IS BUILT BEHIND IT. It shows only "Building
+# world" and no Start button (game_popup.hold()), laid out at its final size with the real text hidden
+# underneath, so nothing moves when the text comes in. When the board is ready -- and at least
+# BRIEF_HOLD_MS after the card went up, so the hold never flickers past as a glitch -- the real text,
+# with the rooms the board actually got, and the Start button appear (_release_brief()).
+#
+# Before this, a yellow "Building level" notice flashed up on its own while the board was made, and
+# then the card said how many rooms there were from the plan and corrected itself once the board
+# existed, since create_rooms() can place fewer than planned.
+const BRIEF_HOLD_MS: int = 1000
+var _board_ready: bool = false
+var _brief = null
+var _brief_shown_ms: int = 0
+
+func _brief_text(n_rooms: int) -> String:
+	var roomsstr: String = "one room" if n_rooms == 1 else "%d rooms" % n_rooms
+	return "You have %s to protect.\n\nStorm lasts: %s" % [roomsstr,
+		MainGlobals.round_duration_str(storm_duration_s)]
+
 func new_game(from_scratch=true):
+	while _building:
+		await get_tree().process_frame
 	game.pause(true)
 	reset()
-	$BuildingLabel.show()
-	await get_tree().process_frame
+	_board_ready = false
 	if from_scratch:
 		level = StormG.starting_level
 		round_in_level = 0
@@ -204,6 +241,19 @@ func new_game(from_scratch=true):
 
 	_advance_if_needed()
 	game.need_to_increase_level = false
+	if not game.tutorial_mode:
+		# Each card is followed through ITS OWN `closed` signal. The app-wide "a card closed" signal
+		# cannot tell this briefing from the round card, or either from a card left over from before.
+		# Laid out with the planned count: the same lines as the real text, so the card is already
+		# its final size, and hidden until released.
+		var brief = game.show_game_popup(self, "Level %d" % level, _brief_text(num_rooms))
+		brief.hold("Building world")
+		brief.closed.connect(_on_closed_intro_popup)
+		_brief = brief
+		_brief_shown_ms = Time.get_ticks_msec()
+	# Let the card draw before the board is built behind it.
+	await get_tree().process_frame
+	await get_tree().process_frame
 	create_board()
 	time_started_level_ms = game.game_time
 	started_playing.emit()
@@ -276,11 +326,11 @@ func add_pipe(p, room_id := -1):
 	board[p.y][p.x].pipe = pipe
 	pipe.board_pos = p
 	pipe.position = game.board_to_px(p)
+	pipe.water_rate_factor = pipe.BASE_WATER_RATE * _fill_rate
 	board[p.y][p.x].room_id = room_id
 	add_child(pipe)
 	pipes.append(pipe)
 	pipe.pipe_pressed.connect(_on_pipe_pressed)
-	pipe.sig_leak_overflow.connect(_on_pipe_leak_overflow)
 
 # func _check_if_all_rooms_answered():
 # 	for rid in rooms.size():
@@ -302,6 +352,9 @@ func answered(correct: bool):
 		game.play_sound("gaveup")
 
 func _on_pipe_pressed(_board_pos):	
+	# The board is built across several frames now (see _breathe), and taps are taken in between.
+	if not _board_ready:
+		return
 	var cell = bcell(_board_pos)
 	if !cell.ispipe or cell.pipe.has_brick >= 0:
 		return
@@ -326,6 +379,7 @@ func dist_from_array(p, arr):
 	
 func show_hide_walls():
 	for e in empties:
+		await _breathe()
 		e.show_hide_walls(board)
 	
 var room_min_size = 9
@@ -377,6 +431,7 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 		var placed = false
 
 		for attempt in range(900):
+			await _breathe()
 			var rw = (rng.randi_range(room_min_size, room_max_size) | 1)
 			var rh = (rng.randi_range(room_min_size, room_max_size) | 1)
 			var rsize = Vector2i(rw, rh)
@@ -444,7 +499,7 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 	
 	# for r in rooms:
 	# 	print("room ", str(r))
-	add_corridors()
+	await add_corridors()
 
 func _try_corridor_L(pstart: Vector2i, pend: Vector2i, start_dir: Vector2i) -> Array:
 	var d = pend - pstart
@@ -513,6 +568,7 @@ func add_corridors():
 		# rooms_to_check.erase(i)
 		
 		while rooms_to_check.size() > 0:
+			await _breathe()
 			var j = find_closest_unconnected_room(i, rooms_to_check)
 			if j < 0:
 				# j = rooms_to_check.pop_front()
@@ -599,6 +655,7 @@ func add_corridors():
 						else: # B
 							pend.y = p2br.y
 
+						await _breathe()
 						var path = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_to"), 0, pprev, path_bounding_rect)
 						if path.size() > 0 and (shortest_path.size() == 0 or path.size() < shortest_path.size()):
 							shortest_path = path
@@ -656,7 +713,25 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 #endregion create_rooms
 
 
+# THE BOARD IS BUILT IN SLICES. Building it in one go froze the game: the briefing card could not
+# take the Start press until the build was done -- about 0.13 s on level 1 and 2.2 s on level 12 on a
+# desktop (mostly placing the rooms and finding their corridors), longer on a slower machine. Every
+# loop of the build now calls _breathe(), which hands the frame back once BUILD_SLICE_US of work has
+# gone by, so input is taken between slices.
+const BUILD_SLICE_US: int = 8000
+var _slice_start: int = 0
+# A build in progress. A new round waits for it (new_game): two builds interleaving across frames
+# would share one board.
+var _building: bool = false
+
+func _breathe() -> void:
+	if Time.get_ticks_usec() - _slice_start > BUILD_SLICE_US:
+		await get_tree().process_frame
+		_slice_start = Time.get_ticks_usec()
+
 func create_board() -> void:
+	_building = true
+	_slice_start = Time.get_ticks_usec()
 	_fit_ground_to_board()
 	# rng = RandomNumberGenerator.new()
 	# rng.seed = 1110
@@ -676,19 +751,21 @@ func create_board() -> void:
 	# if get_tree():
 	# 	get_tree().reload_current_scene()
 
-	create_rooms(num_rooms, board_margin)
+	await create_rooms(num_rooms, board_margin)
 	# for row in range(board_margin,game.board_size.y-board_margin):
 	# 	for col in range(board_margin,game.board_size.x-board_margin):
 	# 		add_pipe(Vector2i(col,row))
 	
 	for row in game.board_size.y:
+		await _breathe()
 		for col in game.board_size.x:
 			if !board[row][col].ispipe:
 				add_empty(Vector2i(col,row))
 				
-	show_hide_walls()
+	await show_hide_walls()
 				
 	for pipe in pipes:
+		await _breathe()
 		pipe.set_rot(board)
 
 	add_player()
@@ -697,31 +774,34 @@ func create_board() -> void:
 	add_bricks()
 	add_drains()
 	add_furniture()
+	_add_flood_layer()
+	room_shares = []
 
 	# zoom_camera(false)
-	$BuildingLabel.hide()
-
-	var timestr = MainGlobals.round_duration_str(storm_duration_s)
-	var roomsstr = "one room" if rooms.size() == 1 else "%d rooms" % rooms.size()
+	_building = false
+	_board_ready = true
 	if game.tutorial_mode:
-		# The tutorial teaches all of this by doing it.
+		# The tutorial teaches all of this by doing it: no briefing, straight in.
 		_on_closed_intro_popup()
 	else:
-		# NOT a second connection to sig_game_popup_closed: this game shows TWO game popups (this
-		# briefing, and the "Well done!"/"Oh no!" card at the end of a round) and that signal is
-		# global, so both handlers would run for both popups — closing the briefing would have
-		# ended the round it was introducing. _on_game_popup_closed routes on this flag instead.
-		_intro_is_open = true
-		game.show_game_popup(self, "Level %d" % level,
-			"You have %s to protect.\n\nStorm lasts: %s" % [roomsstr, timestr])
+		_release_brief()
 
 	game.play_sound("rain")
 	started_sounds = true
 
-var _intro_is_open: bool = false
+# The real briefing and its Start button, once the board is built and the card has been up at least
+# BRIEF_HOLD_MS. The room count is the board's own, not the plan's.
+func _release_brief() -> void:
+	var brief = _brief
+	# Checked against the clock each frame: a timer is only looked at once a frame and let the hold
+	# end a few milliseconds short.
+	while Time.get_ticks_msec() - _brief_shown_ms < BRIEF_HOLD_MS:
+		await get_tree().process_frame
+	if brief == null or not is_instance_valid(brief) or brief != _brief:
+		return      # a newer round has replaced this card
+	brief.release(_brief_text(rooms.size()))
 
 func _on_closed_intro_popup():
-	_intro_is_open = false
 	game.level_is_ready = true
 	_start_playing()
 
@@ -736,20 +816,21 @@ func close_to_corridor(p:Vector2i, dist:int):
 func dist_to_player(p:Vector2i):
 	return (p - player.board_pos).length()
 
+# furniture_per_room pieces in every room (StormLevelConfig). The kinds are dealt in a shuffled
+# order, going round them again when a room wants more than there are kinds.
 func add_furniture():
-	var flist = furniture.keys()
-	flist.shuffle()
-	while flist.size() > 0:
-		for r in rooms:
-			var f = furniture.get(flist.pop_front(), [])
-			if f.size() > 0:
-				var p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1, 
-					func(x,y): return board[y][x].is_fillable())
-				if p.x >= 0:
-					var cell = board[p.y][p.x]
-					cell.pipe.set_furniture(f[0], f[1], f[2])
-			if flist.is_empty():
-				return
+	var per_room: int = int(_cfg.get("furniture_per_room", 1))
+	var kinds: Array = furniture.keys()
+	kinds.shuffle()
+	var next_kind: int = 0
+	for r in rooms:
+		for _i in per_room:
+			var f = furniture[kinds[next_kind % kinds.size()]]
+			next_kind += 1
+			var p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1,
+				func(x,y): return board[y][x].is_fillable())
+			if p.x >= 0:
+				board[p.y][p.x].pipe.set_furniture(f[0], f[1], f[2])
 
 func add_bricks():
 	var brick0 = game.rng.randi_range(0,2)
@@ -962,7 +1043,8 @@ func tick():
 	if game.game_time - last_time_showed_blackout > next_blackout_duration_s * 1000 and started_sounds:
 		sig_blackout.emit()
 		last_time_showed_blackout = game.game_time
-		next_blackout_duration_s = rng.randf_range(10,20)
+		var dark: Array = _cfg.get("blackout_every_sec", [10, 20])
+		next_blackout_duration_s = rng.randf_range(float(dark[0]), float(dark[1]))
 
 	if !game.level_is_ready:
 		return
@@ -973,9 +1055,7 @@ func tick():
 		last_time_added_leak = now
 	if now - last_major_tick_ms > game.major_tick_time_ms * game.time_scale:
 		last_major_tick_ms = now
-		var po = pct_overflow()
-		if po > 30:
-			level_is_done(false)
+		_check_floods()
 
 	# if all_agents_done():
 	# 	level_is_done(true)
@@ -995,7 +1075,8 @@ func add_leak():
 	# Leaks appearing and leaks overflowing are the two events worth counting: the share that
 	# overflowed says how well the player kept up, in a way the score cannot.
 	game.record_count("leaks_appeared")
-	next_duration_for_leak_ms = game.rng.randf_range(2000, 4000)
+	var every: Array = _cfg.get("leak_every_ms", [2000, 4000])
+	next_duration_for_leak_ms = game.rng.randf_range(float(every[0]), float(every[1]))
 	for i in range(100):
 		var room_id = game.rng.randi_range(0, rooms.size()-1)
 		var r = rooms[room_id]
@@ -1008,19 +1089,21 @@ func add_leak():
 			game.tutorial_notify("leak_started")
 			return
 
-func _on_level_done_popup_closed():
-	sig_level_is_done.emit(true)
-
-# The one global signal reports both of this game's popups. Only the round-result one means the
-# round is over.
-func _on_game_popup_closed():
-	if _intro_is_open:
-		_intro_is_open = false
-		_on_closed_intro_popup()
-		return
+# ONLY OUR OWN CARD MOVES THE GAME ON. The game used to listen to the app-wide "a card closed"
+# signals, which fire for EVERY card -- so with two cards up (see level_is_done's guard), closing
+# the top one started the next round and its "Level N" briefing opened over the card still showing.
+# Each card is now followed through its own `closed` signal.
+func _on_round_card_closed() -> void:
 	sig_level_is_done.emit(last_level_was_a_win)
 
+# A ROUND ENDS ONCE. Nothing used to stop a second call, and there were several ways to make one:
+# the HUD re-sends sig_time_over on every score change once the clock is at zero, and a WON round
+# frees the board and waits a frame before its card goes up -- a countdown tick in that frame ended
+# the round again and put up a second card.
 func level_is_done(didwin: bool):
+	if game.level_is_done:
+		return
+	close_inventory()
 	last_level_was_a_win = didwin
 	game.level_is_done = true
 	game.stop_sound("rain")
@@ -1034,8 +1117,10 @@ func level_is_done(didwin: bool):
 	var stats: Dictionary = count_round_stats()
 	# One fact per line: the card sets them as a table, so the "  |  " and double-space packing
 	# that squeezed five numbers onto two lines is no longer buying anything.
-	var stats_str: String = "\n\nScore: %d\nTime: %d s\nSaved: %d\nLost: %d\nFlooded: %d" % [
-		game.score, int(time_from_start_s), stats["saved"], round_items_lost, stats["flooded"]]
+	var rain: Dictionary = rain_stats()
+	var stats_str: String = "\n\nRain caught: %d%%\nWorst room: %d%% flooded\nScore: %d\nTime: %d s\nSaved: %d\nRuined: %d" % [
+		int(round(float(rain["caught"]) * 100.0)), int(round(float(stats["worst"]) * 100.0)),
+		game.score, int(time_from_start_s), stats["saved"], round_items_lost]
 	if didwin:
 		var score_add: int = min(5, 60 - time_from_start_s)
 		var time_add: int = min(10, 60 - time_from_start_s)
@@ -1043,15 +1128,19 @@ func level_is_done(didwin: bool):
 		game.need_to_increase_level = true
 		if need_to_increase_level():
 			MainGlobals.global_level_is_done(true)
-			game.show_level_done_popup(self, "", "", level)
+			var done_card = game.show_level_done_popup(self, "", "", level)
+			done_card.closed.connect(_on_round_card_closed)
 		else:
 			var cur_round: int = round_in_level + 1
 			reset()
 			await get_tree().process_frame
-			game.show_game_popup(self, "Well done!", "Round %d of Level %d\ncompleted%s" % [cur_round, level, stats_str])
+			var won_card = game.show_game_popup(self, "Well done!", "Round %d of Level %d\ncompleted%s" % [cur_round, level, stats_str])
+			won_card.closed.connect(_on_round_card_closed)
 	else:
 		var cur_round: int = round_in_level + 1
-		game.show_game_popup(self, "Oh no!", "House flooded!\nRound %d of Level %d%s" % [cur_round, level, stats_str])
+		var why: String = "A room flooded!" if _ruined_room >= 0 else "House flooded!"
+		var lost_card = game.show_game_popup(self, "Oh no!", "%s\nRound %d of Level %d%s" % [why, cur_round, level, stats_str])
+		lost_card.closed.connect(_on_round_card_closed)
 
 func need_to_increase_level() -> bool:
 	return round_in_level >= rounds_per_level - 1
@@ -1067,30 +1156,34 @@ func _advance_if_needed() -> void:
 			game.add_life()
 	_apply_level()
 
+# Each tool's capacity, in tile-fulls; how MANY of each is a level setting (StormLevelConfig "tools").
+# Tape holds nothing: it stops the leak. Also the order the tools are dealt and numbered in.
+const TOOL_CAPACITY: Array = [["bucket", 1.0], ["rag", 1.0], ["fix", 0.0], ["cup", 0.55], ["plate", 9.0 / 40.0]]
+# This level's row of StormLevelConfig -- every difficulty setting comes from here.
+var _cfg: Dictionary = {}
+
 func _apply_level() -> void:
 	if game == null:
 		return
-	var s: int = 51 + level * 2
-	num_rooms = min(MAX_POSSIBLE_ROOMS, 0 + level)
-	game.forced_board_size = Vector2i(s, s)
-	player_max_speed_scale = 1.5
-	num_bricks_per_room = 2
-	storm_duration_s = 60.0 * (1.0 + level)
-	# storm_duration_s = 10.0 * (0.0 + level)	# for debug mode
+	_cfg = StormLevelConfig.get_level(level)
+	var board_n: int = int(_cfg["board"])
+	game.forced_board_size = Vector2i(board_n, board_n)
+	num_rooms = mini(MAX_POSSIBLE_ROOMS, int(_cfg["rooms"]))
+	room_min_size = int(_cfg["room_size"][0])
+	room_max_size = int(_cfg["room_size"][1])
+	rounds_per_level = int(_cfg["rounds"])
+	player_max_speed_scale = float(_cfg["player_speed"])
+	num_bricks_per_room = int(_cfg["bricks_per_room"])
+	storm_duration_s = float(_cfg["storm_sec"])
 	game.set_time_left(0, 0, storm_duration_s)
 	available_actions = []
-	var amounts: Array = [
-		["bucket",	min(3, 1 + level), 1.0],
-		["rag",		min(3, 1 + level), 1.0],
-		["fix",		min(3, 1 + level), 0],
-		["cup",		4, 0.55],
-		["plate",	4, 9.0/40.0]
-	]
+	var tools: Dictionary = _cfg["tools"]
 	var id: int = 0
-	for action in amounts:
-		for _n in range(action[1]):
+	for tc in TOOL_CAPACITY:
+		for _n in range(int(tools.get(tc[0], 0))):
 			id += 1
-			available_actions.append(CAction.new(action[0], id, 0, action[2]))
+			available_actions.append(CAction.new(tc[0], id, 0, tc[1]))
+	_fill_rate = float(_cfg["fill_rate"])
 	game.init_sizes()
 
 func add_player_at(p: Vector2i, direction: int):
@@ -1138,18 +1231,152 @@ func on_player_remove_player(_arrived: bool):
 	# 	player_cam = null
 	# level_is_done(arrived)
 
+# The water on the floor, drawn once for the whole board (see flood_layer.gd). Added after every
+# tile so that, at the same z as the tiles' floors, it draws over them by tree order.
+var _flood: StormFloodLayer = null
+
+func _add_flood_layer() -> void:
+	if _flood != null and is_instance_valid(_flood):
+		_flood.queue_free()
+	_flood = StormFloodLayer.new()
+	add_child(_flood)
+	var top_left: Vector2 = game.board_to_px(Vector2i.ZERO) - Vector2.ONE * float(game.tile_size) * 0.5
+	_flood.setup(self, board, game.board_size, float(game.tile_size), top_left)
+
+# EVERY LEAK MAKES ITS OWN PUDDLE: A CIRCLE THAT KEEPS GROWING. Its area is the water that leak has
+# poured onto the floor (pipe.floored_total -- everything it dripped with no tool under it, or with a
+# full one) spread PUDDLE_DEPTH deep, so the radius grows as the square root of time: endlessly, and
+# slower and slower as the same trickle has more floor to cover. A tool or tape under the leak stops
+# its circle growing. Puddles do not interact: where two meet they simply overlap. A puddle stays in
+# its own room, and walls, bricks, drains and doors cut it at their tile edges.
+#
+# This replaced a simulation of water flowing between tiles (spill from full tiles, then leveling,
+# then diagonal flow to stop it growing as a "+"). It was built one fix at a time and never did the
+# one thing wanted: a leak left alone spread to about a 3x3 block and stopped, because water only
+# moved while a tile held more than a film of it.
+const PUDDLE_DEPTH: float = 0.3     # a tile-full of water covers 1 / PUDDLE_DEPTH tiles of floor
+# A tile's floor counts as covered by how many of four sample points in it lie in its room's puddles.
+const _SAMPLES: Array = [Vector2(0.25, 0.25), Vector2(0.75, 0.25), Vector2(0.25, 0.75), Vector2(0.75, 0.75)]
+# Furniture is ruined when this much of its tile is under water: a leak can start right on a rug, and
+# that must leave time to get a tool under it (about 12 s at level 1's rate).
+const FURNITURE_RUIN: float = 0.75
+# Water a leak must have put on the floor before it counts as "reached the floor" in the stats.
+const PUDDLE_SEEN: float = 0.02
+
+# Every puddle: {center (tiles), r (tiles), room, drip}. The one source for the drawing and the
+# rules alike, so what counts is exactly what is shown.
+func puddles() -> Array:
+	var out: Array = []
+	for p in pipes:
+		if p == null or not is_instance_valid(p) or not p.water_active or p.floored_total <= 0.0:
+			continue
+		var bp: Vector2i = p.board_pos
+		var r: float = sqrt(p.floored_total / PUDDLE_DEPTH / PI)
+		out.append({"center": Vector2(bp) + Vector2(0.5, 0.5) + p.drip_offset(), "r": r,
+			"room": int(board[bp.y][bp.x].room_id), "drip": p.is_dripping()})
+	return out
+
+# Floor water can lie on: a tile of a room with nothing standing on it -- not a wall, a brick or a
+# drain. A DOORWAY IS FLOOR. Its door is drawn hidden, so the tile looks like any other, and leaving it
+# out left one dry tile at the mouth of every corridor. Corridors belong to no room, so a room's
+# water still never runs out into one.
+func _is_floor(cell) -> bool:
+	return cell.ispipe and cell.pipe != null and cell.pipe.can_fill()
+
+# How much of one floor tile the puddles in its own room cover, 0..1.
+func tile_coverage(x: int, y: int, pds: Array) -> float:
+	var cell = board[y][x]
+	if not _is_floor(cell):
+		return 0.0
+	var room: int = int(cell.room_id)
+	var hit: int = 0
+	for sp: Vector2 in _SAMPLES:
+		var pt: Vector2 = Vector2(x, y) + sp
+		for pd: Dictionary in pds:
+			if int(pd["room"]) == room and pt.distance_to(pd["center"]) < float(pd["r"]):
+				hit += 1
+				break
+	return float(hit) / float(_SAMPLES.size())
+
 func on_time_over():
+	# Before the board exists, or once the round is over, "time over" means nothing here.
+	if game.level_is_done or not game.level_is_ready:
+		return
+	# Through the storm without a ruined room: _check_floods() would already have ended it.
 	level_is_done(true)
+
+# How much of each room's floor is covered, 0..1, indexed like `rooms`. A tile counts once it
+# holds FILM of water, and in part below that -- the same measure the water is drawn by. Walls,
+# bricks, drains and doors are not floor and do not count either way.
+func room_flood() -> Array:
+	var pds: Array = puddles()
+	var out: Array = []
+	for i in rooms.size():
+		var r: Rect2i = rooms[i]
+		var covered: float = 0.0
+		var n: int = 0
+		for row in range(r.position.y, r.end.y):
+			for col in range(r.position.x, r.end.x):
+				if not _is_floor(board[row][col]):
+					continue
+				n += 1
+				covered += tile_coverage(col, row, pds)
+		out.append(covered / float(n) if n > 0 else 0.0)
+	return out
+
+# Furniture under water, and rooms past room_ruin(). Run every major tick while the round is live.
+func _check_floods() -> void:
+	var pds: Array = puddles()
+	for p in pipes:
+		if p == null or not is_instance_valid(p):
+			continue
+		# "Water reached the floor" in the stats: once per leak, when its puddle first shows.
+		if p.water_active and not p.counted_on_floor and p.floored_total >= PUDDLE_SEEN:
+			p.counted_on_floor = true
+			game.record_count("overflows")
+		if p.furniture_value > 0 and not p.furniture_ruined \
+				and tile_coverage(p.board_pos.x, p.board_pos.y, pds) >= FURNITURE_RUIN:
+			p.ruin_furniture()
+			round_items_lost += 1
+			game.record_count("items_ruined")
+			game.add_score_and_time(-p.furniture_value, 0)
+	var shares: Array = room_flood()
+	room_shares = shares
+	for i in shares.size():
+		if float(shares[i]) >= room_ruin():
+			_ruined_room = i
+			level_is_done(false)
+			return
+
+# The share of a room's floor under water that ruins it, 0..1: this level's `room_ruin`.
+func room_ruin() -> float:
+	return float(_cfg.get("room_ruin", 0.4))
+
+# The most flooded room's share, 0..1 -- the number that decides the round, shown in the HUD.
+func worst_room_share() -> float:
+	var worst: float = 0.0
+	for sh in room_shares:
+		worst = maxf(worst, float(sh))
+	return worst
+
+# caught: the share of all leaked water that did not reach the floor (a statistic, on the round
+# card; it no longer decides anything).
+func rain_stats() -> Dictionary:
+	var leaks: Array = []
+	var total: float = 0.0
+	var floored: float = 0.0
+	for p in pipes:
+		if p == null or not is_instance_valid(p) or not p.water_active:
+			continue
+		leaks.append(p)
+		total += p.leaked_total
+		floored += p.floored_total
+	if total <= 1e-9:
+		return {"caught": 1.0, "leaks": 0}
+	return {"caught": 1.0 - floored / total, "leaks": leaks.size()}
 
 func on_lives_depleted():
 	pass
-
-func _on_pipe_leak_overflow(_pipe):
-	game.record_count("overflows")
-	var val = _pipe.furniture_value if _pipe.furniture_value > 0 else 2
-	if _pipe.furniture_value > 0:
-		round_items_lost += 1
-	game.add_score_and_time(-val,0)
 
 var popup:PopupPanel = null
 
@@ -1334,7 +1561,8 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 		if i < n:
 			var action = actions_to_use[i]
 			var action_texture = action_textures.get(action.name, [])
-			var swatch = panel.init(box_w, sep, swatch_color, action.name.to_upper()[0], "", action_texture, action.level)
+			var swatch = panel.init(box_w, sep, swatch_color, action.name.to_upper()[0], "", action_texture, action.level,
+				action.name, action.level / action.overflow_level if action.overflow_level > 1e-3 else 0.0)
 			swatch.set_meta("target_pos", _board_pos)
 			swatch.set_meta("action_id", action.id)
 			swatch.gui_input.connect(_on_action_pressed.bind(swatch))
@@ -1415,39 +1643,37 @@ func _close_popup():
 	popup.queue_free()
 	popup = null
 
-func count_round_stats() -> Dictionary:
-	var flooded: int = 0
-	var saved: int = 0
-	for r in rooms:
-		for row in range(r.position.y, r.end.y):
-			for col in range(r.position.x, r.end.x):
-				var p = board[row][col].pipe
-				if p.water_overflowed:
-					flooded += 1
-				elif p.furniture_value > 0:
-					saved += 1
-	return {"flooded": flooded, "saved": saved}
+# THE INVENTORY CLOSES WHENEVER SOMETHING ELSE TAKES OVER. It is a PopupPanel -- a separate window
+# drawn above everything -- so nothing that happens around it hides it: it stayed open on top of
+# "Oh no!", the level summary and the next round. Closed on any card (game.sig_card_shown), at the end
+# of a round, on a new board, when the level is hidden, when help opens, and on the app's
+# sig_need_to_close_info_popups. Safe to call with nothing open.
+func close_inventory() -> void:
+	if popup != null and is_instance_valid(popup):
+		_close_popup()
+	popup = null
 
-func pct_overflow():
-	var n_overflow:int = 0
-	var n_total:int = 0
-	for r in rooms:
-		n_total += r.get_area()
-		for row in range(r.position.y, r.end.y):
-			for col in range(r.position.x, r.end.x):
-				if board[row][col].pipe.water_overflowed:
-					n_overflow += 1
-	return 100.0 * n_overflow / n_total
+# saved: furniture still dry. worst: the most flooded room's share, 0..1.
+func count_round_stats() -> Dictionary:
+	var saved: int = 0
+	for p in pipes:
+		if p != null and is_instance_valid(p) and p.furniture_value > 0 and not p.furniture_ruined:
+			saved += 1
+	var worst: float = 0.0
+	for sh in room_flood():
+		worst = maxf(worst, float(sh))
+	return {"saved": saved, "worst": worst}
 
 func add_drains():
+	var per_room: int = int(_cfg.get("drains_per_room", 1))
 	for r in rooms:
-		var p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1, 
-			func(x,y): return board[y][x].is_fillable())
-
-		if p.x >= 0:
-			var cell = board[p.y][p.x]
-			cell.action = CAction.new("drain",-1)
-			cell.pipe.set_action("drain", action_textures["drain"], 0, 0)
+		for _i in per_room:
+			var p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1,
+				func(x,y): return board[y][x].is_fillable())
+			if p.x >= 0:
+				var cell = board[p.y][p.x]
+				cell.action = CAction.new("drain",-1)
+				cell.pipe.set_action("drain", action_textures["drain"], 0, 0)
 		
 func _on_path_drawn(_path: Array[Vector2i]) -> void: 
 	var path = game.get_player_path(player, _path, 9, Callable(self, "calc_cost_to_move_player_to"))

@@ -10,7 +10,14 @@ extends CanvasLayer
 # title: a briefing gets the cool panel and "Start", a win the gold panel and a check, a loss the
 # warm one.
 
+# THIS card closed. MainGlobals.sig_game_popup_closed says only that SOME card closed, which a game
+# with more than one card up cannot tell apart -- Storm started a new round on the wrong one.
+signal closed
+
 var _closing: bool = false
+# HELD: the card is up but not ready -- see hold().
+var _held: bool = false
+var _hold_label: Label = null
 var _parts: Dictionary = {}
 var _accent: Color = ResultCard.ACCENT
 
@@ -33,8 +40,56 @@ func set_text(text) -> void:
 		_parts = ResultCard.build(self, _accent, false, "Start", close_window)
 	ResultCard.set_body(_parts, str(text), _accent)
 
+# HOLD THE CARD while the game gets ready behind it. The body -- already set to the real text, so the
+# card is laid out at its final size -- is hidden and `message` shown in its place, and the button is
+# hidden and takes no clicks. Nothing closes a held card: not its button, not a tap outside it, not Enter or
+# Escape, not sig_need_to_close_info_popups. release() shows the real body and the button.
+# Storm uses it for "Building world" while its board is built; the text given to set_text() before
+# hold() must have the same number of lines as the text given to release(), so nothing moves.
+func hold(message: String) -> void:
+	if _parts.is_empty():
+		return
+	_held = true
+	var rows: Control = _parts["rows"]
+	rows.modulate.a = 0.0
+	var foot: Control = _parts["foot"]
+	foot.modulate.a = 0.0
+	# Not disabled: a disabled button is drawn in another style, 20 px shorter, and the card shrank by
+	# that much and grew back on release. It only stops taking the mouse; close_window() refuses a
+	# held card anyway.
+	for b in foot.find_children("*", "Button", true, false):
+		(b as Button).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hold_label = Label.new()
+	_hold_label.text = message
+	_hold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hold_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_hold_label.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(_hold_label, 22)
+	_hold_label.add_theme_color_override("font_color", _accent)
+	_hold_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Over the body, in the same box: the body's parent is a MarginContainer, which stacks its
+	# children, so the message sits exactly where the text will be.
+	rows.get_parent().add_child(_hold_label)
+
+func release(text: String) -> void:
+	if _parts.is_empty():
+		return
+	set_text(text)
+	if _hold_label != null and is_instance_valid(_hold_label):
+		_hold_label.queue_free()
+	_hold_label = null
+	(_parts["rows"] as Control).modulate.a = 1.0
+	var foot: Control = _parts["foot"]
+	foot.modulate.a = 1.0
+	for b in foot.find_children("*", "Button", true, false):
+		(b as Button).mouse_filter = Control.MOUSE_FILTER_STOP
+	_held = false
+
+func is_held() -> bool:
+	return _held
+
 func close_window() -> void:
-	if _closing:
+	if _closing or _held:
 		return
 	_closing = true
 	MainGlobals.set_visible("game_popup", false)
@@ -44,6 +99,7 @@ func close_window() -> void:
 
 func _close_async() -> void:
 	await get_tree().process_frame
+	closed.emit()
 	MainGlobals.global_game_popup_closed()
 	queue_free()
 

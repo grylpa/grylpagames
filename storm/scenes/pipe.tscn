@@ -11,15 +11,8 @@
 [ext_resource type="Texture2D" uid="uid://dnu7v71l3v8o5" path="res://art/bricks1.png" id="9_reag7"]
 [ext_resource type="Texture2D" uid="uid://dvaicsad2km00" path="res://art/bricks2.png" id="10_lopfo"]
 [ext_resource type="Texture2D" uid="uid://diqsuilxa2q8v" path="res://art/bricks3.png" id="11_asyhq"]
-[ext_resource type="Shader" uid="uid://cjrk2r28etb2c" path="res://storm/scenes/water.gdshader" id="12_pfumq"]
 [ext_resource type="Shader" uid="uid://sp6fh1wyxs28" path="res://storm/scenes/bucket_fill.gdshader" id="12_u50f2"]
 [ext_resource type="Texture2D" uid="uid://dj67tig0uutie" path="res://art/coin.png" id="12_yx5kt"]
-[ext_resource type="Texture2D" uid="uid://fso4xmpioj4a" path="res://storm/art/rect_water_white.png" id="13_pfumq"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_pfumq"]
-shader = ExtResource("12_pfumq")
-shader_parameter/fill_amount = 0.0
-shader_parameter/water_color = Color(0.15, 0.45, 0.95, 0.85)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_8423h"]
 size = Vector2(40, 40)
@@ -77,13 +70,6 @@ texture = ExtResource("10_lopfo")
 [node name="PipeBrick3" type="Sprite2D" parent="." unique_id=208096346]
 visible = false
 texture = ExtResource("11_asyhq")
-
-[node name="Water" type="Sprite2D" parent="." unique_id=1848079571]
-unique_name_in_owner = true
-visible = false
-material = SubResource("ShaderMaterial_pfumq")
-texture = ExtResource("13_pfumq")
-region_rect = Rect2(0, 0, 40, 40)
 
 [node name="Furniture" type="Sprite2D" parent="." unique_id=538247548]
 visible = false

@@ -16,7 +16,7 @@ extends Node2D
 # awaited events can be checked against it: a step waiting on an event nothing emits is not a
 # broken caption, it is a dead end the player cannot get out of except by the timeout.
 const TUTORIAL_EVENTS: Array = ["menu_opened", "tip_shown", "obstacle_placed", "bait_placed",
-	"obstacle_removed", "bait_taken", "crumb_through", "sprayed"]
+	"obstacle_removed", "bait_taken", "crumb_through", "sprayed", "erased"]
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing
@@ -70,6 +70,18 @@ var obstacles: Array[AntObstacle] = []
 var spray: Repellent = Repellent.new()
 var spray_left: int = 0
 var spray_presses_total: int = 0
+# The eraser. The only tool that takes something AWAY: every other one adds a thing to the ground,
+# and this removes the scent the ants follow, inside ERASE_R of where the menu was opened -- and the
+# rubbed ground then STAYS CLEAN for CLEAN_SEC: nothing laid on it sticks. Without that it did
+# nothing measurable. A laden ant walks home by its own reckoning, not by scent, and lays scent as it
+# goes, so the first one through re-laid the gap: every road, young or busy, was back in 2-7 s and
+# deliveries did not move (see devtools/measure_eraser.gd and the design doc).
+var eraser_left: int = 0
+var erasers_total: int = 0
+# The rubs still clean: {"pos", "t"} on _clock. Drawn as a pale patch for as long as it lasts, fading
+# out over its last seconds -- a gap in a scatter of dots is not something the eye can confirm on its
+# own, and the player needs to see when the ground will start taking scent again.
+var erasures: Array = []
 # What the player is still holding, by AntObstacle.Kind. A budget for the level, not a rate:
 # placing one spends it and picking it up again puts it back.
 var stock: Dictionary = {}
@@ -126,6 +138,11 @@ const TAP_SLOP: float = 14.0          # screen px of movement that turns a tap i
 # menu at the very spot the player was trying to dismiss to.
 const TAP_DEADTIME: float = 0.35
 const SPRAY_PICK: int = -2            # the menu's code for "the can", not an AntObstacle.Kind
+const ERASER_PICK: int = -3           # and for the eraser
+# How much one rub wipes: a disc about twice as wide as a formed road, so a single rub across one
+# cuts it rather than thinning it.
+const ERASE_R: float = 44.0
+const CLEAN_SEC: float = 9.0
 
 # The colony's tally, and the player's. `delivered` is what got home; the score on the HUD is the
 # allowance minus that, so it reads as "how much more can I afford to let past".
@@ -181,6 +198,8 @@ func _ready() -> void:
 		if not visible:
 			_close_menu())
 	MainGlobals.sig_need_to_close_info_popups.connect(_close_menu)
+	# Any card going up over the game (a round result, the level summary, the instructions).
+	game.sig_card_shown.connect(_close_menu)
 	_bg = Node2D.new()
 	_trail_layer = Node2D.new()
 	_fg = Node2D.new()
@@ -194,6 +213,9 @@ func _ready() -> void:
 	_fg.draw.connect(_draw_fg)
 
 func new_game(_from_scratch: bool = true) -> void:
+	# A menu left open across rounds would still offer the last level's stock, at the last level's
+	# spot, over a world that no longer has either.
+	_close_menu()
 	current_level_id = AntsG.starting_level_id
 	var cfg: Dictionary = AntsLevelConfig.get_level(current_level_id)
 	_art_seed = randi()
@@ -203,6 +225,9 @@ func new_game(_from_scratch: bool = true) -> void:
 	spray.clear()
 	spray_left = int(cfg.get("spray_presses", 0))
 	spray_presses_total = spray_left
+	eraser_left = int(cfg.get("erasers", 0))
+	erasers_total = eraser_left
+	erasures.clear()
 	# One place decides how large an ant is on this device, and the two distances measured against
 	# its body follow from it.
 	Ant.draw_scale = AntsG.creature_scale
@@ -304,7 +329,8 @@ func tutorial_menu_cell(i: int):
 
 # The cell for ONE named tool, so a step that talks about bait can point at the bait rather than at
 # the ring. Asked by kind, never by slot: which boxes exist depends on what the player has left.
-# AntObstacle.Kind.* for a tool, SPRAY_PICK for the can, -1 for the red cross.
+# AntObstacle.Kind.* for a tool, SPRAY_PICK for the can, ERASER_PICK for the eraser, -1 for the
+# red cross.
 func tutorial_menu_cell_of(kind: int):
 	if not _menu_open() or not _menu.has_meta("cell_kinds"):
 		return null
@@ -627,6 +653,24 @@ func sim_step(dt: float) -> void:
 		for c: AntColony in colonies:
 			c.marks.evaporate(EVAPORATE_DECAY)
 		spray.fade()
+	_age_rubs()
+
+# Drops the rubs that have worn off, and tells the scent stores which ground is still clean.
+func _age_rubs() -> void:
+	var before: int = erasures.size()
+	for k in range(erasures.size() - 1, -1, -1):
+		if _clock - float(erasures[k]["t"]) >= CLEAN_SEC:
+			erasures.remove_at(k)
+	if erasures.size() != before:
+		_push_clean_zones()
+
+func _push_clean_zones() -> void:
+	var zones: Array = []
+	for e: Dictionary in erasures:
+		var p: Vector2 = e["pos"]
+		zones.append(Vector3(p.x, p.y, ERASE_R))
+	for c: AntColony in colonies:
+		c.marks.clean_zones = zones
 
 # Nothing may be left standing inside a stone. The antennae (see Ant._edge_turn) keep an ant from
 # walking in, but a shallow clip is always possible, so this is the backstop. Rate-limited like
@@ -698,8 +742,7 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 				c.killed += 1
 				# Where it died and which way it faced -- it is drawn as an ordinary ant in red.
 				corpses.append({"pos": a.pos, "heading": a.heading})
-				if game.playing:
-					game.add_score_and_time(-KILL_PENALTY, 0, true)
+				_charge(KILL_PENALTY)
 			else:
 				survivors.append(a)
 		c.ants = survivors
@@ -818,6 +861,23 @@ func use_spray(at: Vector2) -> bool:
 		_answer_roads(at)
 	spray.spray(at)
 	game.tutorial_notify("sprayed")
+	_redraw_all()
+	return true
+
+# One rub, at a point: every colony's scent inside ERASE_R is gone. Returns false when the eraser
+# is used up. The spray is left alone -- the two tools do opposite things and should stay apart.
+func use_eraser(at: Vector2) -> bool:
+	if eraser_left <= 0 or not walkable.has_point(at):
+		return false
+	eraser_left -= 1
+	if game.playing:
+		_answer_roads(at)
+	var r2: float = ERASE_R * ERASE_R
+	for c: AntColony in colonies:
+		c.marks.erase_if(func(p: Vector2) -> bool: return p.distance_squared_to(at) <= r2)
+	erasures.append({"pos": at, "t": _clock})
+	_push_clean_zones()
+	game.tutorial_notify("erased")
 	_redraw_all()
 	return true
 
@@ -990,14 +1050,24 @@ func _resolve_sites() -> void:
 				crumbs_through += 1
 				game.tutorial_notify("crumb_through")
 				# Down, not up: the score IS the allowance, and this eats it. At zero the colony has
-				# had what it came for and game_over_on_zero_score ends the round -- after which the
-				# colony may go on eating but the player is no longer being charged for it.
-				if game.playing:
-					game.add_score_and_time(-1, 0, true)
+				# had what it came for and the round is lost -- after which the colony may go on
+				# eating but the player is no longer being charged for it.
+				_charge(1)
 	if _is_finished():
 		# Every crumb in the world is in the nest. The colony has taken the lot, which is the
 		# player's loss however much allowance happens to be left.
 		_running = false
+		sig_level_is_done.emit(false)
+
+# Takes `amount` off the allowance, and ends the round as lost when it is gone. The round end is
+# reported to main.gd like any other, NOT through game_over_on_zero_score: that ends the round via
+# game_is_done, which is the shared whole-game-over path, and the HUD answers it with its
+# "Game Over" banner and "Restart Game" button behind the level card.
+func _charge(amount: int) -> void:
+	if not game.playing:
+		return
+	game.add_score_and_time(-amount, 0, true)
+	if game.score <= 0:
 		sig_level_is_done.emit(false)
 
 func _is_finished() -> bool:
@@ -1137,6 +1207,10 @@ func _end_press() -> void:
 func _screen_to_world(at: Vector2) -> Vector2:
 	return get_viewport().get_canvas_transform().affine_inverse() * at
 
+# The round is over. The level keeps running behind the card, but the player is done with it.
+func close_tool_menu() -> void:
+	_close_menu()
+
 func _close_menu() -> void:
 	if _menu != null and is_instance_valid(_menu):
 		# Told it is over BEFORE it is freed. queue_free defers the teardown to the end of the
@@ -1164,6 +1238,8 @@ func _open_obstacle_menu(screen_at: Vector2, world_at: Vector2) -> void:
 				# mode" was tried and thrown away: it had no way out, and a tool you cannot put
 				# down needs a real inventory to live in, not a popup.
 				use_spray(here)
+			elif kind == ERASER_PICK:
+				use_eraser(here)
 			else:
 				place_obstacle(kind, here),
 		obstacle_at(world_at), self,
@@ -1203,6 +1279,10 @@ func _draw_trail() -> void:
 	for c: AntColony in colonies:
 		AntsArt.draw_marks(_trail_layer, c.marks.marks_in(vis), _zoom)
 	AntsArt.draw_spray(_trail_layer, spray.marks_in(vis), _zoom)
+	for e: Dictionary in erasures:
+		var age: float = _clock - float(e["t"])
+		AntsArt.draw_rub(_trail_layer, e["pos"], ERASE_R, clampf((CLEAN_SEC - age) / 2.0, 0.0, 1.0),
+			age < 1.0)
 
 
 func _draw_fg() -> void:
