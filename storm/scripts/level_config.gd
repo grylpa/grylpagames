@@ -12,6 +12,9 @@ class_name StormLevelConfig
 # room_ruin           the share of a room's floor under water that ruins it -- and one ruined room
 #                     loses the round (was a fixed 0.4). The HUD's "Worst: N%" warms toward red as the
 #                     worst room nears it.
+# arrow_ms            how long the blue arrow toward a new leak out of view stays up, in ms; negative:
+#                     until the leak is on screen or caught. A newer leak out of view replaces it either
+#                     way (StormLeakArrows). Multi-room levels only.
 # rooms               rooms on the board (was min(12, level))
 # board               the board is board x board tiles (was 51 + 2 * level)
 # room_size           [min, max] side of a room, in tiles, before it is made odd (was 9..12 for all)
@@ -25,57 +28,70 @@ class_name StormLevelConfig
 # tools               how many of each tool the player is dealt (bucket / rag / fix were
 #                     min(3, 1 + level); cup and plate were 4)
 # player_speed        how fast the player walks (was 1.5)
+# corridor_run        how many times faster than that the player runs along a corridor, where there
+#                     is nothing to do (level._set_player_pace())
 # blackout_every_sec  [min, max] seconds between blackouts (was 10..20)
 
+# SET FROM MEASUREMENT (devtools/measure_storm.gd: a bot playing like a person, 2026-09-25; see
+# docs/design.md, "Tuning with a bot"). The shape of the ladder, decided on the way:
+#  * rooms are lost at 40% on every level -- difficulty never comes from a more forgiving flood line;
+#  * the storm grows by a minute a level up to 5 minutes and stops there: with a fixed set of tools, a
+#    longer storm only meant every leak after the first few minutes poured freely, and from level 6 up
+#    nothing was winnable at any leak rate tried;
+#  * no more than 9 rooms: levels 9-12 all have 9 on the same 75 x 75 board, and grow harder by
+#    leaks and fill rate alone;
+#  * from level 6 up the player is dealt 3 more tools per room past two (a bucket, a towel and a cup),
+#    so a leak in any room can be covered; levels 1-5 were measured, and play, with the base set. The
+#    tool menu shows at most 24 at a time.
 const LEVELS: Array = [
-	{"level": 1, "rounds": 3, "fill_rate": 9.0, "room_ruin": 0.4, "rooms": 1, "board": 53, "room_size": [9, 12],
-		"storm_sec": 120, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
+	{"level": 1, "rounds": 3, "fill_rate": 1.5, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 1, "board": 53, "room_size": [9, 12],
+		"storm_sec": 120, "leak_every_ms": [4000, 8000], "bricks_per_room": 2, "drains_per_room": 1,
 		"furniture_per_room": 3, "tools": {"bucket": 2, "rag": 2, "fix": 2, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 2, "rounds": 3, "fill_rate": 2.1, "room_ruin": 0.4, "rooms": 2, "board": 55, "room_size": [9, 12],
-		"storm_sec": 180, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 2, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 2, "board": 55, "room_size": [9, 12],
+		"storm_sec": 180, "leak_every_ms": [4000, 8000], "bricks_per_room": 2, "drains_per_room": 1,
 		"furniture_per_room": 2, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 3, "rounds": 3, "fill_rate": 2.3, "room_ruin": 0.4, "rooms": 3, "board": 57, "room_size": [9, 12],
-		"storm_sec": 240, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 3, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 3, "board": 57, "room_size": [9, 12],
+		"storm_sec": 240, "leak_every_ms": [4000, 8000], "bricks_per_room": 2, "drains_per_room": 1,
 		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 4, "rounds": 3, "fill_rate": 2.4, "room_ruin": 0.4, "rooms": 4, "board": 59, "room_size": [9, 12],
-		"storm_sec": 300, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 4, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 4, "board": 59, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [5000, 10000], "bricks_per_room": 2, "drains_per_room": 1,
 		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 5, "rounds": 3, "fill_rate": 2.5, "room_ruin": 0.4, "rooms": 5, "board": 61, "room_size": [9, 12],
-		"storm_sec": 360, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 5, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 5, "board": 61, "room_size": [9, 12],
+		"storm_sec": 360, "leak_every_ms": [8000, 16000], "bricks_per_room": 2, "drains_per_room": 1,
 		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 6, "rounds": 3, "fill_rate": 2.7, "room_ruin": 0.4, "rooms": 6, "board": 63, "room_size": [9, 12],
-		"storm_sec": 420, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
-		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 7, "rounds": 3, "fill_rate": 2.8, "room_ruin": 0.4, "rooms": 7, "board": 65, "room_size": [9, 12],
-		"storm_sec": 480, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
-		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 8, "rounds": 3, "fill_rate": 2.9, "room_ruin": 0.4, "rooms": 8, "board": 67, "room_size": [9, 12],
-		"storm_sec": 540, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
-		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 9, "rounds": 3, "fill_rate": 3.0, "room_ruin": 0.4, "rooms": 9, "board": 69, "room_size": [9, 12],
-		"storm_sec": 600, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
-		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 10, "rounds": 3, "fill_rate": 3.2, "room_ruin": 0.4, "rooms": 10, "board": 71, "room_size": [9, 12],
-		"storm_sec": 660, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
-		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 11, "rounds": 3, "fill_rate": 3.3, "room_ruin": 0.4, "rooms": 11, "board": 73, "room_size": [9, 12],
-		"storm_sec": 720, "leak_every_ms": [2000, 4000], "bricks_per_room": 2, "drains_per_room": 1,
-		"furniture_per_room": 1, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
-	{"level": 12, "rounds": 3, "fill_rate": 23.5, "room_ruin": 0.8, "rooms": 12, "board": 75, "room_size": [9, 12],
-		"storm_sec": 780, "leak_every_ms": [200, 400], "bricks_per_room": 5, "drains_per_room": 2,
-		"furniture_per_room": 4, "tools": {"bucket": 3, "rag": 3, "fix": 3, "cup": 4, "plate": 4},
-		"player_speed": 1.5, "blackout_every_sec": [10, 20]},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 6, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 6, "board": 63, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [6000, 12000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 7, "rag": 7, "fix": 3, "cup": 8, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 7, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 7, "board": 65, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [5000, 10000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 8, "rag": 8, "fix": 3, "cup": 9, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 8, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 8, "board": 67, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [5000, 10000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 9, "rag": 9, "fix": 3, "cup": 10, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 9, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 9, "board": 75, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [5000, 10000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 10, "rag": 10, "fix": 3, "cup": 11, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 10, "rounds": 3, "fill_rate": 1.0, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 9, "board": 75, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [4000, 8000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 10, "rag": 10, "fix": 3, "cup": 11, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 11, "rounds": 3, "fill_rate": 1.5, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 9, "board": 75, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [6000, 12000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 10, "rag": 10, "fix": 3, "cup": 11, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
+	{"level": 12, "rounds": 3, "fill_rate": 1.5, "room_ruin": 0.4, "arrow_ms": 1000, "rooms": 9, "board": 75, "room_size": [9, 12],
+		"storm_sec": 300, "leak_every_ms": [5000, 10000], "bricks_per_room": 2, "drains_per_room": 1,
+		"furniture_per_room": 1, "tools": {"bucket": 10, "rag": 10, "fix": 3, "cup": 11, "plate": 4},
+		"player_speed": 1.5, "corridor_run": 2.0, "blackout_every_sec": [10, 20]},
 ]
 
 # The row for a level, holding at the last row for any level past the end of the table (the game

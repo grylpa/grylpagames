@@ -18,6 +18,7 @@ var _closing: bool = false
 # HELD: the card is up but not ready -- see hold().
 var _held: bool = false
 var _hold_label: Label = null
+var _scrim_color: Color = Color.TRANSPARENT
 var _parts: Dictionary = {}
 var _accent: Color = ResultCard.ACCENT
 
@@ -40,16 +41,24 @@ func set_text(text) -> void:
 		_parts = ResultCard.build(self, _accent, false, "Start", close_window)
 	ResultCard.set_body(_parts, str(text), _accent)
 
-# HOLD THE CARD while the game gets ready behind it. The body -- already set to the real text, so the
-# card is laid out at its final size -- is hidden and `message` shown in its place, and the button is
+# HOLD THE CARD while the game gets ready behind it. The background is made opaque (unless `opaque`
+# is false: then it keeps its usual dimming, and what is being made shows through), the body --
+# already set to the real text, so the card is laid out at its final size -- is hidden and `message`
+# shown in its place, and the button is
 # hidden and takes no clicks. Nothing closes a held card: not its button, not a tap outside it, not Enter or
 # Escape, not sig_need_to_close_info_popups. release() shows the real body and the button.
 # Storm uses it for "Building world" while its board is built; the text given to set_text() before
 # hold() must have the same number of lines as the text given to release(), so nothing moves.
-func hold(message: String) -> void:
+func hold(message: String, opaque: bool = true) -> void:
 	if _parts.is_empty():
 		return
 	_held = true
+	# An OPAQUE background by default: what is behind is not ready yet. Storm passes false -- its board
+	# is built a slice at a time in the view it will be shown in, so watching it go up is the point.
+	var scrim: ColorRect = _scrim()
+	if scrim != null and opaque:
+		_scrim_color = scrim.color
+		scrim.color = Color(0.043, 0.055, 0.086, 1.0)
 	var rows: Control = _parts["rows"]
 	rows.modulate.a = 0.0
 	var foot: Control = _parts["foot"]
@@ -75,6 +84,10 @@ func release(text: String) -> void:
 	if _parts.is_empty():
 		return
 	set_text(text)
+	var scrim: ColorRect = _scrim()
+	if scrim != null and _scrim_color.a > 0.0:
+		scrim.color = _scrim_color
+	_scrim_color = Color.TRANSPARENT
 	if _hold_label != null and is_instance_valid(_hold_label):
 		_hold_label.queue_free()
 	_hold_label = null
@@ -87,6 +100,13 @@ func release(text: String) -> void:
 
 func is_held() -> bool:
 	return _held
+
+# The dimming layer ResultCard puts first under the card (ResultCard._shell).
+func _scrim() -> ColorRect:
+	for ch in get_children():
+		if ch is ColorRect:
+			return ch
+	return null
 
 func close_window() -> void:
 	if _closing or _held:

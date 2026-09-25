@@ -141,6 +141,10 @@ func _ready() -> void:
 	game = StormG.game
 	game.sig_time_over.connect(on_time_over)
 	game.sig_card_shown.connect(close_inventory)
+	# Blue arrows at the screen's edge toward new leaks out of view (multi-room levels).
+	_arrows = StormLeakArrows.new()
+	add_child(_arrows)
+	visibility_changed.connect(func() -> void: _arrows.visible = visible)
 	MainGlobals.sig_need_to_close_info_popups.connect(close_inventory)
 	visibility_changed.connect(func() -> void:
 		if not visible:
@@ -169,6 +173,9 @@ func _ready() -> void:
 	
 func reset():
 	close_inventory()
+	if _arrows != null:
+		_arrows.clear()
+	_preview_round += 1      # any countdown still running belongs to a round that is gone
 	# Every one of these is a baseline in game_time, and game_time RESTARTS at zero on each round
 	# (main.gd -> game.reset() -> _game_start_ms = now). Carried over from the round before, they
 	# sit far in the future: "now - last_time_added_leak" stays negative for the whole round, so
@@ -211,7 +218,8 @@ func reset():
 
 # THE BRIEFING GOES UP AT ONCE, HELD, WHILE THE BOARD IS BUILT BEHIND IT. It shows only "Building
 # world" and no Start button (game_popup.hold()), laid out at its final size with the real text hidden
-# underneath, so nothing moves when the text comes in. When the board is ready -- and at least
+# underneath, so nothing moves when the text comes in. The card keeps its usual dim background, not an
+# opaque one: the mansion goes up behind it, room by room (see _frame_build()). When the board is ready -- and at least
 # BRIEF_HOLD_MS after the card went up, so the hold never flickers past as a glitch -- the real text,
 # with the rooms the board actually got, and the Start button appear (_release_brief()).
 #
@@ -225,12 +233,18 @@ var _brief_shown_ms: int = 0
 
 func _brief_text(n_rooms: int) -> String:
 	var roomsstr: String = "one room" if n_rooms == 1 else "%d rooms" % n_rooms
-	return "You have %s to protect.\n\nStorm lasts: %s" % [roomsstr,
-		MainGlobals.round_duration_str(storm_duration_s)]
+	# The ruin line is per level (StormLevelConfig "room_ruin"), so the briefing says it.
+	return "You have %s to protect.\n\nStorm lasts: %s\nA room is lost at: %d%% under water" % [roomsstr,
+		MainGlobals.round_duration_str(storm_duration_s), int(round(room_ruin() * 100.0))]
 
 func new_game(from_scratch=true):
 	while _building:
 		await get_tree().process_frame
+	# Claimed HERE, the moment the wait is over -- not when create_board() starts. There are two
+	# awaited frames between the two (for the briefing card to draw), and a second new_game() in them
+	# found the flag down, went on, and reset() the board a build was still filling: two builds shared
+	# one board, which crashed on a freed tile and read cells past the edge of a board of another size.
+	_building = true
 	game.pause(true)
 	reset()
 	_board_ready = false
@@ -247,7 +261,7 @@ func new_game(from_scratch=true):
 		# Laid out with the planned count: the same lines as the real text, so the card is already
 		# its final size, and hidden until released.
 		var brief = game.show_game_popup(self, "Level %d" % level, _brief_text(num_rooms))
-		brief.hold("Building world")
+		brief.hold("Building world", false)
 		brief.closed.connect(_on_closed_intro_popup)
 		_brief = brief
 		_brief_shown_ms = Time.get_ticks_msec()
@@ -302,8 +316,8 @@ func _start_playing():
 		game.set_time_left(0,0,storm_duration_s)
 		game.pause(false)
 
-func _process(_delta: float) -> void:
-	pass
+func _process(delta: float) -> void:
+	_follow_player_room(delta)
 	
 # The color under a board cell, for the drawn-path overlay. The floor of a room is painted
 # `color_by_index(room_id).lightened(0.5)` in pipe.gd, so the path is told the same thing and
@@ -331,6 +345,11 @@ func add_pipe(p, room_id := -1):
 	add_child(pipe)
 	pipes.append(pipe)
 	pipe.pipe_pressed.connect(_on_pipe_pressed)
+	# Its look at once, as the build is watched: a tile's look is its own (room color or corridor),
+	# not its neighbors', so this is already the final one. create_board() sets it again at the end.
+	pipe.set_rot(board)
+	# While rooms are still being placed there is no frame for them yet (_frame_build()).
+	pipe.visible = _build_framed
 
 # func _check_if_all_rooms_answered():
 # 	for rid in rooms.size():
@@ -376,11 +395,6 @@ func dist_from_array(p, arr):
 		if d < mind:
 			mind = d
 	return mind
-	
-func show_hide_walls():
-	for e in empties:
-		await _breathe()
-		e.show_hide_walls(board)
 	
 var room_min_size = 9
 var room_max_size = 12
@@ -499,45 +513,45 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 	
 	# for r in rooms:
 	# 	print("room ", str(r))
+	_frame_build()
 	await add_corridors()
 
+# A corridor from `pstart` to `pend`, straight or with one bend, as the tiles walked IN ORDER from one
+# to the other, each next to the last; [] if it would run into or alongside anything built. The
+# order matters: the doors go one step back from each end (add_corridors). A straight run going up or
+# left used to be listed low to high whatever its direction, so the path jumped from its start to its
+# far end and back, and a door put "one step back" from that landed off the board.
 func _try_corridor_L(pstart: Vector2i, pend: Vector2i, start_dir: Vector2i) -> Array:
-	var d = pend - pstart
-	var path = [pstart]
-	var has_bend = true
-	if d.x == 0:
-		has_bend = false
-		for y in range(min(pstart.y, pend.y), max(pstart.y, pend.y)):
-			var p = Vector2i(pstart.x, y)
-			if board[p.y][p.x].ispipe or board[p.y][p.x-1].ispipe or board[p.y][p.x+1].ispipe:
-				return []
-			path.append(p)		
-	elif d.y == 0:
-		has_bend = false
-		for x in range(min(pstart.x, pend.x), max(pstart.x, pend.x)):
-			var p = Vector2i(x, pstart.y)
-			if board[p.y][p.x].ispipe or board[p.y-1][p.x].ispipe or board[p.y+1][p.x].ispipe:
-				return []
-			path.append(p)
-
-	if has_bend:
-		var bend:Vector2i
+	var d: Vector2i = pend - pstart
+	if d.x != 0 and d.y != 0:
+		var bend: Vector2i
 		if start_dir.x != 0:
 			bend = Vector2i(pend.x, pstart.y)
 		else:
 			bend = Vector2i(pstart.x, pend.y)
 		if board[bend.y][bend.x].ispipe:
 			return []
-
-		var path_seg1 = _try_corridor_L(pstart, bend, start_dir)
+		var path_seg1: Array = _try_corridor_L(pstart, bend, start_dir)
 		if path_seg1.size() == 0:
 			return []
-		var path_seg2 = _try_corridor_L(bend, pend, start_dir)
+		var path_seg2: Array = _try_corridor_L(bend, pend, start_dir)
 		if path_seg2.size() == 0:
 			return []
-		path = path_seg1
-		path.append_array(path_seg2)
-
+		path_seg1.pop_back()        # the bend, which the second leg starts with
+		path_seg1.append_array(path_seg2)
+		return path_seg1
+	# Straight: every tile but the last must be clear, and so must the tiles on either side of it.
+	var step: Vector2i = Vector2i(signi(d.x), signi(d.y))
+	var side: Vector2i = Vector2i(absi(step.y), absi(step.x))
+	var path: Array = []
+	var p: Vector2i = pstart
+	while p != pend:
+		var a: Vector2i = p - side
+		var b: Vector2i = p + side
+		if board[p.y][p.x].ispipe or board[a.y][a.x].ispipe or board[b.y][b.x].ispipe:
+			return []
+		path.append(p)
+		p += step
 	path.append(pend)
 	return path
 
@@ -720,8 +734,8 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 # gone by, so input is taken between slices.
 const BUILD_SLICE_US: int = 8000
 var _slice_start: int = 0
-# A build in progress. A new round waits for it (new_game): two builds interleaving across frames
-# would share one board.
+# A build in progress, from the moment new_game() gets past waiting for the last one until the board is
+# done. A new round waits for it: two builds interleaving across frames would share one board.
 var _building: bool = false
 
 func _breathe() -> void:
@@ -730,7 +744,7 @@ func _breathe() -> void:
 		_slice_start = Time.get_ticks_usec()
 
 func create_board() -> void:
-	_building = true
+	_building = true      # already set by new_game(); here too for any other caller
 	_slice_start = Time.get_ticks_usec()
 	_fit_ground_to_board()
 	# rng = RandomNumberGenerator.new()
@@ -745,6 +759,7 @@ func create_board() -> void:
 		for col_index in game.board_size.x:
 			row[col_index] = OneCell.new()
 		board.append(row)
+	_build_framed = false
 
 	await get_tree().process_frame
 
@@ -756,20 +771,22 @@ func create_board() -> void:
 	# 	for col in range(board_margin,game.board_size.x-board_margin):
 	# 		add_pipe(Vector2i(col,row))
 	
+	# Every tile is a pipe or not by now, so each wall tile can take its final look as it goes down.
 	for row in game.board_size.y:
 		await _breathe()
 		for col in game.board_size.x:
 			if !board[row][col].ispipe:
 				add_empty(Vector2i(col,row))
-				
-	await show_hide_walls()
-				
+				empties[-1].show_hide_walls(board)
+
 	for pipe in pipes:
 		await _breathe()
 		pipe.set_rot(board)
 
 	add_player()
-	zoom_camera(true)
+	# Built in the whole-mansion view: that is what is shown behind the briefing and during the
+	# preview, so the camera never shows one room, zooms out, and zooms back in.
+	zoom_camera(false)
 
 	add_bricks()
 	add_drains()
@@ -801,9 +818,52 @@ func _release_brief() -> void:
 		return      # a newer round has replaced this card
 	brief.release(_brief_text(rooms.size()))
 
+# THE WHOLE MANSION FIRST. Storm is not an exploration game: the board is built in the mansion view,
+# and once Start is pressed that view stays for PREVIEW_SEC, with the HUD's countdown (the one Lights
+# Out uses), and then glides into the room the player starts in. A one-room level has nothing to
+# preview -- the mansion view already shows all of it -- so it is played in that view, with no
+# countdown and no zoom. Nothing happens during it: level_is_ready stays false, so no leak
+# starts and the player cannot move, and _start_playing() resets the storm clock afterwards. The
+# tutorial goes straight in, as it always has.
+const PREVIEW_SEC: int = 5
+const ZOOM_IN_SEC: float = 0.7
+var _preview_round: int = 0             # which round a countdown belongs to
+
 func _on_closed_intro_popup():
+	if game.tutorial_mode:
+		zoom_camera(true)
+		game.level_is_ready = true
+		_start_playing()
+		return
+	# One room is already all on screen in the mansion view: no preview, no zoom, straight in.
+	if rooms.size() <= 1:
+		game.level_is_ready = true
+		_start_playing()
+		return
+	_preview_round += 1
+	var this_round: int = _preview_round
+	# Unpaused, so the countdown runs; the round itself has not started (level_is_ready is false).
+	game.pause(false)
+	MainGlobals.global_start_countdown(PREVIEW_SEC)
+	await MainGlobals.sig_global_countdown_finished
+	if this_round != _preview_round or player == null or game.level_is_done:
+		return      # the round was left or replaced during the preview
+	await _glide_to_player()
+	if this_round != _preview_round:
+		return
+	zoom_camera(true)
 	game.level_is_ready = true
 	_start_playing()
+
+# From the whole mansion to the player's room: the camera glides to the frame of the player's room.
+func _glide_to_player() -> void:
+	if game_cam == null or player == null:
+		return
+	var f: Dictionary = _room_frame(maxi(_player_room(), 0))
+	var tw: Tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(game_cam, "position", f["pos"], ZOOM_IN_SEC)
+	tw.tween_property(game_cam, "zoom", Vector2.ONE * float(f["zoom"]), ZOOM_IN_SEC)
+	await tw.finished
 
 func close_to_corridor(p:Vector2i, dist:int):
 	for add_r in range(-dist,dist+1):
@@ -848,43 +908,103 @@ func add_bricks():
 var player_cam = null
 var game_cam = null
 
-func zoom_camera(zoom_in: bool):
-	# var current_cam_scale = player_cam.zoom.x if player_cam != null else 1.0
+# ONE CAMERA, FRAMING A ROOM. During play it shows the room the player is in, as large as it fits:
+# the room's tiles plus FRAME_MARGIN of a tile on each side -- enough for the walls, which are drawn
+# on the room's side of the tile ring around it (4 px of 40) -- across the screen's width, or between
+# the HUD strip and the button bar if the room is too tall for that. It used to follow the player
+# with a fixed 14-tile view: two tiles of margin round a small room, and a 13-wide room with its
+# walls did not fit at all. Walking into another room glides the frame over (ROOM_GLIDE_SEC); in a
+# corridor it follows the player at the zoom it had. Before play (zoom_in false) it frames every room
+# the same way -- the mansion view, which is also the play view of a one-room level.
+const FRAME_MARGIN: float = 0.25
+const HUD_TOP: float = 60.0
+const ROOM_GLIDE_SEC: float = 0.45
+var _framed_room: int = -2
+var _frame_tween: Tween = null
 
+# Where the camera goes, and how far in, to show `r` (in tiles) as large as it fits.
+func _frame_for(r: Rect2) -> Dictionary:
+	var view: Vector2 = get_viewport().get_visible_rect().size
+	var bottom: float = 70.0 if MainGlobals.is_mobile() else 44.0
+	var t: float = float(game.tile_size)
+	var w_px: float = (r.size.x + 2.0 * FRAME_MARGIN) * t
+	var h_px: float = (r.size.y + 2.0 * FRAME_MARGIN) * t
+	var z: float = minf(view.x / w_px, (view.y - HUD_TOP - bottom) / h_px)
+	var top_left: Vector2 = game.board_to_px(Vector2i(r.position)) - Vector2(t, t) * 0.5
+	var center: Vector2 = top_left + r.size * t * 0.5
+	# Centred in the band between the HUD strip and the button bar, not in the whole screen.
+	return {"pos": center - Vector2(0.0, (HUD_TOP - bottom) * 0.5) / z, "zoom": z}
+
+func _player_room() -> int:
+	if player == null:
+		return -1
+	var p: Vector2i = player.board_pos
+	if p.y < 0 or p.y >= board.size() or p.x < 0 or p.x >= (board[p.y] as Array).size():
+		return -1
+	return int(board[p.y][p.x].room_id)
+
+func _room_frame(room_id: int) -> Dictionary:
+	return _frame_for(Rect2(rooms[clampi(room_id, 0, rooms.size() - 1)]))
+
+func _set_cam(frame: Dictionary) -> void:
+	# A glide still running would carry on past this and undo it.
+	if _frame_tween != null and _frame_tween.is_valid():
+		_frame_tween.kill()
+	if game_cam == null:
+		create_game_camera(float(frame["zoom"]), frame["pos"])
+	game_cam.zoom = Vector2.ONE * float(frame["zoom"])
+	game_cam.position = frame["pos"]
+	game_cam.enabled = true
+	if player_cam != null:
+		player_cam.enabled = false
+
+func zoom_camera(zoom_in: bool):
 	game.zoomed_in = zoom_in
 	for pipe in pipes:
 		pipe.set_rot(board)
-
+	if rooms.is_empty():
+		return
 	if zoom_in:
-		var player_camscale = game.get_tiles_in_screen_width() / float(room_max_size+2)
-		if player_cam != null:
-			player_cam.zoom = Vector2(player_camscale,player_camscale)
-			player_cam.enabled = true
-			if game_cam != null:
-				game_cam.enabled = false
-			return
-		else:
-			create_player_camera(player_camscale)
+		var rid: int = _player_room()
+		_framed_room = rid if rid >= 0 else 0
+		_set_cam(_room_frame(_framed_room))
 	else:
-		var bbox:Rect2 = Rect2(rooms[0])
+		_framed_room = -2
+		var bbox: Rect2 = Rect2(rooms[0])
 		for r in rooms:
 			bbox = bbox.merge(Rect2(r))
-		var game_camscale = min(game.get_tiles_in_screen_width() / float(bbox.size.x+4), game.get_tiles_in_screen_height() / float(bbox.size.y+4))
-		var game_center = game.board_to_px(bbox.get_center()) - Vector2(game.tile_size / 2,game.tile_size / 2)
-		# var game_camscale = min(2.0, 1.0 / game.get_board_part_of_width(-board_margin+1))
-		# var game_center = game.board_to_px(game.get_board_center())
-		# var game_camscale = min(game.get_tiles_in_screen_width() / float(game.board_size.x+2), game.get_tiles_in_screen_height() / float(game.board_size.y+2))
-		# var game_center = game.board_to_px(game.get_board_center()) + Vector2(0,game.tile_size / 2)
-		if game_cam != null:
-			game_cam.zoom = Vector2(game_camscale,game_camscale)
-			game_cam.position = game_center
-			game_cam.enabled = true
-			if player_cam != null:
-				player_cam.enabled = false
-			return
-		else:
-			create_game_camera(game_camscale, game_center)
-	
+		_set_cam(_frame_for(bbox))
+
+# WHILE THE BOARD IS BUILT, behind the briefing, the camera is already on the mansion view that
+# zoom_camera(false) sets at the end, so what is shown going up is what will be played on, and nothing
+# zooms. That view needs the rooms, so they are placed first, unseen -- a fraction of a second: every
+# room is down within a few slices of the build -- then the camera goes straight to them and they
+# appear together, and the corridors and walls are drawn in live. Framing each room as it was placed
+# was tried: the first room filled the screen and the view then zoomed far out, since every room is
+# placed in the first few frames and the rest of the build is the corridors.
+var _build_framed: bool = false
+
+func _frame_build() -> void:
+	_build_framed = true
+	zoom_camera(false)
+	for pipe in pipes:
+		pipe.visible = true
+
+# During play: glide to the room the player has walked into; in a corridor, keep them in view.
+func _follow_player_room(delta: float) -> void:
+	if not game.zoomed_in or game_cam == null or player == null or rooms.is_empty():
+		return
+	var rid: int = _player_room()
+	if rid >= 0 and rid != _framed_room:
+		_framed_room = rid
+		var f: Dictionary = _room_frame(rid)
+		if _frame_tween != null and _frame_tween.is_valid():
+			_frame_tween.kill()
+		_frame_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_frame_tween.tween_property(game_cam, "position", f["pos"], ROOM_GLIDE_SEC)
+		_frame_tween.tween_property(game_cam, "zoom", Vector2.ONE * float(f["zoom"]), ROOM_GLIDE_SEC)
+	elif rid < 0 and (_frame_tween == null or not _frame_tween.is_running()):
+		game_cam.position = game_cam.position.lerp(player.global_position, clampf(delta * 6.0, 0.0, 1.0))
 
 func create_game_camera(game_camscale, game_center):
 	game_cam = Camera2D.new()
@@ -977,6 +1097,14 @@ func can_go_to(p):
 	var cond = cell.ispipe && cell.pipe.has_brick < 0
 	return cond
 	
+# THE PLAYER RUNS IN A CORRIDOR. Nothing happens there -- no leak, no tool, no furniture -- so a corridor
+# is only the way from one room to the next, and walking it at room pace was dead time. Each step
+# into a corridor tile is taken at the level's `corridor_run` times the walking speed
+# (StormLevelConfig), each step into a room at the walking speed again.
+func _set_player_pace(q: Vector2i) -> void:
+	var run: float = float(_cfg.get("corridor_run", 1.0)) if bcell(q).room_id < 0 else 1.0
+	player.speed_scale = player_max_speed_scale * run
+
 func move_player_on_tick():
 	if player == null:
 		return
@@ -1006,7 +1134,8 @@ func move_player_on_tick():
 			var dir = game.dt_to_dir(vdir)
 			player.direction = dir
 			next_player_dir = dir
-			player.set_board_pos(q, board)			
+			_set_player_pace(q)
+			player.set_board_pos(q, board)
 			if player.path.size() == 0:
 				if bcell(q).room_id < 0:
 					next_player_dir = dir
@@ -1029,6 +1158,7 @@ func move_player_on_tick():
 		if can_go_to(q):
 			player.direction = dir
 			mark_visited_room(board[q.y][q.x].room_id)
+			_set_player_pace(q)
 			player.set_board_pos(q, board)
 			if bcell(q).room_id < 0:
 				next_player_dir = dir
@@ -1084,7 +1214,11 @@ func add_leak():
 
 		if p.x >= 0:
 			var cell = board[p.y][p.x]
+			# A tile already leaking can be picked again; that is not a new leak to point at.
+			var is_new: bool = not cell.pipe.water_active
 			cell.pipe.start_leak()
+			if is_new and rooms.size() > 1 and _arrows != null:
+				_arrows.track(cell.pipe, float(_cfg.get("arrow_ms", 1000)))
 			game.play_sound("swoosh")
 			game.tutorial_notify("leak_started")
 			return
@@ -1104,6 +1238,8 @@ func level_is_done(didwin: bool):
 	if game.level_is_done:
 		return
 	close_inventory()
+	if _arrows != null:
+		_arrows.clear()
 	last_level_was_a_win = didwin
 	game.level_is_done = true
 	game.stop_sound("rain")
@@ -1118,8 +1254,10 @@ func level_is_done(didwin: bool):
 	# One fact per line: the card sets them as a table, so the "  |  " and double-space packing
 	# that squeezed five numbers onto two lines is no longer buying anything.
 	var rain: Dictionary = rain_stats()
-	var stats_str: String = "\n\nRain caught: %d%%\nWorst room: %d%% flooded\nScore: %d\nTime: %d s\nSaved: %d\nRuined: %d" % [
-		int(round(float(rain["caught"]) * 100.0)), int(round(float(stats["worst"]) * 100.0)),
+	# The worst room next to the line it had to stay under, so the card says how close it was.
+	var stats_str: String = "\n\nWorst room: %d%% flooded\nRoom is lost at: %d%%\nRain caught: %d%%\nScore: %d\nTime: %d s\nSaved: %d\nRuined: %d" % [
+		int(round(float(stats["worst"]) * 100.0)), int(round(room_ruin() * 100.0)),
+		int(round(float(rain["caught"]) * 100.0)),
 		game.score, int(time_from_start_s), stats["saved"], round_items_lost]
 	if didwin:
 		var score_add: int = min(5, 60 - time_from_start_s)
@@ -1128,7 +1266,8 @@ func level_is_done(didwin: bool):
 		game.need_to_increase_level = true
 		if need_to_increase_level():
 			MainGlobals.global_level_is_done(true)
-			var done_card = game.show_level_done_popup(self, "", "", level)
+			# The level summary shows the same numbers as a round card: it used to show none.
+			var done_card = game.show_level_done_popup(self, "", "", level, stats_str)
 			done_card.closed.connect(_on_round_card_closed)
 		else:
 			var cur_round: int = round_in_level + 1
@@ -1192,6 +1331,8 @@ func add_player_at(p: Vector2i, direction: int):
 		player_cam = null
 	player = player_scene.instantiate()
 	add_child(player)
+	if _arrows != null:
+		_arrows.set_player(player)
 	player.reset()
 	player.direction = direction
 	player.board_pos = p
@@ -1379,6 +1520,7 @@ func on_lives_depleted():
 	pass
 
 var popup:PopupPanel = null
+var _arrows: StormLeakArrows = null
 
 func _unhandled_input(event: InputEvent) -> void:
 	if popup == null or not is_instance_valid(popup) or not popup.visible:
@@ -1417,17 +1559,10 @@ func _unhandled_input(event: InputEvent) -> void:
 # 	var r := Rect2(popup.position, popup.size)
 # 	return r.has_point(screen_pos)
 
-var layout = []
-
-static func _v_sort(a: Array, b:Array):
-	if a[1] < b[1]: return true
-	if b[1] < a[1]: return false
-	return a[0] < b[0]
-
-static func _dist_sort(a : Array, b : Array):
-	var da = a[0]*a[0] + a[1]*a[1]
-	var db = b[0]*b[0] + b[1]*b[1]
-	return da < db
+# The tool menu's possible shapes, columns x rows, smallest first; see create_actions_popup(). Taller
+# than wide, to suit a portrait screen. The largest holds 34 tools.
+const MENU_GRIDS: Array = [Vector2i(3, 3), Vector2i(5, 5), Vector2i(5, 7)]
+const MENU_EDGE: float = 4.0
 
 func hamming_d_to_player(p: Vector2i) -> int:
 	if player == null:
@@ -1519,45 +1654,68 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 	for a in available_actions:
 		if a.level >= use_th:
 			actions_to_use.append(a)
-	if actions_to_use.size() > 24:
-		actions_to_use = actions_to_use.slice(0,24)
-	var n = actions_to_use.size()
 
 	var swatch_color = Color(0.2, 0.7, 0.8, 1.0)
 	if is_on_drain:
-		# swatch_color = Color(0.2, 0.6, 0.2, 1.0)
 		swatch_color = Color(0.9, 0.4, 0.0, 1.0)
 	var empty_color = swatch_color
 
-	var d_vals = [-1,0,1] if n <= 8 else [-2,-1,0,1,2]
+	# THE MENU'S SHAPE: the smallest of MENU_GRIDS (columns x rows) holding every tool plus the slot
+	# over the tapped tile; past the largest, the first ones in dealt order.
+	var grid: Vector2i = MENU_GRIDS[MENU_GRIDS.size() - 1]
+	for gsz: Vector2i in MENU_GRIDS:
+		if gsz.x * gsz.y - 1 >= actions_to_use.size():
+			grid = gsz
+			break
+	if actions_to_use.size() > grid.x * grid.y - 1:
+		actions_to_use = actions_to_use.slice(0, grid.x * grid.y - 1)
+	var n: int = actions_to_use.size()
+	var pitch: float = float(box_w + 2 * sep)
+	popup.size = Vector2i(int(grid.x * pitch) + 2 * border_w, int(grid.y * pitch) + 2 * border_w)
 
-	var w = d_vals.size()
-	var h = w
-
-	popup.size = Vector2i(box_w * w + (w+0)*2*sep + 2*border_w, box_w * h + (h+0)*2*sep + 2*border_w)
-	var rect := MainGlobals.clamp_popup_rect(screen_pos - popup.size/2.0, popup.size, 20)
-	popup.popup(rect)
+	# THE TAPPED TILE STAYS VISIBLE. It sits under whichever slot keeps the whole menu on screen,
+	# nearest the middle of the menu, and that slot is the see-through one. The menu used to be centred
+	# on the tile with its middle slot see-through, and pushed back onto the screen by however many
+	# pixels it overhung -- which put a tool over the tile and the player. It moves by whole slots, so
+	# the tile always sits squarely in one. It may cover the HUD and the button bar.
+	var view: Vector2 = get_viewport().get_visible_rect().size
+	var best: Vector2i = Vector2i((grid.x - 1) / 2, (grid.y - 1) / 2)
+	var best_d: float = INF
+	for tr in grid.y:
+		for tc in grid.x:
+			var tl: Vector2 = screen_pos - (Vector2(tc, tr) + Vector2(0.5, 0.5)) * pitch - Vector2.ONE * float(border_w)
+			var fits: bool = tl.x >= MENU_EDGE and tl.y >= MENU_EDGE \
+				and tl.x + popup.size.x <= view.x - MENU_EDGE and tl.y + popup.size.y <= view.y - MENU_EDGE
+			var d: float = Vector2(tc - (grid.x - 1) * 0.5, tr - (grid.y - 1) * 0.5).length()
+			if fits and d < best_d:
+				best_d = d
+				best = Vector2i(tc, tr)
+	var top_left: Vector2 = screen_pos - (Vector2(best) + Vector2(0.5, 0.5)) * pitch - Vector2.ONE * float(border_w)
+	if best_d == INF:
+		# Larger than the screen: the middle slot, kept on screen as best it can be.
+		top_left = Vector2(MainGlobals.clamp_popup_rect(top_left, popup.size, 4).position)
+	popup.popup(Rect2i(Vector2i(top_left), popup.size))
 	MainGlobals.set_popup_open(true)
 	if not popup.popup_hide.is_connected(MainGlobals.set_popup_open.bind(false)):
 		popup.popup_hide.connect(MainGlobals.set_popup_open.bind(false))
-	
-	if layout.size() != w * h:
-		layout = []
-		for r in d_vals:
-			for c in d_vals:
-				if r != 0 or c != 0:
-					layout.append([c,r])
-		layout.sort_custom(_dist_sort)
-		var layoutn = layout.slice(0, n)
-		layoutn.sort_custom(_v_sort)
-		layout = layoutn + layout.slice(n, layout.size())
-		layout.append([0,0])
 
-	for i in range(w * h):
-		var rel_p = layout[i]
+	# The tools take the slots nearest the tapped one, then read left to right, top to bottom so the
+	# order is steady; the slots left over are "put it back" buttons, like the see-through one.
+	var others: Array = []
+	for r2 in grid.y:
+		for c2 in grid.x:
+			if Vector2i(c2, r2) != best:
+				others.append(Vector2i(c2, r2))
+	others.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return Vector2(a - best).length_squared() < Vector2(b - best).length_squared())
+	var tool_slots: Array = others.slice(0, n)
+	tool_slots.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.y < b.y or (a.y == b.y and a.x < b.x))
+	var slots: Array = tool_slots + others.slice(n) + [best]
+
+	for i in slots.size():
+		var slot: Vector2i = slots[i]
 		var panel := action_scene.instantiate()
-		# swatch_color = game.color_by_index(1).lightened(0.5)
-		# swatch_color = Color(0.2, 0.7, 0.3, 1.0)
 		if i < n:
 			var action = actions_to_use[i]
 			var action_texture = action_textures.get(action.name, [])
@@ -1567,22 +1725,19 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 			swatch.set_meta("action_id", action.id)
 			swatch.gui_input.connect(_on_action_pressed.bind(swatch))
 		else:
-			var swatch = panel.init(box_w, sep, Color.TRANSPARENT if i == w*h-1 else empty_color)
+			var swatch = panel.init(box_w, sep, Color.TRANSPARENT if slot == best else empty_color)
 			swatch.set_meta("target_pos", _board_pos)
 			swatch.set_meta("action_id", -1)
 			swatch.gui_input.connect(_on_action_pressed.bind(swatch))
-
 		origin.add_child(panel)
-
 		panel.anchor_left = 0
 		panel.anchor_top = 0
 		panel.anchor_right = 0
 		panel.anchor_bottom = 0
-
 		panel.size_flags_horizontal = 0
 		panel.size_flags_vertical = 0
-
-		panel.position = Vector2(rel_p[0] - 0.5,rel_p[1] - 0.5) * (box_w + 2*sep)
+		# `origin` is the middle of the menu.
+		panel.position = (Vector2(slot) - Vector2(grid) * 0.5) * pitch
 
 func get_action_by_id(action_id:int, pop:bool):
 	for a_idx in range(available_actions.size()):
