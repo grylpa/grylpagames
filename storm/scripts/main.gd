@@ -54,12 +54,15 @@ func _ready() -> void:
 
 	game.set_instructions("Storm", 
 		"There is a storm outside and your old house is leaking badly!\n\n" +
-		"You need to protect your belongings using containers and duct tapes.\n\n" + 
+		"You need to protect your belongings using containers and tape.\n\n" + 
 		"Use the drains to empty filled containers.\n\n" + 
 		"You can work on a problem only if it is close to you.\n\n" +
 		"When you are close to a leak, click on it and select the tool to solve it, or click it again to take the filled container for emptying.\n\n" + 
 		"When you are close to a drain, click on it and select the tool that needs emptying.\n\n" +
-		"A round is lost if any room floods (each room shows how much of it is under water),\nand won when the storm has passed.\n\n" +
+		"The top of the screen shows how much of your wettest room is under water. A round is lost if any room reaches the level's flood line (the level's opening card says where it is), and won when the storm has passed.\n\n" +
+		"You start with 100 points. A ruined belonging costs its value: a screen %d, a flower or a rug %d. A container that runs over costs %d. Emptying one that is more than half full earns %d. Getting through the storm earns %d, plus a point for every percent your wettest room stayed under the line. Losing a round costs %d.\n\n" % [
+			int($Level.furniture["screen"][1]), int($Level.furniture["flower"][1]), $Level.OVERFLOW_POINTS,
+			$Level.DRAIN_POINTS, $Level.WIN_POINTS, $Level.LOSS_POINTS] +
 		"Good luck!"
 	)
 	if !game.shown_instructions:

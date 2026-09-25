@@ -305,7 +305,7 @@ player's own saved state back into the level so Continue still resumes their gam
 | `aliens` | drag within a simulation | outer ring vs inner ring; evicting is a correct call too |
 | `gorilla` | flick to set a direction | you are counting AND collecting; gorillas only appear at the edges |
 | `wolves` | **drawn path** | you can draw a route; you startle sheep, never push them |
-| `storm` | drawn path + tap-tile | you must be standing NEXT to a leak; the score counts down from 100 |
+| `storm` | drawn path + tap-tile | you must be standing NEXT to a leak; what each belonging is worth; the "Worst" room and its line |
 | `guidem` | tap junction doors | the walkers never stop, so you set the road up ahead of them |
 | `udbr` | held drag (breathing) | it is not a swipe — the finger stays down; there is no fail state |
 | `mother` | held drag (breathing, guided) | your finger never touches the snake; a hold is performed by doing nothing |

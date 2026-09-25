@@ -181,14 +181,34 @@ share, and a room past the line ends the round.
 
 ## Scoring
 
-- **initial_score = 100** per game session (carries across rounds and levels)
-- **−value** when a piece of furniture is ruined (`_check_floods`)
-- **−1** when a tool's container fills up (`action_full` flag in `pipe.gd`)
-- **+2** when a tool is placed on a leak
-- **+5** when a tool is emptied at a drain
-- **+1/+5** for correct / **−1/−5** for incorrect answers (via `answered()`)
-- **End-of-round bonus**: `min(5, 60 − elapsed_seconds)` score and time (can be negative for slow rounds)
-- Score is clamped at 0 (never goes negative)
+`initial_score = 100` per game session, carried across rounds and levels, clamped at 0. A session
+record is saved at the end of each level (`on_game_is_done`), tagged with its level, and the stats
+screens compare sessions level by level. Every change to the score goes through
+`level._add_points(part, n)`, which also keeps it by part in `round_points` for the round (so the bot
+can print what a round's score was made of):
+
+| Part | Points | When |
+|---|---|---|
+| `drains` | +5 (`DRAIN_POINTS`) | a tool emptied at a drain while more than half full |
+| `overflowed` | -1 | a tool under a leak fills and the water runs over it (`pipe.pour()`) |
+| `furniture` | minus its value | a piece ruined: flower 5, rug 5, screen 20 (`furniture` in `level.gd`) |
+| `outcome` | +20 (`WIN_POINTS`) / -20 (`LOSS_POINTS`) | the storm outlasted / a room lost |
+| `margin` | the level's line minus the worst room, in percent | won rounds only: lost at 40%, finished at 39% earns 1, at 20% earns 20 |
+
+The parts are on one scale: 0 to about 20 each a round. Putting a tool down scores nothing.
+
+What they replaced, and why:
+- **+2 for any tool put down, +5 for any emptying.** Both could be farmed by putting a tool down and
+  picking it up again.
+- **An end-of-round bonus of `min(5, 60 - seconds played)`,** in score and time. It was written when a
+  round lasted about a minute: with storms of 2 to 5 minutes, surviving one cost 60 to 240 points, so
+  winning scored worse than losing early.
+- **A win bonus of 100 minus the percent of the WHOLE house under water,** tried and measured with the
+  bot. It came to 64-85 a round, mostly a flat reward for winning (a room at 38%, one short of losing,
+  still earned 81), and it outweighed every other part together.
+
+`answered()` and the coin pickup in `move_player_on_tick()` still add points, but nothing calls the one
+or places the other.
 
 ## Score Saving
 
@@ -414,8 +434,17 @@ Coached tutorial in `storm/scripts/tutorial.gd`; see `docs/tutorials.md` for the
 - **Drawn-path movement**: storm and wolves are the only two games where
   `MainGlobals.draw_path_mode` is on, so nothing a player has learned elsewhere suggests it. It is
   taught early and the player has to draw one, because reaching a leak in time is the whole game.
-- The tutorial also states outright that the score starts at 100 and only falls — a number counting
-  down with no explanation reads as a bug or a timer.
+- **The score and the rules, in the last four cards**: the score starts at 100 and a ruined belonging
+  costs its value (screen 20, flower or rug 5, so what to save first is a choice); the HUD's "Worst"
+  label, spotlit, and the line at which a room and the round are lost; a tool that runs over costs a
+  point and emptying one more than half full earns 5; a won round earns 20 plus a point for every
+  percent the wettest room stayed under the line. Every number is read from the game
+  (`furniture`, `OVERFLOW_POINTS`, `DRAIN_POINTS`, `WIN_POINTS`, and the tutorial level's
+  `room_ruin` from `StormLevelConfig` -- `steps()` runs before `new_game()` has applied level 1), so
+  the lesson cannot drift from the scoring. It used to say the score "only falls" and is "not points
+  you are earning", which stopped being true when emptying and winning began to score.
+- The help screen's instructions (`main.gd`, `set_instructions`) say the same, from the same
+  constants. They used to point at a per-room percentage that the HUD's "Worst" label replaced.
 - The level's intro popup is skipped in tutorial mode.
 
 ## The level intro
@@ -523,6 +552,11 @@ room, and a 13-wide room (room sides are 9..12 made odd, so 9, 11 or 13) did not
 On a phone a tile, and so a tool box, is now about 7.2-7.8 mm for a 9-wide room, 6.0-6.5 mm for 11 and
 5.2-5.6 mm for 13, against 5.0-5.4 mm for all rooms before (estimated for a 6.5-7 cm-wide screen).
 Measured on desktop: an 11 x 11 room spans x 15..665 of 680, y 77..727 between the HUD and the bar.
+
+**No 13-wide room on a phone.** A room's side sets the tile size, and a tile is also a slot of the tool
+menu, so on a phone a room's side is capped at `MOBILE_MAX_ROOM_SIDE` (11) by `_room_side()`: the
+level's `room_size` range, made odd, then capped. The smallest phone tile is then about 6.2 mm. Desktop
+keeps 13.
 
 ## The tool menu
 
