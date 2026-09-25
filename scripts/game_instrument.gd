@@ -89,7 +89,6 @@ static func chart_metric_name(folder: String) -> String:
 # Friendly names for the game-specific counters, so a readout is readable rather than a dump of
 # field names. Anything not listed here is simply not shown.
 const METRIC_LABELS: Dictionary = {
-	"leaks_appeared": "Leaks appeared", "overflows": "Overflowed",
 	"creatures_stopped": "Creatures stopped", "creatures_parked": "Creatures that got through",
 	"door_actions": "Door changes", "deliveries": "Delivered", "collisions": "Collisions",
 	"jobs_assigned": "Jobs assigned", "jobs_cancelled": "Jobs cancelled",
@@ -197,7 +196,6 @@ const SUMMARY_ROWS: Dictionary = {
 	# "Overflows" beside a sparkline says nothing about which way is good.
 	"span": "Longest order held",
 	"jobs_cancelled": "Changes of plan (jobs assigned then cancelled)",
-	"overflows": "Overflows (water reaching the floor)",
 	"collisions": "Collisions",
 	"creatures_stopped": "Turned back (creatures you stopped)",
 	# Ants is an interdiction game: the colony is trying to carry food home and the player is

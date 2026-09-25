@@ -700,12 +700,29 @@ never ran, but a single segment would have sat frozen on frame 0. storm had the 
 Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
-Leaks appearing and leaks reaching the floor are both counted; the share that reached the floor says how well the player kept up, which the 100-point score cannot. `overflows` (the key is older than its meaning) is now counted once per leak, the first time its puddle shows (`PUDDLE_SEEN` of water on the floor). `items_ruined` counts furniture lost.
+**Its measure is its score, and the stats window has two score tabs and no Summary:**
 
-**Its counts are now metrics.** `overflows` is registered in `StatsOverview.METRICS`, lower being better. Before that this game recorded two counts that nothing could read, and had no Summary rows.
+- **Scores**: one row per play -- the score on screen, run on from 100 across every round and level of
+  it, saved when the play ends -- with the level it reached.
+- **Levels**: a table per level of that level's OWN score (`GenericGameUtil.progress_is_score`,
+  `progress_rows_callback` -> `main.level_score_rows()`). `level._file_level_score()` files it into
+  the play's record (`level_scores`: `{level, score, ts}`) when the level is finished: the same parts
+  as the play's score, from the same 100, over every round of the level, lost ones included. A level
+  left unfinished is not filed -- fewer rounds would not compare with a whole level. Same look as the
+  Scores table; its "best only" switch is the Scores one, and keeps RISING scores.
+- **Charts**, two buttons under the chart: **Score**, each play's score as one line, no legend (a play
+  is not at one level); **Levels**, a line per level with a "Level N" key. The window keeps the two
+  kinds of row apart: one per play (`_raw_scores`) and one per finished level
+  (`scores_list.set_level_rows()`, fed by `progress_rows_callback`), which the Levels tab and chart
+  read. The x axis counts plays, or times through that level.
+- **No Summary tab** (`show_summary_tab = false`). Its verdict was built from `overflows` -- leaks
+  whose water reached the floor -- and the readout under it listed leaks appeared and overflows. The
+  first is the storm's own schedule; both grow with how long you played, so a longer play read as
+  "getting worse". `overflows` is no longer registered in `StatsOverview.METRICS` (so Storm no longer
+  feeds its category a leak count) and neither count has a label in `GameInstrument`.
+  `devtools/probe_audit.gd` lists Storm in `NO_SUMMARY`, with the reason.
 
-A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.
-
+`leaks_appeared`, `overflows` and `items_ruined` are still recorded; nothing shows them.
 
 ## The chooser tile
 

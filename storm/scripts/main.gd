@@ -70,6 +70,16 @@ func _ready() -> void:
 		StormG.save_settings()		
 	game.show_scores_level = true
 	game.scores_callback = Callable(self, "add_score_line_vals")
+	# TWO SCORE TABS. "Scores": each play's score, run on from 100 across every level in it. "Levels":
+	# a table per level of that level's own score (level.gd, _file_level_score). No Summary tab: its
+	# verdict came from counts of leaks, which the storm decides, not the player.
+	game.progress_is_score = true
+	game.progress_rows_callback = level_score_rows
+	game.progress_level_pos = 2
+	game.progress_time_pos = 1
+	game.progress_time_label = "Score"
+	game.progress_tab_name = "Levels"
+	game.show_summary_tab = false
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
 	# chooser's "How to play", OR when this is their first ever run of this game.
@@ -269,6 +279,18 @@ func on_show_blackout():
 	$Blackout.show()
 	await MainGlobals.sleep(0.16)
 	$Blackout.hide()
+
+# One row per finished level, [time, score, level], from every play's record, oldest first.
+func level_score_rows(records: Array) -> Array:
+	var rows: Array = []
+	for rec in records:
+		if not rec is Dictionary:
+			continue
+		for e in (rec as Dictionary).get("level_scores", []):
+			if e is Dictionary:
+				rows.append([int(e.get("ts", 0)), int(e.get("score", 0)), int(e.get("level", 0))])
+	rows.sort_custom(func(a: Array, b: Array) -> bool: return int(a[0]) < int(b[0]))
+	return rows
 
 func add_score_line_vals(score_row: Array) -> Array:
 	if score_row.size() > 6:
