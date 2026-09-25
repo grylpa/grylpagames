@@ -47,6 +47,19 @@ var progress_time_label: String = "Avg Time"
 var progress_time_format: String = "%d"
 var progress_time_is_pct: bool = false
 var progress_tab_name: String = ""
+# A PER-LEVEL SCORE TAB instead of a speed tab. The per-level tab ("Speed" in most games) is a table
+# per level of one number read from each score row; here that number is a score, so it is best HIGH
+# (the monotonic view keeps rising scores, a 0 is a real score, and the Charts tab has no second
+# metric repeating it). Set with progress_rows_callback: a game whose saved record covers a whole
+# play of several levels hands the tab one row per level instead (Storm).
+var progress_is_score: bool = false
+# Optional: turns the saved session records (read_sessions(), the ongoing one last) into the rows the
+# per-level tab and the Charts tab's per-level chart read; the Scores tab and the Score chart keep one
+# row per record.
+var progress_rows_callback: Callable = Callable()
+# The Summary tab: a verdict built from the game's registered metrics. A game with nothing there worth
+# a verdict turns it off (Storm, whose only counts were how many leaks the storm threw).
+var show_summary_tab: bool = true
 # The monotonic "personal best" filter is the right frame for a SCORE and the wrong one for a
 # breathing session: steadiness is not a record to beat, and presenting it as one pushes against
 # what the four calm games are for. They set this false.
@@ -1098,6 +1111,11 @@ func fill_scores_scene(instantiated_scores_scene):
 	var raw := scores.duplicate()
 	if stored_ongoing_score:
 		raw.append(_legacy_row(stored_ongoing_score))
+	if progress_rows_callback.is_valid():
+		var recs: Array = read_sessions()
+		if stored_ongoing_score:
+			recs.append(stored_ongoing_score)
+		instantiated_scores_scene.set_level_rows(progress_rows_callback.call(recs))
 	instantiated_scores_scene.set_progress_data(raw, progress_level_pos, progress_time_pos, progress_pct_pos, progress_level_names, progress_pct_label, progress_pct_format, progress_time_label, progress_time_format, progress_time_is_pct, progress_tab_name, progress_score_label, progress_pct_integer)
 
 func test_open_scores_screen(event, parent):
@@ -1110,18 +1128,28 @@ func test_open_scores_screen(event, parent):
 		if parent != null and parent.is_inside_tree() \
 				and not parent.get_tree().get_nodes_in_group(SCORES_GROUP).is_empty():
 			return
-		var _scores_scene = scores_scene.instantiate()
-		_scores_scene.show_level = show_scores_level
-		_scores_scene.show_time = show_scores_time
-		_scores_scene.level_as_name = show_scores_level_as_name
-		_scores_scene.time_col_name = scores_time_col_name
-		_scores_scene.show_monotonic_toggle = show_monotonic_toggle
-		_scores_scene.game_key = file_names_prefix
-		var tab_pref = MainGlobals.progress_tab_by_game.get(file_names_prefix, TAB_SCORES) \
-			if file_names_prefix != "" else TAB_SCORES
-		apply_tab_pref(_scores_scene, tab_pref, progress_level_pos >= 0)
-		parent.add_child(_scores_scene)
-		fill_scores_scene(_scores_scene)
+		open_scores_screen(parent)
+
+# The scores window, set up the way this game asked for (its columns, its per-level tab, whether it
+# has a Summary), on the tab the player last used.
+func open_scores_screen(parent: Node) -> Node:
+	var _scores_scene = scores_scene.instantiate()
+	_scores_scene.show_level = show_scores_level
+	_scores_scene.show_time = show_scores_time
+	_scores_scene.level_as_name = show_scores_level_as_name
+	_scores_scene.time_col_name = scores_time_col_name
+	_scores_scene.show_monotonic_toggle = show_monotonic_toggle
+	_scores_scene.progress_is_score = progress_is_score
+	_scores_scene.show_summary_tab = show_summary_tab
+	_scores_scene.game_key = file_names_prefix
+	var tab_pref = MainGlobals.progress_tab_by_game.get(file_names_prefix, TAB_SCORES) \
+		if file_names_prefix != "" else TAB_SCORES
+	apply_tab_pref(_scores_scene, tab_pref, progress_level_pos >= 0)
+	if not show_summary_tab:
+		_scores_scene.initial_inst_mode = false
+	parent.add_child(_scores_scene)
+	fill_scores_scene(_scores_scene)
+	return _scores_scene
 
 # THE SAVED-TAB NAMES, written by the scores window and read here.
 #

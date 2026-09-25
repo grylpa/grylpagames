@@ -13,6 +13,21 @@ var time_col_name: String = "Avg Time"
 
 # Set by GenericGameUtil before the window is shown. False hides the personal-best filter entirely.
 var show_monotonic_toggle: bool = true
+# Set by GenericGameUtil (see its progress_is_score / show_summary_tab).
+var progress_is_score: bool = false
+var show_summary_tab: bool = true
+# The per-level rows, where a game's records each cover several levels (Storm): [time, score, level].
+# Read by the per-level tab and the per-level chart; _raw_scores stays one row per record.
+var _level_rows: Array = []
+var _has_level_rows: bool = false
+
+func set_level_rows(rows: Array) -> void:
+	_level_rows = rows
+	_has_level_rows = true
+
+# Where the per-level tab and chart read from.
+func _progress_rows() -> Array:
+	return _level_rows if _has_level_rows else _raw_scores
 var progress_mode := false
 var initial_progress_mode := false
 var initial_chart_mode: bool = false
@@ -404,7 +419,8 @@ func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos
 	if _pct_metric_btn != null:
 		_pct_metric_btn.text = _progress_pct_label
 	if _metric_buttons.size() > 1:
-		_metric_buttons[1].text = _progress_time_label
+		# A per-level score: its button is named like its tab ("Levels"), beside the plain Score.
+		_metric_buttons[1].text = _progress_tab_name if progress_is_score else _progress_time_label
 	%Title.text = "Stats"
 	%TabSpacer.visible = true
 	%TabMargin.visible = true
@@ -589,7 +605,7 @@ func _on_x_close_scene_button_pressed() -> void:
 	# hide()
 
 func _on_check_button_toggled(toggled_on:bool) -> void:
-	if progress_mode:
+	if progress_mode and not progress_is_score:
 		MainGlobals.show_monotonic_speed = toggled_on
 	else:
 		MainGlobals.show_monotonic_scores = toggled_on
@@ -743,7 +759,8 @@ func _update_tab_visuals() -> void:
 		_apply_tab_style(_chart_tab_button, chart_active)
 	if _inst_tab_button != null:
 		_apply_tab_style(_inst_tab_button, _inst_mode)
-	var mono: bool = MainGlobals.show_monotonic_speed if progress_mode else MainGlobals.show_monotonic_scores
+	var mono: bool = MainGlobals.show_monotonic_speed if progress_mode and not progress_is_score \
+		else MainGlobals.show_monotonic_scores
 	%MonotonicCheckButton.set_pressed_no_signal(mono)
 	# Only the two table tabs have rows for a "personal best" filter to hide. On the Charts and
 	# Summary tabs it sat there doing nothing.
@@ -896,7 +913,9 @@ func create_chart() -> void:
 	var series_list: Array = []
 	match _chart_metric:
 		0:
-			if _progress_level_pos >= 0:
+			# A game whose per-level scores are their own tab (progress_is_score) charts each PLAY's
+			# score here as one line -- a play is not at one level -- and its levels on the next button.
+			if _progress_level_pos >= 0 and not progress_is_score:
 				var level_pts: Dictionary = {}
 				for row in _raw_scores:
 					if row.size() <= 1 or int(row[1]) < 0:
@@ -922,11 +941,14 @@ func create_chart() -> void:
 		1:
 			if _progress_level_pos >= 0:
 				var level_pts: Dictionary = {}
-				for row in _raw_scores:
+				for row in _progress_rows():
 					if row.size() <= _progress_time_pos:
 						continue
 					var time_ms: int = row[_progress_time_pos]
-					if time_ms <= 0 or time_ms == 9999:
+					if progress_is_score:
+						if time_ms < 0:
+							continue
+					elif time_ms <= 0 or time_ms == 9999:
 						continue
 					var level: int = _level_of(row)
 					if not level_pts.has(level):
@@ -936,7 +958,7 @@ func create_chart() -> void:
 				levels.sort()
 				for si: int in range(levels.size()):
 					var level: int = levels[si]
-					var lname: String = _progress_level_names.get(level, "L%d" % level)
+					var lname: String = _progress_level_names.get(level, ("Level %d" if progress_is_score else "L%d") % level)
 					series_list.append({"label": lname, "color": ChartControl.SERIES_COLORS[si % 8], "points": level_pts[level]})
 			else:
 				var pts: Array = []
@@ -999,6 +1021,9 @@ func create_chart() -> void:
 	# bare "session" would still read as the global count this used to be.
 	if _chart_x_mode != 1:
 		_chart_control.x_title = "date"
+	elif progress_is_score:
+		# A point is a whole play on the Score chart, and a finished level on the per-level one.
+		_chart_control.x_title = "play" if _chart_metric == 0 else "time through this level"
 	elif series_list.size() > 1:
 		_chart_control.x_title = "session at this level"
 	else:
@@ -1118,7 +1143,7 @@ func create_progress_list() -> void:
 		child.queue_free()
 	await get_tree().process_frame
 
-	if _progress_time_pos < 0 or _raw_scores.is_empty():
+	if _progress_time_pos < 0 or _progress_rows().is_empty():
 		_set_empty_state("No %s data yet" % _progress_time_label.to_lower())
 		return
 
@@ -1128,11 +1153,12 @@ func create_progress_list() -> void:
 	# Collect entries
 	var all_entries: Array = []
 	var level_data: Dictionary = {}
-	for row in _raw_scores:
+	for row in _progress_rows():
 		if row.size() <= _progress_time_pos:
 			continue
 		var time_ms: int = row[_progress_time_pos]
-		if time_ms < 0 or (not _progress_time_is_pct and time_ms == 0) or time_ms == 9999:
+		if time_ms < 0 or (not _progress_time_is_pct and not progress_is_score and time_ms == 0) \
+				or (not progress_is_score and time_ms == 9999):
 			continue
 		var date_str: String = _fmt_datetime(row[0])
 		var entry: Dictionary = {"date": date_str, "time_ms": time_ms, "pct": -1}
@@ -1152,7 +1178,9 @@ func create_progress_list() -> void:
 		return
 	_clear_empty_state()
 
-	var monotonic: bool = MainGlobals.show_monotonic_speed
+	# A per-level SCORE is best high and filtered by the Scores tab's own switch.
+	var monotonic: bool = MainGlobals.show_monotonic_scores if progress_is_score \
+		else MainGlobals.show_monotonic_speed
 
 	# Compute column widths
 	var orig_show_level := show_level
@@ -1180,9 +1208,14 @@ func create_progress_list() -> void:
 	var _emit_entries := func(entries: Array) -> void:
 		var filtered: Array = []
 		var best_ms := 999999
+		var best_score: int = -1
 		for entry in entries:
 			var t: int = entry.time_ms
-			if not monotonic or t < best_ms:
+			if progress_is_score:
+				if not monotonic or t > best_score:
+					best_score = maxi(best_score, t)
+					filtered.append(entry)
+			elif not monotonic or t < best_ms:
 				if monotonic:
 					best_ms = t
 				filtered.append(entry)
@@ -1263,7 +1296,10 @@ func _on_scores_window_window_input(event:InputEvent) -> void:
 func _prepare_instrument_tab() -> void:
 	if _inst_tab_button == null or game_key == "":
 		return
-	# Always there, for every game: it holds the verdict, which every game has.
+	if not show_summary_tab:
+		_inst_tab_button.visible = false
+		return
+	# There for every game that keeps it: it holds the verdict.
 	_inst_tab_button.text = "Summary"
 	_inst_tab_button.visible = true
 	var panel: Control = GameInstrument.summary_for(game_key)

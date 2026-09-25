@@ -257,6 +257,9 @@ func new_game(from_scratch=true):
 
 	_advance_if_needed()
 	game.need_to_increase_level = false
+	if from_scratch or level != _points_level:
+		_level_points = 0
+		_points_level = level
 	if not game.tutorial_mode:
 		# Each card is followed through ITS OWN `closed` signal. The app-wide "a card closed" signal
 		# cannot tell this briefing from the round card, or either from a card left over from before.
@@ -1283,6 +1286,7 @@ func level_is_done(didwin: bool):
 	if didwin:
 		game.need_to_increase_level = true
 		if need_to_increase_level():
+			_file_level_score()
 			MainGlobals.global_level_is_done(true)
 			# The level summary shows the same numbers as a round card: it used to show none.
 			var done_card = game.show_level_done_popup(self, "", "", level, stats_str)
@@ -1849,7 +1853,21 @@ var round_points: Dictionary = {}
 
 func _add_points(part: String, n: int) -> void:
 	round_points[part] = int(round_points.get(part, 0)) + n
+	_level_points += n
 	game.add_score_and_time(n, 0)
+
+# EACH LEVEL'S OWN SCORE, for the stats' per-level tab. The score on screen runs on from 100 across a
+# whole play, and a play is saved as one record when it ends, so its score mixes every level played in
+# it. This counts a level on its own -- from the same 100, by the same parts, every round of it, lost
+# ones included -- and files it in the play's record (`level_scores`) when the level is finished.
+# A level left unfinished is not filed: fewer rounds would not compare with a whole level.
+var _level_points: int = 0
+var _points_level: int = -1
+
+func _file_level_score() -> void:
+	game.record_list("level_scores", {"level": level,
+		"score": maxi(0, game.initial_score + _level_points),
+		"ts": int(Time.get_unix_time_from_system())})
 
 # How full a tool is, 0..1. Tape holds nothing, so it is always empty.
 func _tool_fill(a: CAction) -> float:

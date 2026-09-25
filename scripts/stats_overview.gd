@@ -47,7 +47,6 @@ const METRICS: Dictionary = {
 	# built from -- the same reasoning that already let crack's `cycles_opened` work.
 	"span": true,                 # Moving Cards: the longest order held
 	"jobs_cancelled": false,      # Taxi: a plan revised after it was made
-	"overflows": false,           # Storm: water on the floor
 	"collisions": false,          # Pneumo
 	"crumbs_through": false,      # Ants: what the colony got past the player
 	# Ants again, and these are the ones worth watching. A road re-forming is a low-salience change
