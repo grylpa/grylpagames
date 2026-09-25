@@ -160,6 +160,11 @@ one rule is easier to say and to show. The share itself is still worked out -- e
 `leaked_total` and `floored_total`, and `rain_stats()` gives caught = 1 − floor water / leaked water --
 and is shown on the round card as "Rain caught", with "Worst room: N% flooded".
 
+**The cards say how close it was.** The round card ("Well done!" / "Oh no!") and the level summary show
+"Worst room: N% flooded" directly above "Room is lost at: M%" (the level's `room_ruin`), then rain
+caught, score, time, furniture saved and ruined. The level summary used to show no numbers at all; it
+now gets the same lines.
+
 `probe_storm_rain.gd` checks: a puddle's area is the water it was given, it keeps growing past the
 old 3x3, a tool stops it, overlaps count once, a puddle never covers another room, the drawing is
 water under a puddle, runs on under a wall and never onto another room; a leak starting on furniture
@@ -198,7 +203,7 @@ documented at the top of the file:
 
 `rounds`, `fill_rate`, `room_ruin`, `rooms`, `board`, `room_size`, `storm_sec`, `leak_every_ms`,
 `bricks_per_room`, `drains_per_room`, `furniture_per_room`, `tools` (bucket / rag / fix / cup / plate
-counts), `player_speed`, `blackout_every_sec`.
+counts), `player_speed`, `corridor_run`, `blackout_every_sec`.
 
 They were formulas in `level.gd` -- rooms `min(12, level)`, board `51 + 2 × level`, storm
 `60 × (1 + level)` s, bucket / towel / tape `min(3, 1 + level)` each -- and constants (leaks every 2-4 s,
@@ -216,6 +221,71 @@ The briefing card shows the real count. Raise `board` to get them all.
 
 `probe_storm_rain.gd` checks that every row has every column; a real run of levels 1, 3 and 12 built
 boards matching their rows exactly, apart from level 12's rooms.
+
+## Tuning with a bot (`devtools/measure_storm.gd`)
+
+A bot plays rounds like a person -- sees only the camera's view, notices a leak after 0.9 s, walks at
+the player's speed, a second per menu choice -- ten times faster than real time (see
+`devtools/README.md`). First measurements, 3-4 rounds each (2026-09-25):
+
+Level 1 (1 room, 120 s, 14 tools):
+
+| fill | leaks every | ruin | won | worst room (avg) |
+|---|---|---|---|---|
+| 1.5 | 2-4 s | 40% | 0 of 4 | 40% |
+| 1.5 | 3-6 s | 40% | 2 of 3 | 37% |
+| 1.5 | 4-8 s | 40% | 4 of 4 | 23% |
+| 1.0 | 3-6 s | 40% | 4 of 4 | 18% |
+| 2.0 | 4-8 s | 40% | 3 of 3 | 30% |
+
+Level 2 (2 rooms, 180 s, 17 tools):
+
+| fill | leaks every | ruin | won | worst room (avg) |
+|---|---|---|---|---|
+| 2.1 | 2-4 s | 40% | 0 of 4 | 40% |
+| 2.1 | 4-8 s | 40% | 1 of 4 | 39% |
+| 1.5 | 4-8 s | 40% | 0 of 4 | 40% |
+| 1.5 | 5-10 s | 40% | 2 of 4 | 37% |
+| 1.0 | 4-8 s | 40% | 4 of 4 | 31% |
+| 1.5 | 4-8 s | 50% | 4 of 4 | 40% |
+| 1.0 | 5-10 s | 40% | 4 of 4 | 25% |
+
+**The whole ladder, as applied** (every level: rooms lost at 40%; checked from the table itself):
+
+| level | rooms | storm | tools | fill | leaks every | won | worst room (avg) |
+|---|---|---|---|---|---|---|---|
+| 1 | 1 | 2 min | 14 | 1.5 | 4-8 s | 4 of 4 | 24% |
+| 2 | 2 | 3 min | 17 | 1.0 | 4-8 s | 4 of 4 | 29% |
+| 3 | 3 | 4 min | 17 | 1.0 | 4-8 s | 3 of 3 | 35% |
+| 4 | 4 | 5 min | 17 | 1.0 | 5-10 s | 3 of 3 | 33% |
+| 5 | 5 | 6 min | 17 | 1.0 | 8-16 s | 3 of 3 | 34% |
+| 6 | 6 | 5 min | 29 | 1.0 | 6-12 s | 4 of 4 | 31% |
+| 7 | 7 | 5 min | 32 | 1.0 | 5-10 s | 4 of 4 | 33% |
+| 8 | 8 | 5 min | 35 | 1.0 | 5-10 s | 2 of 4 | 34% |
+| 9 | 9 | 5 min | 38 | 1.0 | 5-10 s | 4 of 4 | 32% |
+| 10 | 9 | 5 min | 38 | 1.0 | 4-8 s | 4 of 4 | 33% |
+| 11 | 9 | 5 min | 38 | 1.5 | 6-12 s | 3 of 4 | 32% |
+| 12 | 9 | 5 min | 38 | 1.5 | 5-10 s | 1 of 4 | 39% |
+
+The shape, decided on the way (also at the top of `level_config.gd`):
+
+- **The flood line never moves.** Difficulty does not come from a more forgiving room.
+- **The storm stops growing at 5 minutes.** At a minute a level with a fixed 17 tools, the tools were
+  all placed within the first few minutes and every leak after that poured freely: from level 6 up
+  nothing was winnable at any leak rate tried (8-16 s included; level 12 lost even at an 80% line).
+- **From level 6, 3 more tools per room past two** (a bucket, a towel and a cup), so a leak in any room
+  can be covered. The tool menu shows at most 24 at a time, and the bot plays under that cap too.
+- **No more than 9 rooms**, all four of levels 9-12 on the same 75 x 75 board, harder by leaks and fill
+  alone. Pooled over those four identical levels, 12 rounds per setting: fill 1.0 at 6-12 s won 12,
+  5-10 s 11, 4-8 s 9; fill 1.5 at 6-12 s 9, 5-10 s 6; fill 1.0 at 3-6 s 4. (A level-9 board sometimes
+  fits 8.)
+
+Three rounds a setting is a rough read -- level 8's 2 of 4 sits between two 4-of-4 levels and is most
+likely noise.
+
+How often leaks come matters more than how fast they pour: with the tools all placed by the
+middle of the round, every leak after that pours freely. Rounds vary a lot on level 2 (rooms of
+different sizes), so a setting near the edge can read 2 of 2 in one run and 0 of 4 in the next.
 
 ## Tools
 
@@ -270,6 +340,17 @@ Drain tiles are special pipes (`is_drain = true`). When a filled tool is placed 
 
 - Board divided into rectangular rooms connected by corridors
 - Player is a walking character that must be close to a leak or drain to interact
+- **The player runs in a corridor**: each step into a corridor tile is taken at the level's
+  `corridor_run` (2 on every level) times `player_speed`, each step into a room at `player_speed`
+  (`level._set_player_pace()`, from `move_player_on_tick()`). Nothing happens in a corridor -- no leak,
+  tool or furniture -- so it is only the way to the next room, and walking it at room pace was dead
+  time. The ladder in "Tuning with a bot" was measured before this, walking; running only makes a
+  level easier.
+- **A corridor's tiles are listed in walking order** (`_try_corridor_L()`). A straight run going up
+  or left used to be listed low to high whatever its direction, so its path jumped from its start to
+  its far end and back; the door put one step back from the first two tiles then landed off the board
+  -- "Invalid access of index 75" on a 63-tile board, from `add_door_at()`, about one run in five of
+  `probe_storm_rebuild`. That probe now checks the order in all four directions.
 - Furniture (flower, screen, rug) placed in rooms is what there is to lose: ruined when the water covers it
 
 ## Save Files
@@ -354,10 +435,15 @@ Two things follow from that and both matter when editing the text:
 
 **The card goes up at once, held, while the board is built behind it.** `level.new_game()` shows the
 briefing immediately and holds it (`game_popup.hold()`): the card reads only "Building world" and has
-no Start button, and nothing closes it -- not the button, a tap outside, Enter, Escape or
-`sig_need_to_close_info_popups`. It is laid out at its final size from the start: the real text (with
+no Start button, over the card's usual DIM background (`hold(message, false)`), so the mansion is
+seen going up behind it -- and nothing closes it -- not the button, a tap outside, Enter, Escape or
+`sig_need_to_close_info_popups`. (For a while the held card had an opaque background, because the
+build behind it read as one room turning into another. That was the camera, not the build: see "The
+build is watched" below.) It is laid out at its final size from the start: the real text (with
 the planned room count) is already in it, hidden, and the text it is released with has the same lines.
-When the board is ready AND the card has been up at least `BRIEF_HOLD_MS` (1 s, so the hold never
+The briefing says three things (`_brief_text()`): how many rooms there are to protect, and, as a
+table, "Storm lasts" and "A room is lost at: N% under water" -- the level's `room_ruin`, which differs
+per level. When the board is ready AND the card has been up at least `BRIEF_HOLD_MS` (1 s, so the hold never
 flickers past as a glitch), `_release_brief()` fills in the real text -- with the rooms the board
 actually got, since `create_rooms()` can place fewer than planned -- and shows Start. The round starts
 when the card closes (its own `closed` signal).
@@ -370,6 +456,40 @@ held button now only stops taking the mouse), and `ResultCard.set_body()` set a 
 old lines until the end of the frame and put a gap above the new first line (they are now removed at
 once).
 
+**The build is watched, in the view it will be played in.** The rooms are placed first, unseen
+(`add_pipe()` leaves a tile hidden until `_build_framed`): every room is down within the first few
+slices -- about 10 frames on level 9 -- and the camera cannot frame the mansion before it knows where
+the rooms are. Then `_frame_build()` puts the camera on the mansion view (`zoom_camera(false)`) and
+shows them all at once, and the rest of the build is drawn live in that one view: the corridors, one
+connection at a time (about 100 frames on level 9), then the walls sweeping down the board a slice of
+rows at a time. Each tile takes its final look as it is added -- a tile's look is its own, its room's
+color or corridor floor, so `set_rot()` needs no neighbors -- and each wall tile is walled as it goes
+down (every tile is floor or not by then), where there used to be a separate pass over all of them.
+Framing each room as it was placed was tried first: the first room filled the screen and the view then
+zoomed far out, since all the rooms are down in a fraction of a second and the rest is corridors.
+Measured on level 9: the camera's zoom is 0.274 from the frame the rooms appear to the end of the
+build; on level 1 it never changes.
+
+**The board is built in the whole-mansion view, and a mansion is previewed before play.** Storm is
+not an exploration game. The build calls `zoom_camera(false)`, so what is behind the briefing is the
+whole mansion -- it used to be the player's room, then a zoom out for the preview, then a zoom back
+in. Once Start is pressed:
+
+- **Several rooms:** that view stays for `PREVIEW_SEC` (5) with the HUD's countdown -- the one Lights
+  Out uses -- then the camera glides into the room the player starts in over `ZOOM_IN_SEC` (0.7 s;
+  `_glide_to_player()` moves and zooms the mansion camera to where the player's will be, then hands
+  over, so nothing jumps). Nothing happens during it: the game is unpaused so the countdown runs, but
+  `level_is_ready` stays false, so no leak starts and the player cannot move, and `_start_playing()`
+  resets the storm clock afterwards. A round left or replaced during the preview drops its countdown
+  (`_preview_round`).
+- **One room:** the mansion view already shows all of it, so there is no countdown and no zoom: the
+  round starts at once and is played in that view.
+- **The tutorial** goes straight in, in the player's view, as it always has.
+
+Measured: level 1 -- mansion view behind the briefing, playing 51 ms after Start, no countdown, the
+camera never changing; level 2 -- mansion view, countdown 5-4-3-2-1, glide, playing on the player's
+camera 5.8 s after Start, no leak during it, the storm clock full.
+
 **The board is built in slices** (`_breathe()`, called in every loop of the build: placing rooms,
 finding corridors, laying walls and tiles). Built in one go, it froze the game, and the card could not
 take the Start press until the build was over: about 0.13 s on level 1 and 2.2 s on level 12 on a
@@ -380,6 +500,67 @@ takes about 3.5 s to build, since slices share their frames; the longest single 
 130 ms, in a step not yet sliced). While a build is running, `_building` is set: a new round waits for
 it to finish (two builds interleaving would share one board), and a tap on the half-built board is
 ignored (`_on_pipe_pressed` checks `_board_ready`).
+
+**The build flag is raised the moment `new_game()` stops waiting**, not when `create_board()` starts.
+There are two awaited frames between the two (for the briefing card to draw), and a second
+`new_game()` in them -- a quick N, a level change -- found the flag down and went on, `reset()` the board
+a build was still filling, and two builds shared one board: Godot crashed on a freed tile, or read a
+cell past the edge of a board of another size. `devtools/probe_storm_rebuild.gd` starts rounds at
+random levels, often mid-build, and checks the board is whole; with the flag raised late it crashes.
+
+## The camera frames the room you are in
+
+One camera (`game_cam`) does everything. During play it frames the room the player is in, as large as
+it fits: the room's tiles plus `FRAME_MARGIN` (a quarter tile) each side -- enough for the walls, which
+are drawn on the room's side of the tile ring around it, 4 px of 40 -- across the screen's width, or
+between the HUD strip and the button bar if the room is too tall for that, centred in that band
+(`_frame_for()`). Walking into another room glides the frame over (`ROOM_GLIDE_SEC`); in a corridor it
+follows the player at the zoom it had (`_follow_player_room()`). Before play it frames every room the
+same way -- the mansion view, which is also the play view of a one-room level.
+
+It used to follow the player with a fixed 14-tile-wide view: about two tiles of margin round a small
+room, and a 13-wide room (room sides are 9..12 made odd, so 9, 11 or 13) did not fit with its walls.
+On a phone a tile, and so a tool box, is now about 7.2-7.8 mm for a 9-wide room, 6.0-6.5 mm for 11 and
+5.2-5.6 mm for 13, against 5.0-5.4 mm for all rooms before (estimated for a 6.5-7 cm-wide screen).
+Measured on desktop: an 11 x 11 room spans x 15..665 of 680, y 77..727 between the HUD and the bar.
+
+## The tool menu
+
+A grid of boxes around the tapped tile, each box a board tile's on-screen size plus 4, sized to hold
+every tool in hand plus one see-through slot: 3 x 3, 5 x 5 or 5 x 7 (`MENU_GRIDS`, taller than wide for
+a portrait screen; the largest holds 34 tools, and past that the first 34 in dealt order).
+
+**The tapped tile stays visible.** It sits under whichever slot keeps the whole menu on screen,
+nearest the middle of the menu, and that slot is the see-through one. The menu moves by whole slots,
+so the tile always sits squarely in one; it may cover the HUD and the button bar. It used to be
+centred on the tile with its middle slot see-through and pushed back onto the screen by however many
+pixels it overhung, which put a tool over the tile and the player. The tools take the slots nearest
+the tapped one; the slots left over, like the see-through one, put back the tool on the tile.
+Measured at level 10 (38 tools): a 5 x 7 menu of 34 tools, wholly on screen for a tile in a room's
+corner, its see-through slot exactly over the tile.
+
+## Arrows toward new leaks out of view
+
+On a level with several rooms a leak can start anywhere while the camera shows only the player's room.
+For a new leak out of view, `scripts/leak_arrows.gd` (`StormLeakArrows`, its own CanvasLayer) draws a
+blue arrow near the screen's edge pointing at it: on the line from the player to the leak, where that
+line meets the edge of the arrow area (`edge_point()` -- the screen inset 30 units, and clear of the
+HUD strip and the button bar). It follows as the player moves, and pulses gently.
+
+- **It goes** after the level's `arrow_ms` (1000 on every level; negative: never times out), or when
+  its leak comes on screen, or when a tool is catching it.
+- **One at a time.** A new leak out of view takes the arrow over: several arrows each pointing
+  somewhere else would say nothing. A new leak already on screen gets none and leaves the current
+  arrow alone.
+- **Only a new leak.** `add_leak()` can pick a tile that is already leaking; that starts nothing and
+  gets no arrow. One-room levels have no arrows at all.
+- Its clock is game time, so it waits while the game is paused. Cleared at a round's end and on reset,
+  hidden with the level.
+
+Measured in a real run at level 2: an off-screen leak in the other room got an arrow whose tip sat
+exactly on the arrow area's edge along the player-to-leak line, drawn blue there; taping the leak
+removed it. `probe_storm_rain.gd` checks the edge geometry, one arrow at a time, removal on catching,
+and the time-out.
 
 ## The inventory closes whenever something else takes over
 

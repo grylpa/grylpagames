@@ -1688,13 +1688,18 @@ var _game_start_ms: int = 0
 var _total_paused_ms: int = 0
 var _pause_start_ms: int = 0
 
+# FOR HEADLESS MEASURING ONLY (devtools): game time runs this many times faster than the wall clock.
+# A harness sets it together with Engine.time_scale, so the game clock and the Timer nodes that pace a
+# game speed up in step and a round plays out the same, only sooner. Always 1 in the game.
+var time_warp: float = 1.0
+
 var game_time: float:
 	get:
 		var elapsed_ms: int = MainGlobals.timems() - _game_start_ms
 		var ongoing_pause_ms: int = 0
 		if paused():
 			ongoing_pause_ms = MainGlobals.timems() - _pause_start_ms
-		return float(max(0, elapsed_ms - _total_paused_ms - ongoing_pause_ms))
+		return float(max(0, elapsed_ms - _total_paused_ms - ongoing_pause_ms)) * time_warp
 
 func tick_game_time():
 	pass
