@@ -247,6 +247,8 @@ func new_game(from_scratch=true):
 	_building = true
 	game.pause(true)
 	reset()
+	# Not in reset(): a won round calls that before its card, and the parts are read after it.
+	round_points = {}
 	_board_ready = false
 	if from_scratch:
 		level = StormG.starting_level
@@ -398,6 +400,19 @@ func dist_from_array(p, arr):
 	
 var room_min_size = 9
 var room_max_size = 12
+
+# NO 13-WIDE ROOM ON A PHONE. A room fills the screen's width (_frame_for()), so its side sets the
+# size of a tile -- and of a slot in the tool menu, which is one tile. 9..12 made odd gives 9, 11 or 13;
+# on a phone 13 comes out at about 5.4 mm a tile, under a comfortable touch target, where 11 is about
+# 6.2 mm and 9 about 7.5 mm. On a phone a room's side is capped at MOBILE_MAX_ROOM_SIDE.
+const MOBILE_MAX_ROOM_SIDE: int = 11
+
+# One side of a new room: the level's range, made odd, capped on a phone.
+func _room_side() -> int:
+	var side: int = rng.randi_range(room_min_size, room_max_size) | 1
+	if MainGlobals.is_mobile():
+		side = mini(side, MOBILE_MAX_ROOM_SIDE)
+	return side
 var board_margin = 5
 
 #region create_rooms
@@ -426,8 +441,8 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 	rooms_checked_connections.clear()
 	visited_rooms.clear()
 
-	var w0 = rng.randi_range(room_min_size, room_max_size) | 1
-	var h0 = rng.randi_range(room_min_size, room_max_size) | 1
+	var w0: int = _room_side()
+	var h0: int = _room_side()
 	var p0 = center - Vector2i(w0 / 2, h0 / 2)
 
 	# Clamp room 0 into bounds
@@ -446,8 +461,8 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 
 		for attempt in range(900):
 			await _breathe()
-			var rw = (rng.randi_range(room_min_size, room_max_size) | 1)
-			var rh = (rng.randi_range(room_min_size, room_max_size) | 1)
+			var rw: int = _room_side()
+			var rh: int = _room_side()
 			var rsize = Vector2i(rw, rh)
 
 			# --- Pick an anchor room to cluster around ---
@@ -1250,6 +1265,12 @@ func level_is_done(didwin: bool):
 		"didwin": int(didwin),
 	})
 	var time_from_start_s: float = (game.game_time - time_started_level_ms) / 1000.0
+	if didwin:
+		_add_points("outcome", WIN_POINTS)
+		var worst_now: float = float(count_round_stats()["worst"])     # fresh, not the last tick's
+		_add_points("margin", maxi(0, int(round((room_ruin() - worst_now) * 100.0))))
+	else:
+		_add_points("outcome", -LOSS_POINTS)
 	var stats: Dictionary = count_round_stats()
 	# One fact per line: the card sets them as a table, so the "  |  " and double-space packing
 	# that squeezed five numbers onto two lines is no longer buying anything.
@@ -1260,9 +1281,6 @@ func level_is_done(didwin: bool):
 		int(round(float(rain["caught"]) * 100.0)),
 		game.score, int(time_from_start_s), stats["saved"], round_items_lost]
 	if didwin:
-		var score_add: int = min(5, 60 - time_from_start_s)
-		var time_add: int = min(10, 60 - time_from_start_s)
-		game.add_score_and_time(score_add, time_add)
 		game.need_to_increase_level = true
 		if need_to_increase_level():
 			MainGlobals.global_level_is_done(true)
@@ -1480,7 +1498,7 @@ func _check_floods() -> void:
 			p.ruin_furniture()
 			round_items_lost += 1
 			game.record_count("items_ruined")
-			game.add_score_and_time(-p.furniture_value, 0)
+			_add_points("furniture", -p.furniture_value)
 	var shares: Array = room_flood()
 	room_shares = shares
 	for i in shares.size():
@@ -1771,9 +1789,11 @@ func _on_action_pressed(event, rect: Control):
 				var new_action = get_action_by_id(action_id, false)
 
 				if prev_action != null and prev_action.name == "drain":
+					# Points only for emptying a tool worth emptying: more than half full.
+					if _tool_fill(new_action) > 0.5:
+						_add_points("drains", DRAIN_POINTS)
 					new_action.level = 0
 					game.play_sound("water_pour")
-					game.add_score_and_time(5,0)
 				else:
 					game.play_sound("tap")
 					var pipe = cell.pipe
@@ -1785,7 +1805,6 @@ func _on_action_pressed(event, rect: Control):
 					cell.action = new_action
 					var action_texture = action_textures.get(new_action.name, [])
 					pipe.set_action(new_action.name, action_texture, new_action.level, new_action.overflow_level)
-					game.add_score_and_time(2,0)
 					game.tutorial_notify("tool_placed")
 		
 		sort_available_actions()
@@ -1809,6 +1828,33 @@ func close_inventory() -> void:
 	popup = null
 
 # saved: furniture still dry. worst: the most flooded room's share, 0..1.
+# THE SCORE. What a round is worth, in parts, so what earned it can be read back (round_points):
+#   drains     +DRAIN_POINTS for emptying a tool more than half full -- emptying a near-empty one is busywork
+#   furniture  minus each ruined piece's value (`furniture` above): what you chose to protect counts
+#   overflowed -OVERFLOW_POINTS when a tool under a leak fills up and the water runs over it (pipe.pour())
+#   outcome    +WIN_POINTS for getting through the storm, -LOSS_POINTS for a room lost
+#   margin     on a won round only, how far the worst room stayed under the level's line, in percentage
+#              points: lost at 40%, finished at 39% is 1, at 20% is 20
+# Putting a tool down scores nothing: it was +2, and farmable by putting one down and picking it up
+# again. Emptying was +5 whatever was in the tool. The win bonus was min(5, 60 - seconds played),
+# written when a round lasted about a minute: with storms of 2 to 5 minutes, surviving one cost 60 to
+# 240 points. A bonus of 100 minus the percent of the WHOLE house under water was tried and measured:
+# it came to 64-85 a round, most of it a flat reward for winning -- a room at 38%, one short of
+# losing, still earned 81 -- and it outweighed every other part together.
+const DRAIN_POINTS: int = 5
+const OVERFLOW_POINTS: int = 1
+const WIN_POINTS: int = 20
+const LOSS_POINTS: int = 20
+var round_points: Dictionary = {}
+
+func _add_points(part: String, n: int) -> void:
+	round_points[part] = int(round_points.get(part, 0)) + n
+	game.add_score_and_time(n, 0)
+
+# How full a tool is, 0..1. Tape holds nothing, so it is always empty.
+func _tool_fill(a: CAction) -> float:
+	return float(a.level) / float(a.overflow_level) if float(a.overflow_level) > 1e-3 else 0.0
+
 func count_round_stats() -> Dictionary:
 	var saved: int = 0
 	for p in pipes:

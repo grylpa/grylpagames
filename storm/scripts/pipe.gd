@@ -119,7 +119,12 @@ func pour(amount: float) -> void:
 			floored_total += dt
 			if not action.is_empty() and overflow_level > 1e-3 and not action_full:
 				action_full = true
-				game.add_score_and_time(-1, 0)
+				# A tool left to overflow: -1, kept with the round's other score parts (level._add_points).
+				var lvl: Node = get_parent()
+				if lvl != null and lvl.has_method("_add_points"):
+					lvl.call("_add_points", "overflowed", -int(lvl.get("OVERFLOW_POINTS")))
+				else:
+					game.add_score_and_time(-1, 0)
 		else:
 			if action in ["fix", "drain"]:
 				action_level = 0
