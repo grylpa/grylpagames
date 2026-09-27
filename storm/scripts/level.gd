@@ -1236,7 +1236,7 @@ func add_leak():
 			var is_new: bool = not cell.pipe.water_active
 			cell.pipe.start_leak()
 			if is_new and rooms.size() > 1 and _arrows != null:
-				_arrows.track(cell.pipe, float(_cfg.get("arrow_ms", 1000)))
+				_arrows.track(cell.pipe, float(_cfg.get("arrow_ms", 2000)))
 			game.play_sound("swoosh")
 			game.tutorial_notify("leak_started")
 			return

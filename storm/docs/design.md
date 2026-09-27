@@ -579,9 +579,16 @@ On a level with several rooms a leak can start anywhere while the camera shows o
 For a new leak out of view, `scripts/leak_arrows.gd` (`StormLeakArrows`, its own CanvasLayer) draws a
 blue arrow near the screen's edge pointing at it: on the line from the player to the leak, where that
 line meets the edge of the arrow area (`edge_point()` -- the screen inset 30 units, and clear of the
-HUD strip and the button bar). It follows as the player moves, and pulses gently.
+HUD strip and the button bar). It follows as the player moves.
 
-- **It goes** after the level's `arrow_ms` (1000 on every level; negative: never times out), or when
+**How it looks.** A whole arrow, shaft and head, 66 units from tail to tip (`arrow_points()`): blue,
+inside a white rim, inside a dark edge, over a soft blue glow, so it reads on the lawn, a floor or
+water alike. The rims and glow are the arrow grown (`Geometry2D.offset_polygon`, round joins), not
+stroked: a thick polyline leaves notches at the tip and barbs. It pulses a little in size and bobs 7
+units toward its leak, because motion is what catches the eye at the edge of the screen. It used
+to be a 26-unit arrowhead with a thin dark outline that disappeared against the dark ground.
+
+- **It goes** after the level's `arrow_ms` (2000 on every level, and 2000 where a level leaves it out; negative: never times out), or when
   its leak comes on screen, or when a tool is catching it.
 - **One at a time.** A new leak out of view takes the arrow over: several arrows each pointing
   somewhere else would say nothing. A new leak already on screen gets none and leaves the current
