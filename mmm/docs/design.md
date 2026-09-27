@@ -379,3 +379,20 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `mmm()`), not grabbed. The old
+tile was the castle as a floor plan: flat colored boxes joined by grey lines on a flat green that
+was not even the game's current lawn. Accurate, and it read as a diagram.
+
+It is now a palace: four towers at dusk, each in one of the room colors from the game's palette
+(`GenericGameUtil.colors`: red, blue, yellow, cyan, picked to be far apart), which is what a round
+asks you to remember. Each tower is shaded as a round one lit from the left, with a crenellated
+parapet, faint stone courses, a cone roof in a deeper shade of its own color (the red one has none),
+and a warm light in some windows; the tallest, in front, has a door and a pennant, and the one
+furthest back is hazed toward the sky. They stand on the lawn every grass game now has
+(`GrassField`'s ground and blade colors). The grass and the towers are drawn in depth order: a blade
+rooted above a tower's foot is behind it, one rooted below is in front. All the grass used to go on
+last, so every tower wore the same fringe at its foot however far away it stood. Checked at chooser
+size: it still reads as four colored towers.
