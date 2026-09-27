@@ -87,7 +87,7 @@ What it does that is specific to this game:
 - **The refuel is watched, not just ordered.** `sent_to_gas` fires on the tap, so the coach used to
   move on while the taxi was still driving — the player never saw it arrive or fill. A step now
   waits for `gas_filled` (from `on_finished_filling_gas`). It also says the taxi turns green while
-  filling: `activate_gas_station_anim()` sets `modulate` to green, on a city whose clear colour is
+  filling: `activate_gas_station_anim()` sets `modulate` to green, on a city whose clear color is
   dark green, and players read that as the taxi having disappeared.
 - **No timeouts on the steps that wait for the player.** A 120 s limit on the pump step silently
   advanced a slow player to "Ready", so their next tap appeared to produce the wrong text. Skip and
@@ -148,8 +148,22 @@ so its rig stays. Do not copy this game's `agent.gd` there, or the reverse.
 Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
-Jobs assigned against jobs cancelled. Cancelling an assigned taxi that has not picked anyone up is the clearest available trace of a plan the player had to undo.
+Jobs assigned against jobs canceled. Canceling an assigned taxi that has not picked anyone up is the clearest available trace of a plan the player had to undo.
 
 **Its counts are now metrics.** `jobs_cancelled` is registered in `StatsOverview.METRICS` as a plan revised after it was made, lower being better. Before that this game recorded two counts that nothing could read, and had no Summary rows.
 
 A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.
+## The chooser tile
+
+`art/game_screen_200.png` (400 x 400, the size this game has always shipped) is **drawn**
+(`devtools/make_thumbs.py`, `taxi()`), not grabbed. The old tile was a screen grab of the lot: four
+cabs, two pumps, a customer and a door arrow, each a few pixels, on asphalt and gravel.
+
+It now keeps the three things the game is about, large: a cab on a road (the game's own
+`art/taxi-clean-1.png`, facing +x as the game draws it at rotation 0, speed lines behind it), a dotted
+route from its nose to a customer waiting at the kerb (a round green head with a face, the look of the
+game's customers, with a soft glow), and the game's own gas station sign (`art/gas_station.png`) on the
+lawn, since fuel is the other half of the job. The lawn is `GrassField`'s colors; the road is the
+lot's 65/65/65 asphalt between gravel kerbs, with its yellow dots moved into two faint rows so the
+route is the only line along the middle. Checked at chooser size: cab, route, customer and pump all
+still read.

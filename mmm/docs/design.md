@@ -254,7 +254,7 @@ Specific to this game:
   20 px — smaller than the coin inside it, which reads as a rendering glitch rather than as a
   pointer. It now grows by half a tile each side (plus the step's `spot_pad`), giving 69 px against
   a 57 px tile. The tile size comes from the camera (`game.tile_size * canvas_scale`), not from
-  the neighbouring tile: `add_coins()` puts some coins on a room's EDGE, where the tile to the
+  the neighboring tile: `add_coins()` puts some coins on a room's EDGE, where the tile to the
   right is a wall with no pipe to measure, and the frame collapsed to a fixed inset there — the
   same marker was about two tiles wide mid-room and about one on an edge.
 - **A wrong pick flashes.** `_flash_wrong()` reddens and shakes the swatch that was tapped. Before
@@ -290,7 +290,7 @@ straight into the Level layer.
 follows.
 
 **The camera frames the room you are in** (copied from Storm), **at one zoom for the whole round.**
-One camera (`game_cam`): during play it centres the player's room at the zoom that fits the castle's
+One camera (`game_cam`): during play it centers the player's room at the zoom that fits the castle's
 LARGEST room -- its tiles plus `FRAME_MARGIN` (a quarter tile) a side, across the screen's width, or
 between the HUD strip and the button bar if it is taller than that (`_play_zoom`,
 `_largest_room_zoom()`, `_frame_for()`). Each room at its own largest zoom was tried first and moved
@@ -383,7 +383,7 @@ Response times are handed to the shared session record as a whole distribution, 
 ## The chooser tile
 
 `art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `mmm()`), not grabbed. The old
-tile was the castle as a floor plan: flat colored boxes joined by grey lines on a flat green that
+tile was the castle as a floor plan: flat colored boxes joined by gray lines on a flat green that
 was not even the game's current lawn. Accurate, and it read as a diagram.
 
 It is now a palace: four towers at dusk, each in one of the room colors from the game's palette
