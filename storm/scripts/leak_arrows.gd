@@ -14,9 +14,20 @@ extends CanvasLayer
 # Screen positions come from each node's canvas transform (the level's layer follows the camera), so
 # the arrows are in screen space and never need to know the camera's zoom.
 
-const COLOR: Color = Color(0.20, 0.52, 1.0, 0.95)
-const OUTLINE: Color = Color(0.02, 0.06, 0.16, 0.9)
-const SIZE: float = 26.0            # arrow length, screen units
+# A WHOLE ARROW -- shaft and head -- and outlined so it reads on any floor, lawn or water: blue inside a
+# white rim inside a dark one, over a soft glow. It was a 26-unit arrowhead with a thin dark outline
+# that vanished against the dark ground, and was easy to miss.
+const COLOR: Color = Color(0.16, 0.50, 1.0, 1.0)
+const RIM: Color = Color(1.0, 1.0, 1.0, 1.0)
+const OUTLINE: Color = Color(0.02, 0.05, 0.14, 1.0)
+const GLOW: Color = Color(0.35, 0.65, 1.0, 0.28)
+const SIZE: float = 66.0            # arrow length, tip to tail, screen units
+const HEAD_LEN: float = 0.45        # of SIZE
+const HEAD_HALF: float = 0.36       # half the head's width, of SIZE
+const SHAFT_HALF: float = 0.13      # half the shaft's width, of SIZE
+const OUTLINE_W: float = 5.0        # how far the dark edge reaches past the arrow, screen units
+const RIM_W: float = 2.5            # the white rim, inside that
+const NUDGE: float = 7.0            # how far it bobs toward the leak, screen units
 const INSET: float = 30.0           # from the side edges
 const TOP_CLEAR: float = 60.0 + 30.0        # the HUD strip, then the inset
 const BOTTOM_CLEAR_DESKTOP: float = 44.0 + 30.0
@@ -38,7 +49,7 @@ func set_player(p: Node2D) -> void:
 	_player = p
 
 # A leak has just started. Out of view, it gets the arrow -- the only one -- for `life_ms`.
-func track(pipe: Node2D, life_ms: float = 1000.0) -> void:
+func track(pipe: Node2D, life_ms: float = 2000.0) -> void:
 	if _inner_rect().has_point(_on_screen(pipe)):
 		return
 	_leaks = [pipe]
@@ -96,6 +107,20 @@ static func edge_point(r: Rect2, from: Vector2, to: Vector2) -> Vector2:
 		t = minf(t, (r.position.y - from.y) / d.y)
 	return from + d * clampf(t, 0.0, 1.0)
 
+# The outline of an arrow of length `s` whose tip is at `tip`, pointing along `dir`: seven points,
+# tip first, round the head and down the shaft.
+static func arrow_points(tip: Vector2, dir: Vector2, s: float) -> PackedVector2Array:
+	var n: Vector2 = dir.orthogonal()
+	var neck: Vector2 = tip - dir * s * HEAD_LEN
+	var tail: Vector2 = tip - dir * s
+	return PackedVector2Array([tip, neck + n * s * HEAD_HALF, neck + n * s * SHAFT_HALF,
+		tail + n * s * SHAFT_HALF, tail - n * s * SHAFT_HALF, neck - n * s * SHAFT_HALF,
+		neck - n * s * HEAD_HALF])
+
+func _fill_grown(pts: PackedVector2Array, by: float, col: Color) -> void:
+	for poly: PackedVector2Array in Geometry2D.offset_polygon(pts, by, Geometry2D.JOIN_ROUND):
+		_draw_node.draw_colored_polygon(poly, col)
+
 func _draw_arrows() -> void:
 	if _player == null or not is_instance_valid(_player) or _leaks.is_empty():
 		return
@@ -103,7 +128,9 @@ func _draw_arrows() -> void:
 	var from: Vector2 = _on_screen(_player)
 	from = Vector2(clampf(from.x, inner.position.x, inner.end.x), clampf(from.y, inner.position.y, inner.end.y))
 	# A slow pulse, so a new arrow is noticed without flashing.
-	var pulse: float = 1.0 + 0.12 * sin(float(Time.get_ticks_msec()) / 180.0)
+	var wave: float = sin(float(Time.get_ticks_msec()) / 180.0)
+	var pulse: float = 1.0 + 0.08 * wave
+	var bob: float = 0.5 + 0.5 * wave
 	for p in _leaks:
 		if not is_instance_valid(p):
 			continue
@@ -111,12 +138,13 @@ func _draw_arrows() -> void:
 		var dir: Vector2 = (to - from).normalized()
 		if dir == Vector2.ZERO:
 			continue
-		var tip: Vector2 = edge_point(inner, from, to)
-		var s: float = SIZE * pulse
-		var n: Vector2 = dir.orthogonal()
-		var pts: PackedVector2Array = PackedVector2Array([tip, tip - dir * s + n * s * 0.55,
-			tip - dir * s * 0.72, tip - dir * s - n * s * 0.55])
+		# Kept inside the arrow area, then nudged toward the leak and back: motion catches the eye at
+		# the edge of vision where a color alone does not.
+		var tip: Vector2 = edge_point(inner, from, to) - dir * NUDGE * (1.0 - bob)
+		var pts: PackedVector2Array = arrow_points(tip, dir, SIZE * pulse)
+		# The rims are the arrow GROWN, not stroked: a thick polyline leaves notches at the tip and
+		# the barbs, where its segments do not join.
+		_fill_grown(pts, OUTLINE_W + 7.0, GLOW)
+		_fill_grown(pts, OUTLINE_W, OUTLINE)
+		_fill_grown(pts, RIM_W, RIM)
 		_draw_node.draw_colored_polygon(pts, COLOR)
-		var loop: PackedVector2Array = pts.duplicate()
-		loop.append(pts[0])
-		_draw_node.draw_polyline(loop, OUTLINE, 2.0, true)
