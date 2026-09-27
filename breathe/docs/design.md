@@ -362,3 +362,9 @@ baseline for nothing.
 This is the one breathing game where that is true. Buoy, Crack the Safe and Mother Snake each
 have a pacing pattern as their second setting, and for them the level is the (duration, mode)
 pair - see those games' design docs.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `breathe()`), not grabbed. The old tile
+was a screen grab of the session screen. It is now one glowing orb with three rings of a breath going out
+from it, in the calm games' shared dusk look (their navy and cyan), which Buoy and Crack the Safe share.

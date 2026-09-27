@@ -419,3 +419,10 @@ session saved before this change is short. The scores window reads the level thr
 is skipped, so a player who varies both settings freely will read "not yet" for longer than
 one who has a habit. That is correct - those sessions are not the same test - but it is the
 reason the seeded demo data gives its player a dominant pair.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `crack_safe()`), not grabbed. The old
+tile was a screen grab of the session screen. It is now the game's steel dial close up (its closed-dial
+colors from `level.gd`), a gold pointer at the top, in a soft cyan glow of breath -- a plain circle; a
+wavy line round it read as a flower. The calm games' shared dusk look (Breathe, Buoy).

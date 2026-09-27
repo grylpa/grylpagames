@@ -609,3 +609,9 @@ session averages the two together. `hidden` travels with every trial and
 `GameInstrument._memory_split()` draws the two as accuracy bars under the grid. Generic over the
 flag rather than reusing Polka Dots' `_visibility_split`, which reads a shown/chose pair this
 game does not keep; both halves need `MIN_PER_BUCKET` rounds or the comparison is not one.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `bucket_madness()`), not grabbed. The
+old tile was a screen grab. It is now the game in one picture: a blue star falling down the chute toward
+three pails (red, blue, green, from `Sleek.PALETTE`), the blue one lit.

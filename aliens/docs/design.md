@@ -817,3 +817,11 @@ Response times are handed to the shared session record as a whole distribution, 
 Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
 
 Boarding is the yes and `_gate_wants()` the truth, recorded in the drag resolution.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `aliens()`), not grabbed. The old
+tile was a screen grab of the arena: small aliens round a ring, colored dots at chooser size. It is now
+three of the game's aliens, large and drawn as `alien.gd` draws them (the body ellipse, outline, belly,
+eye layouts and curved antennae, in `ALIEN_COLORS`): a fat green one with three eyes, a tall red one
+with one, and a round blue one with two, all with antennae, on a glowing gate ring at a night spaceport.

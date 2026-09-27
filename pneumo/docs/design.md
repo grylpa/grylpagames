@@ -411,3 +411,14 @@ Deliveries, collisions and door turns. Turns per capsule is the look-ahead measu
 **Its counts are now metrics.** `collisions` is registered in `StatsOverview.METRICS`, lower being better. Before that this game recorded three counts that nothing could read, and had no Summary rows.
 
 A raw count is only comparable against the same task, which is exactly what a baseline is built from — the same reasoning that already let Crack the Safe's `cycles_opened` work.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `pneumo()`), not grabbed. The old tile
+was a screen grab of the whole board -- a grid of roads, a ring of numbered stations, small colored tubes
+-- a busy colored frame at chooser size. It is now three pneumatic-tube carriers, red, yellow and blue,
+large on plain slate: cylinders with the rounded, slightly pointed noses a real carrier has so it slides
+through its tube, a dark rubber wear ring where each nose meets the body, all shaded as one cylinder. On
+the way: the pipework was dropped (on the lawn it was irrelevant, and no layout of it read well), the
+station numbers too (unreadable at that size), and the carriers went through pills, flat-ended cans and
+cars before the shape was right.
