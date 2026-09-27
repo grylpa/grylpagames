@@ -139,6 +139,10 @@ signal sig_blackout
 
 func _ready() -> void:
 	game = StormG.game
+	# After the player each frame (a parent's _process otherwise runs before its children's): the
+	# camera then frames where the player IS, and a corridor step (_process) sees the player arrive in
+	# the same frame, not one late.
+	process_priority = 1
 	game.sig_time_over.connect(on_time_over)
 	game.sig_card_shown.connect(close_inventory)
 	# Blue arrows at the screen's edge toward new leaks out of view (multi-room levels).
@@ -203,6 +207,7 @@ func reset():
 	if game_cam != null:
 		game_cam.queue_free()
 		game_cam = null
+	_play_zoom = -1.0      # the next board has its own largest room
 
 	for c in pipes:
 		c.queue_free()
@@ -323,6 +328,16 @@ func _start_playing():
 
 func _process(delta: float) -> void:
 	_follow_player_room(delta)
+	# In a corridor the next step is taken the frame the player arrives, not at the next 50 ms game
+	# tick: at a run, waiting for the tick was a third of every step, and running came out only 1.3x
+	# as fast as walking. Rooms keep the tick's pace -- the pace the levels were measured at.
+	if player != null and game.playing and not game.paused() and game.level_is_ready \
+			and not game.level_is_done and _in_corridor(player.board_pos):
+		move_player_on_tick()
+
+func _in_corridor(p: Vector2i) -> bool:
+	var cell: OneCell = bcell(p)
+	return cell != null and cell.ispipe and cell.room_id < 0
 	
 # The color under a board cell, for the drawn-path overlay. The floor of a room is painted
 # `color_by_index(room_id).lightened(0.5)` in pipe.gd, so the path is told the same thing and
@@ -341,6 +356,8 @@ func add_pipe(p, room_id := -1):
 			board[p.y][p.x].room_id = room_id
 		return
 	board[p.y][p.x].ispipe = true
+	if _pipe_mask.size() == game.board_size.x * game.board_size.y:
+		_pipe_mask[p.x + p.y * game.board_size.x] = 1
 	var pipe = pipe_scene.instantiate()
 	board[p.y][p.x].pipe = pipe
 	pipe.board_pos = p
@@ -588,6 +605,7 @@ func find_closest_unconnected_room(room_id: int, rooms_to_check:Array) -> int:
 # main a list of what room is connected to what room
 # first try each room to its closest room then only the other pairs
 func add_corridors():
+	_build_pipe_mask()
 	var add_ins = [0,1,-1]
 	for i in rooms.size()-1:
 		add_ins.shuffle()
@@ -619,7 +637,7 @@ func add_corridors():
 			var exit_walls = ["L","R","T","B"]
 			var entrance_walls = ["L","R","T","B"]
 
-			var path_bounding_rect = (r1.merge(r2)).grow(3)
+			var path_bounding_rect = (r1.merge(r2)).grow(CORRIDOR_REACH)
 			var shortest_path = []
 
 			# print("connecting room ", i, " to ", j)
@@ -688,7 +706,12 @@ func add_corridors():
 							pend.y = p2br.y
 
 						await _breathe()
-						var path = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_to"), 0, pprev, path_bounding_rect)
+						var path: Array = _corridor_astar(pstart, pend, pprev, path_bounding_rect)
+						if verify_corridor_astar:
+							var ref: Array = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_to"), 0, pprev, path_bounding_rect)
+							astar_checks += 1
+							if ref != path:
+								astar_mismatches += 1
 						if path.size() > 0 and (shortest_path.size() == 0 or path.size() < shortest_path.size()):
 							shortest_path = path
 
@@ -742,6 +765,213 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 		return 20
 	return 1
 
+# THE CORRIDOR SEARCH, made faster, finding exactly the same paths. Placing the corridors was most of a
+# big build: on level 12 about 560 searches, 85% of them finding no way through and so searching their
+# whole area, 1.7 s of the phase's 2.3 s. GenericGameUtil.astar() with calc_cost_to_move_to() is the
+# same algorithm, step for step: the same states (a tile and the tile it was entered from), the same
+# costs, the same heap and so the same order among equal costs, the same neighbor order. What changed
+# is only how it is stored and called:
+#   * the cost is worked out inline, not through a Callable per neighbor;
+#   * a state is the tile times 5 plus the way it was entered (4 = the start), so the costs, links and
+#     closed set are flat packed arrays, not Dictionaries;
+#   * "is this tile built on" reads a byte mask (_pipe_mask, kept by add_pipe()), not a OneCell;
+#   * the heap is two parallel packed arrays, not an Array of [f, state] pairs.
+# `verify_corridor_astar` runs the shared search beside it on every query and counts any path that
+# differs (devtools/probe_storm_rebuild.gd).
+var verify_corridor_astar: bool = false
+var astar_checks: int = 0
+var astar_mismatches: int = 0
+var _pipe_mask: PackedByteArray = PackedByteArray()
+const _ASTAR_DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+
+func _build_pipe_mask() -> void:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	_pipe_mask = PackedByteArray()
+	_pipe_mask.resize(w * h)
+	for y in h:
+		var row: Array = board[y]
+		for x in w:
+			if (row[x] as OneCell).ispipe:
+				_pipe_mask[x + y * w] = 1
+
+func _pipe_at(p: Vector2i) -> bool:
+	return _pipe_mask[p.x + p.y * game.board_size.x] == 1
+
+# calc_cost_to_move_to(), inline: -1 where the step is not allowed, 20 for a turn, 1 straight on.
+func _corridor_cost(prev_pos: Vector2i, from: Vector2i, to: Vector2i, goal: Vector2i) -> float:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	var isgoal: bool = to == goal
+	if not isgoal and (to.x < board_margin or to.y < board_margin or to.x >= w - board_margin or to.y >= h - board_margin):
+		return -1.0
+	if not isgoal and _pipe_at(to):
+		return -1.0
+	var dir: Vector2i = to - from
+	if not isgoal:
+		# Nothing built beside it or straight ahead of it (three checks, unrolled: an Array here was
+		# allocated on every call).
+		var tdir: Vector2i = Vector2i(dir.y, dir.x)
+		if _blocks(to + tdir, goal, w, h) or _blocks(to - tdir, goal, w, h) or _blocks(to + dir, goal, w, h):
+			return -1.0
+	if dir != from - prev_pos:
+		return 20.0
+	return 1.0
+
+func _blocks(c: Vector2i, goal: Vector2i, w: int, h: int) -> bool:
+	return c.x >= 0 and c.y >= 0 and c.x < w and c.y < h and _pipe_mask[c.x + c.y * w] == 1 and c != goal
+
+func _corridor_astar(start: Vector2i, goal: Vector2i, input_prev_pos: Vector2i, bounding_rect: Rect2i) -> Array:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	var n_states: int = w * h * 5
+	var g: PackedFloat64Array = PackedFloat64Array()
+	g.resize(n_states)
+	g.fill(INF)
+	var came: PackedInt32Array = PackedInt32Array()
+	came.resize(n_states)
+	came.fill(-1)
+	var closed: PackedByteArray = PackedByteArray()
+	closed.resize(n_states)
+	var hf: PackedFloat64Array = PackedFloat64Array()     # the heap: f values ...
+	var hs: PackedInt32Array = PackedInt32Array()         # ... and their states, side by side
+
+	var cost_to_initial: float = _corridor_cost(start, start, input_prev_pos, goal)
+	if cost_to_initial >= 0.0:
+		cost_to_initial = 500.0
+
+	var use_rect: bool = bounding_rect.size.x != 0
+	# Most searches (85% on level 12) find no way through, and only find that out by trying every
+	# state in their area. A flood over a LOOSER version of the same rules settles most of them
+	# first: every step the search could take, the flood can take too, so if the flood never gets to
+	# the goal the search would not have either. Where it does, the search runs as it always did.
+	if not _corridor_reachable(start, goal, input_prev_pos, cost_to_initial >= 0.0, bounding_rect, use_rect):
+		return []
+
+	var start_state: int = (start.x + start.y * w) * 5 + 4
+	g[start_state] = 0.0
+	_heap_push2(hf, hs, float(absi(start.x - goal.x) + absi(start.y - goal.y)), start_state)
+
+	while not hs.is_empty():
+		var state: int = hs[0]
+		_heap_pop2(hf, hs)
+		if closed[state] == 1:
+			continue
+		closed[state] = 1
+		var cell: int = state / 5
+		var cur: Vector2i = Vector2i(cell % w, cell / w)
+		var entered: int = state % 5
+		var prev: Vector2i = cur if entered == 4 else cur - _ASTAR_DIRS[entered]
+		if cur == goal:
+			var out: Array[Vector2i] = []
+			var st: int = state
+			while st >= 0:
+				var c2: int = st / 5
+				out.append(Vector2i(c2 % w, c2 / w))
+				st = came[st]
+			out.reverse()
+			return out
+		for di in 4:
+			var cand: Vector2i = cur + _ASTAR_DIRS[di]
+			if cand.x < 0 or cand.y < 0 or cand.x >= w or cand.y >= h:
+				continue
+			if use_rect and not bounding_rect.has_point(cand):
+				continue
+			var step_cost: float
+			if input_prev_pos == cand:
+				step_cost = cost_to_initial
+			else:
+				step_cost = _corridor_cost(prev, cur, cand, goal)
+			if step_cost == -1.0:
+				continue
+			var next_state: int = (cand.x + cand.y * w) * 5 + di
+			var gnew: float = g[state] + step_cost
+			if gnew < g[next_state]:
+				g[next_state] = gnew
+				came[next_state] = state
+				_heap_push2(hf, hs, gnew + float(absi(cand.x - goal.x) + absi(cand.y - goal.y)), next_state)
+	return []
+
+# Could the search get from `start` to `goal` at all? A flood over tiles, not states, allowing a step
+# into a tile the search could enter from SOME direction: the goal; the tile the search starts from
+# inside the room, where the search would allow that; or a free tile inside the margin with free tiles
+# on both sides along at least one axis. The search's own rule for a step asks for free sides across
+# its direction AND a free tile ahead -- stricter, so a tile it enters is always one this enters.
+func _corridor_reachable(start: Vector2i, goal: Vector2i, back_tile: Vector2i, back_ok: bool,
+		rect: Rect2i, use_rect: bool) -> bool:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	var seen: PackedByteArray = PackedByteArray()
+	seen.resize(w * h)
+	var queue: PackedInt32Array = PackedInt32Array()
+	queue.append(start.x + start.y * w)
+	seen[start.x + start.y * w] = 1
+	var head: int = 0
+	while head < queue.size():
+		var cell: int = queue[head]
+		head += 1
+		var cur: Vector2i = Vector2i(cell % w, cell / w)
+		if cur == goal:
+			return true
+		for di in 4:
+			var cand: Vector2i = cur + _ASTAR_DIRS[di]
+			if cand.x < 0 or cand.y < 0 or cand.x >= w or cand.y >= h:
+				continue
+			if use_rect and not rect.has_point(cand):
+				continue
+			var ci: int = cand.x + cand.y * w
+			if seen[ci] == 1:
+				continue
+			var ok: bool = cand == goal or (back_ok and cand == back_tile)
+			if not ok and cand.x >= board_margin and cand.y >= board_margin \
+					and cand.x < w - board_margin and cand.y < h - board_margin and _pipe_mask[ci] == 0:
+				ok = (not _blocks(cand + Vector2i(0, 1), goal, w, h) and not _blocks(cand - Vector2i(0, 1), goal, w, h)) \
+					or (not _blocks(cand + Vector2i(1, 0), goal, w, h) and not _blocks(cand - Vector2i(1, 0), goal, w, h))
+			if ok:
+				seen[ci] = 1
+				queue.append(ci)
+	return false
+
+# GenericGameUtil._heap_push / _heap_pop on two parallel arrays: the same comparisons, so the same order.
+func _heap_push2(hf: PackedFloat64Array, hs: PackedInt32Array, f: float, st: int) -> void:
+	hf.append(f)
+	hs.append(st)
+	var i: int = hf.size() - 1
+	while i > 0:
+		var p: int = (i - 1) >> 1
+		if hf[p] <= f:
+			break
+		hf[i] = hf[p]
+		hs[i] = hs[p]
+		i = p
+	hf[i] = f
+	hs[i] = st
+
+func _heap_pop2(hf: PackedFloat64Array, hs: PackedInt32Array) -> void:
+	var last_f: float = hf[hf.size() - 1]
+	var last_s: int = hs[hs.size() - 1]
+	hf.resize(hf.size() - 1)
+	hs.resize(hs.size() - 1)
+	var n: int = hf.size()
+	if n == 0:
+		return
+	var i: int = 0
+	while true:
+		var l: int = i * 2 + 1
+		if l >= n:
+			break
+		var r: int = l + 1
+		var c: int = l
+		if r < n and hf[r] < hf[l]:
+			c = r
+		if hf[c] >= last_f:
+			break
+		hf[i] = hf[c]
+		hs[i] = hs[c]
+		i = c
+	hf[i] = last_f
+	hs[i] = last_s
+
 #endregion create_rooms
 
 
@@ -750,7 +980,7 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 # desktop (mostly placing the rooms and finding their corridors), longer on a slower machine. Every
 # loop of the build now calls _breathe(), which hands the frame back once BUILD_SLICE_US of work has
 # gone by, so input is taken between slices.
-const BUILD_SLICE_US: int = 8000
+const BUILD_SLICE_US: int = 14000
 var _slice_start: int = 0
 # A build in progress, from the moment new_game() gets past waiting for the last one until the board is
 # done. A new round waits for it: two builds interleaving across frames would share one board.
@@ -940,18 +1170,48 @@ const ROOM_GLIDE_SEC: float = 0.45
 var _framed_room: int = -2
 var _frame_tween: Tween = null
 
-# Where the camera goes, and how far in, to show `r` (in tiles) as large as it fits.
-func _frame_for(r: Rect2) -> Dictionary:
+# ONE ZOOM FOR THE WHOLE ROUND: the one that fits the mansion's LARGEST room (_play_zoom, set when the
+# camera first frames a room). Each room at its own largest size changed the zoom from room to room
+# (rooms of 9 to 13 tiles: up to 1.4x), which was not nice to watch; a smaller room now sits in the
+# middle of the same view. (Mind Palace, whose rooms vary more, had it first.)
+var _play_zoom: float = -1.0
+
+func _largest_room_zoom() -> float:
+	var z: float = INF
+	for r in rooms:
+		z = minf(z, float(_frame_for(Rect2(r))["zoom"]))
+	return z
+
+# Where the camera goes, and how far in, to show `r` (in tiles) as large as it fits -- or, given
+# `fixed_zoom`, at that zoom, centred the same way.
+func _frame_for(r: Rect2, fixed_zoom: float = -1.0) -> Dictionary:
 	var view: Vector2 = get_viewport().get_visible_rect().size
 	var bottom: float = 70.0 if MainGlobals.is_mobile() else 44.0
 	var t: float = float(game.tile_size)
 	var w_px: float = (r.size.x + 2.0 * FRAME_MARGIN) * t
 	var h_px: float = (r.size.y + 2.0 * FRAME_MARGIN) * t
 	var z: float = minf(view.x / w_px, (view.y - HUD_TOP - bottom) / h_px)
+	if fixed_zoom > 0.0:
+		z = fixed_zoom
 	var top_left: Vector2 = game.board_to_px(Vector2i(r.position)) - Vector2(t, t) * 0.5
 	var center: Vector2 = top_left + r.size * t * 0.5
 	# Centred in the band between the HUD strip and the button bar, not in the whole screen.
 	return {"pos": center - Vector2(0.0, (HUD_TOP - bottom) * 0.5) / z, "zoom": z}
+
+# How far a corridor can run outside the two rooms it joins: its search is kept to their outline grown
+# by this (add_corridors). So every corridor lies within the rooms' outline grown by it.
+const CORRIDOR_REACH: int = 3
+
+# EVERYTHING BUILT, in tiles: the rooms' outline grown by CORRIDOR_REACH, kept to the board. The whole
+# view used to frame the rooms alone, and in most builds some corridor ran outside them -- up to 3
+# tiles, in 9 of 12 Storm builds and 10 of 12 Mind Palace ones measured -- and was drawn off screen.
+# The bound, not the corridors actually built: it is known before they are, so the view the build is
+# shown in (Storm) is the view it ends in.
+func _castle_rect() -> Rect2:
+	var bbox: Rect2i = rooms[0]
+	for r in rooms:
+		bbox = bbox.merge(r)
+	return Rect2(bbox.grow(CORRIDOR_REACH).intersection(Rect2i(Vector2i.ZERO, game.board_size)))
 
 func _player_room() -> int:
 	if player == null:
@@ -962,7 +1222,9 @@ func _player_room() -> int:
 	return int(board[p.y][p.x].room_id)
 
 func _room_frame(room_id: int) -> Dictionary:
-	return _frame_for(Rect2(rooms[clampi(room_id, 0, rooms.size() - 1)]))
+	if _play_zoom <= 0.0 and not rooms.is_empty():
+		_play_zoom = _largest_room_zoom()
+	return _frame_for(Rect2(rooms[clampi(room_id, 0, rooms.size() - 1)]), _play_zoom)
 
 func _set_cam(frame: Dictionary) -> void:
 	# A glide still running would carry on past this and undo it.
@@ -983,15 +1245,13 @@ func zoom_camera(zoom_in: bool):
 	if rooms.is_empty():
 		return
 	if zoom_in:
+		_play_zoom = _largest_room_zoom()
 		var rid: int = _player_room()
 		_framed_room = rid if rid >= 0 else 0
 		_set_cam(_room_frame(_framed_room))
 	else:
 		_framed_room = -2
-		var bbox: Rect2 = Rect2(rooms[0])
-		for r in rooms:
-			bbox = bbox.merge(Rect2(r))
-		_set_cam(_frame_for(bbox))
+		_set_cam(_frame_for(_castle_rect()))
 
 # WHILE THE BOARD IS BUILT, behind the briefing, the camera is already on the mansion view that
 # zoom_camera(false) sets at the end, so what is shown going up is what will be played on, and nothing
@@ -1021,8 +1281,14 @@ func _follow_player_room(delta: float) -> void:
 		_frame_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		_frame_tween.tween_property(game_cam, "position", f["pos"], ROOM_GLIDE_SEC)
 		_frame_tween.tween_property(game_cam, "zoom", Vector2.ONE * float(f["zoom"]), ROOM_GLIDE_SEC)
-	elif rid < 0 and (_frame_tween == null or not _frame_tween.is_running()):
-		game_cam.position = game_cam.position.lerp(player.global_position, clampf(delta * 6.0, 0.0, 1.0))
+	elif rid < 0:
+		# Out of every room: the next room walked into is framed afresh, even the one just left. The
+		# frame was only redone for a DIFFERENT room, so walking out into a corridor (which the camera
+		# follows) and back into the same room left the view where the corridor had taken it, and the
+		# player walked off the edge of the screen.
+		_framed_room = -1
+		if _frame_tween == null or not _frame_tween.is_running():
+			game_cam.position = game_cam.position.lerp(player.global_position, clampf(delta * 6.0, 0.0, 1.0))
 
 func create_game_camera(game_camscale, game_center):
 	game_cam = Camera2D.new()
@@ -1118,7 +1384,8 @@ func can_go_to(p):
 # THE PLAYER RUNS IN A CORRIDOR. Nothing happens there -- no leak, no tool, no furniture -- so a corridor
 # is only the way from one room to the next, and walking it at room pace was dead time. Each step
 # into a corridor tile is taken at the level's `corridor_run` times the walking speed
-# (StormLevelConfig), each step into a room at the walking speed again.
+# (StormLevelConfig), each step into a room at the walking speed again -- and in a corridor the next
+# step does not wait for the game tick (_process()).
 func _set_player_pace(q: Vector2i) -> void:
 	var run: float = float(_cfg.get("corridor_run", 1.0)) if bcell(q).room_id < 0 else 1.0
 	player.speed_scale = player_max_speed_scale * run

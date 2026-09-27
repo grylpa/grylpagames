@@ -361,11 +361,15 @@ Drain tiles are special pipes (`is_drain = true`). When a filled tool is placed 
 - Board divided into rectangular rooms connected by corridors
 - Player is a walking character that must be close to a leak or drain to interact
 - **The player runs in a corridor**: each step into a corridor tile is taken at the level's
-  `corridor_run` (2 on every level) times `player_speed`, each step into a room at `player_speed`
+  `corridor_run` (3 on every level) times `player_speed`, each step into a room at `player_speed`
   (`level._set_player_pace()`, from `move_player_on_tick()`). Nothing happens in a corridor -- no leak,
   tool or furniture -- so it is only the way to the next room, and walking it at room pace was dead
-  time. The ladder in "Tuning with a bot" was measured before this, walking; running only makes a
-  level easier.
+  time. **In a corridor the next step is taken the frame the player arrives** (`level._process()`), not
+  at the next 50 ms game tick, and the level processes after the player (`process_priority = 1`), so it
+  sees the arrival that frame. At 2x and on the tick, running measured only 1.3x as fast as walking
+  (175 against 234 ms a tile): the tick's wait was a third of every step. Now 110 against 235 ms, at
+  60 fps. Rooms keep the tick's pace. The ladder in "Tuning with a bot" was measured before this,
+  walking; running only makes a level easier.
 - **A corridor's tiles are listed in walking order** (`_try_corridor_L()`). A straight run going up
   or left used to be listed low to high whatever its direction, so its path jumped from its start to
   its far end and back; the door put one step back from the first two tiles then landed off the board
@@ -523,10 +527,23 @@ camera 5.8 s after Start, no leak during it, the storm clock full.
 finding corridors, laying walls and tiles). Built in one go, it froze the game, and the card could not
 take the Start press until the build was over: about 0.13 s on level 1 and 2.2 s on level 12 on a
 desktop, mostly placing rooms and searching for their corridors, and longer on a slower machine.
-`_breathe()` hands the frame back once `BUILD_SLICE_US` (8 ms) of work has gone by, so input is taken
-between slices, and the held card stays drawn and animated. (Level 12 now
-takes about 3.5 s to build, since slices share their frames; the longest single frame left is about
-130 ms, in a step not yet sliced). While a build is running, `_building` is set: a new round waits for
+`_breathe()` hands the frame back once `BUILD_SLICE_US` (14 ms, within a 60 fps frame; it was 8, and
+the build then spent half its time waiting for frames) of work has gone by, so the held card and the
+build behind it stay drawn and animated.
+
+**The corridor search is a faster copy of the shared one, finding exactly the same paths.** Placing
+corridors was most of a big build: on level 12 about 560 A* searches, 85% of them finding no way
+through and so trying every state in their area -- 1.7 s of a 2.3 s phase. `_corridor_astar()` is
+`GenericGameUtil.astar()` with `calc_cost_to_move_to()`, step for step (the same states, costs, heap
+order and neighbor order), stored and called differently: the cost inline instead of through a
+Callable, flat packed arrays instead of Dictionaries (a state is the tile x 5 + the way it was
+entered), a byte mask of built tiles (`_pipe_mask`, kept by `add_pipe()`), and a heap of two parallel
+packed arrays. Before searching, `_corridor_reachable()` floods the area under looser rules -- every
+step the search could take, the flood can take too -- and a search the flood cannot finish is skipped:
+it would have found nothing. `devtools/probe_storm_rebuild.gd` runs the shared search beside it on
+every query (`verify_corridor_astar`) and fails on any path that differs; 6,700 searches over levels
+3-12 gave none. Measured on level 12 in a window: the corridor phase 2.3 s -> about 0.9 s, the whole
+build about 3.3 s -> 1.8 s. While a build is running, `_building` is set: a new round waits for
 it to finish (two builds interleaving would share one board), and a tap on the half-built board is
 ignored (`_on_pipe_pressed` checks `_board_ready`).
 
@@ -539,12 +556,31 @@ random levels, often mid-build, and checks the board is whole; with the flag rai
 
 ## The camera frames the room you are in
 
+**One zoom for the whole round:** the one that fits the mansion's LARGEST room (`_play_zoom`,
+`_largest_room_zoom()`), with every room centred at it. Each room at its own largest size, as below,
+changed the zoom from room to room (rooms of 9 to 13 tiles: up to 1.4x), and those changes were not
+nice to watch. Cleared for each new board in `reset()`.
+
+**The whole view frames the corridors too** (`_castle_rect()`): the rooms' outline grown by
+`CORRIDOR_REACH` (3), kept to the board -- the same 3 the corridor search is confined to around the two
+rooms it joins, so every corridor lies inside it. It framed the rooms alone, and in 9 of 12 builds
+measured some corridor ran up to 3 tiles outside them and was built off screen. It is the bound, not
+the corridors actually built, because it is known before they are: the build is watched in this view
+and must end in it. `probe_storm_rebuild` checks every tile lies inside it and is drawn in full
+between the HUD and the button bar (framing the rooms alone: 77 of 792 tiles cut off).
+
+The rest of this section describes the framing itself, which is unchanged except for the zoom:
+
 One camera (`game_cam`) does everything. During play it frames the room the player is in, as large as
 it fits: the room's tiles plus `FRAME_MARGIN` (a quarter tile) each side -- enough for the walls, which
 are drawn on the room's side of the tile ring around it, 4 px of 40 -- across the screen's width, or
 between the HUD strip and the button bar if the room is too tall for that, centred in that band
 (`_frame_for()`). Walking into another room glides the frame over (`ROOM_GLIDE_SEC`); in a corridor it
-follows the player at the zoom it had (`_follow_player_room()`). Before play it frames every room the
+follows the player at the zoom it had (`_follow_player_room()`). Stepping into a corridor clears the
+framed room, so walking back into the SAME room frames it again: the frame used to be redone only for
+a different room, and the view stayed where the corridor had taken it, with the player walking off
+screen. `probe_storm_rebuild` walks room -> corridor -> same room and checks the player is on screen
+(without the fix: at (1176, 983) of 680 x 788). Before play it frames every room the
 same way -- the mansion view, which is also the play view of a one-room level.
 
 It used to follow the player with a fixed 14-tile-wide view: about two tiles of margin round a small
@@ -577,9 +613,11 @@ corner, its see-through slot exactly over the tile.
 
 On a level with several rooms a leak can start anywhere while the camera shows only the player's room.
 For a new leak out of view, `scripts/leak_arrows.gd` (`StormLeakArrows`, its own CanvasLayer) draws a
-blue arrow near the screen's edge pointing at it: on the line from the player to the leak, where that
-line meets the edge of the arrow area (`edge_point()` -- the screen inset 30 units, and clear of the
-HUD strip and the button bar). It follows as the player moves.
+blue arrow near the screen's edge pointing at it: on the line from the MIDDLE of the arrow area to the
+leak, where that line meets the area's edge (`edge_point()` -- the screen inset 30 units, and clear of
+the HUD strip and the button bar). It follows as the view moves. It used to be drawn from the player:
+with the player near a corner and the leak past the nearby edge, the line left the screen a tile away
+and the arrow sat right beside them, pointing off, instead of out on the margin.
 
 **How it looks.** A whole arrow, shaft and head, 66 units from tail to tip (`arrow_points()`): blue,
 inside a white rim, inside a dark edge, over a soft blue glow, so it reads on the lawn, a floor or
@@ -599,7 +637,7 @@ to be a 26-unit arrowhead with a thin dark outline that disappeared against the 
   hidden with the level.
 
 Measured in a real run at level 2: an off-screen leak in the other room got an arrow whose tip sat
-exactly on the arrow area's edge along the player-to-leak line, drawn blue there; taping the leak
+exactly on the arrow area's edge along the line to the leak (then drawn from the player), drawn blue there; taping the leak
 removed it. `probe_storm_rain.gd` checks the edge geometry, one arrow at a time, removal on catching,
 and the time-out.
 

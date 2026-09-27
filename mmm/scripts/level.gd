@@ -91,6 +91,9 @@ signal collision
 signal update_score(score:int)
 
 func _ready() -> void:
+	# After the player each frame (a parent's _process otherwise runs before its children's), so the
+	# camera frames where the player IS, not where they were a frame ago.
+	process_priority = 1
 	game = MmmG.game
 	game.sig_time_over.connect(on_time_over)
 	game.sig_lives_depleted.connect(on_lives_depleted)
@@ -111,10 +114,9 @@ func _ready() -> void:
 	game.add_sound(self, "gaveup", gaveup_audio)	
 
 	MAX_COLORS_TO_USE = min(MAX_COLORS_TO_USE, game.colors.size())
-	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
-		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
-	if not MainGlobals.sig_level_done_popup_closed.is_connected(_on_level_done_popup_closed):
-		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
+	# Each round card is followed through its OWN `closed` signal (level_is_done, _finish_level). The
+	# app-wide "a card closed" signal cannot tell a round card from the level's briefing, and closing
+	# the briefing started the next round.
 	MainGlobals.sig_path_drawn.connect(_on_path_drawn)  
 	
 func reset():
@@ -131,6 +133,7 @@ func reset():
 	if game_cam != null:
 		game_cam.queue_free()
 		game_cam = null
+	_play_zoom = -1.0      # the next board has its own largest room
 
 	for c in pipes:
 		c.queue_free()
@@ -154,9 +157,39 @@ func reset():
 	time_started_level_ms = 0
 	num_more_packets = 0
 
+# THE BRIEFING GOES UP AT ONCE, HELD, WHILE THE CASTLE IS BUILT BEHIND IT (the same mechanism as
+# Storm's, copied: games do not share scripts). The card reads only "Building world", with no Start
+# button (game_popup.hold()), laid out at its final size with the real text hidden underneath. When the
+# board is ready, and at least BRIEF_HOLD_MS after the card went up so the hold never flickers past,
+# _release_brief() puts in the real text -- with the rooms the board actually got -- and shows Start.
+# The round begins when the card closes. It replaced a yellow "building level" label, after which the
+# round started at once, with the build freezing the game while it ran.
+#
+# Unlike Storm's, the background stays OPAQUE while held: every room's floor color is the question
+# at the end of the round, and a castle drawn behind a dim card would show them all at once.
+const BRIEF_HOLD_MS: int = 1000
+# For devtools/probe_mmm_build.gd: real levels and the real briefing under tutorial_mode, which is what
+# keeps a probe from writing the player's scores. Without it, tutorial_mode shrinks the castle to the
+# lesson's two rooms and skips the card.
+var probe_real_round: bool = false
+var _board_ready: bool = false
+var _brief = null
+var _brief_shown_ms: int = 0
+
+func _brief_text(n_rooms: int) -> String:
+	var roomsstr: String = "one room" if n_rooms == 1 else "%d rooms" % n_rooms
+	return "Walk through %s and take the coin in each. Remember each room's floor color: you will be asked.\n\nRounds: %d" % [
+		roomsstr, rounds_per_level]
+
 func new_game(from_scratch=true):
+	while _building:
+		await get_tree().process_frame
+	# Claimed HERE, the moment the wait is over, not when create_board() starts: a second new_game()
+	# in the frames between found the flag down and reset() a board a build was still filling (Storm
+	# crashed on exactly that).
+	_building = true
 	reset()
-	$BuildingLabel.show()
+	_board_ready = false
 	await get_tree().process_frame
 	if from_scratch:
 		level = MmmG.starting_level
@@ -175,6 +208,16 @@ func new_game(from_scratch=true):
 	time_last_dispatch = -10000
 	pos_last_dispatch = Vector2i(-1,-1)
 	in_answring_mode = false
+	_brief = null
+	if not game.tutorial_mode or probe_real_round:
+		var brief = game.show_game_popup(self, "Level %d" % level, _brief_text(num_rooms))
+		brief.hold("Building world")
+		brief.closed.connect(_on_closed_intro_popup)
+		_brief = brief
+		_brief_shown_ms = Time.get_ticks_msec()
+	# Let the card draw before the board is built behind it.
+	await get_tree().process_frame
+	await get_tree().process_frame
 	create_board()
 	time_started_level_ms = MainGlobals.timems()
 	time_increased_difficulty_ms = time_started_level_ms
@@ -223,7 +266,11 @@ func _start_playing():
 		if player != null:
 			player.play()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_follow_player_room(delta)
+	if player != null and game.playing and not game.paused() and game.level_is_ready \
+			and not game.level_is_done and _in_corridor(player.board_pos):
+		move_player_on_tick()
 	if player != null and !player.was_hit:
 		if time_to_hide > 0 and MainGlobals.timems() >= time_to_hide:
 			_start_playing()
@@ -235,6 +282,8 @@ func add_pipe(p, room_id := -1):
 			board[p.y][p.x].room_id = room_id
 		return
 	board[p.y][p.x].ispipe = true
+	if _pipe_mask.size() == game.board_size.x * game.board_size.y:
+		_pipe_mask[p.x + p.y * game.board_size.x] = 1
 	var pipe = pipe_scene.instantiate()
 	board[p.y][p.x].pipe = pipe
 	pipe.board_pos = p
@@ -343,10 +392,22 @@ func dist_from_array(p, arr):
 	
 func show_hide_walls():
 	for e in empties:
+		await _breathe()
 		e.show_hide_walls(board)
 	
 var room_min_size = 5
 var room_max_size = 10
+
+# NO ROOM WIDER THAN 11 ON A PHONE (as in Storm). A room fills the screen's width (_frame_for()), so its
+# side sets the size of a tile: 13 would come out at about 5.4 mm a tile on a phone. mmm's own range,
+# 5..10 made odd, tops out at 11 already; this keeps it so if the range ever grows.
+const MOBILE_MAX_ROOM_SIDE: int = 11
+
+func _room_side() -> int:
+	var side: int = rng.randi_range(room_min_size, room_max_size) | 1
+	if MainGlobals.is_mobile():
+		side = mini(side, MOBILE_MAX_ROOM_SIDE)
+	return side
 var board_margin = 5
 
 #region create_rooms
@@ -377,8 +438,8 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 	visited_rooms.clear()
 	answered_rooms.clear()
 
-	var w0 = rng.randi_range(room_min_size, room_max_size) | 1
-	var h0 = rng.randi_range(room_min_size, room_max_size) | 1
+	var w0: int = _room_side()
+	var h0: int = _room_side()
 	var p0 = center - Vector2i(w0 / 2, h0 / 2)
 
 	# Clamp room 0 into bounds
@@ -396,8 +457,9 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 		var placed = false
 
 		for attempt in range(900):
-			var rw = (rng.randi_range(room_min_size, room_max_size) | 1)
-			var rh = (rng.randi_range(room_min_size, room_max_size) | 1)
+			await _breathe()
+			var rw: int = _room_side()
+			var rh: int = _room_side()
 			var rsize = Vector2i(rw, rh)
 
 			# --- Pick an anchor room to cluster around ---
@@ -463,45 +525,44 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 	
 	# for r in rooms:
 	# 	print("room ", str(r))
-	add_corridors()
+	await add_corridors()
 
+# A corridor from `pstart` to `pend`, straight or with one bend, as the tiles walked IN ORDER from one
+# to the other, each next to the last; [] if it would run into or alongside anything built. The
+# order matters: the doors go one step back from each end (add_corridors). A straight run going up or
+# left used to be listed low to high whatever its direction, so the path jumped from its start to its
+# far end and back, and a door put "one step back" from that landed off the board.
 func _try_corridor_L(pstart: Vector2i, pend: Vector2i, start_dir: Vector2i) -> Array:
-	var d = pend - pstart
-	var path = [pstart]
-	var has_bend = true
-	if d.x == 0:
-		has_bend = false
-		for y in range(min(pstart.y, pend.y), max(pstart.y, pend.y)):
-			var p = Vector2i(pstart.x, y)
-			if board[p.y][p.x].ispipe or board[p.y][p.x-1].ispipe or board[p.y][p.x+1].ispipe:
-				return []
-			path.append(p)		
-	elif d.y == 0:
-		has_bend = false
-		for x in range(min(pstart.x, pend.x), max(pstart.x, pend.x)):
-			var p = Vector2i(x, pstart.y)
-			if board[p.y][p.x].ispipe or board[p.y-1][p.x].ispipe or board[p.y+1][p.x].ispipe:
-				return []
-			path.append(p)
-
-	if has_bend:
-		var bend:Vector2i
+	var d: Vector2i = pend - pstart
+	if d.x != 0 and d.y != 0:
+		var bend: Vector2i
 		if start_dir.x != 0:
 			bend = Vector2i(pend.x, pstart.y)
 		else:
 			bend = Vector2i(pstart.x, pend.y)
 		if board[bend.y][bend.x].ispipe:
 			return []
-
-		var path_seg1 = _try_corridor_L(pstart, bend, start_dir)
+		var path_seg1: Array = _try_corridor_L(pstart, bend, start_dir)
 		if path_seg1.size() == 0:
 			return []
-		var path_seg2 = _try_corridor_L(bend, pend, start_dir)
+		var path_seg2: Array = _try_corridor_L(bend, pend, start_dir)
 		if path_seg2.size() == 0:
 			return []
-		path = path_seg1
-		path.append_array(path_seg2)
-
+		path_seg1.pop_back()        # the bend, which the second leg starts with
+		path_seg1.append_array(path_seg2)
+		return path_seg1
+	# Straight: every tile but the last must be clear, and so must the tiles on either side of it.
+	var step: Vector2i = Vector2i(signi(d.x), signi(d.y))
+	var side: Vector2i = Vector2i(absi(step.y), absi(step.x))
+	var path: Array = []
+	var p: Vector2i = pstart
+	while p != pend:
+		var a: Vector2i = p - side
+		var b: Vector2i = p + side
+		if board[p.y][p.x].ispipe or board[a.y][a.x].ispipe or board[b.y][b.x].ispipe:
+			return []
+		path.append(p)
+		p += step
 	path.append(pend)
 	return path
 
@@ -520,6 +581,7 @@ func find_closest_unconnected_room(room_id: int, rooms_to_check:Array) -> int:
 # main a list of what room is connected to what room
 # first try each room to its closest room then only the other pairs
 func add_corridors():
+	_build_pipe_mask()
 	var add_ins = [0,1,-1]
 	for i in rooms.size()-1:
 		add_ins.shuffle()
@@ -532,6 +594,7 @@ func add_corridors():
 		# rooms_to_check.erase(i)
 		
 		while rooms_to_check.size() > 0:
+			await _breathe()
 			var j = find_closest_unconnected_room(i, rooms_to_check)
 			if j < 0:
 				# j = rooms_to_check.pop_front()
@@ -550,7 +613,7 @@ func add_corridors():
 			var exit_walls = ["L","R","T","B"]
 			var entrance_walls = ["L","R","T","B"]
 
-			var path_bounding_rect = (r1.merge(r2)).grow(3)
+			var path_bounding_rect = (r1.merge(r2)).grow(CORRIDOR_REACH)
 			var shortest_path = []
 
 			# print("connecting room ", i, " to ", j)
@@ -618,7 +681,13 @@ func add_corridors():
 						else: # B
 							pend.y = p2br.y
 
-						var path = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_to"), 0, pprev, path_bounding_rect)
+						await _breathe()
+						var path: Array = _corridor_astar(pstart, pend, pprev, path_bounding_rect)
+						if verify_corridor_astar:
+							var ref: Array = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_to"), 0, pprev, path_bounding_rect)
+							astar_checks += 1
+							if ref != path:
+								astar_mismatches += 1
 						if path.size() > 0 and (shortest_path.size() == 0 or path.size() < shortest_path.size()):
 							shortest_path = path
 
@@ -659,14 +728,234 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: 
 		return 20
 	return 1
 
+# THE CORRIDOR SEARCH, made faster, finding exactly the same paths. Placing the corridors was most of a
+# big build (measured in Storm, whose search this was: on level 12 about 560 searches, 85% of them finding no way through and so searching their
+# whole area, 1.7 s of the phase's 2.3 s). GenericGameUtil.astar() with calc_cost_to_move_to() is the
+# same algorithm, step for step: the same states (a tile and the tile it was entered from), the same
+# costs, the same heap and so the same order among equal costs, the same neighbor order. What changed
+# is only how it is stored and called:
+#   * the cost is worked out inline, not through a Callable per neighbor;
+#   * a state is the tile times 5 plus the way it was entered (4 = the start), so the costs, links and
+#     closed set are flat packed arrays, not Dictionaries;
+#   * "is this tile built on" reads a byte mask (_pipe_mask, kept by add_pipe()), not a OneCell;
+#   * the heap is two parallel packed arrays, not an Array of [f, state] pairs.
+# `verify_corridor_astar` runs the shared search beside it on every query and counts any path that
+# differs (devtools/probe_mmm_build.gd). Copied from Storm, where it was measured: games do not share scripts.
+var verify_corridor_astar: bool = false
+var astar_checks: int = 0
+var astar_mismatches: int = 0
+var _pipe_mask: PackedByteArray = PackedByteArray()
+const _ASTAR_DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+
+func _build_pipe_mask() -> void:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	_pipe_mask = PackedByteArray()
+	_pipe_mask.resize(w * h)
+	for y in h:
+		var row: Array = board[y]
+		for x in w:
+			if (row[x] as OneCell).ispipe:
+				_pipe_mask[x + y * w] = 1
+
+func _pipe_at(p: Vector2i) -> bool:
+	return _pipe_mask[p.x + p.y * game.board_size.x] == 1
+
+# calc_cost_to_move_to(), inline: -1 where the step is not allowed, 20 for a turn, 1 straight on.
+func _corridor_cost(prev_pos: Vector2i, from: Vector2i, to: Vector2i, goal: Vector2i) -> float:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	var isgoal: bool = to == goal
+	if not isgoal and (to.x < board_margin or to.y < board_margin or to.x >= w - board_margin or to.y >= h - board_margin):
+		return -1.0
+	if not isgoal and _pipe_at(to):
+		return -1.0
+	var dir: Vector2i = to - from
+	if not isgoal:
+		# Nothing built beside it or straight ahead of it (three checks, unrolled: an Array here was
+		# allocated on every call).
+		var tdir: Vector2i = Vector2i(dir.y, dir.x)
+		if _blocks(to + tdir, goal, w, h) or _blocks(to - tdir, goal, w, h) or _blocks(to + dir, goal, w, h):
+			return -1.0
+	if dir != from - prev_pos:
+		return 20.0
+	return 1.0
+
+func _blocks(c: Vector2i, goal: Vector2i, w: int, h: int) -> bool:
+	return c.x >= 0 and c.y >= 0 and c.x < w and c.y < h and _pipe_mask[c.x + c.y * w] == 1 and c != goal
+
+func _corridor_astar(start: Vector2i, goal: Vector2i, input_prev_pos: Vector2i, bounding_rect: Rect2i) -> Array:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	var n_states: int = w * h * 5
+	var g: PackedFloat64Array = PackedFloat64Array()
+	g.resize(n_states)
+	g.fill(INF)
+	var came: PackedInt32Array = PackedInt32Array()
+	came.resize(n_states)
+	came.fill(-1)
+	var closed: PackedByteArray = PackedByteArray()
+	closed.resize(n_states)
+	var hf: PackedFloat64Array = PackedFloat64Array()     # the heap: f values ...
+	var hs: PackedInt32Array = PackedInt32Array()         # ... and their states, side by side
+
+	var cost_to_initial: float = _corridor_cost(start, start, input_prev_pos, goal)
+	if cost_to_initial >= 0.0:
+		cost_to_initial = 500.0
+
+	var use_rect: bool = bounding_rect.size.x != 0
+	# Most searches (85% on level 12) find no way through, and only find that out by trying every
+	# state in their area. A flood over a LOOSER version of the same rules settles most of them
+	# first: every step the search could take, the flood can take too, so if the flood never gets to
+	# the goal the search would not have either. Where it does, the search runs as it always did.
+	if not _corridor_reachable(start, goal, input_prev_pos, cost_to_initial >= 0.0, bounding_rect, use_rect):
+		return []
+
+	var start_state: int = (start.x + start.y * w) * 5 + 4
+	g[start_state] = 0.0
+	_heap_push2(hf, hs, float(absi(start.x - goal.x) + absi(start.y - goal.y)), start_state)
+
+	while not hs.is_empty():
+		var state: int = hs[0]
+		_heap_pop2(hf, hs)
+		if closed[state] == 1:
+			continue
+		closed[state] = 1
+		var cell: int = state / 5
+		var cur: Vector2i = Vector2i(cell % w, cell / w)
+		var entered: int = state % 5
+		var prev: Vector2i = cur if entered == 4 else cur - _ASTAR_DIRS[entered]
+		if cur == goal:
+			var out: Array[Vector2i] = []
+			var st: int = state
+			while st >= 0:
+				var c2: int = st / 5
+				out.append(Vector2i(c2 % w, c2 / w))
+				st = came[st]
+			out.reverse()
+			return out
+		for di in 4:
+			var cand: Vector2i = cur + _ASTAR_DIRS[di]
+			if cand.x < 0 or cand.y < 0 or cand.x >= w or cand.y >= h:
+				continue
+			if use_rect and not bounding_rect.has_point(cand):
+				continue
+			var step_cost: float
+			if input_prev_pos == cand:
+				step_cost = cost_to_initial
+			else:
+				step_cost = _corridor_cost(prev, cur, cand, goal)
+			if step_cost == -1.0:
+				continue
+			var next_state: int = (cand.x + cand.y * w) * 5 + di
+			var gnew: float = g[state] + step_cost
+			if gnew < g[next_state]:
+				g[next_state] = gnew
+				came[next_state] = state
+				_heap_push2(hf, hs, gnew + float(absi(cand.x - goal.x) + absi(cand.y - goal.y)), next_state)
+	return []
+
+# Could the search get from `start` to `goal` at all? A flood over tiles, not states, allowing a step
+# into a tile the search could enter from SOME direction: the goal; the tile the search starts from
+# inside the room, where the search would allow that; or a free tile inside the margin with free tiles
+# on both sides along at least one axis. The search's own rule for a step asks for free sides across
+# its direction AND a free tile ahead -- stricter, so a tile it enters is always one this enters.
+func _corridor_reachable(start: Vector2i, goal: Vector2i, back_tile: Vector2i, back_ok: bool,
+		rect: Rect2i, use_rect: bool) -> bool:
+	var w: int = game.board_size.x
+	var h: int = game.board_size.y
+	var seen: PackedByteArray = PackedByteArray()
+	seen.resize(w * h)
+	var queue: PackedInt32Array = PackedInt32Array()
+	queue.append(start.x + start.y * w)
+	seen[start.x + start.y * w] = 1
+	var head: int = 0
+	while head < queue.size():
+		var cell: int = queue[head]
+		head += 1
+		var cur: Vector2i = Vector2i(cell % w, cell / w)
+		if cur == goal:
+			return true
+		for di in 4:
+			var cand: Vector2i = cur + _ASTAR_DIRS[di]
+			if cand.x < 0 or cand.y < 0 or cand.x >= w or cand.y >= h:
+				continue
+			if use_rect and not rect.has_point(cand):
+				continue
+			var ci: int = cand.x + cand.y * w
+			if seen[ci] == 1:
+				continue
+			var ok: bool = cand == goal or (back_ok and cand == back_tile)
+			if not ok and cand.x >= board_margin and cand.y >= board_margin \
+					and cand.x < w - board_margin and cand.y < h - board_margin and _pipe_mask[ci] == 0:
+				ok = (not _blocks(cand + Vector2i(0, 1), goal, w, h) and not _blocks(cand - Vector2i(0, 1), goal, w, h)) \
+					or (not _blocks(cand + Vector2i(1, 0), goal, w, h) and not _blocks(cand - Vector2i(1, 0), goal, w, h))
+			if ok:
+				seen[ci] = 1
+				queue.append(ci)
+	return false
+
+# GenericGameUtil._heap_push / _heap_pop on two parallel arrays: the same comparisons, so the same order.
+func _heap_push2(hf: PackedFloat64Array, hs: PackedInt32Array, f: float, st: int) -> void:
+	hf.append(f)
+	hs.append(st)
+	var i: int = hf.size() - 1
+	while i > 0:
+		var p: int = (i - 1) >> 1
+		if hf[p] <= f:
+			break
+		hf[i] = hf[p]
+		hs[i] = hs[p]
+		i = p
+	hf[i] = f
+	hs[i] = st
+
+func _heap_pop2(hf: PackedFloat64Array, hs: PackedInt32Array) -> void:
+	var last_f: float = hf[hf.size() - 1]
+	var last_s: int = hs[hs.size() - 1]
+	hf.resize(hf.size() - 1)
+	hs.resize(hs.size() - 1)
+	var n: int = hf.size()
+	if n == 0:
+		return
+	var i: int = 0
+	while true:
+		var l: int = i * 2 + 1
+		if l >= n:
+			break
+		var r: int = l + 1
+		var c: int = l
+		if r < n and hf[r] < hf[l]:
+			c = r
+		if hf[c] >= last_f:
+			break
+		hf[i] = hf[c]
+		hs[i] = hs[c]
+		i = c
+	hf[i] = last_f
+	hs[i] = last_s
+
 #endregion create_rooms
 
 
+# THE BOARD IS BUILT IN SLICES (as in Storm): every loop of the build calls _breathe(), which hands the
+# frame back once BUILD_SLICE_US of work has gone by, so the held card stays drawn meanwhile.
+const BUILD_SLICE_US: int = 14000
+var _slice_start: int = 0
+var _building: bool = false
+
+func _breathe() -> void:
+	if Time.get_ticks_usec() - _slice_start > BUILD_SLICE_US:
+		await get_tree().process_frame
+		_slice_start = Time.get_ticks_usec()
+
 func create_board() -> void:
+	_building = true      # already set by new_game(); here too for any other caller
+	_slice_start = Time.get_ticks_usec()
 	# BEFORE the cells: a level change resizes the board, and the lawn under it has to be right from
 	# the first frame of "building board", not after it.
 	_fit_ground_to_board()
-	if game.tutorial_mode:
+	if game.tutorial_mode and not probe_real_round:
 		# BEFORE create_rooms() below reads num_rooms, and before the hazard counts are used.
 		_tutorial_setup()
 	# rng = RandomNumberGenerator.new()
@@ -688,19 +977,21 @@ func create_board() -> void:
 	# if get_tree():
 	# 	get_tree().reload_current_scene()
 
-	create_rooms(num_rooms, board_margin)
+	await create_rooms(num_rooms, board_margin)
 	# for row in range(board_margin,game.board_size.y-board_margin):
 	# 	for col in range(board_margin,game.board_size.x-board_margin):
 	# 		add_pipe(Vector2i(col,row))
 	
 	for row in game.board_size.y:
+		await _breathe()
 		for col in game.board_size.x:
 			if !board[row][col].ispipe:
 				add_empty(Vector2i(col,row))
 				
-	show_hide_walls()
+	await show_hide_walls()
 				
 	for pipe in pipes:
+		await _breathe()
 		pipe.set_rot(board)
 
 	if false:
@@ -744,8 +1035,34 @@ func create_board() -> void:
 	# MainGlobals.global_start_countdown(1)
 
 	# zoom_camera(false)
-	$BuildingLabel.hide()
-	game.level_is_ready = true	
+	_building = false
+	_board_ready = true
+	if _brief == null:
+		# The tutorial teaches by doing: no briefing, straight in, as before.
+		_begin_round()
+	else:
+		_release_brief()
+
+# The real briefing and its Start button, once the board is built and the card has been up at least
+# BRIEF_HOLD_MS (checked against the clock each frame: a timer let it end a few ms short).
+func _release_brief() -> void:
+	var brief = _brief
+	while Time.get_ticks_msec() - _brief_shown_ms < BRIEF_HOLD_MS:
+		await get_tree().process_frame
+	if brief == null or not is_instance_valid(brief) or brief != _brief:
+		return      # a newer round has replaced this card
+	brief.release(_brief_text(rooms.size()))
+
+func _on_closed_intro_popup() -> void:
+	if not _board_ready:
+		return
+	_begin_round()
+
+# The round's clock starts here, when play does -- not while the card was up.
+func _begin_round() -> void:
+	game.level_is_ready = true
+	time_started_level_ms = MainGlobals.timems()
+	time_increased_difficulty_ms = time_started_level_ms
 	_start_playing()
 
 func close_to_corridor(p:Vector2i, dist:int):
@@ -794,43 +1111,124 @@ func add_bricks():
 var player_cam = null
 var game_cam = null
 
-func zoom_camera(zoom_in: bool):
-	# var current_cam_scale = player_cam.zoom.x if player_cam != null else 1.0
+# ONE CAMERA, FRAMING A ROOM. During play it shows the room the player is in, as large as it fits:
+# the room's tiles plus FRAME_MARGIN of a tile on each side -- enough for the walls, which are drawn
+# on the room's side of the tile ring around it (4 px of 40) -- across the screen's width, or between
+# the HUD strip and the button bar if the room is too tall for that. It used to follow the player
+# with a fixed 14-tile view: two tiles of margin round a small room, and a 13-wide room with its
+# walls did not fit at all. Walking into another room glides the frame over (ROOM_GLIDE_SEC); in a
+# corridor it follows the player at the zoom it had. For the answers (zoom_in false) it frames every
+# room the same way -- the whole castle. (Copied from Storm, games do not share scripts; mmm's own
+# camera followed the player at one zoom, sized for the largest room it could make, so a 5-wide room
+# took up half the screen's width.)
+const FRAME_MARGIN: float = 0.25
+const HUD_TOP: float = 60.0
+const ROOM_GLIDE_SEC: float = 0.45
+var _framed_room: int = -2
+var _frame_tween: Tween = null
 
+# ONE ZOOM FOR THE WHOLE ROUND: the one that fits the castle's LARGEST room (_play_zoom, set when the
+# camera first frames a room). Framing each room as large as it fits changed the zoom by up to 2x from
+# one room to the next -- mmm's rooms run from 5 to 11 tiles a side -- which was more movement than
+# anyone wanted; a smaller room now sits in the middle of the same view.
+var _play_zoom: float = -1.0
+
+func _largest_room_zoom() -> float:
+	var z: float = INF
+	for r in rooms:
+		z = minf(z, float(_frame_for(Rect2(r))["zoom"]))
+	return z
+
+# Where the camera goes, and how far in, to show `r` (in tiles) as large as it fits -- or, given
+# `fixed_zoom`, at that zoom, centred the same way.
+func _frame_for(r: Rect2, fixed_zoom: float = -1.0) -> Dictionary:
+	var view: Vector2 = get_viewport().get_visible_rect().size
+	var bottom: float = 70.0 if MainGlobals.is_mobile() else 44.0
+	var t: float = float(game.tile_size)
+	var w_px: float = (r.size.x + 2.0 * FRAME_MARGIN) * t
+	var h_px: float = (r.size.y + 2.0 * FRAME_MARGIN) * t
+	var z: float = minf(view.x / w_px, (view.y - HUD_TOP - bottom) / h_px)
+	if fixed_zoom > 0.0:
+		z = fixed_zoom
+	var top_left: Vector2 = game.board_to_px(Vector2i(r.position)) - Vector2(t, t) * 0.5
+	var center: Vector2 = top_left + r.size * t * 0.5
+	# Centred in the band between the HUD strip and the button bar, not in the whole screen.
+	return {"pos": center - Vector2(0.0, (HUD_TOP - bottom) * 0.5) / z, "zoom": z}
+
+# How far a corridor can run outside the two rooms it joins: its search is kept to their outline grown
+# by this (add_corridors). So every corridor lies within the rooms' outline grown by it.
+const CORRIDOR_REACH: int = 3
+
+# EVERYTHING BUILT, in tiles: the rooms' outline grown by CORRIDOR_REACH, kept to the board. The whole
+# view used to frame the rooms alone, and in most builds some corridor ran outside them -- up to 3
+# tiles, in 9 of 12 Storm builds and 10 of 12 Mind Palace ones measured -- and was drawn off screen.
+# The bound, not the corridors actually built: it is known before they are, so the view the build is
+# shown in (Storm) is the view it ends in.
+func _castle_rect() -> Rect2:
+	var bbox: Rect2i = rooms[0]
+	for r in rooms:
+		bbox = bbox.merge(r)
+	return Rect2(bbox.grow(CORRIDOR_REACH).intersection(Rect2i(Vector2i.ZERO, game.board_size)))
+
+func _player_room() -> int:
+	if player == null:
+		return -1
+	var p: Vector2i = player.board_pos
+	if p.y < 0 or p.y >= board.size() or p.x < 0 or p.x >= (board[p.y] as Array).size():
+		return -1
+	return int(board[p.y][p.x].room_id)
+
+func _room_frame(room_id: int) -> Dictionary:
+	return _frame_for(Rect2(rooms[clampi(room_id, 0, rooms.size() - 1)]), _play_zoom)
+
+func _set_cam(frame: Dictionary) -> void:
+	# A glide still running would carry on past this and undo it.
+	if _frame_tween != null and _frame_tween.is_valid():
+		_frame_tween.kill()
+	if game_cam == null:
+		create_game_camera(float(frame["zoom"]), frame["pos"])
+	game_cam.zoom = Vector2.ONE * float(frame["zoom"])
+	game_cam.position = frame["pos"]
+	game_cam.enabled = true
+	if player_cam != null:
+		player_cam.enabled = false
+
+func zoom_camera(zoom_in: bool):
 	game.zoomed_in = zoom_in
 	for pipe in pipes:
 		pipe.set_rot(board)
-
+	if rooms.is_empty():
+		return
 	if zoom_in:
-		var player_camscale = game.get_tiles_in_screen_width() / float(room_max_size+2)
-		if player_cam != null:
-			player_cam.zoom = Vector2(player_camscale,player_camscale)
-			player_cam.enabled = true
-			if game_cam != null:
-				game_cam.enabled = false
-			return
-		else:
-			create_player_camera(player_camscale)
+		_play_zoom = _largest_room_zoom()
+		var rid: int = _player_room()
+		_framed_room = rid if rid >= 0 else 0
+		_set_cam(_room_frame(_framed_room))
 	else:
-		var bbox:Rect2 = Rect2(rooms[0])
-		for r in rooms:
-			bbox = bbox.merge(Rect2(r))
-		var game_camscale = min(game.get_tiles_in_screen_width() / float(bbox.size.x+4), game.get_tiles_in_screen_height() / float(bbox.size.y+4))
-		var game_center = game.board_to_px(bbox.get_center()) - Vector2(game.tile_size / 2,game.tile_size / 2)
-		# var game_camscale = min(2.0, 1.0 / game.get_board_part_of_width(-board_margin+1))
-		# var game_center = game.board_to_px(game.get_board_center())
-		# var game_camscale = min(game.get_tiles_in_screen_width() / float(game.board_size.x+2), game.get_tiles_in_screen_height() / float(game.board_size.y+2))
-		# var game_center = game.board_to_px(game.get_board_center()) + Vector2(0,game.tile_size / 2)
-		if game_cam != null:
-			game_cam.zoom = Vector2(game_camscale,game_camscale)
-			game_cam.position = game_center
-			game_cam.enabled = true
-			if player_cam != null:
-				player_cam.enabled = false
-			return
-		else:
-			create_game_camera(game_camscale, game_center)
-	
+		_framed_room = -2
+		_set_cam(_frame_for(_castle_rect()))
+
+# During play: glide to the room the player has walked into; in a corridor, keep them in view.
+func _follow_player_room(delta: float) -> void:
+	if not game.zoomed_in or game_cam == null or player == null or rooms.is_empty():
+		return
+	var rid: int = _player_room()
+	if rid >= 0 and rid != _framed_room:
+		_framed_room = rid
+		var f: Dictionary = _room_frame(rid)
+		if _frame_tween != null and _frame_tween.is_valid():
+			_frame_tween.kill()
+		_frame_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_frame_tween.tween_property(game_cam, "position", f["pos"], ROOM_GLIDE_SEC)
+		_frame_tween.tween_property(game_cam, "zoom", Vector2.ONE * float(f["zoom"]), ROOM_GLIDE_SEC)
+	elif rid < 0:
+		# Out of every room: the next room walked into is framed afresh, even the one just left. The
+		# frame was only redone for a DIFFERENT room, so walking out into a corridor (which the camera
+		# follows) and back into the same room left the view where the corridor had taken it, and the
+		# player walked off the edge of the screen.
+		_framed_room = -1
+		if _frame_tween == null or not _frame_tween.is_running():
+			game_cam.position = game_cam.position.lerp(player.global_position, clampf(delta * 6.0, 0.0, 1.0))
 
 func create_game_camera(game_camscale, game_center):
 	game_cam = Camera2D.new()
@@ -842,23 +1240,6 @@ func create_game_camera(game_camscale, game_center):
 	game_cam.enabled = true
 	if player_cam != null:
 		player_cam.enabled = false
-
-func create_player_camera(player_camscale):
-	if player == null:
-		return
-	player_cam = Camera2D.new()
-	player.add_child(player_cam)
-
-	player_cam.zoom = Vector2(player_camscale,player_camscale)
-	player_cam.position_smoothing_enabled = false
-	# player_cam.position_smoothing_speed = 10
-	player_cam.enabled = true
-	player_cam.limit_left = game.board_to_px(Vector2i(0,0)).x
-	player_cam.limit_top = game.board_to_px(Vector2i(0,0)).y
-	player_cam.limit_right = game.board_to_px(Vector2i(game.board_size.x-1,0)).x
-	player_cam.limit_bottom = game.board_to_px(Vector2i(0,game.board_size.y-1)).y
-	if game_cam != null:
-		game_cam.enabled = false
 
 # Nothing hunts the player during a tutorial. Being killed mid-lesson ends the round outright
 # (check_agent_collisions -> mark_hit -> level_is_done(false)) and teaches nothing but frustration.
@@ -1061,6 +1442,21 @@ func all_agents_done():
 func bcell(p:Vector2i) -> OneCell:
 	return board[p.y][p.x]
 
+# THE PLAYER IS A BIT FASTER IN A CORRIDOR (as in Storm, which runs there at 3x). A corridor holds no
+# coin and asks nothing, so it is only the way to the next room. A step into a corridor tile is taken at
+# CORRIDOR_RUN times the walking speed, a step into a room at the walking speed; and in a corridor the
+# next step is taken the frame the player arrives (_process), not at the next game tick, whose wait
+# would otherwise eat much of the gain.
+const CORRIDOR_RUN: float = 2.0
+
+func _set_player_pace(q: Vector2i) -> void:
+	var run: float = CORRIDOR_RUN if _in_corridor(q) else 1.0
+	player.speed_scale = player_max_speed_scale * run
+
+func _in_corridor(p: Vector2i) -> bool:
+	var cell: OneCell = bcell(p)
+	return cell != null and cell.ispipe and cell.room_id < 0
+
 func move_player_on_tick(force:bool = false):
 	if player == null:
 		return
@@ -1105,7 +1501,8 @@ func move_player_on_tick(force:bool = false):
 			var dir = game.dt_to_dir(vdir)
 			player.direction = dir
 			next_player_dir = dir
-			player.set_board_pos(q, board)			
+			_set_player_pace(q)
+			player.set_board_pos(q, board)
 			mark_visited_room(bcell(q).room_id)
 			if player.path.size() == 0:
 				if bcell(q).room_id < 0:
@@ -1129,6 +1526,7 @@ func move_player_on_tick(force:bool = false):
 		if can_go_to(q):
 			player.direction = dir
 			mark_visited_room(bcell(q).room_id)
+			_set_player_pace(q)
 			player.set_board_pos(q, board)
 			if true or bcell(q).room_id < 0:	# continuous movement
 				next_player_dir = dir
@@ -1261,9 +1659,11 @@ func level_is_done(didwin: bool):
 	if didwin:
 		reset()
 		await get_tree().process_frame
-		game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level, level])
+		var won_card = game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level, level])
+		won_card.closed.connect(_on_game_popup_closed)
 	else:
-		game.show_game_popup(self, "Oh no!", "Round %d\nof\nLevel %d\n\nnot completed" % [round_in_level, level])
+		var lost_card = game.show_game_popup(self, "Oh no!", "Round %d\nof\nLevel %d\n\nnot completed" % [round_in_level, level])
+		lost_card.closed.connect(_on_game_popup_closed)
 
 # A level is `rounds_per_level` rounds, and it is PASSED on the share of them won.
 func _finish_level() -> void:
@@ -1278,7 +1678,8 @@ func _finish_level() -> void:
 	MainGlobals.global_level_is_done(passed)
 	var textadd: String = "\n\nRounds fully right: %d of %d\nAccuracy: %d%%\n\n%s" % [
 		_rounds_fully_correct, _rounds_played, pct, _progress_line(passed, need, is_last)]
-	game.show_level_done_popup(self, "", "", level, textadd, passed)
+	var done_card = game.show_level_done_popup(self, "", "", level, textadd, passed)
+	done_card.closed.connect(_on_level_done_popup_closed)
 
 # What the player gets next, in words. An accuracy figure alone does not say whether they are
 # moving on, which is the only thing they want to know at that moment.
@@ -1714,9 +2115,9 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 # grass sprites hidden. Tiling — plain, rotated or drawn — is a mosaic of one image however it is
 # arranged, and the cells are half of it.
 #
-# What it must get right is SCALE. The board is drawn through a camera zoomed to `player_camscale`,
-# so its cells appear at `tile x zoom`; a ground tiled in screen space appears at `tile`, and the
-# two are visibly different grass the moment the player camera takes over. That is what "the
+# What it must get right is SCALE. The board is drawn through a zoomed camera (_frame_for(): a room
+# as large as it fits), so its cells appear at `tile x zoom`; a ground tiled in screen space appears
+# at `tile`, and the two are visibly different grass the moment the camera zooms in. That is what "the
 # background changes once the board is built" was. So the ground lives in the WORLD: its layer
 # follows the viewport and its rect covers the whole board, which also means it cannot run out at
 # the sides the way a screen-sized ground in a following layer did.
