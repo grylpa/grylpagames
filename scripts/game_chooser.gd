@@ -27,7 +27,6 @@ var _about_screen: CanvasLayer = null
 var _settings_screen: CanvasLayer = null
 
 var _icon_grid: Texture2D = preload("res://art/grid-48.png")
-var _icon_list: Texture2D = preload("res://art/list-48.png")
 var _icon_cat: Texture2D = preload("res://art/category_list_48.png")
 
 const _ICON_COLOR: Color = Color(1.0, 0.8980392, 0.007843138, 1.0)
@@ -412,7 +411,7 @@ func _open_progress() -> void:
 func create_grid():
 	await get_tree().process_frame
 	var view_mode: int = MainGlobals.game_chooser_view_mode
-	var list_mode: bool = view_mode == MainGlobals.ViewMode.LIST or view_mode == MainGlobals.ViewMode.CATEGORIZED
+	var list_mode: bool = view_mode == MainGlobals.ViewMode.CATEGORIZED
 	var hsep = %GamesGrid.get_theme_constant("h_separation")
 	var sbsc = %ScrollContainer.get_theme_stylebox("panel")
 	var pad_l = sbsc.get_margin(SIDE_LEFT)
@@ -436,8 +435,7 @@ func create_grid():
 		%GamesGrid.add_theme_constant_override("v_separation", %GamesGrid.get_theme_constant("h_separation"))
 		if list_mode:
 			n_columns = 1
-			var vsep: int = 4 if view_mode == MainGlobals.ViewMode.CATEGORIZED else 8
-			%GamesGrid.add_theme_constant_override("v_separation", vsep)
+			%GamesGrid.add_theme_constant_override("v_separation", 4)
 			if MainGlobals.is_mobile():
 				btn_w = 120
 				_list_title_size = 40
@@ -489,10 +487,7 @@ func create_grid():
 			%GamesGrid.add_child(bottom_pad)
 
 	%GamesGrid.columns = n_columns
-	if view_mode == MainGlobals.ViewMode.LIST:
-		%GamesGrid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	else:
-		%GamesGrid.size_flags_horizontal = 6
+	%GamesGrid.size_flags_horizontal = 6
 
 	if n_games > 1 and !MainGlobals.sig_stop_active_game.is_connected(_on_global_stop_active_game):
 		MainGlobals.sig_stop_active_game.connect(_on_global_stop_active_game)
@@ -707,17 +702,22 @@ func check_buttons_that_need_login():
 				b[0].modulate = Color(0.5,0.5,0.5,0.5)
 
 func _on_view_mode_button_pressed() -> void:
-	MainGlobals.game_chooser_view_mode = (MainGlobals.game_chooser_view_mode + 1) % (MainGlobals.ViewMode.CATEGORIZED + 1)
+	MainGlobals.game_chooser_view_mode = _other_view_mode()
 	MainGlobals.save_settings()
 	_update_view_mode_button()
 	btn_h = 0
 	create_grid()
 
 func _update_view_mode_button() -> void:
-	var next_mode: int = (MainGlobals.game_chooser_view_mode + 1) % (MainGlobals.ViewMode.CATEGORIZED + 1)
-	var icons: Array = [_icon_grid, _icon_list, _icon_cat]
-	%ListCheckButton.icon = icons[next_mode]
+	# The button shows the view it switches TO.
+	%ListCheckButton.icon = _icon_grid if _other_view_mode() == MainGlobals.ViewMode.GRID else _icon_cat
 	%ListCheckButton.modulate = _GOLD
+
+# Two views, the grid and the list by category. A plain alphabetical list was a third, and was dropped.
+func _other_view_mode() -> int:
+	if MainGlobals.game_chooser_view_mode == MainGlobals.ViewMode.GRID:
+		return MainGlobals.ViewMode.CATEGORIZED
+	return MainGlobals.ViewMode.GRID
 
 func _build_categorized_grid() -> void:
 	var lpo: Array = MainGlobals.last_played_order

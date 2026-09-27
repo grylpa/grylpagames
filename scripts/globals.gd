@@ -10,7 +10,8 @@ var ignore_keyboard_actions := false
 var mute := false
 var show_monotonic_scores := true
 var show_monotonic_speed := true
-enum ViewMode { GRID = 0, LIST = 1, CATEGORIZED = 2 }
+# 1 was a plain list, since dropped; the numbers stay, as they are saved in the settings.
+enum ViewMode { GRID = 0, CATEGORIZED = 2 }
 var game_chooser_view_mode: int = ViewMode.CATEGORIZED
 var progress_tab_by_game: Dictionary = {}
 var chart_x_mode_by_game: Dictionary = {}  # game_key -> 0=date, 1=index
@@ -331,10 +332,12 @@ func load_settings():
 		show_monotonic_scores = settings[3]
 	if settings.size() > 4:
 		var v4 = settings[4]
+		# A list of either kind (true, from the old bool setting, or the dropped plain list) opens as
+		# the list by category.
 		if v4 is bool:
-			game_chooser_view_mode = ViewMode.LIST if v4 else ViewMode.GRID
-		elif v4 is int:
-			game_chooser_view_mode = v4
+			game_chooser_view_mode = ViewMode.CATEGORIZED if v4 else ViewMode.GRID
+		elif v4 is int or v4 is float:
+			game_chooser_view_mode = ViewMode.GRID if int(v4) == ViewMode.GRID else ViewMode.CATEGORIZED
 	if settings.size() > 5 and settings[5] is Dictionary:
 		progress_tab_by_game = settings[5]
 	if settings.size() > 6:
