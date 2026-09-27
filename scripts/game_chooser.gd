@@ -349,6 +349,18 @@ func create_grid():
 				if MainCfg.single_game == game_folder:
 					%TitleLabel.text = _titled(g[1])
 
+	# ROOM TO SCROLL THE LAST GAME CLEAR OF THE BUTTONS. About and Progress float over the bottom
+	# corners of the list, so at the end of the scroll the last game sat under them. An empty row,
+	# as tall as those buttons plus a gap, lets the list scroll on until it is clear -- one spacer per
+	# column, so a grid's last row is still a whole row.
+	if n_games > 1:
+		var pad_h: float = maxf(_about_pill_h, 40.0) + 16.0
+		for _col in n_columns:
+			var bottom_pad: Control = Control.new()
+			bottom_pad.custom_minimum_size = Vector2(0, pad_h)
+			bottom_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			%GamesGrid.add_child(bottom_pad)
+
 	%GamesGrid.columns = n_columns
 	if view_mode == MainGlobals.ViewMode.LIST:
 		%GamesGrid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN

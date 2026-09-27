@@ -557,7 +557,7 @@ random levels, often mid-build, and checks the board is whole; with the flag rai
 ## The camera frames the room you are in
 
 **One zoom for the whole round:** the one that fits the mansion's LARGEST room (`_play_zoom`,
-`_largest_room_zoom()`), with every room centred at it. Each room at its own largest size, as below,
+`_largest_room_zoom()`), with every room centered at it. Each room at its own largest size, as below,
 changed the zoom from room to room (rooms of 9 to 13 tiles: up to 1.4x), and those changes were not
 nice to watch. Cleared for each new board in `reset()`.
 
@@ -574,7 +574,7 @@ The rest of this section describes the framing itself, which is unchanged except
 One camera (`game_cam`) does everything. During play it frames the room the player is in, as large as
 it fits: the room's tiles plus `FRAME_MARGIN` (a quarter tile) each side -- enough for the walls, which
 are drawn on the room's side of the tile ring around it, 4 px of 40 -- across the screen's width, or
-between the HUD strip and the button bar if the room is too tall for that, centred in that band
+between the HUD strip and the button bar if the room is too tall for that, centered in that band
 (`_frame_for()`). Walking into another room glides the frame over (`ROOM_GLIDE_SEC`); in a corridor it
 follows the player at the zoom it had (`_follow_player_room()`). Stepping into a corridor clears the
 framed room, so walking back into the SAME room frames it again: the frame used to be redone only for
@@ -603,7 +603,7 @@ a portrait screen; the largest holds 34 tools, and past that the first 34 in dea
 **The tapped tile stays visible.** It sits under whichever slot keeps the whole menu on screen,
 nearest the middle of the menu, and that slot is the see-through one. The menu moves by whole slots,
 so the tile always sits squarely in one; it may cover the HUD and the button bar. It used to be
-centred on the tile with its middle slot see-through and pushed back onto the screen by however many
+centered on the tile with its middle slot see-through and pushed back onto the screen by however many
 pixels it overhung, which put a tool over the tile and the player. The tools take the slots nearest
 the tapped one; the slots left over, like the see-through one, put back the tool on the tile.
 Measured at level 10 (38 tools): a 5 x 7 menu of 34 tools, wholly on screen for a tile in a room's
@@ -685,7 +685,7 @@ at the sides.
 
 The ground therefore sits in a nested `BgLayer` (`CanvasLayer`, `layer = -1`, NOT following the
 viewport), which is the arrangement gorilla already used. Games whose camera is pinned to the board
-centre (lightsout, taxi, wolves) do not need it and do not have it.
+center (lightsout, taxi, wolves) do not need it and do not have it.
 
 `probe_look.gd` fails if this game's ground goes back into the following layer.
 
@@ -773,7 +773,7 @@ and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)
 
 `art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`), not grabbed. The old tile was a
 screenshot of one room — a pink floor with a few small objects on it, which at 200 px says neither
-"storm" nor "your things are getting wet", and whose most prominent feature was the colour pink.
+"storm" nor "your things are getting wet", and whose most prominent feature was the color pink.
 
 It is now the weather and nothing else: cloud, slanting rain and a lightning bolt. A pail catching
 the drips was drawn first, on the reasoning that weather alone is not a game — but it dragged a
@@ -781,7 +781,7 @@ second subject and a second palette into a 200 px tile and made the storm share 
 chooser only has to say which game this is.
 
 **One cloud, with an outline of its own.** It used to be a row of overlapping discs laid edge to edge
-across the top, in greys a step off the night sky, and it read as a grey band. A cloud is a SHAPE: it
+across the top, in grays a step off the night sky, and it read as a gray band. A cloud is a SHAPE: it
 now stops short of the tile's sides, bulges on top and sits on a flatter base, is lit from above and
 dark underneath (a vertical ramp inside the silhouette, with a rim of light along the top of each
 bump), is several steps brighter than the sky, and has a soft dark edge where the two meet.

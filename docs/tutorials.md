@@ -751,10 +751,10 @@ now carries three things, applied together by `_show_game_badge()`:
 |---|---|
 | the game's **icon** | its own `art/game_screen_200.png` — the picture the player just tapped in the chooser, which cannot be mistaken for chrome. All 29 games with a tutorial have one, wrapped exactly as the chooser's list rows wrap it (see below) |
 | the **name**, larger | `FIRST_TITLE_SIZE` 32 on step 0, `TITLE_SIZE` 22 on every other (51 / 35 on mobile) |
-| an accent **rule** | a short centred dash between them, `RULE_FRAC` of the inner width — not a full-width bar, which reads as a divider between two sections when there is only one thing above it |
+| an accent **rule** | a short centered dash between them, `RULE_FRAC` of the inner width — not a full-width bar, which reads as a divider between two sections when there is only one thing above it |
 
-All three are cleared on every other step. `_place_labels()` centres the icon the same way it
-centres the rule — a frame stretched to the balloon's width would be a box round the caption rather
+All three are cleared on every other step. `_place_labels()` centers the icon the same way it
+centers the rule — a frame stretched to the balloon's width would be a box round the caption rather
 than round the picture.
 
 ### The icon frame is the chooser's, reproduced node for node
