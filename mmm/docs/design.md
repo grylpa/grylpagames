@@ -50,8 +50,10 @@ mmm/scripts/
 
 ## A round
 
-1. `create_board()` lays out `num_rooms` rooms (`create_rooms`), joins them (`add_corridors`), then
+1. The level's briefing goes up at once, held, and `create_board()` builds the castle behind it (see
+   "The briefing and the build"): `num_rooms` rooms (`create_rooms`), joined (`add_corridors`), then
    `add_player`, `add_coins` (one per room), `add_bricks`, `add_bomb_agents`, `add_moving_agents`.
+   The round starts when the card's Start is pressed (`_begin_round()`).
 2. You walk with swipes or arrow keys — `move_dir()` sets a direction and you keep going until you
    turn or hit something, like Gorilla. Entering a tile calls `mark_visited_room()`.
 3. Stepping on a coin tile takes it (`move_player_on_tick`), worth 1 or 2 depending on whether it
@@ -130,6 +132,46 @@ just played rather than from the one about to start.
 
 `MainGlobals.global_level_is_done()` takes the gate result, so the fanfare does not play over a
 level that was not passed.
+
+**Each card is followed through its own `closed` signal** (`level_is_done`, `_finish_level`), not
+the app-wide `sig_game_popup_closed` / `sig_level_done_popup_closed`, which fire for ANY card. With
+a briefing card at the start of every round, those would have ended the round the moment Start was
+pressed -- the bug Storm had first.
+
+## The briefing and the build
+
+The same mechanism as Storm's, copied into `level.gd` (games do not share scripts).
+
+- **The card goes up at once, held.** `new_game()` shows the level's briefing and holds it
+  (`game_popup.hold()`): it reads only "Building world", with no Start button, and nothing closes it.
+  It is laid out at its final size, the real text already in it and hidden. When the board is ready
+  and the card has been up at least `BRIEF_HOLD_MS` (1 s), `_release_brief()` puts in the real text
+  (`_brief_text()`: how many rooms, with the count the board actually got, what to do, and the level's
+  rounds) and shows Start. The round -- its clock, `level_is_ready`, the start sound -- begins when
+  the card closes (`_begin_round()`). The tutorial has no card and starts as soon as its board is built.
+- **The background stays opaque while held**, unlike Storm's, where the build is watched: every
+  room's floor color is the question at the end of the round, and the whole castle drawn behind a dim
+  card would show them all.
+- It replaced a yellow "Building board" label (`BuildingLabel`, now removed with its style) after
+  which the round started at once.
+- **The board is built in slices.** `_breathe()` in every loop of the build hands the frame back after
+  `BUILD_SLICE_US` (14 ms), so the card stays drawn. Built in one go, level 12 froze the game for
+  3.5-4.5 s; it now takes about 1.5 s, without freezing (measured in a window).
+- **The build flag is raised the moment `new_game()` stops waiting** for the last build, so two builds
+  can never share one board (Storm crashed on exactly that when the flag was raised late).
+- **The corridor search is a faster copy of the shared one**, finding exactly the same paths
+  (`_corridor_astar()` and `_corridor_reachable()`, as in Storm: the cost inline, packed arrays for
+  the states, a byte mask of built tiles, and a flood under looser rules that skips a search that
+  could not succeed). Measured in Storm: the search 2x faster, and most of the hopeless searches skipped.
+- **A corridor's tiles are listed in walking order** (`_try_corridor_L()`, Storm's fix). A straight
+  run going up or left was listed low to high, and the door put one step back from its first two
+  tiles could land off the board -- a crash Storm showed about one build in five.
+
+`devtools/probe_mmm_build.gd` checks all of it: rounds at random levels often mid-build leave a whole
+board, the fast search matches the shared one on every query, corridors are in walking order, and the
+briefing holds, releases after the build and a second, starts the round on close, and does not end it.
+`level.probe_real_round` lets it do that in tutorial mode (which is what keeps a probe from writing
+scores) with the real levels and the real card, which tutorial mode otherwise swaps for the lesson's.
 
 ## A replay starts clean
 
@@ -246,6 +288,40 @@ straight into the Level layer.
 
 `probe_look.gd` fails if a BgLayer goes missing, is empty, or stops following a camera its Level
 follows.
+
+**The camera frames the room you are in** (copied from Storm), **at one zoom for the whole round.**
+One camera (`game_cam`): during play it centres the player's room at the zoom that fits the castle's
+LARGEST room -- its tiles plus `FRAME_MARGIN` (a quarter tile) a side, across the screen's width, or
+between the HUD strip and the button bar if it is taller than that (`_play_zoom`,
+`_largest_room_zoom()`, `_frame_for()`). Each room at its own largest zoom was tried first and moved
+too much: with rooms of 5 to 11 tiles the zoom changed by up to 2x between rooms. Walking into another room glides the frame over (`ROOM_GLIDE_SEC`); in a
+corridor it follows the player at the zoom it had (`_follow_player_room()`, run after the player each
+frame: `process_priority = 1`). Stepping into a corridor clears the framed room, so the next room
+walked into is framed afresh even when it is the one just left: the frame used to be redone only for
+a DIFFERENT room, and walking out into a corridor and back left the view where the corridor had taken
+it -- on level 12 the player walked off the top of the screen. `probe_mmm_build` walks that route and
+checks the player is on screen, and that every room gets the same zoom. For the answers the camera
+frames the whole castle, as large as it fits.
+It replaced a camera parented to the player at ONE zoom for every room, sized for the widest room
+the game can make plus two tiles -- so a 5-wide room took up half the screen's width. Measured: a
+7 x 9 room fills the band from y 78 to 726 of 788 (at its own zoom, before the zoom was fixed).
+
+**The answers' view frames the corridors too** (`_castle_rect()`, as in Storm): the rooms' outline
+grown by `CORRIDOR_REACH` (3), the reach the corridor search is confined to, kept to the board. It
+framed the rooms alone, and in 10 of 12 builds some corridor ran up to 3 tiles outside and was cut off
+(`probe_mmm_build`, framing the rooms alone: 50 of 596 tiles).
+
+**A bit faster in a corridor** (`_set_player_pace()`, `CORRIDOR_RUN` 2): a corridor holds no coin and
+asks nothing. Each step into a corridor tile is taken at twice the walking speed, and in a corridor
+the next step is taken the frame the player arrives rather than at the next game tick (`_process()`).
+Measured at 60 fps: 145 ms a corridor tile against 236 in a room, about 1.6x. (Storm runs at 3x.)
+
+**No room wider than 11 on a phone** (`_room_side()`, `MOBILE_MAX_ROOM_SIDE`, as in Storm): a room's
+side sets the tile size, and 13 would give about 5.4 mm tiles. mmm's range, 5..10 made odd, tops out
+at 11 already; the cap keeps it so if the range grows.
+
+**Twelve rooms fit where Storm's nine did** on the same 75 x 75 board at level 12 (6 builds of 6 got
+all 12): mmm's rooms are 5, 7, 9 or 11 tiles a side, Storm's 9, 11 or 13 -- about half the area.
 
 ## The lawn
 

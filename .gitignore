@@ -25,3 +25,6 @@ measure_*
 seed_demo.*
 clear_demo.*
 verify_demo.*
+# Throwaway check scenes made while debugging (tmp_*.gd / .tscn). Deleted when done -- ignored so one
+# that is forgotten cannot be committed: tmp_popup_check was, and reached the public repo.
+tmp_*

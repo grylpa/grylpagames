@@ -3,9 +3,9 @@ extends CanvasLayer
 
 # A CLUE FOR EVERY NEW LEAK YOU CANNOT SEE. With several rooms, a leak can start anywhere in the
 # mansion while the camera shows only the player's room. For each new one this draws a blue arrow near
-# the edge of the screen, pointing at it: on the line from the player to the leak, where that line
-# meets the screen's edge (inset from it, and kept clear of the HUD strip at the top and the button
-# bar at the bottom). While it is up it follows as the player moves. It goes after the level's
+# the edge of the screen, pointing at it: on the line from the middle of the screen to the leak, where
+# that line meets the screen's edge (inset from it, and kept clear of the HUD strip at the top and the
+# button bar at the bottom). While it is up it follows as the view moves. It goes after the level's
 # `arrow_ms` (StormLevelConfig; negative: it never times out), or once its leak is on screen or a tool
 # is catching it -- and a NEW leak out of view replaces it, so there is only ever one arrow: several
 # at once, each pointing somewhere else, would say nothing. A new leak already on screen needs no
@@ -107,6 +107,12 @@ static func edge_point(r: Rect2, from: Vector2, to: Vector2) -> Vector2:
 		t = minf(t, (r.position.y - from.y) / d.y)
 	return from + d * clampf(t, 0.0, 1.0)
 
+# Where the arrow toward a point `to` on screen has its tip: on the arrow area's edge, along the line
+# from the area's middle.
+func tip_for(to: Vector2) -> Vector2:
+	var inner: Rect2 = _inner_rect()
+	return edge_point(inner, inner.get_center(), to)
+
 # The outline of an arrow of length `s` whose tip is at `tip`, pointing along `dir`: seven points,
 # tip first, round the head and down the shaft.
 static func arrow_points(tip: Vector2, dir: Vector2, s: float) -> PackedVector2Array:
@@ -125,8 +131,11 @@ func _draw_arrows() -> void:
 	if _player == null or not is_instance_valid(_player) or _leaks.is_empty():
 		return
 	var inner: Rect2 = _inner_rect()
-	var from: Vector2 = _on_screen(_player)
-	from = Vector2(clampf(from.x, inner.position.x, inner.end.x), clampf(from.y, inner.position.y, inner.end.y))
+	# From the MIDDLE of the arrow area, not from the player. From the player, a leak past a nearby
+	# edge put the arrow right beside them -- standing in the bottom-left corner with a leak off to
+	# the upper left, the line left the screen a tile away and the arrow sat on the player. From the
+	# middle, it is always out on the margin, on the side the leak is on.
+	var from: Vector2 = inner.get_center()
 	# A slow pulse, so a new arrow is noticed without flashing.
 	var wave: float = sin(float(Time.get_ticks_msec()) / 180.0)
 	var pulse: float = 1.0 + 0.08 * wave
@@ -140,7 +149,7 @@ func _draw_arrows() -> void:
 			continue
 		# Kept inside the arrow area, then nudged toward the leak and back: motion catches the eye at
 		# the edge of vision where a color alone does not.
-		var tip: Vector2 = edge_point(inner, from, to) - dir * NUDGE * (1.0 - bob)
+		var tip: Vector2 = tip_for(to) - dir * NUDGE * (1.0 - bob)
 		var pts: PackedVector2Array = arrow_points(tip, dir, SIZE * pulse)
 		# The rims are the arrow GROWN, not stroked: a thick polyline leaves notches at the tip and
 		# the barbs, where its segments do not join.
