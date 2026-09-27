@@ -478,3 +478,9 @@ three out of three is a real three — so the gate is per METRIC, not per sessio
 **Nothing measures "how many examples you needed".** It is fixed by `min_examples`; the player
 cannot ask to see more or answer early, so it says nothing about them.
 
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `apprentice()`), not grabbed. The old
+tile was a screen grab. It is now the question the game asks: a robot arm holding a purple block over two
+funnels, one blue-rimmed and one red, with a gold question mark between them -- which way does its rule
+send it? Colors from `Sleek.PALETTE`.

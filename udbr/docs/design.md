@@ -289,3 +289,10 @@ session saved before this change is short. The scores window reads the level thr
 is skipped, so a player who varies both settings freely will read "not yet" for longer than
 one who has a habit. That is correct - those sessions are not the same test - but it is the
 reason the seeded demo data gives its player a dominant pair.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `buoy()`), not grabbed. The old tile was
+a screen grab. It is now the game's own picture: a glowing ball afloat at the surface of a tall glass
+column of water, the faintest hints above and below it of where it rises and sinks with the breath. A buoy
+at sea was tried first and looked ridiculous. The calm games' shared dusk look (Breathe, Crack the Safe).

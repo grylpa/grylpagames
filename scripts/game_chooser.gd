@@ -32,9 +32,29 @@ var _icon_cat: Texture2D = preload("res://art/category_list_48.png")
 
 const _ICON_COLOR: Color = Color(1.0, 0.8980392, 0.007843138, 1.0)
 
+# THE SCREEN'S PALETTE: the one the result cards and the stats screens already use, so the first
+# screen of the app looks like the rest of it. Everything here used to be the one bright yellow
+# above -- title, category headers, game names, every row's frame, both bottom buttons, and the
+# dashed road lines of the background tile -- so nothing stood out from anything else. The bright
+# yellow is kept where it MEANS something: the game names, and the account icon of a full login.
+const _GOLD: Color = ScreenBackdrop.ACCENT
+const _HAIRLINE: Color = ScreenBackdrop.PANEL_FRAME
+const _NAVY: Color = ResultCard.CARD_BG
+const _BG_TOP: Color = Color(0.10, 0.12, 0.19)
+const _BG_BOTTOM: Color = Color(0.045, 0.055, 0.09)
+const _ROW_BG: Color = Color(0.13, 0.155, 0.225, 0.92)
+const _ROW_BG_HOT: Color = Color(0.17, 0.20, 0.285, 0.96)
+# Category headers: the gold, softened, so they sit a step below the app's name in the top bar.
+const _HEADER_GOLD: Color = Color(0.85, 0.72, 0.46, 0.9)
+# Every highlight's "switch off", so a scroll can clear them all (see _hover_highlight).
+var _hot_resets: Array[Callable] = []
+var _headers_added: int = 0
+var _bottom_bar: Panel = null
+
 func _ready() -> void:
 	%TitleLabel.text = _titled(%TitleLabel.text)
 	MainGlobals.load_settings()
+	_dress_screen()
 	_update_view_mode_button()
 	create_grid()
 	time_displayed = MainGlobals.timems()
@@ -43,6 +63,91 @@ func _ready() -> void:
 	$FullScreenMessage.hide()
 	_create_account_button()
 	_create_about_button()
+
+# 1. A QUIET BACKGROUND: a dark navy gradient. It was `art/pipe_4_exits.png`, a road junction from the
+#    maze games tiled across the whole screen, which drew as yellow dashed lines behind everything.
+# 4. ONE TOP BAR: the account icon, the title and the view button on a navy strip (no line under it:
+#    tried, and removed). The title sat on a dark patch of its own -- a 26-unit outline round the
+#    letters -- and the icons floated on the background either side of it.
+func _dress_screen() -> void:
+	var grad: Gradient = Gradient.new()
+	grad.set_color(0, _BG_TOP)
+	grad.set_color(1, _BG_BOTTOM)
+	var tex: GradientTexture2D = GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill_from = Vector2(0.5, 0.0)
+	tex.fill_to = Vector2(0.5, 1.0)
+	tex.width = 4
+	tex.height = 256
+	var bg: TextureRect = $TextureRect
+	bg.texture = tex
+	bg.stretch_mode = TextureRect.STRETCH_SCALE
+	# The list's own panel was 50% black over the old tile; over a dark gradient it only muddies it.
+	var sc_style: StyleBoxFlat = (%ScrollContainer.get_theme_stylebox("panel") as StyleBoxFlat).duplicate()
+	sc_style.bg_color = Color(0, 0, 0, 0)
+	%ScrollContainer.add_theme_stylebox_override("panel", sc_style)
+	%ScrollContainer.scroll_started.connect(_clear_highlights)
+
+	var title: Label = %TitleLabel
+	# Through the app's type scale: the scene's 40 is a phone size that stayed 40 on a phone, where
+	# the category headers (scaled) came out the same size and the same gold as the app's name.
+	MainGlobals.set_font_size(title, 38)
+	title.add_theme_color_override("font_color", _GOLD)
+	title.add_theme_constant_override("outline_size", 0)
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	title.add_theme_constant_override("shadow_offset_x", 0)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	# The strip behind the bar's contents. A MarginContainer stacks its children, each filling it, so a
+	# panel added FIRST is drawn under the rest and covers the whole bar (the bar has no margins).
+	var bar_margin: MarginContainer = %TitleLabel.get_parent()
+	var strip: Panel = Panel.new()
+	strip.name = "TopBar"
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = _NAVY
+	strip.add_theme_stylebox_override("panel", sb)
+	bar_margin.add_child(strip)
+	bar_margin.move_child(strip, 0)
+
+# 2. A ROW IS A CARD: navy, a step lighter than the background, with a faint gold hairline that turns
+#    solid gold while it is pointed at or pressed. Every row had a 3-unit bright yellow border.
+func _row_style(hot: bool) -> StyleBoxFlat:
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = _ROW_BG_HOT if hot else _ROW_BG
+	sb.set_border_width_all(2)
+	sb.border_color = _GOLD if hot else _HAIRLINE
+	sb.set_corner_radius_all(10)
+	for side: int in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		sb.set_content_margin(side, 8.0)
+	return sb
+
+# A grid tile's frame: gold, not the bright yellow, and bright while pointed at.
+func _tile_frame(base: StyleBoxFlat, hot: bool) -> StyleBoxFlat:
+	var sb: StyleBoxFlat = base.duplicate() as StyleBoxFlat
+	sb.set_border_width_all(3 if hot else 2)
+	sb.border_color = _ICON_COLOR if hot else _GOLD
+	return sb
+
+# Hot while the POINTER is over any of `parts` (a row is two buttons side by side, and moving from one
+# to the other must not flicker). Hover only: it also lit on a press, and on a touchscreen the start
+# of a drag to scroll IS a press, on whichever game the finger happened to land -- so dragging the
+# list lit a game up. A touchscreen has no hover, so there is no highlight on a phone at all, and any
+# scroll clears every highlight (a mouse drag on desktop starts over a row too).
+func _hover_highlight(parts: Array, apply: Callable) -> void:
+	if MainGlobals.is_mobile():
+		return
+	var over: Dictionary = {}
+	var refresh: Callable = func() -> void: apply.call(not over.is_empty())
+	_hot_resets.append(func() -> void: over.clear(); refresh.call())
+	for part: Control in parts:
+		var key: int = part.get_instance_id()
+		part.mouse_entered.connect(func() -> void: over[key] = true; refresh.call())
+		part.mouse_exited.connect(func() -> void: over.erase(key); refresh.call())
+
+func _clear_highlights() -> void:
+	for reset: Callable in _hot_resets:
+		if reset.is_valid():
+			reset.call()
 
 func _create_account_button() -> void:
 	_account_btn = Button.new()
@@ -161,10 +266,10 @@ func _create_about_button() -> void:
 	_about_btn.name = "AboutButton"
 	_about_btn.text = "V " + MainGlobals.version
 	_about_btn.add_theme_font_size_override("font_size", font_size)
-	_about_btn.add_theme_color_override("font_color", _ICON_COLOR)
-	_about_btn.add_theme_color_override("font_hover_color", _ICON_COLOR)
-	_about_btn.add_theme_color_override("font_pressed_color", _ICON_COLOR)
-	_about_btn.add_theme_color_override("font_focus_color", _ICON_COLOR)
+	_about_btn.add_theme_color_override("font_color", _GOLD)
+	_about_btn.add_theme_color_override("font_hover_color", _GOLD)
+	_about_btn.add_theme_color_override("font_pressed_color", _GOLD)
+	_about_btn.add_theme_color_override("font_focus_color", _GOLD)
 	_about_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_about_btn.pressed.connect(_open_about)
 
@@ -175,7 +280,7 @@ func _create_about_button() -> void:
 	pill.bg_color = Color(0.0, 0.0, 0.0, 0.75)
 	pill.set_corner_radius_all(int(_about_pill_h / 2.0))
 	pill.set_border_width_all(2)
-	pill.border_color = _ICON_COLOR
+	pill.border_color = _GOLD
 	pill.content_margin_left = _about_icon_d + 18.0
 	pill.content_margin_right = 18.0
 	pill.content_margin_top = 4.0
@@ -200,6 +305,26 @@ func _create_about_button() -> void:
 	_about_icon.draw.connect(_draw_info_icon)
 	_about_btn.add_child(_about_icon)
 
+	# 5. A BAR BEHIND THE TWO BUTTONS (no line along its top: tried, and removed), so they read as part of the screen rather than floating over
+	#    whatever game is scrolling underneath. It takes taps too: a tap on the bar must not start the
+	#    game half-hidden behind it. The list's bottom spacer (create_grid) is taller, so the last
+	#    game still scrolls clear.
+	_bottom_bar = Panel.new()
+	_bottom_bar.name = "BottomBar"
+	_bottom_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	# See-through, a little: the list scrolling under it stays in view, dimmed, so the bar reads as a
+	# layer over the list rather than the end of it.
+	var bb: StyleBoxFlat = StyleBoxFlat.new()
+	bb.bg_color = Color(_NAVY.r, _NAVY.g, _NAVY.b, 0.78)
+	_bottom_bar.add_theme_stylebox_override("panel", bb)
+	_bottom_bar.anchor_left = 0.0
+	_bottom_bar.anchor_right = 1.0
+	_bottom_bar.anchor_top = 1.0
+	_bottom_bar.anchor_bottom = 1.0
+	_bottom_bar.offset_top = -(_about_pill_h + 8.0)
+	_bottom_bar.offset_bottom = 0.0
+	vlabel.get_parent().add_child(_bottom_bar)
+
 	vlabel.get_parent().add_child(_about_btn)
 
 	_progress_btn = Button.new()
@@ -207,7 +332,7 @@ func _create_about_button() -> void:
 	_progress_btn.text = "Progress"
 	_progress_btn.add_theme_font_size_override("font_size", font_size)
 	for c: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		_progress_btn.add_theme_color_override(c, _ICON_COLOR)
+		_progress_btn.add_theme_color_override(c, _GOLD)
 	_progress_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_progress_btn.pressed.connect(_open_progress)
 	# This button has no icon, so it reserves no room for one. EVERY state needs that same margin:
@@ -233,7 +358,7 @@ func _draw_info_icon() -> void:
 	var d: float = _about_icon_d
 	var c: Vector2 = Vector2(d, d) * 0.5
 	var ink: Color = Color(0.08, 0.08, 0.08, 1.0)
-	_about_icon.draw_circle(c, d * 0.5, _ICON_COLOR)
+	_about_icon.draw_circle(c, d * 0.5, _GOLD)
 	var r_dot: float = d * 0.075
 	_about_icon.draw_circle(c + Vector2(0.0, -0.30 * d + r_dot), r_dot, ink)
 	var stem_w: float = d * 0.15
@@ -297,6 +422,7 @@ func create_grid():
 	var usable_w = viewport_w - pad_l - pad_r - scrollbar_w - pad_l
 
 	game_buttons = []
+	_hot_resets.clear()
 	for child in %GamesGrid.get_children():
 		child.queue_free()
 
@@ -333,6 +459,7 @@ func create_grid():
 		btn_h = btn_w
 
 	n_games = 0
+	_headers_added = 0
 	if view_mode == MainGlobals.ViewMode.CATEGORIZED and MainCfg.single_game.is_empty():
 		_build_categorized_grid()
 	else:
@@ -387,6 +514,8 @@ func add_game(game_path, game_name, game_desc, needs_login, list_mode):
 	# 	return
 	var btn
 	var desc
+	# Lights this game's row or tile: on hover (desktop), and on the tap that starts it (_launch).
+	var mark_hot: Callable = Callable()
 
 	# Every game ships a 200px tile. The full-size variants only ever existed for three games
 	# and have been removed, so a single-game build shows the same image as the chooser grid.
@@ -449,10 +578,25 @@ func add_game(game_path, game_name, game_desc, needs_login, list_mode):
 		desc.size.x = target_right_w
 		desc.custom_minimum_size.x = target_right_w
 		desc.custom_minimum_size.y = btn_h
-		desc.pressed.connect(func(): _record_played(game_path); set_active_game(load(scene_path).instantiate(), game_name))
+		var row_panel: PanelContainer = desc.get_parent().get_parent() as PanelContainer
+		if row_panel != null:
+			row_panel.add_theme_stylebox_override("panel", _row_style(false))
+			mark_hot = func(hot: bool) -> void:
+				if is_instance_valid(row_panel):
+					row_panel.add_theme_stylebox_override("panel", _row_style(hot))
+			_hover_highlight([btn.texture, desc], mark_hot)
+		desc.pressed.connect(func(): _launch(game_path, scene_path, game_name, mark_hot))
+	elif not MainCfg.single_game:
+		var tile_frame: PanelContainer = btn.frame
+		var base_sb: StyleBoxFlat = tile_frame.get_theme_stylebox("panel") as StyleBoxFlat
+		tile_frame.add_theme_stylebox_override("panel", _tile_frame(base_sb, false))
+		mark_hot = func(hot: bool) -> void:
+			if is_instance_valid(tile_frame):
+				tile_frame.add_theme_stylebox_override("panel", _tile_frame(base_sb, hot))
+		_hover_highlight([btn.texture], mark_hot)
 
 	# btn.get_node("Button").connect("pressed", func(): set_active_game(load(scene_path).instantiate(), game_name))
-	btn.texture.pressed.connect(func(): _record_played(game_path); set_active_game(load(scene_path).instantiate(), game_name))
+	btn.texture.pressed.connect(func(): _launch(game_path, scene_path, game_name, mark_hot))
 
 	game_buttons.append([btn, needs_login])
 	if needs_login:
@@ -492,6 +636,37 @@ func _record_played(game_folder: String):
 	MainGlobals.last_played_order.insert(0, game_folder)
 	MainGlobals.save_settings()
 	MainCfg.move_to_top(game_folder)
+
+# STARTING A GAME SHOWS AT ONCE. The tap used to load the game's scene, build it and start it all
+# inside the press handler -- 150-400 ms on a desktop (Storm: 201 ms loading, 65 building, 133
+# starting), several times that on a phone -- with the screen frozen, so a tap looked like nothing
+# had happened. Now the tapped game lights up the same frame, the scene file loads on a background
+# thread while the screen keeps drawing, and only building and starting it (which must be on the main
+# thread) happen after. A second tap while one game is starting is ignored.
+var _launching: bool = false
+
+func _launch(game_path: String, scene_path: String, game_name: String, mark_hot: Callable) -> void:
+	if _launching:
+		return
+	_launching = true
+	if mark_hot.is_valid():
+		mark_hot.call(true)
+	_record_played(game_path)
+	# Two frames: the highlight is drawn before anything heavy starts.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var scene: PackedScene = null
+	if ResourceLoader.load_threaded_request(scene_path) == OK:
+		while ResourceLoader.load_threaded_get_status(scene_path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			await get_tree().process_frame
+		scene = ResourceLoader.load_threaded_get(scene_path) as PackedScene
+	if scene == null:
+		scene = load(scene_path) as PackedScene      # the thread refused: load it the plain way
+	if mark_hot.is_valid():
+		mark_hot.call(false)          # hidden with the chooser; clean when it comes back
+	_launching = false
+	if scene != null:
+		set_active_game(scene.instantiate(), game_name)
 
 func set_active_game(scene, game_name):
 	MainGlobals.digitized_swipe_mode = false
@@ -542,7 +717,7 @@ func _update_view_mode_button() -> void:
 	var next_mode: int = (MainGlobals.game_chooser_view_mode + 1) % (MainGlobals.ViewMode.CATEGORIZED + 1)
 	var icons: Array = [_icon_grid, _icon_list, _icon_cat]
 	%ListCheckButton.icon = icons[next_mode]
-	%ListCheckButton.modulate = _ICON_COLOR
+	%ListCheckButton.modulate = _GOLD
 
 func _build_categorized_grid() -> void:
 	var lpo: Array = MainGlobals.last_played_order
@@ -590,19 +765,26 @@ func _cat_recent_index(cat: String, lpo: Array) -> int:
 				best = idx
 	return best
 
+# 3. A CATEGORY HEADER THAT READS AS ONE: gold, through the app's type scale (it was a flat 20, the
+#    smallest text on a phone -- smaller than the descriptions under it), with room above it, so each
+#    group of games reads as a group. (A hairline running from it to the edge was tried and removed.)
 func _add_category_header(cat_name: String) -> void:
 	var container: MarginContainer = MarginContainer.new()
 	container.size_flags_horizontal = Control.SIZE_FILL
-	container.add_theme_constant_override("margin_top", 4)
-	container.add_theme_constant_override("margin_bottom", -4)
-	container.add_theme_constant_override("margin_left", 8)
+	container.add_theme_constant_override("margin_top", 4 if _headers_added == 0 else 18)
+	container.add_theme_constant_override("margin_bottom", 2)
+	container.add_theme_constant_override("margin_left", 6)
 	container.add_theme_constant_override("margin_right", 0)
+	_headers_added += 1
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
 	var lbl: Label = Label.new()
-	lbl.add_theme_font_size_override("font_size", 20)
-	lbl.add_theme_color_override("font_color", _ICON_COLOR)
+	MainGlobals.set_font_size(lbl, 18)
+	lbl.add_theme_color_override("font_color", _HEADER_GOLD)
 	lbl.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
 	lbl.add_theme_constant_override("shadow_offset_x", 1)
 	lbl.add_theme_constant_override("shadow_offset_y", 1)
 	lbl.text = cat_name.to_upper()
-	container.add_child(lbl)
+	row.add_child(lbl)
+	container.add_child(row)
 	%GamesGrid.add_child(container)

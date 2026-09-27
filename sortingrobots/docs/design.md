@@ -446,3 +446,11 @@ session averages the two together. `hidden` travels with every trial and
 `GameInstrument._memory_split()` draws the two as accuracy bars under the grid. Generic over the
 flag rather than reusing Polka Dots' `_visibility_split`, which reads a shown/chose pair this
 game does not keep; both halves need `MIN_PER_BUCKET` rounds or the comparison is not one.
+
+## The chooser tile
+
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `sorting_robots()`), not grabbed. The
+old tile was a screen grab. It is now a robot claw lifting a glowing gold star off a conveyor belt seen
+from above, under a warm work light, the belt striped yellow and black at its edges, a blue circle, a
+green square and a red triangle riding past -- colors from `Sleek.PALETTE`. A first, all-grey version was
+dull.
