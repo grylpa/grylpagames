@@ -441,6 +441,9 @@ static func draw_obstacle(ci: CanvasItem, o: AntObstacle) -> void:
 	if o.kind == AntObstacle.Kind.LURE:
 		_draw_lure(ci, o)
 		return
+	if o.kind == AntObstacle.Kind.CLOCHE:
+		_draw_cloche(ci, o, ring)
+		return
 	var body: Color = STONE_BODY
 	var lit: Color = STONE_LIT
 	var dark: Color = STONE_DARK
@@ -496,6 +499,31 @@ static func _draw_lure(ci: CanvasItem, o: AntObstacle) -> void:
 		var p: Vector2 = o.pos + Vector2.from_angle(a) * d
 		var cr: float = lerpf(rr * 0.16, rr * 0.30, _hash01(i, o.seed_val, 9, o.seed_val))
 		ci.draw_circle(p, cr, LURE_TINT if (i % 3) != 0 else LURE_DARK)
+
+# THE CLOCHE, seen from above: glass over the pile, so the food and the ants under it stay in view.
+# The wall (the ring the ants cannot cross, `ring` = its outline) is the brightest part, because a
+# glass cover is brightest where you look through the most of it; the opening is simply where it
+# is not. A highlight on the dome and a knob in the middle say "a lid" rather than "a hoop".
+const GLASS_TINT: Color = Color(0.78, 0.90, 1.0, 0.13)
+const GLASS_WALL: Color = Color(0.82, 0.93, 1.0, 0.55)
+const GLASS_EDGE: Color = Color(0.30, 0.45, 0.58, 0.90)
+const GLASS_SHINE: Color = Color(1.0, 1.0, 1.0, 0.45)
+
+static func _draw_cloche(ci: CanvasItem, o: AntObstacle, ring: PackedVector2Array) -> void:
+	var r_in: float = AntObstacle.CLOCHE_INNER * (o.half.x / AntObstacle.CLOCHE_OUTER)
+	var r_out: float = o.half.x
+	ci.draw_circle(o.pos, r_in, GLASS_TINT)
+	ci.draw_colored_polygon(ring, GLASS_WALL)
+	ci.draw_polyline(_closed(ring), GLASS_EDGE, 1.6, true)
+	# Light from the top left, as for everything else in this world.
+	var shine_at: float = -PI * 0.75
+	ci.draw_arc(o.pos, r_in * 0.74, shine_at - 0.45, shine_at + 0.45, 18, GLASS_SHINE, r_out * 0.07, true)
+	ci.draw_arc(o.pos, r_in * 0.52, shine_at - 0.20, shine_at + 0.20, 10, Color(1, 1, 1, 0.30), r_out * 0.04, true)
+	var knob: float = r_out * 0.10
+	ci.draw_circle(o.pos + Vector2(1.5, 2.0), knob, Color(0.0, 0.0, 0.0, 0.18))
+	ci.draw_circle(o.pos, knob, Color(0.86, 0.94, 1.0, 0.75))
+	ci.draw_arc(o.pos, knob, 0.0, TAU, 20, GLASS_EDGE, 1.4, true)
+	ci.draw_circle(o.pos + Vector2(-knob * 0.35, -knob * 0.35), knob * 0.30, Color(1, 1, 1, 0.85))
 
 static func _closed(ring: PackedVector2Array) -> PackedVector2Array:
 	var out: PackedVector2Array = ring.duplicate()

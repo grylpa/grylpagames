@@ -148,6 +148,9 @@ const CLEAN_SEC: float = 9.0
 # allowance minus that, so it reads as "how much more can I afford to let past".
 var delivered: int = 0
 var crumbs_through: int = 0
+# Why the round ended, for the card: "" (the clock ran out, a win), "allowance" (it reached zero),
+# "cleared" (the colony took every crumb in the world).
+var end_reason: String = ""
 var stock_at_start: Dictionary = {}
 # Every ant something was dropped on, left where it was dropped on. {pos, heading}.
 # The counter on the top strip says how many; these say WHERE and on what, which is the part a
@@ -241,6 +244,7 @@ func new_game(_from_scratch: bool = true) -> void:
 	_place_food(cfg)
 	delivered = 0
 	crumbs_through = 0
+	end_reason = ""
 	road_times_ms.clear()
 	roads_missed = 0
 	road_onsets = 0
@@ -379,21 +383,54 @@ func tutorial_trail_strength() -> float:
 	var mid: Vector2 = colonies[0].nest + ((food[0]["pos"] as Vector2) - colonies[0].nest) * 0.5
 	return colonies[0].marks.sense(mid)
 
+#
+# It used to say "Let through at most: 90 crumbs", which was wrong twice over: at 90 the allowance is
+# gone and the round is lost, and a crushed ant takes five of it -- a player who let 25 crumbs
+# through and crushed 13 ants lost "with 65 to spare". It also gave the ants' speed as a percentage
+# of an internal base nobody sees (170-245%) and the world as a percentage of the screen. The facts
+# are now in the player's terms, and the rule the allowance runs on is said in a sentence.
 func briefing_text() -> String:
 	var cfg: Dictionary = AntsLevelConfig.get_level(current_level_id)
-	var sp: Array = cfg["speed_scale"]
-	var wsz: Array = cfg["world"]
 	var lines: Array = []
 	lines.append("Nests: " + (str(int(cfg["colonies"])) if bool(cfg.get("tell_colonies", true)) else "Unknown"))
 	lines.append("Food piles: " + (str(int(cfg["food_piles"])) if bool(cfg.get("tell_food", true)) else "Unknown"))
-	lines.append("Ant speed: %d-%d%%" % [int(round(float(sp[0]) * 100.0)), int(round(float(sp[1]) * 100.0))])
-	var world_txt: String = "Unknown"
-	if bool(cfg.get("tell_world", true)):
-		world_txt = "%d%% x %d%%" % [int(round(float(wsz[0]) * 100.0)), int(round(float(wsz[1]) * 100.0))]
-	lines.append("World size: " + world_txt)
-	lines.append("Let through at most: %d crumbs" % int(cfg["allowance"]))
+	lines.append("Ant speed: " + speed_word(cfg))
+	lines.append("World: " + (world_words(cfg) if bool(cfg.get("tell_world", true)) else "Unknown"))
+	lines.append("Allowance: %d" % int(cfg["allowance"]))
 	lines.append("Hold out for: %d s" % int(cfg["time_sec"]))
+	lines.append("")
+	lines.append("Every crumb that reaches a nest costs 1 allowance, and every ant you crush costs %d. "
+		% KILL_PENALTY + "Keep some allowance until the clock runs out. The round is lost when it runs "
+		+ "out, or when the colony has carried off all the food.")
 	return "\n".join(lines)
+
+# The ants' pace in words, measured against level 1's so the ladder reads as a ladder. A level's
+# pace is the middle of its speed_scale range.
+static func speed_word(cfg: Dictionary) -> String:
+	var sp: Array = cfg["speed_scale"]
+	var base: Array = AntsLevelConfig.get_level(1)["speed_scale"]
+	var r: float = (float(sp[0]) + float(sp[1])) / maxf(float(base[0]) + float(base[1]), 0.001)
+	if r < 1.05:
+		return "Steady"
+	if r < 1.25:
+		return "Brisk"
+	if r < 1.5:
+		return "Fast"
+	if r < 1.7:
+		return "Very fast"
+	return "Frantic"
+
+# The world in screens: "1 screen", "2 x 2 screens", "1.25 x 1.25 screens".
+static func world_words(cfg: Dictionary) -> String:
+	var w: Array = cfg["world"]
+	if is_equal_approx(float(w[0]), 1.0) and is_equal_approx(float(w[1]), 1.0):
+		return "1 screen"
+	return "%s x %s screens" % [_num(float(w[0])), _num(float(w[1]))]
+
+static func _num(v: float) -> String:
+	if is_equal_approx(v, roundf(v)):
+		return str(int(roundf(v)))
+	return str(snappedf(v, 0.01))
 
 func _stock_up(cfg: Dictionary) -> void:
 	stock.clear()
@@ -708,7 +745,22 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 		# road is under it.
 		if AntObstacle.SHAPE[kind][0].x > AntObstacle.SHAPE[kind][0].y * 2.0:
 			angle = trail_axis(at) + PI * 0.5
+	if kind == AntObstacle.Kind.CLOCHE:
+		# A cloche goes OVER a pile: the tap picks the pile (the nearest one within reach of the
+		# glass) and the side -- the opening faces the way the tap was from the pile's middle. A
+		# tap on the food itself gives no side, so the opening then faces away from the nearest
+		# nest, the side that makes the colony walk furthest round.
+		var pile: int = _pile_near(at, AntObstacle.CLOCHE_OUTER + FOOD_RADIUS)
+		if pile < 0:
+			return false
+		var centre: Vector2 = food[pile]["pos"]
+		var off: Vector2 = at - centre
+		angle = off.angle() if off.length() > FOOD_RADIUS * 0.5 else (centre - _nearest_nest(centre)).angle()
+		at = centre
 	var o: AntObstacle = AntObstacle.new(kind, at, angle, randi())
+	if kind == AntObstacle.Kind.CLOCHE and not _spot_ok(o):
+		# Never slid: moved off its pile it would be a hoop in the dirt.
+		return false
 	if not _spot_ok(o):
 		# Tapping the SIDE of something you have already put down is a perfectly reasonable thing
 		# to mean "another one, here". It used to do nothing at all: the menu closed, the stock was
@@ -809,6 +861,9 @@ func _spot_ok(o: AntObstacle) -> bool:
 		if o.contains_margin(c.nest, AntColony.NEST_RADIUS):
 			return false
 	for f: Dictionary in food:
+		# The one pile a cloche is dropped on is the point of it; any other pile is not.
+		if o.kind == AntObstacle.Kind.CLOCHE and (f["pos"] as Vector2).distance_squared_to(o.pos) < 1.0:
+			continue
 		if o.contains_margin(f["pos"] as Vector2, FOOD_RADIUS):
 			return false
 	# Two of these may not share ground: the combined shape would have an outline that is neither
@@ -883,7 +938,7 @@ func use_eraser(at: Vector2) -> bool:
 
 func remove_obstacle_at(at: Vector2) -> int:
 	for i in range(obstacles.size() - 1, -1, -1):
-		if obstacles[i].contains(at):
+		if obstacles[i].hit(at):
 			var kind: int = obstacles[i].kind
 			obstacles.remove_at(i)
 			# Picking something up to use it elsewhere is the action the whole game runs on, and
@@ -902,9 +957,37 @@ func remove_obstacle_at(at: Vector2) -> int:
 
 func obstacle_at(at: Vector2) -> bool:
 	for o: AntObstacle in obstacles:
-		if o.contains(at):
+		if o.hit(at):
 			return true
 	return false
+
+# The cloche over the pile at `at`, or null.
+func _cloche_on(at: Vector2) -> AntObstacle:
+	for o: AntObstacle in obstacles:
+		if o.kind == AntObstacle.Kind.CLOCHE and o.pos.distance_squared_to(at) < 1.0:
+			return o
+	return null
+
+# The pile whose middle is nearest `at`, within `reach`, or -1.
+func _pile_near(at: Vector2, reach: float) -> int:
+	var best: int = -1
+	var best_d: float = reach * reach
+	for i in food.size():
+		var d2: float = at.distance_squared_to(food[i]["pos"] as Vector2)
+		if d2 <= best_d:
+			best_d = d2
+			best = i
+	return best
+
+func _nearest_nest(at: Vector2) -> Vector2:
+	var best: Vector2 = world.get_center()
+	var best_d: float = INF
+	for c: AntColony in colonies:
+		var d2: float = at.distance_squared_to(c.nest)
+		if d2 < best_d:
+			best_d = d2
+			best = c.nest
+	return best
 
 func _resolid() -> void:
 	_solid.clear()
@@ -1032,6 +1115,9 @@ func _resolve_sites() -> void:
 						f["crumbs"] = int(f["crumbs"]) - 1
 						a.pick_up_food()
 						a.carrying_bait = false
+						var lid: AntObstacle = _cloche_on(f["pos"] as Vector2)
+						if lid != null:
+							a.exit_path = lid.cloche_exit(a.nest_pos)
 						break
 				if a.state == Ant.State.SEARCHING:
 					_try_bait(a)
@@ -1057,6 +1143,7 @@ func _resolve_sites() -> void:
 		# Every crumb in the world is in the nest. The colony has taken the lot, which is the
 		# player's loss however much allowance happens to be left.
 		_running = false
+		end_reason = "cleared"
 		sig_level_is_done.emit(false)
 
 # Takes `amount` off the allowance, and ends the round as lost when it is gone. The round end is
@@ -1068,6 +1155,7 @@ func _charge(amount: int) -> void:
 		return
 	game.add_score_and_time(-amount, 0, true)
 	if game.score <= 0:
+		end_reason = "allowance"
 		sig_level_is_done.emit(false)
 
 func _is_finished() -> bool:

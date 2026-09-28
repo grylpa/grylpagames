@@ -9,17 +9,18 @@ extends RefCounted
 # cannot disagree about where the edge is. That lesson came from the food pile, where a fixed
 # pickup radius and a shrinking drawn radius quietly parted company.
 
-enum Kind { STONE, TWIG, WATER, LURE }
+enum Kind { STONE, TWIG, WATER, LURE, CLOCHE }
 
-const KINDS: Array = [Kind.STONE, Kind.TWIG, Kind.WATER, Kind.LURE]
+const KINDS: Array = [Kind.STONE, Kind.TWIG, Kind.WATER, Kind.LURE, Kind.CLOCHE]
 const NAMES: Dictionary = {Kind.STONE: "Stone", Kind.TWIG: "Twig", Kind.WATER: "Water",
-	Kind.LURE: "Bait"}
+	Kind.LURE: "Bait", Kind.CLOCHE: "Cloche"}
 # One line each, for the tooltip a long press opens.
 const TIPS: Dictionary = {
 	Kind.STONE: "A rock. They must walk around it.\nPick it up and move it as the trail shifts.",
 	Kind.TWIG: "A long branch, laid ACROSS the trail\nwherever you drop it. A proper wall.",
 	Kind.WATER: "A pool they will not cross. It dries\nas you watch, and you cannot take it back.",
 	Kind.LURE: "Food you do not mind losing. They will\ncarry it home instead, and it costs you\nnothing. Runs out.",
+	Kind.CLOCHE: "A glass cover for a food pile. Drop it on\nthe food: they can only get in through its\none small opening, on the side you tap.",
 }
 # Bait is FOOD, and food is eaten. How many crumbs one holds -- every trip spent carrying these is a
 # trip not spent on the pile you are defending.
@@ -40,12 +41,13 @@ const WATER_MIN_SCALE: float = 0.18
 # answers it by itself -- finds it, recruits to it, and spends its trips carrying away food you were
 # never defending. It is the only tool that works WITH the colony's own machinery rather than
 # against it, and it needs no special pleading in the ant to do so.
-const SOLID: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: true, Kind.LURE: false}
+const SOLID: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: true, Kind.LURE: false,
+	Kind.CLOCHE: true}
 # A stone or a twig can be lifted and carried to wherever the trail has moved to -- that is the
 # whole game. Water cannot: once it is poured it is poured, and mopping it up does not put it back
 # in the bottle. So water is the decision you cannot take back, and it is priced by being scarce.
 const REUSABLE: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: false,
-	Kind.LURE: false}
+	Kind.LURE: false, Kind.CLOCHE: true}
 
 static func is_reusable(k: int) -> bool:
 	return bool(REUSABLE.get(k, true))
@@ -62,7 +64,29 @@ const SHAPE: Dictionary = {
 	Kind.TWIG:  [Vector2(76.0, 9.0), 0.06],
 	Kind.WATER: [Vector2(46.0, 36.0), 0.20],
 	Kind.LURE:  [Vector2(30.0, 30.0), 0.16],
+	Kind.CLOCHE: [Vector2(CLOCHE_OUTER, CLOCHE_OUTER), 0.0],
 }
+
+# THE CLOCHE: a glass cover dropped over a food pile, open on one side. It is the one tool that is
+# not a lobed ellipse: its wall is a RING, and the ring has a gap. Everything else about it is an
+# ordinary solid -- contains() is the wall, so ants walk round it, feel along it, are pushed out of
+# it and are crushed by it exactly as by a stone, and outline() is the wall's own shape, so the
+# drawing and the collision cannot disagree.
+#
+# It does not stop the colony. It narrows the one pile it covers to a single doorway, so a trail to
+# that pile has to find the gap and every carrier has to queue through it, in and out. It belongs to
+# the big levels, where there are many piles and the question is which one to slow.
+#
+# Sized to the FULL pile: its lobed edge reaches FOOD_RADIUS x 1.39, about 42 units, and an ant needs
+# room to walk between the food and the glass -- 11 units long, more on a phone.
+const CLOCHE_INNER: float = 62.0
+const CLOCHE_OUTER: float = 71.0
+# The opening: an eighth of the rim, centred on `angle`. MEASURED, level 1's colony unopposed for
+# 60 s, crumbs home with no cloche / doorway facing the nest / facing away:
+#   desktop  125 / 107 / 69     phone (ants twice the size)  69 / 57 / 43
+# So a sixth off that pile turned toward the colony and nearly half turned away: the side is the
+# decision. On a level with several nests, "away" from one is "toward" another.
+const CLOCHE_GAP: float = TAU / 8.0
 const LOBES: Array = [3.0, 5.0, 7.0]
 
 var kind: int = Kind.STONE
@@ -116,6 +140,8 @@ func contains(p: Vector2) -> bool:
 # -- exact along the axes, near enough between them for something an ant is only using to decide
 # which way to lean.
 func contains_margin(p: Vector2, m: float) -> bool:
+	if kind == Kind.CLOCHE:
+		return _cloche_wall(p, m)
 	# Cheap reject first: every ant is tested against every obstacle, every tick.
 	var hx: float = half.x + m
 	var hy: float = half.y + m
@@ -128,6 +154,50 @@ func contains_margin(p: Vector2, m: float) -> bool:
 	if d < 0.0001:
 		return true
 	return d <= _edge(l.angle())
+
+# The cloche's wall, grown by `m`: between the two radii, and not in the doorway -- which a grown wall
+# narrows by the same margin on each side.
+func _cloche_wall(p: Vector2, m: float) -> bool:
+	var off: Vector2 = p - pos
+	var d2: float = off.length_squared()
+	var lo: float = maxf(CLOCHE_INNER - m, 0.0)
+	var hi: float = CLOCHE_OUTER + m
+	if d2 < lo * lo or d2 > hi * hi:
+		return false
+	var from_gap: float = absf(wrapf(off.angle() - angle, -PI, PI))
+	return from_gap >= CLOCHE_GAP * 0.5 - m / maxf(sqrt(d2), 1.0)
+
+# Where a carrier walks to leave, nearest first: just inside the doorway, just outside it, then ROUND
+# THE OUTSIDE of the glass, the short way, until its nest is no longer behind the dome. Only then
+# does it turn for home.
+#
+# Both halves were found the hard way. A carrier heading straight home from the far side of the pile
+# walks into the glass; and one let out of the doorway and THEN sent straight home walked straight
+# back in, whenever the doorway faced away from its nest -- the line home runs through the dome. Both
+# ended the same way, a stream of carriers circling the inside of the wall (30 of 40 ants at once,
+# stays of 30 s and more).
+func cloche_exit(home: Vector2) -> Array[Vector2]:
+	var u: Vector2 = Vector2.from_angle(angle)
+	var out: Array[Vector2] = [pos + u * (CLOCHE_INNER - 10.0), pos + u * (CLOCHE_OUTER + 14.0)]
+	# The bearing, from the middle, of the side facing home. Walk the rim toward it in eighth-turns,
+	# stopping once the rest of the way home no longer crosses the glass (within ~50 degrees).
+	var want: float = (home - pos).angle()
+	var turn: float = wrapf(want - angle, -PI, PI)
+	var step: float = signf(turn) * TAU / 8.0
+	var at: float = angle
+	var r: float = CLOCHE_OUTER + 18.0
+	while absf(wrapf(want - at, -PI, PI)) > 0.9:
+		at += step
+		out.append(pos + Vector2.from_angle(at) * r)
+	return out
+
+# What a TAP on it means. For everything else that is the shape; a cloche is picked up by tapping
+# anywhere on it, glass or wall -- the middle of it is the food it covers, which nothing else can be
+# dropped on anyway.
+func hit(p: Vector2) -> bool:
+	if kind == Kind.CLOCHE:
+		return p.distance_squared_to(pos) <= CLOCHE_OUTER * CLOCHE_OUTER
+	return contains(p)
 
 # One tick of evaporation. Returns true once the pool is finished.
 #
@@ -197,9 +267,21 @@ func overlaps(other: AntObstacle) -> bool:
 			return true
 	return false
 
-# Outline for drawing, in world space.
+# Outline for drawing, in world space. For a cloche it is the wall: a C, round the outside from one
+# side of the opening to the other and back round the inside.
 func outline(steps: int) -> PackedVector2Array:
 	var out: PackedVector2Array = PackedVector2Array()
+	if kind == Kind.CLOCHE:
+		var n: int = maxi(steps, 12)
+		var a_out: float = CLOCHE_GAP * 0.5
+		var a_in: float = CLOCHE_GAP * 0.5
+		for i in n + 1:
+			var t: float = float(i) / float(n)
+			out.append(pos + Vector2.from_angle(angle + a_out + (TAU - 2.0 * a_out) * t) * CLOCHE_OUTER)
+		for i in range(n, -1, -1):
+			var t: float = float(i) / float(n)
+			out.append(pos + Vector2.from_angle(angle + a_in + (TAU - 2.0 * a_in) * t) * CLOCHE_INNER)
+		return out
 	for i in steps:
 		var a: float = TAU * float(i) / float(steps)
 		var e: float = _edge(a)

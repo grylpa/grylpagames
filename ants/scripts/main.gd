@@ -85,8 +85,9 @@ func _ready() -> void:
 		"already placed to pick it up and use it again.\n" +
 		"Block them and they wear a new road around it — so\n" +
 		"watch where that is forming and get there first.\n" +
-		"Every crumb that reaches the nest costs you.\n" +
-		"Do not drop anything on an ant.\n" +
+		"Every crumb that reaches a nest costs 1 from your\n" +
+		"allowance, and every ant you crush costs 5.\n" +
+		"Keep some allowance until the clock runs out.\n" +
 		"Drag to look around when the world is larger than the screen.", 23)
 	if not game.shown_instructions:
 		game.show_instructions(self)
@@ -147,6 +148,9 @@ func _exit_tree() -> void:
 
 func show_main_menu() -> void:
 	main_menu.show_continue_and_start_new(false)
+	# The level list is re-read EVERY time the menu shows. It was set once, when the game opened, so
+	# after a win promoted the player the menu still said level 1 while Start began level 2.
+	refresh_menu()
 
 	main_menu.show()
 	$Level.hide()
@@ -224,6 +228,11 @@ func _on_level_card_closed() -> void:
 	_next_round()
 
 func _on_main_menu_start_game(_start_new: bool) -> void:
+	# Start plays the level the menu is SHOWING. The stored level and the list are two copies of one
+	# setting; a pick the list did not report left them apart, and Start went by the stored one.
+	var shown: int = main_menu.get_option(1)
+	if shown >= 0 and shown < AntsLevelConfig.LEVELS.size():
+		AntsG.starting_level_id = int(AntsLevelConfig.LEVELS[shown]["id"])
 	AntsG.save_settings()
 	new_game()
 	show_level()
@@ -297,18 +306,36 @@ func _finish_level(didwin: bool) -> void:
 	game.need_to_increase_level = didwin and not is_last
 	MainGlobals.global_level_is_done(didwin)
 	var left: int = maxi(game.score, 0)
-	var textadd: String = "\n\nCrumbs they got past you: %d\nAllowance left: %d\n\n%s" % [
-		$Level.crumbs_through, left, _progress_line(didwin, is_last)]
+	var start: int = int(AntsLevelConfig.get_level(lvl)["allowance"])
+	# Both things that spend the allowance, so the numbers add up on the card. It used to list the
+	# crumbs alone: 25 crumbs and "allowance left 0" out of 90, with the 13 crushed ants that took
+	# the other 65 nowhere on it.
+	var textadd: String = "\n\nCrumbs taken home: %d\nAnts crushed: %d\nAllowance left: %d of %d\n\n%s%s" % [
+		$Level.crumbs_through, $Level.ants_killed(), left, start, _reason_line(didwin),
+		_progress_line(didwin, is_last)]
 	game.show_level_done_popup(self, "", "", lvl, textadd, didwin)
 
 # What happens next, in words. Whether they are moving on is the only thing anyone wants to know at
 # that moment, and a pair of counts does not say it.
 func _progress_line(didwin: bool, is_last: bool) -> String:
 	if not didwin:
-		return "Hold them off until the clock runs out to pass to the next level."
+		return "Keep some allowance until the clock runs out to pass to the next level."
 	if is_last:
 		return "Level passed -- this is the last one, so it comes round again."
 	return "Level passed -- on to level %d." % (AntsLevelConfig.next_id($Level.current_level_id))
+
+# Why a lost round ended, which the counts alone do not say -- the old card told a player who ran
+# out of allowance with half a minute left to "hold them off until the clock runs out".
+func _reason_line(didwin: bool) -> String:
+	if didwin:
+		return ""
+	if $Level.end_reason == "cleared":
+		return "The colony carried off all the food. "
+	var t: int = maxi(game.time_left_sec, 0)
+	var why: String = "Your allowance ran out with %d:%02d still on the clock. " % [floori(t / 60.0), t % 60]
+	if $Level.ants_killed() > 0:
+		why += "Each crushed ant cost %d, so turn them rather than flatten them. " % $Level.KILL_PENALTY
+	return why
 
 func _save_ongoing_score() -> void:
 	game.save_ongoing_score(get_game_score(false, false))

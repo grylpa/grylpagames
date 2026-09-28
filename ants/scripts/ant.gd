@@ -174,8 +174,22 @@ const PAUSE_EASE: float = 0.085       # seconds to slow to a stop, and the same 
 const LOST_R: float = 26.0            # |home_vec| below this means the reckoning has run out
 const LOST_TURN: float = 3.0          # rad/s at the tightest, first loop
 const LOST_LOOSEN: float = 0.35       # how fast the loops open out
-const LOST_TURN_MIN: float = 0.12     # a loop this wide is already 467px across; wider is a
-									  # straight line leaving the area, not a search of it
+const LOST_TURN_MIN: float = 0.12     # a loop this wide is already 467 units in radius; wider is
+									  # a straight line leaving the area, not a search of it
+# A LOST ANT THAT MEETS THE RIM WALKS BACK IN. A loop's radius is BASE_SPEED / turn rate (the pace
+# cancels, see turn_scale), so the loops reach hundreds of units -- on level 1's one-screen world,
+# the rim. The rim turned the ant back and the loop carried it straight onto the rim again, so a
+# lost ant slid round the edge in half circles, still carrying, until it gave up (seen with a bait
+# carrier). Now the rim sends it LOST_INWARD seconds straight toward the middle of the world, and it
+# takes up its search there at the loop size LOST_RESUME seconds into a spiral (radius ~97).
+#
+# Measured on 18 lost carriers started 60-120 units from a level-1 rim, 40 s each: share of time
+# within 30 units of the rim 15% mean / 32% worst before, 6% / 11% after; ground covered 50 -> 42
+# of 100 cells. Three things that did not work: restarting the spiral TIGHT at the rim pinned the
+# ant there in small circles (67% / 92%); capping the loop size to the world changed nothing at the
+# rim and covered less; walking in and then restarting tight covered only 19 cells.
+const LOST_INWARD: float = 2.0
+const LOST_RESUME: float = 12.0
 # A search cannot go on forever, and an ant that searches forever is not a curiosity -- it holds a
 # crumb that the level is waiting on, and it keeps laying trail over ground it is lost on. Real
 # ants abandon loads. Measured before this existed: three ants of forty still carrying after three
@@ -248,6 +262,10 @@ var colony_idx: int = 0
 # nature. It drifts (PI_DRIFT), which is both true to life and what gives the returns their
 # scatter; the nest's own short-range scent (NEST_SENSE_R) cleans up the last few pixels.
 var home_vec: Vector2 = Vector2.ZERO
+# Waypoints walked BEFORE turning for home, nearest first -- set by the level when a crumb is taken
+# under a cloche, so the carrier leaves by the doorway it came in by (AntObstacle.cloche_exit).
+var exit_path: Array[Vector2] = []
+const EXIT_REACH: float = 9.0
 var nest_pos: Vector2 = Vector2.ZERO   # only ever consulted within NEST_SENSE_R
 
 var wander_bias: float = 0.0
@@ -264,6 +282,9 @@ var nest_pull: float = 0.0            # 0..1, how far the nest's own plume has t
 # information left in it, and going back to it is the one thing that cannot work.
 var lost: bool = false
 var lost_time: float = 0.0            # seconds spent in the widening search for a mislaid nest
+var spiral_time: float = 0.0          # seconds into the CURRENT spiral; the rim resets it, unlike lost_time
+var _world_mid: Vector2 = Vector2.ZERO
+var inward_time: float = 0.0          # seconds left of a straight walk in from the rim, while lost
 var lost_dir: float = 1.0             # which way this ant's search spiral turns
 var pause_amt: float = 0.0            # 0..1, how far into a greeting's stop the ant is
 var emerge_at: float = 0.0            # seconds into the level when this one leaves the nest
@@ -325,6 +346,7 @@ func turn_scale() -> float:
 # One tick of sensing and movement. Food, nest and neighbours are the level's business; this is
 # only "where does my own head tell me to go".
 func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: Repellent) -> void:
+	_world_mid = world.get_center()
 	contact_cd = maxf(0.0, contact_cd - dt)
 	if stop_timer > 0.0:
 		stop_timer -= dt
@@ -398,6 +420,8 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: R
 		home_vec = nest_pos - pos
 		lost = false
 		lost_time = 0.0
+		spiral_time = 0.0
+		inward_time = 0.0
 		best_home = INF
 		stale_time = 0.0
 	elif state == State.HOMING and lost and lost_time > LOST_GIVEUP * _b("give"):
@@ -415,6 +439,8 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: R
 			if stale_time > HOME_STALE:
 				lost = true
 				lost_time = 0.0
+				spiral_time = 0.0
+				inward_time = 0.0
 	if state == State.HOMING:
 		travel_since_food += delta.length()
 		deposit_accum += delta.length()
@@ -501,12 +527,18 @@ func _trail_bearing(marks: ScentMarks) -> float:
 	return heading - JOIN_ARC + ray_step * (float(best) + off)
 
 func _steer_home(dt: float) -> float:
+	while not exit_path.is_empty() and pos.distance_squared_to(exit_path[0]) < EXIT_REACH * EXIT_REACH:
+		exit_path.remove_at(0)
+	if not exit_path.is_empty():
+		return wrapf((exit_path[0] - pos).angle() - heading, -PI, PI) * 4.0
 	var to_nest: Vector2 = nest_pos - pos
 	var d: float = to_nest.length()
 	nest_pull = clampf((NEST_SENSE_R - d) / maxf(NEST_SENSE_R - 20.0, 1.0), 0.0, 1.0)
 	if nest_pull > 0.0:
 		lost = false
 		lost_time = 0.0
+		spiral_time = 0.0
+		inward_time = 0.0
 		var want: float = to_nest.angle()
 		if home_vec.length_squared() >= 1.0:
 			want = lerp_angle(home_vec.angle(), to_nest.angle(), nest_pull)
@@ -514,8 +546,12 @@ func _steer_home(dt: float) -> float:
 	if lost or home_vec.length_squared() < LOST_R * LOST_R:
 		lost = true
 		lost_time += dt
+		if inward_time > 0.0:
+			inward_time -= dt
+			return wrapf((_world_mid - pos).angle() - heading, -PI, PI) * 4.0
+		spiral_time += dt
 		# One sign, held: alternating would retrace the same ground instead of opening outward.
-		return lost_dir * maxf(LOST_TURN / (1.0 + lost_time * LOST_LOOSEN), LOST_TURN_MIN)
+		return lost_dir * maxf(LOST_TURN / (1.0 + spiral_time * LOST_LOOSEN), LOST_TURN_MIN)
 	return wrapf(home_vec.angle() - heading, -PI, PI) * 4.0
 
 # The nearest heading to the one it wants that does not walk it into something. Fanning whiskers
@@ -605,6 +641,8 @@ func _turn_from_spray(spray: Repellent) -> float:
 # Where the ant would go if nothing were in the way -- the bearing its own business gives it. INF
 # when it has no opinion, in which case following simply continues.
 func _goal_bearing() -> float:
+	if state == State.HOMING and not exit_path.is_empty():
+		return (exit_path[0] - pos).angle()
 	if state == State.HOMING:
 		if nest_pull > 0.0:
 			return (nest_pos - pos).angle()
@@ -646,11 +684,16 @@ func _keep_inside(world: Rect2) -> void:
 		bounced = true
 	if bounced:
 		heading = wrapf(heading, -PI, PI)
+		# A lost ant that meets the rim walks back in and searches there (LOST_INWARD).
+		if lost:
+			spiral_time = LOST_RESUME
+			inward_time = LOST_INWARD
 		pos.x = clampf(pos.x, lo.x, hi.x)
 		pos.y = clampf(pos.y, lo.y, hi.y)
 		wander_bias = -wander_bias
 
 func pick_up_food() -> void:
+	exit_path.clear()
 	state = State.HOMING
 	joined = false
 	has_smelled_food = false
@@ -660,11 +703,14 @@ func pick_up_food() -> void:
 	deposit_accum = 0.0
 	lost = false
 	lost_time = 0.0
+	spiral_time = 0.0
+	inward_time = 0.0
 	lost_dir = 1.0 if randf() < 0.5 else -1.0
 	stop_timer = maxf(stop_timer, randf_range(PICKUP_PAUSE[0], PICKUP_PAUSE[1]))
 	heading = wrapf(heading + PI + randf_range(-0.5, 0.5), -PI, PI)
 
 func drop_food() -> void:
+	exit_path.clear()
 	state = State.SEARCHING
 	home_vec = Vector2.ZERO
 	joined = false
@@ -689,9 +735,12 @@ func shove(v: Vector2, dt: float) -> void:
 	heading = wrapf(heading + want * SHOVE_TURN * w * dt, -PI, PI)
 
 func abandon_load() -> void:
+	exit_path.clear()
 	state = State.SEARCHING
 	lost = false
 	lost_time = 0.0
+	spiral_time = 0.0
+	inward_time = 0.0
 	best_home = INF
 	stale_time = 0.0
 	home_vec = Vector2.ZERO
