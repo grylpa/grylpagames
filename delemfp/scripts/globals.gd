@@ -7,7 +7,7 @@ var num_agents := 1
 var starting_level := 1
 var freeze := false
 
-var game := GenericGameUtil.new("Delem FP", "delemfp", 0,5,0)
+var game := GenericGameUtil.new("Headlights", "delemfp", 0,5,0)
 
 func init_globals():
 	game.init_sizes()

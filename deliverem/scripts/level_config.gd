@@ -1,6 +1,6 @@
 class_name DeliveremLevelConfig
 
-# Per-level configuration for Deliverem.
+# Per-level configuration for Dispatch.
 #
 # rounds           : rounds played at this level before it advances. A round is one board; the level
 #                    is `rounds` of them.

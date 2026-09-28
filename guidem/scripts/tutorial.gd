@@ -1,8 +1,8 @@
 extends RefCounted
 
-# Guidem's coached tutorial. See docs/tutorials.md for the step schema.
+# Valet's coached tutorial. See docs/tutorials.md for the step schema.
 #
-# What a first-time Guidem player actually gets wrong:
+# What a first-time Valet player actually gets wrong:
 #   1. They wait for a car to reach a junction and then try to steer it. The cars never stop, and a
 #      door turned under one is already too late — the game is setting the road up AHEAD of them.
 #   2. The junction doors do not look interactive, and they CYCLE through three positions rather
@@ -29,7 +29,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Guidem",
+			"title": "Valet",
 			"text": "Cars drive out on their own.\n\nGet every one of them to a green exit.",
 		},
 		{

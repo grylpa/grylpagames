@@ -218,3 +218,16 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `lightsout()`), not
+grabbed. The old tile was a screen grab of the lit board, every marker a few pixels.
+
+It is now the walk from memory: the player -- the game's blue head (0.1, 0.5, 0.99), big -- in the
+dark with its eyes shut (large arcs, and no shine on the head: at chooser size a highlight was only
+noise), and above it a thought bubble (two white dots stepping up to it) holding
+the maze as it was while lit: the streets on the lawn, a dark red bomb, the blue goal, the player at
+its start and a dotted route round the bomb to the goal. The dark around it carries the rest of the
+streets, faint. Earlier drafts (a split between lit and dark, a light switch, a remembered route on
+the dark board, a light bulb with the maze in its glass) were turned down.
