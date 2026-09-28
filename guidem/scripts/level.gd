@@ -430,58 +430,24 @@ func increase_difficulty(increase=true):
 		level += 1
 		# MainGlobals.global_level_is_done(true)
 		game.add_life()
-	var s = 7 + level * 2
-	game.max_board_size = Vector2i(s,s)
-	if level == 1:
-		time_between_dispatches_ms = 5000
-		num_more_packets = 0
-		max_speed_scale = 1.0
-		game.set_num_packets(3)
-	elif level == 2:
-		time_between_dispatches_ms = 2500
-		num_more_packets = 0
-		max_speed_scale = 1.5
-		game.set_num_packets(3)
-	elif level == 3:
-		time_between_dispatches_ms = 3500
-		num_more_packets = 1
-		max_speed_scale = 2.0
-		game.set_num_packets(3)
-	elif level == 4:
-		time_between_dispatches_ms = 2500
-		num_more_packets = 1
-		max_speed_scale = 2.0
-		game.set_num_packets(3)
-	elif level == 5:
-		time_between_dispatches_ms = 3000
-		num_more_packets = 2
-		max_speed_scale = 2.0
-		game.set_num_packets(3)
-	elif level == 6:
-		time_between_dispatches_ms = 3000
-		num_more_packets = 3
-		max_speed_scale = 3.0
-		game.set_num_packets(4)
-	elif level == 7:
-		time_between_dispatches_ms = 3000
-		num_more_packets = 4
-		max_speed_scale = 3.0
-		game.set_num_packets(4)
-	elif level == 8:
-		time_between_dispatches_ms = 2000
-		num_more_packets = 5
-		max_speed_scale = 3.0
-		game.set_num_packets(5)
-	elif level >= 9:
-		time_between_dispatches_ms = 2000
-		num_more_packets = 6
-		max_speed_scale = 4.0
-		game.set_num_packets(200)
-	# if MainGlobals.is_mobile():
-	# 	var bs = 0		
-	# 	# game.forced_board_size -= Vector2i(bs, bs)
-	# 	game.max_board_size -= Vector2i(bs,bs)
+	var cfg: Dictionary = GuidemLevelConfig.get_level(level)
+	time_between_dispatches_ms = int(cfg["dispatch_ms"])
+	num_more_packets = int(cfg["num_more_packets"])
+	max_speed_scale = float(cfg["max_speed_scale"])
+	game.set_num_packets(int(cfg["cars_to_park"]))
+	_fit_board_to_screen(int(cfg["board_size"]))
+
+# The level's board, capped by the screen -- and the cap made ODD. The roads run on the even rows and
+# columns, so an odd board ends every side on a row of short stubs with the docks beyond them. The
+# desktop screen holds 16 rows: from level 5 (17 and up) the board was cut to 16, and the bottom
+# docks sat right against the last full road, unlike the other three sides.
+func _fit_board_to_screen(size_wanted: int) -> void:
+	game.max_board_size = Vector2i(size_wanted, size_wanted)
 	game.init_sizes()
+	var fitted: Vector2i = game.board_size
+	if fitted.x % 2 == 0 or fitted.y % 2 == 0:
+		game.max_board_size = Vector2i(fitted.x - (1 - fitted.x % 2), fitted.y - (1 - fitted.y % 2))
+		game.init_sizes()
 
 var time_last_dispatch = -10000
 var pos_last_dispatch = Vector2i(-1,-1)

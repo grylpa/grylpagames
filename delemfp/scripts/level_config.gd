@@ -1,6 +1,6 @@
 class_name DelemfpLevelConfig
 
-# Per-level configuration for Delemfp.
+# Per-level configuration for Headlights.
 #
 # rounds           : rounds played at this level before it advances. A round is one board; the level
 #                    is `rounds` of them.

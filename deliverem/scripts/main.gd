@@ -33,7 +33,7 @@ func _ready() -> void:
 	game.sig_game_is_done.connect(on_game_is_done)
 	# $Level.update_score_time.connect(on_update_score_time)
 
-	game.set_instructions("Deliverem", 
+	game.set_instructions("Dispatch", 
 		"Deliver all packets in the order you are told\n\n" + 
 		"Click on junctions to open or rotate the doors\n\n" +
 		"Do not allow the delivery guys to collide into each other")

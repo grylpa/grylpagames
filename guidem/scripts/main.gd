@@ -30,7 +30,7 @@ func _ready() -> void:
 	if not $Level.sig_level_is_done.is_connected(_on_level_sig_level_is_done):
 		$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 
-	game.set_instructions("Guidem", 
+	game.set_instructions("Valet", 
 		"Deliver all the cars to the parking spots\n\n" + 
 		"Do not allow the cars to collide with each other\n\n" + 
 		"Click on any junction to change its door")

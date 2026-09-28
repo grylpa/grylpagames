@@ -33,7 +33,7 @@ func _ready() -> void:
 	$Level.update_score_time.connect(on_update_score_time)
 	game.sig_game_is_done.connect(on_game_is_done)
 
-	game.set_instructions("DelemFP", 
+	game.set_instructions("Headlights", 
 		"Deliver all packets in the order you are told\n\n" + 
 		"Use arrow keys or drag on your mobile touch screen to move\n\n" +
 		"You cannot move while zoomed out")

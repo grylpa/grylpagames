@@ -25,7 +25,7 @@ var games = [
 
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Planning"],
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
-	["guidem",        "Guidem",         "Help your players reach their targets",                  "Planning"],
+	["guidem",        "Valet",          "Help your players reach their targets",                  "Planning"],
 	["pneumo",        "Pneumo",         "Manage your pneumatic tubes deliveries",                 "Planning"],
 	["parkem",        "Detour",         "Don't allow the monsters to reach their goals",          "Planning"],
 	["ants",          "Ants",           "Keep the colony from carrying the food home",            "Planning"],
@@ -47,8 +47,8 @@ var games = [
 
 	["mmm",           "Mind Palace",    "Explore and remember the room colors",                   "Memory & Navigation"],
 	["lightsout",     "Lights Out",     "Remember your path, goal, and obstacles",                "Memory & Navigation"],
-	["deliverem",     "Deliverem",      "Remember the delivery order",                            "Memory & Navigation"],
-	["delemfp",       "Delem FP",       "Deliver packets in order while zoomed in",               "Memory & Navigation"],
+	["deliverem",     "Dispatch",       "Remember the delivery order",                            "Memory & Navigation"],
+	["delemfp",       "Headlights",     "Deliver packets in order while zoomed in",               "Memory & Navigation"],
 
 	# ["matchws",       "Matchws",        "Learn new words",                                        "Language", true],
 

@@ -1,8 +1,8 @@
 extends RefCounted
 
-# Delem FP's coached tutorial. See docs/tutorials.md for the step schema.
+# Headlights' coached tutorial. See docs/tutorials.md for the step schema.
 #
-# What a first-time Delem FP player actually gets wrong, in order of damage:
+# What a first-time Headlights player actually gets wrong, in order of damage:
 #   1. The list is a QUEUE. "Deliver to 3,1" means dock 3 first — drive past dock 1 while 3 is
 #      still on board and absolutely nothing happens, with no sound and no message. Players
 #      conclude the delivery is broken rather than that they are out of order.
@@ -50,7 +50,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Delem FP",
+			"title": "Headlights",
 			"text": "You run the delivery yard.\n\nA truck arrives loaded with packets, and every packet belongs to a numbered dock.",
 		},
 		{

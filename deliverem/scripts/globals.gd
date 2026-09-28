@@ -6,7 +6,7 @@ var num_packets := 1
 var num_agents := 1
 var starting_level := 1
 
-var game := GenericGameUtil.new("Deliverem", "deliverem", 0,5,0)
+var game := GenericGameUtil.new("Dispatch", "deliverem", 0,5,0)
 
 func init_globals():
 	game.init_sizes()

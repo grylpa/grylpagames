@@ -1,6 +1,6 @@
 extends RefCounted
 
-# Deliverem's coached tutorial. See docs/tutorials.md for the step schema.
+# Dispatch's coached tutorial. See docs/tutorials.md for the step schema.
 #
 # What a first-time player actually gets wrong, in order of damage:
 #   1. They try to STEER the truck. You cannot: it drives itself along the pipes, forever. What you
@@ -11,7 +11,7 @@ extends RefCounted
 #      3 is still aboard does nothing at all, silently.
 #   3. Docks are not enterable (can_go_to rejects istarget). You deliver by passing ALONGSIDE one.
 #
-# This is Delem FP's yard seen whole — no zoom, no memorisation. The lesson is entirely about the
+# This is Headlights' yard seen whole — no zoom, no memorization. The lesson is entirely about the
 # doors, so the tutorial spends its middle on one door and one turn.
 
 const LEVEL_ID: int = 1
@@ -33,7 +33,7 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Deliverem",
+			"title": "Dispatch",
 			"text": "You run the delivery yard.\n\nA truck arrives loaded with packets, and every packet belongs to a numbered dock.",
 		},
 		{

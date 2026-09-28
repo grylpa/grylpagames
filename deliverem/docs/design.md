@@ -1,11 +1,15 @@
-# Deliverem — design
+# Dispatch (folder `deliverem`) — design
 
 "Remember the delivery order." A delivery truck drives itself around a pipe maze; the player never
 steers it. What the player controls is the **doors** — tapping one rotates it, and a truck passing
 through a rotated door is deflected ninety degrees. The whole yard is visible the whole time.
 
-`delemfp` is the same idea played through a zoomed camera locked on the truck; this is the
-full-board version. The two games share a skeleton but not a single file — each has its own copy.
+`delemfp` (Headlights) is the same idea played through a zoomed camera locked on the truck; this
+is the full-board version.
+
+Display name **Dispatch** since 2026-09-28; it was "Deliverem", which the folder, the autoloads
+(`DeliveremG`, `DeliveremLevelConfig`), the save files and the backend keys (`"Deliverem"` in `BE`
+calls) still carry -- renaming those would orphan players' saved scores. The two games share a skeleton but not a single file — each has its own copy.
 
 ## Movement, the trail and the skeleton
 
@@ -229,3 +233,19 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `dispatch()`), not grabbed. The old tile was a screen grab of a whole yard, every dock and door a few pixels.
+
+It is now the order and the directing together. Three orange docks round the roads, marked with one,
+two and three white dots (drawn: digits are text, and tiles carry none). The docks are stretched
+wider than the sprite's own proportions (`_dock(..., wide=1.45)`) so the dots can be big enough to
+count at chooser size, and each set lies along its dock's wide side, clear of the tile's edge -- the
+right-hand dock's three dots run down it, since across it they were pushed off the tile. The one-dot dock is lit --
+it is next -- and a dotted route runs from the red truck's nose through the door bar and up into it;
+the two- and three-dot docks wait behind and ahead. The truck is the game's, carrying its packets as
+cargo segments. The first version (one junction, a tap ring on the door, an arrow into one dock) was
+too like Valet's tile, which has the same shape.
+
+The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door`, `_dock`, `_vehicle`): the game's own head, cargo and axle sprites (`art/head2-4x.png`, `art/agent_body1.png`, `art/agent_tail1.png`) tinted to a vehicle color and joined by the dark line with its black backing, the pale green door bar, and the trapezoid docks (`art/target-no-arrow-4x.png`, `art/receiver_torquise-no-arrow-4x.png`), on `GrassField`'s lawn. No numbers: digits are text, and tiles carry none. At 200 px there is room for one junction, one or two docks and one or two vehicles, drawn big.

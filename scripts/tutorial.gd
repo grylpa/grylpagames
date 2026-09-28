@@ -1127,7 +1127,7 @@ func _draw_dim() -> void:
 
 # Regions that stay at full brightness on EVERY talking step, not just the one that points at
 # them. A game's HUD is at a low CanvasLayer and the overlay is at 120, so anything the player is
-# supposed to be reading off the HUD — Delem FP and Deliverem's dispatcher line, "Deliver to 2,3" —
+# supposed to be reading off the HUD — Headlights and Dispatch's dispatcher line, "Deliver to 2,3" —
 # spends the whole tutorial under the dim, unreadable, except on the single step whose spotlight
 # happens to fall on it. Part of learning the game is learning WHERE that information appears.
 #
@@ -1282,7 +1282,7 @@ func _layout_panel() -> void:
 # Without this the two are weighed equally, and since the spotlight is usually ALSO one of the
 # keep-clear zones (the thing being pointed at is normally the thing to be used), the same area
 # gets counted twice and the placer will happily sit on the subject of its own caption to spare
-# some other zone. Delem FP hit this: the caption docked across the top of the dock it was
+# some other zone. Headlights hit this: the caption docked across the top of the dock it was
 # sending the truck to, because moving off it would have covered the truck instead.
 const SPOT_COST_WEIGHT: float = 8.0
 
@@ -1292,7 +1292,7 @@ func _obstacles() -> Array:
 		out.append({"rect": _spot_rect, "weight": SPOT_COST_WEIGHT})
 	# keep_clear counts on TALKING steps too, not just when the player has the controls. It began
 	# as "what must stay reachable", but a caption that buries the thing the coach is describing is
-	# just as broken when the board is frozen — Delem FP's caption sat squarely on the truck while
+	# just as broken when the board is frozen — Headlights' caption sat squarely on the truck while
 	# telling the player to work out a route from it. Weighting (above) is what keeps this from
 	# pushing a caption onto its own spotlight instead.
 	for entry in keep_clear:

@@ -1,11 +1,15 @@
-# Delem FP — design
+# Headlights (folder `delemfp`) — design
 
 "Deliver packets in order while zoomed in." A delivery truck drives itself around a pipe maze; the
 player only chooses which way it turns, and after the first few seconds they are looking through a
 zoomed-in camera that follows the truck, so the route has to come from memory.
 
-FP = first person: the zoomed camera is the whole point of the game. `deliverem` is the same idea
-played on the full board.
+The zoomed camera is the whole point of the game: you see only what is just ahead of the truck, as
+if by its headlights. `deliverem` (Dispatch) is the same idea played on the full board.
+
+Display name **Headlights** since 2026-09-28; it was "Delem FP" (FP = first person), which the
+folder, the autoloads (`DelemfpG`, `DelemfpLevelConfig`), the save files and the backend keys
+(`"Delemfp"` in `BE` calls) still carry -- renaming those would orphan players' saved scores.
 
 ## Files
 
@@ -337,3 +341,13 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `headlights()`), not grabbed. The old tile was a screen grab of the zoomed-in view.
+
+It is now night, after the name: the truck's lights reach up the road ahead to the orange dock at
+its end and no further, and the other streets are faint shapes in the dark -- the map you have to
+remember. The beam is a cone from the head, blurred, fading with distance.
+
+The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door`, `_dock`, `_vehicle`): the game's own head, cargo and axle sprites (`art/head2-4x.png`, `art/agent_body1.png`, `art/agent_tail1.png`) tinted to a vehicle color and joined by the dark line with its black backing, the pale green door bar, and the trapezoid docks (`art/target-no-arrow-4x.png`, `art/receiver_torquise-no-arrow-4x.png`), on `GrassField`'s lawn. No numbers: digits are text, and tiles carry none. At 200 px there is room for one junction, one or two docks and one or two vehicles, drawn big.
