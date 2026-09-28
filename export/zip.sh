@@ -46,14 +46,16 @@ for PLATFORM in android linux win; do
 
 			rm -f "$OUT_FILE" "$OUT_SHA"
 			cp "$ARTIFACT" "$OUT_FILE"
-
-			(
-				cd "$BASE_DIR"
-				sha256sum "$(basename "$OUT_FILE")" > "$(basename "$OUT_SHA")"
-			)
-
 			echo "Created: $OUT_FILE"
-			echo "Created: $OUT_SHA"
+
+			# The aab goes to Google Play, not to anyone downloading it, so it gets no checksum.
+			if [ "$EXT" = "apk" ]; then
+				(
+					cd "$BASE_DIR"
+					sha256sum "$(basename "$OUT_FILE")" > "$(basename "$OUT_SHA")"
+				)
+				echo "Created: $OUT_SHA"
+			fi
 		done
 
 		if [ "$FOUND_ANDROID" -eq 0 ]; then
@@ -129,21 +131,4 @@ fi
 
 echo "Created: $WEB_SRC/index.html (GoatCounter injected)"
 
-# package the whole web folder (versioned), like the other platforms
-OUT_FILE="$BASE_DIR/nomizo-v${VERSION}-web.zip"
-OUT_SHA="$OUT_FILE.sha256"
-
-rm -f "$OUT_FILE" "$OUT_SHA"
-
-(
-	cd "$WEB_SRC"
-	zip -9 -r "$OUT_FILE" ./*
-)
-
-(
-	cd "$BASE_DIR"
-	sha256sum "$(basename "$OUT_FILE")" > "$(basename "$OUT_SHA")"
-)
-
-echo "Created: $OUT_FILE"
-echo "Created: $OUT_SHA"
+# The web folder is not zipped: it is published as it stands (copied to the site), not downloaded.
