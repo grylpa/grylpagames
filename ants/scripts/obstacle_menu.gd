@@ -360,10 +360,17 @@ static func _make_cell(box: int, choice: Dictionary, on_pick: Callable, close: C
 		if bool(acted[0]):
 			return
 		hovering[0] = true
+		# The timer belongs to the TREE, not the menu, so it fires even after the menu is gone --
+		# pick a tool, or tap away, inside HOVER_MS. It used to capture `cell` itself, and the engine
+		# checks captures before the body runs, so the is_instance_valid() below never got the
+		# chance: every quick pick logged "Lambda capture at index 2 was freed". A WeakRef cannot be
+		# freed; the cell it points to is looked up, and found gone, inside the body.
+		var cell_ref: WeakRef = weakref(cell)
 		var t: SceneTreeTimer = cell.get_tree().create_timer(float(HOVER_MS) / 1000.0)
 		t.timeout.connect(func() -> void:
-			if bool(hovering[0]) and not bool(acted[0]) and is_instance_valid(cell):
-				show_tip.call(cell.global_position + cell.size * 0.5, _tip_for(choice))))
+			var c: Control = cell_ref.get_ref() as Control
+			if c != null and bool(hovering[0]) and not bool(acted[0]):
+				show_tip.call(c.global_position + c.size * 0.5, _tip_for(choice))))
 	cell.mouse_exited.connect(func() -> void:
 		hovering[0] = false
 		# Godot emits this for a hovered control as it is torn down, so by here the tip and its

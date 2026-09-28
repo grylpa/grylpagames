@@ -343,6 +343,14 @@ func update_option(_id: int, _idx: int) -> void:
 			entry["btn"].select(_idx)
 			break
 
+# The index an option list is SHOWING, or -1 if there is no such list. A game that starts from the
+# menu can read the choice from here rather than trusting a copy it kept from the last change.
+func get_option(_id: int) -> int:
+	for entry in _option_buttons:
+		if entry["id"] == _id:
+			return int(entry["btn"].selected)
+	return -1
+
 func set_option_items(_id: int, _options: Array) -> void:
 	for entry in _option_buttons:
 		if entry["id"] == _id:

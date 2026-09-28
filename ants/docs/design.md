@@ -20,6 +20,16 @@ adapts by a mechanism you can learn to read.
   `KILL_PENALTY` (5) off the same allowance. The way to win is to turn them, not to flatten them.
 - **Clearing every pile is the colony's win.** If the last crumb reaches a nest the round ends as a
   loss however much allowance is left, because there was nothing more to protect.
+- **The player is told all of this, in these terms.** The briefing card gives the allowance and
+  says in a sentence what spends it (a crumb 1, a crushed ant `KILL_PENALTY`) and both ways to lose.
+  It used to say "Let through at most: 90 crumbs", which was wrong twice -- at 90 the round is
+  already lost, and crushed ants spend the same allowance -- and a player who let 25 crumbs through
+  and crushed 13 ants lost with the card showing "25 crumbs, allowance left 0" and no sign of the
+  other 65. The end card now lists **crumbs taken home, ants crushed, and allowance left of the
+  start**, and on a loss says why the round ended (`level.end_reason`: the allowance ran out, with
+  the time that was still on the clock, or the colony took all the food). Pace and world size are
+  said in words (`speed_word()`: Steady / Brisk / Fast / Very fast / Frantic against level 1's
+  pace; `world_words()`: "1 screen", "2 x 2 screens") instead of percentages of internal bases.
 
 Allowances are set from measurement, not taste: an unopposed colony delivers 181 / 237 / 520 / 769 /
 996 over each level's time, and the allowances ask for the same **58% cut on every level**.
@@ -275,6 +285,19 @@ than by reading the code.
 3. **A widening search spiral** when reckoning has run out and the nest is not in range, with a
    **give-up** at 45 s after which the ant abandons the crumb and goes back to searching.
 
+### A lost ant that meets the rim walks back in
+
+The spiral's loops open out to hundreds of units, and on level 1's one-screen world that is the
+rim. The rim turned the ant back and the loop carried it onto the rim again, so a lost carrier slid
+round the edge in half circles until it gave up -- seen with a bait carrier. Now the rim sends a
+lost ant `LOST_INWARD` (2 s) straight toward the middle of the world, and it takes up its search
+there at a medium loop (`LOST_RESUME`, radius ~97). Measured on 18 lost carriers started near a
+level-1 rim: time within 30 units of the rim 15% mean / 32% worst before, 6% / 11% after; ground
+covered 50 -> 42 of 100 cells. Restarting the spiral tight at the rim pinned the ant there (67%);
+capping the loop size to the world did nothing at the rim. `probe_ants` keeps four of these ants.
+The unopposed delivery (`measure_ants`) moved within its run-to-run spread -- level 1 209 -> 210 --
+so the allowances stand.
+
 ### Where the reckoning error actually comes from
 
 Not from `PI_DRIFT`, which looks like the culprit and is not: over 200 s it amounts to about
@@ -331,8 +354,8 @@ instantaneous, and an instantaneous action looks like a teleport rather than lik
 
 ## Obstacles
 
-The player taps anywhere in the world and gets a ring of choices — **stone, twig, water, and remove**
-if there is something under the tap. The pattern is storm's (`storm/scripts/level.gd`,
+The player taps anywhere in the world and gets a ring of choices — **stone, twig, water, bait,
+cloche, the spray and the eraser, and remove** if there is something under the tap. The pattern is storm's (`storm/scripts/level.gd`,
 `create_actions_popup`): a `PopupPanel` centered on the tap with a transparent background, and
 **the center cell left empty**, so the spot being acted on stays visible while the choice is made.
 That is the whole point of the design and the reason it is not a bottom bar — you are choosing what
@@ -342,7 +365,7 @@ instead, so both gestures live on one input without a mode switch.
 Each choice draws its own swatch through `AntsArt.draw_obstacle` from a real `AntObstacle`, so the
 button is the thing itself rather than an icon standing in for it.
 
-**One shape serves all three kinds**: an oriented ellipse whose radius is modulated by a few
+**One shape serves the stone, the twig and the water** (the cloche is a ring, see below): an oriented ellipse whose radius is modulated by a few
 harmonics, seeded per obstacle — a stone is fat and lopsided, a twig long and thin, water wide and
 irregular. `contains()` and the drawing read the same geometry, so what an ant cannot walk through
 and what the player sees cannot disagree. That is the food pile's lesson applied before the fact.
@@ -539,6 +562,54 @@ it either. Tuning the rot rate did not fix it (0.90 left a whisper, 0.95 left no
 thinning road survives is chaotic). A floor and a draught made it *work*, at 37 crumbs per 30 s
 against 23 with a fan on the road — and it still read as an arbitrary dead zone rather than a thing,
 so it went. Bait does the same job by being legible.
+
+## The cloche, the one tool placed on food
+
+A glass cover dropped over a food pile, open on one side (`AntObstacle.Kind.CLOCHE`). It does not stop
+the colony: it narrows the one pile it covers to a single doorway, so a trail to that pile has to
+find the gap and every carrier queues through it, in and out. It belongs to the big levels, where
+there are many piles and the question is which one to slow: **one on level 4 (5 piles), two on
+level 5 (8 piles)**, none below. On levels without one it is still in the tool menu, dimmed like any
+tool that has run out.
+
+**It is the one shape that is not a lobed ellipse.** Its wall is a ring (`CLOCHE_INNER` 62 to
+`CLOCHE_OUTER` 71, sized so an ant can walk between the full pile's lobed edge, ~42 units, and the
+glass) with an opening of **an eighth of the rim** (`CLOCHE_GAP`, 45 degrees). `contains()` is the
+wall and `outline()` is its C-shaped outline, so everything else treats it as an ordinary solid: ants
+feel along it, are pushed out of it, are crushed by it where it lands (not under the glass: the
+middle is open ground), and the drawing cannot disagree with the collision. `hit()` is what a tap
+means -- anywhere on the glass lifts it, since its middle is the food.
+
+**Placing it:** the tap picks the pile (the nearest within reach of the glass) and the side -- the
+opening faces the way the tap was from the pile's middle, and a tap on the food itself turns it away
+from the nearest nest. It is refused anywhere but on a pile, and never slid the way a blocked stone
+is: moved off its pile it would be a hoop in the dirt.
+
+**Carriers leave by the opening, and round the outside.** A carrier heads home by dead reckoning, in
+a straight line, and that was wrong twice under glass. One that took its crumb on the far side walked
+into the glass; and one let out of the opening and then sent straight home walked straight back in
+whenever the opening faced away from its nest, because the line home runs through the dome. Both
+ended as a stream of carriers circling the inside of the wall -- 30 of 40 ants at once, single stays
+of 30 s and more, and on a phone (where an ant is twice the size) it was what the player saw first.
+A crumb taken under a cloche now gives the carrier a route (`cloche_exit(home)`): just inside the
+opening, just outside it, then round the outside of the glass in eighth-turns, the short way, until
+the rest of the way home no longer crosses the dome. Only then does it turn for home. The longest
+stay under the glass is now 2-4 s.
+
+**What it does to the colony** -- level 1's colony unopposed for 60 s, crumbs home:
+
+| | no cloche | opening facing the nest | facing away |
+|---|---|---|---|
+| desktop | 125 | 107 | 69 |
+| phone | 69 | 57 | 43 |
+
+About a sixth off that pile turned toward the colony and nearly half turned away, so the side is the
+decision. On a level with several nests "away" from one is "toward" another. (A straight-sided
+doorway was tried on the way: 8 units, an ant's width, all but sealed the pile, 2-22 crumbs.)
+
+`probe_ants` checks that it goes only on a pile, over it and on the side tapped; that its middle and
+opening are open; that with the opening facing away the colony still delivers, no carrier is left
+inside and no ant stays under the glass for long; and that a tap on the glass lifts it.
 
 ## The eraser, the one tool that takes something away
 
@@ -931,6 +1002,14 @@ again. So does any card going up over the game (`game.sig_card_shown`, emitted b
 helpers). The menu is a `CanvasLayer` of its own, so nothing about a round ending touches it: one left
 open when the clock ran out was still there at the same spot when the next level started, offering
 the old level's stock over a world that no longer had it.
+
+**The menu shows the level you are on, and Start plays what it shows.** Promotion rewrites
+`starting_level_id` itself -- Ants is the only game that does -- and the menu's level list was set
+once, when the game opened. So after a win the menu still said level 1 while Start began level 2,
+and picking level 1 there could still start level 2. `show_main_menu()` now calls `refresh_menu()`
+every time, and `_on_main_menu_start_game()` takes the level from what the list is showing
+(`main_menu.get_option(1)`) rather than from the stored copy. `probe_ants` checks both, including a
+pick the list never reported.
 
 **A win promotes; a loss repeats the level.** One level is one whole round here rather than
 `rounds_per_level` of them, so the gate is simply the round's own verdict — no percentage, no
