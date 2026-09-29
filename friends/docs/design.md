@@ -255,3 +255,25 @@ Response times are handed to the shared session record as a whole distribution, 
 Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
 
 Say Hi is the yes. The auto-Ignore that fires when a card reaches full size sets `_auto_ignoring` first, so an unanswered arrival is recorded as a non-answer rather than as a deliberate Ignore — it would otherwise inflate the miss count with decisions the player never made.
+
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `friends()`), not
+grabbed. The old tile was a screen grab of the "these are your friends" card, with names under the faces.
+
+It is now **an evening stroll**, which is what the game simulates -- people met one at a time, not
+picked out of a crowd: a two-lane road running into a low sun, trees and a street lamp. Near, on the
+left side of the road, a friend waving; far off in the right lane, smaller, someone coming toward us,
+waving back with the right hand (on our left, since they face us). Both are **silhouettes** with the
+sun's rim of light on the side toward it, and each casts its own long shadow across the road toward
+us, away from the sun behind them (`_cast_shadow()`: the mask mapped onto the ground).
+
+Drawn faces and bodies were tried first and all read wrong (a blob, a stiff figure, a robot). The
+silhouette (`_person_silhouette()`) is built in real adult proportions, about seven and a half heads,
+from tapered limbs, then blurred and re-thresholded so every join flows like a body. That blur scales
+with the figure: a fixed one thinned the small far figure's wrist until its hand came loose, and
+filled the gap between its legs. The waving hand is drawn after the smoothing, sharp -- the blur
+melted fingers into a fist -- and built as a hand is: a palm on the end of the forearm, taller than
+wide; four fingers each rising from its own place along the palm's top edge, the middle one longest;
+the thumb out of the palm's inner side from partway up.

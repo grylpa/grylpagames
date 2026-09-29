@@ -203,3 +203,13 @@ counts say nothing about which went first and are left out of that figure.
 
 Timeouts are recorded as wrong in that direction. Leaving them out would flatter whichever
 direction the player freezes on.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `pinpoint()`), not grabbed. The old tile was a screen grab of the eight answer clusters, with one shape recoloured green.
+
+It is now a **radar screen**, not the game's own shapes: a dark scope, one inner ring and a crosshair,
+a bright rim, a sweep, and a single large blip off to one side. "Where did it flash?" is the question
+the game asks, and a radar is the picture of it. Drawn bold -- few lines, thick rim, big blip -- so it
+still reads at chooser size; a finer radar with more rings lost its appeal when small. A compass with a
+push pin and an eye with a spark at the edge of its view were turned down.

@@ -299,3 +299,16 @@ has to stay narrow. Prefixing "L" at the source would give `L3` in both.
 last - main.gd does, which is the only reason the naming looked right - and adding a column
 would have had to be remembered in two places. That block is gone from `globals.gd`; the
 scores wiring lives in `main.gd`.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `polkadots()`), not grabbed. The old tile was a screen grab of the dotted letter and its letter options.
+
+It is now **what polka dots are**, not the game's own card: a blue polka-dot mug of coffee, steaming,
+on a warm terracotta ground (on beige the white steam was invisible). No handle -- drawn beside the
+cup it read as a separate object -- and a slight slant, narrower at the foot than at the rim. It is
+drawn in perspective: the eye is above it, so the ellipse at its foot is rounder than the rim's;
+each row of dots runs along the ellipse of its own height at that height's width, every dot narrows
+as it turns away, the shading follows the same width, light comes from the upper left, and the steam
+rises from the middle of the coffee. A bow tie and an umbrella in polka dots, a colour-vision plate
+and a letter of dots were tried on the way.
