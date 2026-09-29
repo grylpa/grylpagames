@@ -343,3 +343,14 @@ Response times are handed to the shared session record as a whole distribution, 
 Each find logs crowd size and time to the per-trial log; the Search panel fits the slope, which is the cost of each extra face and is steadier across sessions than raw speed. Failed and timed-out finds are excluded — they say nothing about search time.
 
 The Search tab is always present. It needs 3 sessions and correct finds at two or more crowd sizes, 4+ each — the crowd grows with the level, so the message says so rather than leaving the player guessing.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `weris()`), not grabbed. The old tile was a screen grab of a 4 x 3 grid of faces under a "Where is ...?" title.
+
+It is now **a crowd**: the game's own people (`art/people/*.jpg`), cut out of their photos -- their
+plain studio backgrounds flood-filled away from the top and upper sides (`_person()`) -- and stood in
+seven loose rows, back to front, each row hiding the cut-off chests of the row behind and the back
+rows running past the top edge, everyone in full colour on a warm background. The one you studied is
+in there somewhere. Singling one person out with a glow, and a scattered unordered crowd, were both
+tried and turned down (the first read as scary, the second as a mess).

@@ -212,3 +212,12 @@ metrics any stats screen recognised, so this game had no Summary rows despite re
 than most. `StatsOverview.METRICS` now carries `span`, and `GameInstrument._derive_pct_correct()`
 builds the Accuracy row from `rounds_right` / `rounds_wrong` the same way it does from the four
 answer cells elsewhere.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `movingcards()`), not grabbed. The old tile was nine patterned card backs in a grid, standing still.
+
+It is now **memory-game cards on the move**: rounded pastel tiles (not playing cards -- those, with
+swap arrows, read as a gambling game, and the game's square card sprites alone read as dice) on a
+warm light background, three face down with a plain white ring and one still face up showing a star,
+with dotted paths behind them for where they have glided.
