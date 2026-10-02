@@ -30,6 +30,9 @@ const CHART_GAMES: Dictionary = {
 	"didi": "Directions",
 	"ddooo": "Directions",
 	"pop": "Edges",
+	# Mosaic plays the same picture for several rounds; its view is each level's time per round --
+	# the learning curve on one picture. Read from the session records, not from trials.
+	"mosaic": "Rounds",
 }
 
 # Polka Dots has a view of its own too, but not a curve: it compares two CONDITIONS rather than
@@ -130,6 +133,8 @@ static func chart_for(folder: String) -> Control:
 	if not has_own_view(folder):
 		return null
 	var gu: GenericGameUtil = GenericGameUtil.new(folder, folder, 0, 5, 0)
+	if folder == "mosaic":
+		return _round_curves(gu)
 	if has_chart(folder) or folder == "polkadots":
 		if gu.read_trial_blocks().size() < MIN_SESSIONS:
 			return null
@@ -460,6 +465,9 @@ static func _body_for(folder: String) -> Control:
 		if readout != null:
 			return readout
 		return _waiting("Nothing this game counts has a place in this readout yet.")
+	if folder == "mosaic":
+		var rc: Control = _round_curves(gu)
+		return rc if rc != null else _waiting("Rebuild a picture in a round and its time shows here.")
 	var blocks: Array = gu.read_trial_blocks()
 	var sessions: int = blocks.size()
 	if sessions < MIN_SESSIONS:
@@ -548,6 +556,50 @@ static func _bucket_chart(buckets: Dictionary, x_title: String, y_title: String,
 		c.y_min_padding = 0.12
 		# A human response has no meaningful fraction of a millisecond; the decimals were noise.
 		c.y_integer_only = true
+	return c
+
+# MOSAIC -- each level's time to rebuild the picture, round by round. A level plays one picture for
+# several rounds, so a line falling from round 1 to the last round is the picture being learned. A
+# point is the mean over every session at that level of that round's time, rebuilt rounds only: a
+# round that ran out has no rebuild time, and counting its limit would draw a time nobody took.
+# Null when no round has been rebuilt yet.
+static func _round_curves(gu: GenericGameUtil) -> Control:
+	var by_level: Dictionary = {}     # level -> {round index: [ms, ...]}
+	for rec: Dictionary in gu.read_sessions():
+		var times: Array = rec.get("round_times_ms", [])
+		var solved: Array = rec.get("round_solved", [])
+		var level: int = int(rec.get("level", 0))
+		for k in mini(times.size(), solved.size()):
+			if not bool(solved[k]) or int(times[k]) <= 0:
+				continue
+			if not by_level.has(level):
+				by_level[level] = {}
+			var rounds: Dictionary = by_level[level]
+			if not rounds.has(k + 1):
+				rounds[k + 1] = []
+			(rounds[k + 1] as Array).append(float(times[k]))
+	if by_level.is_empty():
+		return null
+	var levels: Array = by_level.keys()
+	levels.sort()
+	var series: Array = []
+	for si in levels.size():
+		var rounds: Dictionary = by_level[levels[si]]
+		var ks: Array = rounds.keys()
+		ks.sort()
+		var pts: Array = []
+		for k in ks:
+			pts.append(Vector2(float(k), SessionStats.mean(rounds[k])))
+		series.append({"label": str(levels[si]), "color": ChartControl.SERIES_COLORS[si % 8], "points": pts})
+	var c: ChartControl = ChartControl.new()
+	c.set_series(series)
+	c.legend_numbers_are_levels = true
+	c.x_as_index = true          # the x is a round number, not a date
+	c.x_title = "round"
+	c.y_title = "time to rebuild (sec)"
+	c.y_label_divisor = 1000.0
+	c.y_label_format = "%.0f"
+	c.y_min_padding = 0.12
 	return c
 
 # Drop buckets too thin to average, then require enough of them to have a shape.

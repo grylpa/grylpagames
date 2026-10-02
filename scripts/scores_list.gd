@@ -104,6 +104,11 @@ var _bg: Control = null
 var _bg_t: float = 0.0
 var _table_panel: PanelContainer = null
 var _table_margin: MarginContainer = null
+# The per-level table shows ONE level at a time, picked from a LevelPicker row above it -- the same
+# control typit's Keys tab and the Answers view use. It used to be every level in one long scroll,
+# each under its own heading, so the level you cared about was somewhere down a list of all of them.
+var _level_bar_mc: MarginContainer = null
+var _table_level: int = -1           # the level the per-level table is showing; -1 = not chosen yet
 var _tabs_stack: VBoxContainer = null
 # One per tab: the framed panel that tab opens onto. A subclass adding a tab of its own adds its
 # panel here, and the stack then knows to claim the screen for it (see _sync_stack_expand) —
@@ -364,6 +369,14 @@ func _build_table_panel() -> void:
 	col.move_child(stack, at)
 	%TabMargin.reparent(stack)
 	stack.add_child(table_margin)
+	_level_bar_mc = MarginContainer.new()
+	_level_bar_mc.name = "LevelBar"
+	_level_bar_mc.add_theme_constant_override("margin_top", 8)
+	_level_bar_mc.add_theme_constant_override("margin_bottom", 4)
+	_level_bar_mc.add_theme_constant_override("margin_left", 8)
+	_level_bar_mc.add_theme_constant_override("margin_right", 8)
+	_level_bar_mc.visible = false
+	inner.add_child(_level_bar_mc)
 	_header_mc.reparent(inner)
 	scroll_mc.reparent(inner)
 	_table_margin = table_margin
@@ -624,6 +637,7 @@ func _on_scores_tab_pressed() -> void:
 	_save_tab_pref(GenericGameUtil.TAB_SCORES)
 	_update_tab_visuals()
 	_show_table_area()
+	_show_level_bar([])
 	if saved_table != null:
 		create_list(saved_table)
 	else:
@@ -1005,7 +1019,9 @@ func create_chart() -> void:
 	_chart_control.y_min_padding = 0.1 if (_chart_metric == 1 and not _progress_time_is_pct) else 0.0
 	if _chart_metric == 1 and not _progress_time_is_pct and _progress_time_format == "%d ms":
 		_chart_control.y_label_divisor = 1000.0
-		_chart_control.y_label_format = "%.1f s"
+		# Whole seconds once every time is ten seconds or more: a tenth of a second on a
+		# 40-second rebuild is noise.
+		_chart_control.y_label_format = "%.0f" if _min_time_ms() >= 10000 else "%.1f"
 	else:
 		_chart_control.y_label_divisor = 1.0
 		_chart_control.y_label_format = ""
@@ -1017,6 +1033,10 @@ func create_chart() -> void:
 	# EVERY chart names its axes, not just the game's own. y_label is already the metric's name;
 	# the x depends on what the date/index switch is showing.
 	_chart_control.y_title = _chart_control.y_label
+	# The unit goes in the title, once, not after every tick. A chart of an ms column is drawn in
+	# seconds (the divisor above).
+	if _chart_metric == 1 and not _progress_time_is_pct and _progress_time_format == "%d ms":
+		_chart_control.y_title += " (sec)"
 	# Named for what the number now means. With one series per level and each counting from 1, a
 	# bare "session" would still read as the global count this used to be.
 	if _chart_x_mode != 1:
@@ -1117,6 +1137,7 @@ func _add_centered_message(grid: Control, text: String) -> void:
 func _set_empty_state(msg: String) -> void:
 	if _header_mc != null and is_instance_valid(_header_mc):
 		(_header_mc as Control).visible = false
+	_show_level_bar([])
 	%OverlayMessage.show()
 	%OverlayMessage.disp(msg)
 
@@ -1124,6 +1145,95 @@ func _clear_empty_state() -> void:
 	if _header_mc != null and is_instance_valid(_header_mc):
 		(_header_mc as Control).visible = true
 	%OverlayMessage.hide()
+
+# A time column in ms reads in SECONDS once every time in it is a few seconds or more: "35140 ms"
+# is a number to decode, "35 s" is a time. Only for a column the game marks as ms ("%d ms").
+const SECONDS_FROM_MS: int = 3000
+
+func _times_in_seconds() -> bool:
+	if _progress_time_is_pct or _progress_time_format != "%d ms" or _progress_time_pos < 0:
+		return false
+	var any: bool = false
+	for row in _progress_rows():
+		if row.size() <= _progress_time_pos:
+			continue
+		var t: int = int(row[_progress_time_pos])
+		if t <= 0 or t == 9999:
+			continue
+		if t < SECONDS_FROM_MS:
+			return false
+		any = true
+	return any
+
+func _min_time_ms() -> int:
+	var lo: int = -1
+	for row in _progress_rows():
+		if row.size() <= _progress_time_pos:
+			continue
+		var t: int = int(row[_progress_time_pos])
+		if t > 0 and t != 9999 and (lo < 0 or t < lo):
+			lo = t
+	return lo
+
+# The column's header with its unit, so the numbers under it can be bare: "Last round (sec)" over
+# "14", not "Last round" over "14 s" (a name alone does not say what was measured in what).
+func _time_header(in_sec: bool) -> String:
+	if _progress_time_format != "%d ms" or _progress_time_is_pct:
+		return _progress_time_label
+	return _progress_time_label + (" (sec)" if in_sec else " (ms)")
+
+func _time_text(ms: int, in_sec: bool) -> String:
+	if in_sec:
+		# a tenth of a second still matters on a 4-second breath, not on a 40-second rebuild
+		return ("%.1f" % (ms / 1000.0)) if ms < 10000 else ("%d" % int(round(ms / 1000.0)))
+	if _progress_time_format == "%d ms":
+		return "%d" % ms
+	return _progress_time_format % ms
+
+# Rebuild the level row for `levels` (ascending), lighting _table_level. Empty hides it.
+func _show_level_bar(levels: Array) -> void:
+	if _level_bar_mc == null or not is_instance_valid(_level_bar_mc):
+		return
+	for c in _level_bar_mc.get_children():
+		c.queue_free()
+	_level_bar_mc.visible = not levels.is_empty()
+	if levels.is_empty():
+		return
+	var labels: Array = []
+	for lv: int in levels:
+		var nm: String = str(_progress_level_names.get(lv, ""))
+		# a button is a small square: a level's own name only when it is that short
+		labels.append(nm if nm != "" and nm.length() <= 3 else str(lv))
+	var made: Dictionary = LevelPicker.build("Level:", labels,
+		func(i: int) -> void: _on_table_level_picked(int(levels[i])))
+	LevelPicker.select(made["buttons"], levels.find(_table_level))
+	# More levels than fit across a phone scroll sideways rather than push the window wider.
+	var sc: ScrollContainer = ScrollContainer.new()
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row: HBoxContainer = made["row"]
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(row)
+	sc.custom_minimum_size.y = float(LevelPicker.font_size()) + 18.0
+	_level_bar_mc.add_child(sc)
+
+# The level of the newest session among `levels`.
+func _latest_level(levels: Array) -> int:
+	var best_ts: int = -1
+	var out: int = int(levels[levels.size() - 1])
+	for row in _progress_rows():
+		var lv: int = _level_of(row)
+		if levels.has(lv) and int(row[0]) > best_ts:
+			best_ts = int(row[0])
+			out = lv
+	return out
+
+func _on_table_level_picked(lv: int) -> void:
+	if lv == _table_level:
+		return
+	_table_level = lv
+	create_progress_list()
 
 func create_progress_list() -> void:
 	var has_pct_peek: bool = _progress_pct_pos >= 0
@@ -1201,10 +1311,11 @@ func create_progress_list() -> void:
 		cell_widths[i] = (fixed_width - icon_width) * column_weights[i] / weight_sum
 
 	_set_header("Date", "Date", 0, true)
-	_set_header("Score", _progress_time_label, 1, true)
+	_set_header("Score", _time_header(_times_in_seconds()), 1, true)
 	_set_header("Level", _progress_pct_label, 2, has_pct)
 	_set_header("Time", "", 3, false)
 
+	var in_sec: bool = _times_in_seconds()
 	var _emit_entries := func(entries: Array) -> void:
 		var filtered: Array = []
 		var best_ms := 999999
@@ -1221,7 +1332,7 @@ func create_progress_list() -> void:
 				filtered.append(entry)
 		filtered.reverse()
 		for entry in filtered:
-			var line: Array = [entry.date, _progress_time_format % entry.time_ms]
+			var line: Array = [entry.date, _time_text(int(entry.time_ms), in_sec)]
 			if has_pct and entry.pct >= 0:
 				line.append(_progress_pct_format % entry.pct)
 			add_line(line, false)
@@ -1229,24 +1340,13 @@ func create_progress_list() -> void:
 	if use_levels:
 		var levels: Array = level_data.keys()
 		levels.sort()
-		levels.reverse()
-		for level in levels:
-			var hdr := Label.new()
-			hdr.text = "  " + _level_header(level)
-			hdr.size_flags_horizontal = Control.SIZE_FILL
-			hdr.add_theme_color_override("font_color", Color(1, 0.8, 0, 1))
-			hdr.add_theme_font_size_override("font_size", 26)
-			hdr.add_theme_font_override("font", MainGlobals.get_system_sans_font())
-			var hdr_mc: MarginContainer = MarginContainer.new()
-			hdr_mc.size_flags_horizontal = Control.SIZE_FILL
-			hdr_mc.add_theme_constant_override("margin_top", 0)
-			hdr_mc.add_theme_constant_override("margin_bottom", -12)
-			hdr_mc.add_theme_constant_override("margin_left", 0)
-			hdr_mc.add_theme_constant_override("margin_right", 0)
-			hdr_mc.add_child(hdr)
-			grid.add_child(hdr_mc)
-			_emit_entries.call(level_data[level])
+		# Opens on the level played most recently; stays on the one picked after that.
+		if not levels.has(_table_level):
+			_table_level = _latest_level(levels)
+		_show_level_bar(levels)
+		_emit_entries.call(level_data[_table_level])
 	else:
+		_show_level_bar([])
 		_emit_entries.call(all_entries)
 
 	show_level = orig_show_level
