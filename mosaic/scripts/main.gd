@@ -8,13 +8,13 @@ var _did_per_level_save: bool = false
 # The saved row, in score_columns order (the scores screen reads it by position: the record's own
 # fields come first, so column i is at i + 4).
 var POS_SCORE_LEVEL_ID: int = 6
-var POS_SCORE_SOLVE_MS: int = 7
+var POS_SCORE_LAST_ROUND_MS: int = 7
 var POS_SCORE_FIRST_TRY_PCT: int = 8
 
 func _ready() -> void:
 	game = MosaicG.game
 	game.game_over_on_time_out = false
-	game.score_columns = ["didwin", "aborted", "level", "solve_ms", "first_try_pct", "rounds_played",
+	game.score_columns = ["didwin", "aborted", "level", "last_round_ms", "first_try_pct", "rounds_played",
 		"moves", "failed_rounds"]
 
 	randomize()
@@ -60,8 +60,14 @@ func _ready() -> void:
 	game.show_scores_level = true
 	game.show_scores_level_as_name = true
 	game.progress_level_pos = POS_SCORE_LEVEL_ID
-	game.progress_time_pos = POS_SCORE_SOLVE_MS
+	game.progress_time_pos = POS_SCORE_LAST_ROUND_MS
 	game.progress_pct_pos = POS_SCORE_FIRST_TRY_PCT
+	# Not an average: the LAST round's time, and only where that round was rebuilt (last_round_ms is 0
+	# otherwise, which the Speed tab skips). In ms; the scores screen shows it in seconds, and adds
+	# the unit to the name: "Last round (sec)".
+	game.progress_time_label = "Last round"
+	game.progress_time_format = "%d ms"
+	game.progress_tab_name = "Speed"
 	for lvl in MosaicLevelConfig.LEVELS:
 		game.progress_level_names[lvl["id"]] = lvl["name"]
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
@@ -131,8 +137,10 @@ func _on_level_show_main_menu() -> void:
 		_save_ongoing_score()
 		game.convert_ongoing_score_to_permanent()
 
-# [didwin, aborted, level, solve_ms, first_try_pct, rounds_played, moves, failed_rounds]
-# solve_ms is the LAST rebuilt round's time. Every round's time, and whether it was rebuilt, go in
+# [didwin, aborted, level, last_round_ms, first_try_pct, rounds_played, moves, failed_rounds]
+# last_round_ms is the LAST round's time when that round was rebuilt, else 0 (the Speed tab skips a
+# 0). The same time goes in the metrics as solve_ms ONLY when there is one: the Summary row reads
+# every record that has the key, and a 0 there would count as the fastest rebuild ever. Every round's time, and whether it was rebuilt, go in
 # the metrics -- the same picture each round, so the list is the learning curve.
 func get_game_score(_didwin, _wasaborted):
 	var lv: Node = $Level
@@ -148,6 +156,8 @@ func get_game_score(_didwin, _wasaborted):
 		"solved_rounds": int(lv.solved_rounds), "turns": int(lv.turns_made),
 		"rounds_allowed": int(lv.max_rounds),
 		"failed_rounds_level_total": MosaicG.failed_rounds(int(lv.current_level_id))})
+	if int(lv.solve_ms()) > 0:
+		game.record_metrics({"solve_ms": int(lv.solve_ms())})
 	return [_didwin, _wasaborted, lv.current_level_id, lv.solve_ms(), first_pct, lv.round_index,
 		lv.moves, lv.failed_rounds]
 
@@ -159,8 +169,10 @@ func add_score_line_vals(score_row: Array) -> Array:
 	if score_row.size() > POS_SCORE_LEVEL_ID:
 		var lvl: Dictionary = MosaicLevelConfig.get_level(int(score_row[POS_SCORE_LEVEL_ID]))
 		res.append(lvl.get("name", "?"))
-	if score_row.size() > POS_SCORE_SOLVE_MS:
-		res.append("%d s" % int(round(float(score_row[POS_SCORE_SOLVE_MS]) / 1000.0)))
+	if score_row.size() > POS_SCORE_LAST_ROUND_MS:
+		var last_ms: int = int(score_row[POS_SCORE_LAST_ROUND_MS])
+		# a 0 is a last round that ran out: no time to show
+		res.append("%d s" % int(round(last_ms / 1000.0)) if last_ms > 0 else "-")
 	return res
 
 func _save_ongoing_score() -> void:

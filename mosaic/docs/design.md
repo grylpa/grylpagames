@@ -118,8 +118,7 @@ Phases: `STUDY` -> `SHUFFLE` -> `PLAY` -> `SOLVED` or `TIMEUP` -> `ROUND_CARD` -
   bar.
 - **SOLVED** ("Whole again!") or **TIMEUP** ("Time's up" -- counted in `failed_rounds` and in
   `MosaicG.fails_by_level` across sessions, saved in the settings), for a second.
-- **ROUND_CARD**: a short card between rounds -- the result, the time (if rebuilt), the rounds left and
-  the next look's length. Closing it starts the next round. Not after the last round: the level card
+- **ROUND_CARD**: a short card between rounds -- the result, the time (if rebuilt) and the rounds left. Closing it starts the next round. Not after the last round: the level card
   covers it. (In a tutorial there is no card; the next round follows directly.)
 - **REVEAL**: every piece flips back home and upright, and the countdown starts the next round -- the
   same picture, whether the round before was rebuilt or not.
@@ -138,23 +137,34 @@ on a level with rotation it rotates the piece a quarter turn, otherwise nothing.
 
 ## What is recorded
 
-The score row (`score_columns`): `didwin, aborted, level, solve_ms, first_try_pct, rounds_played,
+The score row (`score_columns`): `didwin, aborted, level, last_round_ms, first_try_pct, rounds_played,
 moves, failed_rounds`.
 
-- `solve_ms` -- the **last** rebuilt round's time: how fast the picture went back together once learned
-  (0 if no round was rebuilt)
+- `last_round_ms` -- the **last round's** time, **only when that round was rebuilt** (0 when it ran
+  out). It is the Speed tab ("Last round") and its chart; a 0 is skipped there.
+- `solve_ms` -- the same time, in the metrics, and **only present when there is one**: the Summary row
+  reads every record that has the key, and a 0 would count as the fastest rebuild ever
 - `first_try_pct` -- the share of pieces in place when the first round ended (100 if it was rebuilt)
 - `rounds_played`, `failed_rounds`, `moves` (swaps)
 - metrics: `round_times_ms` and `round_solved` (every round, in order -- the learning curve on one
-  picture), `first_solve_ms`, `faster_pct` (the last rebuild against the first, in percent; 0 with
-  fewer than two rebuilt rounds), `solved_rounds`, the rebuilt rounds' times as a `round_*` block,
-  `turns`, `rounds_allowed`, and `failed_rounds_level_total`
+  picture), `first_solve_ms`, `faster_pct` (the last rebuilt round against the first rebuilt one, in
+  percent; 0 with fewer than two rebuilt rounds), `solved_rounds`, the rebuilt rounds' times as a
+  `round_*` block, `turns`, `rounds_allowed`, and `failed_rounds_level_total`
 - task signature: grid, picture kind, rotation, both countdowns, round time and rounds
 
-The progress screen's Summary shows Time to rebuild the picture (last round), How much faster by the
-last round, Pieces right in the first round, and Rounds that ran out of time
-(`GameInstrument.SUMMARY_ROWS`, `StatsOverview.METRICS`). Points: what was left of each rebuilt round,
-plus 20 for rebuilding it at all.
+**The stats screens.** Speed lists each session's last-round time, one level at a time (picked from
+the level bar above the table, which every game's per-level table now has), in seconds (the scores
+screen switches an ms column to seconds once every time in it is 3 s or more). Charts has "Last
+round" (the same, one line per level, by session) and Mosaic's own view, **"Rounds"**
+(`GameInstrument._round_curves`): one line per level, x = round 1, 2, 3 ..., y = the mean time to
+rebuild that round over every session at that level, rebuilt rounds only -- a round that ran out has
+no rebuild time, and its limit would draw a time nobody took. It is read from the session records,
+not from trials.
+
+The Summary shows Time to rebuild the picture (last round), How much faster by the last round, Pieces
+right in the first round, and Rounds that ran out of time (`GameInstrument.SUMMARY_ROWS`,
+`StatsOverview.METRICS`). Points: what was left of each rebuilt round, plus 20 for rebuilding it at
+all.
 
 `devtools/probe_mosaic.gd` checks the picture rule for every full-picture kind on grids up to 5 x 5
 with and without rotation and for quilts on small boards without, that a quilt level plays without

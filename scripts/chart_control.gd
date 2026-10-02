@@ -210,6 +210,10 @@ func _draw() -> void:
 
 	# Vertical gridlines + X-axis labels
 	var num_x: int = 5
+	# An index axis shorter than five steps (four rounds, three sessions) gets one tick per whole
+	# number: five even steps over 1..4 fall between them and print "1 2 2 3 3 4".
+	if x_as_index and x_max - x_min >= 1.0 and x_max - x_min < float(num_x):
+		num_x = int(round(x_max - x_min))
 	for i: int in range(num_x + 1):
 		var t: float = float(i) / float(num_x)
 		var xv: float = x_min + t * (x_max - x_min)

@@ -457,7 +457,7 @@ func _start_study() -> void:
 	round_index += 1
 	_set_frames(false)
 	_feedback.hide()
-	_study_caption = "Remember the picture" if round_index == 1 else "The same picture again (round %d of %d)" % [round_index, max_rounds]
+	_study_caption = "Remember the picture" if round_index == 1 else "Round %d of %d" % [round_index, max_rounds]
 	# The first look is a study; after a rebuilt round the picture is known, so the look before the
 	# next round is the shorter reminder. After a round that ran out, the full study again.
 	_after_rebuilt = round_index > 1 and not round_solved.is_empty() and bool(round_solved.back())
@@ -576,7 +576,6 @@ func round_card_text() -> String:
 	if ok:
 		lines.append("Time: " + _fmt_secs(float(round_times_ms[k]) / 1000.0))
 	lines.append("Rounds left: %d" % (max_rounds - round_index))
-	lines.append("Next look: %d s" % int((restudy_ms if ok else study_ms) / 1000.0))
 	return "\n".join(lines)
 
 # This round's countdown, read live from the level's values.
@@ -615,7 +614,7 @@ func _input(event: InputEvent) -> void:
 		elif _press_piece >= 0:
 			get_viewport().set_input_as_handled()
 			if _dragging:
-				_drop(mb.position)
+				_drop()
 			else:
 				turn_piece(_press_piece)
 			_press_piece = -1
@@ -632,7 +631,7 @@ func _input(event: InputEvent) -> void:
 			(pieces[_press_piece]["node"] as Control).position = mm.position + _grab_offset
 			get_viewport().set_input_as_handled()
 
-func _drop(at: Vector2) -> void:
+func _drop() -> void:
 	var i: int = _press_piece
 	var n: TextureRect = pieces[i]["node"]
 	n.z_index = 0
@@ -715,7 +714,7 @@ func result_text(didwin: bool) -> String:
 	lines.append("Moves: %d" % moves)
 	if rotation_on:
 		lines.append("Rotations: %d" % turns_made)
-	lines.append("Failed rounds, all time: %d" % MosaicG.failed_rounds(current_level_id))
+	lines.append("Failed rounds: %d" % MosaicG.failed_rounds(current_level_id))
 	lines.append("")
 	if not didwin:
 		lines.append("To pass, rebuild the picture in the last round and in at least %d percent of the rounds. Play this level again." % pass_pct)
@@ -730,7 +729,15 @@ func _on_level_done_popup_closed() -> void:
 
 # The time of the LAST round that was rebuilt -- how fast the picture went back together once
 # learned -- or 0 if no round was.
+# The LAST round's time, and only when that round was rebuilt (0 otherwise): what the Speed tab and
+# its chart show -- how fast the picture went back together at the end of the level.
 func solve_ms() -> int:
+	if round_solved.is_empty() or not bool(round_solved.back()):
+		return 0
+	return int(round_times_ms.back())
+
+# The last round that was rebuilt, whichever it was (0 if none): what "faster" is measured to.
+func last_solve_ms() -> int:
 	for k in range(round_times_ms.size() - 1, -1, -1):
 		if bool(round_solved[k]):
 			return int(round_times_ms[k])
@@ -749,7 +756,7 @@ func faster_pct() -> int:
 	if solved_rounds < 2:
 		return 0
 	var a: float = float(first_solve_ms())
-	return int(round(100.0 * (a - float(solve_ms())) / maxf(a, 1.0)))
+	return int(round(100.0 * (a - float(last_solve_ms())) / maxf(a, 1.0)))
 
 func _fmt_secs(s: float) -> String:
 	var t: int = int(round(s))
