@@ -703,18 +703,32 @@ func _level_done(didwin: bool) -> void:
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
 	game.show_level_done_popup(self, "", "", current_level_id, result_text(didwin), didwin)
 
+const ROUNDS_AS_ROWS: int = 6
+const ROUNDS_PER_ROW: int = 5
+
 func result_text(didwin: bool) -> String:
 	var lines: Array = ["", ""]
-	for k in round_times_ms.size():
-		lines.append("Round %d: %s" % [k + 1, _fmt_secs(float(round_times_ms[k]) / 1000.0) if bool(round_solved[k]) else "time ran out"])
+	# One row per round while they fit on the card (it does not scroll); past ROUNDS_AS_ROWS, five
+	# rounds to a row ("Rounds 6-10 (sec): 22, 18, -, 15, 12"), a dash for a round that ran out --
+	# short enough to stay one table row each, however many rounds a level has.
+	if round_times_ms.size() <= ROUNDS_AS_ROWS:
+		for k in round_times_ms.size():
+			lines.append("Round %d: %s" % [k + 1, _fmt_secs(float(round_times_ms[k]) / 1000.0) if bool(round_solved[k]) else "time ran out"])
+	else:
+		var n: int = round_times_ms.size()
+		for start in range(0, n, ROUNDS_PER_ROW):
+			var parts: Array = []
+			for k in range(start, mini(start + ROUNDS_PER_ROW, n)):
+				parts.append(str(int(round(float(round_times_ms[k]) / 1000.0))) if bool(round_solved[k]) else "-")
+			var span: String = str(start + 1) if parts.size() == 1 else "%d-%d" % [start + 1, start + parts.size()]
+			lines.append("Rounds %s (sec): %s" % [span, ", ".join(parts)])
 	var faster: int = faster_pct()
 	if faster != 0:
 		lines.append("Last vs first rebuild: %s" % ("%d%% faster" % faster if faster > 0 else "%d%% slower" % -faster))
 	lines.append("Rebuilt: %d of %d" % [solved_rounds, max_rounds])
-	lines.append("Moves: %d" % moves)
+	lines.append("Total level moves: %d" % moves)
 	if rotation_on:
 		lines.append("Rotations: %d" % turns_made)
-	lines.append("Failed rounds: %d" % MosaicG.failed_rounds(current_level_id))
 	lines.append("")
 	if not didwin:
 		lines.append("To pass, rebuild the picture in the last round and in at least %d percent of the rounds. Play this level again." % pass_pct)
@@ -727,8 +741,6 @@ func result_text(didwin: bool) -> String:
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)
 
-# The time of the LAST round that was rebuilt -- how fast the picture went back together once
-# learned -- or 0 if no round was.
 # The LAST round's time, and only when that round was rebuilt (0 otherwise): what the Speed tab and
 # its chart show -- how fast the picture went back together at the end of the level.
 func solve_ms() -> int:

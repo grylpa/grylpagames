@@ -122,9 +122,10 @@ Phases: `STUDY` -> `SHUFFLE` -> `PLAY` -> `SOLVED` or `TIMEUP` -> `ROUND_CARD` -
   covers it. (In a tutorial there is no card; the next round follows directly.)
 - **REVEAL**: every piece flips back home and upright, and the countdown starts the next round -- the
   same picture, whether the round before was rebuilt or not.
-- **DONE**: the level card lists every round's time (or "time ran out"), the last rebuild against the
-  first ("35% faster"), the rounds rebuilt, the moves (and rotations) and the failed rounds on this level,
-  all time. **Passed** (`passed()`) when the last round was rebuilt and at least `pass_pct` of the
+- **DONE**: the level card lists every round's time (or "time ran out"; one row each up to six rounds,
+  past that five to a row, "Rounds 6-10 (sec): 22, 18, -, 15, 12", since the card does not scroll), the last rebuild against the
+  first ("35% faster"), the rounds rebuilt, "Total level moves" (all its rounds) and rotations. Only this play: the
+  all-time count of failed rounds is recorded (`failed_rounds_level_total`), not shown. **Passed** (`passed()`) when the last round was rebuilt and at least `pass_pct` of the
   rounds were.
 
 ### Input -- drag to swap, tap to rotate
