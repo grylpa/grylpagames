@@ -206,6 +206,10 @@ const SUMMARY_ROWS: Dictionary = {
 	"placements_wasted": "Placed where nothing was walking",
 	"roads_missed": "New roads never answered",
 	"roads_unseen": "New roads never even looked at",
+	"solve_ms": "Time to rebuild the picture (last round)",
+	"faster_pct": "How much faster by the last round",
+	"first_try_pct": "Pieces right in the first round",
+	"failed_rounds": "Rounds that ran out of time",
 }
 
 # Sessions drawn in a Summary row's sparkline.

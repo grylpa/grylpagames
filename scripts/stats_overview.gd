@@ -56,6 +56,13 @@ const METRICS: Dictionary = {
 	"roads_missed": false,        # Ants: a road matured and was never answered
 	"roads_unseen": false,        # Ants: a road the player never had on screen at all
 	"placements_wasted": false,   # Ants: a wall dropped where nothing was walking
+	# MOSAIC: the same picture rebuilt from memory round after round. How long the last rebuild took,
+	# how much faster it was than the first, how much was right when the first round ended, and how
+	# many rounds ran out.
+	"solve_ms": false,
+	"faster_pct": true,
+	"first_try_pct": true,
+	"failed_rounds": false,
 	"ants_killed": false,         # Ants: crushed under a dropped obstacle, which is not the job
 	"creatures_stopped": true,    # Detour (folder parkem): creatures turned back
 }
