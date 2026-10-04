@@ -178,10 +178,11 @@ with rotation). `devtools/seed_demo.gd` seeds Mosaic's history as the game saves
 
 ## The chooser tile
 
-`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `mosaic()`) from one of
-the game's own pictures (`devtools/thumb_src/mosaic_source.png`, made by `picture.gd`): the picture
-filling the whole tile, edge to edge -- no board border, no gaps -- cut 3 x 3 with the outline every
-piece wears while shuffled, two pieces swapped, and one lifted off its place as if being dragged.
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `mosaic()`): a bold,
+simple scenery picture (a big sun, a cloud, hills, a red-roofed house, a tree) cut 3 x 3, square pieces
+reaching the tile's edges with gaps between them, and SHUFFLED so the wrongness reads at any
+size -- grass on top, sky at the bottom, the house upside down in the center. The game's own pictures
+were too detailed to read once cut up and shrunk, and arrows or a lifted piece vanished when small.
 
 ## Not yet
 

@@ -22,7 +22,7 @@ var games = [
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
 	["movingcards",   "Moving Cards",   "Remember moving cards",                                  "Memory & Speed"],
-	["mosaic",        "Mosaic",         "Put the picture back together as fast as possible",        "Memory & Speed"],
+	["mosaic",        "Mosaic",         "Rebuild the picture faster every round",                   "Memory & Speed"],
 
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Planning"],
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
@@ -32,7 +32,7 @@ var games = [
 	["ants",          "Ants",           "Keep the colony from carrying the food home",            "Planning"],
 	
 	["whack",         "Whack",          "Tap quickly and accurately. Avoid decoys",               "Reflexes"],
-	["ptbits",        "Nudge",          "Nudge every ball over the rim into its own basket",      "Reflexes"],
+	["ptbits",        "Nudge",          "Nudge every ball into its own basket",     			  "Reflexes"],
 	["typit",         "Typit",          "How fast and accurate can you type?",                    "Reflexes", false, true, true],
 
 	["breathe",       "Breathe",        "Track your breathing rhythm and consistency",            "Serenity"],

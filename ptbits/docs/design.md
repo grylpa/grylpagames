@@ -176,3 +176,14 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## The chooser tile
+
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `nudge()`), and shows
+what the game IS rather than a screen from it: two coiled baskets, red and blue, and above each a
+ball of its color with a paddle of that color pushing it up toward its own basket, on a plain blue
+gradient. The baskets and paddles are projected from their 3-D forms (`_wicker_basket`,
+`_nudge_paddle`): every circle of a basket is an ellipse of one shared squash, the coils curve
+along it, the paddle head is a tipped disc with thickness, its handle a cylinder, its loop a ring.
+It replaced a screenshot of the arena, which did not read at the chooser's small size.
+
