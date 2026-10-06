@@ -37,6 +37,7 @@ var max_rounds: int = 3
 var round_ms: float = 60000.0             # each round's time limit
 var same_sea: bool = true
 var max_crashes: int = 3                  # the first round's; see max_crashes_for()
+var n_boats: int = 0                      # other boats crossing the sea
 
 const REF_W: float = 680.0
 var _k: float = 1.0                       # sea width / REF_W
@@ -62,6 +63,21 @@ var _waves_node: Node2D = null
 # Vector2, r: float, seen: bool, deck: Array (wreck planks)}. `seen` is set the first time any light
 # falls on it, and kept for as long as the sea is (the whole level when same_sea).
 var obstacles: Array = []
+# OTHER BOATS, crossing the sea from one edge to the other, slowly: {path: PackedVector2Array, next:
+# int, pos: Vector2, heading: float, speed: float, seen: bool}. Each has its OWN ROUTE, found once
+# when the sea is built: a grid search (AStarGrid2D) from one edge to the other at its starting
+# height, with a boat's width of clearance from every obstacle, the lighthouse and the jetty -- so it
+# runs straight where the sea is clear and curves round whatever is in the way, and a boat can never
+# meet an obstacle. It follows the route turning smoothly, and starts again at its beginning off the
+# far edge. In the dark layer like the rocks: seen only where light falls. Bumping into one is a crash
+# (hit_at returns TRAFFIC + its index); one that would run into the player's boat waits, and so does
+# the later of two boats about to touch. (Horizontal lanes reserved before the rocks were placed were
+# tried and rejected: they bent the rock layout round them and capped the number of boats.)
+var traffic: Array = []
+const TRAFFIC: int = 1000
+const TRAFFIC_LEN: float = 46.0           # 680-wide units
+const TRAFFIC_WID: float = 16.0
+var _traffic_node: Node2D = null
 var _lh_pos: Vector2 = Vector2.ZERO      # the lighthouse: center of the sea
 var _lh_r: float = 30.0                  # its rock island's radius (an obstacle too)
 var _pier: Rect2 = Rect2()               # the whole jetty's bounds (kept clear of obstacles)
@@ -82,6 +98,12 @@ const TURN_RATE: float = 3.2             # radians a second
 const LOOKAHEAD: float = 34.0            # 680-wide units: how far along its route the boat aims
 var beam_angle: float = 0.0
 var _invuln_until: float = 0.0
+# What the boat last crashed into (an obstacle's index, -1 the lighthouse rock, NO_CRASH nothing).
+# Touching it again does not count until the boat has been CRASH_CLEAR away from it -- a boat nosing
+# along a rock it has just hit is one crash, not one every 0.7 s.
+const NO_CRASH: int = -99
+const CRASH_CLEAR: float = 22.0           # 680-wide units beyond the boat's own radius
+var _last_crash: int = NO_CRASH
 var _crash_t: float = -10000.0
 var _crash_at: Vector2 = Vector2.ZERO
 
@@ -90,6 +112,7 @@ enum Phase { IDLE, PLAY, ROUND_OVER, ROUND_CARD, DONE }
 var phase: int = Phase.IDLE
 var _phase_start: float = 0.0
 var _awaiting_round_card: bool = false
+var _awaiting_summary: bool = false
 var round_index: int = 0                 # 1-based once a round starts
 var _round_t: float = 0.0                # ms sailed this round
 var _round_won: bool = false
@@ -107,6 +130,9 @@ var lives: int = 3                       # lifebuoys left this round; the round 
 
 # --- input ---
 const TAP_SLOP: float = 12.0
+const RESUME_MS: int = 300
+const RESUME_PX: float = 70.0
+var _released_ms: int = -100000
 var _pressed: bool = false
 var _press_at: Vector2 = Vector2.ZERO
 var _drawing: bool = false
@@ -168,6 +194,9 @@ func _build_ui() -> void:
 	_world = Node2D.new()
 	_world.draw.connect(_draw_world)
 	_world_layer.add_child(_world)
+	_traffic_node = Node2D.new()
+	_traffic_node.draw.connect(_draw_traffic)
+	_world_layer.add_child(_traffic_node)
 	_beam = PointLight2D.new()
 	_beam.texture = _beam_texture()
 	_beam.energy = 1.25
@@ -346,6 +375,7 @@ func new_game(from_scratch: bool = true) -> void:
 	round_index = 0
 	_timed_out = false
 	_awaiting_round_card = false
+	_awaiting_summary = false
 	phase = Phase.IDLE
 	_feedback.hide()
 	_caption.text = ""
@@ -360,6 +390,7 @@ func new_game(from_scratch: bool = true) -> void:
 	_lh_r = 26.0 * _k
 	_build_fixtures()
 	_build_sea()
+	_build_traffic()
 	_apply_level_lights()
 	_reset_boat()
 	_world.queue_redraw()
@@ -374,33 +405,49 @@ func new_game(from_scratch: bool = true) -> void:
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
 	game.show_game_popup(self, round_title(1), briefing_text(1))
 
-# The card before EVERY round: that round's facts, its own crash limit among them. From round 2 on it
-# opens with how the last round went, so one card both closes a round and opens the next. Facts
-# only: how the game is played is the instructions screen's and the tutorial's.
+# TWO cards between rounds. First the SUMMARY of the round just played (summary_title/summary_text:
+# "Round 1 complete" or "Round 1 failed" -- the title gives the card its gold or warm look and a
+# Continue button), then the INTRO of the next (round_title/briefing_text: that round's facts, its own
+# crash limit among them), the same card round 1 opens with. Facts only: how the game is played is
+# the instructions screen's and the tutorial's.
 func round_title(k: int) -> String:
 	if k <= 1:
 		return "Level %d \u00b7 Round 1 of %d" % [current_level_id, max_rounds]
 	return "Round %d of %d" % [k, max_rounds]
 
+func summary_title() -> String:
+	var ok: bool = not round_solved.is_empty() and bool(round_solved.back())
+	return "Round %d %s" % [round_solved.size(), "complete" if ok else "failed"]
+
+func summary_text() -> String:
+	var p: int = round_solved.size() - 1
+	var ok: bool = bool(round_solved[p])
+	var lines: Array = []
+	lines.append("Result: " + ("Docked" if ok else ("Out of time" if bool(round_timed_out[p]) else "Too many crashes")))
+	if ok:
+		lines.append("Time: " + _fmt_secs(float(round_times_ms[p]) / 1000.0))
+	lines.append("Crashes: %d" % int(round_collisions[p]))
+	return "\n".join(lines)
+
 func briefing_text(k: int = 1) -> String:
 	var lines: Array = []
-	if k > 1 and not round_solved.is_empty():
-		var p: int = round_solved.size() - 1
-		var ok: bool = bool(round_solved[p])
-		lines.append("Last round: " + ("Docked" if ok else ("Out of time" if bool(round_timed_out[p]) else "Too many crashes")))
-		if ok:
-			lines.append("Its time: " + _fmt_secs(float(round_times_ms[p]) / 1000.0))
-		lines.append("Its crashes: %d" % int(round_collisions[p]))
-		lines.append("")
 	# Short values: the table is as wide as its widest row, and a long one pushed the card off a
 	# phone's screen.
 	lines.append("Obstacles: %d" % n_obstacles)
+	if n_boats > 0:
+		lines.append("Other boats: %d" % n_boats)
 	lines.append("Same sea: " + ("Yes" if same_sea else "No"))
 	lines.append("Max crashes: %d" % max_crashes_for(k))
 	lines.append("Max time: " + _fmt_secs(round_ms / 1000.0))
 	return "\n".join(lines)
 
 func _on_game_popup_closed() -> void:
+	if _awaiting_summary:
+		# the summary closed: now the next round's own card
+		_awaiting_summary = false
+		_awaiting_round_card = true
+		game.show_game_popup(self, round_title(round_index + 1), briefing_text(round_index + 1))
+		return
 	if _awaiting_round_card:
 		_awaiting_round_card = false
 		_next_round()
@@ -411,6 +458,7 @@ func _on_game_popup_closed() -> void:
 
 func stop_level() -> void:
 	_awaiting_round_card = false
+	_awaiting_summary = false
 	_reset_gesture()
 	phase = Phase.IDLE
 	_feedback.hide()
@@ -430,12 +478,13 @@ func _load_level(id: int) -> void:
 	max_rounds = maxi(1, int(def.get("rounds", 3)))
 	round_ms = maxf(10.0, float(def.get("round_sec", 60))) * 1000.0
 	same_sea = bool(def.get("same_sea", true))
+	n_boats = maxi(0, int(def.get("boats", 0)))
 	max_crashes = maxi(0, int(def.get("max_crashes", 3)))
 	game.level_label_changed("Level " + str(def.get("name", id)))
 	game.set_task_signature({"obstacles": n_obstacles, "obstacle_size": int(obstacle_size),
 		"beam_turn_deg": int(beam_turn_deg), "beam_width": int(beam_width), "boat_light": int(boat_light),
 		"boat_speed": int(boat_speed), "rounds": max_rounds, "round_sec": int(round_ms / 1000.0),
-		"same_sea": same_sea, "max_crashes": max_crashes})
+		"same_sea": same_sea, "max_crashes": max_crashes, "boats": n_boats})
 
 func _can_play() -> bool:
 	return game.playing and not game.paused() and not game.level_is_done and game.level_is_ready
@@ -464,7 +513,7 @@ func _build_fixtures() -> void:
 	var n: int = int(_sea.size.x * _sea.size.y / 1800.0)
 	for _i in n:
 		_waves.append([Vector2(_rng.randf_range(_sea.position.x, _sea.end.x), _rng.randf_range(_sea.position.y, _sea.end.y)),
-			_rng.randf_range(6.0, 14.0) * _k, _rng.randf_range(0.0, TAU), _rng.randf_range(6.0, 12.0) * _k])
+			_rng.randf_range(6.0, 14.0) * _k, _rng.randf_range(0.0, TAU), _rng.randf_range(14.0, 26.0) * _k])
 
 # A fresh layout. Kept clear of the start, the pier and the lighthouse, apart from each other by
 # more than a boat's width, and checked to leave a way through; a layout that blocks the way is
@@ -564,16 +613,21 @@ func has_way_through() -> bool:
 				continue
 			seen_cells[nx] = true
 			var p: Vector2 = _sea.position + (Vector2(nx) + Vector2(0.5, 0.5)) * step
-			if hit_at(p, BOAT_R * _k * 1.1) != -2:
+			if hit_at(p, BOAT_R * _k * 1.1, false) != -2:
 				continue
 			q.append(nx)
 	return false
 
-# What a boat of radius `rad` at `p` touches: an obstacle's index, -1 for the lighthouse rock, or -2
-# for nothing.
-func hit_at(p: Vector2, rad: float) -> int:
+# What a boat of radius `rad` at `p` touches: an obstacle's index, -1 for the lighthouse rock,
+# TRAFFIC + i for another boat, or -2 for nothing. `with_traffic` false leaves the moving boats out
+# (the way-through search and the boats' own route search: they move, and route round the rest).
+func hit_at(p: Vector2, rad: float, with_traffic: bool = true) -> int:
 	if p.distance_to(_lh_pos) < _lh_r + rad:
 		return -1
+	if with_traffic:
+		for t in traffic.size():
+			if _touches_traffic(t, p, rad):
+				return TRAFFIC + t
 	for i in obstacles.size():
 		var o: Dictionary = obstacles[i]
 		if p.distance_to(o["center"]) > float(o["r"]) * 1.4 + rad:
@@ -587,6 +641,134 @@ func hit_at(p: Vector2, rad: float) -> int:
 			if p.distance_to(Geometry2D.get_closest_point_to_segment(p, a, b)) < rad:
 				return i
 	return -2
+
+# --- other boats ---------------------------------------------------------------------------------------
+
+# One route per boat: a grid over the sea, a cell solid where a boat there would touch an obstacle,
+# the lighthouse or the jetty; each boat starts at a random height on one edge (left or right at
+# random) and the grid search finds its way to the other edge. A height with no way across is tried
+# again elsewhere; a boat that finds none is left out.
+func _build_traffic() -> void:
+	traffic.clear()
+	if n_boats <= 0:
+		return
+	var step: float = 8.0 * _k
+	var cols: int = int(_sea.size.x / step)
+	var rows: int = int(_sea.size.y / step)
+	var grid: AStarGrid2D = AStarGrid2D.new()
+	grid.region = Rect2i(0, 0, cols, rows)
+	grid.cell_size = Vector2(step, step)
+	grid.offset = _sea.position + Vector2(step, step) * 0.5
+	grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	grid.update()
+	var clear: float = (TRAFFIC_WID * 0.5 + 6.0) * _k
+	var jetty: Rect2 = _pier.grow(clear + 6.0 * _k)
+	for cx in cols:
+		for cy in rows:
+			var at: Vector2 = grid.offset + Vector2(cx, cy) * step
+			if jetty.has_point(at) or hit_at(at, clear, false) != -2:
+				grid.set_point_solid(Vector2i(cx, cy), true)
+	var top: int = int((_pier.end.y + 30.0 * _k - _sea.position.y) / step)
+	var bottom: int = rows - 1 - int(50.0 * _k / step)
+	for _b in n_boats:
+		for _try in 12:
+			var row: int = _rng.randi_range(top, maxi(top, bottom))
+			var from: Vector2i = Vector2i(0, row)
+			var to: Vector2i = Vector2i(cols - 1, row)
+			to = _free_near(grid, to, rows)
+			from = _free_near(grid, from, rows)
+			if from.x < 0 or to.x < 0:
+				continue
+			var pts: PackedVector2Array = grid.get_point_path(from, to)
+			if pts.size() < 2:
+				continue
+			# off both edges, so a boat sails in and out of sight rather than appearing
+			var path: PackedVector2Array = PackedVector2Array([pts[0] - Vector2(TRAFFIC_LEN * _k, 0.0)])
+			for q in range(0, pts.size(), 3):
+				path.append(pts[q])
+			path.append(pts[pts.size() - 1])
+			path.append(pts[pts.size() - 1] + Vector2(TRAFFIC_LEN * _k, 0.0))
+			if _rng.randf() < 0.5:
+				path.reverse()
+			var start: int = _rng.randi_range(0, path.size() - 2)
+			traffic.append({"path": path, "next": start + 1, "pos": path[start],
+				"heading": (path[start + 1] - path[start]).angle(), "speed": _rng.randf_range(22.0, 34.0) * _k, "seen": false})
+			break
+
+# The nearest free cell in the same column, searching up and down; x = -1 if the column has none.
+func _free_near(grid: AStarGrid2D, cell: Vector2i, rows: int) -> Vector2i:
+	for d in rows:
+		for sgn in [1, -1]:
+			var c: Vector2i = Vector2i(cell.x, cell.y + d * sgn)
+			if c.y >= 0 and c.y < rows and not grid.is_point_solid(c):
+				return c
+	return Vector2i(-1, -1)
+
+# Along its route, turning smoothly toward the next point, and from the beginning again once off the
+# far edge -- unless the player's boat, or another boat with a lower number, is just ahead of it:
+# then it waits. The other boats never ram.
+func _move_traffic(dt: float) -> void:
+	for i in traffic.size():
+		var t: Dictionary = traffic[i]
+		var path: PackedVector2Array = t["path"]
+		var pos: Vector2 = t["pos"]
+		var nxt_i: int = int(t["next"])
+		if nxt_i >= path.size():
+			t["pos"] = path[0]
+			t["next"] = 1
+			t["heading"] = (path[1] - path[0]).angle()
+			continue
+		var target: Vector2 = path[nxt_i]
+		var want: float = (target - pos).angle()
+		var h: float = float(t["heading"])
+		h += clampf(wrapf(want - h, -PI, PI), -1.6 * dt, 1.6 * dt)
+		var fwd: Vector2 = Vector2.from_angle(h)
+		var nose: Vector2 = pos + fwd * (TRAFFIC_LEN * 0.5 + 6.0) * _k
+		if nose.distance_to(boat_pos) < (BOAT_R + 10.0) * _k or _touches_traffic(i, boat_pos, (BOAT_R + 4.0) * _k):
+			continue
+		var blocked: bool = false
+		for j in i:
+			if (traffic[j]["pos"] as Vector2).distance_to(nose) < TRAFFIC_LEN * 0.55 * _k:
+				blocked = true
+				break
+		if blocked:
+			continue
+		t["heading"] = h
+		t["pos"] = pos + fwd * float(t["speed"]) * dt
+		if (t["pos"] as Vector2).distance_to(target) < 6.0 * _k:
+			t["next"] = nxt_i + 1
+
+func _touches_traffic(i: int, p: Vector2, rad: float) -> bool:
+	if i < 0 or i >= traffic.size():
+		return false
+	var d: Vector2 = (p - (traffic[i]["pos"] as Vector2)).rotated(-float(traffic[i]["heading"]))
+	return absf(d.x) < TRAFFIC_LEN * 0.5 * _k + rad and absf(d.y) < TRAFFIC_WID * 0.5 * _k + rad
+
+# A small working boat seen from above: a pointed hull, a deck, a wheelhouse, and the white of its
+# wake behind it. Lit only where the light falls, like everything in this layer.
+func _draw_traffic() -> void:
+	for t: Dictionary in traffic:
+		var p: Vector2 = t["pos"]
+		var f: Vector2 = Vector2.from_angle(float(t["heading"]))
+		var side: Vector2 = f.orthogonal()
+		var L: float = TRAFFIC_LEN * _k
+		var Wd: float = TRAFFIC_WID * _k
+		for k in 4:
+			var w: Vector2 = p - f * (L * 0.55 + float(k) * 7.0 * _k)
+			_traffic_node.draw_circle(w, (3.0 + float(k) * 1.2) * _k, Color(0.85, 0.92, 1.0, 0.35 - 0.07 * float(k)))
+		var hull: PackedVector2Array = PackedVector2Array([
+			p + f * L * 0.5, p + f * L * 0.22 + side * Wd * 0.5, p - f * L * 0.5 + side * Wd * 0.45,
+			p - f * L * 0.5 - side * Wd * 0.45, p + f * L * 0.22 - side * Wd * 0.5])
+		_traffic_node.draw_colored_polygon(hull, Color(0.62, 0.18, 0.16))
+		var deck: PackedVector2Array = PackedVector2Array()
+		for q: Vector2 in hull:
+			deck.append(p + (q - p) * 0.78)
+		_traffic_node.draw_colored_polygon(deck, Color(0.78, 0.70, 0.55))
+		var cab_c: Vector2 = p - f * L * 0.12
+		_traffic_node.draw_colored_polygon(PackedVector2Array([cab_c + f * L * 0.13 + side * Wd * 0.28,
+			cab_c - f * L * 0.13 + side * Wd * 0.28, cab_c - f * L * 0.13 - side * Wd * 0.28,
+			cab_c + f * L * 0.13 - side * Wd * 0.28]), Color(0.92, 0.92, 0.90))
+		_traffic_node.draw_polyline(hull + PackedVector2Array([hull[0]]), Color(0.25, 0.08, 0.07), 1.5 * _k, true)
 
 # --- drawing ---------------------------------------------------------------------------------------
 
@@ -634,8 +816,8 @@ func _draw_waves() -> void:
 		var hl: float = w[1]
 		var ph: float = w[2]
 		var x: float = _sea.position.x + fposmod(home.x - _sea.position.x + t * float(w[3]), w_sea)
-		var y: float = home.y + sin(t * 0.9 + ph) * 2.0 * _k
-		var swell: float = 0.5 + 0.5 * sin(t * 1.4 + ph)
+		var y: float = home.y + sin(t * 1.4 + ph) * 2.0 * _k
+		var swell: float = 0.5 + 0.5 * sin(t * 2.2 + ph)
 		var half: float = hl * (0.55 + 0.45 * swell)
 		var alpha: float = 0.15 + 0.45 * swell
 		var r: float = half * 1.8
@@ -765,16 +947,14 @@ func stop_boat() -> void:
 func _sail(dt: float) -> void:
 	var keys_turn: float = 0.0
 	var pace: float = 1.0
-	if Input.is_action_pressed("left"):
+	if bool(_keys.get("left", false)):
 		keys_turn -= 1.0
-	if Input.is_action_pressed("right"):
+	if bool(_keys.get("right", false)):
 		keys_turn += 1.0
-	if Input.is_action_pressed("up"):
+	if bool(_keys.get("up", false)):
 		if not route.is_empty():
 			stop_boat()
 		boat_moving = true
-	if Input.is_action_just_pressed("down") or Input.is_action_just_pressed("stop"):
-		stop_boat()
 	if keys_turn != 0.0:
 		if not route.is_empty():
 			route.clear()
@@ -811,22 +991,50 @@ func _sail(dt: float) -> void:
 	var hit: int = hit_at(boat_pos, BOAT_R * _k)
 	if hit != -2:
 		boat_pos = prev
-		_collide(hit)
+		if hit == _last_crash:
+			# Still beside the thing it last crashed into: it cannot sail through, but touching it
+			# again is not another crash.
+			stop_boat()
+		else:
+			_collide(hit)
+	elif _last_crash != NO_CRASH and not _touches(_last_crash, boat_pos, (BOAT_R + CRASH_CLEAR) * _k):
+		_last_crash = NO_CRASH        # clear of it: the next contact with it is a crash again
 	_place_boat_lamp()
 	_update_route_line()
+
+# Does a boat of radius `rad` at `p` touch obstacle `which` (-1: the lighthouse rock)?
+func _touches(which: int, p: Vector2, rad: float) -> bool:
+	if which == -1:
+		return p.distance_to(_lh_pos) < _lh_r + rad
+	if which >= TRAFFIC:
+		return _touches_traffic(which - TRAFFIC, p, rad)
+	if which < 0 or which >= obstacles.size():
+		return false
+	var o: Dictionary = obstacles[which]
+	var poly: PackedVector2Array = o["poly"]
+	if Geometry2D.is_point_in_polygon(p, poly):
+		return true
+	for j in poly.size():
+		if p.distance_to(Geometry2D.get_closest_point_to_segment(p, poly[j], poly[(j + 1) % poly.size()])) < rad:
+			return true
+	return false
 
 func _collide(which: int) -> void:
 	var now: float = game.game_time
 	stop_boat()
 	if now < _invuln_until:
 		return
+	_last_crash = which
 	_invuln_until = now + 700.0
 	_crash_t = now
 	_crash_at = boat_pos
 	game.play_sound("crash")
 	collisions_total += 1
 	round_collisions[round_collisions.size() - 1] = int(round_collisions.back()) + 1
-	if which >= 0 and bool(obstacles[which]["seen"]):
+	if which >= TRAFFIC and which - TRAFFIC < traffic.size():
+		if bool(traffic[which - TRAFFIC]["seen"]):
+			collisions_seen += 1
+	elif which >= 0 and bool(obstacles[which]["seen"]):
 		collisions_seen += 1
 	game.tutorial_notify("collided")
 	# Each crash costs a lifebuoy; the round is lost with the LAST one -- the crash that reaches this
@@ -849,6 +1057,30 @@ func _update_route_line() -> void:
 # Which obstacles the light is on now: the beam (the angle to it within the beam's half-width at
 # that distance) or the boat's light (close enough, and within its cone).
 func _mark_seen() -> void:
+	_mark_traffic_seen()
+	_mark_obstacles_seen()
+
+# A boat is seen the moment the beam or the boat's light is on it, the same test as a rock's.
+func _mark_traffic_seen() -> void:
+	for t: Dictionary in traffic:
+		if bool(t["seen"]):
+			continue
+		if _lit_at(t["pos"], TRAFFIC_LEN * 0.5 * _k):
+			t["seen"] = true
+
+func _lit_at(c: Vector2, r: float) -> bool:
+	var v: Vector2 = c - _lh_pos
+	var d: float = v.length()
+	var reach: float = _beam.texture_scale * float(BEAM_TEX) * 0.5
+	var half: float = (0.03 + 0.47 * d / maxf(reach, 1.0)) * reach * _beam.scale.y
+	var off: float = wrapf(v.angle() - beam_angle, -PI, PI)
+	if absf(off) < PI * 0.5 and absf(sin(off)) * d < half * 0.8 + r:
+		return true
+	var vb: Vector2 = c - boat_pos
+	return vb.length() < boat_light * _k * 0.85 + r \
+		and absf(wrapf(vb.angle() - boat_heading, -PI, PI)) < 0.45 + atan2(r, maxf(vb.length(), 1.0))
+
+func _mark_obstacles_seen() -> void:
 	var beam_dir: float = beam_angle
 	var reach_half_at: Callable = func(d: float) -> float:
 		var reach: float = _beam.texture_scale * float(BEAM_TEX) * 0.5
@@ -875,6 +1107,7 @@ func _start_round() -> void:
 	round_index += 1
 	if round_index > 1 and not same_sea:
 		_build_sea()
+		_build_traffic()
 		_world.queue_redraw()
 	_reset_boat()
 	lives = max_crashes_for(round_index)
@@ -883,6 +1116,7 @@ func _start_round() -> void:
 	_round_t = 0.0
 	_round_won = false
 	_timed_out = false
+	_last_crash = NO_CRASH
 	round_collisions.append(0)
 	_caption.text = "Round %d of %d" % [round_index, max_rounds]
 	_enter(Phase.PLAY)
@@ -967,6 +1201,7 @@ func _process(dt: float) -> void:
 			# the round's time limit; in a tutorial it does not run
 			var frac: float = 1.0 if game.tutorial_mode else 1.0 - _round_t / round_ms
 			_show_bar(frac, Color(0.9, 0.3, 0.25).lerp(Color(0.3, 0.8, 0.4), clampf(frac, 0.0, 1.0)))
+			_move_traffic(dt)
 			_sail(dt)
 			_mark_seen()
 			if phase == Phase.PLAY and touches_jetty():
@@ -982,16 +1217,39 @@ func _process(dt: float) -> void:
 				elif game.tutorial_mode:
 					_next_round()
 				else:
-					_awaiting_round_card = true
+					_awaiting_summary = true
 					_enter(Phase.ROUND_CARD)
-					game.show_game_popup(self, round_title(round_index + 1), briefing_text(round_index + 1))
+					game.show_game_popup(self, summary_title(), summary_text())
 	_harbor_light.energy = 0.8 * harbor_flash()
 	_overlay.queue_redraw()
 	_waves_node.queue_redraw()
+	_traffic_node.queue_redraw()
 
 # --- input: draw a route, tap to go, tap the boat to stop ------------------------------------------
 
+# THE ARROW KEYS ARE READ FROM REAL KEY PRESSES ONLY. The app turns every drag into swipe steering
+# -- simulated left/right/up/stop ACTIONS (scripts/main.gd, MainGlobals.sim_action) -- unless a game
+# switches on its shared path mode, as wolves and storm do. Lighthouse draws its own free route with
+# that mode off, so reading the actions (Input.is_action_pressed) obeyed the steering fired by the
+# very drag that was drawing the route: "up" dropped the route and sailed ahead, "left"/"right"
+# wiped the line off the screen and turned the boat. Simulated actions are InputEventAction; a key
+# is an InputEventKey, and only those are taken.
+var _keys: Dictionary = {}
+
+func _take_key(event: InputEventKey) -> void:
+	for act in ["left", "right", "up"]:
+		if event.is_action(act):
+			_keys[act] = event.pressed
+	if event.pressed and not event.echo and (event.is_action("down") or event.is_action("stop")):
+		stop_boat()
+
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		if phase == Phase.PLAY and _can_play():
+			_take_key(event)
+		else:
+			_keys.clear()
+		return
 	# A release is ALWAYS taken, whatever the phase: one that lands during a card would otherwise be
 	# lost, and the next round would think the finger was still down -- drawing a route from plain
 	# mouse motion, with the old line still showing.
@@ -1005,7 +1263,17 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var mb: InputEventMouseButton = event
 		if mb.pressed:
+			if _pressed:
+				return            # a second press inside a gesture (another finger): the first one owns it
 			if not _sea.has_point(mb.position):
+				return
+			# A phone sometimes reports a finger as lifted and pressed again in the middle of a drag (a
+			# shaky finger, a brush of the palm). A press that comes RESUME_MS after a drawn line ended,
+			# near where it ended, carries the line on instead of starting a new one.
+			if not _drawn.is_empty() and Time.get_ticks_msec() - _released_ms < RESUME_MS \
+					and mb.position.distance_to(_drawn.back()) < RESUME_PX * _k:
+				_pressed = true
+				_drawing = true
 				return
 			_pressed = true
 			_drawing = false
@@ -1013,6 +1281,7 @@ func _input(event: InputEvent) -> void:
 			_drawn = [mb.position]
 		elif _pressed:
 			_pressed = false
+			_released_ms = Time.get_ticks_msec() if _drawing else -100000
 			if _drawing:
 				_take_route(_drawn)
 			elif _press_at.distance_to(boat_pos) < BOAT_LEN * _k * 0.9:
@@ -1057,9 +1326,11 @@ func tutorial_boat_rect() -> Rect2:
 
 # Forget any gesture in progress and the line it drew.
 func _reset_gesture() -> void:
+	_keys.clear()
 	_pressed = false
 	_drawing = false
 	_drawn = []
+	_released_ms = -100000
 	if route.is_empty():
 		_route_line.points = PackedVector2Array()
 

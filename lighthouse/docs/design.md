@@ -32,12 +32,13 @@ Distances and speeds are in units of a 680-wide sea, scaled to the real one (`_k
 | `boat_light` | how far ahead the boat's own light reaches |
 | `boat_speed` | the boat's speed |
 | `rounds` | crossings per level |
+| `boats` | how many other boats cross the sea, slowly, edge to edge (0 for none) -- see "Other boats" |
 | `round_sec` | each round's time limit; a round whose time runs out is lost, and the level goes on to the next |
 | `same_sea` | true: every round on the SAME sea, so what one round showed helps the next; false: a new sea each round |
 | `max_crashes` | the most crashes the FIRST round can take: the HUD's lifebuoys count them down, and the crash that reaches the maximum loses the round. **On a same-sea level each later round allows one fewer, never below 1** (`max_crashes_for`) -- the sea has been seen. It drops after a failed round too: a round lost to crashes showed exactly where the rocks are, and a limit tied to success would make failing the way to an easier round. On a new-sea level every round allows the same |
 
 **What the player reads says "crash"**, never "collision" or "hit" (the round card's "Max crashes" -- that
-round's number -- "Max time", "Its crashes"). The
+round's number -- "Max time"; the summary's "Crashes"). The
 code and the saved records keep `collisions`.
 
 **Passed** (`passed()`): every round reached the jetty (none lost to crashes or to its clock). How much
@@ -45,16 +46,16 @@ faster the crossings got is what is measured and charted, not a condition. (An e
 capped the last round's crashes; it is gone -- the decreasing crash limit does that job round by
 round.)
 
-| level | obstacles / size | beam turn / width | boat light / speed | rounds / time a round | same sea | max crashes (first round) |
-|---|---|---|---|---|---|---|
-| 1 | 6 / 34 | 50 / 230 | 150 / 105 | 3 / 60 s | yes | 3 |
-| 2 | 8 / 30 | 46 / 200 | 140 / 110 | 3 / 60 s | yes | 3 |
-| 3 | 10 / 28 | 42 / 180 | 130 / 115 | 3 / 65 s | yes | 3 |
-| 4 | 10 / 26 | 40 / 170 | 120 / 120 | 4 / 60 s | no | 3 |
-| 5 | 12 / 24 | 36 / 160 | 110 / 125 | 4 / 65 s | yes | 2 |
-| 6 | 14 / 22 | 34 / 150 | 100 / 130 | 4 / 65 s | no | 2 |
-| 7 | 16 / 20 | 30 / 140 | 95 / 135 | 4 / 70 s | yes | 2 |
-| 8 | 18 / 18 | 28 / 130 | 90 / 140 | 5 / 70 s | no | 2 |
+| level | obstacles / size | beam turn / width | boat light / speed | rounds / time a round | same sea | max crashes (first round) | boats |
+|---|---|---|---|---|---|---|---|
+| 1 | 6 / 34 | 50 / 230 | 150 / 105 | 3 / 60 s | yes | 3 | 0 |
+| 2 | 8 / 30 | 46 / 200 | 140 / 110 | 3 / 60 s | yes | 3 | 0 |
+| 3 | 10 / 28 | 42 / 180 | 130 / 115 | 3 / 65 s | yes | 3 | 1 |
+| 4 | 10 / 26 | 40 / 170 | 120 / 120 | 4 / 60 s | no | 3 | 1 |
+| 5 | 12 / 24 | 36 / 160 | 110 / 125 | 4 / 65 s | yes | 2 | 2 |
+| 6 | 14 / 22 | 34 / 150 | 100 / 130 | 4 / 65 s | no | 2 | 2 |
+| 7 | 16 / 20 | 30 / 140 | 95 / 135 | 4 / 70 s | yes | 2 | 3 |
+| 8 | 18 / 18 | 28 / 130 | 90 / 140 | 5 / 70 s | no | 2 | 3 |
 
 ## The dark and the light -- `level.gd`
 
@@ -94,8 +95,8 @@ is only the approach that obstacles are kept clear of and the way-through search
 ## The sea
 
 **Waves** (`_draw_waves`, their own node between the sea's fill and everything on it, redrawn every
-frame): small crests, one per ~1800 px^2, that drift to the right (wrapping round), bob, and swell
-and fade each on its own phase -- a shallow lit arc with a faint trough under it. Being in the dark
+frame): small crests, one per ~1800 px^2, that drift to the right at 14-26 units a second (wrapping
+round), bob, and swell and fade each on its own phase -- a shallow lit arc with a faint trough under it. Being in the dark
 layer, they show only where light falls: the beam and the boat's light find a moving sea.
 
 `_build_sea()` places the obstacles (`_try_layout`): clear of the start, the pier and the lighthouse
@@ -106,6 +107,28 @@ one obstacle fewer). Kinds: a **rock** (an irregular polygon with a lit top face
 The lighthouse's rock in the middle is an obstacle too -- the straight way up runs into it.
 
 `same_sea` false: a new layout at the start of every round after the first.
+
+## Other boats
+
+`boats` per level, any number. Each has its **own route** across the sea, found once when the sea is
+built (`_build_traffic`): an `AStarGrid2D` over the sea, a cell solid where a boat there would touch an
+obstacle, the lighthouse or the jetty (with a boat's width of clearance); the boat starts at a random
+height on one edge and the search finds its way to the other. So a route is **straight where the sea
+is clear and curves round whatever is in the way** -- a boat can never meet an obstacle, the rocks are
+placed freely, and there is no limit on the number of boats. A route runs off both edges, so a boat
+sails in and out of sight, and starts again from its beginning. The boat follows it turning smoothly
+(1.6 rad/s), at 22-34 units a second, drawn turned along its course (`heading`).
+
+They are in the dark layer like the rocks: seen only where light falls (`_mark_traffic_seen`). Bumping
+into one is a crash (`hit_at` returns `TRAFFIC` + its index; an oriented-box test,
+`_touches_traffic`), with the same one-crash-until-clear rule. A boat with the player's boat just ahead
+waits -- the other boats never ram -- and so does the later-numbered of two boats about to touch.
+
+Rejected: horizontal lanes reserved before the rocks were placed -- they bent the rock layout round
+them and capped the number of boats -- and lanes searched for after placing the rocks, which found no
+clear band on most levels.
+
+**Waves** drift at 14-26 units a second, bob and swell faster than at first (the player's call).
 
 ## The boat
 
@@ -120,13 +143,26 @@ the line). The sea's edges are walls it slides along.
 **Input** (mouse button and motion only; touch is emulated as mouse):
 - a **drag** draws a route, kept as the points drawn (thinned to 8 px), shown as a gold line from the
   boat that shortens as it is sailed;
+- a press arriving within `RESUME_MS` (300 ms) of a drawn line's release, within `RESUME_PX` of where
+  it ended, **continues that line**: a phone sometimes reports a finger as lifted and pressed again in
+  the middle of a drag, and the line used to vanish and restart from the finger. A second press while
+  one is down is ignored;
 - a **tap on the sea** sails straight there;
 - a **tap on the boat** stops it;
 - **arrow keys**: left/right turn, up sails ahead, down (or stop) stops. Steering by key drops a route.
+  **Read from real key presses only** (`_keys`, from InputEventKey). The app turns every drag into
+  swipe steering -- simulated left/right/up/stop ACTIONS (`MainGlobals.sim_action`) -- unless a game
+  switches on the shared path mode, as wolves and storm do. Lighthouse draws its own free route with
+  that mode off, so reading the actions obeyed the steering fired by the very drag drawing the route:
+  "up" dropped the route and sailed ahead, "left"/"right" wiped the line and turned the boat. That was
+  both "the boat sails off ahead of my line" and "the line vanishes while I draw".
 
 **A collision** (`hit_at`: the boat's circle against each obstacle's polygon, or the lighthouse rock)
 puts the boat back where it was, stops it, flashes a red ring and costs a lifebuoy; 0.7 s of grace
-follows so one contact is one collision. The collision that takes the LAST lifebuoy loses the round
+follows. **One crash per obstacle until the boat has left it**: touching the thing it last crashed
+into (`_last_crash`) blocks and stops the boat but is not another crash, until the boat has been
+`CRASH_CLEAR` (22 units) beyond its own radius away from it -- a boat nosing along a rock it has just
+hit used to rack up a crash every 0.7 s. The collision that takes the LAST lifebuoy loses the round
 (the HUD at 0 means the round is over -- an earlier "0 left, one more allowed" read as a bug).
 
 **The gesture is reset** (`_reset_gesture`) when a round starts or ends, when a level starts and when
@@ -142,7 +178,7 @@ could have seen.
 ## A level
 
 Phases: `IDLE` -> `PLAY` -> `ROUND_OVER` (a second of "Docked!" / "Ran aground" / "Time's up") ->
-`ROUND_CARD` (the next round's card, opening with how this one went; closing it starts the round) -> `PLAY` ...
+`ROUND_CARD` (this round's summary, then the next round's card; closing that starts the round) -> `PLAY` ...
 and after the last round, `DONE`. The time bar is the round's own clock, and runs only while sailing.
 The level card lists every round (its time, or "too many crashes" / "time ran out", and its crashes), the rounds that
 reached the jetty and the total crashes; past six rounds, five to a row.
@@ -188,11 +224,13 @@ oval) and stood on a dark cluster of boulders that vanished behind the tower whe
 
 ## The card before every round, and the instructions
 
-**A card opens every round** (`round_title`, `briefing_text(k)`), with that round's facts: obstacles,
-same sea, **that round's own crash limit** and its time. From round 2 on it opens with how the last
-round went (docked / out of time / too many crashes, its time, its crashes), so one card closes a
-round and opens the next. Facts only, short ones (the table is as wide as its widest row, and a long
-row pushed the card off a phone). How the game is played is the instructions screen's
+**Two cards between rounds.** First the **summary** of the round just played (`summary_title`,
+`summary_text`): "Round 1 complete" or "Round 1 failed" -- the title gives the card its gold or warm
+look and a Continue button -- with the result (docked / out of time / too many crashes), the time and
+the crashes. Then the **next round's card** (`round_title`, `briefing_text(k)`), the same card round 1
+opens with: obstacles, same sea, **that round's own crash limit** and its time. Facts only, short
+ones (the table is as wide as its widest row, and a long row pushed the card off a phone).
+How the game is played is the instructions screen's
 (`set_instructions` in main.gd) and the tutorial's.
 
 ## Tutorial

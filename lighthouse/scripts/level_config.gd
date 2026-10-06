@@ -22,19 +22,22 @@ extends Node
 #                          down, and the crash that reaches the maximum loses the round. On a same-sea
 #                          level each later round allows one fewer (never below 1) -- the sea has
 #                          been seen; on a new-sea level every round allows the same
+#   boats                  how many other boats cross the sea, slowly, each in its own horizontal lane
+#                          (left to right or right to left), wrapping round at the edges. 0 for none.
+#                          Seen only where light falls; bumping into one is a crash
 #
 # A level is passed when every round reached the jetty. How much faster the crossings got is what
 # is measured and charted, not a condition for passing.
 
 const LEVELS: Array = [
-	{"id": 1, "name": "1", "obstacles": 6,  "obstacle_size": 34, "beam_turn_deg": 50, "beam_width": 230, "boat_light": 150, "boat_speed": 105, "rounds": 3, "round_sec": 60, "same_sea": true,  "max_crashes": 3},
-	{"id": 2, "name": "2", "obstacles": 8,  "obstacle_size": 30, "beam_turn_deg": 46, "beam_width": 200, "boat_light": 140, "boat_speed": 110, "rounds": 3, "round_sec": 60, "same_sea": true,  "max_crashes": 3},
-	{"id": 3, "name": "3", "obstacles": 10, "obstacle_size": 28, "beam_turn_deg": 42, "beam_width": 180, "boat_light": 130, "boat_speed": 115, "rounds": 3, "round_sec": 65, "same_sea": true,  "max_crashes": 3},
-	{"id": 4, "name": "4", "obstacles": 10, "obstacle_size": 26, "beam_turn_deg": 40, "beam_width": 170, "boat_light": 120, "boat_speed": 120, "rounds": 4, "round_sec": 60, "same_sea": false, "max_crashes": 3},
-	{"id": 5, "name": "5", "obstacles": 12, "obstacle_size": 24, "beam_turn_deg": 36, "beam_width": 160, "boat_light": 110, "boat_speed": 125, "rounds": 4, "round_sec": 65, "same_sea": true,  "max_crashes": 2},
-	{"id": 6, "name": "6", "obstacles": 14, "obstacle_size": 22, "beam_turn_deg": 34, "beam_width": 150, "boat_light": 100, "boat_speed": 130, "rounds": 4, "round_sec": 65, "same_sea": false, "max_crashes": 2},
-	{"id": 7, "name": "7", "obstacles": 16, "obstacle_size": 20, "beam_turn_deg": 30, "beam_width": 140, "boat_light": 95,  "boat_speed": 135, "rounds": 4, "round_sec": 70, "same_sea": true,  "max_crashes": 2},
-	{"id": 8, "name": "8", "obstacles": 18, "obstacle_size": 18, "beam_turn_deg": 28, "beam_width": 130, "boat_light": 90,  "boat_speed": 140, "rounds": 5, "round_sec": 70, "same_sea": false, "max_crashes": 2},
+	{"id": 1, "name": "1", "obstacles": 6,  "obstacle_size": 34, "beam_turn_deg": 50, "beam_width": 230, "boat_light": 150, "boat_speed": 105, "rounds": 3, "round_sec": 60, "same_sea": true,  "max_crashes": 3, "boats": 0},
+	{"id": 2, "name": "2", "obstacles": 8,  "obstacle_size": 30, "beam_turn_deg": 46, "beam_width": 200, "boat_light": 140, "boat_speed": 110, "rounds": 3, "round_sec": 60, "same_sea": true,  "max_crashes": 3, "boats": 0},
+	{"id": 3, "name": "3", "obstacles": 10, "obstacle_size": 28, "beam_turn_deg": 42, "beam_width": 180, "boat_light": 130, "boat_speed": 115, "rounds": 3, "round_sec": 65, "same_sea": true,  "max_crashes": 3, "boats": 1},
+	{"id": 4, "name": "4", "obstacles": 10, "obstacle_size": 26, "beam_turn_deg": 40, "beam_width": 170, "boat_light": 120, "boat_speed": 120, "rounds": 4, "round_sec": 60, "same_sea": false, "max_crashes": 3, "boats": 1},
+	{"id": 5, "name": "5", "obstacles": 12, "obstacle_size": 24, "beam_turn_deg": 36, "beam_width": 160, "boat_light": 110, "boat_speed": 125, "rounds": 4, "round_sec": 65, "same_sea": true,  "max_crashes": 2, "boats": 2},
+	{"id": 6, "name": "6", "obstacles": 14, "obstacle_size": 22, "beam_turn_deg": 34, "beam_width": 150, "boat_light": 100, "boat_speed": 130, "rounds": 4, "round_sec": 65, "same_sea": false, "max_crashes": 2, "boats": 2},
+	{"id": 7, "name": "7", "obstacles": 16, "obstacle_size": 20, "beam_turn_deg": 30, "beam_width": 140, "boat_light": 95,  "boat_speed": 135, "rounds": 4, "round_sec": 70, "same_sea": true,  "max_crashes": 2, "boats": 3},
+	{"id": 8, "name": "8", "obstacles": 18, "obstacle_size": 18, "beam_turn_deg": 28, "beam_width": 130, "boat_light": 90,  "boat_speed": 140, "rounds": 5, "round_sec": 70, "same_sea": false, "max_crashes": 2, "boats": 3},
 ]
 
 func max_level() -> int:
