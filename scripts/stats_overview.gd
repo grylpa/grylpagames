@@ -60,6 +60,7 @@ const METRICS: Dictionary = {
 	# how much faster it was than the first, how much was right when the first round ended, and how
 	# many rounds ran out.
 	"solve_ms": false,
+	"crossing_ms": false,         # Lighthouse
 	"faster_pct": true,
 	"first_try_pct": true,
 	"failed_rounds": false,
