@@ -23,6 +23,7 @@ var games = [
 	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
 	["movingcards",   "Moving Cards",   "Remember moving cards",                                  "Memory & Speed"],
 	["mosaic",        "Mosaic",         "Rebuild the picture faster every round",                   "Memory & Speed"],
+	["lighthouse",    "Lighthouse",     "Sail through the night by the lighthouse's beam",          "Memory & Speed"],
 
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Planning"],
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],
@@ -60,7 +61,7 @@ var games = [
 # two buttons that offer a tutorial (the game's main menu and its instructions screen) instead test
 # whether the game's main.gd defines start_tutorial(). Add a folder here as each tutorial is
 # written — see docs/tutorials.md for the recipe.
-var tutorials: Array = ["ants", "aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
+var tutorials: Array = ["ants", "aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lighthouse", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials

@@ -33,7 +33,13 @@ const CHART_GAMES: Dictionary = {
 	# Mosaic plays the same picture for several rounds; its view is each level's time per round --
 	# the learning curve on one picture. Read from the session records, not from trials.
 	"mosaic": "Rounds",
+	# Lighthouse records its crossings the same way, and on a same-sea level a falling line is the
+	# sea being learned.
+	"lighthouse": "Rounds",
 }
+
+# The games whose own view is time per round, per level (_round_curves), and what that time is.
+const ROUND_GAMES: Dictionary = {"mosaic": "time to rebuild", "lighthouse": "time to the pier"}
 
 # Polka Dots has a view of its own too, but not a curve: it compares two CONDITIONS rather than
 # plotting a metric against a scale, so it sits in the Charts tab as a pair of bars.
@@ -133,8 +139,8 @@ static func chart_for(folder: String) -> Control:
 	if not has_own_view(folder):
 		return null
 	var gu: GenericGameUtil = GenericGameUtil.new(folder, folder, 0, 5, 0)
-	if folder == "mosaic":
-		return _round_curves(gu)
+	if ROUND_GAMES.has(folder):
+		return _round_curves(gu, str(ROUND_GAMES[folder]))
 	if has_chart(folder) or folder == "polkadots":
 		if gu.read_trial_blocks().size() < MIN_SESSIONS:
 			return null
@@ -212,6 +218,7 @@ const SUMMARY_ROWS: Dictionary = {
 	"roads_missed": "New roads never answered",
 	"roads_unseen": "New roads never even looked at",
 	"solve_ms": "Time to rebuild the picture (last round)",
+	"crossing_ms": "Time to reach the pier (last round)",
 	"faster_pct": "How much faster by the last round",
 	"first_try_pct": "Pieces right in the first round",
 	"failed_rounds": "Rounds that ran out of time",
@@ -465,9 +472,9 @@ static func _body_for(folder: String) -> Control:
 		if readout != null:
 			return readout
 		return _waiting("Nothing this game counts has a place in this readout yet.")
-	if folder == "mosaic":
-		var rc: Control = _round_curves(gu)
-		return rc if rc != null else _waiting("Rebuild a picture in a round and its time shows here.")
+	if ROUND_GAMES.has(folder):
+		var rc: Control = _round_curves(gu, str(ROUND_GAMES[folder]))
+		return rc if rc != null else _waiting("Finish a round and its time shows here.")
 	var blocks: Array = gu.read_trial_blocks()
 	var sessions: int = blocks.size()
 	if sessions < MIN_SESSIONS:
@@ -558,12 +565,13 @@ static func _bucket_chart(buckets: Dictionary, x_title: String, y_title: String,
 		c.y_integer_only = true
 	return c
 
-# MOSAIC -- each level's time to rebuild the picture, round by round. A level plays one picture for
-# several rounds, so a line falling from round 1 to the last round is the picture being learned. A
-# point is the mean over every session at that level of that round's time, rebuilt rounds only: a
-# round that ran out has no rebuild time, and counting its limit would draw a time nobody took.
-# Null when no round has been rebuilt yet.
-static func _round_curves(gu: GenericGameUtil) -> Control:
+# MOSAIC and LIGHTHOUSE (ROUND_GAMES) -- each level's time per round. A Mosaic level plays one
+# picture for several rounds, and a same-sea Lighthouse level one sea, so a line falling from round 1
+# to the last is it being learned. A point is the mean over every session at that level of that
+# round's time, finished rounds only (`round_solved`): a round that ran out or ran aground has no
+# finishing time, and counting what it lasted would draw a time nobody took. Null when no round has
+# been finished yet.
+static func _round_curves(gu: GenericGameUtil, y_name: String) -> Control:
 	var by_level: Dictionary = {}     # level -> {round index: [ms, ...]}
 	for rec: Dictionary in gu.read_sessions():
 		var times: Array = rec.get("round_times_ms", [])
@@ -596,7 +604,7 @@ static func _round_curves(gu: GenericGameUtil) -> Control:
 	c.legend_numbers_are_levels = true
 	c.x_as_index = true          # the x is a round number, not a date
 	c.x_title = "round"
-	c.y_title = "time to rebuild (sec)"
+	c.y_title = y_name + " (sec)"
 	c.y_label_divisor = 1000.0
 	c.y_label_format = "%.0f"
 	c.y_min_padding = 0.12

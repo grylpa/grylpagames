@@ -277,6 +277,15 @@ caption is correctly placed on the very first frame, with no layout pass to wait
 
 ## Games covered
 
+**lighthouse** (11 steps). Everything that matters is in the dark, so the order is what can be
+seen first: the beam, then the green light that marks the jetty, then the drawn route
+(shown by a `demo_path`, `level.tutorial_demo_route()`, then done), a tap on the boat to stop, a tap
+on the sea to go straight somewhere, the lifebuoys (spotlit in the HUD), and a real crossing to the
+jetty (`round_won`, with a 240 s escape). The level's clock does not run in tutorial_mode, and a lost
+round simply starts again, so a slow learner is never pushed out. The last card says what the game is
+really about: on many levels the sea is the same every round, so what the light showed is worth
+remembering. `starting_level_id` lives on LighthouseG and is stashed and restored around it.
+
 **taxi** (8 steps). The longest instruction text in the app — eight numbered rules, almost none of
 them observable. Teaches money-as-score first, then select-then-send on a real fare, then fuel with
 a tank staged low by `level.tutorial_drain_taxi()`.

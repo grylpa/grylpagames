@@ -23,6 +23,7 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 - **Match WS** — vocabulary pair matching; supports multiple languages
 - **Moving Cards** — memory card-flip game with moving cards
 - **Mosaic** — remember a picture, then rebuild it from its shuffled pieces
+- **Lighthouse** — sail through a dark sea, seeing the rocks only in the lighthouse's beam
 - **Polkadots** — remember the dot pattern, then reproduce it
 - **Faces** — match face pairs; expressions and identities change between glimpse and recall
 
