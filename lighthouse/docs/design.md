@@ -121,7 +121,7 @@ sails in and out of sight, and starts again from its beginning. The boat follows
 
 They are in the dark layer like the rocks: seen only where light falls (`_mark_traffic_seen`). Bumping
 into one is a crash (`hit_at` returns `TRAFFIC` + its index; an oriented-box test,
-`_touches_traffic`), with the same one-crash-until-clear rule. A boat with the player's boat just ahead
+`_touches_traffic`), with the same one-crash-until-clear rule. The round card always says how many: "Other boats: 2", or "Other boats: None". A boat with the player's boat just ahead
 waits -- the other boats never ram -- and so does the later-numbered of two boats about to touch.
 
 Rejected: horizontal lanes reserved before the rocks were placed -- they bent the rock layout round

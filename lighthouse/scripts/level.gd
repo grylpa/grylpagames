@@ -434,8 +434,7 @@ func briefing_text(k: int = 1) -> String:
 	# Short values: the table is as wide as its widest row, and a long one pushed the card off a
 	# phone's screen.
 	lines.append("Obstacles: %d" % n_obstacles)
-	if n_boats > 0:
-		lines.append("Other boats: %d" % n_boats)
+	lines.append("Other boats: " + (str(n_boats) if n_boats > 0 else "None"))
 	lines.append("Same sea: " + ("Yes" if same_sea else "No"))
 	lines.append("Max crashes: %d" % max_crashes_for(k))
 	lines.append("Max time: " + _fmt_secs(round_ms / 1000.0))
