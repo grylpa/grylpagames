@@ -38,6 +38,7 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 - **Storm** — manage leaks with the right tools before the boat sinks
 - **Valet** — get every car to its parking spot by switching the junctions it drives through
 - **Taxi** — route a taxi to pick up and drop off passengers
+- **Ants** — keep a colony from carrying its food home, blocking the trails it lays
 - **Apprentice** — watch a robot sort, then name its hidden rule
 - **MMM** — timed multi-modal memory task
 
