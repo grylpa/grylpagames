@@ -26,7 +26,7 @@ extends Node
 #                          (left to right or right to left), wrapping round at the edges. 0 for none.
 #                          Seen only where light falls; bumping into one is a crash
 #
-# A level is passed when every round reached the jetty. How much faster the crossings got is what
+# A level is passed when every round reached the pier. How much faster the crossings got is what
 # is measured and charted, not a condition for passing.
 
 const LEVELS: Array = [

@@ -56,7 +56,7 @@ func _ready() -> void:
 	$Help.close_help.connect(_on_help_close_help)
 
 	game.set_instructions("Lighthouse",
-		"Sail the boat from the bottom of the sea to the jetty at the top, where the green light shines." +
+		"Sail the boat from the bottom of the sea to the pier at the top, where the green light shines." +
 		"\n\n" +
 		"It is night. Only the lighthouse's turning beam and your boat's own light show the rocks and wrecks, and only while the light is on them." +
 		"\n\n" +
@@ -64,7 +64,7 @@ func _ready() -> void:
 		"\n\n" +
 		"Each round allows only a few crashes (the lifebuoys count them down) and has a time limit. On some levels the sea is the same every round, so remember what the light showed you: there, each round allows one crash fewer." +
 		"\n\n" +
-		"To pass a level, reach the jetty in every round.")
+		"To pass a level, reach the pier in every round.")
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		LighthouseG.save_settings()
