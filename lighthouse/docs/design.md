@@ -71,11 +71,12 @@ obstacle showed as a faint silhouette in the dark.
   no afterglow**. It lights everything in its way, not just the nearest thing.
 - `_boat_lamp`: a cone at the bow (`_cone_texture`), bright at the boat and fading to nothing at
   `boat_light`.
-- `_lamp_glow` and `_boat_glow`: a very small, very faint round glow on the water just around each
-  light source -- the lantern (`GLOW_ENERGY` 0.45) and the boat's lamp (`BOAT_GLOW_ENERGY` 0.6). Only a
-  hint that a lamp is there; the beams are what show things. The lighthouse's rock has a SOFT edge
-  that fades into the water: a hard disc with a foam ring, lit evenly by the glow, read as a sharp
-  constant ring instead of a falloff.
+- **Only those two are lights.** The faint glows round the lantern, the boat's lamp and the green
+  harbor light are soft additive sprites drawn just above the dark layer (`_draw_glows`), not
+  PointLight2Ds. Five moving lights was the likeliest cause of jitter on a phone: a 2D light costs per
+  lit pixel of every item it touches, the beam covers most of the screen, and every extra light
+  multiplied that. The lighthouse's rock has a SOFT edge fading into the water: a hard disc with a
+  foam ring, lit evenly, read as a sharp ring instead of a glow.
 
 Anything in that layer is seen exactly where, and as much as, light falls on it; "partially seen" is
 not computed. What must always be visible -- the lighthouse head, the boat, the drawn route, the crash
@@ -162,8 +163,14 @@ the line). The sea's edges are walls it slides along.
   both "the boat sails off ahead of my line" and "the line vanishes while I draw".
 
 **A collision** (`hit_at`: the boat's circle against each obstacle's polygon, or the lighthouse rock)
-puts the boat back where it was, stops it, flashes a red ring and costs a lifebuoy; 0.7 s of grace
-follows. **One crash per obstacle until the boat has left it**: touching the thing it last crashed
+puts the boat back where it was, stops it, flashes a red ring, plays the crash sound
+(`art/sounds/car-crash-1.mp3`, as Pneumo's crashes) and costs a lifebuoy; 0.7 s of grace
+follows. **Crash timestamps are forgotten at every round** (`_forget_crash_times`): the grace
+(`_invuln_until`) and the crash ring (`_crash_t`) are stamped on `game.game_time`, which starts again
+at every new level and new game. Kept across a restart they lay in the clock's future: no crash
+counted at all for as long as the last level had lasted, and the ring, drawn from a negative age,
+was a big red circle shrinking to a dot. The ring is also never drawn for a time not yet reached.
+**One crash per obstacle until the boat has left it**: touching the thing it last crashed
 into (`_last_crash`) blocks and stops the boat but is not another crash, until the boat has been
 `CRASH_CLEAR` (22 units) beyond its own radius away from it -- a boat nosing along a rock it has just
 hit used to rack up a crash every 0.7 s. The collision that takes the LAST lifebuoy loses the round

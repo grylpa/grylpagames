@@ -48,12 +48,19 @@ var _world_layer: CanvasLayer = null
 var _world: Node2D = null
 var _dark: CanvasModulate = null
 var _beam: PointLight2D = null
-var _lamp_glow: PointLight2D = null
-# A very small, very faint glow round each light source, on the water just around it: the lantern
-# and the boat's lamp. Only a hint that a lamp is there -- the beams are what show things.
-var _boat_glow: PointLight2D = null
-const GLOW_ENERGY: float = 0.45
-const BOAT_GLOW_ENERGY: float = 0.6
+
+# A very small, very faint glow round each light source, on the water just around it -- the lantern,
+# the boat's lamp, and the green harbor light. NOT lights: soft additive sprites (_glows, drawn above
+# the dark layer). Only the beam and the boat's lamp are PointLight2Ds. Five moving lights was the
+# likeliest cause of jitter on a phone: a 2D light costs per lit pixel per item it touches, the beam
+# covers most of the screen, and every extra light multiplied that. These three only ever needed to
+# LOOK like light on the water.
+var _glows: Node2D = null
+var _glow_tex: Texture2D = null
+var _harbor_pos: Vector2 = Vector2.ZERO
+const LANTERN_GLOW: Color = Color(0.15, 0.25, 0.32)
+const BOAT_GLOW: Color = Color(0.22, 0.35, 0.44)
+const HARBOR_GLOW: Color = Color(0.06, 0.30, 0.18)
 var _boat_lamp: PointLight2D = null
 var _overlay: Node2D = null
 var _route_line: Line2D = null
@@ -88,7 +95,6 @@ var _lh_r: float = 30.0                  # its rock island's radius (an obstacle
 var _pier: Rect2 = Rect2()               # the whole jetty's bounds (kept clear of obstacles)
 var _jetty_walk: Rect2 = Rect2()
 var _jetty_head: Rect2 = Rect2()
-var _harbor_light: PointLight2D = null
 var _dock: Vector2 = Vector2.ZERO        # just below the landing: the approach kept clear and searched to
 var _start: Vector2 = Vector2.ZERO
 
@@ -159,7 +165,7 @@ const SEA: Color = Color(0.13, 0.27, 0.42)
 const FEEDBACK_SEC: float = 1.2
 const CRASH_SEC: float = 0.5
 
-var crash_audio = preload("res://art/sounds/bump-sound-7.mp3")
+var crash_audio = preload("res://art/sounds/car-crash-1.mp3")
 var dock_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var waves_audio = preload("res://art/sounds/ocean-waves-2.mp3")
 
@@ -206,21 +212,7 @@ func _build_ui() -> void:
 	_beam.texture = _beam_texture()
 	_beam.energy = 1.25
 	_world_layer.add_child(_beam)
-	_lamp_glow = PointLight2D.new()
-	_lamp_glow.texture = _glow_texture()
-	_lamp_glow.energy = GLOW_ENERGY
-	_world_layer.add_child(_lamp_glow)
-	_boat_glow = PointLight2D.new()
-	_boat_glow.texture = _glow_texture()
-	_boat_glow.energy = BOAT_GLOW_ENERGY
-	_world_layer.add_child(_boat_glow)
-	# A small green harbor light at the jetty's end, so the goal is known in the dark; the jetty
-	# itself still shows only where light falls on it.
-	_harbor_light = PointLight2D.new()
-	_harbor_light.texture = _glow_texture()
-	_harbor_light.color = Color(0.45, 1.0, 0.55)
-	_harbor_light.energy = 0.9
-	_world_layer.add_child(_harbor_light)
+	_glow_tex = _glow_texture()
 	_boat_lamp = PointLight2D.new()
 	_boat_lamp.texture = _cone_texture()
 	_boat_lamp.energy = 2.2
@@ -233,6 +225,12 @@ func _build_ui() -> void:
 	_route_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_route_line.end_cap_mode = Line2D.LINE_CAP_ROUND
 	add_child(_route_line)
+	_glows = Node2D.new()
+	var add_mat: CanvasItemMaterial = CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_glows.material = add_mat
+	_glows.draw.connect(_draw_glows)
+	add_child(_glows)
 	_overlay = Node2D.new()
 	_overlay.draw.connect(_draw_overlay)
 	add_child(_overlay)
@@ -360,9 +358,6 @@ func _apply_level_lights() -> void:
 	# The texture's edge half-width is 50% of the reach; scale y so it is beam_width / 2 instead.
 	var want_half: float = beam_width * _k * 0.5
 	_beam.scale = Vector2(1.0, clampf(want_half / (reach * 0.5), 0.15, 3.0))
-	_lamp_glow.position = _lh_pos
-	_lamp_glow.texture_scale = _lh_r * 2.8 / 32.0
-	_boat_glow.texture_scale = BOAT_LEN * _k * 1.1 / 32.0
 	_boat_lamp.texture_scale = boat_light * _k / (float(CONE_TEX) * 0.5)
 
 # --- level flow ----------------------------------------------------------------------------------
@@ -385,6 +380,7 @@ func new_game(from_scratch: bool = true) -> void:
 	round_index = 0
 	_timed_out = false
 	_awaiting_round_card = false
+	_forget_crash_times()
 	_awaiting_summary = false
 	phase = Phase.IDLE
 	_feedback.hide()
@@ -515,8 +511,7 @@ func _build_fixtures() -> void:
 	_jetty_head = Rect2(_lh_pos.x - head_w * 0.5, _sea.position.y + walk_l, head_w, head_d)
 	_pier = _jetty_walk.merge(_jetty_head)
 	_dock = Vector2(_lh_pos.x, _jetty_head.end.y + 10.0 * _k)
-	_harbor_light.position = Vector2(_jetty_head.end.x - 6.0 * _k, _jetty_head.get_center().y)
-	_harbor_light.texture_scale = 70.0 * _k / 32.0
+	_harbor_pos = Vector2(_jetty_head.end.x - 6.0 * _k, _jetty_head.get_center().y)
 	_start = Vector2(_lh_pos.x, _sea.end.y - 34.0 * _k)
 	_waves.clear()
 	var n: int = int(_sea.size.x * _sea.size.y / 1800.0)
@@ -867,6 +862,15 @@ func _draw_obstacle(o: Dictionary) -> void:
 			_world.draw_colored_polygon(top, base.lightened(0.22))
 			_world.draw_polyline(poly + PackedVector2Array([poly[0]]), base.darkened(0.45), 2.0 * _k, true)
 
+func _draw_glows() -> void:
+	if _sea.size.x <= 0.0 or _glow_tex == null:
+		return
+	var lamp: Vector2 = boat_pos + Vector2.from_angle(boat_heading) * BOAT_LEN * _k * 0.42
+	for g: Array in [[_lh_pos, _lh_r * 2.8, LANTERN_GLOW], [lamp, BOAT_LEN * _k * 1.1, BOAT_GLOW],
+			[_harbor_pos, 70.0 * _k, HARBOR_GLOW * harbor_flash()]]:
+		var r: float = float(g[1])
+		_glows.draw_texture_rect(_glow_tex, Rect2((g[0] as Vector2) - Vector2(r, r), Vector2(r, r) * 2.0), false, g[2])
+
 # Always visible: the lighthouse's head seen from above, the boat, a crash flash.
 func _draw_overlay() -> void:
 	if _sea.size.x <= 0.0:
@@ -884,13 +888,13 @@ func _draw_overlay() -> void:
 	_overlay.draw_circle(_lh_pos, r * 0.08, Color(0.25, 0.06, 0.05))
 	# the harbor light at the jetty's end: always visible, the one thing that says where to go. It
 	# flashes like a real one (see harbor_flash), and never goes fully dark.
-	var hl: Vector2 = _harbor_light.position
+	var hl: Vector2 = _harbor_pos
 	var fl: float = harbor_flash()
 	_overlay.draw_circle(hl, (4.5 + 2.0 * fl) * _k, Color(0.4, 1.0, 0.5, 0.18 * fl))
 	_overlay.draw_circle(hl, 3.0 * _k, Color(0.50, 0.95, 0.58).darkened(0.78 * (1.0 - fl)))
 	_draw_boat()
 	var since: float = game.game_time - _crash_t
-	if since < CRASH_SEC * 1000.0:
+	if since >= 0.0 and since < CRASH_SEC * 1000.0:
 		var t: float = since / (CRASH_SEC * 1000.0)
 		_overlay.draw_arc(_crash_at, (8.0 + 30.0 * t) * _k, 0.0, TAU, 32, Color(1.0, 0.35, 0.25, 1.0 - t), 4.0 * _k, true)
 
@@ -949,7 +953,6 @@ func _place_boat_lamp() -> void:
 	var fwd: Vector2 = Vector2.from_angle(boat_heading)
 	_boat_lamp.position = boat_pos + fwd * BOAT_LEN * _k * 0.42
 	_boat_lamp.rotation = boat_heading
-	_boat_glow.position = _boat_lamp.position
 
 func stop_boat() -> void:
 	boat_moving = false
@@ -1130,6 +1133,7 @@ func _start_round() -> void:
 	_round_won = false
 	_timed_out = false
 	_last_crash = NO_CRASH
+	_forget_crash_times()
 	round_collisions.append(0)
 	_caption.text = "Round %d of %d" % [round_index, max_rounds]
 	_enter(Phase.PLAY)
@@ -1147,6 +1151,15 @@ func touches_jetty() -> bool:
 		if nearest.distance_to(boat_pos) < BOAT_R * _k + reach:
 			return true
 	return false
+
+# The crash grace (_invuln_until) and the crash ring (_crash_t) are stamped on game.game_time, and
+# that clock STARTS AGAIN at every new level and new game. Stamps kept across a restart lay in the
+# clock's future: the grace then ran on for as long as the last level had been played -- no crash
+# counted at all -- and the ring, drawn from a negative age, was a big red circle shrinking to a dot.
+# Forgotten at the start of every round, and the ring is never drawn for a time not yet reached.
+func _forget_crash_times() -> void:
+	_invuln_until = 0.0
+	_crash_t = -1000000.0
 
 func _round_ended(won: bool) -> void:
 	if phase != Phase.PLAY:
@@ -1233,7 +1246,7 @@ func _process(dt: float) -> void:
 					_awaiting_summary = true
 					_enter(Phase.ROUND_CARD)
 					game.show_game_popup(self, summary_title(), summary_text())
-	_harbor_light.energy = 0.8 * harbor_flash()
+	_glows.queue_redraw()
 	_overlay.queue_redraw()
 	_waves_node.queue_redraw()
 	_traffic_node.queue_redraw()
