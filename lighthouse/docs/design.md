@@ -87,7 +87,7 @@ it.
 **The pier** at the top center, close to the top edge: a narrow plank walkway from the edge and a
 wider landing across its end, with piles and two mooring posts. It is in the dark layer too, so it
 shows only when light falls on it -- but a small **green harbor light** at the landing's end is always
-visible (drawn in the overlay, with its own faint `_harbor_light` glow on the pier), so the goal is
+visible (drawn in the overlay, with a faint green glow of its own, `_draw_glows`), so the goal is
 known in the dark. It is **occulting** like a real harbor light -- the "Oc G 4s" of the charts: lit for 2.5 s,
 then a 1.5 s dark break, every 4 s (`harbor_flash()`, `HARBOR_PERIOD`, `HARBOR_DARK`).
 The break dips to a faint glow (`HARBOR_DIM`) rather than to black, so the goal is never lost. A
