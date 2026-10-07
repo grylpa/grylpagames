@@ -9,11 +9,12 @@ extends RefCounted
 # cannot disagree about where the edge is. That lesson came from the food pile, where a fixed
 # pickup radius and a shrinking drawn radius quietly parted company.
 
-enum Kind { STONE, TWIG, WATER, LURE, CLOCHE }
+enum Kind { STONE, TWIG, WATER, LURE, CLOCHE, ROCK }
 
+# The player's tools. ROCK is not one: it is part of the ground (see below).
 const KINDS: Array = [Kind.STONE, Kind.TWIG, Kind.WATER, Kind.LURE, Kind.CLOCHE]
 const NAMES: Dictionary = {Kind.STONE: "Stone", Kind.TWIG: "Twig", Kind.WATER: "Water",
-	Kind.LURE: "Bait", Kind.CLOCHE: "Cloche"}
+	Kind.LURE: "Bait", Kind.CLOCHE: "Cloche", Kind.ROCK: "Rock"}
 # One line each, for the tooltip a long press opens.
 const TIPS: Dictionary = {
 	Kind.STONE: "A rock. They must walk around it.\nPick it up and move it as the trail shifts.",
@@ -42,12 +43,19 @@ const WATER_MIN_SCALE: float = 0.18
 # never defending. It is the only tool that works WITH the colony's own machinery rather than
 # against it, and it needs no special pleading in the ant to do so.
 const SOLID: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: true, Kind.LURE: false,
-	Kind.CLOCHE: true}
+	Kind.CLOCHE: true, Kind.ROCK: true}
 # A stone or a twig can be lifted and carried to wherever the trail has moved to -- that is the
 # whole game. Water cannot: once it is poured it is poured, and mopping it up does not put it back
 # in the bottle. So water is the decision you cannot take back, and it is priced by being scarce.
 const REUSABLE: Dictionary = {Kind.STONE: true, Kind.TWIG: true, Kind.WATER: false,
-	Kind.LURE: false, Kind.CLOCHE: true}
+	Kind.LURE: false, Kind.CLOCHE: true, Kind.ROCK: false}
+
+# A ROCK is part of the GROUND: placed when the level is built (the level's `rocks`), solid like a
+# stone, and never the player's -- it cannot be picked up, moved or added, and is in no menu. Smaller
+# than the stone tool, angular where the stone is rounded, reddish sandstone where the stone is gray,
+# so the two are never confused; it has the shadow every solid thing has.
+static func is_fixed(k: int) -> bool:
+	return k == Kind.ROCK
 
 static func is_reusable(k: int) -> bool:
 	return bool(REUSABLE.get(k, true))
@@ -65,6 +73,7 @@ const SHAPE: Dictionary = {
 	Kind.WATER: [Vector2(46.0, 36.0), 0.20],
 	Kind.LURE:  [Vector2(30.0, 30.0), 0.16],
 	Kind.CLOCHE: [Vector2(CLOCHE_OUTER, CLOCHE_OUTER), 0.0],
+	Kind.ROCK:  [Vector2(24.0, 19.0), 0.16],
 }
 
 # THE CLOCHE: a glass cover dropped over a food pile, open on one side. It is the one tool that is

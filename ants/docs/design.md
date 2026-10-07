@@ -154,6 +154,38 @@ a player can check by watching, so hiding it would be a nuisance rather than a d
 The text is built by `briefing_text()` and the probe asserts on that string, so the check is about
 what the player is told rather than about a CanvasLayer.
 
+**The ground** (`AntsArt.draw_ground`, drawn once for the whole world) is the soil color, broad
+**damp and dry patches** (`_draw_patches`: a smooth noise field, darker or paler, one texel per 24
+units stretched with linear filtering, with a firm shoulder -- soft at a patch's edge but clearly
+there; a first, softer version was barely visible), and the fine grain. The rule for anything added to
+the ground: **flat** (no shadow, no highlight -- a shadow and a lit face are how an obstacle reads),
+**out of the colors already taken** (ants near-black, food green, nests and twigs dark brown, stones
+light gray, water blue, lures gold, the scent trail dark marks), and **low contrast**. Tried and
+dropped: small colored pebbles (they read as random dots), the old round blotches (circles beside the
+patches; kept only when `ground_detail` is off, a switch for side-by-side renders). Ruled out: mud
+cracks (dark lines, like the trail), grass or moss (green, like food), straw (like the lures), anything
+that moves.
+
+**The ground's own rocks** (`rocks` per level: 6, 8, 12, 18, 32 -- doubled from a first 3-16, the player's call) are `AntObstacle.Kind.ROCK`: placed when
+the level is built (`_place_rocks`), **solid** -- the ants go round them exactly as round a stone --
+and **never the player's**: not in the tools menu, not picked up (`remove_obstacle_at` and
+`obstacle_at` skip them, so the menu never offers "pick up"), and a tool dropped onto one slides off
+it like any overlap. Kept clear of the nests and the piles (`ROCK_CLEAR`) and of the wall and each other
+(`ROCK_GAP`, room for ants two abreast), so they are terrain to go round and can never wall anything
+off; a world with no room left gets fewer. Smaller than the stone tool and drawn as **natural
+sandstone** (`_draw_rock`): a rough edge that only ever cuts into the collision outline, shading rolling
+from the lit upper left, faint layer lines, grain, a soft shadow, no outline -- reddish, rough and
+layered where the stone is gray, smooth and plain. (Drawn first as seven flat faces with a dark
+outline: it read as a cartoon.) **No two alike**: each rock is scaled 0.72-1.2 (its collision
+shape with it) and takes, from its seed, a tone between red and browner sandstone, a brightness
+(0.84-1.14) and a contrast (0.75-1.25) -- `_rock_tone`.
+
+**Antennae only feel what is near.** Each tick an ant first narrows the solid list to what an antenna
+could reach (its bound radius plus ANTENNA_REACH plus a body); `_feel` marches each antenna out 1.5
+units at a time and used to test every solid on the map at every step, so level 5's 16 rocks made a
+tick 6x slower (12.96 ms against 2.19). With the filter: 2.2 ms without rocks, about 4 ms with all 32.
+`probe_ants` times both.
+
 **The world has a wall.** `walkable` is the world less `AntsArt.WALL_W`, and every rule that used
 to be stated against `world` is stated against that instead — so the border is a *place*, not a
 painted line, and an ant is turned at its inner face with its body clear of it.
