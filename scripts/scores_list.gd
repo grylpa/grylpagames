@@ -1182,10 +1182,15 @@ func _time_header(in_sec: bool) -> String:
 		return _progress_time_label
 	return _progress_time_label + (" (sec)" if in_sec else " (ms)")
 
+# ONE FORMAT FOR THE WHOLE COLUMN. Each value used to choose its own -- a decimal under 10 s, whole
+# seconds above -- so "7.0" sat beside "33". Now the column is all one decimal if any of its times is
+# under 10 s (a tenth matters on a 4-second breath), and all whole seconds otherwise (it does not on a
+# 40-second crossing). The chart's axis follows the same rule (_min_time_ms).
 func _time_text(ms: int, in_sec: bool) -> String:
 	if in_sec:
-		# a tenth of a second still matters on a 4-second breath, not on a 40-second rebuild
-		return ("%.1f" % (ms / 1000.0)) if ms < 10000 else ("%d" % int(round(ms / 1000.0)))
+		if _min_time_ms() < 10000:
+			return "%.1f" % (ms / 1000.0)
+		return "%d" % int(round(ms / 1000.0))
 	if _progress_time_format == "%d ms":
 		return "%d" % ms
 	return _progress_time_format % ms

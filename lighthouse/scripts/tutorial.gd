@@ -4,7 +4,7 @@ extends RefCounted
 #
 # Four things the dark hides, taught in the order a player meets them:
 #   1. What can be seen at all: only what a light is on -- the lighthouse's turning beam and the
-#      boat's own light -- and the green light that marks the jetty, the goal.
+#      boat's own light -- and the green light that marks the pier, the goal.
 #   2. Movement is a DRAWN ROUTE, sailed as drawn (never snapped to anything), with a tap on the sea
 #      to go straight somewhere and a tap on the boat to stop. Shown with a demo first.
 #   3. Crashes: the HUD's lifebuoys count them down, and the crash that reaches the level's maximum
@@ -13,7 +13,7 @@ extends RefCounted
 #      remembering. Said last, once the player has seen the beam reveal things.
 #
 # The tutorial plays level 1 for real (tutorial_mode: nothing is saved, the level's clock does not
-# run, and a lost round simply starts again), and ends when the boat reaches the jetty.
+# run, and a lost round simply starts again), and ends when the boat reaches the pier.
 
 const LEVEL_ID: int = 1
 
@@ -25,7 +25,7 @@ static func steps(level: Node, _game) -> Array:
 		return level.boat_pos
 	var lighthouse_spot: Callable = func():
 		return level._lh_pos
-	var jetty_spot: Callable = func():
+	var pier_spot: Callable = func():
 		return (level._pier as Rect2).grow(14.0)
 	var lives_spot: Callable = func():
 		var hud: Node = level.get_parent().get_node_or_null("HUD")
@@ -41,14 +41,14 @@ static func steps(level: Node, _game) -> Array:
 		return level.tutorial_boat_rect()
 	var lighthouse_zone: Callable = func():
 		return Rect2(level._lh_pos, Vector2.ZERO).grow(float(level._lh_r) * 3.0)
-	var jetty_zone: Callable = func():
+	var pier_zone: Callable = func():
 		return (level._pier as Rect2).grow(30.0)
 	var lives: int = int(LighthouseLevelConfig.get_level(LEVEL_ID).get("max_crashes", 3))
 
 	return [
 		{
 			"title": "Lighthouse",
-			"text": "Sail your boat across the sea at night, from the bottom to the jetty at the top.",
+			"text": "Sail your boat across the sea at night, from the bottom to the pier at the top.",
 		},
 		{
 			"text": "The lighthouse turns its beam round and round. Rocks and wrecks show only while a light is on them.",
@@ -56,8 +56,8 @@ static func steps(level: Node, _game) -> Array:
 			"spot_radius": 60.0,
 		},
 		{
-			"text": "That green light at the top marks the jetty. Touch the jetty with your boat to finish the crossing.",
-			"spot": jetty_spot,
+			"text": "That green light at the top marks the pier. Touch the pier with your boat to finish the crossing.",
+			"spot": pier_spot,
 		},
 		{
 			"text": "Draw a route from your boat, and it sails it, like this.\n\nYour boat carries a small light of its own, ahead of it.",
@@ -101,9 +101,9 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Now a whole crossing, from the boat, around the lighthouse, to the green light at the top.\n\nIf the light shows a rock in your way, you can draw a new route around it at any time.",
 		},
 		{
-			"text": "Sail to the jetty.",
+			"text": "Sail to the pier.",
 			"await": {"event": "round_won", "timeout": 240.0},
-			"keep_clear": [boat_zone, lighthouse_zone, jetty_zone],
+			"keep_clear": [boat_zone, lighthouse_zone, pier_zone],
 			"hint_after": 40.0,
 			"hint": "Press near the boat and drag all the way up to the green light, passing beside the lighthouse.",
 		},

@@ -41,7 +41,7 @@ Distances and speeds are in units of a 680-wide sea, scaled to the real one (`_k
 round's number -- "Max time"; the summary's "Crashes"). The
 code and the saved records keep `collisions`.
 
-**Passed** (`passed()`): every round reached the jetty (none lost to crashes or to its clock). How much
+**Passed** (`passed()`): every round reached the pier (none lost to crashes or to its clock). How much
 faster the crossings got is what is measured and charted, not a condition. (An earlier rule also
 capped the last round's crashes; it is gone -- the decreasing crash limit does that job round by
 round.)
@@ -84,15 +84,15 @@ ring -- is drawn in the level's own layer above, untouched by the CanvasModulate
 layer is a CanvasLayer of its own, hiding the level does not reach it: `visibility_changed` mirrors
 it.
 
-**The jetty** at the top center, close to the top edge: a narrow plank walkway from the edge and a
+**The pier** at the top center, close to the top edge: a narrow plank walkway from the edge and a
 wider landing across its end, with piles and two mooring posts. It is in the dark layer too, so it
 shows only when light falls on it -- but a small **green harbor light** at the landing's end is always
-visible (drawn in the overlay, with its own faint `_harbor_light` glow on the jetty), so the goal is
+visible (drawn in the overlay, with its own faint `_harbor_light` glow on the pier), so the goal is
 known in the dark. It is **occulting** like a real harbor light -- the "Oc G 4s" of the charts: lit for 2.5 s,
 then a 1.5 s dark break, every 4 s (`harbor_flash()`, `HARBOR_PERIOD`, `HARBOR_DARK`).
 The break dips to a faint glow (`HARBOR_DIM`) rather than to black, so the goal is never lost. A
 short flash with long dark gaps, tried first, left it dark most of the time. (The first version was a plain plank rectangle far down from the edge, which read
-as one more obstacle.) A crossing ends when the boat **touches** the jetty (`touches_jetty()`: its bow
+as one more obstacle.) A crossing ends when the boat **touches** the pier (`touches_pier()`: its bow
 inside the walkway or the landing, or its hull's circle over an edge). An earlier distance to a point
 below the landing said "docked" a boat-length short of the planks. `_dock`, just below the landing,
 is only the approach that obstacles are kept clear of and the way-through search aims at.
@@ -117,12 +117,20 @@ The lighthouse's rock in the middle is an obstacle too -- the straight way up ru
 
 `boats` per level, any number. Each has its **own route** across the sea, found once when the sea is
 built (`_build_traffic`): an `AStarGrid2D` over the sea, a cell solid where a boat there would touch an
-obstacle, the lighthouse or the jetty (with a boat's width of clearance); the boat starts at a random
-height on one edge and the search finds its way to the other. So a route is **straight where the sea
+obstacle, the lighthouse or the pier (with a boat's width of clearance); the boat starts at a random
+height on one edge -- in the top two thirds of the sea, never the bottom third, where the player's
+boat sets off -- and the search finds its way to the other. So a route is **straight where the sea
 is clear and curves round whatever is in the way** -- a boat can never meet an obstacle, the rocks are
 placed freely, and there is no limit on the number of boats. A route runs off both edges, so a boat
 sails in and out of sight, and starts again from its beginning. The boat follows it turning smoothly
 (1.6 rad/s), at 22-34 units a second, drawn turned along its course (`heading`).
+
+**Painted hulls in cool colors** (`TRAFFIC_HULLS`): teal, blue, violet, magenta, one per boat in turn.
+The beam's light is warm, and in it yellow and orange went brown like the wrecks (tried, rejected); the
+first boats, dark red with a buff deck, did the same. **Drawn in 3-D** like the player's boat: the same
+curved hull (`hull_at`), a shadow on the water, a darker band along the side away from the light, a
+lighter deck with a white stripe, a rim, and a white wheelhouse whose dark side shows beneath its lit
+roof so it stands up off the deck. (Flat, they looked like paper boats.)
 
 They are in the dark layer like the rocks: seen only where light falls (`_mark_traffic_seen`). Bumping
 into one is a crash (`hit_at` returns `TRAFFIC` + its index; an oriented-box test,
@@ -137,23 +145,51 @@ clear band on most levels.
 
 ## The boat
 
-Continuous, never on cells: a position, a heading, a speed. It **looks ahead**: it aims at the
-furthest route point within `LOOKAHEAD`, dropping the ones before it. It turns at most `TURN_RATE`
-(3.2 rad/s), slows while turning and **turns in place** when its target is more than 60 degrees off
-the bow (`pace`). A route is taken from its point NEAREST the boat, never back to where the finger
-went down. Without all three the boat sailed ahead off a freshly drawn line and looped back to its
-start before following it (a player's report; `probe_lighthouse` now checks it stays within 14 px of
-the line). The sea's edges are walls it slides along.
+**How it looks** (`_draw_boat`, `_hull_outline`): a small motorboat seen from above -- a hull whose
+sides curve out from a pointed bow to its widest point and run back to a flat transom, a white rim
+round a wooden deck with planks along it, an open cockpit aft with a windscreen, the outboard motor off
+the transom, the lamp at the bow, and a short soft V of wake fading behind it while under way. Its
+length is `BOAT_LEN` 40 units (it was 30 -- a speck on a phone), and its collision radius is 0.3 of
+that.
 
-**Input** (mouse button and motion only; touch is emulated as mouse):
-- a **drag** draws a route, kept as the points drawn (thinned to 8 px), shown as a gold line from the
-  boat that shortens as it is sailed;
+**Everything in the sea is bigger on a phone** by `MOBILE_SCALE` (1.35, `_s`): the boat (54), the rocks,
+wrecks and cliffs, the other boats (`_traffic_len`/`_traffic_wid`), the pier and the lighthouse rock --
+and every clearance measured from them follows, since it is computed from those sizes. A 680-wide
+canvas is a hand's width on a phone. The phone's sea is also much taller (about 930 units against 560),
+so every level still fits: checked five times a level at phone size, with full counts and always a
+way through. (Drawn first as a straight-sided body with a short
+neck and a block in it: from above, a bottle.)
+
+Continuous, never on cells: a position, a heading, a speed. It steers by **pure pursuit**: it aims at
+the point `LOOKAHEAD` further along the line from where it is (`_along_route`), a point that slides
+along the line as the boat goes. It turns at most `TURN_RATE` (3.2 rad/s), slows for a turn and turns
+in place when the line is more than 60 degrees off the bow, and its **speed eases** (`_pace`,
+`PACE_EASE`) toward what the course allows instead of being set outright each frame. A route is taken
+from its point NEAREST the boat, never back to where the finger went down. History: aiming at the
+drawn points one after another (8 px apart) made the wanted heading -- and with it the speed -- jump
+at every point of a wobbly hand-drawn line, a stop-and-go stutter at any frame rate; and a boat that
+did not turn in place sailed ahead off a fresh line and looped back to it. `probe_lighthouse` checks
+it keeps within 14 px of a line drawn from beside it, and glides along a wobbly line with no stalls
+and no frame-to-frame lurch in speed. The sea's edges are walls it slides along.
+
+**Input** (mouse button and motion only; touch is emulated as mouse), taken in `_unhandled_input`, so a
+touch any button, card or screen claims never reaches the sea -- with `_input` the sea saw every
+touch first, and a tap on the hamburger or a card's button was also a tap on the sea. The sea also
+stops above the app's bottom bar (it reached 7 units under the hamburger):
+- a **drag** draws a route, shown as a gold line from the boat that shortens as it is sailed. The
+  finger's points (thinned to 8 px) are turned into a **smooth curve** (`smooth_line`: a centripetal
+  Catmull-Rom spline through every reported point, resampled every 4 units) for the line on screen
+  and the route alike. The screen reports a finger only so often, so a quick circle arrived as a
+  handful of points; joined straight, it was a polygon the boat turned sharply at every corner of;
 - a press arriving within `RESUME_MS` (300 ms) of a drawn line's release, within `RESUME_PX` of where
   it ended, **continues that line**: a phone sometimes reports a finger as lifted and pressed again in
   the middle of a drag, and the line used to vanish and restart from the finger. A second press while
   one is down is ignored;
 - a **tap on the sea** sails straight there;
-- a **tap on the boat** stops it;
+- a **tap on the boat** stops it: within `STOP_TAP_R_MOBILE` (52 units) on a phone, `STOP_TAP_R_DESKTOP` (36)
+  with a mouse, of where the boat was at the touch or at the lift, whichever is nearer (`on_boat`). It
+  was 0.9 of a boat length from where the boat was at the lift: a finger covers about 90 units and the
+  boat keeps sailing, so most stop taps missed and sent the boat to the tap instead;
 - **arrow keys**: left/right turn, up sails ahead, down (or stop) stops. Steering by key drops a route.
   **Read from real key presses only** (`_keys`, from InputEventKey). The app turns every drag into
   swipe steering -- simulated left/right/up/stop ACTIONS (`MainGlobals.sim_action`) -- unless a game
@@ -191,8 +227,9 @@ could have seen.
 Phases: `IDLE` -> `PLAY` -> `ROUND_OVER` (a second of "Docked!" / "Ran aground" / "Time's up") ->
 `ROUND_CARD` (this round's summary, then the next round's card; closing that starts the round) -> `PLAY` ...
 and after the last round, `DONE`. The time bar is the round's own clock, and runs only while sailing.
-The level card lists every round (its time, or "too many crashes" / "time ran out", and its crashes), the rounds that
-reached the jetty and the total crashes; past six rounds, five to a row.
+The level card lists every round in SHORT rows -- "40 s, 1 crash", "3 crashes, lost", "out of time" (a row
+like "too many crashes, 3 crashes" stretched the card past a phone's width) -- the rounds that
+reached the pier and the total crashes; past six rounds, five to a row.
 
 **The HUD's lives slot** holds the round's lifebuoys, with a lifebuoy icon
 (`LighthouseG.buoy_icon()`, baked at 64 px, shown at 32 in its own colors).
@@ -235,6 +272,13 @@ oval) and stood on a dark cluster of boulders that vanished behind the tower whe
 
 ## The card before every round, and the instructions
 
+**The help screen never opens over a card** (shared `scripts/help.gd`). The hamburger opens it, and
+it shares the cards' layer: opened over a round card, the card was drawn on top but the help screen
+took every touch, so the card's button did nothing. It now refuses itself while a card is up -- on
+the next frame: hiding it from inside its own visibility signal left it invisible but still catching
+touches. (A tap on the hamburger while a card is up lands on the card's backdrop, which closes the
+card as Continue would.)
+
 **Two cards between rounds.** First the **summary** of the round just played (`summary_title`,
 `summary_text`): "Round 1 complete" or "Round 1 failed" -- the title gives the card its gold or warm
 look and a Continue button -- with the result (docked / out of time / too many crashes), the time and
@@ -247,9 +291,9 @@ How the game is played is the instructions screen's
 ## Tutorial
 
 `lighthouse/scripts/tutorial.gd`, entry `main.gd::start_tutorial()`, level 1, in `MainCfg.tutorials`.
-Eleven steps: the beam shows things only while it is on them; the green light marks the jetty;
+Eleven steps: the beam shows things only while it is on them; the green light marks the pier;
 draw a route (a demo, then the player's own); tap the boat to stop; tap the sea to go there; the
-lifebuoys; a real crossing to the jetty (explained on a paused card, then sailed under a one-line caption kept off the boat, the lighthouse and the jetty); and last, that the sea is often the same every round, so
+lifebuoys; a real crossing to the pier (explained on a paused card, then sailed under a one-line caption kept off the boat, the lighthouse and the pier); and last, that the sea is often the same every round, so
 remember it. In tutorial_mode the level's clock does not run and a lost round simply starts again.
 `devtools/probe_tut.gd` drives it (`_act_lighthouse`) and checks the freeze (the beam and the boat
 stand still while a caption is up).

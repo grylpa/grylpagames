@@ -12,7 +12,7 @@ var games = [
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
-	["gorilla",       "Gorilla",        "Eat apples while counting gorillas"            ,              "Attention & Speed"],
+	["gorilla",       "Gorilla",        "Eat apples while counting gorillas",                     "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["didi",          "Pinpoint",       "Two clues, one shot",                                    "Attention & Speed"],
 	["ddooo",         "Witness",        "You saw it happen. Now testify",                         "Attention & Speed"],
@@ -22,8 +22,8 @@ var games = [
 	["dino",          "Dino",           "Swipe to say if you've seen the card already",           "Memory & Speed"],
 	["dinoback",      "Dino N-Back",    "Does this card match the one N cards back?",             "Memory & Speed"],
 	["movingcards",   "Moving Cards",   "Remember moving cards",                                  "Memory & Speed"],
-	["mosaic",        "Mosaic",         "Rebuild the picture faster every round",                   "Memory & Speed"],
-	["lighthouse",    "Lighthouse",     "Sail through the night by the lighthouse's beam",          "Memory & Speed"],
+	["mosaic",        "Mosaic",         "Rebuild the picture faster every round",                 "Memory & Speed"],
+	["lighthouse",    "Lighthouse",     "Sail through the night by the lighthouse's beam",        "Memory & Speed"],
 
 	["taxi",          "Taxi",           "Be a station manager and owner",                         "Planning"],
 	["storm",         "Storm",          "Save your house from the storm",                         "Planning"],

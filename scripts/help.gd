@@ -139,7 +139,21 @@ func _on_x_close_scene_button_pressed() -> void:
 	_on_close_button_pressed()
 
 func _on_visibility_changed() -> void:
+	# NEVER OVER A CARD. The help screen and the game's cards (game_popup) share a layer: with both up,
+	# the card is DRAWN on top, but the help screen takes the touches -- a card whose button does
+	# nothing. The hamburger opens this screen, and pressing it while a round card was up stuck
+	# Lighthouse's game. A card is the thing to answer first; help works again once it is closed.
+	#
+	# Hidden on the NEXT frame, not here: hiding from inside this signal, while show() is still
+	# propagating, left the screen invisible but still catching every touch.
+	if visible and MainGlobals.is_screen_visible("game_popup"):
+		_refuse.call_deferred()
+		return
 	MainGlobals.set_visible("help",visible)
+
+func _refuse() -> void:
+	hide()
+	MainGlobals.set_visible("help", false)
 
 # The close X, wherever this screen keeps it.
 func _find_close() -> Node:
