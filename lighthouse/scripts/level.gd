@@ -49,6 +49,11 @@ var _world: Node2D = null
 var _dark: CanvasModulate = null
 var _beam: PointLight2D = null
 var _lamp_glow: PointLight2D = null
+# A very small, very faint glow round each light source, on the water just around it: the lantern
+# and the boat's lamp. Only a hint that a lamp is there -- the beams are what show things.
+var _boat_glow: PointLight2D = null
+const GLOW_ENERGY: float = 0.45
+const BOAT_GLOW_ENERGY: float = 0.6
 var _boat_lamp: PointLight2D = null
 var _overlay: Node2D = null
 var _route_line: Line2D = null
@@ -203,8 +208,12 @@ func _build_ui() -> void:
 	_world_layer.add_child(_beam)
 	_lamp_glow = PointLight2D.new()
 	_lamp_glow.texture = _glow_texture()
-	_lamp_glow.energy = 0.9
+	_lamp_glow.energy = GLOW_ENERGY
 	_world_layer.add_child(_lamp_glow)
+	_boat_glow = PointLight2D.new()
+	_boat_glow.texture = _glow_texture()
+	_boat_glow.energy = BOAT_GLOW_ENERGY
+	_world_layer.add_child(_boat_glow)
 	# A small green harbor light at the jetty's end, so the goal is known in the dark; the jetty
 	# itself still shows only where light falls on it.
 	_harbor_light = PointLight2D.new()
@@ -352,7 +361,8 @@ func _apply_level_lights() -> void:
 	var want_half: float = beam_width * _k * 0.5
 	_beam.scale = Vector2(1.0, clampf(want_half / (reach * 0.5), 0.15, 3.0))
 	_lamp_glow.position = _lh_pos
-	_lamp_glow.texture_scale = _lh_r * 2.6 / 32.0
+	_lamp_glow.texture_scale = _lh_r * 2.8 / 32.0
+	_boat_glow.texture_scale = BOAT_LEN * _k * 1.1 / 32.0
 	_boat_lamp.texture_scale = boat_light * _k / (float(CONE_TEX) * 0.5)
 
 # --- level flow ----------------------------------------------------------------------------------
@@ -797,9 +807,12 @@ func _draw_world() -> void:
 	for bx: float in [_jetty_head.position.x + 14.0 * _k, _jetty_head.end.x - 22.0 * _k]:
 		_world.draw_circle(Vector2(bx, _jetty_head.get_center().y), 4.0 * _k, Color(0.15, 0.15, 0.17))
 		_world.draw_circle(Vector2(bx - 1.0 * _k, _jetty_head.get_center().y - 1.0 * _k), 2.0 * _k, Color(0.45, 0.45, 0.50))
-	# the lighthouse's rock
-	_world.draw_circle(_lh_pos, _lh_r * 1.12, Color(0.85, 0.92, 1.0, 0.35))
-	_world.draw_circle(_lh_pos, _lh_r, Color(0.42, 0.40, 0.38))
+	# The lighthouse's rock, with a SOFT edge that fades into the water. A hard disc with a foam ring
+	# round it, lit evenly by the lantern's glow, read as a sharp constant ring rather than a glow.
+	var rock: Color = Color(0.42, 0.40, 0.38)
+	for k in 10:
+		var t: float = float(k) / 9.0
+		_world.draw_circle(_lh_pos, _lh_r * lerpf(1.3, 0.7, t), Color(rock, lerpf(0.10, 1.0, t * t)))
 	for o: Dictionary in obstacles:
 		_draw_obstacle(o)
 
@@ -936,6 +949,7 @@ func _place_boat_lamp() -> void:
 	var fwd: Vector2 = Vector2.from_angle(boat_heading)
 	_boat_lamp.position = boat_pos + fwd * BOAT_LEN * _k * 0.42
 	_boat_lamp.rotation = boat_heading
+	_boat_glow.position = _boat_lamp.position
 
 func stop_boat() -> void:
 	boat_moving = false

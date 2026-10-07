@@ -399,10 +399,8 @@ func briefing_text() -> String:
 	lines.append("World: " + (world_words(cfg) if bool(cfg.get("tell_world", true)) else "Unknown"))
 	lines.append("Allowance: %d" % int(cfg["allowance"]))
 	lines.append("Hold out for: %d s" % int(cfg["time_sec"]))
-	lines.append("")
-	lines.append("Every crumb that reaches a nest costs 1 allowance, and every ant you crush costs %d. "
-		% KILL_PENALTY + "Keep some allowance until the clock runs out. The round is lost when it runs "
-		+ "out, or when the colony has carried off all the food.")
+	# The level's facts only. What spends the allowance and how a round is lost are rules, not facts
+	# about this level: they are the instructions screen's and the tutorial's.
 	return "\n".join(lines)
 
 # The ants' pace in words, measured against level 1's so the ladder reads as a ladder. A level's
