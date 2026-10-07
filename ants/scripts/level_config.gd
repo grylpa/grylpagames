@@ -62,6 +62,11 @@ extends Node
 #                  being a choice of WHICH road to cut and becomes rubbing out everything, and the
 #                  game turns into a chore. It is spent like the spray, not recovered like a stone.
 # time_sec         the level's time budget -- survive it with anything left and you win.
+# rocks            the GROUND'S own rocks: fixed, solid, angular reddish sandstone, never the
+#                  player's (no picking up, no menu). Terrain the ants go round -- placed clear of
+#                  nests, piles, the wall and each other, so they never wall anything off. More on the
+#                  larger worlds (6 on level 1 to 32 on level 5). Each rock varies in size, tone, brightness
+#                  and contrast, so no two look alike.
 #
 # Level 1 is 1x1 precisely so that the whole world IS the screen and nothing has to be panned to
 # watch the trail form. From level 2 on the world is larger than the screen and is panned by drag.
@@ -84,19 +89,19 @@ extends Node
 var LEVELS: Array = [
 	{"id": 1, "name": "1", "behaviors": [0], "world": [1.00, 1.00], "cam_zoom_out": 1.0, "colonies": 1, "speed_scale": [1.70, 2.45],
 		"ants_per_colony": 40, "food_piles": 1, "crumbs_per_pile": 460, "stock": [4, 3, 2, 2, 0],
-		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 3, "allowance": 90, "time_sec": 90},
+		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 3, "allowance": 90, "time_sec": 90, "rocks": 6},
 	{"id": 2, "name": "2", "behaviors": [0], "world": [1.25, 1.25], "cam_zoom_out": 1.0, "colonies": 2, "speed_scale": [1.90, 2.75],
 		"ants_per_colony": 32, "food_piles": 2, "crumbs_per_pile": 540, "stock": [4, 3, 2, 2, 0],
-		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 4, "allowance": 259, "time_sec": 90},
+		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 4, "allowance": 259, "time_sec": 90, "rocks": 8},
 	{"id": 3, "name": "3", "behaviors": [0, 1], "world": [1.50, 1.50], "cam_zoom_out": 1.0, "colonies": 3, "speed_scale": [2.40, 3.30],
 		"ants_per_colony": 28, "food_piles": 4, "crumbs_per_pile": 540, "stock": [5, 4, 3, 3, 0],
-		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 4, "allowance": 501, "time_sec": 100},
+		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 4, "allowance": 501, "time_sec": 100, "rocks": 12},
 	{"id": 4, "name": "4", "behaviors": [0, 1, 2], "world": [2.00, 2.00], "cam_zoom_out": 1.0, "colonies": 4, "speed_scale": [2.80, 3.90],
 		"ants_per_colony": 26, "food_piles": 5, "crumbs_per_pile": 600, "stock": [6, 5, 3, 3, 1],
-		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 5, "allowance": 824, "time_sec": 105},
+		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 5, "allowance": 824, "time_sec": 105, "rocks": 18},
 	{"id": 5, "name": "5", "behaviors": [], "world": [3.00, 3.00], "cam_zoom_out": 1.0, "colonies": 6, "speed_scale": [3.10, 4.40],
 		"ants_per_colony": 20, "food_piles": 8, "crumbs_per_pile": 520, "stock": [7, 6, 4, 4, 2],
-		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 6, "allowance": 1005, "time_sec": 115},
+		"tell_world": true, "tell_colonies": true, "tell_food": true, "spray_presses": 9, "erasers": 6, "allowance": 1005, "time_sec": 115, "rocks": 32},
 ]
 
 func max_level() -> int:

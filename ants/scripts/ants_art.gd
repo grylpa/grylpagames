@@ -107,12 +107,61 @@ static func cell_for_zoom(zoom: float) -> float:
 # invisible, and it is the difference between 42,000 triangles a frame and several hundred thousand.
 static func draw_ground(ci: CanvasItem, world: Rect2, zoom: float, seed_val: int) -> void:
 	ci.draw_rect(world, SOIL, true)
-	# Two scales of variation. The coarse one is what stops a large world from reading as a flat
-	# brown sheet; the fine grain only appears once a grain would be more than a pixel across.
-	_scatter(ci, world, 256.0, 2, seed_val, 1, 58.0, 96.0, SOIL_DARK, SOIL_LIGHT, 0.22, false)
+	# Broad DAMP and DRY patches: the ground has a lay to it instead of being one flat sheet.
+	if ground_detail:
+		_draw_patches(ci, world, seed_val)
+	# The coarse variation is the patches above; the round blotches that did that job before
+	# (_scatter at 256 units) read as circles once the patches gave the ground a real lay. The fine
+	# grain only appears once a grain would be more than a pixel across.
+	if not ground_detail:
+		_scatter(ci, world, 256.0, 2, seed_val, 1, 58.0, 96.0, SOIL_DARK, SOIL_LIGHT, 0.22, false)
 	var cell: float = cell_for_zoom(zoom)
 	if cell * zoom >= 10.0:
 		_scatter(ci, world, cell, 5, seed_val, 7, 0.9, 2.4, GRAIN_DARK, GRAIN_LIGHT, 1.0, true)
+
+# The patches can be switched off, so a render can show the ground with and without
+# them side by side. Always on in the game.
+static var ground_detail: bool = true
+
+# WHAT MAY BE ADDED TO THE GROUND. Everything on it already owns a look: ants are near-black, food and
+# crumbs light green, nests and twigs dark brown, stones light gray, water blue, lures gold, the scent
+# trail dark marks -- and an obstacle is told by its SHADOW and its lit face. So the ground's own
+# detail is flat (no shadow, no highlight), keeps out of those colors, and stays low in contrast.
+
+# Damp and dry soil: a smooth low-frequency field, a few percent darker or paler than SOIL, with no
+# edges anywhere -- nothing in it has an outline, so nothing in it can be read as a thing. One small
+# image (a texel per PATCH_TEXEL units), stretched over the world with linear filtering.
+const PATCH_TEXEL: float = 24.0
+const PATCH_FEATURE: float = 420.0      # typical size of a patch, in world units
+const DAMP: Color = Color(0.420, 0.333, 0.247)
+const DRY: Color = Color(0.733, 0.655, 0.553)
+const PATCH_ALPHA: float = 0.62
+
+static var _patch_tex: ImageTexture = null
+static var _patch_key: String = ""
+
+static func _draw_patches(ci: CanvasItem, world: Rect2, seed_val: int) -> void:
+	var key: String = "%d:%d:%d" % [int(world.size.x), int(world.size.y), seed_val]
+	if _patch_tex == null or _patch_key != key:
+		var w: int = maxi(2, int(ceil(world.size.x / PATCH_TEXEL)) + 1)
+		var h: int = maxi(2, int(ceil(world.size.y / PATCH_TEXEL)) + 1)
+		var noise: FastNoiseLite = FastNoiseLite.new()
+		noise.seed = seed_val
+		noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		noise.frequency = PATCH_TEXEL / PATCH_FEATURE
+		noise.fractal_octaves = 2
+		var img: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
+		for y in h:
+			for x in w:
+				var n: float = noise.get_noise_2d(float(x), float(y))      # about -0.6 .. 0.6
+				var col: Color = DAMP if n < 0.0 else DRY
+				# a firmer shoulder than a straight ramp: soft at the edge of a patch, but clearly there
+				col.a = smoothstep(0.04, 0.32, absf(n)) * PATCH_ALPHA
+				img.set_pixel(x, y, col)
+		_patch_tex = ImageTexture.create_from_image(img)
+		_patch_key = key
+	ci.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	ci.draw_texture_rect(_patch_tex, Rect2(world.position, Vector2(float(_patch_tex.get_width()), float(_patch_tex.get_height())) * PATCH_TEXEL), false)
 
 static func _scatter(ci: CanvasItem, area: Rect2, cell: float, per_cell: int, seed_val: int,
 		salt: int, r_lo: float, r_hi: float, col_a: Color, col_b: Color, alpha: float,
@@ -444,6 +493,9 @@ static func draw_obstacle(ci: CanvasItem, o: AntObstacle) -> void:
 	if o.kind == AntObstacle.Kind.CLOCHE:
 		_draw_cloche(ci, o, ring)
 		return
+	if o.kind == AntObstacle.Kind.ROCK:
+		_draw_rock(ci, o)
+		return
 	var body: Color = STONE_BODY
 	var lit: Color = STONE_LIT
 	var dark: Color = STONE_DARK
@@ -478,6 +530,90 @@ static func draw_obstacle(ci: CanvasItem, o: AntObstacle) -> void:
 		for k in [-0.34, 0.30]:
 			ci.draw_line(o.pos - along * o.half.x * 0.72 + side * o.half.y * k,
 				o.pos + along * o.half.x * 0.72 + side * o.half.y * k, dark, 1.2, true)
+
+# THE GROUND'S ROCKS: natural sandstone -- a rough, irregular edge, shading that rolls from the lit
+# upper left to the shaded lower right, faint LAYER lines (sandstone is laid down in beds, and the
+# beds are what make it read as a real rock and not a blob), a fine grain, a soft shadow, and no
+# outline. Reddish where the stone tool is light gray, rough where it is smooth, layered where it is
+# plain, so the two are never mistaken. (Drawn first as seven flat faces with a dark outline, which
+# read as a cartoon.) The rough edge only ever cuts INTO the collision outline, never past it.
+const ROCK_BODY: Color = Color(0.600, 0.345, 0.255)
+const ROCK_LIT: Color = Color(0.792, 0.541, 0.416)
+const ROCK_DARK: Color = Color(0.369, 0.188, 0.133)
+
+# Each rock its own: a tone between red and browner sandstone, a brightness and a contrast, all from
+# its seed -- so a field of them does not look stamped.
+const ROCK_BROWN_BODY: Color = Color(0.545, 0.396, 0.302)
+const ROCK_BROWN_LIT: Color = Color(0.722, 0.580, 0.467)
+const ROCK_BROWN_DARK: Color = Color(0.333, 0.224, 0.165)
+
+static func _rock_tone(base: Color, brown: Color, o: AntObstacle, mid: Color) -> Color:
+	var warm: float = _hash01(o.seed_val, 1, 12, 31)
+	var bright: float = lerpf(0.84, 1.14, _hash01(o.seed_val, 2, 12, 31))
+	var contrast: float = lerpf(0.75, 1.25, _hash01(o.seed_val, 3, 12, 31))
+	var c: Color = base.lerp(brown, warm)
+	c = mid.lerp(c, contrast)
+	return Color(clampf(c.r * bright, 0.0, 1.0), clampf(c.g * bright, 0.0, 1.0), clampf(c.b * bright, 0.0, 1.0))
+
+static func _draw_rock(ci: CanvasItem, o: AntObstacle) -> void:
+	var mid_tone: Color = ROCK_BODY.lerp(ROCK_BROWN_BODY, _hash01(o.seed_val, 1, 12, 31))
+	var rock_body: Color = _rock_tone(ROCK_BODY, ROCK_BROWN_BODY, o, mid_tone)
+	var rock_lit: Color = _rock_tone(ROCK_LIT, ROCK_BROWN_LIT, o, mid_tone)
+	var rock_dark: Color = _rock_tone(ROCK_DARK, ROCK_BROWN_DARK, o, mid_tone)
+	var smooth: PackedVector2Array = o.outline(32)
+	var ring: PackedVector2Array = PackedVector2Array()
+	for k in smooth.size():
+		var p: Vector2 = smooth[k]
+		# a rough edge: each point pulled in a little, by a seeded amount, never pushed out
+		var bite: float = 0.04 + 0.10 * _hash01(k, o.seed_val, 5, 31)
+		if _hash01(k, o.seed_val, 6, 31) < 0.18:
+			bite += 0.10
+		ring.append(o.pos + (p - o.pos) * (1.0 - bite))
+	# soft shadow: two layers, the outer fainter
+	for st in [[Vector2(4.5, 6.0), 0.14], [Vector2(2.5, 3.5), 0.22]]:
+		var sh: PackedVector2Array = PackedVector2Array()
+		for p2: Vector2 in ring:
+			sh.append(p2 + (st[0] as Vector2))
+		ci.draw_colored_polygon(sh, Color(0.0, 0.0, 0.0, float(st[1])))
+	# body, then insets drifting toward the light, each a little paler: a rounded, lumpy mass
+	ci.draw_colored_polygon(ring, rock_dark)
+	var light_dir: Vector2 = Vector2(-0.55, -0.70)
+	var steps: int = 7
+	for k2 in steps:
+		var t: float = float(k2 + 1) / float(steps)
+		var shrink: float = 1.0 - 0.62 * t
+		var shift: Vector2 = Vector2(o.half.x * light_dir.x, o.half.y * light_dir.y) * 0.32 * t
+		var poly: PackedVector2Array = PackedVector2Array()
+		for p3: Vector2 in ring:
+			poly.append(o.pos + shift + (p3 - o.pos) * shrink)
+		ci.draw_colored_polygon(poly, rock_dark.lerp(rock_lit, pow(t, 0.8)).lerp(rock_body, 0.25 if k2 < 2 else 0.0))
+	# the beds: lines across the rock at one shared tilt, kept to the inside of the outline
+	var tilt: float = o.angle + 0.35 + (_hash01(1, o.seed_val, 7, 31) - 0.5) * 0.6
+	var along: Vector2 = Vector2.from_angle(tilt)
+	var across: Vector2 = along.orthogonal()
+	var reach: float = maxf(o.half.x, o.half.y) * 1.2
+	for b in 4:
+		var off: float = (float(b) - 1.5) * maxf(o.half.x, o.half.y) * 0.34 + (_hash01(b, o.seed_val, 8, 31) - 0.5) * 3.0
+		var seg: PackedVector2Array = PackedVector2Array()
+		for q in 25:
+			var u: float = -reach + 2.0 * reach * float(q) / 24.0
+			var pt: Vector2 = o.pos + across * off + along * u + across * sin(u * 0.15 + float(b)) * 1.2
+			if Geometry2D.is_point_in_polygon(pt, ring) and (pt - o.pos).length() < reach * 0.78:
+				seg.append(pt)
+			elif seg.size() >= 2:
+				ci.draw_polyline(seg, Color(rock_dark, 0.30), 1.1, true)
+				seg = PackedVector2Array()
+			else:
+				seg = PackedVector2Array()
+		if seg.size() >= 2:
+			ci.draw_polyline(seg, Color(rock_dark, 0.30), 1.1, true)
+	# grain
+	for g in 18:
+		var gp: Vector2 = o.pos + Vector2((_hash01(g, o.seed_val, 9, 31) - 0.5) * 1.6 * o.half.x,
+			(_hash01(g, o.seed_val, 10, 31) - 0.5) * 1.6 * o.half.y).rotated(o.angle)
+		if Geometry2D.is_point_in_polygon(gp, ring):
+			var light: bool = _hash01(g, o.seed_val, 11, 31) < 0.5
+			ci.draw_rect(Rect2(gp, Vector2(1.2, 1.2)), Color(1.0, 0.9, 0.8, 0.25) if light else Color(0.2, 0.08, 0.05, 0.25), true)
 
 # BAIT: a pile of food, drawn like the real one and dwindling like the real one, but in a colour the
 # player can tell apart at a glance. The ants cannot, which is the point.

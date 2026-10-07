@@ -390,7 +390,17 @@ func step(dt: float, marks: ScentMarks, world: Rect2, obstacles: Array, spray: R
 	# Applied to the heading the ant has just chosen, as a reflex on top of whatever it wanted --
 	# so an ant rounding a stone is still homing, or still following its trail, the whole way.
 	if not obstacles.is_empty():
-		heading = wrapf(heading + _edge_turn(obstacles, dt) * turn_scale() * dt, -PI, PI)
+		# Only what an antenna could reach. _feel marches each antenna out 1.5 units at a time and
+		# tested EVERY solid at every step, so the cost grew with everything on the map -- the
+		# ground's own rocks (16 on level 5) made a tick 6x slower before this.
+		var near: Array = []
+		var reach: float = ANTENNA_REACH + LENGTH
+		for o: AntObstacle in obstacles:
+			var rr: float = o.bound_radius() + reach
+			if pos.distance_squared_to(o.pos) <= rr * rr:
+				near.append(o)
+		if not near.is_empty():
+			heading = wrapf(heading + _edge_turn(near, dt) * turn_scale() * dt, -PI, PI)
 
 	var pace: float = speed() * (1.0 - pause_amt)
 	if state == State.HOMING:

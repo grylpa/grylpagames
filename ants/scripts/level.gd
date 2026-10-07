@@ -242,6 +242,7 @@ func new_game(_from_scratch: bool = true) -> void:
 	_build_world(cfg)
 	_place_colonies(cfg)
 	_place_food(cfg)
+	_place_rocks(cfg)
 	delivered = 0
 	crumbs_through = 0
 	end_reason = ""
@@ -519,6 +520,44 @@ func _place_food(cfg: Dictionary) -> void:
 	for i in n:
 		var at: Vector2 = _food_position(i, n)
 		food.append({"pos": at, "crumbs": crumbs, "start": crumbs, "seed": _art_seed + i * 977})
+
+# The ground's own rocks (the level's `rocks`): fixed, solid, never the player's. Each is kept clear of
+# the nests and the piles by more than an obstacle is (ROCK_CLEAR), and of the wall and every other
+# rock by ROCK_GAP -- room for ants to pass two abreast -- so they make terrain to go round, never a
+# wall: no rock can touch another, so there is always a way between them. Rejection sampling; a level
+# whose world has no room left simply gets fewer.
+const ROCK_CLEAR: float = 46.0
+const ROCK_GAP: float = 30.0
+
+func _place_rocks(cfg: Dictionary) -> void:
+	var want: int = int(cfg.get("rocks", 0))
+	var placed: int = 0
+	for _attempt in want * 40:
+		if placed >= want:
+			break
+		var at: Vector2 = world.position + Vector2(randf_range(0.0, world.size.x), randf_range(0.0, world.size.y))
+		var o: AntObstacle = AntObstacle.new(AntObstacle.Kind.ROCK, at, randf_range(0.0, TAU), randi())
+		# each a little bigger or smaller: the collision shape scales with the drawing
+		o.half *= randf_range(0.72, 1.2)
+		o.half_at_start = o.half
+		var r: float = o.bound_radius()
+		if not walkable.grow(-(r + ROCK_GAP)).has_point(at):
+			continue
+		var ok: bool = true
+		for c: AntColony in colonies:
+			if at.distance_to(c.nest) < r + AntColony.NEST_RADIUS + ROCK_CLEAR:
+				ok = false
+		for f: Dictionary in food:
+			if at.distance_to(f["pos"] as Vector2) < r + FOOD_RADIUS * 1.4 + ROCK_CLEAR:
+				ok = false
+		for other: AntObstacle in obstacles:
+			if at.distance_to(other.pos) < r + other.bound_radius() + ROCK_GAP:
+				ok = false
+		if not ok:
+			continue
+		obstacles.append(o)
+		placed += 1
+	_resolid()
 
 func _food_position(_i: int, n: int) -> Vector2:
 	# With one colony and one pile the answer is the opposite corner -- the brief was to watch ants
@@ -938,6 +977,9 @@ func use_eraser(at: Vector2) -> bool:
 
 func remove_obstacle_at(at: Vector2) -> int:
 	for i in range(obstacles.size() - 1, -1, -1):
+		# the ground's rocks are not the player's to lift
+		if AntObstacle.is_fixed(obstacles[i].kind):
+			continue
 		if obstacles[i].hit(at):
 			var kind: int = obstacles[i].kind
 			obstacles.remove_at(i)
@@ -955,9 +997,11 @@ func remove_obstacle_at(at: Vector2) -> int:
 			return kind
 	return -1
 
+# Something the player put down and could pick up again -- what decides whether the menu offers
+# "pick up". The ground's rocks are not.
 func obstacle_at(at: Vector2) -> bool:
 	for o: AntObstacle in obstacles:
-		if o.hit(at):
+		if not AntObstacle.is_fixed(o.kind) and o.hit(at):
 			return true
 	return false
 
