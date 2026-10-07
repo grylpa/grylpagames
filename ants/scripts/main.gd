@@ -86,8 +86,9 @@ func _ready() -> void:
 		"Block them and they wear a new road around it — so\n" +
 		"watch where that is forming and get there first.\n" +
 		"Every crumb that reaches a nest costs 1 from your\n" +
-		"allowance, and every ant you crush costs 5.\n" +
-		"Keep some allowance until the clock runs out.\n" +
+		"allowance, and every ant you crush costs %d.\n" % $Level.KILL_PENALTY +
+		"Keep some allowance until the clock runs out. The round\n" +
+		"is lost if it runs out, or the food is all carried off.\n" +
 		"Drag to look around when the world is larger than the screen.", 23)
 	if not game.shown_instructions:
 		game.show_instructions(self)

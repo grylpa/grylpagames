@@ -50,7 +50,9 @@ func _ready() -> void:
 	$Level.started_playing.connect(_on_level_started_playing)
 	$Level.lives_changed.connect(func() -> void: hud.update_lives())
 
-	$Help.set_texts({"N": "New game", "M": "Main menu", "Arrows": "Steer, sail, stop"})
+	# Keys only: every entry is a button that presses its key. The arrow keys are on the instructions
+	# screen -- an "Arrows" entry here was a button that did nothing.
+	$Help.set_texts({"N": "New game", "M": "Main menu"})
 	$Help.close_help.connect(_on_help_close_help)
 
 	game.set_instructions("Lighthouse",

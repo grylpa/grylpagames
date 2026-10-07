@@ -71,7 +71,11 @@ obstacle showed as a faint silhouette in the dark.
   no afterglow**. It lights everything in its way, not just the nearest thing.
 - `_boat_lamp`: a cone at the bow (`_cone_texture`), bright at the boat and fading to nothing at
   `boat_light`.
-- `_lamp_glow`: a small round glow, so the lighthouse's own rock is always faintly visible.
+- `_lamp_glow` and `_boat_glow`: a very small, very faint round glow on the water just around each
+  light source -- the lantern (`GLOW_ENERGY` 0.45) and the boat's lamp (`BOAT_GLOW_ENERGY` 0.6). Only a
+  hint that a lamp is there; the beams are what show things. The lighthouse's rock has a SOFT edge
+  that fades into the water: a hard disc with a foam ring, lit evenly by the glow, read as a sharp
+  constant ring instead of a falloff.
 
 Anything in that layer is seen exactly where, and as much as, light falls on it; "partially seen" is
 not computed. What must always be visible -- the lighthouse head, the boat, the drawn route, the crash
