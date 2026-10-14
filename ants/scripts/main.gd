@@ -83,8 +83,8 @@ func _ready() -> void:
 		"to see what it does.\n" +
 		"You have only a few of each, so tap something you\n" +
 		"already placed to pick it up and use it again.\n" +
-		"Block them and they wear a new road around it — so\n" +
-		"watch where that is forming and get there first.\n" +
+		"Block them and they wear a new road around it,\n" +
+		"so watch where it's forming and get there first.\n" +
 		"Every crumb that reaches a nest costs 1 from your\n" +
 		"allowance, and every ant you crush costs %d.\n" % $Level.KILL_PENALTY +
 		"Keep some allowance until the clock runs out. The round\n" +
@@ -322,8 +322,8 @@ func _progress_line(didwin: bool, is_last: bool) -> String:
 	if not didwin:
 		return "Keep some allowance until the clock runs out to pass to the next level."
 	if is_last:
-		return "Level passed -- this is the last one, so it comes round again."
-	return "Level passed -- on to level %d." % (AntsLevelConfig.next_id($Level.current_level_id))
+		return "Level passed. This is the last level, so you'll play it again."
+	return "Level passed. On to level %d." % (AntsLevelConfig.next_id($Level.current_level_id))
 
 # Why a lost round ended, which the counts alone do not say -- the old card told a player who ran
 # out of allowance with half a minute left to "hold them off until the clock runs out".

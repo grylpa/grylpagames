@@ -733,7 +733,7 @@ func result_text(didwin: bool) -> String:
 	if not didwin:
 		lines.append("To pass, rebuild the picture in the last round and in at least %d percent of the rounds. Play this level again." % pass_pct)
 	elif current_level_id >= MosaicLevelConfig.max_level():
-		lines.append("Level passed. This is the last level, so it comes round again.")
+		lines.append("Level passed. This is the last level, so you'll play it again.")
 	else:
 		lines.append("Level passed. On to level %d." % MosaicLevelConfig.next_id(current_level_id))
 	return "\n".join(lines)

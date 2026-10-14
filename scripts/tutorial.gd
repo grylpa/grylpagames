@@ -111,7 +111,7 @@ var _watch_only: bool = false
 # A step that names its own list replaces the runner's for as long as it is up; a step that does
 # not, inherits it.
 var keep_clear: Array = []
-# "top", "bottom", or anything else for centred. Only consulted for a side caption.
+# "top", "bottom", or anything else for centered. Only consulted for a side caption.
 var caption_side_align: String = "center"
 # The runner-level list, kept so a per-step list can be a temporary override rather than a
 # permanent one.

@@ -51,7 +51,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Sail your boat across the sea at night, from the bottom to the pier at the top.",
 		},
 		{
-			"text": "The lighthouse turns its beam round and round. Rocks and wrecks show only while a light is on them.",
+			"text": "The lighthouse beam turns around and around. Rocks and wrecks show only while a light is on them.",
 			"spot": lighthouse_spot,
 			"spot_radius": 60.0,
 		},

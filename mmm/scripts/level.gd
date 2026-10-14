@@ -1657,6 +1657,11 @@ func level_is_done(didwin: bool):
 		_finish_level()
 		return
 	if didwin:
+		# Never reset() under a build: create_board() hands the frame back on every slice, and a reset
+		# in between frees cells it is about to read (a segfault, not a script error). new_game() waits
+		# the same way.
+		while _building:
+			await get_tree().process_frame
 		reset()
 		await get_tree().process_frame
 		var won_card = game.show_game_popup(self, "Well done!", "Round %d\nof\nLevel %d\n\ncompleted" % [round_in_level, level])
@@ -1687,8 +1692,8 @@ func _progress_line(passed: bool, need: int, is_last: bool) -> String:
 	if not passed:
 		return "You need at least %d%% of the rounds fully right to pass to the next level." % need
 	if is_last:
-		return "Level passed — this is the last one, so it comes round again."
-	return "Level passed — on to level %d." % (level + 1)
+		return "Level passed. This is the last level, so you'll play it again."
+	return "Level passed. On to level %d." % (level + 1)
 
 # Counting the rounds is level_is_done's job now; this only acts on the gate's verdict, and
 # only at a level boundary.

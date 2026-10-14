@@ -45,7 +45,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Bucket Madness",
-			"text": "Things fall. You have two buckets, a dumpster between them, and about two seconds to choose.",
+			"text": "Things fall from the top. There are two buckets with a dumpster between them, and you have about two seconds to choose.",
 			"keep_clear": all_clear,
 		},
 		{
@@ -56,7 +56,7 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "item_ready", "timeout": 60.0},
 		},
 		{
-			"text": "Here comes one.\n\nEvery item is two objects side by side — and only one of them can ever match a rule.",
+			"text": "Here comes one.\n\nEvery item is two objects side by side, and only one of them can match a rule.",
 			"spot": item_spot,
 			"spot_pad": 8.0,
 			"keep_clear": board_clear,
@@ -74,7 +74,7 @@ static func steps(level: Node, _game) -> Array:
 			"keep_clear": all_clear,
 		},
 		{
-			"text": "And whatever matches neither rule goes in the dumpster, in the middle.\n\nTwo buckets, one dumpster.",
+			"text": "Anything that matches neither rule goes in the dumpster, in the middle.",
 			"spot": func(): return level.tutorial_dumpster(),
 			"keep_clear": all_clear,
 		},
@@ -101,7 +101,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot_pad": 8.0,
 			"await": {"event": "answered_right", "timeout": 300.0},
 			"hint_after": 15.0,
-			"hint": "A swipe anywhere on the screen counts — you do not have to touch the item. ← ↓ → work too.",
+			"hint": "You can swipe anywhere on the screen. You don't have to touch the item. ← ↓ → work too.",
 			"keep_clear": board_clear,
 		},
 		{
@@ -127,20 +127,20 @@ static func steps(level: Node, _game) -> Array:
 			"keep_clear": board_clear,
 		},
 		{
-			"text": "The quicker you answer, the more it scores — and your average time is up here.",
+			"text": "The quicker you answer, the more it scores. Your average time is shown up here.",
 			"spot": func(): return level.tutorial_avg_label(),
 			"keep_clear": all_clear,
 		},
 		{
 			# The twist. Named before it happens, because meeting it cold reads as a bug.
-			"text": "One more thing: after a few rounds these two labels fade away.\n\nThe rules still apply. You have to keep them in your head.",
+			"text": "After a few rounds, these two labels fade away.\n\nThe rules still apply, so keep them in your head.",
 			"spot": func(): return level.tutorial_rules_row(),
 			"spot_pad": 6.0,
 			"keep_clear": board_clear,
 		},
 		{
 			"title": "Ready",
-			"text": "Nothing has been falling while we talked. From here it does — and an item that lands on its own counts as a dumpster answer.",
+			"text": "So far nothing has fallen on its own. From now on it will, and an item that lands without an answer counts as a dumpster answer.",
 			"keep_clear": all_clear,
 		},
 	]

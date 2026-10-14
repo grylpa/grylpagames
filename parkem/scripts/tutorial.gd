@@ -37,20 +37,20 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Detour",
-			"text": "Creatures are looking for their goals.\n\nYour job is the opposite of helping: keep them from ever getting there.",
+			"text": "Creatures are trying to reach their goals.\n\nYour job is to stop them getting there.",
 		},
 		{
 			"await": {"event": "agent_dispatched", "timeout": 60.0},
 		},
 		{
 			"setup": func(): level.tutorial_hold_new_creatures(true),
-			"text": "Here comes one. It drives itself — you never steer it.",
+			"text": "Here comes one. It moves by itself. You never steer it.",
 			"spot": creature,
 			"spot_radius": frame_r,
 			"spot_pad": 0.0,
 		},
 		{
-			"text": "And that is the goal it is heading for — its own color. Let it arrive and you have lost that one.",
+			"text": "And that's the goal it's heading for, in its own color. If it gets there, you lose that one.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_spot_pos()
 				if p == Vector2.ZERO:
@@ -82,7 +82,7 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Tap the framed door.",
 		},
 		{
-			"title": "It does not last",
+			"title": "It doesn't last",
 			"text": "A shut hatch springs open again after a few seconds, and the creature will try once more.\n\nSo keep shutting hatches in front of it.",
 			"spot": door,
 			"spot_radius": frame_r,
@@ -95,14 +95,14 @@ static func steps(level: Node, _game) -> Array:
 			# Reactive: the quiet win is the whole lesson, and so is the quiet loss.
 			"text": func():
 				if level.tutorial_creatures_stopped() > 0:
-					return "That is the job. Keep them wandering and they give up."
-				return "Keep it away from its spot. After about ten seconds it gives up — and that is your point.",
+					return "That's the job. Keep them wandering and they give up."
+				return "Keep it away from its spot. After about ten seconds it gives up, and you get the point.",
 			"await": {"event": "creature_stopped", "timeout": 300.0},
 			"hint_after": 25.0,
-			"hint": "Shut the door it is heading for. It only has to be kept busy, not destroyed.",
+			"hint": "Shut the door it's heading for. You only need to keep it busy.",
 		},
 		{
 			"title": "Ready",
-			"text": "More creatures, arriving faster, each with its own spot.\n\nThey also crash into each other and into hazards — which counts for you just as well.",
+			"text": "Later, more creatures come, and faster, each with its own spot.\n\nThey also crash into each other and into hazards, and that counts for you too.",
 		},
 	]

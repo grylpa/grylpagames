@@ -31,7 +31,7 @@ func _ready() -> void:
 
 	game.set_instructions("Moving Cards",
 		"Remember the cards and the order you need to click\n\n" +
-		"The cards will move — follow them!\n\n" +
+		"The cards will move. Follow them!\n\n" +
 		"Click the cards in the order shown")
 	if !game.shown_instructions:
 		game.show_instructions(self)
@@ -88,7 +88,7 @@ func _progress_line(passed: bool, need: int) -> String:
 		return "You need at least %d%% accuracy to pass to the next level." % need
 	if $Level.is_last_level():
 		return "Level passed."
-	return "Level passed — on to level %d." % ($Level.level_name() + 1)
+	return "Level passed. On to level %d." % ($Level.level_name() + 1)
 
 var _last_level_passed: bool = false
 

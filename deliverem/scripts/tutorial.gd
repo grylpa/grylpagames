@@ -39,7 +39,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			# One dock, not all of them: the full set spans the whole yard, so framing it says
 			# nothing and leaves the caption nowhere to sit clear of it.
-			"text": func(): return "Numbered docks sit around the edge of the yard — this is dock %d. The truck reaches them along the roads." % level.tutorial_a_dock_id(),
+			"text": func(): return "Numbered docks sit around the edge of the yard. This is dock %d. The truck gets to them along the roads." % level.tutorial_a_dock_id(),
 			"spot": func():
 				var p: Vector2 = level.tutorial_dock_pos(level.tutorial_a_dock_id())
 				if p == Vector2.ZERO:
@@ -48,7 +48,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot_radius": 55.0,
 		},
 		{
-			"text": "And this is your truck. It drives itself — you never steer it directly.",
+			"text": "And this is your truck. It drives itself. You never steer it directly.",
 			"spot": truck,
 			"spot_radius": 70.0,
 		},
@@ -59,11 +59,11 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				var a = level.tutorial_agent()
 				if a == null or a.body_ids.is_empty():
-					return "The dispatcher lists the docks to visit — and the order matters."
+					return "The dispatcher lists the docks to visit, and the order matters."
 				var ids: Array = []
 				for i in a.body_ids:
 					ids.append(str(i))
-				return "The dispatcher wants dock %s.\n\nIn that order. Only the packet at the front of the list can come off, so dock %s first — no other dock will take anything yet." % [
+				return "The dispatcher wants dock %s, in that order.\n\nOnly the packet at the front of the list can come off, so go to dock %s first. No other dock will take anything yet." % [
 					", then ".join(ids), str(a.body_ids[0])],
 			"spot": func(): return level.tutorial_dispatch_label(),
 			"spot_pad": 8.0,
@@ -71,7 +71,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_hide_dispatch(),
 			"title": func(): return "Dock %d first" % level.tutorial_next_dock_id(),
-			"text": "Pull up alongside it — you cannot drive in.",
+			"text": "Pull up alongside it. You can't drive in.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_next_dock_pos()
 				if p == Vector2.ZERO:
@@ -93,7 +93,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot_radius": 46.0,
 		},
 		{
-			"text": "Tap this door to turn it. Each tap cycles it: open, one diagonal, the other.\n\nThe truck is waiting — try it.",
+			"text": "Tap this door to turn it. Each tap cycles it: open, one diagonal, the other.\n\nThe truck is waiting, so try it.",
 			"spot": door,
 			"spot_radius": 46.0,
 			"await": {"event": "door_turned", "timeout": 120.0},
@@ -104,7 +104,7 @@ static func steps(level: Node, _game) -> Array:
 			"setup": func():
 				level.tutorial_unlock_door()
 				level.tutorial_hold_trucks = false,
-			"title": "That is the whole job",
+			"title": "Your job",
 			"text": func(): return "Set the doors so the truck is carried to dock %d, then to the next one on its list.\n\nIt never stops, so you can keep changing them as it drives." % level.tutorial_next_dock_id(),
 			"spot": truck,
 			"spot_radius": 60.0,
@@ -128,6 +128,6 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "Bigger yards, more packets — and more than one truck at a time, each with its own list.",
+			"text": "Later levels have bigger yards and more packets, and more than one truck at a time, each with its own list.",
 		},
 	]

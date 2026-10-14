@@ -33,13 +33,13 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Colored balls fall from the top.\n\nEvery ball belongs in the basket of its own color.",
 		},
 		{
-			"text": "These are the baskets — one per color, down the sides.",
+			"text": "These are the baskets, one for each color, down the sides.",
 			"spot": func(): return level.tutorial_all_baskets_rect(),
 			"spot_pad": 6.0,
 		},
 		{
 			"title": "Your tool",
-			"text": "This is the red tool. There is one for each color.\n\nIt pushes red balls, and only red balls — every other color falls straight through it.",
+			"text": "This is the red tool. There's one for each color.\n\nIt pushes red balls and nothing else. Every other color falls straight through it.",
 			"spot": func(): return level.tutorial_tool_rect(RED),
 			"spot_pad": 10.0,
 		},
@@ -57,7 +57,7 @@ static func steps(level: Node, _game) -> Array:
 				level.tutorial_release_drag()
 				level.tutorial_spawn_ball(RED),
 			"title": "Here it comes",
-			"text": "A red ball.\n\nIt falls slowly — you have time.",
+			"text": "A red ball.\n\nIt falls slowly, so you have time.",
 			"spot": ball_spot,
 			"spot_radius": 60.0,
 		},
@@ -81,13 +81,13 @@ static func steps(level: Node, _game) -> Array:
 			"setup": func():
 				level.tutorial_release_drag()
 				level.tutorial_spawn_ball(BLUE),
-			"text": "A blue ball. The red tool cannot touch it at all.\n\nUse the blue tool, and put it away in the blue basket.",
+			"text": "A blue ball. The red tool can't touch it at all.\n\nUse the blue tool, and put it away in the blue basket.",
 			"spot": func(): return level.tutorial_tool_rect(BLUE),
 			"spot_pad": 10.0,
 			"await": {"event": "ball_scored", "timeout": 180.0},
 			"tick": func(): level.tutorial_ensure_ball(BLUE),
 			"hint_after": 15.0,
-			"hint": "The blue tool, by its ring — the red one goes right through this ball.",
+			"hint": "Use the blue tool, by its ring. The red one goes right through this ball.",
 		},
 		{
 			# No spotlight. It framed the strip of floor a ball is lost through — which is empty

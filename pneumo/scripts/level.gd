@@ -557,7 +557,7 @@ func level_is_done(didwin: bool):
 func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need to deliver at least %d capsules to pass to the next level." % need
-	return "Level passed — on to level %d." % (level + 1)
+	return "Level passed. On to level %d." % (level + 1)
 
 func increase_difficulty(increase=true):
 	if game == null:

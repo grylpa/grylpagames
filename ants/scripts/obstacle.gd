@@ -18,7 +18,7 @@ const NAMES: Dictionary = {Kind.STONE: "Stone", Kind.TWIG: "Twig", Kind.WATER: "
 # One line each, for the tooltip a long press opens.
 const TIPS: Dictionary = {
 	Kind.STONE: "A rock. They must walk around it.\nPick it up and move it as the trail shifts.",
-	Kind.TWIG: "A long branch, laid ACROSS the trail\nwherever you drop it. A proper wall.",
+	Kind.TWIG: "A long branch. It lands ACROSS the trail\nwherever you drop it, like a wall.",
 	Kind.WATER: "A pool they will not cross. It dries\nas you watch, and you cannot take it back.",
 	Kind.LURE: "Food you do not mind losing. They will\ncarry it home instead, and it costs you\nnothing. Runs out.",
 	Kind.CLOCHE: "A glass cover for a food pile. Drop it on\nthe food: they can only get in through its\none small opening, on the side you tap.",

@@ -27,7 +27,7 @@ func _ready() -> void:
 		"move DOWN during exhale.\n\n" +
 		"If you drift into the bank you'll walk on land\n" +
 		"until the channel comes back to you.\n\n" +
-		"No score — just breathe and relax.\n\n" +
+		"No score. Just breathe and relax.\n\n" +
 		"On desktop: press ↑ to inhale, press ↓ to exhale,\n" +
 		"release to hold.",
 		36 if MainGlobals.is_mobile() else 22)

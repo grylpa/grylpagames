@@ -45,7 +45,7 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "board_shown", "timeout": 60.0},
 		},
 		{
-			"text": "Here is a board. One picture on it appears twice — find it.",
+			"text": "Here's a board. One picture on it appears twice. Find it.",
 			"spot": grid_spot,
 			"spot_pad": 8.0,
 		},
@@ -66,8 +66,8 @@ static func steps(level: Node, _game) -> Array:
 			"title": "Picked up",
 			"text": func():
 				if level.tutorial_selection_is_pair():
-					return "That card is now held — it grew a little to show it.\n\nA second tap on the same card would put it back down."
-				return "That card is now held — it grew a little to show it.\n\nIt is not one of the matching pair, though.",
+					return "That card is now held. It grows a little to show it.\n\nA second tap on the same card would put it back down."
+				return "That card is now held. It grows a little to show it.\n\nIt isn't one of the matching pair, though.",
 			"spot": picked_spot,
 			"spot_pad": 6.0,
 		},
@@ -90,7 +90,7 @@ static func steps(level: Node, _game) -> Array:
 			"title": func(): return "That's it" if level.tutorial_last_was_right() else "Not that time",
 			"text": func():
 				if level.tutorial_last_was_right():
-					return "The faster you spot it, the more it is worth."
+					return "The faster you spot it, the more it's worth."
 				return "The right pair is shown in green. Both cards have to be the same picture.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_pair_rect()
@@ -111,6 +111,6 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "The grid grows as you go, and the pictures start looking alike.\n\nThe pair is never hidden — only harder to see.",
+			"text": "The grid grows as you go, and the pictures look more and more alike.",
 		},
 	]

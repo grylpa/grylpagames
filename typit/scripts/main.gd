@@ -20,8 +20,8 @@ func _ready() -> void:
 
 	game.set_instructions("Typit",
 		"Type the text shown on screen.\n\n" +
-		"Tap the on-screen keyboard — every tap is measured:\n" +
-		"where exactly you touched, how fast, how many mistakes.\n\n" +
+		"Type on the on-screen keyboard. The game measures\n" +
+		"your speed, your mistakes, and where on each key you tap.\n\n" +
 		"Press Done when you're finished.\n\n" +
 		"After the session: heat map, speed, accuracy.\n" +
 		"Stats screen shows charts and per-key analysis.\n\n" +

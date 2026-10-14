@@ -28,7 +28,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Sorting Robots",
-			"text": "Two belts, and a robot working each one. Every robot sorts by its own rule, and the robots cannot read.\n\nYou are the one who decides what they keep.",
+			"text": "There are two belts, with a robot working each one. Each belt has its own rule, but the robots can't read it.\n\nYou decide what they keep.",
 		},
 		{
 			"text": func(): return "The left belt asks: %s" % level.tutorial_rule_text(0),
@@ -48,8 +48,8 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "window_settled", "timeout": 45.0},
 		},
 		{
-			"title": "Its own belt's rule",
-			"text": func(): return "This one is on the %s belt, so the only question is: %s\n\nNot the other belt's rule — the item is judged where it sits." % [
+			"title": "Which rule",
+			"text": func(): return "This one is on the %s belt, so the question is: %s\n\nAlways use the rule of the belt the item is on." % [
 				level.tutorial_belt_name(level.tutorial_window_belt()),
 				level.tutorial_rule_text(level.tutorial_window_belt())],
 			"spot": window_spot,
@@ -57,7 +57,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"text": func(): return ("It matches, so it belongs here.\n\nSwipe RIGHT to pick it up."
 				if level.tutorial_window_truth()
-				else "It does not match, so it does not belong here.\n\nSwipe LEFT to leave it."),
+				else "It doesn't match, so it doesn't belong here.\n\nSwipe LEFT to leave it."),
 			"spot": window_spot,
 			"await": "judged",
 			"hint_after": 12.0,
@@ -71,7 +71,7 @@ static func steps(level: Node, _game) -> Array:
 			# promise made ahead of the game is one the tutorial should not be making. The player
 			# judges it for themselves; the staging only makes sure they meet both answers.
 			"setup": func() -> void: level.tutorial_want_truth = 0,
-			"text": "Another one. Judge it by the rule of the belt it is on.",
+			"text": "Another one. Judge it by the rule of the belt it's on.",
 			"await": {"event": "window_settled", "timeout": 60.0},
 		},
 		{
@@ -84,11 +84,11 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Right to pick up, left to leave.",
 		},
 		{
-			"title": "And then this happens",
+			"title": "The rules fade",
 			"setup": func() -> void:
 				level.tutorial_want_truth = -1
 				level.tutorial_hide_labels_now(),
-			"text": "The rules are gone.\n\nA few rounds into every level they fade out, and from then on you carry both of them in your head. That is the game.",
+			"text": "The rules are gone.\n\nA few rounds into every level they fade out, and from then on you have to remember both.",
 		},
 		{
 			"title": "Ready",

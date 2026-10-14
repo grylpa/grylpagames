@@ -35,23 +35,23 @@ static func steps(level: Node, _game) -> Array:
 	var gap_text: Callable = func():
 		var sec: float = level.tutorial_last_interval_sec()
 		if sec <= 0.0:
-			return "That is one interval measured."
+			return "That's one interval measured."
 		return "That gap was %.1f seconds.\n\nThe next one should be about the same." % sec
 
 	return [
 		{
 			"title": "Breathe",
-			"text": "This does not tell you how to breathe.\n\n"
+			"text": "This doesn't tell you how to breathe.\n\n"
 				+ "It measures how STEADY your own breathing is.",
 		},
 		{
-			"text": "Breathe however is comfortable. Slow or quick, it makes no difference here.",
+			"text": "Breathe at whatever pace feels comfortable. Slow or fast doesn't matter here.",
 		},
 		{
-			"text": "You mark each breath with one tap.\n\nAnywhere on the screen — there is nothing to aim at.",
+			"text": "You mark each breath with one tap.\n\nAny spot on the screen will do. There's nothing to aim at.",
 		},
 		{
-			"text": "The circle does not lead you.\n\nThe rhythm has to be yours.",
+			"text": "The circle doesn't set the pace.\n\nBreathe at your own rhythm.",
 			"spot": circle_spot,
 		},
 		{
@@ -61,13 +61,13 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Tap anywhere. On a keyboard, press SPACE.",
 		},
 		{
-			"text": "That is one breath counted.",
+			"text": "That's one breath counted.",
 			"spot": counter_spot,
 		},
 		{
-			"title": "The part that matters",
-			"text": "Every tap should land at the SAME moment in the breath — the end of each exhale.\n\n"
-				+ "What is measured is the gap between your taps,",
+			"title": "When to tap",
+			"text": "Each tap should come at the SAME moment in the breath: the end of the exhale.\n\n"
+				+ "What's measured is the gap between your taps,",
 		},
 		{
 			"text": "Again: breathe out fully, and tap exactly as it ends.",
@@ -86,7 +86,7 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "End of the exhale again.",
 		},
 		{
-			"title": "That is it",
+			"title": "That's it",
 			"text": "Keep going until the time runs out.\n\n"
 				+ "Then you get your rhythm, how steady it was, and any breaths you missed.",
 		},

@@ -48,7 +48,7 @@ func _ready() -> void:
 
 	game.set_instructions("Dino N-Back",
 		"Cards come one at a time. Say MATCH when the card in front of you is the same as " +
-		"the card N places back — not just one you have seen before." +
+		"the card N places back, not just any card you've seen before." +
 		"\n\n" +
 		"Each level says what N is and what counts as a match: the same shape/letter/digit, " +
 		"the same color, or both." +

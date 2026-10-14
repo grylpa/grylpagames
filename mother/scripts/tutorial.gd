@@ -51,7 +51,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Mother Snake",
-			"text": "The mother snake breathes, and you breathe with her.\n\nThat is the whole game.",
+			"text": "The mother snake breathes, and you breathe along with her.",
 			"keep_clear": heads_clear,
 		},
 		{
@@ -66,14 +66,14 @@ static func steps(level: Node, _game) -> Array:
 			# the same time is one thing too many — and with her on screen every attempt at a
 			# movement is also a failure to match her.
 			"setup": func(): level.tutorial_set_mother_visible(false),
-			"text": "Let us send her off for a minute, so you can get the hang of moving.",
+			"text": "She'll step away for a minute so you can get the hang of moving.",
 			"spot": child_spot,
 			"spot_radius": level.tutorial_head_radius(),
 			"spot_pad": 0.0,
 			"keep_clear": heads_clear,
 		},
 		{
-			"text": "The little one is you.\n\nSlide your finger anywhere on the screen to move it — you never have to touch the snake itself.",
+			"text": "The little one is you.\n\nSlide your finger anywhere on the screen to move it. You don't have to touch the snake itself.",
 			"spot": child_spot,
 			"spot_radius": level.tutorial_head_radius(),
 			"spot_pad": 0.0,
@@ -84,7 +84,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Breathe in, and take yourself up.",
 			"await": {"event": "moved_up", "timeout": 300.0},
 			"hint_after": 12.0,
-			"hint": "Slide upward and keep sliding — on a keyboard, hold the UP arrow.",
+			"hint": "Slide upward and keep sliding. On a keyboard, hold the UP arrow.",
 			"keep_clear": heads_clear,
 		},
 		{
@@ -92,29 +92,29 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Now breathe out, and go back down.",
 			"await": {"event": "moved_down", "timeout": 300.0},
 			"hint_after": 12.0,
-			"hint": "Slide downward and keep sliding — on a keyboard, hold the DOWN arrow.",
+			"hint": "Slide downward and keep sliding. On a keyboard, hold the DOWN arrow.",
 			"keep_clear": heads_clear,
 		},
 		{
 			# The third action, and the one nobody performs, because doing nothing does not feel
 			# like playing. It gets its own step for exactly that reason.
 			"setup": func(): level.tutorial_mark_move_baseline(),
-			"text": "And the third one: hold.\n\nStop moving, lift your finger off, and stay level for a moment.",
+			"text": "The last one is the hold.\n\nStop moving, lift your finger, and stay level for a moment.",
 			"await": {"event": "held", "timeout": 300.0},
 			"hint_after": 12.0,
-			"hint": "Let go of everything — a hold is done by doing nothing.",
+			"hint": "Let go of everything. To hold, just do nothing.",
 			"keep_clear": heads_clear,
 		},
 		{
 			"setup": func(): level.tutorial_set_mother_visible(true),
-			"text": "Up, down and hold. That is everything you can do.\n\nHere she is again.",
+			"text": "Up, down and hold. That's all there's to it.\n\nHere she is again.",
 			"spot": mother_spot,
 			"spot_radius": level.tutorial_head_radius(),
 			"spot_pad": 0.0,
 			"keep_clear": heads_clear,
 		},
 		{
-			"text": "In, hold, out, hold — and this is how long each one lasts, in seconds.",
+			"text": "In, hold, out, hold. This shows how long each one lasts, in seconds.",
 			"spot": func(): return level.tutorial_goal_label(),
 			"keep_clear": heads_clear,
 		},
@@ -129,7 +129,7 @@ static func steps(level: Node, _game) -> Array:
 			# them on a step they cannot pass.
 			"text": func():
 				if not level.tutorial_is_with_mother():
-					return "Now go with her.\n\nGet level with her first — then stay there."
+					return "Now go with her.\n\nGet level with her first, then stay there."
 				var pct: int = int(level.tutorial_follow_progress() * 100.0)
 				return "Now go with her.\n\nTogether so far: %d%%" % pct,
 			"await": {"event": "cycle_followed", "timeout": 30.0},
@@ -141,7 +141,7 @@ static func steps(level: Node, _game) -> Array:
 			"title": "Ready",
 			"text": func():
 				if level.tutorial_is_with_mother():
-					return "That is it — breathe with her until the time runs out.\n\nYour score is how closely your rhythm matched hers, and how quickly you turned when she did."
+					return "That's it. Breathe with her until the time runs out.\n\nYour score is how closely your rhythm matched hers, and how quickly you turned when she did."
 				return "It takes a few breaths to settle into. Keep at it until the time runs out.\n\nYour score is how closely your rhythm matched hers, and how quickly you turned when she did.",
 			"keep_clear": heads_clear,
 		},

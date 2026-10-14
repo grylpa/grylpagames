@@ -36,14 +36,14 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Pneumo",
-			"text": "Capsules ride the pneumatic tubes.\n\nEach one belongs at a particular receiver, and it is your job to get it there.",
+			"text": "Capsules ride the pneumatic tubes.\n\nEach one belongs at a particular receiver, and it's your job to get it there.",
 		},
 		{
 			"await": {"event": "capsule_sent", "timeout": 60.0},
 		},
 		{
 			"setup": func(): level.tutorial_hold_new_capsules(true),
-			"text": "Here is one. It travels by itself — you never push it along.",
+			"text": "Here's one. It travels by itself. You never push it along.",
 			"spot": capsule,
 			"spot_radius": frame_r,
 			"spot_pad": 0.0,
@@ -63,7 +63,7 @@ static func steps(level: Node, _game) -> Array:
 			# capsule would glide off the very door being pointed at while the player looks for it.
 			"setup": func(): level.tutorial_freeze_capsules(true),
 			"title": "The doors",
-			"text": "Doors sit at the junctions, and a turned one sends a capsule off sideways.\n\nThey are the only thing you control.",
+			"text": "Doors sit at the junctions, and a turned one sends a capsule off sideways.\n\nThe doors are all you control.",
 			"spot": door,
 			"spot_radius": frame_r,
 			"spot_pad": 0.0,
@@ -86,17 +86,17 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				if level.tutorial_has_capsule():
 					return "Now set the doors so it reaches its own receiver."
-				return "Both capsules were destroyed. They will be sent again — that is what a collision costs.",
+				return "Both capsules were destroyed, and they'll be sent again. That's what a collision costs.",
 			"await": {"event": "delivered", "timeout": 300.0},
 			"hint_after": 25.0,
 			"hint": "Turn the doors ahead of it. It delivers by passing alongside its receiver.",
 		},
 		{
-			"title": "Two at once",
-			"text": "More capsules follow, and they share the tubes.\n\nLet two touch and both are destroyed — so the doors have to keep them apart as well as on course.",
+			"title": "Share the tubes",
+			"text": "More capsules follow, and they share the tubes.\n\nIf two touch, both are destroyed, so use the doors to keep them apart as well as on course.",
 		},
 		{
 			"title": "Ready",
-			"text": "Longer runs, more capsules, and less time between them.",
+			"text": "Later levels have longer runs and more capsules, with less time between them.",
 		},
 	]

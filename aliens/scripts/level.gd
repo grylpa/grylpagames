@@ -2208,9 +2208,9 @@ func new_game(from_scratch: bool = true) -> void:
 	if n_deny > 0:
 		body += "\nA \"NOT ...\" pass boards everyone EXCEPT that.\n"
 	if gate_change_ms > 0.0 and num_areas > 1:
-		body += "\nGATE CHANGE — the passes move between gates.\n"
+		body += "\nGATE CHANGE. The passes move between gates.\n"
 	if priority_every_ms > 0.0:
-		body += "\nNOW BOARDING — the ringed alien must be dealt with before its ring runs out.\n"
+		body += "\nNOW BOARDING. Deal with the ringed alien before its ring runs out.\n"
 	body += "\nGates: %d\nPass comes down after: %s\nTime: %d s" % [num_areas, hide_txt, level_time_sec]
 	if game.tutorial_mode:
 		# The tutorial teaches all of this by doing it; the popup would make the player dismiss
@@ -2423,7 +2423,7 @@ func _progress_line(passed: bool, need: int) -> String:
 	var nxt: int = AliensG.peek_next_level_id()
 	if nxt <= 0 or nxt == current_level_id:
 		return "Level passed."
-	return "Level passed — on to level %s." % AliensG.level_name_for(nxt)
+	return "Level passed. On to level %s." % AliensG.level_name_for(nxt)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

@@ -1608,7 +1608,7 @@ func result_text(didwin: bool) -> String:
 	lines.append("")
 	if didwin:
 		if current_level_id >= LighthouseLevelConfig.max_level():
-			lines.append("Level passed. This is the last level, so it comes round again.")
+			lines.append("Level passed. This is the last level, so you'll play it again.")
 		else:
 			lines.append("Level passed. On to level %d." % LighthouseLevelConfig.next_id(current_level_id))
 	else:

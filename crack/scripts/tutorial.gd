@@ -77,7 +77,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"title": "That was 3 sequences",
 			"text": "A whole round is that, over and over, until the time runs out.\n\n"
-				+ "Here is what you get at the end of one.",
+				+ "Here's what you get at the end of one.",
 		},
 		{
 			"title": "The summary",
@@ -88,6 +88,6 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "The menu has other patterns, and an Active mode that just records your own.",
+			"text": "The menu has other patterns, and an Active mode where you breathe your own pattern.",
 		},
 	]

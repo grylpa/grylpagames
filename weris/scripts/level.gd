@@ -428,4 +428,4 @@ func mean_time_to_answer_ms() -> int:
 func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
-	return "Level passed — on to level %d." % (level + 1)
+	return "Level passed. On to level %d." % (level + 1)

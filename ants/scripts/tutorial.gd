@@ -42,7 +42,7 @@ static func steps(level: Node, game) -> Array:
 			"spot_pad": 8.0,
 		},
 		{
-			"text": "The food they are after.",
+			"text": "The food they're after.",
 			"spot": func(): return level.tutorial_pile_rect(),
 			"spot_pad": 8.0,
 		},
@@ -62,7 +62,7 @@ static func steps(level: Node, game) -> Array:
 			"await": {"event": "crumb_through", "timeout": 75.0},
 		},
 		{
-			"text": "Every crumb home costs you one.\nRun out and you lose. Outlast the clock and you win.",
+			"text": "Every crumb home costs you one.\nRun out and you lose. Last until the clock runs out and you win.",
 		},
 		{
 			"title": "Your tools",
@@ -76,14 +76,14 @@ static func steps(level: Node, game) -> Array:
 			"text": "HOLD a tool to read what it does.",
 			"await": {"event": "tip_shown", "timeout": 60.0},
 			"hint_after": 8.0,
-			"hint": "Hold your finger on one of them, do not just tap it.",
+			"hint": "Hold your finger on one of them, don't just tap it.",
 		},
 		{
 			# The menu is OPENED for them and the one box being talked about is lit. A step that
 			# names a tool and then leaves the player to find it among eight small pictures is
 			# teaching the ring, not the twig -- and the ring was taught two steps ago.
 			"setup": func(): level.tutorial_open_menu(),
-			"text": "That is the twig. Tap it and it lands across their road.",
+			"text": "That's the twig. Tap it and it lands across their road.",
 			"spot": func(): return level.tutorial_menu_cell_of(AntObstacle.Kind.TWIG),
 			"spot_pad": 6.0,
 			"await": {"event": "obstacle_placed", "timeout": 90.0},
@@ -91,7 +91,7 @@ static func steps(level: Node, game) -> Array:
 			"hint": "Tap the twig.",
 		},
 		{
-			"title": "They will find a way round",
+			"title": "A new road",
 			"text": "Nothing stops them for good. Watch a new road appear past it.",
 			# A narrow column in the TOP RIGHT. The nest is top left and the food bottom right, so
 			# the whole story of these steps happens along that diagonal -- a full-width caption, or
@@ -142,7 +142,7 @@ static func steps(level: Node, game) -> Array:
 		{
 			"title": "Bait",
 			"setup": func(): level.tutorial_open_menu(),
-			"text": "This is bait: food you do not mind losing.\nDrop some on their road.",
+			"text": "This is bait: food you don't mind losing.\nDrop some on their road.",
 			"spot": func(): return level.tutorial_menu_cell_of(AntObstacle.Kind.LURE),
 			"spot_pad": 6.0,
 			"await": {"event": "bait_placed", "timeout": 90.0},
@@ -150,7 +150,7 @@ static func steps(level: Node, game) -> Array:
 			"hint": "Tap the orange pile.",
 		},
 		{
-			"text": "They will carry that home instead, for free.\nEvery such trip is one not spent on your pile.",
+			"text": "They'll carry that home instead, and it costs you nothing.\nEvery trip for the bait is a trip they don't make to your food.",
 			# A narrow column in the TOP RIGHT. The nest is top left and the food bottom right, so
 			# the whole story of these steps happens along that diagonal -- a full-width caption, or
 			# even a centred side one, lies straight across the thing the player is being told to

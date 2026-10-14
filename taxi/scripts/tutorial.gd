@@ -102,11 +102,11 @@ static func steps(level: Node, game, main: Node) -> Array:
 	return [
 		{
 			"title": "Taxi",
-			"text": func(): return "You run the station. This is your money, not points — you start with $%d and the game ends if it reaches zero." % game.initial_score,
+			"text": func(): return "You run the station. This is your money, not points. You start with $%d, and the game ends if it reaches zero." % game.initial_score,
 			"spot": money_spot,
 		},
 		{
-			"text": "Customers pay when they arrive. Everything else — every tile driven, every minute idling, every new taxi — costs.",
+			"text": "Customers pay when they arrive. Everything else costs money: every tile you drive, every minute a taxi idles, and every new taxi.",
 		},
 		{
 			"setup": lock_taxi,
@@ -140,16 +140,16 @@ static func steps(level: Node, game, main: Node) -> Array:
 			"hint": func():
 				var t = level.tutorial_assigned_taxi()
 				if t == null:
-					return "Nothing to do — watch it work."
-				return "Nothing to do — watch it work.\n\n" + level.tutorial_taxi_state(t),
+					return "Nothing to do. Just watch."
+				return "Nothing to do. Just watch.\n\n" + level.tutorial_taxi_state(t),
 		},
 		{
 			"tick": unblock,
-			"text": "Now it takes them where they are going. They pay on arrival.",
+			"text": "Now it takes them where they're going. They pay on arrival.",
 			"spot": dest_spot,
 			"await": "delivered",
 			"hint_after": 25.0,
-			"hint": "Still nothing to do — the fare finishes itself.",
+			"hint": "Still nothing to do. The ride finishes by itself.",
 		},
 		{
 			"title": "Fuel",
@@ -165,15 +165,15 @@ static func steps(level: Node, game, main: Node) -> Array:
 			"hint": "Tap the taxi first, then the gas station.",
 		},
 		{
-			"text": "It drives over and fills up. A taxi turns green while it is at the pump, and filling costs money too.",
+			"text": "It drives over and fills up. A taxi turns green while it's at the pump, and filling costs money too.",
 			"spot": taxi_spot,
 			"await": {"event": "gas_filled", "timeout": 180.0},
 			"hint_after": 30.0,
-			"hint": "Nothing to do — it fills itself.",
+			"hint": "Nothing to do. It fills up by itself.",
 		},
 		{
-			"title": "Two more things",
-			"text": "Customers give up if they wait too long, so do not leave one waiting.\n\nAnd taxis cannot drive through each other: if yours is stuck behind another, tap the one in front and send it somewhere out of the way.",
+			"title": "Keep it moving",
+			"text": "Customers give up if they wait too long, so don't leave one waiting.\n\nAnd taxis can't drive through each other: if yours is stuck behind another, tap the one in front and send it somewhere out of the way.",
 		},
 		{
 			"title": "Ready",

@@ -33,7 +33,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Apprentice",
-			"text": "A robot sorts things coming down a conveyor belt.\n\nIt follows one secret rule, and never tells you what it is. Working that out is the whole game.",
+			"text": "A robot sorts things coming down a conveyor belt.\n\nIt follows a secret rule, and your job is to work out what it is.",
 		},
 		{
 			"text": "This is the belt. Items ride down it, and the robot judges them one at a time.",
@@ -49,8 +49,8 @@ static func steps(level: Node, _game) -> Array:
 			"spot_pad": 4.0,
 		},
 		{
-			"title": "Two things, not one",
-			"text": "Look closely: every item is a PAIR.\n\nThe rule only cares about one of the two. Which one is part of the puzzle.",
+			"title": "Pairs",
+			"text": "Look closely: every item is a PAIR.\n\nThe rule only looks at one of the two, and you have to work out which.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_an_item_rect()
 				if r.size.x <= 0.0:
@@ -75,7 +75,7 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "marked_yes", "timeout": 60.0},
 		},
 		{
-			"title": "Yes — a match",
+			"title": "A match",
 			"text": "A ✓ means this item obeys the secret rule, and the robot takes it off the belt.\n\nThe answer always appears before the robot moves.",
 			"spot": window_spot,
 			"spot_pad": 4.0,
@@ -86,19 +86,19 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "marked_no", "timeout": 60.0},
 		},
 		{
-			"title": "No — not a match",
-			"text": "A ✗ means this one breaks the rule. The robot leaves it, and it rides on past.\n\nBoth answers are evidence. You need some of each.",
+			"title": "Not a match",
+			"text": "A ✗ means this one breaks the rule. The robot leaves it, and it rides on past.\n\nYou learn from both kinds, so watch for each.",
 			"spot": window_spot,
 			"spot_pad": 4.0,
 		},
 		{
 			"setup": func(): level.tutorial_force_truth = -1,
 			"title": "Now watch",
-			"text": "A few more will go past. Compare what it takes against what it leaves — the difference IS the rule.",
+			"text": "A few more will go past. Compare what it takes with what it leaves. Whatever sets them apart is the rule.",
 			"await": {"event": "question_shown", "timeout": 180.0},
 		},
 		{
-			"title": "So — what was it?",
+			"title": "So, what was it?",
 			"text": "Pick the rule the robot was using.\n\nGuessing wrong costs a little, so think about what you saw.",
 			"await": {"event": "question_answered", "timeout": 180.0},
 			"hint_after": 20.0,
@@ -106,6 +106,6 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "Later levels run two belts at once, each with its own secret rule — and the rules change every round.",
+			"text": "Later levels run two belts at once, each with its own secret rule, and the rules change every round.",
 		},
 	]

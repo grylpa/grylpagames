@@ -32,7 +32,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Pinpoint",
-			"text": "Two things flash, one after the other. You need both of them, and both are gone before you answer.",
+			"text": "Two things flash, one after the other, and both are gone before you answer. You need to remember both.",
 		},
 		{
 			# The round is held here. Waiting for `model_shown` alone made this caption flash past:
@@ -48,8 +48,8 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "model_shown", "timeout": 30.0},
 		},
 		{
-			"title": "One: the shape",
-			"text": "That is the shape to remember.",
+			"title": "The shape",
+			"text": "That's the shape to remember.",
 			"spot": model_spot,
 			"spot_radius": 60.0,
 		},
@@ -58,8 +58,8 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "periph_shown", "timeout": 30.0},
 		},
 		{
-			"title": "Two: the place",
-			"text": "There it is. Only WHERE it flashed matters — its own shape and color are random and mean nothing.",
+			"title": "The place",
+			"text": "There it is. Only WHERE it flashed matters. Its shape and color are random.",
 			"spot": periph_spot,
 			"spot_radius": 55.0,
 		},
@@ -69,7 +69,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "The catch",
-			"text": "The shape you remembered also sits in directions the dot never flashed — like this one.\n\nSo the shape alone will not do it.",
+			"text": "The shape you remembered also shows up in directions where the dot didn't flash, like this one.\n\nSo the shape alone isn't enough.",
 			"spot": decoy_spot,
 			"spot_radius": 55.0,
 		},
@@ -83,11 +83,11 @@ static func steps(level: Node, _game) -> Array:
 			"spot_radius": 55.0,
 			"await": "answered_right",
 			"hint_after": 12.0,
-			"hint": "Only that one counts here — anything else is ignored.",
+			"hint": "Only that one counts here. Anything else is ignored.",
 		},
 		{
 			"setup": func() -> void: level.tutorial_only_correct_taps = false,
 			"title": "Ready",
-			"text": "In play nothing is framed, and a near miss still scores: the right direction with the wrong shape, or the right shape in the wrong direction, is worth a little.\n\nRounds keep coming. Each level flashes both cues for less time, adds more choices at each direction, and later colors the shapes in two halves.",
+			"text": "In a real game nothing is framed, and a near miss still scores a little: the right direction with the wrong shape, or the right shape in the wrong direction.\n\nEach level flashes both for less time and adds more choices in each direction. Later, the shapes are colored in two halves.",
 		},
 	]

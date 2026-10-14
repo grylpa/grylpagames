@@ -46,7 +46,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Breathe at your own pace.\n\nYour finger follows your breath.",
 		},
 		{
-			"text": "Touch the screen only while you are actually breathing in or out.",
+			"text": "Touch the screen only while you're actually breathing in or out.",
 		},
 		{
 			"text": "Breathe IN, sliding your finger UP all the way.",
@@ -59,7 +59,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot": counter_spot,
 		},
 		{
-			"text": "Finger down again, and breathe OUT — sliding all the way DOWN.",
+			"text": "Finger down again, and breathe OUT, sliding all the way DOWN.",
 			"await": {"event": "reached_bottom", "timeout": 120.0},
 			"hint_after": 12.0,
 			"hint": "Keep sliding down without lifting. On a keyboard, hold the DOWN arrow.",

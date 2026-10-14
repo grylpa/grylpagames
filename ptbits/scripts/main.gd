@@ -39,7 +39,7 @@ func _ready() -> void:
 	game.set_instructions("Nudge",
 		"Colored balls fall from the top.\n" +
 		"Drag a tool with your finger or mouse.\n" +
-		"A tool only pushes balls of its own color —\n" +
+		"A tool only pushes balls of its own color,\n" +
 		"other colors pass right through it.\n" +
 		"Push each ball up and over into the\n" +
 		"matching-color basket on the side.\n" +

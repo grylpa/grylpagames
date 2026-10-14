@@ -55,7 +55,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": "The roof leaks.\n\nKeep the water off your things.",
 		},
 		{
-			"text": "Draw a route with your finger or mouse and you walk it — like this.\n\nArrow keys work too: one sets you going that way until something stops you.",
+			"text": "Draw a route with your finger or mouse and you walk along it, like this.\n\nThe arrow keys work too. Press one and you keep going that way until something stops you.",
 			"spot": player_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,
@@ -72,8 +72,8 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "leak_started", "timeout": 40.0},
 		},
 		{
-			"title": "You must be beside it",
-			"text": "Tapping a leak from across the room does nothing at all — no message, no sound.\n\nWalk to it, tap it, and pick something to catch the water.",
+			"title": "Get close first",
+			"text": "Tapping a leak from across the room does nothing.\n\nWalk over to it, tap it, and pick something to catch the water.",
 			"await": {"event": "tool_placed", "timeout": 120.0},
 			"hint_after": 20.0,
 			"hint": "Draw a route ending right next to the water, THEN tap it.",
@@ -90,10 +90,10 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Buckets fill",
-			"text": "A full one stops catching, and the water running over it costs you %d %s.\n\nYou tap it, carry it to a drain, and empty it there: +%d if it was more than half full." % [level.OVERFLOW_POINTS, "point" if level.OVERFLOW_POINTS == 1 else "points", level.DRAIN_POINTS],
+			"text": "A full one stops catching, and the water that spills over costs you %d %s.\n\nYou tap it, carry it to a drain and empty it there, and get +%d if it was more than half full." % [level.OVERFLOW_POINTS, "point" if level.OVERFLOW_POINTS == 1 else "points", level.DRAIN_POINTS],
 		},
 		{
 			"title": "Ready",
-			"text": "Get through the storm for +%d, plus a point for every percent your wettest room stayed under %d%%.\n\nKeep moving, and keep ahead of the leaks." % [level.WIN_POINTS, line_pct],
+			"text": "Get through the storm for +%d, plus a point for every percent your wettest room stayed under %d%%.\n\nKeep moving and stay ahead of the leaks." % [level.WIN_POINTS, line_pct],
 		},
 	]

@@ -232,7 +232,7 @@ func _on_reset_scores_confirmed() -> void:
 	BE.delete_game_scores(game.file_names_prefix, Callable(self, "_on_cloud_reset_done"))
 
 func _on_cloud_reset_done(ok: bool) -> void:
-	var msg: String = "Scores reset." if ok else "Local scores cleared.\n(Cloud delete failed — check connection.)"
+	var msg: String = "Scores reset." if ok else "Local scores cleared.\n(Cloud delete failed. Check your connection.)"
 	game.show_yesno_dlg(self, "Reset Scores", msg, "OK", "", Callable(), Callable())
 
 func _on_continue_game_button_pressed() -> void:

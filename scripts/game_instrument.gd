@@ -100,7 +100,7 @@ static func chart_metric_name(folder: String) -> String:
 const METRIC_LABELS: Dictionary = {
 	"creatures_stopped": "Creatures stopped", "creatures_parked": "Creatures that got through",
 	"door_actions": "Door changes", "deliveries": "Delivered", "collisions": "Collisions",
-	"jobs_assigned": "Jobs assigned", "jobs_cancelled": "Jobs cancelled",
+	"jobs_assigned": "Jobs assigned", "jobs_canceled": "Jobs canceled",
 	"span": "Longest order held", "rounds_right": "Rounds correct", "rounds_wrong": "Rounds wrong",
 	"cycles": "Cycles completed", "no_answer": "Left unanswered",
 	# Both say what the number IS, not just what it is called. "Lapses" and "spread" are the terms
@@ -116,11 +116,11 @@ const METRIC_LABELS: Dictionary = {
 	"missed_breaths": "Out of rhythm", "num_reversals": "Cycles", "missed_cycles": "Out of rhythm",
 	"session_ps": "Following the path (%)", "react_ms": "Reaction (ms)",
 	"cycles_opened": "Safe turns", "speed_cpm": "Typing speed (cpm)",
-	"mistake_rate": "Mistakes (%)", "dist_pct": "Off key centre (%)",
+	"mistake_rate": "Mistakes (%)", "dist_pct": "Off key center (%)",
 	# Ants. Without these its readout listed nothing and fell through to "play a session" under
 	# twenty sessions' worth of graphs -- the same trap the breathing games fell into above.
 	"crumbs_through": "Crumbs that got past you", "ants_killed": "Ants crushed",
-	"obstacles_moved": "Obstacles lifted and re-used",
+	"obstacles_moved": "Obstacles lifted and reused",
 	"placements_wasted": "Placed where nothing was walking",
 	"roads_missed": "New roads never answered", "roads_unseen": "New roads never looked at",
 	"react_mean": "Typical time to act (ms)",
@@ -169,7 +169,7 @@ static func chart_for(folder: String) -> Control:
 # games a "round" is a whole level, so its length is the level's design. Those games keep Speed
 # and Accuracy, which survive uneven rounds, and lose the spread.
 const EVEN_ROUNDS: Array = [
-	# one quick judgement per item, repeated
+	# one quick judgment per item, repeated
 	"aliens", "sortingrobots", "bucketmadness", "whack", "ptbits",
 	# one flash, one answer
 	"didi", "ddooo", "pop", "ooo", "polkadots",
@@ -206,14 +206,14 @@ const SUMMARY_ROWS: Dictionary = {
 	# The games that keep counts rather than answers. Named for what the number IS, since a bare
 	# "Overflows" beside a sparkline says nothing about which way is good.
 	"span": "Longest order held",
-	"jobs_cancelled": "Changes of plan (jobs assigned then cancelled)",
+	"jobs_canceled": "Changes of plan (jobs assigned then canceled)",
 	"collisions": "Collisions",
 	"creatures_stopped": "Turned back (creatures you stopped)",
 	# Ants is an interdiction game: the colony is trying to carry food home and the player is
 	# trying to stop it. Both numbers are direct consequences of where things were put.
 	"crumbs_through": "Crumbs that got past you",
 	"ants_killed": "Ants crushed (they are not the target)",
-	"obstacles_moved": "Obstacles lifted and re-used",
+	"obstacles_moved": "Obstacles lifted and reused",
 	"placements_wasted": "Placed where nothing was walking",
 	"roads_missed": "New roads never answered",
 	"roads_unseen": "New roads never even looked at",
@@ -471,7 +471,7 @@ static func _body_for(folder: String) -> Control:
 		var readout: Control = _summary(gu)
 		if readout != null:
 			return readout
-		return _waiting("Nothing this game counts has a place in this readout yet.")
+		return _waiting("There's nothing from this game to show here yet.")
 	if ROUND_GAMES.has(folder):
 		var rc: Control = _round_curves(gu, str(ROUND_GAMES[folder]))
 		return rc if rc != null else _waiting("Finish a round and its time shows here.")
@@ -510,11 +510,11 @@ static func _sessions_needed_text(n: int) -> String:
 static func _variety_needed_text(folder: String) -> String:
 	match folder:
 		"dino":
-			return ("This compares how well you recognise a card against how long ago you saw it,\n"
+			return ("This compares how well you recognize a card against how long ago you saw it,\n"
 				+ "so it needs more rounds where cards come back after different gaps.")
 		"weris":
 			return ("This compares how long you take against how big the crowd is, so it needs\n"
-				+ "rounds at more than one crowd size — the crowd grows as you reach new levels.")
+				+ "rounds at more than one crowd size. The crowd grows as you reach new levels.")
 		"polkadots":
 			return ("This compares how you do with the options on screen against from memory,\n"
 				+ "so it needs a few more rounds of each.")
@@ -697,7 +697,7 @@ static func _visibility_split(trials: Array) -> Control:
 		if int(total[hid2]) < MIN_PER_BUCKET:
 			# Honest about which half is missing, and says how to fill it. A row of zeroes would
 			# read as "you get everything wrong from memory".
-			box.add_child(_note("From memory: not yet — the choices only disappear from level 4."
+			box.add_child(_note("From memory: not yet. The choices only disappear from level 4."
 				if hid2 else "With the choices on screen: not yet."))
 			continue
 		box.add_child(_accuracy_row(
@@ -833,8 +833,8 @@ static func _direction_rose(trials: Array, with_loss: bool) -> Control:
 	box.add_child(rose)
 	var note: String = rose.imbalance_note()
 	box.add_child(_note(note if note != ""
-		else "Nothing here stands out: no direction is further from your own average than "
-		+ "chance would explain."))
+		else "Nothing stands out here. No direction is further from your average than "
+		+ "you'd expect by chance."))
 	if with_loss and lost_shape + lost_place > 0:
 		box.add_child(_rule())
 		box.add_child(_accuracy_row("Kept the place, lost the shape",
@@ -842,8 +842,8 @@ static func _direction_rose(trials: Array, with_loss: bool) -> Control:
 		box.add_child(_note("Of the rounds you got wrong where one half survived, this is how "
 			+ "often it was the shape that went rather than the direction."))
 	return _captioned(box,
-		"Where the dot flashed, and how you did there. Every direction asks the same question, "
-		+ "so a weak corner is about the corner and not about the round.")
+		"Where the dot flashed, and how you did there. The task is the same in every direction, "
+		+ "so a weak spot means a direction you tend to miss.")
 
 # APPRENTICE — accuracy per KIND of rule.
 #
@@ -1016,13 +1016,13 @@ static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols:
 			# was played at — so a level you have not touched lately has a grid and no breakdown
 			# under it, and a silent gap reads as a bug rather than as an answer.
 			extra.add_child(_rule())
-			extra.add_child(_note("No per-round detail for this level yet — it is kept for your "
-				+ "last %d sessions, and none of them was at this one."
+			extra.add_child(_note("No per-round detail for this level yet. It's kept for your "
+				+ "last %d sessions, and none of them were at this level."
 				% GenericGameUtil.KEEP_TRIAL_SESSIONS))
 		var split: Control = _memory_split(these,
 			["While the rule was on screen", "After it faded, from memory"],
 			"The rule is written up until part-way through a level and then goes away, so the "
-			+ "same judgement has to come from memory. This is how you did on each kind of round.")
+			+ "same judgment has to come from memory. This is how you did on each kind of round.")
 		if split != null:
 			extra.add_child(_rule())
 			extra.add_child(split)
@@ -1065,7 +1065,7 @@ static func _answer_panel(gu: GenericGameUtil, fields: Array, rows: Array, cols:
 
 # BEFORE THE LABELS FADE, AGAINST AFTER. Both sorting games hide the rule part-way through a
 # level, and that is the difficulty curve: up to then the rule is on screen to read, after it the
-# same judgement has to come from memory. One accuracy for the session averages the two together
+# same judgment has to come from memory. One accuracy for the session averages the two together
 # and cannot show which half is slipping.
 #
 # Generic over the `hidden` flag rather than Polka Dots' `_visibility_split`, which reads a
@@ -1212,7 +1212,7 @@ static func task_label(key: String) -> String:
 static func _summary(gu: GenericGameUtil) -> Control:
 	var sessions: Array = gu.read_sessions()
 	if sessions.is_empty():
-		return _waiting("Play a session and what this game keeps track of will appear here.")
+		return _waiting("Play a session and your results will appear here.")
 	var totals: Dictionary = {}
 	var n: int = 0
 	for i in range(maxi(0, sessions.size() - 5), sessions.size()):

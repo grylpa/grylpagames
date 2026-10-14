@@ -27,7 +27,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_freeze_board(true),
 			"title": "There it is",
-			"text": "That is the one to remember — its shape and its color.\n\nNote WHERE it appeared, too: it could have been anywhere around the rim.",
+			"text": "That's the one to remember: its shape and its color.\n\nNotice WHERE it appeared, too. It could have been anywhere around the edge.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_model_pos()
 				if p == Vector2.ZERO:
@@ -48,7 +48,7 @@ static func steps(level: Node, _game) -> Array:
 			# of the screen. A frame that size names nothing and leaves the caption nowhere to sit
 			# that is not on top of it. The words carry this step instead.
 			"title": "Somewhere else",
-			"text": "The candidates have appeared around the board, never where the flash was — that is the point of the game.\n\nOne of them matches it.",
+			"text": "The candidates show up around the board, never where the flash was.\n\nOne of them matches it.",
 		},
 		{
 			# Reactive: a wrong pick clears the board and starts a fresh round, which is confusing
@@ -56,7 +56,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				if level.tutorial_has_lineup():
 					return "Tap the one that matches."
-				return "That was not it — the board has reset. Watch for the next flash and try again.",
+				return "That wasn't it. The board has reset, so watch for the next flash and try again.",
 			# Frozen while there is something to choose FROM — at level 1 the lineup expires in
 			# two seconds — but released the moment the board is empty, because a wrong pick clears
 			# it and the next model can only arrive if the board is running. A static freeze here
@@ -70,6 +70,6 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_freeze_board(false),
 			"title": "Ready",
-			"text": "Your score starts at 100 and the clock is always running — reach zero and the run is over.\n\nThe flash gets shorter, and the candidates get more alike.",
+			"text": "Your score starts at 100 and the clock is always running. If it reaches zero, the run is over.\n\nAs you go, the flash gets shorter and the candidates look more alike.",
 		},
 	]

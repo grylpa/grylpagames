@@ -34,7 +34,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Dino N-Back",
-			"text": "Cards come by one at a time.\n\nFor each one you answer a single question: is it the same as the card you saw a fixed number of steps ago?",
+			"text": "Cards come one at a time.\n\nFor each one, decide: is it the same as the card a set number of places back?",
 		},
 		{
 			"setup": func(): level.tutorial_hold_cards = false,
@@ -50,7 +50,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				var n: int = level.tutorial_n_back()
 				if n == 1:
-					return "Nothing to compare this one with yet — just remember it."
+					return "There's nothing to compare this one with yet. Just remember it."
 				return "The first %d cards have nothing behind them. Remember them." % n,
 			"spot": card_spot,
 			"spot_pad": 6.0,
@@ -73,7 +73,7 @@ static func steps(level: Node, _game) -> Array:
 			# The instruction lives HERE, on the step that actually accepts it. On a talking step
 			# the board is frozen, so a swipe does nothing except dismiss the caption.
 			"setup": func(): level.tutorial_release_cards(),
-			"text": "Swipe RIGHT to say match — or tap Match.",
+			"text": "Swipe RIGHT for a match, or tap Match.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_buttons_rect()
 				if r.size.x <= 0.0:
@@ -110,7 +110,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"setup": func(): level.tutorial_release_cards(),
-			"text": "Swipe LEFT to say no — or tap No.",
+			"text": "Swipe LEFT for no, or tap No.",
 			"spot": func():
 				var r: Rect2 = level.tutorial_buttons_rect()
 				if r.size.x <= 0.0:
@@ -126,12 +126,12 @@ static func steps(level: Node, _game) -> Array:
 			"setup": func():
 				level.tutorial_force_target = -1
 				level.tutorial_hold_cards = true,
-			"title": "Not 'have I seen it'",
-			"text": "Only a few cards are in play, so they all keep coming back. Recognizing one tells you nothing.\n\nOnly its position in the run counts.",
+			"title": "Count back",
+			"text": "Only a few different cards are used, so they all keep coming back. Having seen a card before doesn't make it a match.\n\nWhat counts is how many places back it was.",
 		},
 		{
 			"setup": func(): level.tutorial_release_cards(),
 			"title": "Ready",
-			"text": "Later levels reach further back, and some ask about COLOR rather than shape.\n\nEach one tells you which before it starts.",
+			"text": "Later levels go further back, and some ask about COLOR instead of shape.\n\nEach level tells you which before it starts.",
 		},
 	]
