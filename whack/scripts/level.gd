@@ -213,7 +213,7 @@ func _level_briefing() -> String:
 	text += "\nRounds: %d x %d\nPass mark: %d%%" % [
 		rounds_per_level, targets_in_round, WhackLevelConfig.pass_pct_for(level)]
 	if level >= max_difficulty:
-		text += "\n\nThe last level. It comes round again however well you do."
+		text += "\n\nThis is the last level. You'll play it again however well you do."
 	return text
 
 # The radius in pixels is a number the player cannot act on and cannot picture — it told them
@@ -745,4 +745,4 @@ func mean_distance_px(exclude_last: bool = false) -> int:
 func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
-	return "Level passed — on to level %d." % (level + 1)
+	return "Level passed. On to level %d." % (level + 1)

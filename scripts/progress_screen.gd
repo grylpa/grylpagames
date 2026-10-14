@@ -111,9 +111,9 @@ func _build() -> void:
 	var key: Label = Label.new()
 	# SAYS HOW WIDE THE BAND IS, in sessions rather than in sigmas. "Your usual range" alone left
 	# the obvious question — how usual? — unanswered, and the obvious guess is wrong.
-	key.text = "Each line is how you have been doing lately against your own usual. The band is "
-	key.text += "your usual range: about 19 sessions in 20 land inside it, so a point outside is "
-	key.text += "ordinary on its own. Only a run of them is worth a look."
+	key.text = "Each line compares your recent sessions with what is usual for you. The band is "
+	key.text += "your usual range. About 19 sessions in 20 land inside it, so one point outside it "
+	key.text += "doesn't mean much. Several in a row are worth a look."
 	key.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	key.add_theme_font_override("font", MainGlobals.get_text_font())
 	MainGlobals.set_font_size(key, 12)

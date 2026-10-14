@@ -29,7 +29,7 @@ func _ready() -> void:
 		"Breathe in rhythm to crack the combination lock.\n\n" +
 		"Swipe UP (inhale) → hold → swipe DOWN (exhale) → hold.\n\n" +
 		"The dial shows your recent timings vs. the target.\n" +
-		"When all four phases match — the safe opens!\n\n" +
+		"When all four phases match, the safe opens!\n\n" +
 		"On desktop: press ↑ to inhale, press ↓ to exhale,\n" +
 		"release to hold.",
 		36 if MainGlobals.is_mobile() else 22)

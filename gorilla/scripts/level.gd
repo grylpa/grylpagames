@@ -1027,7 +1027,7 @@ func _tick_hunger() -> void:
 	var left: float = clampf(1.0 - float(elapsed) / float(_hunger_window_ms), 0.0, 1.0)
 	player.set_hunger(left, true)
 	if left <= 0.0:
-		_lose_life("Starved!\nKeep eating — you cannot stand still")
+		_lose_life("Starved!\nKeep eating. You can't stand still")
 
 func _check_agent_collisions():
 	if player == null or player.was_hit:
@@ -1306,8 +1306,8 @@ func _progress_line(passed: bool, need: int, is_last: bool) -> String:
 	if not passed:
 		return "You need at least %d%% of the rounds counted right to pass to the next level." % need
 	if is_last:
-		return "Level passed — this is the last one, so it comes round again."
-	return "Level passed — on to level %d." % (level + 1)
+		return "Level passed. This is the last level, so you'll play it again."
+	return "Level passed. On to level %d." % (level + 1)
 
 # Average counting error over the session — the number the scores screen's "Error" tab plots.
 func mean_error() -> int:

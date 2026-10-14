@@ -49,8 +49,8 @@ func _ready() -> void:
 	game.set_instructions("Dino",
 		"A card appears, one at a time. Have you already seen it this round?" +
 		"\n\n" +
-		"Swipe right (or tap Seen) if yes, or left (or tap New) if it's new — " +
-		"answer before the card disappears.", 30)
+		"Swipe right (or tap Seen) if yes, or left (or tap New) if it's new. " +
+		"Answer before the card disappears.", 30)
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		DinoG.save_settings()

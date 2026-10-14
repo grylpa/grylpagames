@@ -51,11 +51,11 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"title": "Whack",
 			"text": "A target appears somewhere on the screen.\n\n"
-				+ "Tap it as fast as you can — and as close to its center as you can.",
+				+ "Tap it as fast as you can, and as close to its center as you can.",
 		},
 		{
-			"text": "That is the target: orange, with a white dot in the center.\n\n"
-				+ "The dot is where you are aiming. Tap it.",
+			"text": "That's the target: orange, with a white dot in the center.\n\n"
+				+ "The dot is where you're aiming. Tap it.",
 			"setup": func(): stage.call({"real": true, "decoys": 0, "mode": "blue", "band": [0.68, 1.0]}, true),
 			"spot": target_spot,
 			"await": {"event": "hit_target", "timeout": 60.0},
@@ -64,7 +64,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"text": "Good. The closer to the dot you tap, the better the score.\n\n"
-				+ "Now it gets harder — other circles turn up too.",
+				+ "Now it gets harder: other circles show up too.",
 		},
 		{
 			"text": "Only the ORANGE one is the target.\n\n"
@@ -73,10 +73,10 @@ static func steps(level: Node, _game) -> Array:
 			"await": {"event": "hit_target", "timeout": 60.0},
 			"spot": target_spot,
 			"hint_after": 8.0,
-			"hint": "The orange one is the target — leave the blue ones alone.",
+			"hint": "The orange one is the target. Leave the blue ones alone.",
 		},
 		{
-			"text": "Decoys are not always blue. They can be any color.\n\n"
+			"text": "Decoys aren't always blue. They can be any color.\n\n"
 				+ "Tap only the orange one.",
 			"setup": func(): stage.call({"real": true, "decoys": 3, "mode": "multi", "band": [0.68, 1.0]}, true),
 			"await": {"event": "hit_target", "timeout": 60.0},
@@ -88,7 +88,7 @@ static func steps(level: Node, _game) -> Array:
 			# Frozen, with the round already on screen, so the difference can be looked at before
 			# anything is asked of the player.
 			"text": "These decoys are the SAME orange as the target.\n\n"
-				+ "Look for the white dot — only the real target has one.",
+				+ "Look for the white dot. Only the real target has one.",
 			"setup": func(): stage.call({"real": true, "decoys": 2, "mode": "same", "band": [0.68, 1.0]}, true),
 		},
 		{
@@ -126,7 +126,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_ignore_taps = false,
 			"text": "That ring is your time, and half of it has already gone.\n\n"
-				+ "If it shrinks away to nothing, the target will go and this will be considered a miss.",
+				+ "If it runs out, the target disappears and counts as a miss.",
 			"spot": target_spot,
 		},
 		{
@@ -146,8 +146,8 @@ static func steps(level: Node, _game) -> Array:
 		{
 			# Explained on a FROZEN step, then watched on the next one. As a single doing step the
 			# caption vanished the instant the round expired, so it was gone before it was read.
-			"text": "Sometimes there is no target at all.\n\n"
-				+ "Only decoys. Do not tap them. Just wait.\n"
+			"text": "Sometimes there's no target at all.\n\n"
+				+ "Only decoys. Don't tap them. Just wait.\n"
 				+ "Tapping a decoy will cost you points.",
 			"setup": func():
 				level.tutorial_retry_spec = {}     # the ring lesson is over; let this one expire
@@ -155,11 +155,11 @@ static func steps(level: Node, _game) -> Array:
 					"band": [0.68, 1.0], "show_ms": 4000.0}, false),
 		},
 		{
-			"text": "Here it is. Nothing to hit — just let it go.",
+			"text": "Here it is. There's nothing to hit, so just let it go.",
 			"await": {"event": "round_gone", "timeout": 30.0},
 		},
 		{
-			"text": "That is it.\n\n"
+			"text": "That's it.\n\n"
 				+ "Orange with a dot: tap it, fast and central.\n"
 				+ "Anything else, or nothing at all: leave it.\n\n"
 				+ "In a real game they use the whole screen, and they get smaller and quicker.",

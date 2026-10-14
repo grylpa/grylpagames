@@ -142,7 +142,7 @@ func _on_level_sig_level_is_done(level_id: int, avg_time_ms: int, pct_correct: i
 func _progress_line(passed: bool, need: int, level_id: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
-	return "Level passed — on to level %d." % (level_id + 1)
+	return "Level passed. On to level %d." % (level_id + 1)
 
 func _on_level_done_popup_closed() -> void:
 	new_game(false)

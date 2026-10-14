@@ -90,7 +90,7 @@ func legend_entries() -> Array:
 	var out: Array = []
 	for si: int in range(_series.size()):
 		var lbl: String = str(_series[si].get("label", ""))
-		# A bare "3" in a key beside a coloured line says nothing. Most games fall back to "L3"
+		# A bare "3" in a key beside a colored line says nothing. Most games fall back to "L3"
 		# already; the ones that NAME their levels can name them with digits, and those are the
 		# legends this is for. Only the key is rewritten -- the label is used elsewhere.
 		if legend_numbers_are_levels and lbl.is_valid_int():

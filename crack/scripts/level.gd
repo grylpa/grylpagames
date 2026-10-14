@@ -848,15 +848,15 @@ func tutorial_demo_caption() -> String:
 	var reps: String = "%d of %d" % [_demo_cycle, _DEMO_CYCLES]
 	match _demo_phase:
 		0:
-			return "Breathe IN.\n\nThe finger slides up, and keeps sliding for all %s seconds.\n\nNot a flick.\n\n(%s)" % [s_in, reps]
+			return "Breathe IN.\n\nSlide your finger up, and keep sliding for the whole %s seconds. Don't just flick it.\n\n(%s)" % [s_in, reps]
 		1:
-			return "Finger OFF.\n\nThat pause is the hold — %s second.\n\n(%s)" % [s_ht, reps]
+			return "Finger OFF.\n\nThat pause is the hold, %s second.\n\n(%s)" % [s_ht, reps]
 		2:
-			return "Breathe OUT.\n\nSliding back down, %s seconds, all the way.\n\n(%s)" % [s_out, reps]
+			return "Breathe OUT.\n\nSlide back down, all the way, over %s seconds.\n\n(%s)" % [s_out, reps]
 		3:
 			return "Finger OFF again at the bottom.\n\n(%s)" % reps
 		4:
-			return "The next breath in — and THAT is when the lock reads all four.\n\nOpen.\n\n(%s)" % reps
+			return "Start the next breath in. That's when the lock checks all four.\n\n(%s)" % reps
 		5:
 			return "In, hold, out, hold.\n\nThen the next breath in opens it."
 	return ""

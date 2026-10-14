@@ -14,8 +14,8 @@ var games = [
 
 	["gorilla",       "Gorilla",        "Eat apples while counting gorillas",                     "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
-	["didi",          "Pinpoint",       "Two clues, one shot",                                    "Attention & Speed"],
-	["ddooo",         "Witness",        "You saw it happen. Now testify",                         "Attention & Speed"],
+	["didi",          "Pinpoint",       "Match the shape to where the dot flashed",                                    "Attention & Speed"],
+	["ddooo",         "Witness",        "Remember what flashed, and where",                         "Attention & Speed"],
 	["pop",           "Glimpse",        "Catch it out of the corner of your eye",                 "Attention & Speed"],
 	["ooo",           "Lineup",         "Pick the culprit out of the lineup",                     "Attention & Speed"],
 

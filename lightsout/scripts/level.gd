@@ -918,8 +918,8 @@ func _progress_line(passed: bool, need: int, is_last: bool) -> String:
 	if not passed:
 		return "You need to win at least %d%% of the rounds to pass to the next level." % need
 	if is_last:
-		return "Level passed — this is the last one, so it comes round again."
-	return "Level passed — on to level %d." % (level + 1)
+		return "Level passed. This is the last level, so you'll play it again."
+	return "Level passed. On to level %d." % (level + 1)
 
 # Counting the rounds is level_is_done's job now; this only acts on the gate's verdict, and
 # only at a level boundary.

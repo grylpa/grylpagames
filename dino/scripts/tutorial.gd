@@ -43,21 +43,21 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Dino",
-			"text": "Cards come one at a time.\n\nEach one asks the same question: have I already seen this card in this round?",
+			"text": "Cards come one at a time.\n\nFor each one, decide: have you already seen it in this round?",
 		},
 		{
-			"text": "Here is the first.",
+			"text": "Here's the first.",
 			"await": {"event": "card_shown", "timeout": 8.0},
 		},
 		{
-			"text": "You have not seen it yet, so it is NEW.\n\nTap New.",
+			"text": "You haven't seen it yet, so it is NEW.\n\nTap New.",
 			"spot": card_spot,
 			"await": "answered",
 			"hint_after": 5.0,
 			"hint": "The New button, bottom left.",
 		},
 		{
-			"text": "Another one you have not seen. Tap New again.",
+			"text": "Another one you haven't seen. Tap New again.",
 			"await": "answered",
 			"hint_after": 6.0,
 			"hint": "New, bottom left.",
@@ -76,11 +76,11 @@ static func steps(level: Node, _game) -> Array:
 			"text": "You can also answer the card itself: drag it LEFT for new, RIGHT for seen.\n\nTry a drag.",
 			"await": {"event": "answered_without_buttons", "timeout": 40.0},
 			"hint_after": 7.0,
-			"hint": "Drag it a good distance before letting go. A small nudge does not count.",
+			"hint": "Drag it a good distance before letting go. A small nudge doesn't count.",
 		},
 		{
 			"title": "The catch",
-			"text": "SEEN means seen in THIS round.\n\nEvery round starts with a clean memory.",
+			"text": "SEEN means seen in THIS round.\n\nEach new round starts from scratch.",
 		},
 		{
 			"title": "Ready",

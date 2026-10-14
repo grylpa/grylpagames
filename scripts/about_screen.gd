@@ -132,7 +132,7 @@ func _build() -> void:
 	_link_nodes.append(_add_link(body, "info@grylpa.com", "mailto:info@grylpa.com"))
 
 	_header_nodes.append(_add_header(body, "Privacy"))
-	_body_nodes.append(_add_text(body, "No account is required to play. Nomizo runs entirely on your device — it sends nothing over the internet, and your scores and settings stay on your device.", Color(0.9, 0.9, 0.9, 1.0)))
+	_body_nodes.append(_add_text(body, "No account is required to play. Nomizo runs entirely on your device. It sends nothing over the internet, and your scores and settings stay on your device.", Color(0.9, 0.9, 0.9, 1.0)))
 
 	_header_nodes.append(_add_header(body, "Credits"))
 	_body_nodes.append(_add_text(body, "Sound effects — Kenney (kenney.nl), CC0", Color(0.85, 0.85, 0.85, 1.0)))

@@ -33,7 +33,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_freeze_board(true),
 			"title": "Question one",
-			"text": "A shape appears in the center. Remember it — shape and color.",
+			"text": "A shape appears in the center. Remember its shape and color.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_model_pos()
 				if p == Vector2.ZERO:
@@ -55,7 +55,7 @@ static func steps(level: Node, _game) -> Array:
 				var d: String = level.tutorial_periph_dir_name()
 				if d.is_empty():
 					return "While you were looking at the center, a dot flashed out at the edge.\n\nYou will be asked which way it was."
-				return "While you were looking at the center, a dot flashed out at the edge — %s, this time.\n\nYou will be asked which way it was." % d,
+				return "While you were looking at the center, a dot flashed at the edge, %s this time.\n\nYou will be asked which way it was." % d,
 			"spot": func():
 				var p: Vector2 = level.tutorial_periph_pos()
 				if p == Vector2.ZERO:
@@ -93,8 +93,8 @@ static func steps(level: Node, _game) -> Array:
 				if level.tutorial_has_candidates():
 					return "Tap the one that matches."
 				if level.tutorial_dirs_active():
-					return "That was not the shape.\n\nFinish the round by picking a direction, and we will go again."
-				return "Watch for the next shape in the center — and the flash at the edge.",
+					return "That wasn't the shape.\n\nFinish the round by picking a direction, and we'll go again."
+				return "Watch for the next shape in the center, and for the flash at the edge.",
 			# Needs TWO facts, so it waits on the event that carries both: the shape was right,
 			# and the direction buttons now exist. "shape_right" fires a few lines before they are
 			# built, so the next caption — which points at one — would open with nothing to frame
@@ -118,7 +118,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				var d: String = level.tutorial_periph_dir_name()
 				if d.is_empty():
-					return "These eight dots are the directions — one for each way the flash could have been."
+					return "These eight dots are the directions, one for each place the flash could have been."
 				return "These eight dots are the directions.\n\nThe flash was %s, and that one is framed." % d,
 			"spot": func():
 				var p: Vector2 = level.tutorial_correct_dir_pos()
@@ -140,15 +140,15 @@ static func steps(level: Node, _game) -> Array:
 				if level.tutorial_dirs_active():
 					return "Tap it." if d.is_empty() else "Tap the %s dot." % d
 				if level.tutorial_has_candidates():
-					return "Not that way — round over.\n\nHere is another: pick the shape from the center first."
+					return "Wrong direction, so that round is over.\n\nHere's another. Pick the shape from the center first."
 				return "Watch the center, and watch for the flash at the edge.",
 			"await": {"event": "dir_right", "timeout": 300.0},
 			"hint_after": 15.0,
-			"hint": "The framed dot is the one — it is the way the flash was.",
+			"hint": "The framed dot is the direction the flash was in.",
 		},
 		{
 			"setup": func(): level.tutorial_freeze_board(false),
 			"title": "Ready",
-			"text": "Both answers have to be right for a round to count — one alone is not enough.\n\nFrom here nobody tells you where the flash was. Watch the center, and keep the edges in the corner of your eye.",
+			"text": "Both answers have to be right for a round to count.\n\nFrom now on, nobody tells you where the flash was. Watch the center, and keep the edges in the corner of your eye.",
 		},
 	]

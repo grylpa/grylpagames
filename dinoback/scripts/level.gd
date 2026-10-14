@@ -907,7 +907,7 @@ func _level_done(didwin: bool) -> void:
 func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
 		return "You need at least %d%% accuracy to pass to the next level." % need
-	return "Level passed — on to level %d." % (current_level_id + 1)
+	return "Level passed. On to level %d." % (current_level_id + 1)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

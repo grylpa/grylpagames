@@ -34,10 +34,10 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Mind Palace",
-			"text": "You are in a castle of rooms joined by corridors. There is one coin in each room.",
+			"text": "You're in a castle of rooms joined by corridors. There's one coin in each room.",
 		},
 		{
-			"text": "This is you. Swipe a direction and you keep walking that way until you turn — arrow keys too.\n\nTry it.",
+			"text": "This is you. Swipe in a direction and you keep walking that way until you turn. The arrow keys work too.\n\nTry it.",
 			"spot": player_spot,
 			"spot_radius": 70.0,
 			"await": "player_moved",
@@ -46,8 +46,8 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"setup": func() -> void: level.tutorial_halt_player(),
-			"title": "The part nobody expects",
-			"text": "Look at this room's floor color.\n\nWhen the coins are gone you will be shown the map and asked, room by room, which color each one was. You cannot come back to check.",
+			"title": "Room colors",
+			"text": "Look at this room's floor color.\n\nWhen all the coins are collected, you'll see a map and be asked what color each room was. You can't go back to check.",
 		},
 		{
 			"text": "Take the coin.",
@@ -76,7 +76,7 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Walk onto the coin in this room.",
 		},
 		{
-			"text": "That was the last coin, so now you are asked.",
+			"text": "That was the last coin, so now you're asked.",
 			"await": {"event": "map_shown", "timeout": 60.0},
 		},
 		{
@@ -87,13 +87,13 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "The swatches are drawn on the room itself.",
 		},
 		{
-			"text": "That room is named and its floor has filled in.\n\nNow the other one — the round is not over until every room has been answered.",
+			"text": "That room's floor is filled in now.\n\nNow the other one. The round isn't over until every room has a color.",
 			"await": {"event": "room_answered", "timeout": 180.0},
 			"hint_after": 20.0,
 			"hint": "Tap the other room's strip, then its color.",
 		},
 		{
 			"title": "Ready",
-			"text": "That is a full round.\n\nLater levels give you more rooms to hold, and the strips start including colors that were never in the castle — so elimination will not save you.\n\nBombs sit in the rooms and enemies patrol them. Touching either one ends the round at once.",
+			"text": "That's a full round.\n\nLater levels have more rooms to remember, and the strips include colors that weren't in the castle at all, so you can't just rule colors out.\n\nThere are also bombs in the rooms, and enemies walking around them. Touching either one ends the round.",
 		},
 	]

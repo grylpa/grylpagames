@@ -925,7 +925,7 @@ func _progress_line(passed: bool, need: int) -> String:
 	var nxt: int = BucketMadnessG.peek_next_level_id()
 	if nxt <= 0 or nxt == current_level_id:
 		return "Level passed."
-	return "Level passed — on to level %s." % BucketMadnessG.level_name_for(nxt)
+	return "Level passed. On to level %s." % BucketMadnessG.level_name_for(nxt)
 
 func _on_level_done_popup_closed() -> void:
 	sig_level_is_done.emit(true)

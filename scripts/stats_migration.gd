@@ -129,6 +129,6 @@ static func notice_title() -> String:
 	return "Progress measurement has changed"
 
 static func notice_text() -> String:
-	return ("This version measures your progress in a new and better way.\n\n" +
+	return ("This version measures your progress differently.\n\n" +
 		"Your previous scores could not be carried over, so measurements start fresh from today.\n\n" +
 		"Your game settings have been kept.")

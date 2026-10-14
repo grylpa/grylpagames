@@ -159,6 +159,10 @@ The same mechanism as Storm's, copied into `level.gd` (games do not share script
   3.5-4.5 s; it now takes about 1.5 s, without freezing (measured in a window).
 - **The build flag is raised the moment `new_game()` stops waiting** for the last build, so two builds
   can never share one board (Storm crashed on exactly that when the flag was raised late).
+- **A won round waits for the build too** before its `reset()` in `level_is_done()`. `reset()` frees
+  the cells, and a build paused in `_breathe()` read them on resuming: an engine segfault (signal 11)
+  in `is_fillable()`, not a script error. `probe_gate` hit it by deciding rounds before the board
+  existed; it now waits for `_building` to drop (`_settle()`), as a player has to.
 - **The corridor search is a faster copy of the shared one**, finding exactly the same paths
   (`_corridor_astar()` and `_corridor_reachable()`, as in Storm: the cost inline, packed arrays for
   the states, a byte mask of built tiles, and a flood under looser rules that skips a search that

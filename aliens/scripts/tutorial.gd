@@ -24,7 +24,7 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	# `_tutorial_last_parked` is overwritten by EVERY later arrival, so reading it live made the
 	# spotlight hop from one alien to the next while the caption still described the first — and
-	# it would land on aliens that plainly did match the pass during the "this one does not match"
+	# it would land on aliens that plainly did match the pass during the "this one doesn't match"
 	# step. Steps that say "this one" therefore LOCK the alien at step entry and keep pointing at
 	# that one alone. `ctx` is captured by both lambdas, which is how the lock is shared.
 	var ctx: Dictionary = {"al": null, "want": true, "asked_ms": -100000}
@@ -160,7 +160,7 @@ static func steps(level: Node, _game) -> Array:
 			"spot": gate_spot,
 		},
 		{
-			"text": "The inner circle is the ship. Nothing gets in except by your hand.",
+			"text": "The inner circle is the ship. Aliens only get in if you put them there.",
 			"spot": inner_spot,
 		},
 		{
@@ -189,7 +189,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": lock_mismatch,
 			"tick": relock,
-			"text": func(): return "This one does not match %s.\n\nDrag it out to the open field." % pass_text.call(),
+			"text": func(): return "This one doesn't match %s.\n\nDrag it out to the open field." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "evicted", "timeout": 60.0},
 			"hint_after": 8.0,
@@ -198,7 +198,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": release_hold,
 			"title": "Both count",
-			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nLeaving it in the ring scores nothing — and while the ring is full, everyone who walks up is turned away and costs you.",
+			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nLeaving it in the ring scores nothing. And while the ring is full, every alien that walks up is turned away, and that costs you.",
 		},
 		{
 			"title": "Ready",

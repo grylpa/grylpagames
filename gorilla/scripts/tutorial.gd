@@ -119,7 +119,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Gorilla",
-			"text": "You are in a walled room with apples all over the floor.\n\nEat every one of them.",
+			"text": "You're in a walled room with apples all over the floor.\n\nEat every one of them.",
 		},
 		{
 			"text": "This is you. You walk by yourself, and keep going the same way until you turn.",
@@ -136,22 +136,22 @@ static func steps(level: Node, _game) -> Array:
 				level.tutorial_spawn_gorilla()
 				level.tutorial_hold_gorilla_midscreen(),
 			"title": "The second job",
-			"text": "Gorillas walk past outside the wall — like this one.\n\nCount them. They only ever pass along the edges, one at a time.",
+			"text": "Gorillas walk past outside the wall, like this one.\n\nCount them. They only pass along the edges, one at a time.",
 			"spot": gorilla_spot,
 		},
 		{
 			"spot": superfood_spot,
 			"title": "Super-foods",
-			"text": "A super-food makes you dangerous for a few seconds — monsters run from you.\n\nThere are a few of them. Eat them too: the room is not clear while any is left.",
+			"text": "A super-food makes the monsters run from you for a few seconds.\n\nThere are a few of them, and you have to eat them too. The room isn't clear while any are left.",
 		},
 		{
 			"title": "Keep eating",
-			"text": "You cannot stand still and watch. Go too long without an apple and you starve.\n\nThe ring around you is the time you have left; it fills again with every one you eat.",
+			"text": "You can't just stand still and watch. Go too long without an apple and you starve.\n\nThe ring around you shows how long you have left. It fills up again with every apple you eat.",
 			"spot": player_spot,
 		},
 		{
-			"title": "Two things at once",
-			"text": "Clear the apples, and keep count.\n\nThey hold your eyes in the center of the room; the gorillas only ever appear round the outside.",
+			"title": "Eat and count",
+			"text": "Eat the apples and keep count at the same time.\n\nThe apples keep your eyes on the center of the room, and the gorillas only walk around the outside.",
 		},
 		{
 			"setup": func(): level.tutorial_show_a_monster(),
@@ -161,6 +161,6 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "When the room is clear, or the time is up, you are asked how many gorillas went past.\n\nGet it right for a bonus, and a life back.",
+			"text": "When the room is clear or the time is up, you're asked how many gorillas went past.\n\nGet it right for a bonus and a life back.",
 		},
 	]

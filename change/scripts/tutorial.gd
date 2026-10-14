@@ -56,10 +56,10 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Change",
-			"text": "You are shown an amount and a pile of coins.\n\nPay it exactly.",
+			"text": "You're shown an amount and a pile of coins.\n\nPay it exactly.",
 		},
 		{
-			"text": "Here is the first pile.",
+			"text": "Here's the first pile.",
 			"await": {"event": "board_shown", "timeout": 8.0},
 		},
 		{
@@ -82,7 +82,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "No total",
-			"text": "Nothing on screen adds the tray up. Doing that yourself is the game.\n\nPut in exactly %s, then press PAY." % _money(BOARD1_TARGET),
+			"text": "Nothing on screen adds up the tray for you. You have to do it in your head.\n\nPut in exactly %s, then press PAY." % _money(BOARD1_TARGET),
 			"setup": func(): level.tutorial_clear_tray(),
 			"spot": func(): return level._pay_btn,
 			"await": {"event": "paid_correct", "timeout": 150.0},
@@ -96,7 +96,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Look underneath",
-			"text": "This one is heaped up. There are more coins here than you can see — drag the top ones aside.",
+			"text": "This one is heaped up. There are more coins than you can see, so drag the top ones aside.",
 			"spot": pile_spot,
 			"await": {"event": "coin_moved", "timeout": 60.0},
 			"hint_after": 10.0,

@@ -20,7 +20,7 @@ extends RefCounted
 #
 # Steering is NOT taught before the zoom, even though showing it on the open board is tempting.
 # Zoomed out, `DelemfpG.freeze` is true and the truck cannot be steered at all — that is the game's
-# rule and its printed instructions say so ("You cannot move while zoomed out"). A tutorial that
+# rule and its printed instructions say so ("You can't move while zoomed out"). A tutorial that
 # drives on the open board would be demonstrating a state the game does not have, and directly
 # contradicting the instructions. So: memorise the roads, take the zoom, THEN steer — and hand over
 # both escape hatches (Zoom and Clue) before asking for the first delivery, so nobody is stranded.
@@ -71,11 +71,11 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				var a = level.tutorial_agent()
 				if a == null or a.body_ids.is_empty():
-					return "The dispatcher lists the docks to visit — and the order matters."
+					return "The dispatcher lists the docks to visit, and the order matters."
 				var ids: Array = []
 				for i in a.body_ids:
 					ids.append(str(i))
-				return "The dispatcher wants dock %s.\n\nIn that order. Only the packet at the front of the list can come off, so dock %s first — no other dock will take anything yet." % [
+				return "The dispatcher wants dock %s, in that order.\n\nOnly the packet at the front of the list can come off, so go to dock %s first. No other dock will take anything yet." % [
 					", then ".join(ids), str(a.body_ids[0])],
 			"spot": func(): return level.tutorial_dispatch_label(),
 			"spot_pad": 8.0,
@@ -87,7 +87,7 @@ static func steps(level: Node, _game) -> Array:
 			# other — the very things this step needs both of.
 			"setup": func(): level.tutorial_hide_dispatch(),
 			"title": func(): return "Dock %d first" % level.tutorial_next_dock_id(),
-			"text": "Pull up alongside it — you cannot drive in.",
+			"text": "Pull up alongside it. You can't drive in.",
 			"spot": func(): return level.tutorial_next_dock_pos(),
 			"spot_radius": r_far,
 			"spot_pad": 0.0,
@@ -99,12 +99,12 @@ static func steps(level: Node, _game) -> Array:
 			# unexplained, and a first-timer reads it as the game not responding.
 			"setup": func(): level.tutorial_start_countdown(),
 			"title": "Five seconds",
-			"text": "Every run starts with this countdown, and you cannot move until it reaches zero.\n\nIt is your one look at the whole yard — use it to learn the route.",
+			"text": "Every run starts with this countdown, and you can't move until it reaches zero.\n\nUntil then you can see the whole yard, so use the time to learn the route.",
 			"spot": func(): return level.tutorial_countdown_label(),
 			"spot_pad": 10.0,
 		},
 		{
-			"text": func(): return "Trace the route to dock %d in your head.\n\nYou cannot move yet — the truck is locked until the countdown ends." % level.tutorial_next_dock_id(),
+			"text": func(): return "Trace the route to dock %d in your head.\n\nThe truck can't move until the countdown ends." % level.tutorial_next_dock_id(),
 			"spot": func(): return level.tutorial_next_dock_pos(),
 			"spot_radius": r_far,
 			"spot_pad": 0.0,
@@ -115,8 +115,8 @@ static func steps(level: Node, _game) -> Array:
 			# must NOT ask for steering: the player would swipe, get nothing, and conclude the
 			# controls are broken. The steering instruction lives on the step that releases it.
 			"setup": func(): level.tutorial_hold_truck(true),
-			"title": "The view closes in",
-			"text": "From here you only see what is around your truck.\n\nIt is parked for a moment — two things first.",
+			"title": "Close-up",
+			"text": "From now on you only see what's around your truck.\n\nIt's parked for a moment while you try two buttons.",
 			"spot": truck,
 			"spot_radius": r_near,
 			"spot_pad": 0.0,
@@ -124,7 +124,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_mark_step(),
 			"title": "Lost?",
-			"text": "Tap Zoom to pull back and see the whole yard. You cannot drive while zoomed out.\n\nIt costs 2 points and 10 seconds. Try it.",
+			"text": "Tap Zoom to pull back and see the whole yard. You can't drive while zoomed out.\n\nIt costs 2 points and 10 seconds. Try it.",
 			"spot": func(): return level.tutorial_bottom_button("ZoomButton"),
 			"spot_pad": 6.0,
 			"await": {"event": "unzoomed", "timeout": 90.0},
@@ -132,12 +132,12 @@ static func steps(level: Node, _game) -> Array:
 				if level.tutorial_step_elapsed_sec() > 20.0:
 					level.zoom_unzoom(),
 			"hint_after": 8.0,
-			"hint": "The zoom button, on the bar along the bottom of the screen. I will show you if you like — just wait.",
+			"hint": "The Zoom button is on the bar at the bottom of the screen. Wait a moment and it'll be marked for you.",
 		},
 		{
 			"setup": func(): level.tutorial_mark_step(),
 			"title": "Forgot the list?",
-			"text": "Tap Clue to see what is still aboard, in order.\n\nSame price: 2 points and 10 seconds. Try it.",
+			"text": "Tap Clue to see what's still aboard, in order.\n\nSame price: 2 points and 10 seconds. Try it.",
 			"spot": func(): return level.tutorial_bottom_button("ClueButton"),
 			"spot_pad": 6.0,
 			"await": {"event": "reminder_shown", "timeout": 90.0},
@@ -145,7 +145,7 @@ static func steps(level: Node, _game) -> Array:
 				if level.tutorial_step_elapsed_sec() > 20.0:
 					level.display_reminder(),
 			"hint_after": 8.0,
-			"hint": "The clue button, on the bar along the bottom of the screen. I will show you if you like — just wait.",
+			"hint": "The Clue button is on the bar at the bottom of the screen. Wait a moment and it'll be marked for you.",
 		},
 		{
 			"setup": func():
@@ -154,13 +154,13 @@ static func steps(level: Node, _game) -> Array:
 				level.tutorial_end_zoom_out()
 				level.tutorial_hold_truck(false),
 			"title": "Now you drive",
-			"text": func(): return "Swipe, or use the arrow keys, to set which way it turns next. It keeps going otherwise, and turns by itself at a dead end.\n\nTake it to dock %d." % level.tutorial_next_dock_id(),
+			"text": func(): return "Swipe or use the arrow keys to choose which way it turns next. Otherwise it keeps going, and at a dead end it turns by itself.\n\nTake it to dock %d." % level.tutorial_next_dock_id(),
 			"spot": truck,
 			"spot_radius": r_near,
 			"spot_pad": 0.0,
 			"await": {"event": "packet_delivered", "timeout": 300.0},
 			"hint_after": 25.0,
-			"hint": "Drive right past the dock — you don't turn into it. Zoom out if you lose your bearings.",
+			"hint": "Drive right past the dock. You don't turn into it. Zoom out if you lose your way.",
 		},
 		{
 			"title": "Delivered",
@@ -177,10 +177,10 @@ static func steps(level: Node, _game) -> Array:
 			"spot_pad": 0.0,
 			"await": {"event": "packet_delivered", "timeout": 300.0},
 			"hint_after": 30.0,
-			"hint": "Use Clue and Zoom if you need them — they cost, but being lost costs more.",
+			"hint": "Use Clue and Zoom if you need them. They cost points, but getting lost costs more.",
 		},
 		{
 			"title": "Ready",
-			"text": "Bigger yards, more packets, more docks.\n\nRemember your routes.",
+			"text": "Later levels have bigger yards, with more packets and more docks.\n\nRemember your routes.",
 		},
 	]

@@ -233,9 +233,9 @@ static func _challenge_text(sessions: Array) -> String:
 		return ""
 	var m: float = SessionStats.mean(pcts)
 	if m >= 88.0:
-		return "You are getting almost everything right — try a harder level."
+		return "You're getting almost everything right. Try a harder level."
 	if m >= 80.0:
 		return "Comfortable. A harder level would give you more to work with."
 	if m < 55.0:
-		return "This is coming out hard. An easier level may suit you better."
+		return "This looks hard for you. An easier level may suit you better."
 	return "Difficulty looks about right."

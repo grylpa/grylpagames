@@ -41,8 +41,8 @@ func _ready() -> void:
 	MainGlobals.path_board_size = game.board_size      
 
 	game.set_instructions("Wolves", 
-		"You are a dog guarding a sheep compund.\n" +
-		"The fence of the compund is old and pieces fall off. When they do, the sheep can wander around.\n" +
+		"You are a dog guarding a sheep compound.\n" +
+		"The fence of the compound is old and pieces fall off. When they do, the sheep can wander around.\n" +
 		"You need to scare them back into the compound\n" +
 		"The farm fence may also fail and sheep might wander off forever or wolves might come into the farm and grab sheep\n" +
 		"Don't let them!\n\n" +

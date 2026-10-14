@@ -32,10 +32,10 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Wolves",
-			"text": "You are the dog.\n\nKeep the sheep inside the compound.",
+			"text": "You're the dog.\n\nKeep the sheep inside the compound.",
 		},
 		{
-			"text": "Draw a route with your finger or mouse and the dog walks it — like this.\n\nArrow keys work too: one sets the dog going that way until something stops it.",
+			"text": "Draw a route with your finger or mouse and the dog walks along it, like this.\n\nThe arrow keys work too. Press one and the dog keeps going that way until something stops it.",
 			"spot": dog_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,
@@ -59,7 +59,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": "Try it. Walk up to a stray.",
 			"await": {"event": "scared_one", "timeout": 90.0},
 			"hint_after": 15.0,
-			"hint": "Draw a route ending right beside a sheep that is outside the fence.",
+			"hint": "Draw a route ending right beside a sheep that's outside the fence.",
 		},
 		{
 			"title": "Wolves",

@@ -26,7 +26,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Lineup",
-			"text": "One shape appears on its own, and then it is gone.\n\nA moment later a lineup turns up, and you have to pick the one you just saw.",
+			"text": "One shape appears on its own, and then it's gone.\n\nA moment later a lineup turns up, and you have to pick the one you just saw.",
 		},
 		{
 			"await": {"event": "model_shown", "timeout": 60.0},
@@ -34,7 +34,7 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_freeze_board(true),
 			"title": "This is the one",
-			"text": "Remember it — the shape and its color.\n\nIn a real round it is on screen for about a second.",
+			"text": "Remember it: the shape and its color.\n\nIn a real round it's on screen for about a second.",
 			"spot": func():
 				var p: Vector2 = level.tutorial_model_pos()
 				if p == Vector2.ZERO:
@@ -65,7 +65,7 @@ static func steps(level: Node, _game) -> Array:
 			"text": func():
 				if level.tutorial_has_lineup():
 					return "Tap the one that matches."
-				return "That was not it — the board has reset. Watch for the next shape and try again.",
+				return "That wasn't it. The board has reset, so watch for the next shape and try again.",
 			# Frozen while there is something to choose FROM — at level 1 the lineup expires in
 			# two seconds — but released the moment the board is empty, because a wrong pick clears
 			# it and the next model can only arrive if the board is running. A static freeze here
@@ -79,10 +79,10 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": func(): level.tutorial_freeze_board(false),
 			"title": "Speed counts",
-			"text": "A correct pick is worth more the faster it comes, and buys you time.\n\nA wrong one, or letting the lineup expire, costs both.",
+			"text": "The faster you pick the right one, the more it's worth, and it buys you time.\n\nA wrong pick, or letting the lineup run out, costs you points and time.",
 		},
 		{
 			"title": "Ready",
-			"text": "Your score starts at 100 and the clock is always running — reach zero and the run is over.\n\nLater rounds change what varies: sometimes the shape, sometimes the color, sometimes both.",
+			"text": "Your score starts at 100 and the clock is always running. If it reaches zero, the run is over.\n\nIn later rounds the near misses differ in shape, in color, or in both.",
 		},
 	]

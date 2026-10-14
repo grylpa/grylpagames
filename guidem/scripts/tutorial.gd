@@ -45,7 +45,7 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Tap directly on the door.",
 		},
 		{
-			"text": "Again — a door cycles through three positions, so keep tapping until it points where you want.",
+			"text": "Tap it again. A door has three positions, so keep tapping until it points where you want.",
 			"spot": door_spot,
 			"spot_radius": 60.0,
 			"await": {"event": "door_turned", "timeout": 60.0},
@@ -54,7 +54,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Work ahead",
-			"text": "Set the door a car is heading FOR, not the one it is already on.",
+			"text": "Set the door a car is heading FOR, not the one it's already on.",
 		},
 		{
 			"title": "Keep them apart",
