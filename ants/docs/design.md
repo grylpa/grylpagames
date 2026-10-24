@@ -157,7 +157,11 @@ what the player is told rather than about a CanvasLayer.
 **The ground** (`AntsArt.draw_ground`, drawn once for the whole world) is the soil color, broad
 **damp and dry patches** (`_draw_patches`: a smooth noise field, darker or paler, one texel per 24
 units stretched with linear filtering, with a firm shoulder -- soft at a patch's edge but clearly
-there; a first, softer version was barely visible), and the fine grain. The rule for anything added to
+there; a first, softer version was barely visible; `PATCH_ALPHA` came down from 0.62 to 0.45 once
+the grain below gave the ground its texture, as at 0.62 the patches read as cloud shadows), and the
+fine grain -- now **a shader on the ground layer** (`soil.gdshader`): sand grains, clumps and small
+flat pebbles, a few percent paler or darker than what is under them, anchored in world units. It
+replaced about 20,000 drawn squares that read as square speckle. The rule for anything added to
 the ground: **flat** (no shadow, no highlight -- a shadow and a lit face are how an obstacle reads),
 **out of the colors already taken** (ants near-black, food green, nests and twigs dark brown, stones
 light gray, water blue, lures gold, the scent trail dark marks), and **low contrast**. Tried and
@@ -383,6 +387,42 @@ in the open — which read as the food evaporating rather than as the ant delive
 needs `AntColony.at_hole()`, inside the drawn entrance, and the ant waits there before turning back
 out (`DEPOSIT_PAUSE`). Picking a crumb up takes a moment too (`PICKUP_PAUSE`). Both were
 instantaneous, and an instantaneous action looks like a teleport rather than like work.
+
+## How it looks (the 2026-10-24 pass)
+
+Everything still keeps the colors and contrasts above (`probe_ants` checks them). What changed:
+- **The trail** (`draw_marks`) is soft spots (`_soft_dot`, a radial falloff) wide enough to run
+  together, so a used road is one worn darker band that builds where the ants walk most. Hard
+  circles, and squares before them, read as a dotted line stitched across the soil.
+- **The nest** (`draw_nest`) is an anthill: a mound rising to a crest, lit from the top left,
+  covered in the pellets the workers dug out, falling into a hole darkest in the middle with its
+  far wall catching the light. The hole is still `r * 0.62` (`at_hole()` is measured against it),
+  and the colony's colored ring stays.
+- **The food** (`draw_food`, `_leaf_bit`) is a pile of torn leaf pieces in the same green, each
+  with its own shade, a lit edge and a vein, over a soft shadow; the bait is the same pile in its
+  gold, and a carried crumb is a small leaf piece. Overlapping discs read as slime.
+- **The stone** is a smooth pebble (18 fine steps toward the light, a shine; eight steps showed
+  contour lines), **the twig** has bands from its shaded side to its lit top, bark grooves, knots
+  and a broken side shoot, and **the water** is a pool, darkest in the middle, with a wet rim, the
+  sky's reflection and a slow ripple.
+- **The ants** gained a waist (the petiole) and a shine on the head.
+
+## Sounds
+
+All made for this game by `devtools/make_ants_sounds.py` (synthesized, seeded) into
+`art/sounds/ants_*.ogg`, registered from `level.gd` (`SOUNDS`, `SOUND_DB`, `PLACE_SOUND`):
+
+| sound | when |
+|---|---|
+| `garden` (30 s loop, -9 dB) | while the colony runs: a breeze, leaves, birds far off. Stopped at the top of `_process` whenever it does not run (a card, a pause, the menu) |
+| `stone`, `twig`, `water`, `bait`, `cloche` | the tool is put down (`place_obstacle`) |
+| `crush` | that drop crushed ants |
+| `spray`, `eraser` | a press of the can, a rub |
+| `lift` | something picked up (`remove_obstacle_at`) |
+
+Nothing sounds for the ants themselves: a crumb arrives many times a second. (Ants had no sound at
+all before.) `probe_ants`' layer count skips the sound players, which are `AudioStreamPlayer2D`s
+parented to the level.
 
 ## Obstacles
 

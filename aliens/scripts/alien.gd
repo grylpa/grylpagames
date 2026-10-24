@@ -165,6 +165,13 @@ func _draw_antenna(base: Vector2, lean: float, col: Color) -> void:
 	draw_arc(tip, radius * 0.15, 0.0, TAU, 16, stalk, radius * 0.028, true)
 	draw_circle(tip + Vector2(-radius * 0.045, -radius * 0.045), radius * 0.055, Color(1, 1, 1, 0.75))
 
+func _ellipse_at(rx: float, ry: float, at: Vector2) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array()
+	for i in BODY_STEPS:
+		var t: float = TAU * float(i) / float(BODY_STEPS)
+		pts.append(at + Vector2(cos(t) * rx, sin(t) * ry))
+	return pts
+
 func _ellipse(rx: float, ry: float, center_y: float) -> PackedVector2Array:
 	var pts: PackedVector2Array = PackedVector2Array()
 	for i in BODY_STEPS:
@@ -213,15 +220,26 @@ func _draw() -> void:
 		_draw_antenna(Vector2(-rx * k, by), -1.0, col)
 		_draw_antenna(Vector2(rx * k, by), 1.0, col)
 
-	# 3) body + outline
+	# 3) body: GLOSSY, like a soft jelly sweet. A darker base, rings drifting up and left toward the
+	# light, each nearer the body's own color, so it rounds out; light bouncing up off the deck along
+	# the bottom edge; an outline; a shine high on the left. The body's middle tones ARE its color, so
+	# color still reads first -- it is a trait.
 	var body_pts: PackedVector2Array = _ellipse(rx, ry, 0.0)
-	draw_colored_polygon(body_pts, col)
+	draw_colored_polygon(body_pts, col.darkened(0.30))
+	for k in 6:
+		var t: float = float(k + 1) / 6.0
+		var shrink: float = 1.0 - 0.38 * t
+		draw_colored_polygon(_ellipse_at(rx * shrink, ry * shrink, Vector2(-rx, -ry) * 0.10 * t),
+			col.darkened(0.30).lerp(col, minf(1.0, t * 1.6)).lerp(col.lightened(0.18), maxf(0.0, t * 1.4 - 0.7)))
+	var rim: PackedVector2Array = PackedVector2Array()
+	for i in 13:
+		var a: float = PI * (0.18 + 0.64 * float(i) / 12.0)
+		rim.append(Vector2(cos(a) * rx * 0.90, sin(a) * ry * 0.90))
+	draw_polyline(rim, Color(col.lightened(0.45), 0.45), radius * 0.06, true)
 	var outline: PackedVector2Array = body_pts.duplicate()
 	outline.append(body_pts[0])
-	draw_polyline(outline, col.darkened(0.34), radius * 0.055, true)
-
-	# 4) belly highlight
-	draw_colored_polygon(_ellipse(rx * 0.56, ry * 0.44, ry * 0.28), col.lightened(0.16))
+	draw_polyline(outline, col.darkened(0.42), radius * 0.055, true)
+	draw_colored_polygon(_ellipse_at(rx * 0.22, ry * 0.13, Vector2(-rx * 0.42, -ry * 0.55)), Color(1, 1, 1, 0.55))
 
 	# 5) spots — lower body only, so they never read as extra eyes
 	if has_spots:

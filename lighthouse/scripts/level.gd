@@ -14,7 +14,9 @@ extends CanvasLayer
 # as the beam moves off it; there is no afterglow.
 #
 # What must ALWAYS be visible -- the boat, the lighthouse's head seen from above, the drawn route --
-# is drawn in this layer, above the dark one, and is not touched by the CanvasModulate.
+# is drawn in this layer, above the dark one, and is not touched by the CanvasModulate. So are two
+# things that only add atmosphere: a faint moonlit sheen the same over the whole sea, and mist in the
+# beam (night_air.gdshader). Neither knows where anything is, so neither gives anything away.
 #
 # MOVEMENT IS CONTINUOUS. The boat has a position and a heading, turns at a limited rate toward the
 # next point of its route, and sails at the level's speed. A drawn route is kept as the points drawn
@@ -58,17 +60,26 @@ var _beam: PointLight2D = null
 var _glows: Node2D = null
 var _glow_tex: Texture2D = null
 var _harbor_pos: Vector2 = Vector2.ZERO
-const LANTERN_GLOW: Color = Color(0.15, 0.25, 0.32)
+const LANTERN_GLOW: Color = Color(0.30, 0.24, 0.14)
 const BOAT_GLOW: Color = Color(0.22, 0.35, 0.44)
 const HARBOR_GLOW: Color = Color(0.06, 0.30, 0.18)
 var _boat_lamp: PointLight2D = null
 var _overlay: Node2D = null
 var _route_line: Line2D = null
-# The waves: small crests that drift across the sea and swell and fade, each on its own phase. They
-# are in the dark layer, so they show only where light falls -- the beam and the boat's light find a
-# moving sea. One per ~1800 px^2: [Vector2 home, float half_len, float phase, float drift speed].
-var _waves: Array = []
+# The sea is a shader (sea.gdshader) on _sea_bg, lit like everything in the dark layer. _waves_node
+# draws the foam breaking on the rocks each frame, and is where the shaders get the game's clock.
 var _sea_bg: Node2D = null
+const SEA_SHADER: Shader = preload("res://lighthouse/scripts/sea.gdshader")
+var _sea_mat: ShaderMaterial = null
+# Seen WITHOUT the lights, above the dark (night_air.gdshader): a faint moonlit sheen over the whole
+# sea, the same everywhere so it gives no rock away, and mist drifting in the beam. And a soft dark
+# edge round the sea (_vignette) so it does not end in a hard box.
+const AIR_SHADER: Shader = preload("res://lighthouse/scripts/night_air.gdshader")
+var _shimmer: Node2D = null
+var _shimmer_mat: ShaderMaterial = null
+var _haze: Node2D = null
+var _haze_mat: ShaderMaterial = null
+var _vignette: Node2D = null
 var _waves_node: Node2D = null
 
 # One per obstacle: {kind: "rock"|"wreck"|"cliff", poly: PackedVector2Array (sea coords), center:
@@ -183,13 +194,21 @@ const BG: Color = Color(0.02, 0.03, 0.06)
 # What the dark leaves of the sea. Nearly black ON PURPOSE: at a few percent, pale rock stayed a
 # shade above the sea around it and every obstacle showed as a faint silhouette in the dark.
 const NIGHT: Color = Color(0.010, 0.013, 0.025)
-const SEA: Color = Color(0.13, 0.27, 0.42)
 const FEEDBACK_SEC: float = 1.2
 const CRASH_SEC: float = 0.5
 
-var crash_audio = preload("res://art/sounds/car-crash-1.mp3")
-var dock_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var waves_audio = preload("res://art/sounds/ocean-waves-2.mp3")
+# SOUNDS made for this game (devtools/make_lighthouse_sounds.py synthesizes all five): the night sea
+# as a seamless loop, a wooden hull on rock, a knock on the pier with a ship's bell, a small outboard
+# whose pitch and volume follow the boat's speed, and a distant foghorn now and then. They replaced a
+# car crash, an arcade coin and a stock wave loop, none of which belonged at sea.
+var crash_audio = preload("res://art/sounds/lighthouse_crash.ogg")
+var dock_audio = preload("res://art/sounds/lighthouse_dock.ogg")
+var waves_audio = preload("res://art/sounds/lighthouse_sea.ogg")
+var motor_audio = preload("res://art/sounds/lighthouse_motor.wav")
+var horn_audio = preload("res://art/sounds/lighthouse_foghorn.ogg")
+const HORN_EVERY: Vector2 = Vector2(35.0, 70.0)    # seconds of sailing between foghorns, at random
+const HORN_CLEAR: float = 200.0                     # 680-wide units from the pier inside which it never sounds
+var _next_horn_ms: float = 0.0
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing
@@ -202,6 +221,11 @@ func _ready() -> void:
 	game.add_sound(self, "crash", crash_audio)
 	game.add_sound(self, "dock", dock_audio)
 	game.add_sound(self, "waves", waves_audio, true)
+	game.add_sound(self, "motor", motor_audio, true)
+	game.add_sound(self, "horn", horn_audio)
+	game.set_sound_volume("waves", -6.0)
+	game.set_sound_volume("dock", -3.0)
+	game.set_sound_volume("horn", -13.0)
 	_rng.randomize()
 	_build_ui()
 	# The dark layer is a CanvasLayer of its own, so hiding this one does not reach it.
@@ -217,9 +241,12 @@ func _build_ui() -> void:
 	_dark.color = NIGHT
 	_world_layer.add_child(_dark)
 	_sea_bg = Node2D.new()
+	_sea_mat = ShaderMaterial.new()
+	_sea_mat.shader = SEA_SHADER
+	_sea_bg.material = _sea_mat
 	_sea_bg.draw.connect(func() -> void:
 		if _sea.size.x > 0.0:
-			_sea_bg.draw_rect(_sea, SEA))
+			_sea_bg.draw_rect(_sea, Color.WHITE))
 	_world_layer.add_child(_sea_bg)
 	_waves_node = Node2D.new()
 	_waves_node.draw.connect(_draw_waves)
@@ -233,12 +260,33 @@ func _build_ui() -> void:
 	_beam = PointLight2D.new()
 	_beam.texture = _beam_texture()
 	_beam.energy = 1.25
+	_beam.height = 90.0
 	_world_layer.add_child(_beam)
 	_glow_tex = _glow_texture()
 	_boat_lamp = PointLight2D.new()
 	_boat_lamp.texture = _cone_texture()
 	_boat_lamp.energy = 2.2
 	_world_layer.add_child(_boat_lamp)
+
+	_shimmer = Node2D.new()
+	_shimmer_mat = ShaderMaterial.new()
+	_shimmer_mat.shader = AIR_SHADER
+	_shimmer_mat.set_shader_parameter("mode", 0)
+	_shimmer.material = _shimmer_mat
+	_shimmer.draw.connect(func() -> void:
+		if _sea.size.x > 0.0:
+			_shimmer.draw_rect(_sea, Color.WHITE))
+	add_child(_shimmer)
+	_haze = Node2D.new()
+	_haze_mat = ShaderMaterial.new()
+	_haze_mat.shader = AIR_SHADER
+	_haze_mat.set_shader_parameter("mode", 1)
+	_haze.material = _haze_mat
+	_haze.draw.connect(_draw_haze)
+	add_child(_haze)
+	_vignette = Node2D.new()
+	_vignette.draw.connect(_draw_vignette)
+	add_child(_vignette)
 
 	_route_line = Line2D.new()
 	_route_line.width = 4.0
@@ -430,6 +478,9 @@ func new_game(from_scratch: bool = true) -> void:
 	_world.queue_redraw()
 	_sea_bg.queue_redraw()
 	_waves_node.queue_redraw()
+	_shimmer.queue_redraw()
+	_haze.queue_redraw()
+	_vignette.queue_redraw()
 	_overlay.queue_redraw()
 	if game.tutorial_mode:
 		game.level_is_ready = true
@@ -499,6 +550,7 @@ func stop_level() -> void:
 	route.clear()
 	_route_line.points = PackedVector2Array()
 	game.stop_sound("waves")
+	game.stop_sound("motor")
 
 func _load_level(id: int) -> void:
 	var def: Dictionary = LighthouseLevelConfig.get_level(id)
@@ -541,11 +593,6 @@ func _build_fixtures() -> void:
 	_dock = Vector2(_lh_pos.x, _pier_head.end.y + 10.0 * _k)
 	_harbor_pos = Vector2(_pier_head.end.x - 6.0 * _k, _pier_head.get_center().y)
 	_start = Vector2(_lh_pos.x, _sea.end.y - 34.0 * _k * _s)
-	_waves.clear()
-	var n: int = int(_sea.size.x * _sea.size.y / 1800.0)
-	for _i in n:
-		_waves.append([Vector2(_rng.randf_range(_sea.position.x, _sea.end.x), _rng.randf_range(_sea.position.y, _sea.end.y)),
-			_rng.randf_range(6.0, 14.0) * _k, _rng.randf_range(0.0, TAU), _rng.randf_range(14.0, 26.0) * _k])
 
 # A fresh layout. Kept clear of the start, the pier and the lighthouse, apart from each other by
 # more than a boat's width, and checked to leave a way through; a layout that blocks the way is
@@ -593,19 +640,19 @@ func _make_obstacle(kind: String, c: Vector2, r: float) -> Dictionary:
 	var deck: Array = []
 	match kind:
 		"wreck":
-			# a broken hull lying on its side: pointed bow, square-ish stern, one corner torn away
+			# a sunken wooden boat, its stern under water: the hull's outline (the same curve as the
+			# boats', so it reads as a boat), ribs across it, its mast fallen over the side
 			var ang: float = _rng.randf_range(0.0, TAU)
-			var L: float = r * 1.15
-			var Wd: float = r * 0.48
-			var pts: Array = [Vector2(L, 0.0), Vector2(L * 0.45, Wd), Vector2(-L * 0.7, Wd * 0.95),
-				Vector2(-L, Wd * 0.3), Vector2(-L * 0.78, -Wd * 0.2), Vector2(-L * 0.9, -Wd * 0.85),
-				Vector2(L * 0.45, -Wd)]
-			for p: Vector2 in pts:
-				poly.append(c + p.rotated(ang))
-			for k in 4:
-				var x: float = -L * 0.55 + float(k) * L * 0.32
-				deck.append([c + Vector2(x, -Wd * 0.75).rotated(ang), c + Vector2(x, Wd * 0.75).rotated(ang)])
-			deck.append([c + Vector2(-L * 0.2, 0.0).rotated(ang), c + Vector2(L * 0.9, -Wd * 1.6).rotated(ang)])   # fallen mast
+			var L: float = r * 2.3
+			poly = hull_at(c, ang, L, 0.22)
+			var fwd: Vector2 = Vector2.from_angle(ang)
+			var sd: Vector2 = fwd.orthogonal()
+			for k in 6:
+				var u: float = -0.34 + float(k) * 0.13
+				var half: float = L * 0.17 * (1.0 - absf(u + 0.05) * 0.9)
+				deck.append([c + fwd * L * u + sd * half, c + fwd * L * u - sd * half])
+			var tip: float = 1.0 if _rng.randf() < 0.5 else -1.0
+			deck.append([c + fwd * L * 0.12, c + fwd * L * 0.30 + sd * tip * L * 0.42])   # the fallen mast
 		"cliff":
 			# a long ragged ridge
 			var ang2: float = _rng.randf_range(0.0, TAU)
@@ -620,7 +667,46 @@ func _make_obstacle(kind: String, c: Vector2, r: float) -> Dictionary:
 			for i in n2:
 				var a2: float = a0 + TAU * float(i) / float(n2)
 				poly.append(c + Vector2(cos(a2), sin(a2)) * r * _rng.randf_range(0.72, 1.1))
-	return {"kind": kind, "poly": poly, "center": c, "r": r, "seen": false, "deck": deck}
+	var o: Dictionary = {"kind": kind, "poly": poly, "center": c, "r": r, "seen": false, "deck": deck,
+		"phase": _rng.randf_range(0.0, TAU), "facets": []}
+	if kind != "wreck":
+		o["facets"] = _rock_facets(poly, c, r, kind)
+	return o
+
+# A rock as LOW-POLY STONE: its outline at the waterline, a ring part way up (shrunk, jittered, raised)
+# and a peak, joined into triangles. Each face is shaded by how squarely it faces the lighthouse --
+# the beam always comes from there, so the shading is baked once, and a rock lit by the beam is bright
+# on the side toward the lamp and dark away from it. The boat's lamp only lights; it does not reshade.
+func _rock_facets(poly: PackedVector2Array, c: Vector2, r: float, kind: String) -> Array:
+	var hgt: float = r * (0.55 if kind == "cliff" else 0.8)
+	var peak: Vector3 = Vector3(c.x + _rng.randf_range(-0.15, 0.15) * r, c.y + _rng.randf_range(-0.15, 0.15) * r, hgt)
+	var low: Array = []
+	var mid: Array = []
+	for p: Vector2 in poly:
+		low.append(Vector3(p.x, p.y, 0.0))
+		var m: Vector2 = c + (p - c) * _rng.randf_range(0.48, 0.66)
+		mid.append(Vector3(m.x, m.y, hgt * _rng.randf_range(0.55, 0.75)))
+	var lamp: Vector3 = Vector3(_lh_pos.x, _lh_pos.y, r * 3.0 + 60.0 * _k)
+	var stones: Array = [Color(0.50, 0.48, 0.46), Color(0.44, 0.43, 0.45), Color(0.52, 0.47, 0.40)]
+	var stone: Color = Color(0.46, 0.42, 0.38) if kind == "cliff" else stones[_rng.randi_range(0, stones.size() - 1)]
+	var out: Array = []
+	var n: int = poly.size()
+	for i in n:
+		var j: int = (i + 1) % n
+		for tri: Array in [[low[i], low[j], mid[j]], [low[i], mid[j], mid[i]], [mid[i], mid[j], peak]]:
+			var a: Vector3 = tri[0]
+			var b: Vector3 = tri[1]
+			var d: Vector3 = tri[2]
+			var nrm: Vector3 = (b - a).cross(d - a).normalized()
+			if nrm.z < 0.0:
+				nrm = -nrm
+			var mid_pt: Vector3 = (a + b + d) / 3.0
+			var to_lamp: Vector3 = (lamp - mid_pt).normalized()
+			var lit: float = 0.22 + 1.0 * maxf(0.0, nrm.dot(to_lamp))
+			var col: Color = Color(stone.r * lit, stone.g * lit, stone.b * lit * 1.04).lerp(
+				Color(0.30, 0.34, 0.30), 0.12 * _rng.randf())
+			out.append([PackedVector2Array([Vector2(a.x, a.y), Vector2(b.x, b.y), Vector2(d.x, d.y)]), col])
+	return out
 
 # Is there a way from the start to the pier for a boat? A grid search over the sea at a boat's
 # width, a cell blocked where a boat there would touch something.
@@ -798,10 +884,12 @@ func _draw_traffic() -> void:
 		var side: Vector2 = f.orthogonal()
 		var L: float = _traffic_len * _k
 		var Wd: float = _traffic_wid * _k
-		# wake
-		for k in 4:
-			var w: Vector2 = p - f * (L * 0.55 + float(k) * 7.0 * _k)
-			_traffic_node.draw_circle(w, (3.0 + float(k) * 1.2) * _k, Color(0.85, 0.92, 1.0, 0.30 - 0.07 * float(k)))
+		# wake: two short arms of broken foam spreading behind it
+		for k in 7:
+			var u: float = float(k) / 6.0
+			for sgn in [-1.0, 1.0]:
+				var w: Vector2 = p - f * (L * 0.5 + u * L * 0.9) + side * sgn * Wd * (0.35 + 0.9 * u)
+				_traffic_node.draw_circle(w, (1.0 + 1.2 * u) * _k, Color(0.85, 0.92, 1.0, 0.32 * (1.0 - u)))
 		var hull: PackedVector2Array = hull_at(p, h, L, (Wd * 0.5) / L)
 		# shadow on the water, down-right
 		var shadow: PackedVector2Array = PackedVector2Array()
@@ -841,29 +929,7 @@ func _draw_traffic() -> void:
 func _draw_world() -> void:
 	if _sea.size.x <= 0.0:
 		return
-	# the pier: a walkway of planks running out from the top edge, a wider landing across its end,
-	# piles under the edges and two mooring posts on the landing
-	var wood: Color = Color(0.56, 0.40, 0.25)
-	var seam: Color = Color(0.30, 0.20, 0.12)
-	for rect: Rect2 in [_pier_walk, _pier_head]:
-		_world.draw_rect(Rect2(rect.position + Vector2(3.0, 4.0) * _k, rect.size), Color(0, 0, 0, 0.45))
-	_world.draw_rect(_pier_walk, wood)
-	var yy: float = _pier_walk.position.y + 5.0 * _k
-	while yy < _pier_walk.end.y:
-		_world.draw_line(Vector2(_pier_walk.position.x, yy), Vector2(_pier_walk.end.x, yy), seam, 1.5 * _k)
-		yy += 5.0 * _k
-	_world.draw_rect(_pier_head, wood.lightened(0.06))
-	var xx: float = _pier_head.position.x + 6.0 * _k
-	while xx < _pier_head.end.x:
-		_world.draw_line(Vector2(xx, _pier_head.position.y), Vector2(xx, _pier_head.end.y), seam, 1.5 * _k)
-		xx += 6.0 * _k
-	_world.draw_rect(_pier_head, seam, false, 2.0 * _k)
-	for px: float in [_pier_head.position.x, _pier_head.end.x]:
-		for py: float in [_pier_head.position.y, _pier_head.end.y]:
-			_world.draw_circle(Vector2(px, py), 3.5 * _k, Color(0.25, 0.17, 0.10))
-	for bx: float in [_pier_head.position.x + 14.0 * _k, _pier_head.end.x - 22.0 * _k]:
-		_world.draw_circle(Vector2(bx, _pier_head.get_center().y), 4.0 * _k, Color(0.15, 0.15, 0.17))
-		_world.draw_circle(Vector2(bx - 1.0 * _k, _pier_head.get_center().y - 1.0 * _k), 2.0 * _k, Color(0.45, 0.45, 0.50))
+	_draw_pier()
 	# The lighthouse's rock, with a SOFT edge that fades into the water. A hard disc with a foam ring
 	# round it, lit evenly by the lantern's glow, read as a sharp constant ring rather than a glow.
 	var rock: Color = Color(0.42, 0.40, 0.38)
@@ -873,63 +939,200 @@ func _draw_world() -> void:
 	for o: Dictionary in obstacles:
 		_draw_obstacle(o)
 
-# Each crest drifts with the wind (to the right, wrapping round the sea), swells and fades on its own
-# phase, and is drawn as a shallow arc -- the lit face of a small wave -- with a faint trough under it.
+# The pier: a walkway of boards running out from the top edge and a wider landing across its end,
+# its boards the other way. Every board its own shade of weathered wood with a dark gap between, a
+# darker beam along each edge, round piles standing up at the corners and along the sides (their
+# tops catching the light), two iron bollards and a coil of rope. Its shadow falls on the water away
+# from the lighthouse.
+func _draw_pier() -> void:
+	var away: Vector2 = (_pier.get_center() - _lh_pos).normalized() * 5.0 * _k
+	for rect: Rect2 in [_pier_walk, _pier_head]:
+		_world.draw_rect(Rect2(rect.position + away + Vector2(2.0, 0.0) * _k, rect.size), Color(0.0, 0.02, 0.05, 0.55))
+	var gap: Color = Color(0.13, 0.09, 0.06)
+	var board_w: float = 4.2 * _k * _s
+	# the walkway: boards across it
+	_world.draw_rect(_pier_walk, gap)
+	var y: float = _pier_walk.position.y
+	var i: int = 0
+	while y < _pier_walk.end.y:
+		var hgt: float = minf(board_w - 0.8 * _k, _pier_walk.end.y - y)
+		_world.draw_rect(Rect2(_pier_walk.position.x + 1.5 * _k, y, _pier_walk.size.x - 3.0 * _k, hgt), _board(i))
+		y += board_w
+		i += 1
+	# the landing: boards along it
+	_world.draw_rect(_pier_head, gap)
+	var x: float = _pier_head.position.x
+	while x < _pier_head.end.x:
+		var wid: float = minf(board_w - 0.8 * _k, _pier_head.end.x - x)
+		_world.draw_rect(Rect2(x, _pier_head.position.y + 1.5 * _k, wid, _pier_head.size.y - 3.0 * _k), _board(i))
+		x += board_w
+		i += 1
+	# the edge beams
+	var beam: Color = Color(0.30, 0.21, 0.13)
+	for e: Array in [[_pier_walk.position, Vector2(_pier_walk.position.x, _pier_walk.end.y)],
+			[Vector2(_pier_walk.end.x, _pier_walk.position.y), Vector2(_pier_walk.end.x, _pier_walk.end.y)]]:
+		_world.draw_line(e[0], e[1], beam, 2.2 * _k)
+	_world.draw_rect(_pier_head, beam, false, 2.2 * _k)
+	# piles at the corners and along the landing's sides: round, standing up, lit on top
+	var piles: Array = [Vector2(_pier_walk.position.x, _pier_walk.end.y - 1.0), Vector2(_pier_walk.end.x, _pier_walk.end.y - 1.0)]
+	for k in 4:
+		var px: float = lerpf(_pier_head.position.x, _pier_head.end.x, float(k) / 3.0)
+		piles.append(Vector2(px, _pier_head.end.y))
+	piles.append(_pier_head.position)
+	piles.append(Vector2(_pier_head.end.x, _pier_head.position.y))
+	for pl: Vector2 in piles:
+		_world.draw_circle(pl + away * 0.5, 3.4 * _k * _s, Color(0.0, 0.0, 0.0, 0.4))
+		_world.draw_circle(pl, 3.2 * _k * _s, Color(0.24, 0.17, 0.11))
+		_world.draw_circle(pl + Vector2(-0.6, -0.7) * _k, 2.0 * _k * _s, Color(0.50, 0.38, 0.25))
+	# two bollards on the landing, and a coil of rope by the left one
+	var cy: float = _pier_head.get_center().y
+	for bx: float in [_pier_head.position.x + 12.0 * _k * _s, _pier_head.end.x - 20.0 * _k * _s]:
+		_world.draw_circle(Vector2(bx, cy), 3.6 * _k * _s, Color(0.10, 0.10, 0.12))
+		_world.draw_circle(Vector2(bx - 0.8 * _k, cy - 0.9 * _k), 1.8 * _k * _s, Color(0.42, 0.43, 0.48))
+	var coil: Vector2 = Vector2(_pier_head.position.x + 22.0 * _k * _s, cy)
+	for ring in 3:
+		_world.draw_arc(coil, (1.2 + 1.2 * float(ring)) * _k * _s, 0.0, TAU, 16, Color(0.72, 0.62, 0.42), 1.0 * _k, true)
+
+# A weathered board's shade: each one a little different, fixed by its index.
+func _board(i: int) -> Color:
+	var h: float = fposmod(sin(float(i) * 12.9898) * 43758.5453, 1.0)
+	return Color(0.50, 0.37, 0.24).lerp(Color(0.62, 0.50, 0.36), h).darkened(0.12 * fposmod(h * 7.0, 1.0))
+
+# Every frame while playing: the game's clock to the three shaders (the sea, the moonlit sheen, the
+# mist), so they stand still when the game does, and the foam.
 func _draw_waves() -> void:
 	if _sea.size.x <= 0.0:
 		return
 	var t: float = game.game_time / 1000.0
-	var w_sea: float = _sea.size.x
-	for w: Array in _waves:
-		var home: Vector2 = w[0]
-		var hl: float = w[1]
-		var ph: float = w[2]
-		var x: float = _sea.position.x + fposmod(home.x - _sea.position.x + t * float(w[3]), w_sea)
-		var y: float = home.y + sin(t * 1.4 + ph) * 2.0 * _k
-		var swell: float = 0.5 + 0.5 * sin(t * 2.2 + ph)
-		var half: float = hl * (0.55 + 0.45 * swell)
-		var alpha: float = 0.15 + 0.45 * swell
-		var r: float = half * 1.8
-		var ang: float = asin(clampf(half / r, 0.0, 1.0))
-		var ctr: Vector2 = Vector2(x, y + r)
-		_waves_node.draw_arc(ctr, r, -PI * 0.5 - ang, -PI * 0.5 + ang, 8, Color(0.70, 0.84, 0.96, alpha), 1.6 * _k, true)
-		_waves_node.draw_arc(ctr + Vector2(0, 2.5 * _k), r, -PI * 0.5 - ang * 0.8, -PI * 0.5 + ang * 0.8, 6,
-			Color(0.03, 0.10, 0.20, alpha * 0.6), 1.4 * _k, true)
+	for m: ShaderMaterial in [_sea_mat, _shimmer_mat, _haze_mat]:
+		m.set_shader_parameter("t", t)
+		m.set_shader_parameter("k", _k)
+	_draw_foam(t)
+
+# Water breaking on every rock, wreck and the lighthouse's own: FLECKS of foam a little way off the
+# edge, in patches with gaps between, pushed outward and fading as each wave's wash runs back (two
+# waves at a time, on each thing's own phase). In the dark layer, so seen only where lit. (A whole
+# ring at the edge, drawn first, read as an outline round everything.)
+const FOAM_STEP: float = 5.0              # 680-wide units between flecks along an edge
+func _draw_foam(t: float) -> void:
+	for o: Dictionary in obstacles:
+		_foam_round(o["poly"], o["center"], float(o["phase"]), t)
+	var ring: PackedVector2Array = PackedVector2Array()
+	for i in 24:
+		ring.append(_lh_pos + Vector2.from_angle(TAU * float(i) / 24.0) * _lh_r * 0.95)
+	_foam_round(ring, _lh_pos, 1.3, t)
+
+func _foam_round(poly: PackedVector2Array, c: Vector2, ph: float, t: float) -> void:
+	var step: float = FOAM_STEP * _k
+	for wave in 2:
+		var cyc: float = fposmod(t * 0.45 + ph / TAU + float(wave) * 0.5, 1.0)
+		var fade: float = (1.0 - cyc) * (1.0 - cyc)
+		var along: float = 0.0
+		for j in poly.size():
+			var a: Vector2 = poly[j]
+			var b: Vector2 = poly[(j + 1) % poly.size()]
+			var seg: float = a.distance_to(b)
+			var d: float = 0.0
+			while d < seg:
+				var p: Vector2 = a.lerp(b, d / seg)
+				# patches: foam where this wave breaks, gaps where it does not
+				var patch: float = sin(along * 0.11 / _k + ph * 3.0 + float(wave) * 2.1) * 0.6 \
+					+ sin(along * 0.29 / _k + ph * 5.0 + t * 0.7) * 0.4
+				if patch > 0.05:
+					var out: Vector2 = (p - c).normalized()
+					var off: float = (2.5 + 9.0 * cyc + 2.0 * sin(along * 0.7 / _k + ph)) * _k
+					_waves_node.draw_circle(p + out * off, (0.9 + 0.8 * patch) * _k,
+						Color(0.88, 0.94, 1.0, 0.50 * fade * minf(1.0, patch * 1.6)))
+				d += step
+				along += step
+
+# A shadow on the water cast away from the lighthouse, SOFT: four faint copies stepping out and
+# growing a little, so it darkens the water without a hard second edge. (One hard copy read as a
+# double outline.)
+func _draw_soft_shadow(poly: PackedVector2Array, c: Vector2, reach: float) -> void:
+	var away: Vector2 = (c - _lh_pos).normalized()
+	for k in 4:
+		var f: float = float(k + 1) / 4.0
+		var shade: PackedVector2Array = PackedVector2Array()
+		for p: Vector2 in poly:
+			shade.append(c + (p - c) * (1.0 + 0.08 * f) + away * reach * f)
+		_world.draw_colored_polygon(shade, Color(0.0, 0.02, 0.05, 0.16))
 
 func _draw_obstacle(o: Dictionary) -> void:
 	var poly: PackedVector2Array = o["poly"]
 	var c: Vector2 = o["center"]
 	match str(o["kind"]):
 		"wreck":
-			# foam where the water breaks on it
-			var foam: PackedVector2Array = PackedVector2Array()
-			for p: Vector2 in poly:
-				foam.append(c + (p - c) * 1.12)
-			_world.draw_colored_polygon(foam, Color(0.85, 0.92, 1.0, 0.30))
-			_world.draw_colored_polygon(poly, Color(0.40, 0.27, 0.16))
-			for seg: Array in o["deck"]:
-				_world.draw_line(seg[0], seg[1], Color(0.22, 0.14, 0.08), 2.5 * _k, true)
-			_world.draw_polyline(poly + PackedVector2Array([poly[0]]), Color(0.20, 0.12, 0.07), 2.0 * _k, true)
+			_draw_soft_shadow(poly, c, float(o["r"]) * 0.28)
+			# the planking, then the dark inside of the hull and its ribs
+			_world.draw_colored_polygon(poly, Color(0.44, 0.31, 0.19))
+			var inner: PackedVector2Array = PackedVector2Array()
+			for p2: Vector2 in poly:
+				inner.append(c + (p2 - c) * 0.80)
+			_world.draw_colored_polygon(inner, Color(0.16, 0.10, 0.06))
+			var segs: Array = o["deck"]
+			for si in segs.size() - 1:
+				_world.draw_line(segs[si][0], segs[si][1], Color(0.52, 0.38, 0.23), 1.8 * _k, true)
+			# the stern under water: the sea laid over the hull's back third (poly[0] is the bow)
+			var bow: Vector2 = poly[0] - c
+			var sunk: PackedVector2Array = PackedVector2Array()
+			for p3: Vector2 in poly:
+				if (p3 - c).dot(bow) < -0.08 * bow.length_squared():
+					sunk.append(p3)
+			if sunk.size() >= 3:
+				_world.draw_colored_polygon(sunk, Color(0.12, 0.26, 0.40, 0.75))
+			_world.draw_polyline(poly + PackedVector2Array([poly[0]]), Color(0.20, 0.13, 0.07), 1.6 * _k, true)
+			_world.draw_line(segs.back()[0], segs.back()[1], Color(0.30, 0.21, 0.13), 3.0 * _k, true)
 		_:
-			var foam2: PackedVector2Array = PackedVector2Array()
+			# its shadow on the water, cast away from the lighthouse, then a dark wet band at the
+			# waterline, then the faces
+			_draw_soft_shadow(poly, c, float(o["r"]) * 0.40)
+			var wet: PackedVector2Array = PackedVector2Array()
 			for p: Vector2 in poly:
-				foam2.append(c + (p - c) * 1.14)
-			_world.draw_colored_polygon(foam2, Color(0.85, 0.92, 1.0, 0.32))
-			var base: Color = Color(0.45, 0.43, 0.41) if str(o["kind"]) == "rock" else Color(0.38, 0.35, 0.32)
-			_world.draw_colored_polygon(poly, base)
-			# a lit top face, smaller and offset up-left
-			var top: PackedVector2Array = PackedVector2Array()
-			for p: Vector2 in poly:
-				top.append(c + (p - c) * 0.62 + Vector2(-0.12, -0.16) * float(o["r"]))
-			_world.draw_colored_polygon(top, base.lightened(0.22))
-			_world.draw_polyline(poly + PackedVector2Array([poly[0]]), base.darkened(0.45), 2.0 * _k, true)
+				wet.append(p)
+			_world.draw_colored_polygon(wet, Color(0.10, 0.11, 0.12))
+			for f: Array in o["facets"]:
+				_world.draw_colored_polygon(f[0], f[1])
+
+# The beam's own texture, laid exactly over the light (same center, turn and scale), for the mist.
+func _draw_haze() -> void:
+	if _sea.size.x <= 0.0 or _beam.texture == null:
+		return
+	var ts: float = _beam.texture_scale
+	_haze_mat.set_shader_parameter("clip", Vector4(_sea.position.x, _sea.position.y, _sea.end.x, _sea.end.y))
+	_haze.draw_set_transform(_lh_pos, beam_angle, Vector2(ts, ts * _beam.scale.y))
+	_haze.draw_texture(_beam.texture, -Vector2(BEAM_TEX, BEAM_TEX) * 0.5)
+
+# A soft dark edge inside the sea, fading in over VIGNETTE units, so the water does not stop at a box.
+const VIGNETTE: float = 46.0
+func _draw_vignette() -> void:
+	if _sea.size.x <= 0.0:
+		return
+	var d: float = VIGNETTE * _k
+	var o: Rect2 = _sea
+	var i: Rect2 = _sea.grow(-d)
+	var dark: Color = Color(BG, 0.85)
+	var clear: Color = Color(BG, 0.0)
+	var cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
+	var oc: Array = [o.position, Vector2(o.end.x, o.position.y), o.end, Vector2(o.position.x, o.end.y)]
+	var ic: Array = [i.position, Vector2(i.end.x, i.position.y), i.end, Vector2(i.position.x, i.end.y)]
+	for e in 4:
+		_vignette.draw_polygon(PackedVector2Array([oc[e], oc[(e + 1) % 4], ic[(e + 1) % 4], ic[e]]), cols)
+	# and a band of the screen's own color round the outside: things in the dark layer drawn just past
+	# the sea's edge (another boat sailing in, its shadow) showed as black shapes against it
+	var m: float = 80.0 * _k
+	for band: Rect2 in [Rect2(o.position.x - m, o.position.y - m, o.size.x + m * 2.0, m),
+			Rect2(o.position.x - m, o.end.y, o.size.x + m * 2.0, m),
+			Rect2(o.position.x - m, o.position.y, m, o.size.y), Rect2(o.end.x, o.position.y, m, o.size.y)]:
+		_vignette.draw_rect(band, BG)
 
 func _draw_glows() -> void:
 	if _sea.size.x <= 0.0 or _glow_tex == null:
 		return
 	var lamp: Vector2 = boat_pos + Vector2.from_angle(boat_heading) * _boat_len * _k * 0.42
-	for g: Array in [[_lh_pos, _lh_r * 2.8, LANTERN_GLOW], [lamp, _boat_len * _k * 1.1, BOAT_GLOW],
-			[_harbor_pos, 70.0 * _k, HARBOR_GLOW * harbor_flash()]]:
+	var flare: Vector2 = _lh_pos + Vector2.from_angle(beam_angle) * _lh_r * 0.62
+	for g: Array in [[_lh_pos, _lh_r * 2.8, LANTERN_GLOW], [flare, _lh_r * 1.1, Color(0.55, 0.50, 0.40)],
+			[lamp, _boat_len * _k * 1.1, BOAT_GLOW], [_harbor_pos, 70.0 * _k, HARBOR_GLOW * harbor_flash()]]:
 		var r: float = float(g[1])
 		_glows.draw_texture_rect(_glow_tex, Rect2((g[0] as Vector2) - Vector2(r, r), Vector2(r, r) * 2.0), false, g[2])
 
@@ -937,17 +1140,7 @@ func _draw_glows() -> void:
 func _draw_overlay() -> void:
 	if _sea.size.x <= 0.0:
 		return
-	var r: float = _lh_r
-	# gallery (the walkway round the lantern) with its railing
-	_overlay.draw_circle(_lh_pos, r * 0.78, Color(0.20, 0.21, 0.24))
-	_overlay.draw_arc(_lh_pos, r * 0.78, 0.0, TAU, 40, Color(0.55, 0.57, 0.62), 2.0 * _k, true)
-	# the lantern: lit glass all round
-	_overlay.draw_circle(_lh_pos, r * 0.55, Color(1.0, 0.86, 0.45))
-	_overlay.draw_circle(_lh_pos, r * 0.45, Color(1.0, 0.96, 0.78))
-	# the red cap and its vent
-	_overlay.draw_circle(_lh_pos, r * 0.32, Color(0.75, 0.16, 0.14))
-	_overlay.draw_circle(_lh_pos + Vector2(-0.07, -0.08) * r, r * 0.16, Color(0.90, 0.30, 0.26))
-	_overlay.draw_circle(_lh_pos, r * 0.08, Color(0.25, 0.06, 0.05))
+	_draw_lantern()
 	# the harbor light at the pier's end: always visible, the one thing that says where to go. It
 	# flashes like a real one (see harbor_flash), and never goes fully dark.
 	var hl: Vector2 = _harbor_pos
@@ -959,6 +1152,40 @@ func _draw_overlay() -> void:
 	if since >= 0.0 and since < CRASH_SEC * 1000.0:
 		var t: float = since / (CRASH_SEC * 1000.0)
 		_overlay.draw_arc(_crash_at, (8.0 + 30.0 * t) * _k, 0.0, TAU, 32, Color(1.0, 0.35, 0.25, 1.0 - t), 4.0 * _k, true)
+
+# The lighthouse's head seen from straight above, built as a real one is: the gallery (a walkway with
+# a railing of posts) round the lantern, the lantern's glass lit from inside and divided by mullions,
+# the lens's hot spot turning with the beam, and a dark metal cap with ribs and a vent ball. Lit from
+# within, so the cap's rim catches the glow and its top stays dark.
+func _draw_lantern() -> void:
+	var r: float = _lh_r
+	var c: Vector2 = _lh_pos
+	var hot: Vector2 = Vector2.from_angle(beam_angle)
+	# the tower's shadow, the gallery deck (lit a little from the glass), the railing
+	_overlay.draw_circle(c + Vector2(2.0, 3.0) * _k, r * 0.86, Color(0, 0, 0, 0.45))
+	_overlay.draw_circle(c, r * 0.84, Color(0.14, 0.15, 0.18))
+	for k in 4:
+		var f: float = float(k) / 3.0
+		_overlay.draw_circle(c, r * lerpf(0.80, 0.64, f), Color(0.22, 0.22, 0.25).lerp(Color(0.42, 0.36, 0.28), f))
+	_overlay.draw_arc(c, r * 0.81, 0.0, TAU, 48, Color(0.55, 0.57, 0.61), 1.2 * _k, true)
+	for i in 16:
+		_overlay.draw_circle(c + Vector2.from_angle(TAU * float(i) / 16.0) * r * 0.81, 1.0 * _k, Color(0.75, 0.77, 0.80))
+	# the glass, lit from inside, white-hot toward the turning lens
+	_overlay.draw_circle(c, r * 0.62, Color(0.95, 0.70, 0.32))
+	_overlay.draw_circle(c, r * 0.58, Color(1.0, 0.86, 0.52))
+	_overlay.draw_arc(c, r * 0.55, beam_angle - 0.75, beam_angle + 0.75, 16, Color(1.0, 0.97, 0.85), r * 0.14, true)
+	_overlay.draw_arc(c, r * 0.55, beam_angle - 0.35, beam_angle + 0.35, 10, Color(1.0, 1.0, 1.0), r * 0.16, true)
+	for i in 10:
+		var a: Vector2 = Vector2.from_angle(TAU * float(i) / 10.0 + 0.3)
+		_overlay.draw_line(c + a * r * 0.44, c + a * r * 0.62, Color(0.25, 0.17, 0.08, 0.55), 1.1 * _k, true)
+	# the cap: a red dome, a warm rim where the glass lights it, a highlight, the vent knob
+	_overlay.draw_circle(c, r * 0.45, Color(1.0, 0.80, 0.45, 0.85))
+	_overlay.draw_circle(c, r * 0.42, Color(0.55, 0.13, 0.11))
+	for k in 6:
+		var f2: float = float(k) / 5.0
+		_overlay.draw_circle(c + Vector2(-0.07, -0.09) * r * f2, r * lerpf(0.40, 0.08, f2),
+			Color(0.50, 0.12, 0.10).lerp(Color(0.86, 0.36, 0.30), f2 * f2))
+	_overlay.draw_circle(c + Vector2(-0.03, -0.035) * r, r * 0.07, Color(0.92, 0.80, 0.70))
 
 # The harbor light's rhythm: OCCULTING, the "Oc G 4s" of a real harbor light -- lit most of the
 # time, with a short dark break every HARBOR_PERIOD seconds (HARBOR_DARK of it). The break dips to a
@@ -1011,14 +1238,7 @@ func _draw_boat() -> void:
 	var stern: Vector2 = p - fwd * L * 0.5
 	# wake: a faint V of foam spreading behind the stern, only while under way
 	# short and soft, fading out along its length: drawn as long even lines it read as two poles
-	if boat_moving and _pace > 0.05:
-		for sgn in [-1.0, 1.0]:
-			for k in 5:
-				var t0: float = float(k) / 5.0
-				var t1: float = float(k + 1) / 5.0
-				var a0: Vector2 = stern - fwd * L * 0.55 * t0 + side * sgn * L * (0.13 + 0.16 * t0)
-				var a1: Vector2 = stern - fwd * L * 0.55 * t1 + side * sgn * L * (0.13 + 0.16 * t1)
-				_overlay.draw_line(a0, a1, Color(0.92, 0.96, 1.0, 0.30 * _pace * (1.0 - t0)), (2.4 - 1.4 * t0) * _k, true)
+	_draw_wake(stern, side, L)
 	var hull: PackedVector2Array = _hull_outline(1.0)
 	var shadow: PackedVector2Array = PackedVector2Array()
 	for q: Vector2 in hull:
@@ -1046,10 +1266,54 @@ func _draw_boat() -> void:
 	# the lamp at the bow
 	_overlay.draw_circle(p + fwd * L * 0.40, 2.6 * _k, Color(1.0, 0.95, 0.70))
 
+# THE WAKE is the boat's real track: the stern's positions over the last WAKE_SEC (_wake), drawn as
+# two arms of foam that spread out and fade as they age, and a churned line between them. It follows
+# every turn the boat made, so a curve leaves a curved wake. (A fixed V behind the stern, drawn first,
+# read as two poles.)
+const WAKE_SEC: float = 1.3
+const WAKE_STEP_MS: float = 50.0
+var _wake: Array = []                     # [Vector2 stern, Vector2 side, float game_time ms, float pace]
+
+func _track_wake() -> void:
+	var now: float = game.game_time
+	while not _wake.is_empty() and now - float(_wake[0][2]) > WAKE_SEC * 1000.0:
+		_wake.pop_front()
+	if not boat_moving or _pace < 0.05:
+		return
+	if not _wake.is_empty() and now - float(_wake.back()[2]) < WAKE_STEP_MS:
+		return
+	var fwd: Vector2 = Vector2.from_angle(boat_heading)
+	_wake.append([boat_pos - fwd * _boat_len * _k * 0.5, fwd.orthogonal(), now, _pace])
+
+func _draw_wake(stern: Vector2, side: Vector2, L: float) -> void:
+	var now: float = game.game_time
+	var pts: Array = _wake.duplicate()
+	if boat_moving and _pace > 0.05:
+		pts.append([stern, side, now, _pace])
+	if pts.size() < 2:
+		return
+	# the arms: broken foam, one fleck per tracked point a side, spreading and fading as it ages
+	for w: Array in pts:
+		var age: float = clampf((now - float(w[2])) / (WAKE_SEC * 1000.0), 0.0, 1.0)
+		var fade: float = float(w[3]) * (1.0 - age) * (1.0 - age)
+		var flick: float = 0.6 + 0.4 * sin(float(w[2]) * 0.37)
+		for sgn in [-1.0, 1.0]:
+			var at: Vector2 = (w[0] as Vector2) + (w[1] as Vector2) * sgn * L * (0.12 + 0.42 * age)
+			_overlay.draw_circle(at, (1.0 + 1.6 * age) * _k, Color(0.90, 0.95, 1.0, 0.30 * fade * flick))
+	# the churned water straight behind the motor
+	var mid: PackedVector2Array = PackedVector2Array()
+	var mid_cols: PackedColorArray = PackedColorArray()
+	for w2: Array in pts:
+		var age2: float = clampf((now - float(w2[2])) / (WAKE_SEC * 1000.0), 0.0, 1.0)
+		mid.append(w2[0])
+		mid_cols.append(Color(0.80, 0.90, 1.0, 0.10 * float(w2[3]) * (1.0 - age2)))
+	_overlay.draw_polyline_colors(mid, mid_cols, L * 0.16, true)
+
 # --- the boat ----------------------------------------------------------------------------------------
 
 func _reset_boat() -> void:
 	boat_pos = _start
+	_wake.clear()
 	boat_heading = -PI * 0.5
 	boat_moving = false
 	route.clear()
@@ -1262,6 +1526,8 @@ func _start_round() -> void:
 	_caption.text = "Round %d of %d" % [round_index, max_rounds]
 	_enter(Phase.PLAY)
 	game.play_sound("waves", false)
+	if _next_horn_ms <= 0.0 or _next_horn_ms > game.game_time + HORN_EVERY.y * 1000.0:
+		_next_horn_ms = game.game_time + _rng.randf_range(12.0, 20.0) * 1000.0
 
 # Docked: the boat actually TOUCHES the pier -- its bow inside it, or its hull's circle over an
 # edge. A distance to a point below the landing said "docked" a boat-length short of the planks.
@@ -1340,6 +1606,7 @@ func _show_bar(frac: float, col: Color) -> void:
 
 func _process(dt: float) -> void:
 	if not _can_play():
+		game.stop_sound("motor")
 		return
 	beam_angle = wrapf(beam_angle + deg_to_rad(beam_turn_deg) * dt, -PI, PI)
 	_beam.rotation = beam_angle
@@ -1353,6 +1620,8 @@ func _process(dt: float) -> void:
 			_show_bar(frac, Color(0.9, 0.3, 0.25).lerp(Color(0.3, 0.8, 0.4), clampf(frac, 0.0, 1.0)))
 			_move_traffic(dt)
 			_sail(dt)
+			_track_wake()
+			_engine_sound()
 			_mark_seen()
 			if phase == Phase.PLAY and touches_pier():
 				_round_ended(true)
@@ -1374,6 +1643,25 @@ func _process(dt: float) -> void:
 	_overlay.queue_redraw()
 	_waves_node.queue_redraw()
 	_traffic_node.queue_redraw()
+	_haze.queue_redraw()
+
+# The outboard runs while the boat is under way, louder and higher as it speeds up; it stops at a
+# standstill and whenever play stops (a card, a pause -- see the top of _process). The foghorn sounds
+# every HORN_EVERY seconds of sailing.
+func _engine_sound() -> void:
+	if boat_moving and _pace > 0.03:
+		game.play_sound("motor", false)
+		game.set_sound_volume("motor", lerpf(-30.0, -13.0, _pace))
+		var player: Node = game.sounds.get("motor", null)
+		if player != null:
+			player.pitch_scale = 0.80 + 0.35 * _pace
+	else:
+		game.stop_sound("motor")
+	# Never near the pier: arriving is the dock's sound, and a horn on top of it read as the boat
+	# hooting as it docked. It waits until the boat is out on the water again.
+	if game.game_time >= _next_horn_ms and boat_pos.distance_to(_dock) > HORN_CLEAR * _k:
+		game.play_sound("horn")
+		_next_horn_ms = game.game_time + _rng.randf_range(HORN_EVERY.x, HORN_EVERY.y) * 1000.0
 
 # --- input: draw a route, tap to go, tap the boat to stop ------------------------------------------
 
@@ -1562,6 +1850,7 @@ func _level_done(didwin: bool) -> void:
 		return
 	_enter(Phase.DONE)
 	game.stop_sound("waves")
+	game.stop_sound("motor")
 	if game.tutorial_mode:
 		return
 	game.level_is_done = true

@@ -4,7 +4,8 @@ A boat crosses a dark sea at night, from the bottom center to a pier at the top 
 the sea can be seen except where light falls on it: a lighthouse in the middle sweeps a beam round,
 widening as it goes out, and the boat carries a small light of its own. Rocks, wrecks and cliffs show
 only in slices as the light passes over them, so getting across is remembering where they were. The
-view is top-down: the lighthouse is seen as its head from above (gallery, lit lantern, red cap).
+view is top-down: the lighthouse is seen as its head from above (`_draw_lantern`: a gallery with a railing of posts, the
+lantern's glass lit from inside with a white-hot spot that turns with the beam, a red cap).
 
 ## Files
 
@@ -71,8 +72,8 @@ obstacle showed as a faint silhouette in the dark.
   no afterglow**. It lights everything in its way, not just the nearest thing.
 - `_boat_lamp`: a cone at the bow (`_cone_texture`), bright at the boat and fading to nothing at
   `boat_light`.
-- **Only those two are lights.** The faint glows round the lantern, the boat's lamp and the green
-  harbor light are soft additive sprites drawn just above the dark layer (`_draw_glows`), not
+- **Only those two are lights.** The faint glows round the lantern (and a small flare where the lens
+  faces), the boat's lamp and the green harbor light are soft additive sprites drawn just above the dark layer (`_draw_glows`), not
   PointLight2Ds. Five moving lights was the likeliest cause of jitter on a phone: a 2D light costs per
   lit pixel of every item it touches, the beam covers most of the screen, and every extra light
   multiplied that. The lighthouse's rock has a SOFT edge fading into the water: a hard disc with a
@@ -84,8 +85,27 @@ ring -- is drawn in the level's own layer above, untouched by the CanvasModulate
 layer is a CanvasLayer of its own, hiding the level does not reach it: `visibility_changed` mirrors
 it.
 
-**The pier** at the top center, close to the top edge: a narrow plank walkway from the edge and a
-wider landing across its end, with piles and two mooring posts. It is in the dark layer too, so it
+**Atmosphere above the dark**, in the level's layer and so seen without light, all of it knowing
+nothing about where anything is (`night_air.gdshader`, additive):
+- `_shimmer`: a faint moonlit sheen over the whole sea -- sparse glints stretched along the crests,
+  drifting with the wind. It is why the dark reads as water at night and not a void. It is the same
+  everywhere, so it shows no rock.
+- `_haze`: mist in the beam -- the beam's own texture laid exactly over the light, faint, broken by
+  drifting noise, and clipped to the sea (it spilled past the bottom edge).
+- `_vignette`: the sea darkens over its last 46 units into the screen's own color, so it does not
+  end in a hard box, and **a band of the screen's color is drawn round the outside**. Things in the
+  dark layer drawn just past the sea's edge -- another boat sailing in, its black shadow -- showed as
+  dark shapes against the slightly lighter screen around it: a boat's position given away.
+
+**The dark is checked in pixels** by `devtools/probe_lighthouse_dark.gd`, which needs a window:
+level 8 rendered with both lights off, with and without the obstacles and boats, compared. The
+near-black `NIGHT` leaves up to about 4/255 (the old drawing left 5); the probe fails over 6. Rerun
+it after any change to how the sea is drawn.
+
+**The pier** at the top center, close to the top edge (`_draw_pier`): a narrow walkway of boards from
+the edge and a wider landing across its end with its boards the other way, every board its own shade
+of weathered wood (`_board`) with a dark gap between, edge beams, round piles lit on top, two iron
+bollards and a coil of rope, and its shadow on the water. It is in the dark layer too, so it
 shows only when light falls on it -- but a small **green harbor light** at the landing's end is always
 visible (drawn in the overlay, with a faint green glow of its own, `_draw_glows`), so the goal is
 known in the dark. It is **occulting** like a real harbor light -- the "Oc G 4s" of the charts: lit for 2.5 s,
@@ -99,17 +119,37 @@ is only the approach that obstacles are kept clear of and the way-through search
 
 ## The sea
 
-**Waves** (`_draw_waves`, their own node between the sea's fill and everything on it, redrawn every
-frame): small crests, one per ~1800 px^2, that drift to the right at 14-26 units a second (wrapping
-round), bob, and swell and fade each on its own phase -- a shallow lit arc with a faint trough under it. Being in the dark
-layer, they show only where light falls: the beam and the boat's light find a moving sea.
+**The water is a shader** (`sea.gdshader` on `_sea_bg`), in the dark layer like everything there, so
+it shows only where light falls. Its surface has height -- three long swells running with the wind
+and two octaves of drifting chop -- and its `light()` uses the normals that height gives: the beam
+shades the swells and throws glints off the crests that face it, brightest near the lamp, as a real
+glitter path is. Broad patches of darker and lighter water drift under it. Its clock is the game's
+(`t`, set every frame in `_draw_waves`), not `TIME`, so the sea stands still when the game does. It
+replaced small drawn arcs ("~" marks) that read as clip art. The beam light has a `height` (90) for
+the shading.
+
+**Foam** (`_draw_foam`, on `_waves_node`, every frame): flecks a little way off the edge of every
+rock and wreck and the lighthouse's rock, in patches with gaps between, pushed outward and fading as
+each wave's wash runs back (two waves at a time, on each thing's own `phase`). Dark layer: seen only
+where lit. **Never a whole ring at the edge**: that was the first version, and it read as an outline
+round everything.
 
 `_build_sea()` places the obstacles (`_try_layout`): clear of the start, the pier and the lighthouse
 rock, apart from each other by more than a boat's width, and checked by `has_way_through()` -- a grid
 search at a boat's width from the start to the pier. A blocked layout is drawn again (40 tries, then
-one obstacle fewer). Kinds: a **rock** (an irregular polygon with a lit top face and foam), a **wreck**
-(a broken hull with deck planks and a fallen mast), a **cliff** (a long ragged ridge, 1.35x the size).
-The lighthouse's rock in the middle is an obstacle too -- the straight way up runs into it.
+one obstacle fewer). Kinds: a **rock** (an irregular polygon), a **wreck** (a sunken wooden boat: the hull's outline,
+`hull_at`, so it reads as a boat), a **cliff** (a long ragged ridge, 1.35x the size). The lighthouse's
+rock in the middle is an obstacle too -- the straight way up runs into it.
+
+**How they look.** Rocks and cliffs are **low-poly stone** (`_rock_facets`, built once with the
+obstacle): the outline at the waterline, a jittered ring part way up and a peak, joined into
+triangles, each shaded by how squarely it faces the LIGHTHOUSE -- the beam always comes from there,
+so the shading is baked, and a lit rock is bright on the lamp's side and dark away from it. A wet dark
+band just inside the waterline, one of three stone tones, and a SOFT shadow on the water cast away
+from the lighthouse (`_draw_soft_shadow`: four faint copies stepping out; one hard copy read as a
+second outline). A wreck: its planking, the dark inside of the hull with ribs across it, the stern third
+under the sea, and its mast fallen over the side. (They were flat polygons with an offset lighter
+blob for a top, and the wrecks a zigzag of planks that read as wicker.)
 
 `same_sea` false: a new layout at the start of every round after the first.
 
@@ -141,14 +181,17 @@ Rejected: horizontal lanes reserved before the rocks were placed -- they bent th
 them and capped the number of boats -- and lanes searched for after placing the rocks, which found no
 clear band on most levels.
 
-**Waves** drift at 14-26 units a second, bob and swell faster than at first (the player's call).
 
 ## The boat
 
 **How it looks** (`_draw_boat`, `_hull_outline`): a small motorboat seen from above -- a hull whose
 sides curve out from a pointed bow to its widest point and run back to a flat transom, a white rim
 round a wooden deck with planks along it, an open cockpit aft with a windscreen, the outboard motor off
-the transom, the lamp at the bow, and a short soft V of wake fading behind it while under way. Its
+the transom and the lamp at the bow. **The wake is the boat's real track** (`_track_wake`,
+`_draw_wake`): the stern's positions over the last `WAKE_SEC` (1.3 s), drawn as flecks of foam that
+spread out and fade with age and a faint churned line behind the motor, so a turn leaves a curved
+wake. A fixed V behind the stern read as two poles, and continuous arm lines did too. The other boats
+trail two short arms of foam flecks (they had a row of circles that read as bubbles). Its
 length is `BOAT_LEN` 40 units (it was 30 -- a speck on a phone), and its collision radius is 0.3 of
 that.
 
@@ -200,7 +243,7 @@ stops above the app's bottom bar (it reached 7 units under the hamburger):
 
 **A collision** (`hit_at`: the boat's circle against each obstacle's polygon, or the lighthouse rock)
 puts the boat back where it was, stops it, flashes a red ring, plays the crash sound
-(`art/sounds/car-crash-1.mp3`, as Pneumo's crashes) and costs a lifebuoy; 0.7 s of grace
+(a wooden hull on rock, see "Sounds") and costs a lifebuoy; 0.7 s of grace
 follows. **Crash timestamps are forgotten at every round** (`_forget_crash_times`): the grace
 (`_invuln_until`) and the crash ring (`_crash_t`) are stamped on `game.game_time`, which starts again
 at every new level and new game. Kept across a restart they lay in the clock's future: no crash
@@ -221,6 +264,23 @@ motion went on drawing.
 half-width there) or the boat's light (within its cone and reach) is on it. A collision with
 something already seen is counted apart (`collisions_seen`): a memory slip, not a hazard nobody
 could have seen.
+
+## Sounds
+
+All five are made for this game by `devtools/make_lighthouse_sounds.py` (synthesized, seeded; tune
+them there) into `art/sounds/lighthouse_*`. They replaced a car crash, an arcade coin and a stock
+wave loop.
+
+| name in code | file | when |
+|---|---|---|
+| `waves` | `lighthouse_sea.ogg`, 24 s seamless loop, -6 dB | from the first round on: swells, their wash, lapping, a little wind |
+| `crash` | `lighthouse_crash.ogg` | a collision: a thump, the wood's knock, a scrape, a splash |
+| `dock` | `lighthouse_dock.ogg`, -3 dB | reaching the pier: a knock on the planks and a small, bright ship's bell, with no low hum partial (its long low tail was heard as a horn) |
+| `motor` | `lighthouse_motor.wav`, 1 s loop | while the boat is under way (`_engine_sound`): -30 to -13 dB and pitch 0.80-1.15 with `_pace`; stopped at a standstill and whenever play stops (the top of `_process`), so it never runs under a card |
+| `horn` | `lighthouse_foghorn.ogg`, -13 dB | a distant foghorn, first 12-20 s into sailing, then every 35-70 s (`HORN_EVERY`), but never within `HORN_CLEAR` (200 units) of the pier: a crossing takes about as long as the first wait, and a horn on arrival read as the boat hooting as it docked |
+
+**The motor is a WAV**: Vorbis decoded its one-second loop 128 samples short, so the end no longer
+met the start and it clicked every second.
 
 ## A level
 

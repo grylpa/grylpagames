@@ -115,9 +115,13 @@ static func draw_ground(ci: CanvasItem, world: Rect2, zoom: float, seed_val: int
 	# grain only appears once a grain would be more than a pixel across.
 	if not ground_detail:
 		_scatter(ci, world, 256.0, 2, seed_val, 1, 58.0, 96.0, SOIL_DARK, SOIL_LIGHT, 0.22, false)
-	var cell: float = cell_for_zoom(zoom)
-	if cell * zoom >= 10.0:
-		_scatter(ci, world, cell, 5, seed_val, 7, 0.9, 2.4, GRAIN_DARK, GRAIN_LIGHT, 1.0, true)
+	# The fine grain is the ground layer's shader now (soil.gdshader): sand, clumps and flat pebbles,
+	# a few percent either side of the soil. Drawn here, it was 20,000 squares that read as speckle.
+	# Still drawn the old way when ground_detail is off, for side-by-side renders.
+	if not ground_detail:
+		var cell: float = cell_for_zoom(zoom)
+		if cell * zoom >= 10.0:
+			_scatter(ci, world, cell, 5, seed_val, 7, 0.9, 2.4, GRAIN_DARK, GRAIN_LIGHT, 1.0, true)
 
 # The patches can be switched off, so a render can show the ground with and without
 # them side by side. Always on in the game.
@@ -135,7 +139,7 @@ const PATCH_TEXEL: float = 24.0
 const PATCH_FEATURE: float = 420.0      # typical size of a patch, in world units
 const DAMP: Color = Color(0.420, 0.333, 0.247)
 const DRY: Color = Color(0.733, 0.655, 0.553)
-const PATCH_ALPHA: float = 0.62
+const PATCH_ALPHA: float = 0.45
 
 static var _patch_tex: ImageTexture = null
 static var _patch_key: String = ""
@@ -188,21 +192,34 @@ static func _scatter(ci: CanvasItem, area: Rect2, cell: float, per_cell: int, se
 # Deliberately faint -- it is the thing the whole level exists to show forming, but an ant is the
 # subject and a bright trail would out-shout it.
 static func draw_marks(ci: CanvasItem, pts: PackedFloat32Array, zoom: float) -> void:
-	# CIRCLES. This was rects, on the reasoning that a circle is a fan of triangles where a rect is
-	# two, and that at four pixels under 0.42 alpha nobody could tell. Both halves stopped being
-	# true: the marks are larger and much more opaque now, so the corners show and a road reads as
-	# a chain of little squares. probe_ants times level 5 -- 120 ants over a 3x3 world -- and the
-	# cost of the change is visible there rather than argued about here.
-	# Bigger than the grain on purpose: at 4 px these were the same size as the soil speckle and
-	# sat in the gaps between it rather than covering it.
-	var rr: float = maxf(3.4, 4.6 / maxf(zoom, 0.2))
+	# SOFT DOTS that run together. Each mark is a blurred spot (a radial falloff, _soft_dot), wide
+	# enough that its neighbours overlap it, so a used road reads as one worn, darker band whose
+	# strength builds where the ants walk most -- not a row of beads. It was hard circles (and before
+	# that squares), which at any spacing read as a dotted line stitched across the soil. A texture
+	# rect is also two triangles where a circle is a fan.
+	var rr: float = maxf(8.5, 10.5 / maxf(zoom, 0.2))
+	var tex: Texture2D = _soft_dot()
 	var i: int = 0
 	while i < pts.size():
 		var s: float = pts[i + 2]
 		var col: Color = TRAIL
-		col.a = clampf(s * 0.125, 0.0, 0.64)
-		ci.draw_circle(Vector2(pts[i], pts[i + 1]), rr, col)
+		col.a = clampf(s * 0.13, 0.0, 0.62)
+		ci.draw_texture_rect(tex, Rect2(pts[i] - rr, pts[i + 1] - rr, rr * 2.0, rr * 2.0), false, col)
 		i += 3
+
+static var _dot_tex: ImageTexture = null
+
+static func _soft_dot() -> Texture2D:
+	if _dot_tex == null:
+		var n: int = 32
+		var img: Image = Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var c: float = float(n) * 0.5
+		for y in n:
+			for x in n:
+				var d: float = Vector2(float(x) + 0.5 - c, float(y) + 0.5 - c).length() / c
+				img.set_pixel(x, y, Color(1, 1, 1, clampf(1.0 - d, 0.0, 1.0) ** 1.4))
+		_dot_tex = ImageTexture.create_from_image(img)
+	return _dot_tex
 
 # The spray on the ground: a pale bloom, deliberately unlike the trail, which is a dark warm
 # scatter. It is drawn under the ants on the same layer as the trail, and it thins as it fades, so
@@ -335,13 +352,44 @@ static func draw_rub(ci: CanvasItem, at: Vector2, r: float, fade: float, fresh: 
 		var d: float = r * (0.35 + 0.08 * float(k))
 		ci.draw_circle(at + Vector2.from_angle(a) * d, 2.2, crumb)
 
+# THE NEST is an anthill: a low mound of the soil the colony has dug out, lit from the top left like
+# everything in this world, rising to a crest and falling into the entrance. Its slopes are covered in
+# the PELLETS the workers carried up, paler on the lit side; the hole is dark and deepest in the
+# middle, with its far (lower right) wall catching the light. The hole is exactly r * 0.62, as before:
+# AntColony.at_hole() is measured against the drawn entrance.
 static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> void:
-	ci.draw_circle(at, r * 1.55, Color(NEST_RIM.r, NEST_RIM.g, NEST_RIM.b, 0.45))
-	ci.draw_circle(at, r * 1.15, NEST_RIM)
+	var light: Vector2 = Vector2(-0.55, -0.70)
+	# its shadow, then the mound in rings from the foot up to the crest, each drifting toward the light
+	ci.draw_circle(at + Vector2(3.0, 4.0), r * 1.50, Color(0.0, 0.0, 0.0, 0.10))
+	for k in 7:
+		var t: float = float(k) / 6.0
+		var rr: float = lerpf(1.55, 0.86, t) * r
+		var col: Color = SOIL.lerp(NEST_RIM, 0.35 + 0.15 * t).lerp(SOIL_LIGHT, 0.45 * t * t)
+		col.a = lerpf(0.35, 1.0, minf(1.0, t * 2.5))
+		ci.draw_circle(at + light * r * 0.10 * t, rr, col)
+	# the inner slope down into the hole: darker toward it, darker still on the lit side's back
+	for k2 in 4:
+		var t2: float = float(k2) / 3.0
+		ci.draw_circle(at - light * r * 0.04 * t2, lerpf(0.84, 0.66, t2) * r,
+			NEST_RIM.lerp(NEST_HOLE, 0.25 + 0.45 * t2))
+	# the pellets: deterministic per nest, denser near the crest, paler toward the light
+	var nseed: int = int(at.x * 7.0) ^ int(at.y * 13.0)
+	for i in 70:
+		var ang: float = _hash01(i, nseed, 1, 77) * TAU
+		var d: float = r * lerpf(0.78, 1.45, pow(_hash01(i, nseed, 2, 77), 1.6))
+		var p: Vector2 = at + Vector2.from_angle(ang) * d
+		var lit: float = 0.5 + 0.5 * Vector2.from_angle(ang).dot(light.normalized())
+		var col2: Color = NEST_RIM.lerp(SOIL_LIGHT, lit * 0.9).lerp(SOIL_DARK, 0.35 * _hash01(i, nseed, 3, 77))
+		var gs: float = lerpf(1.2, 2.4, _hash01(i, nseed, 4, 77))
+		ci.draw_rect(Rect2(p - Vector2(gs, gs) * 0.5, Vector2(gs, gs)), col2, true)
+	# the entrance: dark, deepest in the middle, its far wall catching the light
 	ci.draw_circle(at, r * 0.62, NEST_HOLE)
+	ci.draw_arc(at, r * 0.56, -light.angle() - 0.9, -light.angle() + 0.9, 16,
+		Color(NEST_RIM.r, NEST_RIM.g, NEST_RIM.b, 0.55), r * 0.10, true)
+	ci.draw_circle(at + light * r * 0.08, r * 0.40, Color(0.0, 0.0, 0.0, 0.55))
 	# A ring in the colony's own color, so two nests are told apart at a glance without labelling
 	# either -- and so a trail can later be tinted to match.
-	ci.draw_arc(at, r * 1.32, 0.0, TAU, 40, tint, 2.4, true)
+	ci.draw_arc(at, r * 1.32, 0.0, TAU, 48, Color(tint, 0.85), 2.0, true)
 
 # How big the pile is NOW. The pile shrinks as it is carried away -- it is the only readout of
 # progress the world itself gives -- and this is the one place that decides by how much, so what an
@@ -360,25 +408,47 @@ static func pile_edge(rr: float, ang: float, seed_val: int) -> float:
 		f += float(PILE_AMPS[i]) * sin(float(PILE_LOBES[i]) * ang + phase)
 	return rr * f
 
+# THE FOOD is a pile of torn LEAF pieces -- still the game's green, so the color rule holds -- each a
+# small jagged polygon with its own shade, a paler lit edge and a vein, heaped inside the pile's lobed
+# outline over a soft shadow. (Drawn as overlapping green discs, it read as slime.)
 static func draw_food(ci: CanvasItem, at: Vector2, r: float, left_frac: float, seed_val: int) -> void:
 	var rr: float = pile_radius(r, left_frac)
 	if left_frac <= 0.0:
 		return
 	var ring: PackedVector2Array = PackedVector2Array()
+	var shadow: PackedVector2Array = PackedVector2Array()
 	var steps: int = 44
 	for i in steps:
 		var a: float = TAU * float(i) / float(steps)
-		ring.append(at + Vector2.from_angle(a) * pile_edge(rr * 1.06, a, seed_val))
-	ci.draw_colored_polygon(ring, Color(FOOD_DARK.r, FOOD_DARK.g, FOOD_DARK.b, 0.55))
-	var n: int = maxi(5, int(rr * 0.9))
+		var e: Vector2 = Vector2.from_angle(a) * pile_edge(rr * 1.02, a, seed_val)
+		ring.append(at + e)
+		shadow.append(at + e + Vector2(2.5, 3.5))
+	ci.draw_colored_polygon(shadow, Color(0.0, 0.0, 0.0, 0.16))
+	ci.draw_colored_polygon(ring, Color(FOOD_DARK.r, FOOD_DARK.g, FOOD_DARK.b, 0.30))
+	var n: int = maxi(6, int(rr * 1.3))
 	for i in n:
 		var a: float = _hash01(i, seed_val, 3, seed_val) * TAU
-		# Placed against the lobed edge rather than a circle, so the crumbs fill the real outline
-		# instead of a disc with a ragged skin painted round it.
+		# Placed against the lobed edge rather than a circle, so the pieces fill the real outline.
 		var d: float = pile_edge(rr, a, seed_val) * 0.80 * sqrt(_hash01(i, seed_val, 5, seed_val))
 		var p: Vector2 = at + Vector2.from_angle(a) * d
-		var cr: float = lerpf(rr * 0.16, rr * 0.30, _hash01(i, seed_val, 9, seed_val))
-		ci.draw_circle(p, cr, FOOD_BODY if (i % 3) != 0 else FOOD_DARK)
+		var cr: float = lerpf(rr * 0.16, rr * 0.28, _hash01(i, seed_val, 9, seed_val))
+		_leaf_bit(ci, p, cr, _hash01(i, seed_val, 11, seed_val) * TAU,
+			FOOD_BODY.lerp(FOOD_DARK, 0.40 * _hash01(i, seed_val, 13, seed_val)), i * 7 + seed_val)
+
+# One torn piece of leaf: an irregular polygon, a paler lit edge toward the top left, a darker vein.
+static func _leaf_bit(ci: CanvasItem, p: Vector2, cr: float, rot: float, col: Color, h: int) -> void:
+	var pts: PackedVector2Array = PackedVector2Array()
+	var lit: PackedVector2Array = PackedVector2Array()
+	var nv: int = 5 + (h % 2)
+	for v in nv:
+		var ang: float = rot + TAU * (float(v) + 0.35 * _hash01(v, h, 1, 5)) / float(nv)
+		var q: Vector2 = Vector2.from_angle(ang) * cr * lerpf(0.65, 1.15, _hash01(v, h, 2, 5))
+		pts.append(p + q)
+		lit.append(p + q * 0.62 + Vector2(-0.22, -0.28) * cr)
+	ci.draw_colored_polygon(pts, col)
+	ci.draw_colored_polygon(lit, col.lightened(0.18))
+	var vein: Vector2 = Vector2.from_angle(rot + 0.6) * cr * 0.7
+	ci.draw_line(p - vein, p + vein, col.darkened(0.35), maxf(0.6, cr * 0.10), true)
 
 # An ant is drawn at two levels of detail. Legs and antennae on a 3-px ant are a smear, and 200
 # smears cost more than they show, so past a certain zoom the ant becomes the dash it looks like
@@ -461,8 +531,11 @@ static func draw_ant(ci: CanvasItem, a: Ant, zoom: float) -> void:
 		ci.draw_line(head + fwd * body_len * 0.10, tip, ANT_BODY, lw * 0.8, true)
 
 	ci.draw_circle(gaster, body_len * 0.235, ANT_BODY)
+	ci.draw_circle(a.pos - fwd * body_len * 0.13, body_len * 0.07, ANT_BODY)    # the waist (petiole)
 	ci.draw_circle(thorax, body_len * 0.150, ANT_BODY)
 	ci.draw_circle(head, body_len * 0.175, ANT_BODY)
+	ci.draw_circle(head + (side * 0.4 - fwd * 0.2) * body_len * 0.08 + Vector2(-0.4, -0.5) * body_len * 0.06,
+		body_len * 0.055, Color(ANT_SHEEN.r, ANT_SHEEN.g, ANT_SHEEN.b, 0.50))
 	# One highlight on the gaster: a chitin shine, and the thing that keeps a black ant from
 	# disappearing into dark soil.
 	ci.draw_circle(gaster - fwd * body_len * 0.05, body_len * 0.085,
@@ -471,8 +544,12 @@ static func draw_ant(ci: CanvasItem, a: Ant, zoom: float) -> void:
 	if a.state == Ant.State.HOMING:
 		# What it is carrying, in the colour of where it came from -- so a stream of ants working
 		# your bait is visibly a stream working your bait, and not a raid on the real pile.
-		ci.draw_circle(head + fwd * body_len * 0.26, body_len * 0.20,
-			LURE_TINT if a.carrying_bait else CRUMB)
+		var bit: Vector2 = head + fwd * body_len * 0.26
+		var bc: Color = LURE_TINT if a.carrying_bait else CRUMB
+		var bs: float = body_len * 0.22
+		ci.draw_colored_polygon(PackedVector2Array([bit + fwd * bs, bit + side * bs * 0.85,
+			bit - fwd * bs * 0.8 + side * bs * 0.2, bit - side * bs * 0.9]), bc)
+		ci.draw_line(bit - fwd * bs * 0.6, bit + fwd * bs * 0.7, bc.darkened(0.35), maxf(0.6, bs * 0.15), true)
 
 
 # One obstacle, drawn from the SAME outline its collision uses (AntObstacle.outline), so what an
@@ -496,40 +573,95 @@ static func draw_obstacle(ci: CanvasItem, o: AntObstacle) -> void:
 	if o.kind == AntObstacle.Kind.ROCK:
 		_draw_rock(ci, o)
 		return
-	var body: Color = STONE_BODY
-	var lit: Color = STONE_LIT
-	var dark: Color = STONE_DARK
-	if o.kind == AntObstacle.Kind.TWIG:
-		body = TWIG_BODY
-		lit = TWIG_LIT
-		dark = TWIG_DARK
-	elif o.kind == AntObstacle.Kind.WATER:
-		body = WATER_BODY
-		lit = WATER_LIT
-		dark = WATER_BODY.darkened(0.35)
-	ci.draw_colored_polygon(ring, body)
+	match o.kind:
+		AntObstacle.Kind.TWIG:
+			_draw_twig(ci, o, ring)
+		AntObstacle.Kind.WATER:
+			_draw_water(ci, o, ring)
+		_:
+			_draw_stone(ci, o, ring)
 
-	# The lit face: the same outline shrunk toward the light, which gives a rounded body without a
-	# gradient. The light in this world comes from the top left, as it does for the ants.
-	var lift: Vector2 = Vector2(-0.18, -0.22)
-	var inner: PackedVector2Array = PackedVector2Array()
-	for p: Vector2 in ring:
-		inner.append(o.pos + (p - o.pos) * 0.62 + Vector2(o.half.x, o.half.y) * lift * 0.35)
-	if o.kind == AntObstacle.Kind.WATER:
-		# A puddle is a hole, not a lump: it gets a bright rim and a dark middle, the opposite of
-		# the stone, which is what stops the two reading as the same object in two colours.
-		ci.draw_polyline(_closed(ring), WATER_LIT, 2.0, true)
-		ci.draw_colored_polygon(inner, dark)
-	else:
-		ci.draw_colored_polygon(inner, lit)
-		ci.draw_polyline(_closed(ring), dark, 1.6, true)
-	if o.kind == AntObstacle.Kind.TWIG:
-		# Bark: a couple of lines along the length, so a twig is not just a dark lozenge.
-		var along: Vector2 = Vector2.from_angle(o.angle)
-		var side: Vector2 = Vector2(-along.y, along.x)
-		for k in [-0.34, 0.30]:
-			ci.draw_line(o.pos - along * o.half.x * 0.72 + side * o.half.y * k,
-				o.pos + along * o.half.x * 0.72 + side * o.half.y * k, dark, 1.2, true)
+# THE STONE: a smooth gray pebble -- rings drifting toward the light from the top left, each paler,
+# so it rounds up off the soil, a soft shine near the top, and a faint darker edge. Smooth, pale and
+# plain where the ground's rocks are red, rough and layered.
+static func _draw_stone(ci: CanvasItem, o: AntObstacle, ring: PackedVector2Array) -> void:
+	ci.draw_colored_polygon(ring, STONE_DARK)
+	var light_dir: Vector2 = Vector2(-0.55, -0.70)
+	# many fine steps, each a small change, so no contour line shows (eight read as a relief map)
+	var steps: int = 18
+	for k in steps:
+		var t: float = float(k + 1) / float(steps)
+		var shrink: float = 1.0 - 0.72 * t
+		var shift: Vector2 = Vector2(o.half.x * light_dir.x, o.half.y * light_dir.y) * 0.30 * t
+		var poly: PackedVector2Array = PackedVector2Array()
+		for p: Vector2 in ring:
+			poly.append(o.pos + shift + (p - o.pos) * shrink)
+		var e: float = smoothstep(0.0, 1.0, t)
+		ci.draw_colored_polygon(poly, STONE_DARK.lerp(STONE_BODY, minf(1.0, e * 1.7)).lerp(STONE_LIT, maxf(0.0, e * 1.5 - 0.5)))
+	var shine: Vector2 = o.pos + Vector2(o.half.x * light_dir.x, o.half.y * light_dir.y) * 0.42
+	ci.draw_circle(shine, minf(o.half.x, o.half.y) * 0.16, Color(1.0, 1.0, 1.0, 0.45))
+	ci.draw_polyline(_closed(ring), Color(STONE_DARK, 0.6), 1.2, true)
+
+# THE TWIG: a stick with height -- bands along it from its shaded underside to its lit top, wavy bark
+# grooves, a couple of knots and a stub where a side shoot broke off. Long and dark, so it reads by
+# silhouette. (Paler cut wood at the ends was tried: its tips taper, and rings on a point looked odd.)
+static func _draw_twig(ci: CanvasItem, o: AntObstacle, ring: PackedVector2Array) -> void:
+	var along: Vector2 = Vector2.from_angle(o.angle)
+	var side: Vector2 = Vector2(-along.y, along.x)
+	var lit_side: float = -1.0 if side.dot(Vector2(-0.55, -0.70)) < 0.0 else 1.0
+	ci.draw_colored_polygon(ring, TWIG_DARK)
+	# bands toward the lit side
+	for k in 4:
+		var t: float = float(k + 1) / 4.0
+		var poly: PackedVector2Array = PackedVector2Array()
+		for p: Vector2 in ring:
+			var rel: Vector2 = p - o.pos
+			var u: float = rel.dot(along)
+			var v: float = rel.dot(side)
+			poly.append(o.pos + along * u * (1.0 - 0.04 * t) + side * (v * (1.0 - 0.55 * t) + lit_side * o.half.y * 0.22 * t))
+		ci.draw_colored_polygon(poly, TWIG_DARK.lerp(TWIG_BODY, minf(1.0, t * 1.5)).lerp(TWIG_LIT, maxf(0.0, t * 1.4 - 0.5)))
+	# bark grooves
+	for g in 3:
+		var off: float = (float(g) - 1.0) * o.half.y * 0.38
+		var line: PackedVector2Array = PackedVector2Array()
+		for q in 17:
+			var u2: float = lerpf(-0.82, 0.82, float(q) / 16.0) * o.half.x
+			line.append(o.pos + along * u2 + side * (off + sin(u2 * 0.21 + float(g) * 1.7) * o.half.y * 0.10))
+		ci.draw_polyline(line, Color(TWIG_DARK, 0.75), 1.0, true)
+	# knots and a broken side shoot
+	for kn in 2:
+		var u3: float = (_hash01(kn, o.seed_val, 41, 3) - 0.5) * 1.2 * o.half.x
+		var kp: Vector2 = o.pos + along * u3
+		ci.draw_circle(kp, o.half.y * 0.30, TWIG_DARK)
+		ci.draw_arc(kp, o.half.y * 0.30, 0.0, TAU, 12, TWIG_LIT, 1.0, true)
+	var su: float = (_hash01(5, o.seed_val, 43, 3) - 0.5) * 0.9 * o.half.x
+	var sb: Vector2 = o.pos + along * su + side * lit_side * o.half.y * 0.75
+	ci.draw_line(sb, sb + (along * 0.6 + side * lit_side).normalized() * o.half.y * 1.1, TWIG_BODY, o.half.y * 0.45, true)
+
+# THE WATER: a pool -- a hole, not a lump, so the opposite of the stone: deepest and darkest in the
+# middle, a bright wet rim, the sky's reflection as a soft streak on the far side from the light, and
+# a slow ripple that spreads and fades.
+static func _draw_water(ci: CanvasItem, o: AntObstacle, ring: PackedVector2Array) -> void:
+	ci.draw_polyline(_closed(ring), Color(0.30, 0.22, 0.15, 0.55), 3.5, true)   # wet soil round it
+	ci.draw_colored_polygon(ring, WATER_BODY)
+	for k in 14:
+		var t: float = float(k + 1) / 14.0
+		var poly: PackedVector2Array = PackedVector2Array()
+		for p: Vector2 in ring:
+			poly.append(o.pos + (p - o.pos) * (1.0 - 0.78 * t) + Vector2(1.0, 1.4) * t)
+		ci.draw_colored_polygon(poly, WATER_BODY.darkened(0.40 * smoothstep(0.0, 1.0, t)))
+	var refl: PackedVector2Array = PackedVector2Array()
+	for p2: Vector2 in ring:
+		refl.append(o.pos + (p2 - o.pos) * 0.55 + Vector2(o.half.x * -0.22, o.half.y * -0.30))
+	ci.draw_colored_polygon(refl, Color(WATER_LIT, 0.22))
+	var clock: float = float(Time.get_ticks_msec()) / 1000.0
+	var cyc: float = fposmod(clock * 0.35 + float(o.seed_val % 97) * 0.13, 1.0)
+	var rip: PackedVector2Array = PackedVector2Array()
+	for p3: Vector2 in ring:
+		rip.append(o.pos + (p3 - o.pos) * (0.15 + 0.70 * cyc))
+	rip.append(rip[0])
+	ci.draw_polyline(rip, Color(WATER_LIT, 0.35 * (1.0 - cyc)), 1.2, true)
+	ci.draw_polyline(_closed(ring), WATER_LIT, 1.8, true)
 
 # THE GROUND'S ROCKS: natural sandstone -- a rough, irregular edge, shading that rolls from the lit
 # upper left to the shaded lower right, faint LAYER lines (sandstone is laid down in beds, and the
@@ -627,14 +759,15 @@ static func _draw_lure(ci: CanvasItem, o: AntObstacle) -> void:
 	for i in 34:
 		var a: float = TAU * float(i) / 34.0
 		ring.append(o.pos + Vector2.from_angle(a) * pile_edge(rr * 1.06, a, o.seed_val))
-	ci.draw_colored_polygon(ring, Color(LURE_DARK.r, LURE_DARK.g, LURE_DARK.b, 0.55))
-	var n: int = maxi(5, int(rr * 0.9))
+	ci.draw_colored_polygon(ring, Color(LURE_DARK.r, LURE_DARK.g, LURE_DARK.b, 0.30))
+	var n: int = maxi(6, int(rr * 1.3))
 	for i in n:
 		var a: float = _hash01(i, o.seed_val, 3, o.seed_val) * TAU
 		var d: float = pile_edge(rr, a, o.seed_val) * 0.80 * sqrt(_hash01(i, o.seed_val, 5, o.seed_val))
 		var p: Vector2 = o.pos + Vector2.from_angle(a) * d
-		var cr: float = lerpf(rr * 0.16, rr * 0.30, _hash01(i, o.seed_val, 9, o.seed_val))
-		ci.draw_circle(p, cr, LURE_TINT if (i % 3) != 0 else LURE_DARK)
+		var cr: float = lerpf(rr * 0.16, rr * 0.28, _hash01(i, o.seed_val, 9, o.seed_val))
+		_leaf_bit(ci, p, cr, _hash01(i, o.seed_val, 11, o.seed_val) * TAU,
+			LURE_TINT.lerp(LURE_DARK, 0.45 * _hash01(i, o.seed_val, 13, o.seed_val)), i * 7 + o.seed_val)
 
 # THE CLOCHE, seen from above: glass over the pile, so the food and the ants under it stay in view.
 # The wall (the ring the ants cannot cross, `ring` = its outline) is the brightest part, because a

@@ -19,6 +19,25 @@ const TUTORIAL_EVENTS: Array = ["menu_opened", "tip_shown", "obstacle_placed", "
 	"obstacle_removed", "bait_taken", "crumb_through", "sprayed", "erased"]
 
 signal sig_level_is_done(didwin: bool)
+
+# SOUNDS, all made for this game by devtools/make_ants_sounds.py: a garden behind everything (a
+# breeze, leaves, birds far off) while the colony runs, and one sound per thing the player does.
+# Nothing sounds for the ants themselves -- a crumb arriving happens many times a second.
+const SOUNDS: Dictionary = {
+	"garden": preload("res://art/sounds/ants_garden.ogg"),
+	"stone": preload("res://art/sounds/ants_stone.ogg"),
+	"twig": preload("res://art/sounds/ants_twig.ogg"),
+	"water": preload("res://art/sounds/ants_water.ogg"),
+	"bait": preload("res://art/sounds/ants_bait.ogg"),
+	"cloche": preload("res://art/sounds/ants_cloche.ogg"),
+	"spray": preload("res://art/sounds/ants_spray.ogg"),
+	"eraser": preload("res://art/sounds/ants_eraser.ogg"),
+	"lift": preload("res://art/sounds/ants_lift.ogg"),
+	"crush": preload("res://art/sounds/ants_crush.ogg"),
+}
+const SOUND_DB: Dictionary = {"garden": -9.0, "spray": -6.0, "water": -4.0, "cloche": -6.0, "crush": -2.0}
+const PLACE_SOUND: Dictionary = {AntObstacle.Kind.STONE: "stone", AntObstacle.Kind.TWIG: "twig",
+	AntObstacle.Kind.WATER: "water", AntObstacle.Kind.LURE: "bait", AntObstacle.Kind.CLOCHE: "cloche"}
 signal started_playing
 
 const SCREEN_UNITS: float = 680.0     # the canvas is this wide on every device
@@ -203,6 +222,9 @@ func _ready() -> void:
 	MainGlobals.sig_need_to_close_info_popups.connect(_close_menu)
 	# Any card going up over the game (a round result, the level summary, the instructions).
 	game.sig_card_shown.connect(_close_menu)
+	for key: String in SOUNDS:
+		game.add_sound(self, key, SOUNDS[key], key == "garden")
+		game.set_sound_volume(key, float(SOUND_DB.get(key, 0.0)))
 	_bg = Node2D.new()
 	_trail_layer = Node2D.new()
 	_fg = Node2D.new()
@@ -212,6 +234,11 @@ func _ready() -> void:
 		z += 1
 		add_child(n)
 	_bg.draw.connect(_draw_bg)
+	# The soil's grain, pebbles and clumps are a shader over the ground layer (soil.gdshader).
+	var soil: ShaderMaterial = ShaderMaterial.new()
+	soil.shader = preload("res://ants/scripts/soil.gdshader")
+	_bg.material = soil
+	_trail_layer.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_trail_layer.draw.connect(_draw_trail)
 	_fg.draw.connect(_draw_fg)
 
@@ -591,7 +618,10 @@ func _food_position(_i: int, n: int) -> Vector2:
 # here, a drawn frame is always the frame that was just simulated.
 func _process(delta: float) -> void:
 	if not _running or not game.playing or game.paused():
+		# The garden plays only while the colony does: not under a card, a pause or the menu.
+		game.stop_sound("garden")
 		return
+	game.play_sound("garden", false)
 	# A long frame must not teleport ants through each other: the contact pass only separates
 	# overlaps it can see, and a 0.5s step moves an ant 28 units, three whole body widths.
 	if _pan_accum != Vector2.ZERO and _can_pan:
@@ -822,8 +852,10 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 	if kind == AntObstacle.Kind.LURE:
 		game.tutorial_notify("bait_placed")
 
+	game.play_sound(str(PLACE_SOUND.get(kind, "stone")))
 	# Ants standing where it lands are crushed. That is the whole reason a tally exists: dropping
 	# something on a busy trail cannot be free.
+	var crushed: bool = false
 	for c: AntColony in colonies:
 		var survivors: Array[Ant] = []
 		for a: Ant in c.ants:
@@ -831,12 +863,15 @@ func place_obstacle(kind: int, at: Vector2, rot: float = INF) -> bool:
 				c.killed += 1
 				# Where it died and which way it faced -- it is drawn as an ordinary ant in red.
 				corpses.append({"pos": a.pos, "heading": a.heading})
+				crushed = true
 				_charge(KILL_PENALTY)
 			else:
 				survivors.append(a)
 		c.ants = survivors
 		# The scent under it is under it.
 		c.marks.erase_if(func(p: Vector2) -> bool: return o.contains(p))
+	if crushed:
+		game.play_sound("crush")
 	_rebuild_all()
 	_redraw_all()
 	return true
@@ -952,6 +987,7 @@ func use_spray(at: Vector2) -> bool:
 	if game.playing:
 		_answer_roads(at)
 	spray.spray(at)
+	game.play_sound("spray")
 	game.tutorial_notify("sprayed")
 	_redraw_all()
 	return true
@@ -968,6 +1004,7 @@ func use_eraser(at: Vector2) -> bool:
 	for c: AntColony in colonies:
 		c.marks.erase_if(func(p: Vector2) -> bool: return p.distance_squared_to(at) <= r2)
 	erasures.append({"pos": at, "t": _clock})
+	game.play_sound("eraser")
 	_push_clean_zones()
 	game.tutorial_notify("erased")
 	_redraw_all()
@@ -990,6 +1027,7 @@ func remove_obstacle_at(at: Vector2) -> int:
 			# Only what can be carried away comes back. Water poured out is gone.
 			if AntObstacle.is_reusable(kind):
 				stock[kind] = stock_of(kind) + 1
+			game.play_sound("lift")
 			_redraw_all()
 			game.tutorial_notify("obstacle_removed")
 			return kind
