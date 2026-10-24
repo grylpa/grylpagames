@@ -858,3 +858,5 @@ tile was a screen grab of the arena: small aliens round a ring, colored dots at 
 three of the game's aliens, large and drawn as `alien.gd` draws them (the body ellipse, outline, belly,
 eye layouts and curved antennae, in `ALIEN_COLORS`): a fat green one with three eyes, a tall red one
 with one, and a round blue one with two, all with antennae, on a glowing gate ring at a night spaceport.
+Since the 2026-10-24 look pass they are GLOSSY as the game's are (the stepped rings toward the light,
+the rim, the shine) and the ring is neutral silver like the game's gates.

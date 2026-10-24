@@ -163,7 +163,9 @@ func show_level():
 	MainGlobals.add_action_button(null)
 	var btnsz = 100 if MainGlobals.is_mobile() else 50
 	buy_taxi_btn = MainGlobals.add_action_button("res://taxi/art/buy1_w_taxi.png", Vector2(btnsz,btnsz))
-	buy_taxi_btn.pressed.connect(_on_buy_taxi)
+	# null when there is no app action bar to put it on -- a probe loading this scene alone
+	if buy_taxi_btn != null:
+		buy_taxi_btn.pressed.connect(_on_buy_taxi)
 	check_buy_taxi_button()
 		
 func new_game(from_scratch=true):

@@ -81,9 +81,22 @@ Index 1: `selected_preset` (index into GUIDED_PRESETS)
 
 ## Visual (procedural _do_draw)
 
-**Closed state**: gunmetal door rectangle, corner bolts, side handle, combination dial with 36 tick marks, inner disc, long/short needle arms, score at bottom.
+**The safe** (the 2026-10-24 look pass; same geometry as before, which the tutorial's spotlights
+recompute): a dark wall lit softly from in front; the door in BRUSHED STEEL (a top-left-lit gradient,
+fine horizontal grain fixed per row by a hash, `_draw_brushing`), bevelled (`_draw_bevel`: lit top and
+left, shaded bottom and right) with a recessed panel; steel hex bolts; and the handle a three-spoke
+chrome wheel that **turns with the holds** (`_short_angle`, which the game always tracked and never
+showed), as the dial turns with the slides. The dial: a chrome bezel in light and dark rings, a black
+face with silver ticks and numbers, and a knurled chrome knob whose domed cap is drawn unrotated so it
+stays lit from the top left. It was flat navy rectangles and a blue dial.
 
-**Open state**: dark interior cavity, glowing green border, 4 gold bars centered in door, score at bottom.
+**Open or locked** is a small lamp above the dial, red while locked and green while open, and a soft
+green glow round the dial while open. The whole dial used to turn green.
+
+**Sounds** (`devtools/make_crack_sounds.py`; it had none): `click`, one notch of the dial's ratchet,
+each time the dial passes one of its 100 marks (about twelve a second while it turns, -10 dB);
+`unlock`, two bolts drawing back and the latch giving, when a cycle opens the safe; `lock`, one bolt
+sliding home, when a cycle closes it. Soft throughout: this is one of the calm games.
 
 **HUD overlay** (drawn on door at all times):
 - Recent gesture durations (last 4, in seconds)

@@ -71,6 +71,19 @@ The speed bonus (`min(5, 60 - seconds)` score and time) is paid only for a round
 used to be applied before the win/lose branch, so a round lost after ten seconds paid the same as
 one won in ten seconds.
 
+## Look and sound (the 2026-10-24 pass)
+
+- **Walls shade each room's edges** (`level._add_wall_shade()`, `WALL_SHADE` 0.30 of a tile, faint):
+  a band along every edge where a room meets anything but more of itself or a corridor (doorways stay
+  open). Only the edge darkens -- the floor's COLOR is what the player remembers, and every room's
+  middle is untouched. The floor sprites are at z -1 (`pipe.gd` `_ready`) so the band lies over the
+  floor and under the coin and bricks. It loops over the board array, not `game.board_size`.
+- **Sounds** (`devtools/make_mmm_sounds.py`; names in code kept): `motor` = the castle halls' ambience,
+  now played from the round's start (it was a car engine, registered and never played); `feet` =
+  steps on stone (were on grass); `delivery` = coin pickup; `right` = a room named right (it shared the
+  coin's sound); `gaveup` = named wrong; `swoosh` = a shimmer as the floor plan opens out; `explosion` =
+  a muffled boom when a hazard catches you (was a car crash); `start` = a heavy door closing.
+
 ## Difficulty
 
 `_apply_level()` is the whole curve: `num_rooms = 1 + level` (capped at 12), and

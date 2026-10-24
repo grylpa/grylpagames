@@ -60,8 +60,22 @@ var _screen_h: float = 788.0
 @onready var _results_panel: Control = $ResultsPanel
 @onready var _result_label: Label = $ResultsPanel/Margin/VBox/ResultLabel
 
+# SOUNDS (devtools/make_crack_sounds.py): the dial's ratchet clicks once a notch while it turns
+# (one notch is one of its 100 marks, so about twelve a second), the bolts draw back when the safe
+# opens and one bolt slides home when it locks. Soft, as the calm games are. It had no sound at all.
+const CLICK_AUDIO: AudioStream = preload("res://art/sounds/crack_click.ogg")
+const UNLOCK_AUDIO: AudioStream = preload("res://art/sounds/crack_unlock.ogg")
+const LOCK_AUDIO: AudioStream = preload("res://art/sounds/crack_lock.ogg")
+var _notch: int = 0
+
 func _ready() -> void:
 	game = CrackG.game
+	game.add_sound(self, "click", CLICK_AUDIO)
+	game.add_sound(self, "unlock", UNLOCK_AUDIO)
+	game.add_sound(self, "lock", LOCK_AUDIO)
+	game.set_sound_volume("click", -10.0)
+	game.set_sound_volume("unlock", -4.0)
+	game.set_sound_volume("lock", -4.0)
 	_screen_w = float(MainGlobals.screen_size.x)
 	_screen_h = float(MainGlobals.screen_size.y)
 
@@ -221,6 +235,11 @@ func _process(delta: float) -> void:
 	elif _gesture == -1:
 		_long_angle -= LONG_SPEED * delta
 
+	var notch_now: int = int(floor(_long_angle / 3.6))
+	if notch_now != _notch:
+		_notch = notch_now
+		game.play_sound("click")
+
 	if _gesture == 0 and _last_swipe_dir == 1:
 		_short_angle += SHORT_SPEED * delta
 	elif _gesture == 0 and _last_swipe_dir == -1:
@@ -352,10 +371,43 @@ func _try_score() -> void:
 		_score += 1
 		game.add_score_and_time(1, 0)
 		_safe_open = not _safe_open
+		game.play_sound("unlock" if _safe_open else "lock")
 		_unlock_times_ms.append(_elapsed_ms)
 		game.tutorial_notify("unlocked")
 	else:
 		game.tutorial_notify("sequence_missed")
+
+# Brushed steel and chrome, lit from the top left.
+const STEEL_HI: Color = Color(0.40, 0.42, 0.46)
+const STEEL_LO: Color = Color(0.20, 0.21, 0.24)
+const CHROME_HI: Color = Color(0.88, 0.89, 0.92)
+const CHROME_MID: Color = Color(0.60, 0.62, 0.66)
+const CHROME_LO: Color = Color(0.32, 0.33, 0.36)
+const DIAL_FACE: Color = Color(0.09, 0.09, 0.11)
+
+# Fine horizontal grain across the steel, fixed per position (a hash, not random each frame).
+func _draw_brushing(canvas: CanvasItem, r: Rect2) -> void:
+	var y: float = r.position.y + 2.0
+	var i: int = 0
+	while y < r.end.y - 2.0:
+		var h: float = fposmod(sin(float(i) * 12.9898) * 43758.5453, 1.0)
+		var x0: float = r.position.x + r.size.x * 0.6 * h
+		var run: float = r.size.x * (0.25 + 0.5 * fposmod(h * 7.0, 1.0))
+		canvas.draw_line(Vector2(x0, y), Vector2(minf(r.end.x - 2.0, x0 + run), y),
+			Color(1, 1, 1, 0.035) if i % 2 == 0 else Color(0, 0, 0, 0.05), 1.0)
+		y += 3.0
+		i += 1
+
+# A bevel: lit top and left, shaded bottom and right (`raised`), or the other way round (recessed).
+func _draw_bevel(canvas: CanvasItem, r: Rect2, wdt: float, raised: bool) -> void:
+	var lite: Color = Color(1, 1, 1, 0.28)
+	var dark: Color = Color(0, 0, 0, 0.45)
+	var a: Color = lite if raised else dark
+	var b: Color = dark if raised else lite
+	canvas.draw_line(r.position, Vector2(r.end.x, r.position.y), a, wdt)
+	canvas.draw_line(r.position, Vector2(r.position.x, r.end.y), a, wdt)
+	canvas.draw_line(Vector2(r.position.x, r.end.y), r.end, b, wdt)
+	canvas.draw_line(Vector2(r.end.x, r.position.y), r.end, b, wdt)
 
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
@@ -363,7 +415,11 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var cx: float = w * 0.5
 	var cy: float = h * 0.5
 
-	canvas.draw_rect(Rect2(0.0, 0.0, w, h), Color(0.04, 0.05, 0.09, 1.0))
+	# the room: a dark wall, lit softly from in front so the safe stands in a pool of light
+	canvas.draw_rect(Rect2(0.0, 0.0, w, h), Color(0.04, 0.05, 0.08, 1.0))
+	for k in 6:
+		var f: float = float(k) / 5.0
+		canvas.draw_circle(Vector2(cx, cy), maxf(w, h) * lerpf(0.75, 0.25, f), Color(0.10, 0.12, 0.17, 0.12))
 
 	# Session progress along the top edge, the same bar udbr and breathe use. It replaced a digital
 	# countdown: a number counting down is something to read and do arithmetic on, which is the
@@ -378,37 +434,24 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var score_font: Font = MainGlobals.get_system_sans_font()
 	var text_x: float = door_x
 	var text_w: float = door_w
-
-	# Dial color palette — blue when locked, muted green when open
 	var op: bool = _safe_open
-	var disc_a: Color    = Color(0.18, 0.36, 0.24) if op else Color(0.34, 0.38, 0.54)
-	var disc_b: Color    = Color(0.22, 0.40, 0.28) if op else Color(0.38, 0.42, 0.58)
-	var disc_ring: Color = Color(0.12, 0.26, 0.18) if op else Color(0.26, 0.30, 0.46)
-	var bz_bg: Color     = Color(0.12, 0.24, 0.16) if op else Color(0.16, 0.18, 0.28)
-	var bz_rim: Color    = Color(0.36, 0.64, 0.46) if op else Color(0.54, 0.58, 0.76)
-	var bz_in: Color     = Color(0.14, 0.26, 0.18) if op else Color(0.22, 0.26, 0.38)
-	var bz_in_rim: Color = Color(0.40, 0.68, 0.50) if op else Color(0.58, 0.62, 0.80)
-	var tk_maj: Color    = Color(0.68, 0.88, 0.74) if op else Color(0.86, 0.90, 0.98)
-	var tk_min: Color    = Color(0.32, 0.56, 0.42) if op else Color(0.52, 0.58, 0.74)
-	var num_c: Color     = Color(0.76, 0.94, 0.82) if op else Color(0.92, 0.94, 1.00)
-	var knb_c: Color     = Color(0.18, 0.36, 0.24) if op else Color(0.32, 0.36, 0.52)
-	var knb_rim: Color   = Color(0.38, 0.66, 0.48) if op else Color(0.54, 0.62, 0.82)
-	var knb_in: Color    = Color(0.14, 0.28, 0.20) if op else Color(0.24, 0.28, 0.44)
-	var knb_inr: Color   = Color(0.36, 0.62, 0.46) if op else Color(0.50, 0.58, 0.78)
-	var knb_dot: Color   = Color(0.48, 0.74, 0.58) if op else Color(0.64, 0.72, 0.90)
-	var score_c: Color   = Color(0.68, 0.92, 0.76) if op else Color(0.86, 0.92, 1.00)
-	var hdl_c: Color     = Color(0.16, 0.30, 0.20) if op else Color(0.26, 0.30, 0.44)
-	var hdl_rim: Color   = Color(0.34, 0.58, 0.42) if op else Color(0.46, 0.52, 0.70)
 
-	# ---- Door structure (always the same) ----
-	canvas.draw_rect(Rect2(door_x, door_y, door_w, door_h), Color(0.14, 0.16, 0.24, 1.0))
+	# ---- The door: BRUSHED STEEL, bevelled, with a recessed panel ----
+	# (It was flat navy rectangles; open/locked now shows as a lamp and a glow, not a recolored
+	# dial -- see below.)
+	var door: Rect2 = Rect2(door_x, door_y, door_w, door_h)
+	canvas.draw_rect(Rect2(door.position + Vector2(6.0, 10.0), door.size), Color(0, 0, 0, 0.45))
+	canvas.draw_polygon(PackedVector2Array([door.position, Vector2(door.end.x, door.position.y), door.end,
+		Vector2(door.position.x, door.end.y)]), PackedColorArray([STEEL_HI, STEEL_HI.lerp(STEEL_LO, 0.4),
+		STEEL_LO, STEEL_HI.lerp(STEEL_LO, 0.6)]))
+	_draw_brushing(canvas, door)
+	_draw_bevel(canvas, door, 3.0, true)
 	var frame_inset: float = 14.0
-	canvas.draw_rect(Rect2(door_x + frame_inset, door_y + frame_inset,
-		door_w - frame_inset * 2.0, door_h - frame_inset * 2.0),
-		Color(0.17, 0.20, 0.30, 1.0))
-	canvas.draw_rect(Rect2(door_x, door_y, door_w, door_h), Color(0.24, 0.30, 0.50, 1.0), false, 4.0)
+	var panel: Rect2 = door.grow(-frame_inset * 1.6)
+	canvas.draw_rect(panel, Color(0, 0, 0, 0.14))
+	_draw_bevel(canvas, panel, 2.0, false)
 
-	# Bolts — warm bronze
+	# Bolts: steel hex heads, lit from the top left
 	var bolt_r: float = 10.0
 	var bolt_margin: float = 24.0
 	for bp in [
@@ -417,24 +460,55 @@ func _do_draw(canvas: CanvasItem) -> void:
 		Vector2(door_x + bolt_margin, door_y + door_h - bolt_margin),
 		Vector2(door_x + door_w - bolt_margin, door_y + door_h - bolt_margin),
 	]:
-		canvas.draw_circle(bp, bolt_r, Color(0.26, 0.22, 0.18, 1.0), true, -1.0, true)
-		canvas.draw_circle(bp, bolt_r, Color(0.54, 0.48, 0.36, 1.0), false, 2.0, true)
-		canvas.draw_circle(bp, bolt_r * 0.35, Color(0.72, 0.66, 0.50, 1.0), true, -1.0, true)
+		var hexp: PackedVector2Array = PackedVector2Array()
+		for i in 6:
+			hexp.append(bp + Vector2.from_angle(TAU * float(i) / 6.0 + 0.5) * bolt_r)
+		canvas.draw_circle(bp + Vector2(1.5, 2.0), bolt_r, Color(0, 0, 0, 0.35), true, -1.0, true)
+		canvas.draw_colored_polygon(hexp, STEEL_LO.lerp(STEEL_HI, 0.5))
+		canvas.draw_circle(bp + Vector2(-2.0, -2.0), bolt_r * 0.45, Color(1, 1, 1, 0.22), true, -1.0, true)
+		hexp.append(hexp[0])
+		canvas.draw_polyline(hexp, Color(0.08, 0.09, 0.10, 0.8), 1.2, true)
 
-	# Handle bar
-	var handle_x: float = door_x + door_w - 32.0
-	canvas.draw_rect(Rect2(handle_x - 9.0, cy - 40.0, 18.0, 80.0), hdl_c)
-	canvas.draw_rect(Rect2(handle_x - 9.0, cy - 40.0, 18.0, 80.0), hdl_rim, false, 2.0)
+	# The handle: a three-spoke wheel on the right, turning with the HOLDS (_short_angle), as the dial
+	# turns with the slides
+	var hc: Vector2 = Vector2(door_x + door_w - 72.0, cy)
+	var hr: float = minf(38.0, door_w * 0.065)
+	canvas.draw_circle(hc + Vector2(2.0, 3.0), hr * 0.42, Color(0, 0, 0, 0.35), true, -1.0, true)
+	for i in 3:
+		var a_s: float = deg_to_rad(_short_angle) + TAU * float(i) / 3.0
+		var tip: Vector2 = hc + Vector2.from_angle(a_s) * hr
+		canvas.draw_line(hc + Vector2(2.0, 3.0), tip + Vector2(2.0, 3.0), Color(0, 0, 0, 0.30), hr * 0.20, true)
+		canvas.draw_line(hc, tip, CHROME_MID, hr * 0.18, true)
+		canvas.draw_line(hc, tip, Color(1, 1, 1, 0.25), hr * 0.06, true)
+		canvas.draw_circle(tip, hr * 0.17, CHROME_HI, true, -1.0, true)
+		canvas.draw_circle(tip + Vector2(-1.5, -1.5), hr * 0.07, Color(1, 1, 1, 0.6), true, -1.0, true)
+	canvas.draw_circle(hc, hr * 0.36, CHROME_MID, true, -1.0, true)
+	canvas.draw_circle(hc + Vector2(-2.0, -2.0), hr * 0.22, CHROME_HI, true, -1.0, true)
 
-	# ---- Combination lock dial ----
+	# The lamp: red while locked, green while open -- the state at a glance, above the dial
+	var lamp: Vector2 = Vector2(cx, door_y + frame_inset * 1.6 + 18.0)
+	var lamp_c: Color = Color(0.30, 0.95, 0.45) if op else Color(0.95, 0.25, 0.20)
+	canvas.draw_circle(lamp, 13.0, Color(lamp_c, 0.18), true, -1.0, true)
+	canvas.draw_circle(lamp, 7.5, Color(0.08, 0.08, 0.09), true, -1.0, true)
+	canvas.draw_circle(lamp, 6.0, lamp_c, true, -1.0, true)
+	canvas.draw_circle(lamp + Vector2(-1.8, -1.8), 2.0, Color(1, 1, 1, 0.7), true, -1.0, true)
+
+	# ---- Combination lock dial: chrome bezel, black face, silver numbers, knurled knob ----
 	var dcx: float = cx
 	var dcy: float = cy
 	var bezel_r: float = dial_r + 18.0
 
-	canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 8.0, bz_bg, true, -1.0, true)
-	canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 8.0, bz_rim, false, 3.5, true)
-	canvas.draw_circle(Vector2(dcx, dcy), bezel_r, bz_in, true, -1.0, true)
-	canvas.draw_circle(Vector2(dcx, dcy), bezel_r, bz_in_rim, false, 2.0, true)
+	if op:
+		for k in 5:
+			canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 8.0 + 14.0 * (1.0 - float(k) / 5.0),
+				Color(0.30, 0.95, 0.45, 0.05), true, -1.0, true)
+	canvas.draw_circle(Vector2(dcx + 4.0, dcy + 7.0), bezel_r + 9.0, Color(0, 0, 0, 0.45), true, -1.0, true)
+	# the bezel: chrome, its rings dark and light so it reads as a turned metal ring
+	var rings: Array = [[8.0, CHROME_LO], [5.5, CHROME_HI], [3.0, CHROME_MID], [0.5, CHROME_LO]]
+	for rg: Array in rings:
+		canvas.draw_circle(Vector2(dcx, dcy), bezel_r + float(rg[0]), rg[1], true, -1.0, true)
+	canvas.draw_arc(Vector2(dcx, dcy), bezel_r + 6.5, PI * 0.95, PI * 1.55, 24, Color(1, 1, 1, 0.55), 2.0, true)
+	canvas.draw_circle(Vector2(dcx, dcy), bezel_r - 1.0, Color(0.06, 0.06, 0.07), true, -1.0, true)
 
 	# Gold indicator triangle (fixed)
 	var ind_pts: PackedVector2Array = PackedVector2Array([
@@ -448,9 +522,9 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var dial_rot: float = deg_to_rad(_long_angle)
 	canvas.draw_set_transform(Vector2(dcx, dcy), dial_rot, Vector2.ONE)
 
-	canvas.draw_circle(Vector2.ZERO, dial_r, disc_a, true, -1.0, true)
-	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, disc_b, true, -1.0, true)
-	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, disc_ring, false, 2.0, true)
+	canvas.draw_circle(Vector2.ZERO, dial_r, DIAL_FACE, true, -1.0, true)
+	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, DIAL_FACE.lightened(0.04), true, -1.0, true)
+	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, Color(0.30, 0.31, 0.34), false, 1.5, true)
 
 	for i in range(100):
 		var a: float = deg_to_rad(float(i) * 3.6)
@@ -461,7 +535,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 		canvas.draw_line(
 			Vector2(cos(a) * (dial_r - tlen), sin(a) * (dial_r - tlen)),
 			Vector2(cos(a) * (dial_r - 1.0), sin(a) * (dial_r - 1.0)),
-			tk_maj if is_major else tk_min, tw, true)
+			Color(0.90, 0.91, 0.93) if is_major else Color(0.58, 0.60, 0.64), tw, true)
 
 	# Numbers — each rotated perpendicular to its tick
 	var num_fs: int = 22 if MainGlobals.is_mobile() else 15
@@ -473,12 +547,12 @@ func _do_draw(canvas: CanvasItem) -> void:
 		var num_screen: Vector2 = Vector2(dcx + cos(phi) * num_r, dcy + sin(phi) * num_r)
 		canvas.draw_set_transform(num_screen, phi + PI * 0.5, Vector2.ONE)
 		canvas.draw_string(score_font, Vector2(-num_clip * 0.5, -num_fs * 0.5), str(i * 10),
-			HORIZONTAL_ALIGNMENT_CENTER, num_clip, num_fs, num_c)
+			HORIZONTAL_ALIGNMENT_CENTER, num_clip, num_fs, Color(0.88, 0.89, 0.92))
 
 	# Back to dial-local for the knob
 	canvas.draw_set_transform(Vector2(dcx, dcy), dial_rot, Vector2.ONE)
 
-	# Knob — very gentle bumps (low radius ratio)
+	# Knob — knurled chrome: gentle teeth round a domed cap
 	var knob_r: float = dial_r * 0.275
 	var knob_inner_r: float = dial_r * 0.258
 	var n_teeth: int = 35
@@ -487,16 +561,20 @@ func _do_draw(canvas: CanvasItem) -> void:
 		var a_k: float = deg_to_rad(float(i) * 360.0 / float(n_teeth * 2))
 		var r_k: float = knob_r if i % 2 == 0 else knob_inner_r
 		knob_pts.append(Vector2(cos(a_k) * r_k, sin(a_k) * r_k))
-	canvas.draw_colored_polygon(knob_pts, knb_c)
+	canvas.draw_colored_polygon(knob_pts, CHROME_LO)
 	var knob_close: PackedVector2Array = PackedVector2Array(knob_pts)
 	knob_close.append(knob_pts[0])
-	canvas.draw_polyline(knob_close, knb_rim, 1.5, true)
-	canvas.draw_circle(Vector2.ZERO, knob_inner_r * 0.74, knb_in, true, -1.0, true)
-	canvas.draw_circle(Vector2.ZERO, knob_inner_r * 0.74, knb_inr, false, 1.5, true)
-	canvas.draw_circle(Vector2.ZERO, 5.0, knb_dot, true, -1.0, true)
-
+	canvas.draw_polyline(knob_close, CHROME_MID, 1.5, true)
 	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# the dome is lit from the top left whatever the dial's turn, so it is drawn unrotated
+	for k in 5:
+		var f2: float = float(k) / 4.0
+		canvas.draw_circle(Vector2(dcx, dcy) + Vector2(-1.0, -1.2) * knob_inner_r * 0.25 * f2,
+			knob_inner_r * lerpf(0.78, 0.25, f2), CHROME_LO.lerp(CHROME_HI, f2), true, -1.0, true)
+	canvas.draw_circle(Vector2(dcx, dcy) + Vector2(-0.3, -0.35) * knob_inner_r, knob_inner_r * 0.12,
+		Color(1, 1, 1, 0.7), true, -1.0, true)
 
+	var score_c: Color = Color(0.68, 0.92, 0.76) if op else Color(0.90, 0.92, 0.96)
 	# Score
 	canvas.draw_string(score_font, Vector2(door_x, door_y + door_h - 50.0),
 		str(_score), HORIZONTAL_ALIGNMENT_CENTER, door_w, 52, score_c)

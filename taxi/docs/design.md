@@ -43,6 +43,37 @@ board is cut by (10, 6) tiles. `game.max_board_size` grows with the level even w
   `time_idle_ms / time_to_empty_fuel_tank_on_idle_sec` while stopped — so a parked taxi with its
   motor running still drains. At zero, `out_of_gas` latches and that taxi never moves again.
 
+## How it looks (the 2026-10-24 pass)
+
+- **The road is asphalt** (`asphalt.gdshader`, one material shared by every road sprite, set in
+  `pipe.gd`'s `_ready`): aggregate grain, faint broad wear and patching, a rare oil stain, all in
+  WORLD coordinates so it runs on across tiles whatever a tile's rotation. The tile art's yellow
+  center dot is kept as a small road stud. The art itself (flat gray squares) is unchanged. A first
+  version had stains everywhere and read as camouflage.
+- **Curbs**: `pipe.gd` draws a pale concrete curb with a lit edge on each side of a road tile that
+  has no road beyond it (`_open`, filled in by `set_rot` from the neighbors it already checks), and
+  the curb's shadow falling onto the road.
+- **Cabs cast a soft shadow** down and to the right, turning with the cab (`agent.gd` `_draw`, a
+  rounded rectangle along the cab's length, two faint layers). The cab sprite's long axis runs along
+  its local X.
+
+## Sounds
+
+All made for this game by `devtools/make_taxi_sounds.py` (synthesized, seeded). The names in code
+are the old ones:
+
+| name in code | file | when |
+|---|---|---|
+| `motor` | `taxi_city.ogg`, 30 s loop, -8 dB | while a game runs: a city a few streets away (rumble, cars passing, a far horn) |
+| `dispatch` | `taxi_call.ogg`, -9 dB | a new customer: the dispatch radio's two-tone chirp |
+| `swoosh` | `taxi_door.ogg` | a pickup: a car door shutting |
+| `delivery` | `taxi_fare.ogg`, -3 dB | a fare paid: a cash register |
+| `honk` | `taxi_horn.ogg`, -6 dB | a cab blocked: a short double toot, through `_honk()`, at most one every `HONK_GAP_MS` (1.5 s) -- it fires on every blocked step |
+| `customer_gaveup` | `taxi_gaveup.ogg` | a customer gave up waiting: a low falling "meh" |
+| `breakdown` | `taxi_dead.ogg` | a cab out of fuel: the engine sputtering out |
+
+They replaced a heavy bell, an arcade coin, a swoosh, a long honk, a bump and a clash.
+
 ## Turning
 
 `agent.gd::set_rot()` keeps `angles[0]` as the logical heading and

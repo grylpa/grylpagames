@@ -14,6 +14,10 @@ var active_brick = null
 func _ready() -> void:
 	game = MmmG.game
 	bricks = [$PipeBrick1, $PipeBrick2, $PipeBrick3]
+	# The floor itself one step down, so the level's wall shading (level._add_wall_shade) can lie
+	# over the floor and under the coin and the bricks.
+	for fl: Sprite2D in [$PipeImageLR, $PipeImageNoDir, $PipeImage4, $PipeImageURD, $PipeImageRD, $PipeFloor1, $PipeFloor2]:
+		fl.z_index = -1
 
 func can_fill():
 	return has_brick < 0 and has_coin < 0

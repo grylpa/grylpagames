@@ -63,13 +63,26 @@ var dict_tran_id_to_target = {}
 @export var target_scene: PackedScene = load("res://taxi/scenes/target.tscn")
 # @export var bomb_scene: PackedScene = load("res://scenes/bomb_scene.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
-var honk_audio := preload("res://art/sounds/honk-4.mp3")
-var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
-var breakdown_audio := preload("res://art/sounds/clash-1.mp3")
+# SOUNDS made for this game (devtools/make_taxi_sounds.py): the city a few streets away as the loop
+# under play, the dispatch radio's chirp for a new customer, a car door for a pickup, a cash register
+# for a fare, a short double toot for a blocked cab (at most one every HONK_GAP_MS -- it fires per
+# blocked step), a low "meh" for a customer who gave up, and an engine sputtering out for a cab out
+# of fuel. They replaced a heavy bell, an arcade coin, a swoosh, a long honk, a bump and a clash.
+var dispatch_audio := preload("res://art/sounds/taxi_call.ogg")
+var delivery_audio := preload("res://art/sounds/taxi_fare.ogg")
+var motor_audio := preload("res://art/sounds/taxi_city.ogg")
+var swoosh_audio := preload("res://art/sounds/taxi_door.ogg")
+var honk_audio := preload("res://art/sounds/taxi_horn.ogg")
+var gaveup_audio := preload("res://art/sounds/taxi_gaveup.ogg")
+var breakdown_audio := preload("res://art/sounds/taxi_dead.ogg")
+const HONK_GAP_MS: float = 1500.0
+var _last_honk_ms: float = -100000.0
+
+func _honk() -> void:
+	if game.game_time - _last_honk_ms < HONK_GAP_MS:
+		return
+	_last_honk_ms = game.game_time
+	game.play_sound("honk")
 # var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
 # var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
 
@@ -90,6 +103,8 @@ func _ready() -> void:
 	game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "customer_gaveup",gaveup_audio)
 	game.add_sound(self, "breakdown",breakdown_audio)
+	for vol: Array in [["motor", -8.0], ["dispatch", -9.0], ["honk", -6.0], ["delivery", -3.0], ["swoosh", 0.0]]:
+		game.set_sound_volume(vol[0], vol[1])
 	_fit_ground_to_board()
 
 func new_game(from_scratch=true):
@@ -533,7 +548,7 @@ func tick():
 						path_dir = agent.direction
 					if !can_go_to(path_q,agent.transaction_id):
 						agent.set_blocked(true)						
-						game.play_sound("honk")
+						_honk()
 						continue
 					agent.direction = path_dir
 					agent.set_rot(path_dir)
@@ -937,7 +952,7 @@ func finish_pick_up(taxi, agent):
 				board[p.y][p.x].agent = save_agent
 		if path.size() <= 1:
 			taxi.set_blocked(true)
-			game.play_sound("honk")
+			_honk()
 	else:
 		taxi.set_blocked(false)
 

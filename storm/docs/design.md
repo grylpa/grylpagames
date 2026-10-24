@@ -134,6 +134,41 @@ mask in the wrong place entirely (water on drains, none against walls) -- hence 
 `art/rect_water.png` and `art/rect_water_white.png` fed the first per-tile version and are no longer
 used.
 
+**The surface moves** (`water.gdshader`, uniform `t` = the game clock, set every frame by
+`flood_layer.gd`): two drifting noises make a ripple field, its normals catch the light from the top
+left as glints, and the floor seen through the water brightens and dims in soft moving patches. The
+water color is a cooler, less painted blue (`WATER` 0.20/0.42/0.78; it was 0.15/0.45/0.95). Before,
+a puddle was a flat tinted disc.
+
+## The storm itself
+
+There was no weather: a storm game on a sunny lawn. Three things, none of them touching the rules:
+
+- **Rain over the lawn** (`storm_rain.gdshader` on a `Weather` ColorRect, `level._fit_weather()`):
+  the lawn darkened and cooled, slanted rain streaks falling in two layers, and splash rings opening
+  where drops land, all on the game clock. It lives in the LAWN's layer (`BgLayer`), after the grass,
+  so the house -- in the level's layer, in front -- covers it: rain falls on the lawn and stops at the
+  walls by construction, with no mask. Sized to the `GrassField` on every fit.
+- **Walls cast a soft shadow into each room** (`_add_wall_shade()`, `WALL_SHADE` 0.30 of a tile):
+  a band along every edge where a room's floor meets anything that is not more of that room, except
+  across a doorway. On the floor's z, added just before the water layer, so the water draws over it.
+  It loops over the board ARRAY, not `game.board_size`: during a rebuild the size changes first, and
+  `probe_storm_rebuild` caught it reading past the end.
+- **The blackout is gentle** (`main.gd`, `on_show_blackout`): the same darkness at the same moments
+  (`blackout_every_sec`), but down fast, one slow flicker back, then up over a third of a second. It
+  used to cut hard on and off three times in a quarter second -- about eight flashes a second, the
+  kind of flashing that can trigger photosensitive seizures. Now under two changes a second.
+
+## Sounds
+
+The rain loops (`rain_1..4.ogg`), the thunder (`thunder_1..4.mp3`) and the water pour are recordings
+and stay. Made for this game by `devtools/make_storm_sounds.py`: four **drips** (`storm_drip_1..4`, the
+"plink" of a drop into water, one every 2-8 s), a **new leak** (`storm_leak`, wet plaster creaking and a
+heavy first splat), **footsteps** on a wooden floor (`storm_steps`, a two-step loop while walking) and a
+tool **set down** (`storm_set`, a hollow thunk). They replaced retro arcade "blops", a swoosh, footsteps
+on grass indoors and a generic tap. A car crash that was registered and never played is gone; the coin
+and bump sounds are still registered for `answered()` and coins, neither of which happens in play.
+
 ## Ruined furniture, ruined rooms -- how a round is lost
 
 Both are judged by how much of each floor tile the puddles cover (`tile_coverage()`), from the same

@@ -22,10 +22,30 @@ change/
 │   ├── level.tscn       # CanvasLayer + level.gd (UI built in code)
 │   └── main.tscn        # Main + Level + HUD + GameTick + Help
 └── art/
-    └── game_screen_200.png   # chooser tile: a pile of drawn coins on green felt
+    └── game_screen_200.png   # chooser tile, drawn by devtools/make_thumbs.py change()
 ```
-Coins are **drawn**, not images (`coin.gd`): a metallic disc (rim + face + inner disc + sheen)
-with a value label. It's positioned at its **center**; the level moves it by setting `position`.
+Coins are **drawn**, not images (`coin.gd`), as **minted coins lit from the top left**: a soft
+two-layer shadow on the felt, the edge (REEDED on silver and gold, smooth on copper, as real coins
+are), the face shaded in rings toward the light, a raised rim lit on its top-left side and shaded on
+the other, a sheen and a glint, and the value STRUCK INTO the metal (`_draw_embossed`: its top-left
+edge in shade, its bottom-right edge catching the light). It was flat concentric circles with flat
+text. It's positioned at its **center**; the level moves it by setting `position`.
+
+**The table** is felt (`felt.gdshader` on a full-screen `ColorRect` behind everything): the table's
+green with a fine fiber texture, a soft overhead light toward the top center and a darker edge. It
+replaced a flat clear color. **The tray** is a wooden tray lined with velvet (`_draw_tray`): the
+panel's StyleBox is the wood (with a drop shadow), and the draw callback adds the grain, a lit top
+edge, the burgundy lining and the frame's shadow falling on it. Its label is engraved gold. A soft
+sheen rectangle on the velvet was tried and showed as a hard box.
+
+**Sounds** (`devtools/make_change_sounds.py`, synthesized): `pick` (a light metallic tick, -8 dB)
+when a coin is picked up, `felt` (a soft tap, -6 dB) when it is set down outside the tray, `tray` (a
+clink and a smaller one as it settles, -4 dB) when it lands in the tray, `correct` (a run of coins and
+a register bell) and `wrong` (a soft low wooden knock). They replaced an arcade coin and a swoosh.
+
+**The chooser tile** is drawn (`devtools/make_thumbs.py`, `change()`): the game's minted coins on
+the felt, one already in the corner of the wooden tray. The coins wear an embossed STAR instead of a
+value, because a tile carries no numbers.
 
 ## Autoloads
 - `ChangeG` — `game := GenericGameUtil.new("Change","change",0,2,0)`, settings save/load.

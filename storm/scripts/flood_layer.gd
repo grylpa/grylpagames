@@ -29,7 +29,7 @@ extends Node2D
 # Added after every tile, at z -1: the tiles' floor sprites are z -1 too and draw first by tree
 # order; everything standing on the floor (bricks, furniture, tools, doors, the player) is above.
 
-const WATER: Color = Color(0.15, 0.45, 0.95, 0.85)
+const WATER: Color = Color(0.20, 0.42, 0.78, 0.85)     # a cooler, less painted blue
 const RING: Color = Color(0.9, 0.96, 1.0)
 const DROP_SLOT: float = 1.6        # seconds: each slot holds one drop or, a third of the time, none
 const RING_LIFE: float = 1.1
@@ -113,7 +113,9 @@ func room_floor_rects(room: int) -> Array:
 func _process(_delta: float) -> void:
 	_pds = _level.call("puddles") if _level != null else []
 	visible = not _pds.is_empty()
+	var secs: float = StormG.game.game_time / 1000.0 if StormG.game != null else 0.0
 	for room in _rooms:
+		((_rooms[room]["pool"] as CanvasGroup).material as ShaderMaterial).set_shader_parameter("t", secs)
 		(_rooms[room]["circles"] as Node2D).queue_redraw()
 		(_rooms[room]["rings"] as Node2D).queue_redraw()
 

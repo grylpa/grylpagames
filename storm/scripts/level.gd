@@ -101,19 +101,24 @@ var round_items_lost: int = 0
 
 var action_scene: PackedScene = load("res://storm/scenes/action_panel.tscn")
 
-var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
+# SOUNDS. The rain, the thunder and the water pour are recordings and stay; the drips, a new leak,
+# the footsteps and a tool being set down are made for this game (devtools/make_storm_sounds.py).
+# They replaced retro arcade "blops" for the drips, a swoosh for a leak, footsteps on GRASS indoors
+# and a generic tap. A car crash that was registered and never played is gone.
 # var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
-var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
+var feet_audio := preload("res://art/sounds/storm_steps.ogg")
 var delivered_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
 var start_audio := preload("res://art/sounds/click-2.mp3")
-var tap_audio := preload("res://art/sounds/tap-1.mp3")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+var tap_audio := preload("res://art/sounds/storm_set.ogg")
+var swoosh_audio := preload("res://art/sounds/storm_leak.ogg")      # a new leak breaking through
 var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
 var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
 var water_pour_audio := preload("res://art/sounds/water_pour_3.ogg")
-var water_drop_audio := [ 
-	preload("res://art/sounds/FreeSFX/GameSFX/Blops/Retro Blop 18.ogg"),
-	preload("res://art/sounds/FreeSFX/GameSFX/Blops/Retro Blop 22.ogg") ]
+var water_drop_audio := [
+	preload("res://art/sounds/storm_drip_1.ogg"),
+	preload("res://art/sounds/storm_drip_2.ogg"),
+	preload("res://art/sounds/storm_drip_3.ogg"),
+	preload("res://art/sounds/storm_drip_4.ogg") ]
 var rain_audio := [
 	# preload("res://art/sounds/rain_1_louder.ogg"),
 	# preload("res://art/sounds/rain_2_louder.ogg"),
@@ -158,7 +163,6 @@ func _ready() -> void:
 	round_in_level = 0
 	_apply_level()
 
-	game.add_sound(self, "explosion", explosion_audio)
 	# game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "feet", feet_audio, true)
 	game.add_sound(self, "delivery", delivered_audio)
@@ -171,6 +175,9 @@ func _ready() -> void:
 	game.add_sound(self, "thunder", thunder_audio)
 	game.add_sound(self, "tap", tap_audio)
 	game.add_sound(self, "water_pour", water_pour_audio)
+	game.set_sound_volume("water_drop", -6.0)
+	game.set_sound_volume("feet", -8.0)
+	game.set_sound_volume("swoosh", -2.0)
 
 	MainGlobals.sig_path_drawn.connect(_on_path_drawn)  
 	_fit_ground_to_board()
@@ -328,6 +335,8 @@ func _start_playing():
 
 func _process(delta: float) -> void:
 	_follow_player_room(delta)
+	if _rain_mat != null and game.playing and not game.paused():
+		_rain_mat.set_shader_parameter("t", game.game_time / 1000.0)
 	# In a corridor the next step is taken the frame the player arrives, not at the next 50 ms game
 	# tick: at a run, waiting for the tick was a third of every step, and running came out only 1.3x
 	# as fast as walking. Rooms keep the tick's pace -- the pace the levels were measured at.
@@ -1668,10 +1677,53 @@ var _flood: StormFloodLayer = null
 func _add_flood_layer() -> void:
 	if _flood != null and is_instance_valid(_flood):
 		_flood.queue_free()
+	_add_wall_shade()
 	_flood = StormFloodLayer.new()
 	add_child(_flood)
 	var top_left: Vector2 = game.board_to_px(Vector2i.ZERO) - Vector2.ONE * float(game.tile_size) * 0.5
 	_flood.setup(self, board, game.board_size, float(game.tile_size), top_left)
+
+# THE WALLS CAST A SOFT SHADOW INTO EACH ROOM: a band along every edge where a room's floor meets
+# anything that is not more of that room (the outside, a corridor, another room), fading out over
+# WALL_SHADE of a tile -- except across a doorway, which is open. It makes a room an enclosed space
+# lit from inside rather than a flat colored box. On the floor's own z, added just before the water,
+# so the water draws over it.
+const WALL_SHADE: float = 0.30
+var _wall_shade: Node2D = null
+
+func _add_wall_shade() -> void:
+	if _wall_shade != null and is_instance_valid(_wall_shade):
+		_wall_shade.queue_free()
+	_wall_shade = Node2D.new()
+	_wall_shade.z_index = -1
+	_wall_shade.draw.connect(_draw_wall_shade)
+	add_child(_wall_shade)
+
+func _draw_wall_shade() -> void:
+	var t: float = float(game.tile_size)
+	var d: float = t * WALL_SHADE
+	var dark: Color = Color(0.0, 0.0, 0.05, 0.30)
+	var clear: Color = Color(0.0, 0.0, 0.05, 0.0)
+	var cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
+	# over the board array itself, not game.board_size: during a rebuild the size changes first
+	for y in board.size():
+		for x in board[y].size():
+			var cell: OneCell = board[y][x]
+			if cell == null or not cell.ispipe or cell.room_id < 0 or cell.door_type >= 0:
+				continue
+			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(x, y) + dv
+				var other: OneCell = null
+				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size():
+					other = board[q.y][q.x]
+				if other != null and (other.door_type >= 0 or (other.ispipe and other.room_id == cell.room_id)):
+					continue
+				var n: Vector2 = Vector2(dv)
+				var side: Vector2 = Vector2(-n.y, n.x)
+				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
+				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
+				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
 
 # EVERY LEAK MAKES ITS OWN PUDDLE: A CIRCLE THAT KEEPS GROWING. Its area is the water that leak has
 # poured onto the floor (pipe.floored_total -- everything it dripped with no tool under it, or with a
@@ -2216,4 +2268,28 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19)
+	var field: Control = GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19)
+	_fit_weather(field)
+
+# THE STORM over the lawn (storm_rain.gdshader): the light darkened and cooled, rain streaks, splash
+# rings. A rect over the lawn in the lawn's own layer, after the grass -- so the house, in front,
+# covers it and the rain stops at the walls with no mask. There was no weather at all before: a
+# storm game on a sunny lawn.
+var _rain: ColorRect = null
+var _rain_mat: ShaderMaterial = null
+
+func _fit_weather(field: Control) -> void:
+	var bg: Node = get_node_or_null("BgLayer")
+	if bg == null or field == null:
+		return
+	if _rain == null:
+		_rain = ColorRect.new()
+		_rain.name = "Weather"
+		_rain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_rain_mat = ShaderMaterial.new()
+		_rain_mat.shader = preload("res://storm/scenes/storm_rain.gdshader")
+		_rain.material = _rain_mat
+		bg.add_child(_rain)
+	bg.move_child(_rain, bg.get_child_count() - 1)
+	_rain.position = field.position
+	_rain.size = field.size
