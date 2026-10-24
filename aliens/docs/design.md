@@ -238,8 +238,27 @@ there is no correct answer left to give and every arrival becomes an eviction.
 ## Background
 
 `field.gd` draws an **alien night sky** behind everything: a 40-band vertical gradient (near-black
-overhead → deep teal-green at the horizon), ~70 stars in two size classes, and an edge vignette
-that pulls the eye to the center of the board.
+overhead → deep indigo low down), a faint nebula (one small image of violet and blue noise wisps,
+stretched, low alpha, no edges), ~70 stars in two size classes, and an edge vignette.
+
+**The hall is the spaceport's deck** (`_draw_hall`, over `field_rect`): dark neutral slate plates,
+each a shade off its neighbours, with faint bevelled seams, a rivet at each corner, a broad sheen
+from the top left, a darker inner edge and small guide lights along all four sides. Static -- nothing
+in the hall moves but the aliens. **The gates** are a metal queue ring set into the deck (its edge
+bevelled, lit top left, 16 guide lights round it) around a raised boarding pad that glows softly from
+the middle (one radial texture, `_glow_tex`; drawn as stacked circles it showed stepped rings), the
+glow and the guide lights breathing slowly. The drag highlights are unchanged (gold outer, green
+inner).
+
+**The hall and the gates are NEUTRAL** -- slate, silver, a white glow -- never a hue. Color is a trait
+the player judges, and the old teal-green sky and green rings sat close to the green alien; a
+neutral ground lets all five colors stand out the same. The deck is square plates, never round:
+every circle in this game means a gate.
+
+**The aliens are glossy** (`alien.gd`, step 3): a darker base and rings drifting up and left toward
+the light, each nearer the body's own color, a rim of light bouncing up off the deck along the bottom
+edge, the outline, and a shine high on the left. The middle tones are the body's color, so color
+still reads first. (It replaced a flat fill with a paler belly.)
 
 **No planets, moons or other large discs.** An early version had two dim planets low in the
 corners; every circle in this game *means* something (outer ring, inner ring), so a big circle in
@@ -251,6 +270,20 @@ player has to track. The star scatter is **re-randomised for every level** (`reb
 simulation so tests repeat and behavior is reproducible, but the sky is decoration — nothing reads
 it and nothing compares it between runs, so pinning it only threw away free variety.
 `set_sky_size()` keeps it spanning the screen after a relayout.
+
+## Sounds
+
+All made for this game by `devtools/make_aliens_sounds.py` (synthesized, seeded) into
+`art/sounds/aliens_*.ogg`. They replaced an arcade coin, a swoosh, a heavy bell and a blop.
+
+| name in code | file | when |
+|---|---|---|
+| `hall` | `aliens_hall.ogg`, 28 s loop, -12 dB | while a level plays: a low hum, air, a slow soft chord, a far beep now and then. Stopped at the top of `_process` whenever play stops |
+| `correct` | `aliens_correct.ogg`, -4 dB | a right call: a two-note chime, rising |
+| `wrong` | `aliens_wrong.ogg`, -4 dB | a mistake, and an alien turned away at a full gate: a short soft buzz, falling |
+| `gatechange` | `aliens_gate.ogg`, -3 dB | a gate changes its pass: the three-note announcement chime |
+| `call` | `aliens_call.ogg`, -3 dB | a boarding call: two notes rising |
+| `pickup` | `aliens_pickup.ogg`, -6 dB | an alien picked up (`_begin_drag`): a "bwip", pitched 0.85 for a fat alien and 1.2 for a thin one, ±5% |
 
 ## Feedback and captions
 

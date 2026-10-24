@@ -208,10 +208,17 @@ var _rule_labels: Array = []
 const ALIEN_SCRIPT: GDScript = preload("res://aliens/scripts/alien.gd")
 const FIELD_SCRIPT: GDScript = preload("res://aliens/scripts/field.gd")
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
-var gatechange_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var call_audio = preload("res://art/sounds/FreeSFX/GameSFX/Blops/Retro Blop 22.ogg")
+# SOUNDS made for this game (devtools/make_aliens_sounds.py synthesizes them): the spaceport hall
+# behind everything while a level plays, a chime for a passenger boarded, a soft buzz for a mistake,
+# the three-note announcement for a gate change, a two-note boarding call, and a "bwip" when an
+# alien is picked up -- lower for a fat one, higher for a thin one. They replaced an arcade coin, a
+# swoosh, a heavy bell and a blop.
+var correct_audio = preload("res://art/sounds/aliens_correct.ogg")
+var wrong_audio = preload("res://art/sounds/aliens_wrong.ogg")
+var gatechange_audio = preload("res://art/sounds/aliens_gate.ogg")
+var call_audio = preload("res://art/sounds/aliens_call.ogg")
+var hall_audio = preload("res://art/sounds/aliens_hall.ogg")
+var pickup_audio = preload("res://art/sounds/aliens_pickup.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing
@@ -223,6 +230,11 @@ func _ready() -> void:
 	game.add_sound(self, "wrong", wrong_audio)
 	game.add_sound(self, "gatechange", gatechange_audio)
 	game.add_sound(self, "call", call_audio)
+	game.add_sound(self, "hall", hall_audio, true)
+	game.add_sound(self, "pickup", pickup_audio)
+	for vol: Array in [["hall", -12.0], ["correct", -4.0], ["wrong", -4.0], ["gatechange", -3.0],
+			["call", -3.0], ["pickup", -6.0]]:
+		game.set_sound_volume(vol[0], vol[1])
 	_build_ui()
 	set_process(true)
 
@@ -1136,7 +1148,10 @@ func _can_play() -> bool:
 
 func _process(dt: float) -> void:
 	if not _can_play():
+		# the hall plays only while a level does: not under a card, a pause or the menu
+		game.stop_sound("hall")
 		return
+	game.play_sound("hall", false)
 	_simulate(minf(dt, 0.05), game.game_time)   # clamp long frames (tab switch, GC pause)
 
 # One frame of the world. Everything the game does per frame must live here.
@@ -1659,6 +1674,10 @@ func _begin_drag(al, p: Vector2) -> void:
 	al.vel = Vector2.ZERO
 	al.z_index = 1000
 	al.set_hint(3)
+	var squeak: Node = game.sounds.get("pickup", null)
+	if squeak != null:
+		squeak.pitch_scale = (0.85 if al.is_fat else 1.2) * randf_range(0.95, 1.05)
+	game.play_sound("pickup")
 	_drag_offset = al.sim_pos - p
 	_drag_alien = al          # without this, motion events are ignored and the alien just freezes
 
