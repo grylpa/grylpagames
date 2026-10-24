@@ -270,15 +270,28 @@ func on_menu_slider_changed(id, val):
 		StormG.starting_level = roundi(val)
 		StormG.save_settings()
 
+# A BLACKOUT: the thunder, and the house lights fail -- down fast, one slow flicker back, then up
+# again over a third of a second. It used to cut hard on and off three times in a quarter second,
+# about eight flashes a second, which is the kind of flashing that can trigger photosensitive
+# seizures; this stays under two changes a second. Same darkness, same moment, same rhythm per level
+# (`blackout_every_sec`).
+var _blackout_tween: Tween = null
+
 func on_show_blackout():
 	game.play_sound("thunder")
+	var rect: CanvasItem = $Blackout/BlackoutRect
+	if _blackout_tween != null and _blackout_tween.is_valid():
+		_blackout_tween.kill()
+	rect.modulate.a = 0.0
 	$Blackout.show()
-	await MainGlobals.sleep(0.03)
-	$Blackout.hide()
-	await MainGlobals.sleep(0.06)
-	$Blackout.show()
-	await MainGlobals.sleep(0.16)
-	$Blackout.hide()
+	_blackout_tween = create_tween()
+	_blackout_tween.tween_property(rect, "modulate:a", 1.0, 0.08)
+	_blackout_tween.tween_interval(0.25)
+	_blackout_tween.tween_property(rect, "modulate:a", 0.45, 0.18)
+	_blackout_tween.tween_property(rect, "modulate:a", 1.0, 0.18)
+	_blackout_tween.tween_interval(0.12)
+	_blackout_tween.tween_property(rect, "modulate:a", 0.0, 0.35)
+	_blackout_tween.tween_callback($Blackout.hide)
 
 # One row per finished level, [time, score, level], from every play's record, oldest first.
 func level_score_rows(records: Array) -> Array:

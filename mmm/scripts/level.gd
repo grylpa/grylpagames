@@ -72,14 +72,20 @@ var in_answring_mode := false
 @export var door_scene: PackedScene = load("res://mmm/scenes/door.tscn")
 @export var player_scene: PackedScene = load("res://mmm/scenes/player.tscn")
 
-var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
-var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
-var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
-var delivered_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var start_audio := preload("res://art/sounds/click-2.mp3")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
+# SOUNDS made for this game (devtools/make_mmm_sounds.py). The names in code are the old ones:
+# `motor` is the castle halls' ambience (it was a car engine, registered and never played -- it now
+# plays from the round's start), `feet` footsteps on stone (they were on grass), `delivery` a coin
+# picked up, `right` a room named right (it shared the coin's sound), `gaveup` a room named wrong,
+# `swoosh` the shimmer as the floor plan opens out, `explosion` a muffled boom when a hazard catches
+# you (it was a car crash), `start` a heavy door closing behind you. `dispatch` is never played.
+var explosion_audio := preload("res://art/sounds/mmm_hit.ogg")
+var motor_audio := preload("res://art/sounds/mmm_halls.ogg")
+var feet_audio := preload("res://art/sounds/mmm_steps.ogg")
+var delivered_audio := preload("res://art/sounds/mmm_coin.ogg")
+var right_audio := preload("res://art/sounds/mmm_right.ogg")
+var start_audio := preload("res://art/sounds/mmm_start.ogg")
+var swoosh_audio := preload("res://art/sounds/mmm_reveal.ogg")
+var gaveup_audio := preload("res://art/sounds/mmm_wrong.ogg")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -110,7 +116,9 @@ func _ready() -> void:
 	game.add_sound(self, "delivery", delivered_audio)
 	game.add_sound(self, "start", start_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
-	game.add_sound(self, "dispatch", dispatch_audio)	
+	game.add_sound(self, "right", right_audio)
+	for vol: Array in [["motor", -9.0], ["feet", 2.0], ["delivery", -4.0], ["right", -3.0], ["swoosh", -3.0]]:
+		game.set_sound_volume(vol[0], vol[1])
 	game.add_sound(self, "gaveup", gaveup_audio)	
 
 	MAX_COLORS_TO_USE = min(MAX_COLORS_TO_USE, game.colors.size())
@@ -263,6 +271,7 @@ func _start_playing():
 	if play_start_sound:
 		play_start_sound = false
 		game.play_sound("start")
+		game.play_sound("motor", false)
 		if player != null:
 			player.play()
 
@@ -331,7 +340,7 @@ func answered(correct: bool):
 		game.tutorial_notify("room_answered")   # no-op outside tutorial mode
 		game.add_score_and_time(1,5)
 		game.add_correct_or_mistake(1,0)
-		game.play_sound("delivery")
+		game.play_sound("right")
 		_check_if_all_rooms_answered()
 	else:
 		game.add_score_and_time(-1,-5)
@@ -993,6 +1002,7 @@ func create_board() -> void:
 	for pipe in pipes:
 		await _breathe()
 		pipe.set_rot(board)
+	_add_wall_shade()
 
 	if false:
 		# add doors			
@@ -1439,6 +1449,49 @@ func all_agents_done():
 			return false
 	return true
 	
+# THE WALLS CAST A SOFT SHADOW INTO EACH ROOM: a band along every edge where a room's floor meets
+# anything that is not more of that room, fading out over WALL_SHADE of a tile. It makes a room an
+# enclosed space rather than a flat colored box. Only the edge band darkens, faintly: the floor's
+# COLOR is what the player has to remember, and the middle of every room is untouched. On the
+# floors' z (-1, pipe.gd), added after every tile, so it lies over the floor and under the coins.
+const WALL_SHADE: float = 0.30
+var _wall_shade: Node2D = null
+
+func _add_wall_shade() -> void:
+	if _wall_shade != null and is_instance_valid(_wall_shade):
+		_wall_shade.queue_free()
+	_wall_shade = Node2D.new()
+	_wall_shade.z_index = -1
+	_wall_shade.draw.connect(_draw_wall_shade)
+	add_child(_wall_shade)
+
+func _draw_wall_shade() -> void:
+	var t: float = float(game.tile_size)
+	var d: float = t * WALL_SHADE
+	var dark: Color = Color(0.0, 0.0, 0.05, 0.26)
+	var clear: Color = Color(0.0, 0.0, 0.05, 0.0)
+	var cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
+	# over the board array itself, not game.board_size: during a rebuild the size changes first
+	for y in board.size():
+		for x in board[y].size():
+			var cell: OneCell = board[y][x]
+			if cell == null or not cell.ispipe or cell.room_id < 0:
+				continue
+			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(x, y) + dv
+				var other: OneCell = null
+				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size():
+					other = board[q.y][q.x]
+				# more of this room, or a corridor leading out: open, no wall
+				if other != null and other.ispipe and (other.room_id == cell.room_id or other.room_id < 0):
+					continue
+				var n: Vector2 = Vector2(dv)
+				var side: Vector2 = Vector2(-n.y, n.x)
+				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
+				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
+				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
+
 func bcell(p:Vector2i) -> OneCell:
 	return board[p.y][p.x]
 

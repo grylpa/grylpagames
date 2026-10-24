@@ -67,29 +67,56 @@ func _apply_denom() -> void:
 		_rim = SILVER_RIM
 		_text_col = Color(0.24, 0.25, 0.30, 1.0)
 
+# A MINTED COIN, lit from the top left: a soft shadow on the felt, the edge (reeded on silver and
+# gold, smooth on copper, as real coins are), the face shaded toward the light, a raised rim that
+# catches the light on its top-left side and drops into shade on the other, a sheen, and the value
+# STRUCK INTO the metal -- its top-left edge in shade and its bottom-right edge catching the light,
+# as an incuse letter is -- rather than printed on it. (It was flat concentric circles, flat text.)
 func _draw() -> void:
 	var r: float = radius
 	# green halo when this coin currently counts as being in the tray
 	if _in_tray:
 		draw_circle(Vector2.ZERO, r * 1.18, Color(0.35, 1.0, 0.55, 0.55))
 		draw_circle(Vector2.ZERO, r * 1.10, Color(0.35, 1.0, 0.55, 0.35))
-	# soft drop shadow
-	draw_circle(Vector2(0.0, r * 0.08), r * 1.02, Color(0, 0, 0, 0.20))
-	# milled rim, then face, then a slightly lighter inner disc for depth
-	draw_circle(Vector2.ZERO, r, _rim)
-	draw_circle(Vector2.ZERO, r * 0.90, _face)
-	draw_circle(Vector2.ZERO, r * 0.70, _face.lightened(0.14))
-	draw_arc(Vector2.ZERO, r * 0.80, 0.0, TAU, 48, _rim.darkened(0.05), maxf(1.0, r * 0.045), true)
-	# top-left sheen
-	draw_circle(Vector2(-r * 0.30, -r * 0.32), r * 0.40, Color(1, 1, 1, 0.12))
-	# denomination: big numeral with the unit symbol on its own line below it (coin convention)
+	# soft shadow, two layers
+	draw_circle(Vector2(r * 0.06, r * 0.12), r * 1.04, Color(0, 0, 0, 0.14))
+	draw_circle(Vector2(r * 0.03, r * 0.07), r * 1.00, Color(0, 0, 0, 0.20))
+	# the edge
+	draw_circle(Vector2.ZERO, r, _rim.darkened(0.12))
+	if _face != COPPER:
+		var ticks: int = clampi(int(r * 1.6), 24, 90)
+		for i in ticks:
+			var a: Vector2 = Vector2.from_angle(TAU * float(i) / float(ticks))
+			draw_line(a * r * 0.93, a * r * 0.995, _rim.lightened(0.18) if i % 2 == 0 else _rim.darkened(0.25),
+				maxf(1.0, r * 0.035), true)
+	# the face, shaded: rings drifting toward the light, each a touch lighter
+	draw_circle(Vector2.ZERO, r * 0.90, _face.darkened(0.16))
+	for k in 6:
+		var t: float = float(k + 1) / 6.0
+		draw_circle(Vector2(-r, -r) * 0.06 * t, r * 0.90 * (1.0 - 0.30 * t), _face.darkened(0.16).lerp(_face.lightened(0.10), t))
+	# the raised rim: lit top left, shaded bottom right
+	draw_arc(Vector2.ZERO, r * 0.82, PI * 0.75, PI * 1.75, 32, _face.lightened(0.45), maxf(1.0, r * 0.05), true)
+	draw_arc(Vector2.ZERO, r * 0.82, -PI * 0.25, PI * 0.75, 32, _rim.darkened(0.20), maxf(1.0, r * 0.05), true)
+	draw_arc(Vector2.ZERO, r * 0.90, PI * 0.80, PI * 1.70, 32, Color(1, 1, 1, 0.35), maxf(1.0, r * 0.03), true)
+	# a sheen and a glint
+	draw_circle(Vector2(-r * 0.32, -r * 0.36), r * 0.34, Color(1, 1, 1, 0.10))
+	draw_circle(Vector2(-r * 0.42, -r * 0.46), r * 0.10, Color(1, 1, 1, 0.30))
+	# denomination: big numeral with the unit symbol on its own line below it (coin convention),
+	# embossed
 	var f: Font = _label_font()
-	_draw_centered_line(f, _num, maxi(8, int(r * 0.60)), -r * 0.16)
-	_draw_centered_line(f, _sym, maxi(6, int(r * 0.40)), r * 0.32)
+	_draw_embossed(f, _num, maxi(8, int(r * 0.60)), -r * 0.16, r)
+	_draw_embossed(f, _sym, maxi(6, int(r * 0.40)), r * 0.32, r)
 
-func _draw_centered_line(f: Font, text: String, fs: int, center_y: float) -> void:
+func _draw_embossed(f: Font, text: String, fs: int, center_y: float, r: float) -> void:
+	var o: float = maxf(0.8, r * 0.025)
+	_draw_centered_line(f, text, fs, center_y, Vector2(o, o), Color(_face.lightened(0.55), 0.75))
+	_draw_centered_line(f, text, fs, center_y, Vector2(-o, -o), Color(_rim.darkened(0.45), 0.55))
+	_draw_centered_line(f, text, fs, center_y, Vector2.ZERO, _text_col)
+
+func _draw_centered_line(f: Font, text: String, fs: int, center_y: float, off: Vector2 = Vector2.ZERO,
+		col: Color = Color(0, 0, 0, 0)) -> void:
 	var ss: Vector2 = f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 	var asc: float = f.get_ascent(fs)
 	var desc: float = f.get_descent(fs)
-	draw_string(f, Vector2(-ss.x * 0.5, center_y + (asc - desc) * 0.5), text,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, _text_col)
+	draw_string(f, off + Vector2(-ss.x * 0.5, center_y + (asc - desc) * 0.5), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, _text_col if col.a == 0.0 else col)

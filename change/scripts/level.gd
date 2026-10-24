@@ -64,6 +64,8 @@ var _bar_fill: ColorRect = null
 var _basket_panel: Panel = null
 var _basket_label: Label = null
 var _pay_btn: Button = null
+var _felt: ColorRect = null
+var _felt_mat: ShaderMaterial = null
 var _catcher: Control = null
 var _bar_full_w: float = 200.0
 var _bar_h: float = 14.0
@@ -77,8 +79,15 @@ const COIN_SCRIPT: GDScript = preload("res://change/scripts/coin.gd")
 const FEEDBACK_DEFAULT_MS: float = 1200.0
 var feedback_ms: float = FEEDBACK_DEFAULT_MS
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+# SOUNDS made for this game (devtools/make_change_sounds.py synthesizes them): a tick when a coin is
+# picked up, a soft tap when it is put down on the felt, a clink when it lands in the tray, a run of
+# coins and a register bell for the right amount, a soft wooden knock for the wrong one. They
+# replaced an arcade coin and a swoosh.
+var correct_audio = preload("res://art/sounds/change_correct.ogg")
+var wrong_audio = preload("res://art/sounds/change_wrong.ogg")
+var pick_audio = preload("res://art/sounds/change_pick.ogg")
+var felt_audio = preload("res://art/sounds/change_felt.ogg")
+var tray_audio = preload("res://art/sounds/change_tray.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing
@@ -88,12 +97,25 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	game.add_sound(self, "pick", pick_audio)
+	game.add_sound(self, "felt", felt_audio)
+	game.add_sound(self, "tray", tray_audio)
+	game.set_sound_volume("pick", -8.0)
+	game.set_sound_volume("felt", -6.0)
+	game.set_sound_volume("tray", -4.0)
 	_build_ui()
 	set_process(true)
 
 # --- UI construction --------------------------------------------------------
 
 func _build_ui() -> void:
+	# the table: felt, behind everything (felt.gdshader)
+	_felt = ColorRect.new()
+	_felt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_felt_mat = ShaderMaterial.new()
+	_felt_mat.shader = preload("res://change/scripts/felt.gdshader")
+	_felt.material = _felt_mat
+	add_child(_felt)
 	_bar_track = ColorRect.new()
 	_bar_track.color = Color(0, 0, 0, 0.38)
 	_bar_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -113,17 +135,21 @@ func _build_ui() -> void:
 		_instruction.text = "Drag coins into the tray to pay the exact amount, then press Pay"
 		add_child(_instruction)
 
-	# tray/basket (drawn behind the coins; no sum is ever shown here)
+	# tray/basket (drawn behind the coins; no sum is ever shown here): a WOODEN TRAY lined with
+	# velvet -- a frame with its grain and a lit top edge, the lining recessed under a shadow from
+	# the frame. (It was a dark translucent box with a yellow outline.)
 	_basket_panel = Panel.new()
 	_basket_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var st: StyleBoxFlat = StyleBoxFlat.new()
-	st.bg_color = Color(0, 0, 0, 0.22)
-	st.set_border_width_all(3)
-	st.border_color = Color(1, 0.9, 0.55, 0.7)
+	st.bg_color = TRAY_WOOD
 	st.set_corner_radius_all(18)
+	st.shadow_color = Color(0, 0, 0, 0.35)
+	st.shadow_size = 10
+	st.shadow_offset = Vector2(0, 5)
 	_basket_panel.add_theme_stylebox_override("panel", st)
+	_basket_panel.draw.connect(_draw_tray)
 	add_child(_basket_panel)
-	_basket_label = _make_label(26, Color(1, 1, 1, 0.35))
+	_basket_label = _make_label(26, Color(1.0, 0.86, 0.52, 0.55))
 	_basket_label.text = "TRAY"
 	_basket_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	add_child(_basket_label)
@@ -187,6 +213,35 @@ func _place(c: Control, x: float, y: float, w: float, h: float) -> void:
 	c.size = Vector2(w, h)
 	c.custom_minimum_size = Vector2(w, h)
 
+const TRAY_WOOD: Color = Color(0.44, 0.28, 0.16)
+const TRAY_VELVET: Color = Color(0.34, 0.07, 0.11)
+const TRAY_FRAME: float = 11.0
+
+func _draw_tray() -> void:
+	var sz: Vector2 = _basket_panel.size
+	var p: Panel = _basket_panel
+	# the frame's grain: faint lines along each side
+	for k in 4:
+		var t: float = (float(k) + 0.5) / 4.0 * TRAY_FRAME
+		var gc: Color = Color(0.0, 0.0, 0.0, 0.10) if k % 2 == 0 else Color(1.0, 0.9, 0.7, 0.07)
+		p.draw_line(Vector2(18.0, t), Vector2(sz.x - 18.0, t), gc, 1.0)
+		p.draw_line(Vector2(18.0, sz.y - t), Vector2(sz.x - 18.0, sz.y - t), gc, 1.0)
+		p.draw_line(Vector2(t, 18.0), Vector2(t, sz.y - 18.0), gc, 1.0)
+		p.draw_line(Vector2(sz.x - t, 18.0), Vector2(sz.x - t, sz.y - 18.0), gc, 1.0)
+	# a lit top edge
+	p.draw_line(Vector2(18.0, 1.5), Vector2(sz.x - 18.0, 1.5), Color(1.0, 0.9, 0.7, 0.30), 2.0)
+	# the velvet lining, recessed
+	var inner: StyleBoxFlat = StyleBoxFlat.new()
+	inner.bg_color = TRAY_VELVET
+	inner.set_corner_radius_all(10)
+	var r: Rect2 = Rect2(Vector2(TRAY_FRAME, TRAY_FRAME), sz - Vector2(TRAY_FRAME, TRAY_FRAME) * 2.0)
+	p.draw_style_box(inner, r)
+	# the frame's shadow falling on the lining from the top and left
+	for k2 in 6:
+		var f: float = 1.0 - float(k2) / 6.0
+		p.draw_rect(Rect2(r.position + Vector2(10.0, float(k2) * 2.0), Vector2(r.size.x - 20.0, 2.0)), Color(0, 0, 0, 0.13 * f))
+		p.draw_rect(Rect2(r.position + Vector2(float(k2) * 2.0, 10.0), Vector2(2.0, r.size.y - 20.0)), Color(0, 0, 0, 0.09 * f))
+
 func _layout() -> void:
 	var sw: float = float(MainGlobals.screen_size.x)
 	var sh: float = float(MainGlobals.screen_size.y)
@@ -201,8 +256,10 @@ func _layout() -> void:
 	_feedback.add_theme_font_size_override("font_size", _fb_font_big)
 	MainGlobals.set_font_size(_pay_btn, 34)
 
-	# full-screen drag catcher
+	# full-screen drag catcher, and the felt under everything
 	_place(_catcher, 0.0, 0.0, sw, sh)
+	_place(_felt, 0.0, 0.0, sw, sh)
+	_felt_mat.set_shader_parameter("size", Vector2(sw, sh))
 
 	# timeout bar just under the header (level label is moved down below it in main.gd)
 	_bar_h = 22.0 if mob else 14.0
@@ -532,6 +589,7 @@ func _on_catcher_gui_input(event: InputEvent) -> void:
 				_drag_coin = entry
 				_drag_offset = (entry["node"] as Node2D).position - event.position
 				_raise_coin(entry)
+				game.play_sound("pick")
 				get_viewport().set_input_as_handled()
 		else:
 			_drop_coin()
@@ -553,6 +611,7 @@ func _drop_coin() -> void:
 	var landed: bool = _in_basket(entry)
 	if is_instance_valid(node):
 		node.set_in_tray(landed)
+	game.play_sound("tray" if landed else "felt")
 	_drag_coin = null
 	game.tutorial_notify("coin_in_tray" if landed else "coin_out_of_tray")
 	# Fires wherever the coin ended up. A tutorial step that just wants "the player moved a coin"

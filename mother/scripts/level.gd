@@ -120,9 +120,11 @@ const HEAD_CAP_STEPS: int = 10       # resolution of the rounded snout and neck 
 # as a separate disc rotating over an unrelated body.
 const HEAD_HALO_FADE: float = 0.55   # share of the length over which the halo fades out
 const HEAD_STRIPE_FROM: float = 0.42 # dorsal stripe starts this far back from the nose
+const HEAD_BACK_W: float = 0.10      # how far behind the head point the head's fill reaches, body widths
 
 const RIPPLE_LIGHT: Color = Color(1.0, 0.965, 0.859)      # sun on a ripple crest
 const RIPPLE_DARK: Color = Color(0.478, 0.451, 0.478)     # the trough behind it, blue-shadowed
+const RIPPLE_FIELD_SPAN: float = 1.7                       # screen widths a ripple's stretch repeats over
 const PEBBLE_COL: Color = Color(0.545, 0.478, 0.427, 0.85)
 const BUSH_COL: Color = Color(0.400, 0.365, 0.208, 0.92)   # dry desert scrub, olive-khaki
 const BEETLE_COL: Color = Color(0.106, 0.086, 0.075, 0.98)
@@ -223,8 +225,16 @@ const SLITHER_WAVE_W: float = 7.0    # wavelength, in body widths
 const SLITHER_SPEED: float = 2.0     # rad/s the wave travels toward the tail
 const SLITHER_RAMP_W: float = 3.5    # body widths behind the head before it eases in
 
-const STRIPE_W: float = 0.28         # dorsal stripe width, as a share of body width
-const STRIPE_LIGHT: float = 0.40     # how much lighter the stripe is than the body
+const STRIPE_W: float = 0.20         # dorsal sheen width, as a share of body width
+const STRIPE_LIGHT: float = 0.40     # (kept for the thumbnail script, which mirrors these)
+# THE SPINE IS A SHEEN, not a stripe: sunlight along the top of a round body -- warm white and
+# faint, a plain line on the same path (no texture: see "NO TEXTURE" where the lines are made).
+# Drawn as an opaque lighter line it came out a flat gray strip down the middle of every body,
+# which read as a cable inside a tube.
+const SHEEN: Color = Color(1.0, 0.96, 0.86, 0.16)
+# Crossbands are CRISP: each half period holds its color and turns over BAND_EDGE of it. A plain
+# alternation of stops interpolated into a triangle wave, which read as blurry corrugated pipe.
+const BAND_EDGE: float = 0.30
 
 # Child body history ring buffer — interpolated to eliminate jitter
 const HISTORY_INTERVAL_MS: float = 16.0
@@ -346,11 +356,31 @@ func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
 		pts.append(Vector2(nose_x + cos(a2) * (hw0 + extra), sin(a2) * (hw0 + extra)))
 	return pts
 
-# One band period of the body's skin, as a multiplier. Mirrors _build_gradient exactly: its stops
-# alternate base / BAND_DARK every half period and interpolate linearly, which is a triangle wave.
+# THE BODY'S BANDS ARE STRETCHED, the head's must be too. The gradient's offsets are pixels over
+# the HORIZONTAL span (the stable proxy, see _set_body), but a Line2D lays a gradient along its ARC,
+# which is longer wherever the path climbs or falls -- so every band on the body comes out
+# arc / span times BAND_PX. The head drew true BAND_PX and its bands were visibly narrower than the
+# body's right behind it. _set_body records the ratio per line; each head reads its own line's.
+var _band_stretch: Dictionary = {}
+
+func _head_band_stretch(nd: Node2D) -> float:
+	return maxf(1.0, float(_band_stretch.get(nd.get_meta("line", null), 1.0)))
+
+# The skin at a distance back from the head, as 1.0 (base) .. BAND_DARK (crossband). Mirrors
+# _build_gradient exactly: each half period holds its color and turns over BAND_EDGE of it, the turn
+# centered on the boundary.
 func _band_shade(dist_px: float) -> float:
-	var phase: float = fposmod(dist_px / maxf(1.0, BAND_PX), 1.0)
-	return lerpf(BAND_DARK, 1.0, absf(phase * 2.0 - 1.0))
+	var h: float = maxf(0.0, dist_px) / maxf(1.0, BAND_PX * 0.5)
+	var i: int = int(floor(h))
+	var f: float = h - float(i)
+	var mine: float = 1.0 if i % 2 == 0 else BAND_DARK
+	var other: float = BAND_DARK if i % 2 == 0 else 1.0
+	var e: float = BAND_EDGE
+	if f < e * 0.5 and i > 0:
+		return lerpf(other, mine, 0.5 + f / e)
+	if f > 1.0 - e * 0.5:
+		return lerpf(other, mine, 0.5 + (1.0 - f) / e)
+	return mine
 
 # The head is drawn with the SAME three ingredients as the body and in the same order: faint halo,
 # banded fill, lighter spine. No dark outline, because the body has none.
@@ -365,8 +395,12 @@ func _draw_head(nd: Node2D) -> void:
 	var half: float = body_w * HEAD_WIDE_W * 0.5
 
 	# 1. halo, matching the body's
-	nd.draw_colored_polygon(_head_shape(body_w, body_w * (GLOW_MUL - 1.0) * 0.5),
-		Color(BODY_SHADOW, GLOW_ALPHA))
+	# clipped where the fill stops: over the body it laid a translucent oval on the neck
+	var keep: PackedVector2Array = PackedVector2Array([Vector2(-body_w * HEAD_BACK_W, -body_w * 4.0),
+		Vector2(ln, -body_w * 4.0), Vector2(ln, body_w * 4.0), Vector2(-body_w * HEAD_BACK_W, body_w * 4.0)])
+	for part: PackedVector2Array in Geometry2D.intersect_polygons(
+			_head_shape(body_w, body_w * (GLOW_MUL - 1.0) * 0.5), keep):
+		nd.draw_colored_polygon(part, Color(BODY_SHADOW, GLOW_ALPHA))
 
 	# 2. banded fill, as transverse strips so each band follows the tapering outline
 	var strips: int = HEAD_STEPS * 2
@@ -375,12 +409,16 @@ func _draw_head(nd: Node2D) -> void:
 		var t1: float = float(i + 1) / float(strips)
 		var x0: float = lerpf(ln * 0.5, -ln * 0.5, t0)
 		var x1: float = lerpf(ln * 0.5, -ln * 0.5, t1)
+		# Only just past the body's end (the body line has no cap there): reaching further back it
+		# laid its own shading over the body's and the neck showed as a lighter oval.
+		if x0 < -body_w * HEAD_BACK_W:
+			break
 		var h0: float = _head_half_width(t0, half)
 		var h1: float = _head_half_width(t1, half)
 		# The head wears the body's pattern. _band_shade is a 0..1 triangle over one band period, so
 		# it doubles as the mix between base and crossband — the head's bands are then the SAME two
 		# colors as the body's rather than a dimmer version of one of them.
-		var sh: float = _band_shade(-(x0 + x1) * 0.5)
+		var sh: float = _band_shade(-(x0 + x1) * 0.5 / _head_band_stretch(nd))
 		var band_col: Color = nd.get_meta("band", Color(0, 0, 0, 0))
 		var skin: Color
 		if band_col.a > 0.0:
@@ -391,22 +429,22 @@ func _draw_head(nd: Node2D) -> void:
 			Vector2(x0, -h0), Vector2(x1, -h1), Vector2(x1, h1), Vector2(x0, h0)])
 		nd.draw_colored_polygon(quad, skin)
 
-	# 3. the dorsal stripe, continuing the body's
-	nd.draw_line(Vector2(ln * 0.5 - ln * HEAD_STRIPE_FROM, 0.0), Vector2(-ln * 0.5, 0.0),
-		col.lightened(STRIPE_LIGHT), body_w * STRIPE_W, true)
+	# 3. the sheen along the back, continuing the body's: soft-edged, as three faint layers
+	for layer in 3:
+		var lw: float = body_w * STRIPE_W * (1.0 - 0.3 * float(layer))
+		nd.draw_line(Vector2(ln * 0.5 - ln * HEAD_STRIPE_FROM, 0.0), Vector2(-body_w * HEAD_BACK_W, 0.0),
+			Color(SHEEN, SHEEN.a * 0.45), lw, true)
 
-	# eyes on the flanks, looking forward; frame 2 of 4 is a blink
+	# eyes on the flanks, looking forward: dark and glossy, a glint toward the snout. NO BLINK --
+	# snakes have no eyelids, and the blink frame (a quarter of the time) drew the eyes as two dashes.
 	var ex: float = ln * 0.5 - ln * HEAD_EYE_AT
 	var ey: float = _head_half_width(HEAD_EYE_AT, half) * HEAD_EYE_OUT
 	var er: float = body_w * HEAD_EYE_R
 	for sgn in [-1.0, 1.0]:
-		if _head_frame == 2:
-			nd.draw_line(Vector2(ex - er, ey * sgn), Vector2(ex + er, ey * sgn),
-				col.darkened(0.72), maxf(1.0, er * 0.45), true)
-		else:
-			nd.draw_circle(Vector2(ex, ey * sgn), er, Color(0.06, 0.05, 0.06), true, -1.0, true)
-			nd.draw_arc(Vector2(ex, ey * sgn), er, 0.0, TAU, 14,
-				col.lightened(0.30), maxf(1.0, body_w * HEAD_EYE_RING), true)
+		var ec: Vector2 = Vector2(ex, ey * sgn)
+		nd.draw_circle(ec, er, Color(0.06, 0.05, 0.06), true, -1.0, true)
+		nd.draw_arc(ec, er, 0.0, TAU, 14, col.lightened(0.30), maxf(1.0, body_w * HEAD_EYE_RING), true)
+		nd.draw_circle(ec + Vector2(er * 0.30, -er * 0.30 * sgn), er * 0.32, Color(1.0, 1.0, 1.0, 0.85), true, -1.0, true)
 
 # One-off bakes. Both are stretched to the canvas, so the vignette texture is built at the canvas
 # aspect: its darkening depth is a fraction of the SHORT side, which would otherwise be skewed by
@@ -468,8 +506,30 @@ func _build_vignette_tex(w: float, h: float) -> ImageTexture:
 			img.set_pixel(x, y, Color(0.0, 0.0, 0.0, a))
 	return ImageTexture.create_from_image(img)
 
+# THE WIND BREATHES. One sound (devtools/make_mother_sounds.py): a steady desert wind whose volume
+# and pitch follow the breath -- the mother's in Guided mode, the player's own in Active mode, where
+# there is no mother -- so the breath can be followed by ear, eyes closed. It swells on the inhale
+# and settles on the exhale. It plays only while a session runs.
+const WIND_AUDIO: AudioStream = preload("res://art/sounds/mother_wind.ogg")
+const WIND_DB: Vector2 = Vector2(-28.0, -13.0)     # exhaled, inhaled
+const WIND_STEP_DB: float = 0.4
+var _wind_db_set: float = -100.0
+var _wind_open: float = 0.0     # the breath to follow, 0 exhaled .. 1 inhaled, set where the body is
+var _wind_lvl: float = 0.0      # the same, eased, which is what is heard
+
+func _wind_sound(delta: float) -> void:
+	_wind_lvl = lerpf(_wind_lvl, _wind_open, clampf(delta * 3.0, 0.0, 1.0))
+	game.play_sound("wind", false)
+	# VOLUME ONLY, and only in steps of WIND_STEP_DB. The pitch used to follow the breath too, set
+	# every frame, and the wind came out choppy.
+	var want: float = lerpf(WIND_DB.x, WIND_DB.y, _wind_lvl)
+	if absf(want - _wind_db_set) >= WIND_STEP_DB:
+		_wind_db_set = want
+		game.set_sound_volume("wind", want)
+
 func _ready() -> void:
 	game = MotherG.game
+	game.add_sound(self, "wind", WIND_AUDIO, true)
 	_screen_w = float(MainGlobals.screen_size.x)
 	_screen_h = float(MainGlobals.screen_size.y)
 	_head_x = _screen_w * HEAD_X_FRAC
@@ -502,11 +562,21 @@ func _ready() -> void:
 	_l_child = _make_body_line(CHILD_W, CHILD_COL, 2, false)
 	# A dorsal stripe: a narrower line on the SAME path, so its round joints sit inside the body's
 	# at every turn. Real snakes have one, and it gives the body a spine without any offsetting.
-	_l_mother_st = _make_body_line(MOTHER_W * STRIPE_W, MOTHER_COL.lightened(STRIPE_LIGHT), 3, false)
-	_l_child_st = _make_body_line(CHILD_W * STRIPE_W, CHILD_COL.lightened(STRIPE_LIGHT), 3, false)
+	_l_mother_st = _make_body_line(MOTHER_W * STRIPE_W, SHEEN, 3, false)
+	_l_child_st = _make_body_line(CHILD_W * STRIPE_W, SHEEN, 3, false)
+	# NO TEXTURE on any body line. A cross-width shading texture (dark flanks, lit back) was tried:
+	# straight, it made the body round; on every TURN the round joint's texture coordinates did not
+	# match the segments', and the body broke into what looked like separate tubes overlapping.
+	# It is the UV case of the rule above -- skin that needs normals, offsets or UVs fails at turns.
+	for body: Line2D in [_l_mother, _l_child, _l_mother_st, _l_child_st]:
+		# No cap at the head end: the head covers it, and a round cap there showed round the neck
+		# as a lighter half-disc.
+		body.begin_cap_mode = Line2D.LINE_CAP_NONE
 
 	_sprite_mother = _make_head(MOTHER_W, MOTHER_COL, 5, MOTHER_BAND)
 	_sprite_child = _make_head(CHILD_W, CHILD_COL, 6, CHILD_BAND)
+	_sprite_mother.set_meta("line", _l_mother)
+	_sprite_child.set_meta("line", _l_child)
 
 	var sys_font: Font = MainGlobals.get_system_sans_font()
 	var ui_theme: Theme = Theme.new()          # not `theme`; harmless here but keeps the lint clean
@@ -758,7 +828,9 @@ func _compute_scroll_speed() -> float:
 
 func _process(delta: float) -> void:
 	if not game.level_is_ready or game.paused() or _session_complete:
+		game.stop_sound("wind")
 		return
+	_wind_sound(delta)
 
 	_elapsed_ms += delta * 1000.0
 	_anim_time += delta
@@ -803,7 +875,8 @@ func _process(delta: float) -> void:
 		_trace_last_ms = _elapsed_ms
 
 	# Head animation
-	# Same cadence the three-frame sprite cycle used; frame 2 of 4 is the blink.
+	# Same cadence the three-frame sprite cycle used. (Frame 2 was a blink; snakes have no eyelids,
+	# and it is gone -- the cadence only keeps the heads redrawn.)
 	var f_now: int = int(_anim_time * 3.5) % 4
 	if f_now != _head_frame:
 		_head_frame = f_now
@@ -841,7 +914,28 @@ func _process(delta: float) -> void:
 		_on_session_complete()
 
 # Breathing phase y position; top_y = inhale extreme, bot_y = exhale extreme
+# THE MOTHER'S PATH, WITH ITS CORNERS ROUNDED. The breath itself (_phase_y_raw) is straight ramps
+# meeting flat holds -- true corners, which no sampling can smooth, so the body kinked there and its
+# bands broke into wedges at every turn. Averaged over a short window (PATH_ROUND_FRAC of the
+# shortest ramp, PATH_ROUND_TAPS samples) each corner becomes a small curve while the ramps and the
+# holds stay exactly as they were: a box average of a straight line is the same line. At a corner
+# the guide moves by a few px at most; the score comes from the player's breathing rhythm, not from
+# distance to her.
+const PATH_ROUND_FRAC: float = 0.08
+const PATH_ROUND_TAPS: int = 9
+
 func _phase_y_at(t_ms: float, top_y: float, bot_y: float) -> float:
+	var d: Array = MotherG.get_guided_durations()
+	var r: float = PATH_ROUND_FRAC * minf(float(d[0]), float(d[2]))
+	if r <= 1.0:
+		return _phase_y_raw(t_ms, top_y, bot_y)
+	var sum: float = 0.0
+	for k in PATH_ROUND_TAPS:
+		var u: float = (float(k) / float(PATH_ROUND_TAPS - 1)) * 2.0 - 1.0
+		sum += _phase_y_raw(t_ms + u * r, top_y, bot_y)
+	return sum / float(PATH_ROUND_TAPS)
+
+func _phase_y_raw(t_ms: float, top_y: float, bot_y: float) -> float:
 	var d: Array = MotherG.get_guided_durations()
 	var inhale_ms: float = d[0]
 	var hold_top_ms: float = d[1]
@@ -992,7 +1086,7 @@ func _build_plain_gradient(col: Color) -> Gradient:
 	var g: Gradient = Gradient.new()
 	g.offsets = PackedFloat32Array([0.0, TAIL_SOLID, 1.0])
 	g.colors = PackedColorArray([
-		Color(col.r, col.g, col.b, 1.0), Color(col.r, col.g, col.b, 1.0), Color(col.r, col.g, col.b, 0.0)])
+		Color(col.r, col.g, col.b, col.a), Color(col.r, col.g, col.b, col.a), Color(col.r, col.g, col.b, 0.0)])
 	return g
 
 # `band_col` is the crossband. Alternating two real colors is what makes this read as a patterned
@@ -1007,18 +1101,27 @@ func _build_gradient(base_col: Color, span_px: float, band_col: Color = Color(0,
 	var half: float = BAND_PX * 0.5
 	var span: float = maxf(half * 2.0, span_px)
 	var n_steps: int = clampi(int(span / half), 2, BAND_MAX * 2)
+	var e: float = BAND_EDGE * half * 0.5
 	for i in range(n_steps + 1):
 		# ANCHORED IN PIXELS from the head: offset = distance / length. As the child's body grows,
 		# a band 100 px back stays 100 px back — only new bands appear at the tail. Dividing 0..1
 		# into equal fractions instead made every band shift a little each time the length changed,
 		# which is what the tail jitter during growth actually was.
-		var t: float = clampf(float(i) * half / span, 0.0, 1.0)
+		#
+		# Two stops per half period, holding its color between them: the color turns only across
+		# the boundary (BAND_EDGE), so the bands are crisp. _band_shade mirrors this for the head.
 		var c: Color = base_col if i % 2 == 0 else dark
-		var a: float = 1.0
-		if t > TAIL_SOLID:
-			a = 1.0 - (t - TAIL_SOLID) / (1.0 - TAIL_SOLID)
-		offs.append(t)
-		cols.append(Color(c.r, c.g, c.b, a))
+		var lo: float = 0.0 if i == 0 else float(i) * half + e
+		var hi: float = float(i + 1) * half - e
+		for d: float in [lo, hi]:
+			var t: float = clampf(d / span, 0.0, 1.0)
+			var a: float = 1.0
+			if t > TAIL_SOLID:
+				a = 1.0 - (t - TAIL_SOLID) / (1.0 - TAIL_SOLID)
+			if not offs.is_empty() and t <= offs[offs.size() - 1]:
+				continue
+			offs.append(t)
+			cols.append(Color(c.r, c.g, c.b, a))
 	var g: Gradient = Gradient.new()
 	g.offsets = offs
 	g.colors = cols
@@ -1105,11 +1208,15 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	# would put that wobble into the pattern. The tail tip itself still moves those 2 px, where the
 	# alpha ramp has already faded it to nothing.
 	var span: float = maxf(1.0, stable_len)
+	var arc: float = 0.0
+	for i in range(1, pts.size()):
+		arc += pts[i].distance_to(pts[i - 1])
+	_band_stretch[ln] = arc / span
 	var n_steps: int = clampi(int(maxf(BAND_PX, span) / (BAND_PX * 0.5)), 2, BAND_MAX * 2)
 	if int(_bands.get(ln, -1)) != n_steps:
 		_bands[ln] = n_steps
 		ln.gradient = _build_gradient(base_col, span, band_col)
-		st.gradient = _build_plain_gradient(base_col.lightened(STRIPE_LIGHT))
+		st.gradient = _build_plain_gradient(SHEEN)
 
 	ln.points = pts
 	st.points = pts
@@ -1304,28 +1411,42 @@ func _do_draw(canvas: CanvasItem) -> void:
 	# Ground texture (behind snake paths): sand ripple lines and pebbles
 	for bg_item in _bg_seeds:
 		if bg_item.type == 0:  # sand ripple line
+			# A RIPPLE FIELD, not a ruled line: each ripple runs for a stretch and fades out at both
+			# ends, and the stretches drift with the world. Full-width lines at fixed heights read as
+			# lined paper. Where along the world it sits and how long it is both come from its phase.
 			var y_base: float = bg_item.y_frac * h
-			var rpts: PackedVector2Array = PackedVector2Array()
+			var field_span: float = w * RIPPLE_FIELD_SPAN
+			var seg_half: float = w * (0.16 + 0.24 * fposmod(bg_item.phase * 3.1, 1.0))
+			var seg_c: float = fposmod(bg_item.phase / TAU * field_span - scroll_off, field_span) - seg_half
 			var rx_step: float = 8.0
-			var rn: int = int(w / rx_step) + 2
-			rpts.resize(rn)
-			for j in range(rn):
-				var rx: float = float(j) * rx_step
-				rpts[j] = Vector2(rx, y_base + bg_item.amp * sin((rx + scroll_off) * TAU / bg_item.period + bg_item.phase))
-			# A ripple is a small dune: a lit crest with its own shadow under it. One hairline of
-			# flat color reads as a scratch, which is what the sand looked like — a dark field with
-			# thin lines ruled across it.
 			var near: float = clampf(bg_item.y_frac, 0.0, 1.0)      # 0 far, 1 near the camera
 			var thick: float = lerpf(1.0, 2.6, near)
-			if bg_item.light:
+			for wrap_i in range(2):
+				var cx: float = seg_c + float(wrap_i) * field_span
+				if cx + seg_half < 0.0 or cx - seg_half > w:
+					continue
+				var rpts: PackedVector2Array = PackedVector2Array()
+				var fade: PackedFloat32Array = PackedFloat32Array()
+				var rx: float = maxf(0.0, cx - seg_half)
+				while rx <= minf(w, cx + seg_half):
+					rpts.append(Vector2(rx, y_base + bg_item.amp * sin((rx + scroll_off) * TAU / bg_item.period + bg_item.phase)))
+					fade.append(pow(sin(clampf((rx - (cx - seg_half)) / (seg_half * 2.0), 0.0, 1.0) * PI), 0.7))
+					rx += rx_step
+				if rpts.size() < 2:
+					continue
+				# A ripple is a small dune: a lit crest with its own shadow under it.
+				var lit_cols: PackedColorArray = PackedColorArray()
+				var dark_cols: PackedColorArray = PackedColorArray()
 				var shadow: PackedVector2Array = PackedVector2Array()
-				for rp in rpts:
-					shadow.append(rp + Vector2(0.0, thick * 1.4))
-				canvas.draw_polyline(shadow, Color(RIPPLE_DARK, bg_item.alpha * 0.85), thick, true)
-				canvas.draw_polyline(rpts, Color(RIPPLE_LIGHT, bg_item.alpha * lerpf(0.55, 1.0, near)),
-					thick, true)
-			else:
-				canvas.draw_polyline(rpts, Color(RIPPLE_DARK, bg_item.alpha), thick, true)
+				for k in rpts.size():
+					lit_cols.append(Color(RIPPLE_LIGHT, bg_item.alpha * lerpf(0.55, 1.0, near) * fade[k]))
+					dark_cols.append(Color(RIPPLE_DARK, bg_item.alpha * (0.85 if bg_item.light else 1.0) * fade[k]))
+					shadow.append(rpts[k] + Vector2(0.0, thick * 1.4))
+				if bg_item.light:
+					canvas.draw_polyline_colors(shadow, dark_cols, thick, true)
+					canvas.draw_polyline_colors(rpts, lit_cols, thick, true)
+				else:
+					canvas.draw_polyline_colors(rpts, dark_cols, thick, true)
 		elif bg_item.type == 4:  # drifting dust
 			var dsx: float = fmod(bg_item.wx - scroll_off * bg_item.speed_f, bg_span)
 			if dsx < 0.0:
@@ -1382,6 +1503,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 					_draw_track(canvas, trail_pts, CHILD_W, 0.85)
 					_set_body(_l_child, _l_child_sh, _l_child_st, trail_pts, CHILD_W, CHILD_COL,
 						_openness(_child_y, CHILD_START_DROP), reliable_px_a, _child_glow(), CHILD_BAND)
+					_wind_open = _openness(_child_y, CHILD_START_DROP)
 	else:
 		# Guided mode: the mother's own path, sampled on a SNAPPED TIME GRID and walked head-first.
 		#
@@ -1407,6 +1529,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 		_draw_track(canvas, mother_pts, MOTHER_W, 1.0)
 		_set_body(_l_mother, _l_mother_sh, _l_mother_st, mother_pts, MOTHER_W, MOTHER_COL,
 			_openness(mother_pts[0].y, 0.0), _head_x + MOTHER_W, 1.0, MOTHER_BAND)
+		_wind_open = _openness(mother_pts[0].y, 0.0)
 
 		# --- Child body — break at left edge to avoid tail jitter ---
 		if _history_count > 4:

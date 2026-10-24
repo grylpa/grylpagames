@@ -73,6 +73,28 @@ func _ready() -> void:
 	time_created_ms = game.game_time
 	%GasSprite.visible = is_taxi
 
+# A taxi's SHADOW on the road, down and to the right, turning with the cab: soft (two layers), so the
+# cab sits on the asphalt instead of floating over it. Drawn by the agent itself, under the Head.
+func _draw() -> void:
+	if not is_taxi:
+		return
+	draw_set_transform(Vector2(2.5, 3.5), $Head.rotation, Vector2.ONE)
+	for k in 2:
+		var g: float = 1.0 + 0.14 * float(k)
+		draw_colored_polygon(_rounded_rect(Vector2(15.5, 8.5) * g, 5.0 * g), Color(0, 0, 0, 0.17))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+# A rectangle of half-size `half` with corners rounded to `r`, as a polygon.
+static func _rounded_rect(half: Vector2, r: float) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array()
+	var cs: Array = [Vector2(half.x - r, half.y - r), Vector2(-half.x + r, half.y - r),
+		Vector2(-half.x + r, -half.y + r), Vector2(half.x - r, -half.y + r)]
+	for c in 4:
+		for i in 5:
+			var a: float = PI * 0.5 * float(c) + PI * 0.5 * float(i) / 4.0
+			pts.append((cs[c] as Vector2) + Vector2.from_angle(a) * r)
+	return pts
+
 func set_id(_id):
 	agent_id = _id
 
@@ -160,6 +182,8 @@ func _process(_delta: float) -> void:
 	# which is not every frame — so a standing taxi snapped to its new heading instead of swinging.
 	if _head_angle_set:
 		$Head.rotation = _head_angle
+	if is_taxi:
+		queue_redraw()
 
 	var now = game.game_time
 	if is_taxi:
