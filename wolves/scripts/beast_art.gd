@@ -25,9 +25,7 @@ var _t: float = 0.0
 var _tufts: Array = []          # sheep: [offset, radius] per tuft of fleece
 
 const SIZE: float = 0.86            # all three drawn at this scale of the numbers below
-# the dog and the wolf are drawn a little longer and much broader than their numbers say, so they
-# stand as large on the field as a sheep (drawn as numbered, they were half a sheep's width)
-const BEAST_STRETCH: Vector2 = Vector2(1.08, 1.40)
+const BEAST_SIZE: float = 1.22      # and the dog and the wolf at this much more
 const OUTLINE: Color = Color(0.07, 0.06, 0.07)
 const OUT_W: float = 1.4
 const SHADOW: Color = Color(0.0, 0.05, 0.0, 0.22)
@@ -45,7 +43,9 @@ const WOLF_EYE: Color = Color(0.98, 0.72, 0.16)
 
 func _ready() -> void:
 	var hs: Vector2 = (get_parent() as Node2D).scale
-	scale = Vector2(SIZE / maxf(hs.x, 0.001), SIZE / maxf(hs.y, 0.001))
+	# the dog and the wolf drawn larger, uniformly, so they stand as tall on the field as a sheep
+	var k: float = SIZE * (1.0 if kind == "sheep" else BEAST_SIZE)
+	scale = Vector2(k / maxf(hs.x, 0.001), k / maxf(hs.y, 0.001))
 	if kind == "sheep":
 		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 		rng.seed = get_instance_id()
@@ -159,12 +159,9 @@ func _draw() -> void:
 		"sheep":
 			_draw_sheep()
 		"wolf":
-			draw_set_transform(Vector2.ZERO, 0.0, BEAST_STRETCH)
 			_draw_wolf()
 		_:
-			draw_set_transform(Vector2.ZERO, 0.0, BEAST_STRETCH)
 			_draw_dog()
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 # --- sheep --------------------------------------------------------------------------------------
 
@@ -195,6 +192,35 @@ func _draw_sheep() -> void:
 
 # --- dog ----------------------------------------------------------------------------------------
 
+# A tail as a curve, not a stick: each segment turns a little further than the one before (a natural
+# curl to one side), and the wag is a WAVE travelling from the root to the tip, so the tail bends as it
+# swings instead of pivoting rigidly at the root (a straight stroke with a white bulb on the end,
+# swinging round its root, read as "a reverse pendulum").
+func _wavy_tail(base: Vector2, length: float, curl: float, wag: float, speed: float) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array([base])
+	var dir: float = PI
+	var seg: float = length / 10.0
+	for k in range(1, 11):
+		var u: float = float(k) / 10.0
+		dir = PI + curl * u + wag * sin(_t * speed - u * 3.2) * u
+		pts.append(pts[k - 1] + Vector2.from_angle(dir) * seg)
+	return pts
+
+# Fur along both edges of a tail: small pointed tufts angled back toward the tip.
+func _tail_tufts(pts: PackedVector2Array, widths: Array, col: Color, from_k: int) -> void:
+	for k in range(from_k, pts.size() - 1):
+		var along: Vector2 = (pts[k + 1] - pts[k]).normalized()
+		var nrm: Vector2 = Vector2(-along.y, along.x)
+		var w: float = float(widths[k])
+		for sgn: float in [-1.0, 1.0]:
+			# filled, with a thin dark edge only on the outside: at game size an outline all round
+			# swallowed the tufts and they came out as black spikes
+			var root: Vector2 = pts[k] + nrm * sgn * w * 0.5
+			var tip: Vector2 = pts[k] + nrm * sgn * (w + 2.6) + along * 3.2
+			var tri: PackedVector2Array = PackedVector2Array([root - along * 2.4, tip, root + along * 2.2])
+			draw_colored_polygon(tri, col)
+			draw_polyline(PackedVector2Array([tri[0], tri[1], tri[2]]), Color(OUTLINE, 0.30), 0.6, true)
+
 func _tail_points(base: Vector2, length: float, bend: float) -> PackedVector2Array:
 	var pts: PackedVector2Array = PackedVector2Array()
 	for k in 9:
@@ -202,92 +228,102 @@ func _tail_points(base: Vector2, length: float, bend: float) -> PackedVector2Arr
 		pts.append(base + Vector2(-u * length, 0.0).rotated(bend * u))
 	return pts
 
+# ONE SILHOUETTE from tail root to nose: the body, the neck and the head are a single outlined shape,
+# so the animal reads as one animal and not as a body with a head stuck on. `jag` roughens the
+# outline between x0 and x1 into fur tufts (the wolf's ruff).
+func _silhouette(prof: Array, jag_x0: float = 0.0, jag_x1: float = 0.0, jag: float = 0.0) -> PackedVector2Array:
+	var pts: PackedVector2Array = _profile(prof)
+	if jag > 0.0:
+		var c: int = 0
+		for k in pts.size():
+			var x: float = pts[k].x
+			if x > jag_x0 and x < jag_x1:
+				var sgn: float = signf(pts[k].y)
+				pts[k] += Vector2(-0.8, sgn * jag) if c % 2 == 0 else Vector2.ZERO
+				c += 1
+	return pts
+
 func _draw_dog() -> void:
 	var lit: Vector2 = _light_dir()
-	# a dog's body is long and even -- hips nearly as broad as the chest -- not a teardrop (that, with
-	# a round head on the narrow end turned forward, read as "a reverse pendulum")
-	var body: PackedVector2Array = _shape(-16.0, 13.0, 8.4, 0.55, 0.28)
-	var head: PackedVector2Array = _shape(8.5, 25.0, 6.2, 0.36, 0.55)
+	# a border collie from above: a long even body, a slight waist, a neck, a domed skull and a
+	# tapering muzzle -- one outline
+	var body: PackedVector2Array = _silhouette([[-17.0, 4.6], [-14.0, 8.0], [-7.0, 8.6], [0.0, 8.0], [5.0, 8.8],
+		[9.5, 6.6], [12.0, 5.2], [14.5, 6.0], [18.0, 5.6], [21.0, 3.6], [24.0, 2.4], [25.5, 0.9]])
 	_shadow_of(body)
-	_shadow_of(head)
-	# the tail, plumed (fullest in the middle), wagging the same amount to each side
-	var tail: PackedVector2Array = _tail_points(Vector2(-12.0, 0.0), 14.0, sin(_t * 9.0) * 0.45)
-	var tw: Array = [2.6, 3.4, 4.0, 4.3, 4.3, 4.0, 3.5, 2.8, 2.0]
+	# the tail: a long feathered plume curving to one side, the wag a wave along it, the tip white
+	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 19.0, 0.6, 0.55, 9.0)
+	var tw: Array = [2.6, 3.0, 3.3, 3.5, 3.5, 3.4, 3.1, 2.7, 2.2, 1.7, 1.2]
+	_tail_tufts(tail, tw, DOG_COAT, 3)
 	_outlined(_tapered(tail, tw), DOG_COAT)
 	var tip: PackedVector2Array = PackedVector2Array()
 	var tipw: Array = []
-	for k in range(5, 9):
+	for k in range(7, 11):
 		tip.append(tail[k])
-		tipw.append(float(tw[k]) - 0.4)
+		tipw.append(float(tw[k]) - 0.3)
 	draw_colored_polygon(_tapered(tip, tipw), DOG_WHITE)
 	_outlined(body, DOG_COAT)
 	# a sheen along the back on the lit side
-	var sheen: PackedVector2Array = _shape(-10.0, 6.0, 2.6, 0.5, 0.8)
-	for k in sheen.size():
-		sheen[k] += lit * 2.6
-	draw_colored_polygon(sheen, DOG_SHEEN)
-	# the white ruff round the neck
-	_outlined(_shape(2.5, 13.0, 9.2, 0.55, 0.35), DOG_WHITE)
-	# folded ears, soft, at the back of the head
+	draw_colored_polygon(_ellipse(Vector2(-4.0, 0.0) + lit * 2.8, 8.5, 2.4), DOG_SHEEN)
+	# the white collar round the neck, wider underneath (on both flanks), and the blaze to the muzzle
+	draw_colored_polygon(_silhouette([[6.0, 6.0], [8.5, 8.0], [11.0, 6.0], [13.5, 3.2]]), DOG_WHITE)
+	draw_colored_polygon(_silhouette([[13.0, 0.9], [18.0, 1.3], [21.5, 2.6], [24.5, 2.0], [25.4, 0.7]]), DOG_WHITE)
+	# soft ears folded forward over the sides of the skull
 	for s: float in [-1.0, 1.0]:
-		_outlined(_ellipse(Vector2(12.0, s * 6.2), 3.8, 2.5, s * 0.55), DOG_COAT)
-	_outlined(head, DOG_COAT)
-	# the blaze down the face, and the white muzzle
-	draw_colored_polygon(_shape(11.5, 24.4, 3.0, 0.78, 0.7), DOG_WHITE)
+		_outlined(PackedVector2Array([Vector2(13.5, s * 4.0), Vector2(16.5, s * 7.4), Vector2(17.8, s * 5.0)]), DOG_COAT)
 	for s2: float in [-1.0, 1.0]:
-		var ep: Vector2 = Vector2(16.0, s2 * 3.3)
-		draw_circle(ep, 1.5, Color(0.62, 0.40, 0.16), true, -1.0, true)
-		draw_circle(ep, 0.7, OUTLINE, true, -1.0, true)
-		draw_circle(ep + Vector2(0.4, -0.4 * s2), 0.45, Color(1, 1, 1, 0.9), true, -1.0, true)
-	draw_circle(Vector2(23.8, 0.0), 1.6, OUTLINE, true, -1.0, true)
+		var ep: Vector2 = Vector2(18.6, s2 * 3.0)
+		draw_circle(ep, 1.3, Color(0.62, 0.40, 0.16), true, -1.0, true)
+		draw_circle(ep, 0.6, OUTLINE, true, -1.0, true)
+	draw_circle(Vector2(25.0, 0.0), 1.5, OUTLINE, true, -1.0, true)
 
 # --- wolf ---------------------------------------------------------------------------------------
 
 func _draw_wolf() -> void:
+	# a gray wolf from above: lean flanks, heavy SHAGGY shoulders and neck (the ruff, as a rough
+	# outline), a broad skull, a long narrow muzzle -- one outline -- with tall pointed ears, a dark
+	# saddle and mask, amber eyes and a long bushy tail held low
 	var lit: Vector2 = _light_dir()
-	var body: PackedVector2Array = _shape(-16.5, 13.0, 9.0, 0.62, 0.32)
-	var head: PackedVector2Array = _shape(9.0, 28.0, 6.4, 0.26, 0.66)
+	var body: PackedVector2Array = _silhouette([[-17.0, 4.4], [-13.0, 7.0], [-6.0, 7.4], [1.0, 8.2], [6.0, 10.0],
+		[10.5, 9.2], [13.0, 6.6], [15.5, 6.8], [19.0, 5.4], [23.0, 3.0], [28.0, 1.8], [30.0, 0.7]])
 	_shadow_of(body)
-	_shadow_of(head)
-	# the tail: thick and bushy, held low behind, swaying slowly, the tip dark
-	var tail: PackedVector2Array = _tail_points(Vector2(-13.5, 0.0), 17.0, sin(_t * 2.4) * 0.15)
-	var tw: Array = [3.4, 4.6, 5.4, 5.8, 5.8, 5.4, 4.8, 3.9, 2.8]
+	# the RUFF: shaggy tufts standing out round the shoulders and neck, filled in the coat's color
+	for sgn: float in [-1.0, 1.0]:
+		var edge: PackedVector2Array = PackedVector2Array()
+		var ew: Array = []
+		for k in 7:
+			var x: float = lerpf(2.0, 13.0, float(k) / 6.0)
+			var hw: float = 8.2 + 1.8 * sin(PI * float(k) / 6.0)
+			edge.append(Vector2(x, sgn * hw * 0.55))
+			ew.append(hw * 0.45)
+		_tail_tufts(edge, ew, WOLF_COAT, 0)
+	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 21.0, 0.15, 0.12, 2.4)
+	var tw: Array = [2.2, 3.4, 4.6, 5.4, 5.8, 5.8, 5.4, 4.7, 3.8, 2.8, 1.6]
+	_tail_tufts(tail, tw, WOLF_COAT, 2)
 	_outlined(_tapered(tail, tw), WOLF_COAT)
 	var tip: PackedVector2Array = PackedVector2Array()
 	var tipw: Array = []
-	for k in range(6, 9):
+	for k in range(8, 11):
 		tip.append(tail[k])
-		tipw.append(float(tw[k]) - 0.5)
-	draw_colored_polygon(_tapered(tip, tipw), WOLF_SADDLE.darkened(0.4))
+		tipw.append(float(tw[k]) - 0.4)
+	draw_colored_polygon(_tapered(tip, tipw), WOLF_SADDLE.darkened(0.45))
 	_outlined(body, WOLF_COAT)
-	# the lit side of the coat, and the dark saddle along the back
-	draw_colored_polygon(_ellipse(lit * 3.4, 10.5, 4.2), WOLF_LIGHT)
-	draw_colored_polygon(_shape(-12.0, 10.0, 4.4, 0.55, 0.7), WOLF_SADDLE)
-	# a shaggy RUFF of fur round the neck and shoulders: a ring of pointed tufts, the wolf's mane
-	var ruff: PackedVector2Array = PackedVector2Array()
-	var nr: int = 22
-	for k in nr:
-		var a: float = TAU * float(k) / float(nr)
-		var rr: float = 11.4 if k % 2 == 0 else 9.4
-		ruff.append(Vector2(6.0, 0.0) + Vector2(cos(a) * rr * 0.70, sin(a) * rr))
-	_outlined(ruff, WOLF_COAT)
-	# tall upright ears at the back of the head, broad at the base, pointing back and out
-	for s: float in [-1.0, 1.0]:
-		var e0: Vector2 = Vector2(16.0, s * 1.6)
-		var e1: Vector2 = Vector2(9.5, s * 5.2)
-		var tip_e: Vector2 = Vector2(6.5, s * 8.6)
-		_outlined(PackedVector2Array([e0, tip_e, e1]), WOLF_SADDLE)
-		draw_colored_polygon(PackedVector2Array([e0.lerp(tip_e, 0.3), tip_e.lerp(Vector2(12.0, s * 3.6), 0.35),
-			e1.lerp(tip_e, 0.25)]), WOLF_PALE.darkened(0.12))
-	_outlined(head, WOLF_COAT)
-	# fur tufts sticking out at the cheeks
+	draw_colored_polygon(_ellipse(Vector2(-2.0, 0.0) + lit * 3.0, 10.0, 3.6), WOLF_LIGHT)
+	# the dark saddle along the back, running up the neck into the mask between the eyes
+	draw_colored_polygon(_silhouette([[-13.0, 1.5], [-6.0, 3.8], [3.0, 4.6], [10.0, 3.2], [16.0, 2.6], [22.0, 1.4], [24.0, 0.4]]), WOLF_SADDLE)
+	# pale cheeks and the pale front of the muzzle
 	for s3: float in [-1.0, 1.0]:
-		_outlined(PackedVector2Array([Vector2(13.0, s3 * 5.6), Vector2(14.5, s3 * 8.6), Vector2(17.0, s3 * 5.4)]), WOLF_LIGHT)
-	# pale cheeks and muzzle, a dark line down the forehead
-	draw_colored_polygon(_shape(15.5, 27.8, 4.6, 0.30, 0.7), WOLF_PALE)
-	draw_colored_polygon(_shape(10.5, 19.0, 1.5, 0.4, 0.8), WOLF_SADDLE)
+		draw_colored_polygon(_ellipse(Vector2(18.5, s3 * 3.6), 3.0, 1.5, s3 * 0.25), WOLF_PALE)
+	draw_colored_polygon(_silhouette([[22.5, 2.4], [26.0, 1.9], [29.6, 0.8]]), WOLF_PALE)
+	# tall pointed ears standing up from the back of the skull
+	for s: float in [-1.0, 1.0]:
+		var e0: Vector2 = Vector2(17.5, s * 2.6)
+		var e1: Vector2 = Vector2(13.0, s * 4.6)
+		var tip_e: Vector2 = Vector2(13.5, s * 10.2)
+		_outlined(PackedVector2Array([e0, tip_e, e1]), WOLF_SADDLE)
+		draw_colored_polygon(PackedVector2Array([e0.lerp(tip_e, 0.3), tip_e.lerp(Vector2(15.0, s * 3.6), 0.25),
+			e1.lerp(tip_e, 0.25)]), WOLF_PALE)
 	for s2: float in [-1.0, 1.0]:
-		var ep: Vector2 = Vector2(16.5, s2 * 3.6)
-		draw_colored_polygon(_ellipse(ep, 1.7, 1.05, s2 * 0.35), WOLF_EYE)
-		draw_colored_polygon(_ellipse(ep + Vector2(0.2, 0.0), 0.5, 0.95), OUTLINE)
-	draw_circle(Vector2(27.4, 0.0), 1.7, OUTLINE, true, -1.0, true)
+		var ep: Vector2 = Vector2(20.0, s2 * 2.9)
+		draw_colored_polygon(_ellipse(ep, 1.6, 0.85, s2 * 0.45), WOLF_EYE)
+		draw_colored_polygon(_ellipse(ep + Vector2(0.25, 0.0), 0.45, 0.7), OUTLINE)
+	draw_colored_polygon(_ellipse(Vector2(29.4, 0.0), 1.5, 1.7), OUTLINE)

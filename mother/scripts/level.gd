@@ -175,11 +175,8 @@ const CHILD_START_DROP: float = 60.0 # child starts this far below the mother's 
 # reach full length in ~12 s, driven straight off how much history existed — so for the first
 # seconds of every session the tail was visibly stretching, and the pattern had to renormalize
 # continuously while it did.
-# The heads swing round over time rather than snapping to the current direction. The body's turn
-# is eased (smootherstep), so a head that tracked the instantaneous tangent looked mechanical
-# against it. The mother's used to be set directly from her phase velocity with no smoothing at
-# all; the child's was smoothed, but at rate 20, which is fast enough to read as instant.
-const HEAD_TURN_RATE: float = 6.0
+# (The heads used to swing round at HEAD_TURN_RATE toward the path's direction; they now follow the
+# body's own chord behind them, _head_chord_angle, which is smooth because the body is.)
 
 const CHILD_START_LEN_PX: float = 120.0    # visible tail the moment a session starts
 const CHILD_GROW_PX_PER_MS: float = 0.011  # ~40 s from there to filling the screen
@@ -865,6 +862,13 @@ func new_game() -> void:
 	if _props_canvas != null:
 		_props_canvas.queue_redraw()
 
+# How long ago the world was where the body point half a head-length behind the head is now.
+func _back_ms(body_w: float) -> float:
+	return body_w * HEAD_LEN_W * 0.5 / maxf(_scroll_px_per_ms, 0.0001)
+
+func _head_chord_angle(y_head: float, y_back: float, body_w: float) -> float:
+	return atan2(y_head - y_back, body_w * HEAD_LEN_W * 0.5)
+
 func _compute_scroll_speed() -> float:
 	var d: Array = MotherG.get_guided_durations()
 	var cycle_ms: float = d[0] + d[1] + d[2] + d[3]
@@ -929,21 +933,21 @@ func _process(delta: float) -> void:
 	_sprite_child.queue_redraw()
 	_sprite_mother.queue_redraw()
 
-	var scroll_px_s: float = _scroll_px_per_ms * 1000.0
-	var y_old: float = _child_y_at_time(_elapsed_ms - 50.0)
-	var child_vel_px_s: float = (_child_y - y_old) / 0.05
-
+	# THE HEAD FOLLOWS ITS OWN BODY. Its angle is the chord from the body point half a head-length
+	# behind the head to the head point, so the back of the head lies along the body and the neck stays
+	# joined to it. It used to ease toward the path's direction with a lag, turning round its middle,
+	# and at every bend its back swung out of the body ("turns on an axis and briefly doesn't connect").
 	if active_mode:
-		_child_angle = lerp_angle(_child_angle, atan2(child_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
+		_child_angle = _head_chord_angle(_child_y, _child_y_at_time(_elapsed_ms - _back_ms(CHILD_W)), CHILD_W)
 		_sprite_child.rotation = _child_angle
 		_sprite_child.position = Vector2(_head_x, _child_y)
 	else:
 		var mother_y: float = _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)
-		var mother_vel_px_s: float = _phase_vel_norm_at(_elapsed_ms) * (_m_bot_y - _m_top_y) * 1000.0
-		_mother_angle = lerp_angle(_mother_angle, atan2(mother_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
+		_mother_angle = _head_chord_angle(mother_y,
+			_phase_y_at(_elapsed_ms - _back_ms(MOTHER_W), _m_top_y, _m_bot_y), MOTHER_W)
 		_sprite_mother.rotation = _mother_angle
 		_sprite_mother.position = Vector2(_head_x, mother_y)
-		_child_angle = lerp_angle(_child_angle, atan2(child_vel_px_s, scroll_px_s), minf(1.0, delta * HEAD_TURN_RATE))
+		_child_angle = _head_chord_angle(_child_y, _child_y_at_time(_elapsed_ms - _back_ms(CHILD_W)), CHILD_W)
 		_sprite_child.rotation = _child_angle
 		_sprite_child.position = Vector2(_head_x, _child_y)
 

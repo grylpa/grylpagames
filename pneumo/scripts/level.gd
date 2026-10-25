@@ -245,6 +245,9 @@ func create_board() -> void:
 			if !board[row][col].ispipe:
 				add_empty(Vector2i(col,row))
 	show_hide_walls()
+	var floor_node: CanvasItem = get_node_or_null("GrassField") as CanvasItem
+	if floor_node != null:
+		floor_node.queue_redraw()        # the plain plates under the tubes follow the new board
 				
 	for pipe in pipes:
 		pipe.set_rot(board)
@@ -864,6 +867,15 @@ func _draw_plant_floor(f: Control) -> void:
 			x += FLOOR_PLATE
 		y += FLOOR_PLATE
 		row += 1
+	# NO SEAMS INSIDE THE DUCTS: under every tube cell the floor is one plain plate, so the glass shows
+	# clean steel through it -- plate lines and rivets crossing the transparent tubes read as
+	# cross-sections inside them, which was confusing. The plating shows only in the gaps.
+	var tsz: float = float(game.tile_size)
+	for by in board.size():
+		for bx in board[by].size():
+			if board[by][bx].ispipe or board[by][bx].istarget:
+				var c: Vector2 = game.board_to_px(Vector2i(bx, by)) - f.position
+				f.draw_rect(Rect2(c - Vector2(tsz, tsz) * 0.5, Vector2(tsz, tsz)).grow(0.5), FLOOR_STEEL, true)
 	# a faint brushed sheen across the floor, from the top left
 	var steps: int = 24
 	for k2 in steps:
