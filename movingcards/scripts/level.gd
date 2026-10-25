@@ -27,6 +27,10 @@ var move_order: Array = []
 const TOP_MARGIN: float = 130.0
 const BOTTOM_MARGIN: float = 80.0
 const CARD_SIZE: float = 80.0
+# The table's wooden rail and its inlay line run round the sides (felt.gdshader, `rail` 26 and the
+# inlay 16 in from it): cards stay inside the inlay. They were placed to within 6 px of the screen
+# edge, on the rail and over it ("can the cards not be out of the table?").
+const TABLE_SIDE: float = 40.0
 const MIN_TRAVEL_DIST: float = 180.0
 
 @export var card_scene: PackedScene = load("res://movingcards/scenes/card.tscn")
@@ -227,8 +231,8 @@ func _gen_random_positions(count: int, area_size: Vector2) -> Array:
 	var result: Array = []
 	var pad: float = CARD_SIZE / 2.0 + 6.0
 	var min_sep: float = CARD_SIZE + 32.0
-	var x_min: float = pad
-	var x_max: float = area_size.x - pad
+	var x_min: float = pad + TABLE_SIDE
+	var x_max: float = area_size.x - pad - TABLE_SIDE
 	var y_min: float = TOP_MARGIN + pad
 	var y_max: float = area_size.y - BOTTOM_MARGIN - pad
 	if x_max <= x_min or y_max <= y_min:
@@ -257,8 +261,8 @@ func _gen_end_positions_for(starts: Array, area_size: Vector2) -> Array:
 	var ends: Array = []
 	var pad: float = CARD_SIZE / 2.0 + 6.0
 	var min_sep: float = CARD_SIZE + 32.0
-	var x_min: float = pad
-	var x_max: float = area_size.x - pad
+	var x_min: float = pad + TABLE_SIDE
+	var x_max: float = area_size.x - pad - TABLE_SIDE
 	var y_min: float = TOP_MARGIN + pad
 	var y_max: float = area_size.y - BOTTOM_MARGIN - pad
 	if x_max <= x_min or y_max <= y_min:
@@ -367,8 +371,8 @@ func _bow_for(from: Vector2, to: Vector2) -> float:
 	var apex: Vector2 = from.lerp(to, 0.5) + side * amount
 	var pad: float = CARD_SIZE / 2.0 + 4.0
 	var area: Vector2 = MainGlobals.screen_size
-	var room: Rect2 = Rect2(pad, TOP_MARGIN + pad,
-		area.x - pad * 2.0, area.y - BOTTOM_MARGIN - TOP_MARGIN - pad * 2.0)
+	var room: Rect2 = Rect2(pad + TABLE_SIDE, TOP_MARGIN + pad,
+		area.x - (pad + TABLE_SIDE) * 2.0, area.y - BOTTOM_MARGIN - TOP_MARGIN - pad * 2.0)
 	if room.has_point(apex):
 		return amount
 	# bowing that way leaves the field; try the other side, and give up on a bow if it also does
