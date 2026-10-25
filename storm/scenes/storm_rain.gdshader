@@ -4,11 +4,14 @@ shader_type canvas_item;
 // so the house -- drawn in the level's layer, in front -- covers it: rain falls on the lawn and
 // stops at the walls by construction, with no mask. Three things, all procedural:
 //   the light: the lawn darkened and cooled, wet under a storm sky;
-//   the rain: thin slanted streaks falling, each on its own phase, driven by the wind;
+//   the rain: thin slanted streaks falling, each on its own phase, driven by a wind that slowly
+//   swings from one side to the other and back (level.gd `_wind_at`);
 //   the splashes: small rings opening and fading where drops land.
 // `t` is the game's clock in seconds, so the weather stops when the game does.
 
 uniform float t = 0.0;
+// the rain's slant (x per y), set by level.gd from a slow wind that swings from side to side
+uniform float wind = 0.28;
 uniform vec4 shade : source_color = vec4(0.04, 0.07, 0.13, 0.46);
 
 varying vec2 px;
@@ -26,7 +29,7 @@ void vertex() {
 // Streaks: the plane is sheared by the wind, cut into columns, and each column carries a drop
 // falling at its own speed and phase.
 float streaks(vec2 p, float cell_w, float speed, float len) {
-	vec2 q = vec2(p.x + p.y * 0.28, p.y);           // the wind's slant
+	vec2 q = vec2(p.x + p.y * wind, p.y);           // the wind's slant
 	float col = floor(q.x / cell_w);
 	float h = hash(vec2(col, 3.7));
 	if (h < 0.35) {

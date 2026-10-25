@@ -8,7 +8,9 @@ shader_type canvas_item;
 //
 // It replaced about 20,000 drawn grain squares, which read as square speckle.
 //
-// TWO THINGS LIVE ON IT NOW, both still brightness only (the world was "a bit boring", user,
+// The light also has a COLOR now (warm sun, cool shade), the dry ground fine cracks, and the pebbles a
+// faint color of their own (user: the world was "still so ugly ... dull and boring", 2026-10-25).
+// TWO THINGS LIVE ON IT, both brightness only (the world was "a bit boring", user,
 // 2026-10-25): DAPPLED LIGHT -- the soft shadows of a canopy overhead, large, about 7% either way,
 // and STILL (nothing on the ground may move: it would compete with the ants) -- and FALLEN DRY LEAVES, flat pale leaf shapes with a darker midrib, a few to a screen,
 // clearly leaves and nothing that is food, a stone or a twig.
@@ -93,6 +95,22 @@ float leaf(vec2 p) {
 	return best;
 }
 
+// Dry ground cracks: the edges of a jittered cell pattern, faint, only where the soil is dry.
+float cracks(vec2 p) {
+	vec2 ip = floor(p);
+	float d1 = 9.0;
+	float d2 = 9.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 c = ip + vec2(float(x), float(y));
+			vec2 at = c + vec2(hash(c + 1.7), hash(c + 9.3));
+			float d = length(p - at);
+			if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+		}
+	}
+	return 1.0 - smoothstep(0.02, 0.07, d2 - d1);
+}
+
 void vertex() {
 	world = VERTEX;
 }
@@ -105,6 +123,14 @@ void fragment() {
 	float clump = (noise(world / 5.0) - 0.5) * 0.06 + (noise(world / 17.0) - 0.5) * 0.05;
 	float peb = pebbles(world, 11.0, 0.12, 1.2, 2.8) * 0.10 + pebbles(world + 400.0, 37.0, 0.20, 2.6, 5.0) * 0.07;
 	float lf = leaf(world);
-	float k = 1.0 + (grain + clump + peb + dapple(world) * 0.07 + lf * 0.10) * is_soil;
-	COLOR = vec4(base.rgb * k, base.a);
+	float dp = dapple(world);
+	float lum = dot(base.rgb, vec3(0.333));
+	float dry = smoothstep(0.55, 0.62, lum);
+	float cr = cracks(world / 26.0) * dry * (0.6 + 0.4 * noise(world / 60.0));
+	float k = 1.0 + (grain + clump + peb + dp * 0.07 + lf * 0.10 - cr * 0.07) * is_soil;
+	// the light's COLOR too: a warm fleck of sun, a cool shade
+	vec3 tint = mix(vec3(1.0), dp > 0.0 ? vec3(1.04, 1.0, 0.92) : vec3(0.98, 0.985, 1.01), abs(dp) * is_soil);
+	// pebbles take a little color of their own: pale ones a cool gray, dark ones a rusty red
+	vec3 ptint = mix(vec3(1.0), peb > 0.0 ? vec3(0.97, 0.99, 1.03) : vec3(1.04, 0.96, 0.92), min(1.0, abs(peb) * 8.0) * is_soil);
+	COLOR = vec4(base.rgb * k * tint * ptint, base.a);
 }

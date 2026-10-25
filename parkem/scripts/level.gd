@@ -752,8 +752,7 @@ func check_agent_collisions():
 		if !a1.was_hit and !a1.arrived:
 			if board[a1.board_pos.y][a1.board_pos.x].isbomb:
 				a1.mark_hit()
-				if !game.is_sound_playing("explosion"):
-					game.play_sound("explosion")
+				game.play_sound("explosion")     # from the start: the bonk rings on, and a guard silenced the next
 				collision.emit()
 			for j in agents.size():
 				if i != j:
@@ -763,8 +762,7 @@ func check_agent_collisions():
 						if d < game.tile_size/4.0:
 							a1.mark_hit()
 							a2.mark_hit()
-							if !game.is_sound_playing("explosion"):
-								game.play_sound("explosion")
+							game.play_sound("explosion")
 							collision.emit()
 
 func on_agent_started_moving(transaction_id):	

@@ -821,4 +821,51 @@ func tutorial_has_door() -> bool:
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 17)
+	var f: Control = GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 17)
+	if f == null:
+		return
+	# NOT A LAWN: the field is the shared ground node (so its sizing, its place behind the board and
+	# probe_lawn all hold), but it draws a PLANT-ROOM FLOOR -- dark steel plates with seams and corner
+	# rivets, a faint brushed sheen -- the ground a pneumatic system is bolted to. A lawn under glass
+	# tubes was "not the most appropriate background for a pneumatic system" (user, 2026-10-25).
+	for c in f.draw.get_connections():
+		f.draw.disconnect(c["callable"])
+	var blades: Node = f.get_node_or_null("Blades")      # the grass blades, a MultiMesh child
+	if blades != null:
+		(blades as CanvasItem).hide()
+	f.draw.connect(func() -> void: _draw_plant_floor(f))
+	f.queue_redraw()
+
+const FLOOR_STEEL: Color = Color(0.20, 0.23, 0.27)
+const FLOOR_SEAM: Color = Color(0.09, 0.10, 0.12)
+const FLOOR_LIT: Color = Color(0.36, 0.40, 0.46)
+const FLOOR_PLATE: float = 80.0
+
+func _draw_plant_floor(f: Control) -> void:
+	var sz: Vector2 = f.size
+	f.draw_rect(Rect2(Vector2.ZERO, sz), FLOOR_STEEL, true)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 17
+	var y: float = 0.0
+	var row: int = 0
+	while y < sz.y:
+		var x: float = -FLOOR_PLATE * 0.5 * float(row % 2)
+		while x < sz.x:
+			var r: Rect2 = Rect2(x, y, FLOOR_PLATE, FLOOR_PLATE)
+			# each plate a shade lighter or darker, and lit along its top-left edge
+			var k: float = rng.randf_range(-0.035, 0.035)
+			f.draw_rect(r.grow(-1.0), Color(FLOOR_STEEL.r + k, FLOOR_STEEL.g + k, FLOOR_STEEL.b + k), true)
+			f.draw_line(r.position + Vector2(2, 2), r.position + Vector2(FLOOR_PLATE - 2, 2), Color(FLOOR_LIT, 0.35), 1.0)
+			f.draw_line(r.position + Vector2(2, 2), r.position + Vector2(2, FLOOR_PLATE - 2), Color(FLOOR_LIT, 0.25), 1.0)
+			f.draw_rect(r, FLOOR_SEAM, false, 1.5)
+			for c2: Vector2 in [Vector2(7, 7), Vector2(FLOOR_PLATE - 7, 7), Vector2(7, FLOOR_PLATE - 7), Vector2(FLOOR_PLATE - 7, FLOOR_PLATE - 7)]:
+				f.draw_circle(r.position + c2 + Vector2(0.6, 0.8), 2.0, Color(0, 0, 0, 0.45), true, -1.0, true)
+				f.draw_circle(r.position + c2, 2.0, FLOOR_LIT, true, -1.0, true)
+			x += FLOOR_PLATE
+		y += FLOOR_PLATE
+		row += 1
+	# a faint brushed sheen across the floor, from the top left
+	var steps: int = 24
+	for k2 in steps:
+		var t: float = float(k2) / float(steps)
+		f.draw_line(Vector2(sz.x * t * 2.0 - sz.x, 0.0), Vector2(sz.x * t * 2.0, sz.y), Color(1, 1, 1, 0.012), 18.0)

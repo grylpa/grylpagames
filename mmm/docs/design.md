@@ -79,17 +79,21 @@ one won in ten seconds.
   middle is untouched. The floor sprites are at z -1 (`pipe.gd` `_ready`) so the band lies over the
   floor and under the coin and bricks. It loops over the board array, not `game.board_size`.
 - **Sounds** (`devtools/make_mmm_sounds.py`, `make_ambient_sounds.py`; names in code kept): `motor` =
-  the castle's ambience, `mmm_ambient.ogg` -- wind moaning through the corridors, torches crackling, a
-  drip, a chain, a harp phrase far off (it was a car engine registered and never played, then a band
-  of noise the user heard as "just white noise"). It starts with the first round and plays ON between
+  the castle's MUSIC, `mmm_ambient.ogg` -- a harp ostinato in D dorian, a recorder-like tune that comes
+  and goes, a soft reed drone, a frame drum. It was a car engine registered and never played, then a
+  band of noise ("just white noise"), then a soundscape of wind, torches, drips and a far harp ("very
+  strange ... just a mess"): continuous and tonal now, no noise bed. It starts with the first round and plays ON between
   rounds (stopping it at every round end was the "gaps"); `main.gd` `show_main_menu` stops it. The
-  HAZARDS ARE HEARD: `fuse` (a fizzing fuse) and `enemy` (a monster's growl) are loops whose loudness
+  HAZARDS ARE HEARD: `fuse` (a bomb near: a clock ticking and a fuse spitting sparks) and `enemy` (a
+  monster near: heavy footfalls, a breathing growl, a snarl) are loops whose loudness
   follows the nearest bomb and the nearest moving monster, silent beyond `HAZARD_HEAR_TILES` (4) and
   -4 dB when touching (`_hazard_sounds`, only while the round is really played). `feet` =
   steps on stone (were on grass); `delivery` = coin pickup; `right` = a room named right (it shared the
-  coin's sound); `gaveup` = named wrong; `swoosh` = a shimmer as the floor plan opens out; `explosion` =
+  coin's sound); `gaveup` = named wrong; `swoosh` = a shimmer as the floor plan opens out; `explosion` (a BOMB set off) =
   the big explosion Lights Out uses (`make_action_sounds.boom`, a little shorter) when a hazard catches
-  you (it was a car crash, then a 45-95 Hz boom a phone plays as nothing); `start` = a heavy door closing.
+  you (it was a car crash, then a 45-95 Hz boom a phone plays as nothing); `caught` (`mmm_caught`) = a
+  MONSTER catching you, a roar and a heavy chomp (`check_agent_collisions` picks by `agent_type`);
+  `start` = a heavy door closing. The first hazard loops were a hissing fuse and a steady buzz.
 
 ## Difficulty
 

@@ -166,7 +166,14 @@ There was no weather: a storm game on a sunny lawn. Three things, none of them t
 
 The rain loops (`rain_1..4.ogg`), the thunder (`thunder_1..4.mp3`) and the water pour are recordings
 and stay. The thunder has TWO players, `thunder` and `thunder2`, used in turn by `on_show_blackout`:
-with one, a blackout that came while the last roll was still rumbling cut it off mid-sound. Made for this game by `devtools/make_storm_sounds.py`: four **drips** (`storm_drip_1..4`, the
+with one, a blackout that came while the last roll was still rumbling cut it off mid-sound.
+
+**The rain changes direction.** Its slant (`storm_rain.gdshader` `wind`, x per y) follows
+`level.gd` `_wind_at`: a 40 s sine pushed through `tanh`, so the wind HOLDS one side for a while and
+then swings smoothly across to the other over a few seconds -- about every 20 s -- between -0.40 and
+0.40, from a random start each storm (`_wind_phase`, set in `new_game`). The first version (two slow
+sines) barely left one side in a round, "always from top right to bottom left"; before that it was a
+fixed 0.28. Made for this game by `devtools/make_storm_sounds.py`: four **drips** (`storm_drip_1..4`, the
 "plink" of a drop into water, one every 2-8 s), a **new leak** (`storm_leak`, wet plaster creaking and a
 heavy first splat), **footsteps** on a wooden floor (`storm_steps`, a two-step loop while walking) and a
 tool **set down** (`storm_set`, a hollow thunk). They replaced retro arcade "blops", a swoosh, footsteps

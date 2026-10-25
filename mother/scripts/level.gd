@@ -46,11 +46,7 @@ var HEAD_SCALE: float = 0.74
 # Desert shadows are BLUE, because in open sun the only light reaching a shadow is skylight. That
 # warm-lit / cool-shadow split is where the color in a desert actually comes from, and it is what
 # was missing when everything was one brown.
-const SAND_SHADE: Color = Color(0.647, 0.596, 0.545)      # shaded sand, cooled by skylight
-const SAND_LIT: Color = Color(0.937, 0.835, 0.494)        # sand in full sun
-const GROUND_TOP: Color = Color(0.882, 0.780, 0.478)
-const GROUND_BOTTOM: Color = Color(0.898, 0.796, 0.494)
-const GROUND_BANDS: int = 24
+# (The ground is now the lit dune field, DUNE_* and _build_dune_tex, below.)
 # Parallax dune ridges, far to near. Each is a filled band whose top edge is a slow double sine,
 # scrolling at its OWN fraction of the world speed — the differing speeds are what read as depth;
 # a single layer would just look like a wavy line.
@@ -58,18 +54,6 @@ const GROUND_BANDS: int = 24
 # Deliberately NOT a horizon with a moon: the ripples, pebbles, bushes and beetles all establish
 # an oblique view of a ground PLANE, and a skyline would contradict every one of them. Ridges sit
 # on that same plane.
-# Dunes seen FROM ABOVE are crescents (barchans): a long windward arc with the sand piled along it,
-# two horns trailing downwind, and the steep slip face in shadow inside the curve.
-#
-# They replaced three horizontal bands with wavy tops. Those were a SIDE view of ridges receding
-# toward a horizon, and the horizon direction they implied is what made the snakes look like they
-# were moving up and down rather than across — the same fault as the sky, built into the scene from
-# the start.
-const BARCHAN_COUNT: int = 7
-const BARCHAN_SPAN: float = 2400.0        # world width the field repeats over
-const BARCHAN_LIT: Color = Color(0.973, 0.910, 0.616)     # sand heaped along the crest
-const BARCHAN_SHADOW: Color = Color(0.475, 0.463, 0.541)  # slip face: deep, and blue from the sky
-const BARCHAN_RIM: Color = Color(1.0, 0.973, 0.878, 0.55)
 # Drifting dust. Size, speed and opacity are all derived from the SAME depth value as the mote's
 # y position, so a nearer mote is bigger, faster and brighter together — that correlation is what
 # reads as depth. Rolling the three independently just looks like noise.
@@ -101,26 +85,27 @@ const VIGNETTE_MAX_A: float = 0.10
 # Drawn, the outline can be the real thing: narrow at the snout, widest at the JAW a little behind
 # it, then narrowing into the neck. A straight wedge reads as a spearhead; the jaw bulge is what
 # makes it read as a snake.
-const HEAD_LEN_W: float = 1.30       # head length, in body widths
-const HEAD_WIDE_W: float = 1.15      # width at the jaw, in body widths
-const HEAD_JAW_AT: float = 0.28      # where the jaw sits, as a share of length back from the nose
-const HEAD_NOSE_W: float = 0.30      # snout width as a share of the jaw width
-const HEAD_NECK_W: float = 0.86      # width where it meets the body, as a share of the jaw width
+const HEAD_LEN_W: float = 1.85       # head length, in body widths
+const HEAD_WIDE_W: float = 1.22      # width at the jaw, in body widths
+const HEAD_JAW_AT: float = 0.58      # where the jaw sits, as a share of length back from the nose
+const HEAD_NOSE_W: float = 0.14      # the snout tip's half-width, as a share of the jaw's (rounded by the ellipse)
+const HEAD_NECK_W: float = 0.60      # width where it meets the body, as a share of the jaw width
 const HEAD_STEPS: int = 22           # outline resolution along one side
 # No dark border: the BODY has none — it is a banded fill, a lighter spine and a faint halo, and
 # nothing else. A dark outline on the head alone was a large part of why it read as a separate
 # object stuck on the front. The head now gets the same three ingredients and no outline.
 const HEAD_EYE_RING: float = 0.055   # faint lid ring so the eye reads on a banded fill
-const HEAD_EYE_AT: float = 0.34      # eye position along the head, share of length from the nose
-const HEAD_EYE_OUT: float = 0.56     # eye offset from the spine, share of half-width there
-const HEAD_EYE_R: float = 0.17       # eye radius, in body widths
+const HEAD_EYE_AT: float = 0.36      # eye position along the head, share of length from the nose
+const HEAD_EYE_OUT: float = 0.80     # eye offset from the spine, share of half-width there
+const HEAD_EYE_R: float = 0.095      # eye radius, in body widths
 const HEAD_CAP_STEPS: int = 10       # resolution of the rounded snout and neck caps
 # The halo fades to nothing toward the neck. Carried all the way round, anything drawn outside the
 # outline puts a ring ON the body wherever the head overlaps it — which is what made the head read
 # as a separate disc rotating over an unrelated body.
 const HEAD_HALO_FADE: float = 0.55   # share of the length over which the halo fades out
 const HEAD_STRIPE_FROM: float = 0.42 # dorsal stripe starts this far back from the nose
-const HEAD_BACK_W: float = 0.10      # how far behind the head point the head's fill reaches, body widths
+const HEAD_BACK_W: float = 0.80      # how far behind the head point the head's fill reaches, body widths (far enough
+                                     # that the head tapers into the neck instead of ending in a square cut)
 
 const RIPPLE_LIGHT: Color = Color(1.0, 0.965, 0.859)      # sun on a ripple crest
 const RIPPLE_DARK: Color = Color(0.478, 0.451, 0.478)     # the trough behind it, blue-shadowed
@@ -204,7 +189,8 @@ const CHILD_GROW_PX_PER_MS: float = 0.011  # ~40 s from there to filling the scr
 # previous attempt at skin failed at the turns because it needed one of those three.
 const BAND_PX: float = 12.0          # spacing of the dark bands along the body
 const BAND_DARK: float = 0.82        # how dark a band gets, as a multiplier
-const BAND_MAX: int = 56             # cap on bands, so the gradient stays a sane size
+const BAND_MAX: int = 220            # cap on bands (the gradient stays a sane size); at 56 the rest of the long
+                                     # mother past the 56th band was one flat dark brown, "the end of a pipe"
 const TAIL_SOLID: float = 0.82       # gradient offset at which the tail dissolve begins
 # Slither: a lateral undulation traveling down the body toward the tail.
 #
@@ -269,7 +255,6 @@ var _session_ps: int = 0
 var _sprite_child: Node2D
 var _sprite_mother: Node2D
 var _anim_time: float = 0.0
-var _head_frame: int = 0
 var _bg_seeds: Array = []
 
 # Stats / graph
@@ -326,7 +311,10 @@ func _make_head(body_w: float, col: Color, z: int, band: Color = Color(0, 0, 0, 
 # HEAD_HALO_FADE so no dark edge is drawn over the body the head is sitting on.
 func _head_half_width(t: float, half: float) -> float:
 	if t < HEAD_JAW_AT:
-		return half * lerpf(HEAD_NOSE_W, 1.0, smoothstep(0.0, 1.0, t / HEAD_JAW_AT))
+		# the front of an ELLIPSE: a rounded snout swelling to the jaw (a flat-fronted wedge read as a
+		# pentagon, "not snaky at all")
+		var e: float = 1.0 - t / HEAD_JAW_AT
+		return half * maxf(HEAD_NOSE_W, sqrt(maxf(0.0, 1.0 - e * e)))
 	return half * lerpf(1.0, HEAD_NECK_W, smoothstep(0.0, 1.0, (t - HEAD_JAW_AT) / (1.0 - HEAD_JAW_AT)))
 
 func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
@@ -437,6 +425,40 @@ func _draw_head(nd: Node2D) -> void:
 		nd.draw_circle(ec, er, Color(0.06, 0.05, 0.06), true, -1.0, true)
 		nd.draw_arc(ec, er, 0.0, TAU, 14, col.lightened(0.30), maxf(1.0, body_w * HEAD_EYE_RING), true)
 		nd.draw_circle(ec + Vector2(er * 0.30, -er * 0.30 * sgn), er * 0.32, Color(1.0, 1.0, 1.0, 0.85), true, -1.0, true)
+	# nostrils, two small dark dots near the snout
+	for sgn2 in [-1.0, 1.0]:
+		nd.draw_circle(Vector2(ln * 0.5 - body_w * 0.22, sgn2 * half * 0.24), maxf(0.8, body_w * 0.035),
+			Color(0.0, 0.0, 0.0, 0.55), true, -1.0, true)
+	_draw_tongue(nd, ln, body_w)
+
+# THE TONGUE FLICKS: now and then (every 1.5-5 s, at random, each head on its own clock) a forked red
+# tongue darts out of the snout and back twice in quick succession, as a snake tastes the air.
+const TONGUE_FLICK_MS: float = 520.0
+const TONGUE_COL: Color = Color(0.78, 0.12, 0.16)
+
+func _draw_tongue(nd: Node2D, ln: float, body_w: float) -> void:
+	var now: float = float(Time.get_ticks_msec())
+	var at: float = float(nd.get_meta("tongue_at", -1.0))
+	if at < 0.0:
+		at = now + randf_range(800.0, 4000.0)
+		nd.set_meta("tongue_at", at)
+	var u: float = (now - at) / TONGUE_FLICK_MS
+	if u < 0.0:
+		return
+	if u > 1.0:
+		nd.set_meta("tongue_at", now + randf_range(1500.0, 5000.0))
+		return
+	# two darts: out and in, out and in
+	var reach: float = absf(sin(u * TAU))
+	if reach < 0.05:
+		return
+	var nose: Vector2 = Vector2(ln * 0.5 + body_w * 0.05, 0.0)
+	var full: float = body_w * 0.95 * reach
+	var fork_at: Vector2 = nose + Vector2(full * 0.68, 0.0)
+	var w: float = maxf(1.2, body_w * 0.07)
+	nd.draw_line(nose, fork_at, TONGUE_COL, w, true)
+	for sgn3 in [-1.0, 1.0]:
+		nd.draw_line(fork_at, fork_at + Vector2(full * 0.32, sgn3 * full * 0.16), TONGUE_COL, w * 0.8, true)
 
 # One-off bakes. Both are stretched to the canvas, so the vignette texture is built at the canvas
 # aspect: its darkening depth is a fraction of the SHORT side, which would otherwise be skewed by
@@ -467,11 +489,39 @@ func _build_grain_tex() -> ImageTexture:
 		img.set_pixel(x, y, Color(1.0, 0.97, 0.88, a) if lite else Color(0.36, 0.30, 0.22, a * 0.9))
 	return ImageTexture.create_from_image(img)
 
-func _build_gradient_tex() -> ImageTexture:
-	var n: int = 64
-	var img: Image = Image.create(1, n, false, Image.FORMAT_RGBA8)
-	for y in n:
-		img.set_pixel(0, y, GROUND_TOP.lerp(GROUND_BOTTOM, float(y) / float(n - 1)))
+# THE DUNE FIELD, baked once into a texture that repeats along x (every term is periodic in it) and
+# scrolls with the world: long sunlit windward slopes rising to bright crests, and the steep slip
+# faces behind them in cool shadow, the light low from the top left -- the chooser tile's desert. The
+# ground was a pale flat gradient with faint patches and crescents ("make the game background as
+# interesting as the icon"). Contrast is held moderate: the snakes, dark with bright bands, are the game.
+const DUNE_TEX_W: int = 384
+const DUNE_TEX_H: int = 240
+const DUNE_SPAN_W: float = 1.8          # screen widths one repeat of the field covers
+const DUNE_PARALLAX: float = 0.35       # the field drifts at this share of the world's speed
+const DUNE_LIT: Color = Color(0.965, 0.835, 0.525)
+const DUNE_CREST: Color = Color(1.0, 0.925, 0.690)
+const DUNE_SHADE: Color = Color(0.855, 0.660, 0.470)
+
+func _build_dune_tex() -> ImageTexture:
+	var img: Image = Image.create(DUNE_TEX_W, DUNE_TEX_H, false, Image.FORMAT_RGBA8)
+	for y in DUNE_TEX_H:
+		var v: float = (float(y) + 0.5) / float(DUNE_TEX_H)
+		for x in DUNE_TEX_W:
+			var u: float = (float(x) + 0.5) / float(DUNE_TEX_W)
+			# diagonal ridges (the whole-number u term keeps the field repeating), gently curved
+			var r: float = v * 3.0 + u * 3.0 + 0.16 * sin(TAU * u * 2.0 + 1.0) + 0.06 * sin(TAU * u * 5.0 + v * 4.0) \
+				+ 0.03 * sin(TAU * u * 9.0 + v * 9.0)
+			var f: float = r - floor(r)
+			var col: Color
+			if f < 0.80:
+				var t: float = f / 0.80
+				col = DUNE_SHADE.lerp(DUNE_LIT, 0.45).lerp(DUNE_LIT, pow(t, 0.8))
+				if t > 0.92:
+					col = col.lerp(DUNE_CREST, (t - 0.92) / 0.08)
+			else:
+				var t2: float = (f - 0.80) / 0.20
+				col = DUNE_SHADE.lerp(DUNE_SHADE.lerp(DUNE_LIT, 0.45), pow(t2, 1.3))
+			img.set_pixel(x, y, col)
 	return ImageTexture.create_from_image(img)
 
 func _edge_alpha(dpx: float, depth: float, stepv: float) -> float:
@@ -503,7 +553,10 @@ func _build_vignette_tex(w: float, h: float) -> ImageTexture:
 # there is no mother -- so the breath can be followed by ear, eyes closed. It swells on the inhale
 # and settles on the exhale. It plays only while a session runs.
 const WIND_AUDIO: AudioStream = preload("res://art/sounds/mother_wind.ogg")
-const WIND_DB: Vector2 = Vector2(-28.0, -13.0)     # exhaled, inhaled
+# exhaled, inhaled. It swung -28..-13 dB, and at -28 a phone plays nothing: every exhale was heard as a
+# BREAK in the wind. The breath now moves it 9 dB, never below what a small speaker plays (the loop is
+# mastered by its audible band, devtools/music.py master()).
+const WIND_DB: Vector2 = Vector2(-17.0, -8.0)
 const WIND_STEP_DB: float = 0.4
 var _wind_db_set: float = -100.0
 var _wind_open: float = 0.0     # the breath to follow, 0 exhaled .. 1 inhaled, set where the body is
@@ -534,7 +587,7 @@ func _ready() -> void:
 
 	# Bodies are Line2D nodes living above the ground canvas (z 0) and below the props canvas and
 	# the heads. Shadows go under their own body.
-	_grad_tex = _build_gradient_tex()
+	_dune_tex = _build_dune_tex()
 	_grain_tex = _build_grain_tex()
 	# draw_texture_rect_region only tiles if the CanvasItem repeats; without this the grain is one
 	# 96px patch stretched across the screen.
@@ -758,7 +811,6 @@ func new_game() -> void:
 	_elapsed_ms = 0.0
 	_session_complete = false
 	_anim_time = 0.0
-	_head_frame = 0
 	_scroll_px_per_ms = _compute_scroll_speed()
 	_child_y = _m_bot_y + CHILD_START_DROP
 	_child_angle = 0.0
@@ -820,8 +872,14 @@ func _compute_scroll_speed() -> float:
 
 func _process(delta: float) -> void:
 	if not game.level_is_ready or game.paused() or _session_complete:
-		game.stop_sound("wind")
+		# PAUSED, not stopped: stopping restarted the loop from the top at every card or pause
+		var wp: Node = game.sounds.get("wind", null)
+		if wp != null:
+			wp.set("stream_paused", true)
 		return
+	var wp2: Node = game.sounds.get("wind", null)
+	if wp2 != null:
+		wp2.set("stream_paused", false)
 	_wind_sound(delta)
 
 	_elapsed_ms += delta * 1000.0
@@ -866,14 +924,10 @@ func _process(delta: float) -> void:
 		_current_trace.append(Vector2(_elapsed_ms, clampf(y_norm, 0.0, 1.0)))
 		_trace_last_ms = _elapsed_ms
 
-	# Head animation
-	# Same cadence the three-frame sprite cycle used. (Frame 2 was a blink; snakes have no eyelids,
-	# and it is gone -- the cadence only keeps the heads redrawn.)
-	var f_now: int = int(_anim_time * 3.5) % 4
-	if f_now != _head_frame:
-		_head_frame = f_now
-		_sprite_child.queue_redraw()
-		_sprite_mother.queue_redraw()
+	# The heads redraw every frame, for the tongue's flick (_draw_tongue); a head is a few dozen
+	# primitives. (They redrew at 3.5 fps, the old sprite cycle's cadence.)
+	_sprite_child.queue_redraw()
+	_sprite_mother.queue_redraw()
 
 	var scroll_px_s: float = _scroll_px_per_ms * 1000.0
 	var y_old: float = _child_y_at_time(_elapsed_ms - 50.0)
@@ -1042,7 +1096,7 @@ var _props_canvas: Control = null
 # 1.4 ms of a 16.6 ms budget spent redrawing identical pixels. On a phone that is a large share of
 # the frame, and it shows up as sluggish input. Both are now baked once into a texture and blitted
 # in a single call.
-var _grad_tex: ImageTexture = null
+var _dune_tex: ImageTexture = null
 var _grain_tex: ImageTexture = null
 var _vig_tex: ImageTexture = null
 
@@ -1056,10 +1110,16 @@ func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
 	ln.round_precision = 16
 	ln.antialiased = true
 	ln.z_index = z
+	# NOT ONE WIDTH: a slimmer neck behind the head, swelling to the belly about a third of the way
+	# back, then narrowing steadily to the tail ("not so constant in width", user 2026-10-25). The
+	# head's neck (HEAD_WIDE_W * HEAD_NECK_W) meets the body at its own width here.
 	var cur: Curve = Curve.new()
-	cur.add_point(Vector2(0.0, 1.0))
-	cur.add_point(Vector2(0.62, 0.90))
-	cur.add_point(Vector2(1.0, TAIL_FRAC))
+	cur.add_point(Vector2(0.0, 0.70))
+	cur.add_point(Vector2(0.10, 0.84))
+	cur.add_point(Vector2(0.32, 1.0))
+	cur.add_point(Vector2(0.58, 0.86))
+	cur.add_point(Vector2(0.82, 0.60))
+	cur.add_point(Vector2(1.0, TAIL_FRAC * 0.8))
 	ln.width_curve = cur
 	add_child(ln)
 	return ln
@@ -1170,6 +1230,28 @@ func _slither_y(pts: PackedVector2Array, w: float, now_s: float) -> PackedVector
 		out[i] = Vector2(pts[i].x, pts[i].y + amp * ramp_f * flat * flat * sin(dx / wave * TAU - now_s * SLITHER_SPEED))
 	return out
 
+# NO SEGMENT LONGER THAN BODY_MAX_SEG_PX. A Line2D colors its gradient PER VERTEX and blends between
+# vertices, so a crisp band edge that falls inside a long segment is smeared across it, differently
+# every frame as the body moves. The bodies are sampled every 2 px of x, so on a steep diagonal the
+# vertices were 6-10 px apart along the body and the bands there shimmered -- "flicker/jitter, but only
+# on the diagonal parts" (user, 2026-10-25), which survived every fix to the slither. Splitting the long
+# segments evenly changes nothing about the shape.
+const BODY_MAX_SEG_PX: float = 2.0
+
+func _densify(pts: PackedVector2Array, max_seg: float) -> PackedVector2Array:
+	var out: PackedVector2Array = PackedVector2Array()
+	if pts.is_empty():
+		return out
+	out.append(pts[0])
+	for i in range(1, pts.size()):
+		var a: Vector2 = pts[i - 1]
+		var b: Vector2 = pts[i]
+		var pieces: int = int(ceil(a.distance_to(b) / max_seg))
+		for k in range(1, pieces):
+			out.append(a.lerp(b, float(k) / float(pieces)))
+		out.append(b)
+	return out
+
 # `glow` scales the halo's alpha: 1.0 is the resting glow, higher burns brighter. Only the child
 # uses anything but 1.0 — it is the one the player is steering.
 func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: float,
@@ -1180,7 +1262,7 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 		sh.points = PackedVector2Array()
 		st.points = PackedVector2Array()
 		return
-	pts = _slither_y(pts, w, _elapsed_ms * 0.001)
+	pts = _densify(_slither_y(pts, w, _elapsed_ms * 0.001), BODY_MAX_SEG_PX)
 	var o: float = clampf(openness, 0.0, 1.0)
 	var pw: float = w * lerpf(PULSE_W_LOW, PULSE_W_HIGH, o)
 	ln.width = pw
@@ -1315,88 +1397,16 @@ func _draw_track(canvas: CanvasItem, pts: PackedVector2Array, body_w: float, str
 # re-triangulates as it scrolls (which is what made the old crest bloom crawl).
 # Broad patches of shade and open sand, drifting. Bare sand of one flat color is what made the
 # ground read as a backdrop rather than a surface; from above, a desert is mottled.
-const PATCH_COUNT: int = 9
-
-func _draw_sand_patches(canvas: CanvasItem, w: float, h: float, scroll_off: float) -> void:
-	for i in range(PATCH_COUNT):
-		var hx: int = (i * 40503) ^ 0x7FEB352D
-		var hy: int = (i * 12289) ^ 0x846CA68B
-		var hs: int = (i * 65521) ^ 0x2545F491
-		var depth: float = 0.3 + 0.7 * float(absi(hs) % 1000) / 1000.0
-		var rx: float = w * (0.28 + 0.40 * depth)
-		var ry: float = rx * (0.45 + 0.30 * float(absi(hy) % 100) / 100.0)
-		var y: float = (0.04 + 0.92 * float(absi(hy) % 1000) / 1000.0) * h
-		var x: float = fmod(float(absi(hx) % int(BARCHAN_SPAN)) - scroll_off * (0.14 + 0.30 * depth),
-			BARCHAN_SPAN)
-		if x < 0.0:
-			x += BARCHAN_SPAN
-		# Alternate shade and open sand, so the field has both cool and warm areas.
-		var col: Color = SAND_SHADE if i % 2 == 0 else SAND_LIT
-		for pass_i in range(2):
-			var px: float = x if pass_i == 0 else x - BARCHAN_SPAN
-			if px + rx < -20.0 or px - rx > w + 20.0:
-				continue
-			# Concentric rings so the patch fades out instead of ending at a hard edge.
-			for r in range(4, 0, -1):
-				var f: float = float(r) / 4.0
-				var pts: PackedVector2Array = PackedVector2Array()
-				for k in range(20):
-					var a: float = float(k) / 20.0 * TAU
-					pts.append(Vector2(px + cos(a) * rx * f, y + sin(a) * ry * f))
-				canvas.draw_colored_polygon(pts, Color(col.r, col.g, col.b, 0.16 * (1.0 - f)))
-
-func _draw_barchan(canvas: CanvasItem, c: Vector2, rx: float, ry: float, lean: float) -> void:
-	var steps: int = 22
-	var outer: PackedVector2Array = PackedVector2Array()
-	var inner: PackedVector2Array = PackedVector2Array()
-	for i in range(steps + 1):
-		var t: float = float(i) / float(steps)
-		var a: float = lerpf(-0.30, PI + 0.30, t)     # a bit past half, so the horns trail
-		var o: Vector2 = Vector2(cos(a) * rx, sin(a) * ry).rotated(lean)
-		# The inner edge is pulled toward the crest at its center and meets it at the horns, which
-		# is what makes the shape a crescent rather than a ring.
-		var pinch: float = sin(t * PI)
-		var inr: Vector2 = Vector2(cos(a) * rx * (1.0 - 0.42 * pinch),
-			sin(a) * ry * (1.0 - 0.72 * pinch)).rotated(lean)
-		outer.append(c + o)
-		inner.append(c + inr)
-	# Body: lit sand along the crest, falling to the dark slip face on the inside.
-	for i in range(steps):
-		canvas.draw_polygon(
-			PackedVector2Array([outer[i], outer[i + 1], inner[i + 1], inner[i]]),
-			PackedColorArray([BARCHAN_LIT, BARCHAN_LIT, BARCHAN_SHADOW, BARCHAN_SHADOW]))
-	# The crest line itself catches the most light.
-	canvas.draw_polyline(outer, BARCHAN_RIM, 2.0, true)
-
-func _draw_barchans(canvas: CanvasItem, w: float, h: float, scroll_off: float) -> void:
-	for i in range(BARCHAN_COUNT):
-		var hx: int = (i * 73856093) ^ 0x27D4EB2F
-		var hy: int = (i * 19349663) ^ 0x165667B1
-		var hr: int = (i * 83492791) ^ 0x9E3779B9
-		# Nearer dunes are bigger and drift faster: the parallax that used to come from the ridge
-		# bands, without the horizon they implied.
-		var depth: float = 0.35 + 0.65 * float(absi(hr) % 1000) / 1000.0
-		var rx: float = w * (0.20 + 0.34 * depth)
-		var ry: float = rx * 0.42
-		var y: float = (0.06 + 0.88 * float(absi(hy) % 1000) / 1000.0) * h
-		var lean: float = (float(absi(hr) % 200) / 200.0 - 0.5) * 0.9
-		var wx: float = float(absi(hx) % int(BARCHAN_SPAN))
-		var x: float = fmod(wx - scroll_off * (0.18 + 0.45 * depth), BARCHAN_SPAN)
-		if x < 0.0:
-			x += BARCHAN_SPAN
-		# Two passes so a dune leaving the left edge is already re-entering from the right.
-		for pass_i in range(2):
-			var px: float = x if pass_i == 0 else x - BARCHAN_SPAN
-			if px + rx < -20.0 or px - rx > w + 20.0:
-				continue
-			_draw_barchan(canvas, Vector2(px, y), rx, ry, lean)
-
 func _do_draw(canvas: CanvasItem) -> void:
 	var w: float = (canvas as Control).size.x
 	var h: float = (canvas as Control).size.y
 
-	# vertical gradient, baked once (was 24 alpha rects every frame)
-	canvas.draw_texture_rect(_grad_tex, Rect2(0.0, 0.0, w, h), false)
+	# the dune field (_build_dune_tex), drifting with the world
+	var scroll0: float = _elapsed_ms * _scroll_px_per_ms
+	var span_px: float = w * DUNE_SPAN_W
+	var tex_per_px: float = float(DUNE_TEX_W) / span_px
+	canvas.draw_texture_rect_region(_dune_tex, Rect2(0.0, 0.0, w, h),
+		Rect2(fposmod(scroll0 * DUNE_PARALLAX, span_px) * tex_per_px, 0.0, w * tex_per_px, float(DUNE_TEX_H)))
 
 	# Session progress along the top edge, the same bar udbr and breathe use, in this game's own
 	# warm palette -- the cyan those two use belongs to their cool backgrounds and would read as a
@@ -1407,15 +1417,11 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var scroll_off: float = _elapsed_ms * _scroll_px_per_ms
 	var bg_span: float = 2000.0
 
-	# A field of barchan dunes, seen from above. Each is a crescent: sand heaped along the windward
-	# arc, a steep slip face in shadow inside the curve, and two horns trailing off downwind.
-	_draw_sand_patches(canvas, w, h, scroll_off)
 	# Grain over the bare sand, scrolling with the world.
 	if _grain_tex != null:
 		var gx: float = fposmod(scroll_off * 0.55, float(GRAIN_TILE))
 		canvas.draw_texture_rect_region(_grain_tex, Rect2(0.0, 0.0, w, h),
 			Rect2(gx, 0.0, w, h))
-	_draw_barchans(canvas, w, h, scroll_off)
 
 	# Ground texture (behind snake paths): sand ripple lines and pebbles
 	for bg_item in _bg_seeds:

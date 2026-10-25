@@ -891,6 +891,11 @@ func level_is_done(didwin: bool):
 	# round did not count at all and a level could be postponed forever but never failed.
 	game.add_correct_or_mistake(1 if didwin else 0, 0 if didwin else 1)
 	round_in_level += 1
+	# The GAME is over (the last life lost, or the clock): the HUD's game-over banner is up, and no
+	# round or level card belongs on top of it. The player is removed a moment after the hit that
+	# ended the game, so this used to open "level not passed" over "Game Over".
+	if (game.count_lives and game.lives_left <= 0) or (game.game_over_on_time_out and game.did_time_run_out()):
+		return
 	if round_in_level >= rounds_per_level:
 		_finish_level()
 		return
@@ -1077,10 +1082,11 @@ func check_agent_collisions():
 				# FREES the player, stranding whatever step is waiting on them.
 				game.tutorial_notify("hit_agent")
 				return
+			# always from the start: the explosion rings for seconds, and guarded by "if not already
+			# playing", a hit soon after another (the last of a run into bombs) made no sound at all
+			game.play_sound("explosion")
 			collision.emit()
 			player.mark_hit()
-			if not game.is_sound_playing("explosion"):
-				game.play_sound("explosion")
 			return
 		if !a1.was_hit and !a1.arrived:
 			for j in agents.size():

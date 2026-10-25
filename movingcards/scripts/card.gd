@@ -15,7 +15,53 @@ var _travel: float = 0.0    # 0..1 along the path
 var _span: float = 0.0
 
 func _ready() -> void:
-	$CardLabel.add_theme_font_override("font", MainGlobals.get_system_sans_font())
+	$CardLabel.add_theme_font_override("font", MainGlobals.get_text_font())
+	$CardLabel.add_theme_color_override("font_color", FACE_INK)
+	_dress_face()
+
+# THE FRONT is a clean cream tile: a soft bevel (a lit top-left edge, a shaded bottom-right one) and
+# the number large in deep navy -- nothing else on it. A tap marks it unmistakably: a thick ring in
+# green or red and a wash of the same color over the face (`clicked`, `_mark`). It was a plain white
+# square with a black number in a black and white frame; then, briefly, a playing card with corner
+# indices (not the goal) whose right/wrong frame was too faint to notice.
+const FACE_PAPER: Color = Color(0.985, 0.965, 0.905)
+const FACE_INK: Color = Color(0.11, 0.16, 0.31)
+const MARK_RIGHT: Color = Color(0.20, 0.72, 0.30)
+const MARK_WRONG: Color = Color(0.86, 0.20, 0.18)
+var _face: Node2D = null
+var _mark: int = 0                    # 0 none, 1 right, -1 wrong
+
+func _dress_face() -> void:
+	$CardFront.self_modulate = Color(1, 1, 1, 0)
+	$CardFront/CardFrontFrame.hide()       # the mark is drawn by the face now
+	# the edge round both sides: a fine dark navy line, not 2 px of black
+	var bsb: StyleBoxFlat = ($CardBorder.get_theme_stylebox("panel") as StyleBoxFlat).duplicate()
+	bsb.border_color = Color(0.06, 0.08, 0.14, 0.85)
+	bsb.set_border_width_all(1)
+	$CardBorder.add_theme_stylebox_override("panel", bsb)
+	_face = Node2D.new()
+	_face.draw.connect(_draw_face)
+	$CardFront.add_child(_face)
+	$CardFront.move_child(_face, 0)
+
+func _draw_face() -> void:
+	var r: Rect2 = Rect2(-40.0, -40.0, 80.0, 80.0)
+	_face.draw_rect(r, FACE_PAPER, true)
+	# the bevel: light along the top and left, shade along the bottom and right
+	var lit: Color = Color(1, 1, 1, 0.8)
+	var shade: Color = Color(0.55, 0.45, 0.30, 0.35)
+	_face.draw_polygon(PackedVector2Array([Vector2(-40, -40), Vector2(40, -40), Vector2(35, -35), Vector2(-35, -35)]),
+		PackedColorArray([lit, lit, Color(lit, 0.0), Color(lit, 0.0)]))
+	_face.draw_polygon(PackedVector2Array([Vector2(-40, -40), Vector2(-35, -35), Vector2(-35, 35), Vector2(-40, 40)]),
+		PackedColorArray([lit, Color(lit, 0.0), Color(lit, 0.0), lit]))
+	_face.draw_polygon(PackedVector2Array([Vector2(-40, 40), Vector2(-35, 35), Vector2(35, 35), Vector2(40, 40)]),
+		PackedColorArray([shade, Color(shade, 0.0), Color(shade, 0.0), shade]))
+	_face.draw_polygon(PackedVector2Array([Vector2(40, -40), Vector2(40, 40), Vector2(35, 35), Vector2(35, -35)]),
+		PackedColorArray([shade, shade, Color(shade, 0.0), Color(shade, 0.0)]))
+	if _mark != 0:
+		var col: Color = MARK_RIGHT if _mark > 0 else MARK_WRONG
+		_face.draw_rect(r, Color(col, 0.22), true)
+		_face.draw_rect(r.grow(-3.5), col, false, 7.0)
 
 # A soft SHADOW under the card, down and to the right, so it lies on the table instead of looking
 # pasted onto it. Drawn by the card itself, so it is under its sprites and moves with it. Only the
@@ -45,6 +91,8 @@ func _draw() -> void:
 func set_id(_id: int) -> void:
 	id = _id
 	$CardLabel.text = str(id)
+	if _face != null:
+		_face.queue_redraw()
 	var cardidx: int = id % MovingCardsG.back_textures.size()
 	$CardBack.texture = load(MovingCardsG.back_textures[cardidx])
 
@@ -90,7 +138,5 @@ func move_card(delta: float) -> bool:
 	return true
 
 func clicked(correct: bool) -> void:
-	if correct:
-		$CardFront/CardFrontFrame.set_modulate(Color(0.5, 1, 0.5))
-	else:
-		$CardFront/CardFrontFrame.set_modulate(Color(1, 0.2, 0.2))
+	_mark = 1 if correct else -1
+	_face.queue_redraw()

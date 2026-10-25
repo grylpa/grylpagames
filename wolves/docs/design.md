@@ -64,26 +64,40 @@ That reproduces exactly what the original four frames `[sheep1, sheep2, sheep3, 
 `speed = 5` over 4), but the largest step is 2.7 deg per frame instead of 10, so the sway reads as
 motion rather than three discrete poses.
 
-## The dog and the wolves are drawn
+## All the animals are drawn, in one style
 
 `scripts/beast_art.gd`, a `Node2D` added as a child of the animal's `Head` (the dog in `player.gd`
-`_ready`, a wolf in `agent.gd` `_dress_as_wolf`; sheep keep their sprite). The head's own sprite -- the
-app's generic blob, tinted blue for the dog and yellow for the wolves -- is made invisible with
+`_ready`; a sheep or a wolf in `agent.gd` `_dress_as`). The head's own sprite -- the sheep sprite, or
+the app's generic blob tinted blue for the dog and yellow for the wolves -- is made invisible with
 `self_modulate` rather than removed, so the head's rotation still steers the animal and the bark /
-eat / scare scale tweens still play on it; `set_color` leaves the head untinted once the art is there.
+eat / scare scale tweens still play on it.
 
-Seen from above, facing +x, in level pixels (the head's 0.25 scale is undone), light from the top
-left of the SCREEN (the shadow and the rim are rotated back by the animal's own rotation):
+ONE style for all three, seen from above, facing +x, in level pixels (the head's scale is undone):
+a soft shadow on the grass, one dark outline of the same weight (`OUT_W`) round every shape, flat
+fills lit from the top left of the SCREEN, and a real head on each, set off from the body by its neck.
+Bodies and heads are rounded shapes from a width curve (`_shape`), tails tapered strokes (`_tapered`).
+The dog and the wolf are drawn stretched by `BEAST_STRETCH` so they stand as large as a sheep.
 
-- **dog**: a border collie -- black coat with a pale rim on the lit side, a white ruff round the neck,
-  a white blaze and muzzle, folded ears, a plumed tail with a white tip that wags fast.
-- **wolf**: grey with a darker saddle along the back, a pale long muzzle, upright pointed ears, amber
-  eyes, a bushy tail with a dark tip that sways slowly.
+- **sheep**: a THICK cream fleece, two rings of round tufts and more inside, each lit on its top left
+  with a little curl in it, a scalloped outline; a dark face with two little ears sticking out
+  sideways.
+- **dog**: a border collie -- a long, even body (hips nearly as broad as the chest; a teardrop with a
+  round head read as "a reverse pendulum"), black with a sheen on the lit side, a white ruff round the neck, a white
+  blaze to a white muzzle, amber eyes, soft folded ears, a plumed tail with a white tip that wags
+  evenly to both sides.
+- **wolf**: gray with a lighter lit side and a dark saddle, a shaggy RUFF of pointed tufts round the
+  neck and shoulders, fur tufts at the cheeks, a long pointed snout with
+  pale cheeks, tall upright ears, amber eyes, a thick bushy tail with a dark tip, held low and
+  swaying slowly.
 
-The paws stride in diagonal pairs while the animal moves (from its own change of position) and come
-to rest when it stops. Ellipses are real polygons with a thin anti-aliased edge: a unit circle drawn
-under a scaling transform scaled its anti-aliasing feather too, and the first version came out
-blurred. Tails are one continuous stroke: stacked discs left seams that read as rings.
+History: the sheep were a sprite (an egg with fleece dashes, black dot eyes); the dog and wolves were
+first a detailed shaded version with striding paws (no feet are drawn now: from above they only
+cluttered), then flat eggs in the sheep's style ("the wolves look like mice", user 2026-10-25).
+
+**Every animal turns smoothly.** `set_rots` no longer sets the head's rotation: `agent.gd`
+`_ease_turn` and `player.gd` `_process` swing it round to `angles[0]` a little each frame
+(`TURN_RATE` 12/s); it used to snap a quarter or half turn in one frame. A freshly placed animal
+(`set_pos`) faces its way at once, and the eat / eaten / bark tweens still set it directly.
 
 ## A* Pathfinding
 
@@ -228,7 +242,7 @@ wolves/
     ├── level.gd               (core gameplay: board, fences, sheep AI)
     ├── agent.gd               (agent/sheep movement and animation)
     ├── player.gd              (player movement, body animation)
-    ├── beast_art.gd           (the dog and the wolves, drawn from above)
+    ├── beast_art.gd           (the sheep, the dog and the wolves, drawn from above in one style)
     ├── pipe.gd                (tile logic; fences, coins, bricks)
     ├── empty_space.gd         (wall visibility logic)
     ├── target.gd              (unused)
@@ -371,10 +385,10 @@ one way they read as a queue; turned towards each other they read as a flock.
 dilated into an even outline — the trick `FoodBit` uses to survive any floor. A *dark* rim was tried
 first: it did nothing for a near-white fleece and actively hid each sheep's dark face against dark
 grass, so heads and legs vanished and a sheep read as a cloud on sticks. The faces were lightened to
-a warm mid-grey for the same reason.
+a warm mid-gray for the same reason.
 
 ## Sounds
 
-Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `start` a shepherd's two-note whistle (was a click). The sheep, dog, wolf and bell recordings and the grass footsteps stay; `swoosh` is registered and never played.
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `start` a shepherd's two-note whistle (was a click). The sheep, dog, wolf and bell recordings and the grass footsteps stay; `swoosh` is registered and never played. The bells (`ambient`) and the steps stop at the main menu too (`main.gd` `show_main_menu`): leaving a level part way used to leave the bells ringing over the menu.
 
-**The field is a mown pasture** (`pasture.gdshader` on each field tile's sprite, set in `pipe.gd`'s `_ready`): a lighter, yellower green than the lawn outside the fence, broad mowing stripes, blade grain and darker tufts, in world coordinates. It replaced a gray stone tile that read as asphalt. Mid-light on purpose: the white sheep and the dark wolves must both stand out. The compound keeps its per-level color, and `FIELD_WASH` still applies over it.
+**The field is a mown pasture** (`pasture.gdshader` on each field tile's sprite, set in `pipe.gd`'s `_ready`): a lighter, yellower green than the lawn outside the fence, soft broad patches, blade grain and darker tufts (it had mowing stripes, which read as horizontal bands), in world coordinates. It replaced a gray stone tile that read as asphalt. Mid-light on purpose: the white sheep and the dark wolves must both stand out. The compound keeps its per-level color, and `FIELD_WASH` still applies over it.

@@ -18,9 +18,11 @@ extends RefCounted
 # to read against something dark, and at mid luminance they came out within 1.2-1.6:1 of the new
 # soil -- differing from it in hue alone, which is exactly what a colour-blind player, or a phone in
 # sunlight, cannot use. Every one of them was re-picked for a LUMINANCE difference instead.
-const SOIL: Color = Color(0.608, 0.518, 0.416)
-const SOIL_DARK: Color = Color(0.533, 0.447, 0.353)
-const SOIL_LIGHT: Color = Color(0.682, 0.596, 0.494)
+# WARM garden earth at the same lightness as before (the ants' contrast is untouched): it was a gray
+# beige, which with everything else made the world "dull and boring" (user, 2026-10-25).
+const SOIL: Color = Color(0.660, 0.505, 0.360)
+const SOIL_DARK: Color = Color(0.585, 0.430, 0.300)
+const SOIL_LIGHT: Color = Color(0.740, 0.590, 0.445)
 const GRAIN_DARK: Color = Color(0.451, 0.369, 0.286, 0.55)
 const GRAIN_LIGHT: Color = Color(0.757, 0.678, 0.573, 0.50)
 
@@ -39,7 +41,9 @@ const NEST_HOLE: Color = Color(0.094, 0.062, 0.043)
 # Darker, more opaque, and larger, so marks overlap into a continuous band instead of reading as
 # dots. It stays a warm near-black rather than taking a hue of its own: green would collide with
 # the food and the crumbs, and blue is the spray's.
-const TRAIL: Color = Color(0.180, 0.142, 0.092)
+# A deep rust rather than gray-brown: still dark (the contrast above holds), but a color of its own
+# that belongs to the warm earth.
+const TRAIL: Color = Color(0.250, 0.115, 0.050)
 
 # The wall around the patch. THIN and LOUD, which is the combination that was wanted: a wide, faint
 # band read as a smudge of darker ground, and ants walked over it besides. Near-black against the
@@ -137,8 +141,8 @@ static var ground_detail: bool = true
 # image (a texel per PATCH_TEXEL units), stretched over the world with linear filtering.
 const PATCH_TEXEL: float = 24.0
 const PATCH_FEATURE: float = 420.0      # typical size of a patch, in world units
-const DAMP: Color = Color(0.420, 0.333, 0.247)
-const DRY: Color = Color(0.733, 0.655, 0.553)
+const DAMP: Color = Color(0.470, 0.320, 0.215)
+const DRY: Color = Color(0.800, 0.665, 0.495)
 const PATCH_ALPHA: float = 0.45
 
 static var _patch_tex: ImageTexture = null
@@ -197,13 +201,14 @@ static func draw_marks(ci: CanvasItem, pts: PackedFloat32Array, zoom: float) -> 
 	# strength builds where the ants walk most -- not a row of beads. It was hard circles (and before
 	# that squares), which at any spacing read as a dotted line stitched across the soil. A texture
 	# rect is also two triangles where a circle is a fan.
-	var rr: float = maxf(8.5, 10.5 / maxf(zoom, 0.2))
+	# (wide and soft enough that neighbors always run together: narrower, a trail read as beads)
+	var rr: float = maxf(13.0, 16.0 / maxf(zoom, 0.2))
 	var tex: Texture2D = _soft_dot()
 	var i: int = 0
 	while i < pts.size():
 		var s: float = pts[i + 2]
 		var col: Color = TRAIL
-		col.a = clampf(s * 0.13, 0.0, 0.62)
+		col.a = clampf(s * 0.075, 0.0, 0.45)
 		ci.draw_texture_rect(tex, Rect2(pts[i] - rr, pts[i + 1] - rr, rr * 2.0, rr * 2.0), false, col)
 		i += 3
 
@@ -360,13 +365,17 @@ static func draw_rub(ci: CanvasItem, at: Vector2, r: float, fade: float, fresh: 
 static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> void:
 	var light: Vector2 = Vector2(-0.55, -0.70)
 	# its shadow, then the mound in rings from the foot up to the crest, each drifting toward the light
-	ci.draw_circle(at + Vector2(3.0, 4.0), r * 1.50, Color(0.0, 0.0, 0.0, 0.10))
-	for k in 7:
-		var t: float = float(k) / 6.0
-		var rr: float = lerpf(1.55, 0.86, t) * r
-		var col: Color = SOIL.lerp(NEST_RIM, 0.35 + 0.15 * t).lerp(SOIL_LIGHT, 0.45 * t * t)
-		col.a = lerpf(0.35, 1.0, minf(1.0, t * 2.5))
-		ci.draw_circle(at + light * r * 0.10 * t, rr, col)
+	# (a broad mound, clearly a hill of dug-out earth: it was barely wider than its hole and the same
+	# tone as the soil, so a nest read as a black hole with a ring round it)
+	# the mound rises out of the soil with no edge: its outer rings start nearly clear, each a little
+	# more solid, warming and paling toward the crest, and they climb toward the light, so the near
+	# (top-left) slope is lit and the far one in its own shade
+	for k in 18:
+		var t: float = float(k) / 17.0
+		var rr: float = lerpf(2.30, 0.86, t) * r
+		var col: Color = SOIL.lerp(SOIL_LIGHT, 0.6 * t).lerp(DRY, 0.45 * t * t)
+		col.a = clampf(0.07 + t * 1.6, 0.0, 1.0) if t < 0.55 else 1.0
+		ci.draw_circle(at + light * r * 0.38 * t, rr, col, true, -1.0, true)
 	# the inner slope down into the hole: darker toward it, darker still on the lit side's back
 	for k2 in 4:
 		var t2: float = float(k2) / 3.0
@@ -374,14 +383,15 @@ static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> voi
 			NEST_RIM.lerp(NEST_HOLE, 0.25 + 0.45 * t2))
 	# the pellets: deterministic per nest, denser near the crest, paler toward the light
 	var nseed: int = int(at.x * 7.0) ^ int(at.y * 13.0)
-	for i in 70:
+	for i in 150:
 		var ang: float = _hash01(i, nseed, 1, 77) * TAU
-		var d: float = r * lerpf(0.78, 1.45, pow(_hash01(i, nseed, 2, 77), 1.6))
+		var d: float = r * lerpf(0.78, 2.0, pow(_hash01(i, nseed, 2, 77), 1.4))
 		var p: Vector2 = at + Vector2.from_angle(ang) * d
 		var lit: float = 0.5 + 0.5 * Vector2.from_angle(ang).dot(light.normalized())
-		var col2: Color = NEST_RIM.lerp(SOIL_LIGHT, lit * 0.9).lerp(SOIL_DARK, 0.35 * _hash01(i, nseed, 3, 77))
-		var gs: float = lerpf(1.2, 2.4, _hash01(i, nseed, 4, 77))
-		ci.draw_rect(Rect2(p - Vector2(gs, gs) * 0.5, Vector2(gs, gs)), col2, true)
+		var col2: Color = SOIL.lerp(DRY, lit * 0.9).lerp(SOIL_DARK, 0.30 * _hash01(i, nseed, 3, 77))
+		var gs: float = lerpf(0.9, 1.7, _hash01(i, nseed, 4, 77))
+		ci.draw_circle(p + Vector2(0.5, 0.7), gs, Color(0.0, 0.0, 0.0, 0.18), true, -1.0, true)
+		ci.draw_circle(p, gs, col2, true, -1.0, true)
 	# the entrance: dark, deepest in the middle, its far wall catching the light
 	ci.draw_circle(at, r * 0.62, NEST_HOLE)
 	ci.draw_arc(at, r * 0.56, -light.angle() - 0.9, -light.angle() + 0.9, 16,
@@ -389,7 +399,7 @@ static func draw_nest(ci: CanvasItem, at: Vector2, r: float, tint: Color) -> voi
 	ci.draw_circle(at + light * r * 0.08, r * 0.40, Color(0.0, 0.0, 0.0, 0.55))
 	# A ring in the colony's own color, so two nests are told apart at a glance without labelling
 	# either -- and so a trail can later be tinted to match.
-	ci.draw_arc(at, r * 1.32, 0.0, TAU, 48, Color(tint, 0.85), 2.0, true)
+	ci.draw_arc(at, r * 2.45, 0.0, TAU, 64, Color(tint, 0.40), 1.6, true)
 
 # How big the pile is NOW. The pile shrinks as it is carried away -- it is the only readout of
 # progress the world itself gives -- and this is the one place that decides by how much, so what an

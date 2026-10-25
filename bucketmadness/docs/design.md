@@ -623,7 +623,7 @@ three pails (red, blue, green, from `Sleek.PALETTE`), the blue one lit.
 
 ## Sounds
 
-A FACTORY ambient (`bucketmadness_ambient.ogg`, `devtools/make_ambient_sounds.py`: a motor's hum, conveyor rollers ticking, now and then a hiss of air, a servo, a far clank, and things rattling down a chute) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu. Its right/wrong sounds were inaudible until the shared registry stopped using positional players (see `scripts/generic_game_util.gd` `add_sound`).
+A FACTORY ambient, as MUSIC (`bucketmadness_ambient.ogg`, `devtools/make_ambient_sounds.py` `factory_music`: a mechanical groove -- clanks on the beat, air on the off-beat, a plucked bass, a metallic marimba ostinato over moving chords, a steel-pan tune, a falling rattle; it was a motor's hum with roller ticks, one held tone) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu. Its right/wrong sounds were inaudible until the shared registry stopped using positional players (see `scripts/generic_game_util.gd` `add_sound`).
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

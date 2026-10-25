@@ -354,7 +354,7 @@ The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door
 
 ## Sounds
 
-The ambient, still `motor` in code, is a night road -- cars sweeping past with long gaps, crickets in the verge (`delemfp_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB, mastered by its audible band). It replaced the stock `engine-pulling-something.mp3`. The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
+The ambient, still `motor` in code, is a NIGHT DRIVE -- a pulsing bass, soft electric-piano chords over a soft bed, a guitar arpeggio, a vibraphone tune, crickets, a car sweeping past (it was a quiet road with long stretches of nearly nothing) (`delemfp_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB, mastered by its audible band). It replaced the stock `engine-pulling-something.mp3`. The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `dispatch` a new delivery (a soft two-tone bell), `delivery` one delivered (a thud and a ding). The engine recording stays. They replaced a heavy bell and an arcade coin.
 

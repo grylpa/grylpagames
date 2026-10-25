@@ -401,8 +401,11 @@ Everything still keeps the colors and contrasts above (`probe_ants` checks them)
   circles, and squares before them, read as a dotted line stitched across the soil.
 - **The nest** (`draw_nest`) is an anthill: a mound rising to a crest, lit from the top left,
   covered in the pellets the workers dug out, falling into a hole darkest in the middle with its
-  far wall catching the light. The hole is still `r * 0.62` (`at_hole()` is measured against it),
-  and the colony's colored ring stays.
+  far wall catching the light. The hole is still `r * 0.62` (`at_hole()` is measured against it).
+  The mound is BROAD (to 2.3 r) and rises out of the soil with no edge -- its outer rings start nearly
+  clear and climb toward the light -- with round crumbs (each with a tiny shadow) up to 2 r out; it
+  used to be barely wider than its hole and the soil's own tone, so a nest read as a black hole in a
+  gold ring. The colony's colored ring stays, thinner and fainter, just outside the mound.
 - **The food** (`draw_food`, `_leaf_bit`) is a pile of torn leaf pieces in the same green, each
   with its own shade, a lit edge and a vein, over a soft shadow; the bait is the same pile in its
   gold, and a carried crumb is a small leaf piece. Overlapping discs read as slime.
@@ -419,7 +422,7 @@ All made for this game by `devtools/make_ants_sounds.py` (synthesized, seeded) i
 
 | sound | when |
 |---|---|
-| `garden` (30 s loop, -6 dB) | the whole time the level is on screen: a breeze, leaves, birds far off, a bee passing, grasshoppers, a wood pigeon (mastered by its audible band, `music.master`). It plays on between rounds AND under a round's card, and is PAUSED (not stopped) only at the main menu, an explicit pause or a focus loss, resuming where it was (`_keep_garden`). It was stopped whenever the colony was not running (every restart began the loop from the top), then paused whenever any card was up -- both a silence between every two rounds, the "gaps". Its breeze never drops below 55% (it swelled down to 30%) |
+| `garden` (`ants_ambient.ogg`, a 52 s loop, -6 dB) | the whole time the level is on screen: a light PASTORAL -- a nylon guitar picking through the chords, a flute tune that comes and goes, a soft shaker, birds over it (`devtools/make_ambient_sounds.py`). It plays on between rounds and under a round's card, and is PAUSED (not stopped) only at the main menu, an explicit pause or a focus loss (`_keep_garden`). The garden loop before it (a breeze of soft noise, bird phrases seconds apart, made by `make_ants_sounds.py`) was heard as "full of gaps" even once the player never stopped: the noise-only stretches between birds were the gaps. Earlier still it was stopped whenever the colony was not running, then paused under every card |
 | `stone`, `twig`, `water`, `bait`, `cloche` | the tool is put down (`place_obstacle`) |
 | `crush` | that drop crushed ants |
 | `spray`, `eraser` | a press of the can, a rub |
@@ -1039,7 +1042,17 @@ measured against the soil the trail reached 1.5:1 while the grain sat at 1.3:1 �
 worn road read as speckle. `TRAIL` is darker, more opaque (0.64 ceiling) and drawn larger, so marks
 overlap into a band instead of reading as dots: **2.53:1 against the grain's 1.34:1**. It stays a warm
 near-black rather than taking a hue of its own, since green would collide with the food and the
-crumbs and blue is the spray's.
+crumbs and blue is the spray's. It is a deep RUST now (0.25, 0.115, 0.05) rather than gray-brown --
+still dark, but a color of its own that belongs to the warm earth -- and its marks are wider and
+softer (radius 13-16, alpha up to 0.45), so they always run together into a worn path; narrower,
+the trail read as a string of beads.
+
+**The soil is WARM** (`SOIL` 0.66/0.505/0.36, the damp and dry patches to match) at the same lightness
+as before, so the ants' contrast is untouched; it was a gray beige, and the world read as "dull and
+boring" (user, 2026-10-25). `soil.gdshader` also colors the light (warm sun flecks, a faintly cool
+shade), draws fine CRACKS on the drier ground (the edges of a jittered cell pattern), and gives the
+pebbles a faint color of their own (pale ones cool gray, dark ones rusty). Still nothing on the ground
+moves.
 
 **Nothing on screen said which level you were on.** Every other game calls
 `game.level_label_changed()`, which puts the name in the shared `LevelLabel` just under the HUD. Ants
@@ -1480,23 +1493,13 @@ by design, and folding them in would hide what is being measured behind four leg
 `devtools/install_thumbs.py`. The chooser loads that path unguarded, so the game cannot appear in
 the list without a file there.
 
-**It is an emblem, not a screenshot.** A grab of the board shows soil, a nest, a pile and a trail —
-a landscape with nothing at stake and no player in it. The tile is three big ants carrying crumbs
-instead. What was tried first and thrown away was the better idea and the worse picture: a stone
-laid across the road with the colony's detour already worn round it, which says the whole game in
-one image and **cannot be read at 200 px**. Two roads, a stone, a body and three ants is more than
-the tile holds; straightening the roads and cutting the element count only got it as far as
-"unclear".
-
-**Five ants on bare soil, all heading the same way.** Two of them used to meet nose to nose across
-the middle at nearly a third of the tile's width each, and on a phone the pair merged into one dark
-mass with a green dot on it. A column going one way is also what ants actually look like.
-
-**There is no trail under them**, which costs the tile the mechanic the game is built on. A worn
-scent road is a *dark band* and the ants are dark, so every ant standing on it lost its legs. Bare
-soil buys five legible ants instead, and at 200 px that is the trade. Nothing sits closer than `0.8b`
-to an edge either — an ant reaches about that far from its own centre once legs and antennae are
-counted, and two of them lost their hind legs off the bottom before that was measured.
+**A scene, legible at 200 px.** Warm sunlit earth (dappled light, pebbles, a dry leaf), an ANTHILL
+at the top right -- a mound of dug-out crumbs round a dark entrance -- a worn path winding down to a
+pile of green crumbs at the bottom left, and four ants along it, the homeward ones carrying a crumb.
+The path is PALER than the soil, as a real trail is (cleared and trodden), so the dark ants keep their
+legs on it -- the reason an earlier tile had no trail at all (a dark scent band under dark ants hid
+their legs). Before this the tile was five ants on flat gray-brown soil, which the user found dull; an
+earlier attempt (a stone across the road with the detour worn round it) could not be read at 200 px.
 
 Nothing in it is invented. The ants come from `AntsArt`'s own constants — the same
 gaster/thorax/head proportions and the same `COXA` / `KNEE_SPLAY` / `FOOT_SPLAY` elbowed legs — and
