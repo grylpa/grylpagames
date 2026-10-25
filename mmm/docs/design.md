@@ -85,14 +85,16 @@ one won in ten seconds.
   strange ... just a mess"): continuous and tonal now, no noise bed. It starts with the first round and plays ON between
   rounds (stopping it at every round end was the "gaps"); `main.gd` `show_main_menu` stops it. The
   HAZARDS ARE HEARD: `fuse` (a bomb near: a clock ticking and a fuse spitting sparks) and `enemy` (a
-  monster near: heavy footfalls, a breathing growl, a snarl) are loops whose loudness
+  monster near: claws clicking on stone, heavy steps, a raspy breath in and out -- nothing voiced: a
+  growl through vowel formants was heard as "a cow mooing") are loops whose loudness
   follows the nearest bomb and the nearest moving monster, silent beyond `HAZARD_HEAR_TILES` (4) and
   -4 dB when touching (`_hazard_sounds`, only while the round is really played). `feet` =
   steps on stone (were on grass); `delivery` = coin pickup; `right` = a room named right (it shared the
   coin's sound); `gaveup` = named wrong; `swoosh` = a shimmer as the floor plan opens out; `explosion` (a BOMB set off) =
   the big explosion Lights Out uses (`make_action_sounds.boom`, a little shorter) when a hazard catches
   you (it was a car crash, then a 45-95 Hz boom a phone plays as nothing); `caught` (`mmm_caught`) = a
-  MONSTER catching you, a roar and a heavy chomp (`check_agent_collisions` picks by `agent_type`);
+  MONSTER catching you, a harsh unvoiced snarl and a heavy chomp (`check_agent_collisions` picks by
+  `agent_type`);
   `start` = a heavy door closing. The first hazard loops were a hissing fuse and a steady buzz.
 
 ## Difficulty

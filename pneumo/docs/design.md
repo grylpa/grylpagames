@@ -430,7 +430,10 @@ cars before the shape was right.
   its top-left edge, with seams, corner rivets and a faint brushed sheen. It is drawn on the shared
   `GrassField` node (its draw replaced, its grass blades hidden), so the sizing, its place behind the
   board and `probe_lawn` all still hold. A lawn under glass tubes was "not the most appropriate
-  background for a pneumatic system" (user, 2026-10-25).
+  background for a pneumatic system" (user, 2026-10-25). **The plating shows only in the gaps:** under
+  every tube and port cell the floor is one plain plate, so the glass shows clean steel -- seams and
+  rivets crossing the transparent ducts read as confusing cross-sections inside them. The floor is
+  redrawn once the board is built (`create_board`), so the plain plates follow each new board.
 - **The tubes are clear glass guides** (`pipe.gd` `_draw_tube`): the floor shows through a faint tint
   (the fill is the whole tile, so tiles join into one tube with no seams), and only the walls are
   drawn -- a thin bright line along each side with no tube beyond it and a soft sheen just inside it,

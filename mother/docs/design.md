@@ -40,8 +40,8 @@ It is now a desert in full sun:
 | shaded sand | 148 |
 | dune crest | 225 |
 | slip face | 120 |
-| mother's body / bands | 29 / 163 |
-| child's body / bands | 46 / 216 |
+| mother's diamonds / ground | 29 / 163 |
+| child's diamonds / ground | 46 / 216 |
 
 **Desert shadows are blue.** In open sun the only light reaching a shadow is skylight, so the slip
 faces and troughs were cooled (the old crescents' shadow had more blue than red) while lit sand is warm; the dune field's shadow (`DUNE_SHADE`) is a warm orange instead, as on the tile. That
@@ -53,33 +53,37 @@ warm pebbles, near-black beetles), text is dark ink rather than cream, the vigne
 0.26 to 0.10 so it does not re-darken a sunlit scene, and the bodies' halo pass became a **cast
 shadow** (`BODY_SHADOW`) — in daylight a snake does not glow, it sits on the sand and darkens it.
 
-## The snakes are patterned animals
+## The snakes are diamondbacks: scales and a pattern, not rings
 
-Dark bodies wearing bright crossbands, which is both the strongest read against pale sand and what
-these animals actually look like. Taken from reference, not invented: the
-[Saharan horned viper](https://www.desertusa.com/animals/horned_viper.html) carries dark
-semi-rectangular dorsal blotches that fuse into crossbars, and the
-[California kingsnake](https://animals.sandiegozoo.org/animals/kingsnake) is banded light-on-dark.
+The bodies wear a SKIN TEXTURE (`_build_skin`, a 96x48 tile built once per snake at `_ready`), tiled
+along each body Line2D (`LINE_TEXTURE_TILE`: across the tile is across the body, along it two body
+widths): a light ground color, down the back a dark diamond with a pale rim and a lighter heart, tip
+to tip with the next, small dark blotches on the flanks between them, overlapping scales (staggered
+rows, each with a darker edge and a faint sheen), and the whole shaded darker toward the flanks so the
+body reads as round. Mother: amber ground (`MOTHER_BAND`) with chocolate diamonds (`MOTHER_COL`);
+child: pale gold (`CHILD_BAND`) with the same pattern in a lighter brown -- the same animal at two
+ages. The gradient now only fades the tail (`_tail_gradient`, white, alpha to 0 past `TAIL_SOLID`);
+the texture is multiplied by it. The dorsal sheen line is no longer drawn (its points are left empty).
 
-Mother and child keep their old identity **in the band color** — her amber, the child's pale gold —
-so they remain one hue family separated by lightness: the same animal at two ages.
-
-`_build_gradient()` now alternates **two real colors** along the body instead of one color and a
-darker copy of itself. That difference is the whole point: a color against a dimmer version of
-itself reads as uneven lighting, two colors read as a pattern. Measured band contrast on the
-mother: 134 levels. `_draw_head()` uses `_band_shade` as the mix between the same two colors, so the
-head wears the body's pattern rather than a dimmer version of one of them.
+History, briefly: crossband RINGS -- a gradient alternating two colors along the body, `BAND_PX`
+apart -- which snakes do not have ("why are we using those cross-section rings anyway?", user
+2026-10-25), and which fanned into wedges on every tight turn. A texture was tried long before and
+dropped because, at the path's real corners, a round joint's texture coordinates did not match the
+segments'. That held only while the path had corners: the corners are now rounded wider than the
+body (Mother Path), the body's own curves are smoothed (`_smooth_body`), and the points are 2 px
+apart (`_densify`), so the joints are invisible. `_build_gradient`/`_band_shade` remain in the code
+but are not used for the bodies.
 
 ## The body
 
-Three passes, in this order, and the head uses **the same three** so the two match:
+Two passes per snake, and the head matches them:
 
 | pass | what | node |
 |---|---|---|
 | halo | `GLOW_MUL` wider, `GLOW_ALPHA` faint, body hue, offset `SHADOW_DY` down | `_l_*_sh` |
-| fill | base color with dark bands (`BAND_PX`, `BAND_DARK`), tail dissolve | `_l_*` |
-| sheen | `STRIPE_W` wide, `SHEEN` (warm white, faint), **unbanded**, no texture | `_l_*_st` |
+| skin | the skin texture (`_build_skin`), tail dissolve gradient | `_l_*` |
 
+(`_l_*_st`, the old sheen line, still exists so the node count holds; it is drawn with no points.)
 There is deliberately **no dark outline** anywhere.
 
 ### Line2D, not hand-built geometry
@@ -94,7 +98,7 @@ Two earlier approaches failed, and the second failure is the one to remember:
    a knot, it renders nothing: the mother vanished and the child flickered.
 
 Line2D solves all of it in the engine — robust tessellation, `joint_mode` ROUND, `width_curve`
-for the taper, `gradient` for banding and the tail dissolve.
+for the taper, a tiled texture for the skin, `gradient` for the tail dissolve.
 
 **Points must arrive head-first**: `Line2D` samples `width_curve` and `gradient` from `points[0]`,
 so the guided mother path — built left to right — is reversed before being handed over.
@@ -105,68 +109,23 @@ every body stopped rendering. The cause was never identified; the working versio
 count.
 
 **A halo cannot be a hand-drawn polyline.** `draw_polyline` has a constant width, so it cannot
-follow `width_curve` — at the tail the body is `TAIL_FRAC` of full width while the halo stayed at
-100%, ballooning around the thin tail — and its mitred joints look wrong on corners. Built by the
-same function from the same points, the halo inherits both for free.
+follow `width_curve`; built by the same function from the same points, the halo inherits it.
 
-### Bands
-
-`_build_gradient` alternates base / band colors along the line, **two stops per half period**: each
-half holds its color and turns over `BAND_EDGE` (0.30) of it, centered on the boundary, so the bands
-are crisp. One stop per half period interpolated into a triangle wave, which read as blurry
-corrugated pipe. `_band_shade` mirrors it exactly for the head. The tail dissolve is folded into the
-same gradient.
-
-**The bands are placed by the body's REAL arc length, every frame** (`_set_body`). A Line2D lays its
-gradient along its actual arc, which changes slightly every frame as the body slithers. With the stops
-normalized by a steadier proxy (the horizontal span, or the growth cap) every band slid a fraction of
-a pixel each frame and the bodies flickered -- long hidden under the old opaque spine stripe, and
-plain once the spine became a faint sheen and the bands crisper. Normalized by the real arc, a band at
-distance d from the head is drawn at exactly d. Measured on consecutive frames just behind the child's
-head (pixels reversing brightness frame to frame): 0.145 before the look pass, 0.20 after it, 0.128
-with this. The gradient is rebuilt every frame (at most 2 * BAND_MAX * 2 stops, two bodies), and the
-head's bands now match the body's at true `BAND_PX` with no stretch factor. `BAND_EDGE` is 0.6 (0.30
-was crisp and shimmered).
+**The body's own curves are smoothed** (`_smooth_body`, drawing only): a moving average of the
+points' y over about 0.8 body width, faded in behind the head so the head stays exactly on its
+point. The child's path is the player's input, which turns as sharply as a key is pressed, and a
+thick body folds round a turn tighter than its half-width.
 
 **No body segment is longer than `BODY_MAX_SEG_PX` (2 px)** (`_densify`, after the slither). A Line2D
-colors its gradient PER VERTEX and blends between vertices, so a band edge inside a long segment is
-smeared across it, differently every frame. The bodies are sampled every 2 px of x, so on a steep
-diagonal the vertices were 6-10 px apart along the body, and only the diagonal parts shimmered (user,
-2026-10-25) -- the cause the slither fixes never touched.
-
-**`BAND_MAX` is 220.** At 56 the long mother ran out of bands well before her tail, and the rest of the
-body took the last stop's one dark brown, which read as "the end of a pipe".
-
-**Stops are anchored in PIXELS from the head** (`offset = distance / length`), so a band 100 px
-back stays 100 px back as the child's body grows and only new bands appear at the tail. Splitting
-0..1 into equal fractions instead moved *every* band whenever the length changed — that was the
-growth jitter.
-
-**The length used is the smooth growth cap, not the measured span.** The snapped-time sampler
-quantises the tail to the sample step, so the measured span oscillates every frame (132 shrinks
-per 900 frames, measured); feeding that in would put the wobble into the pattern.
-
-### The spine (now a sheen)
-
-**It is a faint warm sheen, not a lighter stripe** (`SHEEN`, alpha 0.16, `STRIPE_W` 0.20). Drawn
-as an opaque lighter copy of the dark body it came out a flat gray strip down every body, which read
-as a cable inside a tube.
-
-**No texture on any body line.** A cross-width shading texture (dark flanks, lit back) made the body
-round on the straight -- and on every turn the round joint's texture coordinates did not match the
-segments', so the body broke into what looked like separate overlapping tubes. It is the UV case of
-"skin that needs normals, offsets or UVs fails at the turns". The body lines also have **no cap at
-the head end** (`begin_cap_mode` NONE): the head covers it, and the cap showed round the neck.
-
-**Must not be banded.** Sharing the body's banded gradient put its dark stops at value 0.72 against
-the body's lit 0.88, so along the length the spine alternated between lighter *and darker* than
-the body and cancelled itself out. A plain constant gradient measures 0.928 flat against a body
-range of 0.722–0.880 — lighter everywhere.
+interpolates per vertex, and on a steep diagonal the 2 px x-sampling put vertices 6-10 px apart, so
+the pattern there shimmered ("flicker/jitter, but only on the diagonal parts", user 2026-10-25).
 
 ### Width, taper and the breathing pulse
 
-`MOTHER_W` / `CHILD_W` are the width at the **head**; `width_curve` tapers to `TAIL_FRAC`, and the
-pulse scales the whole thing between `PULSE_W_LOW` and `PULSE_W_HIGH`.
+`MOTHER_W` / `CHILD_W` are the base widths (x1.5 on a phone; they were x2, too wide for the curves of
+the breath, and the bodies folded at every turn). `width_curve` gives the shape -- a slimmer neck,
+the belly fullest a third of the way back, narrowing to `TAIL_FRAC` at the tail ("not so constant in
+width") -- and the pulse scales the whole thing between `PULSE_W_LOW` and `PULSE_W_HIGH`.
 
 The body **swells and brightens on the inhale**, driven by `_openness(y, drop)` (0 exhaled, 1
 inhaled). It changes nothing geometric, so it cannot reintroduce the artifacts that per-point
@@ -174,9 +133,9 @@ offsets caused — and it is the one visual that *means* something: in a breathi
 should visibly breathe. The player's own body pulses from their own position, so it is feedback,
 not decoration.
 
-**Brightness rides on `modulate`, not `default_color`.** `Line2D.gradient` REPLACES
-`default_color`; written there it did nothing at all, and a probe "verified" it by reading back
-the ignored property.
+**Brightness rides on `modulate`, not `default_color`.** A Line2D with a gradient ignores
+`default_color`; written there it did nothing at all, and a probe "verified" it by reading back the
+ignored property.
 
 **Judge width by the MEAN along the body, not the base number** — the taper hides a large fraction
 of it.
@@ -185,8 +144,8 @@ of it.
 
 `MOTHER_W` has been retuned repeatedly (18 → 30 → 80 → 30). Every constant in absolute pixels
 silently went wrong each time: a fixed 2 px sample step against an 80 px body is a segment/width
-ratio of 0.026, and `BAND_PX` 12 goes from 1.5 to 6.4 bands per width. Express spatial constants
-as a share of body width, and re-check `BAND_PX` after any width change.
+ratio of 0.026. Express spatial constants as a share of body width (the skin tile already is: two
+body widths per diamond).
 
 ### Slither — vertical displacement only
 
@@ -233,7 +192,10 @@ full length in ~12 s, so every session opened with the tail visibly stretching.
 
 ## The head
 
-**A snake's head, seen from above** (2026-10-25, "a bit strange and not snaky at all"): long
+**A snake's head, seen from above, wearing the body's skin** (2026-10-25, "a bit strange and not snaky
+at all"; then "looks awful on mobile"). Filled with the body's scales (`_build_skin(..., false)`: the
+same tile without the diamonds, mapped in the head's own space), and on the crown a dark ARROWHEAD with
+a pale rim, the first mark of the pattern down the back. It is long
 (`HEAD_LEN_W` 1.85), the front half of an ELLIPSE so the snout is round (`_head_half_width`), widest at
 the jaw a little behind its middle (`HEAD_JAW_AT` 0.58), then tapering into a neck narrower than the
 jaw (`HEAD_NECK_W` 0.60) -- and drawn far enough back (`HEAD_BACK_W` 0.80) that it tapers into the body
@@ -244,8 +206,10 @@ nostrils near the snout. It was a short blunt wedge with large eyes, which read 
 red tongue darts out of the snout and back twice within half a second. The heads redraw every frame
 for it (they redrew at 3.5 fps, the old sprite cadence).
 
-**The body is not one width** (`_make_body_line`'s `width_curve`): a slimmer neck behind the head,
-swelling to the belly a third of the way back, then narrowing to the tail.
+**The head turns at its NECK** (`_neck_offset`): the head node is put ahead of the body's front point
+by 0.40 of a head-length along the head's angle, so the neck sits on the body's end and the head
+swings from there. Centered on that point it turned round its own middle, and its back swung off the
+body at every turn ("turns on an axis and briefly doesn't connect").
 
 **Drawn, not a sprite.** It was `head1/2/3-4x.png` — a white ellipse with a black border and two
 eyes. **No transform can make an ellipse snake-like**: scale, rotation and skew are affine, so they
@@ -260,20 +224,13 @@ is what makes it a snake.
 - **The halo fades out toward the neck** (`HEAD_HALO_FADE`). Carried all the way round, anything
   drawn outside the outline puts a ring ON the body where the head overlaps it — which is what made
   the head read as a separate disc rotating over an unrelated body.
-- **The head reaches well behind the body's head point**, so the rounded neck is buried inside the
-  body and the join is never visible.
-- **The banding continues across the join with zero phase error.** The body pins bands to distance
-  *back* from the head point; head-local +x runs *forward* from the same point, so distance = −x
-  carries the phase straight through. Verified against the body's own gradient at 0/6/12/18/24 px:
-  delta 0.000 at every sample.
-- The fill is drawn as **transverse strips**, so each band follows the tapering outline instead of
-  cutting straight across it.
+- **The neck overlaps the body's end only slightly** (the head node sits ahead of it, see above), so
+  the join reads as one animal from every angle.
 - Eyes carry a faint lid ring (`HEAD_EYE_RING`) because a plain black dot loses definition on a
-  banded fill, and a white glint toward the snout. **No blink**: snakes have no eyelids, and the
+  patterned fill, and a white glint toward the snout. **No blink**: snakes have no eyelids, and the
   blink frame (a quarter of the time) drew the eyes as two dashes.
-- **The head's fill stops just behind the head point** (`HEAD_BACK_W`, 0.10 body widths), and its
-  halo and sheen are clipped there too: reaching further back, its own shading lay over the body's
-  and the neck showed as a lighter oval.
+- **The head's fill and halo are clipped at `HEAD_BACK_W`** (0.80 body widths behind its center),
+  the end of its neck taper.
 
 ## Environment
 
@@ -309,11 +266,13 @@ with the mother missing — reported as a bug more than once. It now wears the c
 written during the Line2D rework all forced `selected_mode = 2` to have a guided path to test, so
 three rounds of verification passed while never touching the mode the player was in.
 
-## Heads turn gradually
+## Heads point the way they are going
 
-Both heads ease toward the current direction at `HEAD_TURN_RATE` via `lerp_angle`. The body's turn
-is smootherstep-eased, so a head snapped to the instantaneous tangent looked mechanical. The
-mother's was previously set straight from her phase velocity with no smoothing at all.
+Each head's angle is the chord from the body point a third of a body width behind the head to the
+head point (`_head_chord_angle`, `HEAD_CHORD_W`): the direction the snake is moving now, smooth because
+the path is. History: both heads eased toward the direction at a fixed rate (`HEAD_TURN_RATE`, gone);
+then the chord reached back half a head-length, which made the head trail every turn -- twice as far
+on a phone, with its wider body ("their heads turn very very slowly").
 
 ## Freeze guard in `_do_draw`
 
@@ -325,11 +284,11 @@ glitch. A layout that has not been sized yet is enough to produce it. Checked at
 ## Thumbnail
 
 `mother/art/game_screen_200.png` is **drawn by `devtools/make_thumbs.py`, `mother()`** (install with
-`install_thumbs.py mother`): the mother and her child crossing lit dunes on the same wave, the child
-just below and behind, banded as the game bands them, on golden sand with sunlit slopes and rust-orange
-shadow faces. No text. The bodies are drawn as strips straight ACROSS the path, so each band is a
-straight crossband. Earlier tiles: a screen grab with text, then the game's own view, then a close-up
-on flat sand ("still boring"). `mother/docs/make_thumbnail.py` still draws the night scene that was replaced: it is superseded.
+`install_thumbs.py mother`): the mother and her child crossing pale golden dunes on the same wave,
+the child just below and behind, in the game's skin -- diamondback scales, the head with its
+arrowhead and the neck joined to the body, the tongue out. The sand is pale and cool enough for the
+amber mother to stand out (on orange dunes she was "almost invisible"). No text. Earlier tiles: a
+screen grab with text, the game's own view, a close-up on flat sand, banded snakes on orange dunes. `mother/docs/make_thumbnail.py` still draws the night scene that was replaced: it is superseded.
 
 **Verification here was structural only.** Headless Godot has no renderer, so a probe cannot see
 anything (screenshots from a windowed run, as in the 2026-10-24 look pass, can) — probes confirm points, widths, colors, z-order and
@@ -350,10 +309,11 @@ if t < exhale_ms:  return lerp(top_y, bot_y, t/exhale_ms)
 return bot_y
 ```
 
-**`_phase_y_at` rounds its corners**: the average of `_phase_y_raw` over a window of
-`PATH_ROUND_FRAC` (0.08) of the shorter ramp, `PATH_ROUND_TAPS` (9) samples. A box average leaves a
-straight line exactly as it is, so the ramps and holds are untouched; each corner becomes a small
-curve. Without it the corners were true kinks -- no sampling density can round one -- and the
+**`_phase_y_at` rounds its corners**: a raised-cosine-weighted average of `_phase_y_raw` over a window
+of `PATH_ROUND_FRAC` (0.25) of the shorter ramp, `PATH_ROUND_TAPS` (17) samples. A symmetric average
+leaves a straight line as it is, so the ramps and holds are untouched; each corner becomes a curve
+wider than the body. (It was a 0.08 box: curves smaller than the body was wide, so the body folded
+round them, worst on a phone, whose taller canvas makes the ramps steeper.) Without it the corners were true kinks -- no sampling density can round one -- and the
 mother's body broke at every turn into wedges, its bands not meeting. At a corner the guide moves by
 a few px at most; the score comes from the player's breathing rhythm, not from distance to her.
 Everything that reads the mother's height (her head, her body, the tutorial's "with her" test) goes

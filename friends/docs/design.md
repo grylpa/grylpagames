@@ -252,7 +252,11 @@ background, buttons, messages, everything"):
   stock with a deckled, nicked edge and a scorched stretch along one side, each card its own -- with a
   soft shadow and the name in dark ink on the frame's bottom margin, in place of the zigzag border and
   yellow name bar. The friends shown at the start are each tilted a few degrees (`randf_range(-3.5,
-  3.5)`), laid on the table by hand; the arriving stranger stands straight.
+  3.5)`), laid on the table by hand; the arriving stranger stands straight. The edge is ONE SHAPE that
+  scales with the card (`shared/scripts/card.gd` `_paper_outline`: a fixed number of points per side,
+  its waver measured as a fraction of the side and of the margin), so a card growing or shrinking does
+  not jitter at its cuts and burns; the scorch's outer boundary is the cut edge itself, so no thin
+  bright line of stock shows under it.
 - **Raised buttons** (`_style_button`, the game's own): a darker lip along the bottom, a soft
   shadow, a gloss across the top half; pressed, they sink. Say Hi a warm green, Ignore a muted plum,
   Ready a warm gold with dark text.

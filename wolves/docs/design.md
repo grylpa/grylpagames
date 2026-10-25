@@ -74,25 +74,31 @@ eat / scare scale tweens still play on it.
 
 ONE style for all three, seen from above, facing +x, in level pixels (the head's scale is undone):
 a soft shadow on the grass, one dark outline of the same weight (`OUT_W`) round every shape, flat
-fills lit from the top left of the SCREEN, and a real head on each, set off from the body by its neck.
-Bodies and heads are rounded shapes from a width curve (`_shape`), tails tapered strokes (`_tapered`).
-The dog and the wolf are drawn stretched by `BEAST_STRETCH` so they stand as large as a sheep.
+fills lit from the top left of the SCREEN. The dog and the wolf are each ONE SILHOUETTE from tail root
+to nose (`_silhouette`: body, neck and head in a single outline), so each reads as one animal and not
+as a body with a head stuck on, and they are drawn `BEAST_SIZE` (1.22) larger than a sheep's scale,
+uniformly. Tails are curves, not sticks (`_wavy_tail`: each segment turns a little further than the
+last, and the wag is a WAVE travelling from root to tip, so the tail bends as it swings), with filled
+fur tufts along their edges (`_tail_tufts`).
 
 - **sheep**: a THICK cream fleece, two rings of round tufts and more inside, each lit on its top left
   with a little curl in it, a scalloped outline; a dark face with two little ears sticking out
   sideways.
-- **dog**: a border collie -- a long, even body (hips nearly as broad as the chest; a teardrop with a
-  round head read as "a reverse pendulum"), black with a sheen on the lit side, a white ruff round the neck, a white
-  blaze to a white muzzle, amber eyes, soft folded ears, a plumed tail with a white tip that wags
-  evenly to both sides.
-- **wolf**: gray with a lighter lit side and a dark saddle, a shaggy RUFF of pointed tufts round the
-  neck and shoulders, fur tufts at the cheeks, a long pointed snout with
-  pale cheeks, tall upright ears, amber eyes, a thick bushy tail with a dark tip, held low and
-  swaying slowly.
+- **dog**: a border collie -- a long, even body with a slight waist, a domed skull and a tapering
+  muzzle; black with a sheen on the lit side, a white collar and a white blaze to the muzzle, amber
+  eyes, soft ears folded forward over the skull, a long feathered tail curving to one side with a
+  white tip, wagging fast.
+- **wolf**: lean flanks and heavy shoulders, a broad skull and a long NARROW muzzle with a dark nose;
+  gray with a lighter lit side, a dark saddle running up the neck into a mask between amber slanted
+  eyes, pale cheeks and muzzle front, tall pointed ears standing clear of the head, shaggy ruff tufts
+  round the shoulders, a long bushy tail held low with a dark tip, swaying slowly.
 
-History: the sheep were a sprite (an egg with fleece dashes, black dot eyes); the dog and wolves were
-first a detailed shaded version with striding paws (no feet are drawn now: from above they only
-cluttered), then flat eggs in the sheep's style ("the wolves look like mice", user 2026-10-25).
+History: the sheep were a sprite (an egg with fleece dashes); the dog and wolves were a detailed
+shaded version with striding paws (no feet now: from above they only cluttered), then flat eggs in
+the sheep's style ("the wolves look like mice"), then a body-plus-head version stretched sideways,
+whose tail -- a straight stroke with a white bulb, swinging round its root -- read as "a reverse
+pendulum", and whose wolf "doesn't look like a wolf". Check new art large (a scratch scene with the
+three animals at 5x) before judging it at game size: at game size details disappear.
 
 **Every animal turns smoothly.** `set_rots` no longer sets the head's rotation: `agent.gd`
 `_ease_turn` and `player.gd` `_process` swing it round to `angles[0]` a little each frame
