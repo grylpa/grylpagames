@@ -341,7 +341,7 @@ wait_time = 3.0
 [node name="TimeLeftTimer" type="Timer" parent="." unique_id=365782954]
 wait_time = 0.05
 
-[node name="GameOverAudio" type="AudioStreamPlayer2D" parent="." unique_id=254879199]
+[node name="GameOverAudio" type="AudioStreamPlayer" parent="." unique_id=254879199]
 
 [node name="CountdownLabel" type="Label" parent="." unique_id=2107223311]
 modulate = Color(1, 1, 0, 0.376471)

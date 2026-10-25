@@ -1142,6 +1142,13 @@ func _openness(y: float, drop: float) -> float:
 	return clampf((_m_bot_y + drop - y) / span, 0.0, 1.0)
 
 # `pts` must arrive HEAD FIRST — Line2D samples width_curve and gradient from points[0].
+# The slither displaces in Y ONLY (see the design doc: a polyline monotonic in x cannot
+# self-intersect, and displacing along the normal tangled the body at the turns), with its phase from
+# the horizontal distance to the head. It FADES OUT where the path is steep: on a steep diagonal an
+# up-down shift slides a point ALONG the body instead of across it, so the body stretched and squeezed
+# under its own bands and the diagonal parts jittered (user, 2026-10-25). The fade is the square of
+# the path's horizontal share there, taken over a few points either side so the 2 px sampling does not
+# make it twitch.
 func _slither_y(pts: PackedVector2Array, w: float, now_s: float) -> PackedVector2Array:
 	var n: int = pts.size()
 	if n < 3 or w <= 0.0:
@@ -1154,9 +1161,13 @@ func _slither_y(pts: PackedVector2Array, w: float, now_s: float) -> PackedVector
 	out.resize(n)
 	for i in n:
 		var dx: float = absf(x0 - pts[i].x)
+		var a: Vector2 = pts[maxi(0, i - 3)]
+		var b: Vector2 = pts[mini(n - 1, i + 3)]
+		var span: float = a.distance_to(b)
+		var flat: float = absf(b.x - a.x) / span if span > 0.001 else 1.0
 		# eased in behind the head, so the head itself stays exactly on the true path
 		var ramp_f: float = smoothstep(0.0, 1.0, minf(1.0, dx / ramp))   # not `ease` — built-in
-		out[i] = Vector2(pts[i].x, pts[i].y + amp * ramp_f * sin(dx / wave * TAU - now_s * SLITHER_SPEED))
+		out[i] = Vector2(pts[i].x, pts[i].y + amp * ramp_f * flat * flat * sin(dx / wave * TAU - now_s * SLITHER_SPEED))
 	return out
 
 # `glow` scales the halo's alpha: 1.0 is the resting glow, higher burns brighter. Only the child

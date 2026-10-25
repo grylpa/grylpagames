@@ -1131,7 +1131,10 @@ func _draw_glows() -> void:
 		return
 	var lamp: Vector2 = boat_pos + Vector2.from_angle(boat_heading) * _boat_len * _k * 0.42
 	var flare: Vector2 = _lh_pos + Vector2.from_angle(beam_angle) * _lh_r * 0.62
-	for g: Array in [[_lh_pos, _lh_r * 2.8, LANTERN_GLOW], [flare, _lh_r * 1.1, Color(0.55, 0.50, 0.40)],
+	# the lantern's own glow is small and pushed toward the beam: lit evenly round the tower at 2.8x
+	# its radius, it made the whole lighthouse glow in every direction
+	var lantern: Vector2 = _lh_pos + Vector2.from_angle(beam_angle) * _lh_r * 0.5
+	for g: Array in [[lantern, _lh_r * 1.6, LANTERN_GLOW], [flare, _lh_r * 1.1, Color(0.55, 0.50, 0.40)],
 			[lamp, _boat_len * _k * 1.1, BOAT_GLOW], [_harbor_pos, 70.0 * _k, HARBOR_GLOW * harbor_flash()]]:
 		var r: float = float(g[1])
 		_glows.draw_texture_rect(_glow_tex, Rect2((g[0] as Vector2) - Vector2(r, r), Vector2(r, r) * 2.0), false, g[2])
@@ -1166,26 +1169,44 @@ func _draw_lantern() -> void:
 	_overlay.draw_circle(c, r * 0.84, Color(0.14, 0.15, 0.18))
 	for k in 4:
 		var f: float = float(k) / 3.0
-		_overlay.draw_circle(c, r * lerpf(0.80, 0.64, f), Color(0.22, 0.22, 0.25).lerp(Color(0.42, 0.36, 0.28), f))
+		_overlay.draw_circle(c, r * lerpf(0.80, 0.64, f), Color(0.20, 0.20, 0.23).lerp(Color(0.28, 0.25, 0.22), f))
 	_overlay.draw_arc(c, r * 0.81, 0.0, TAU, 48, Color(0.55, 0.57, 0.61), 1.2 * _k, true)
 	for i in 16:
 		_overlay.draw_circle(c + Vector2.from_angle(TAU * float(i) / 16.0) * r * 0.81, 1.0 * _k, Color(0.75, 0.77, 0.80))
-	# the glass, lit from inside, white-hot toward the turning lens
-	_overlay.draw_circle(c, r * 0.62, Color(0.95, 0.70, 0.32))
-	_overlay.draw_circle(c, r * 0.58, Color(1.0, 0.86, 0.52))
-	_overlay.draw_arc(c, r * 0.55, beam_angle - 0.75, beam_angle + 0.75, 16, Color(1.0, 0.97, 0.85), r * 0.14, true)
-	_overlay.draw_arc(c, r * 0.55, beam_angle - 0.35, beam_angle + 0.35, 10, Color(1.0, 1.0, 1.0), r * 0.16, true)
+	# the glass: dark amber all round, and lit only where the lens is pointing -- a hot white arc
+	# toward the beam, fading to the dark glass within about a quarter turn either side. (It was lit
+	# evenly all round, which made the whole tower glow in every direction but the beam's.)
+	var seg: int = 48
+	for i in seg:
+		var a0: float = TAU * float(i) / float(seg)
+		var a1: float = TAU * float(i + 1) / float(seg)
+		var q: PackedVector2Array = PackedVector2Array([c + Vector2.from_angle(a0) * r * 0.44,
+			c + Vector2.from_angle(a0) * r * 0.62, c + Vector2.from_angle(a1) * r * 0.62, c + Vector2.from_angle(a1) * r * 0.44])
+		var k0: float = _glass_lit(a0)
+		var k1: float = _glass_lit(a1)
+		_overlay.draw_polygon(q, PackedColorArray([GLASS_DARK.lerp(GLASS_HOT, k0), GLASS_DARK.lerp(GLASS_RIM, k0),
+			GLASS_DARK.lerp(GLASS_RIM, k1), GLASS_DARK.lerp(GLASS_HOT, k1)]))
 	for i in 10:
 		var a: Vector2 = Vector2.from_angle(TAU * float(i) / 10.0 + 0.3)
 		_overlay.draw_line(c + a * r * 0.44, c + a * r * 0.62, Color(0.25, 0.17, 0.08, 0.55), 1.1 * _k, true)
 	# the cap: a red dome, a warm rim where the glass lights it, a highlight, the vent knob
-	_overlay.draw_circle(c, r * 0.45, Color(1.0, 0.80, 0.45, 0.85))
+	_overlay.draw_circle(c, r * 0.45, Color(0.20, 0.12, 0.08))
+	_overlay.draw_arc(c, r * 0.435, beam_angle - 0.9, beam_angle + 0.9, 16, Color(1.0, 0.80, 0.45, 0.85), r * 0.04, true)
 	_overlay.draw_circle(c, r * 0.42, Color(0.55, 0.13, 0.11))
 	for k in 6:
 		var f2: float = float(k) / 5.0
 		_overlay.draw_circle(c + Vector2(-0.07, -0.09) * r * f2, r * lerpf(0.40, 0.08, f2),
 			Color(0.50, 0.12, 0.10).lerp(Color(0.86, 0.36, 0.30), f2 * f2))
 	_overlay.draw_circle(c + Vector2(-0.03, -0.035) * r, r * 0.07, Color(0.92, 0.80, 0.70))
+
+const GLASS_DARK: Color = Color(0.30, 0.19, 0.10)
+const GLASS_RIM: Color = Color(1.0, 0.86, 0.52)
+const GLASS_HOT: Color = Color(1.0, 0.99, 0.92)
+
+# How lit the lantern glass is at angle `a`: 1 facing the beam, 0 from about 80 degrees off it.
+func _glass_lit(a: float) -> float:
+	var off: float = absf(wrapf(a - beam_angle, -PI, PI))
+	return clampf(1.0 - off / 1.4, 0.0, 1.0) ** 1.6
 
 # The harbor light's rhythm: OCCULTING, the "Oc G 4s" of a real harbor light -- lit most of the
 # time, with a short dark break every HARBOR_PERIOD seconds (HARBOR_DARK of it). The break dips to a

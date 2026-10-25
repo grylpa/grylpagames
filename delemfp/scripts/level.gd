@@ -46,7 +46,9 @@ var _tutorial_countdown_seen: bool = false
 # an arcade coin.
 var dispatch_audio = preload("res://art/sounds/delemfp_call.ogg")
 var delivery_audio = preload("res://art/sounds/delemfp_deliver.ogg")
-var motor_audio = preload("res://art/sounds/engine-pulling-something.mp3")
+# the ambient, still called "motor" in code: a night road: cars sweeping past, crickets (devtools/make_ambient_sounds.py; it was a
+# stock engine recording)
+var motor_audio: AudioStream = preload("res://art/sounds/delemfp_ambient.ogg")
 
 signal game_over(didwin:bool)
 signal started_playing
@@ -69,6 +71,7 @@ func _ready() -> void:
 	add_child(player)
 
 	game.add_sound(self, "motor", motor_audio, true)
+	game.set_sound_volume("motor", -6.0)
 
 	game.add_sound(self, "dispatch", dispatch_audio, false)
 	game.add_sound(self, "delivery", delivery_audio, false)
@@ -350,7 +353,7 @@ func add_agent_at(p: Vector2i, direction: int):
 	if not game.is_sound_playing("dispatch"):
 		game.play_sound("dispatch")
 	if not game.is_sound_playing("motor"):
-		MainGlobals.do_after(0.5, func(): game.play_sound("motor"))
+		MainGlobals.do_after(0.5, func(): game.play_sound("motor", false))
 	game.tutorial_notify("agent_dispatched")   # no-op outside tutorial mode
 	if tutorial_hold_camera:
 		# No 5-second countdown and no zoom yet: the coach shows the board, names the list, and

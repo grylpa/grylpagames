@@ -181,6 +181,9 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	# the robot arm is heard taking an item (devtools/make_action_sounds.py, "robot")
+	game.add_sound(self, "grab", preload("res://art/sounds/robot_grab.ogg"))
+	game.set_sound_volume("grab", -3.0)
 	_apply_sleek_chrome()
 	var layout: MarginContainer = $MainLayout
 	# ONE vertical layout for every platform: sit just under the header, reserve the app's bottom
@@ -948,6 +951,7 @@ func _claw_pull(to_right: bool) -> void:
 	# retracts by itself once the flyer is freed. An arm that is not doing the picking is scenery.
 	if _robots != null and is_instance_valid(_robots):
 		_robots.hold(1 if to_right else 0, flyer)
+	game.play_sound("grab")
 	var sw: float = float(MainGlobals.screen_size.x)
 	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
 	var tw: Tween = flyer.create_tween()

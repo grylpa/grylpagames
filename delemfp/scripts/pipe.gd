@@ -84,20 +84,22 @@ func _dress_road() -> void:
 	add_child(_curb)
 	move_child(_curb, $PipeImageRD.get_index() + 1)
 
-# The curbs JOIN at every corner. Each closed side gets a strip (4.0 px) along its edge and a
-# shadow (5.0 px) falling onto the road. Where two closed sides meet on one tile (a bend) the strips are
+# The curbs JOIN at every corner. Each closed side gets a strip (1.5 px) along its edge and a
+# shadow (3.0 px) falling onto the road. Where two closed sides meet on one tile (a bend) the strips are
 # MITERED -- each ends on the 45-degree diagonal -- so they meet without overlapping; where two open
 # sides meet but the tile across the corner is not road (the inside corner of a junction or a bend
 # seen from outside), this tile draws the small corner piece that joins its two neighbors' strips,
-# with the lit edge and the shadow carried round it. Drawn first as plain full-length strips, they
+# with the lit edge and the shadow carried round it. Kept THIN and close to the surface's own
+# tone: at 4-8 px with a bright stone and a lit line they read as thick walls and distracted from
+# play (user, 2026-10-25). Drawn first as plain full-length strips, they
 # overlapped on bends and left a square hole at every inside corner.
 func _draw_curb() -> void:
 	var t: float = 20.0
-	var cw: float = 4.0
-	var sh: float = 5.0
-	var stone: Color = Color(0.66, 0.65, 0.62)
-	var lit: Color = Color(0.85, 0.84, 0.80)
-	var shade: Color = Color(0, 0, 0, 0.30)
+	var cw: float = 1.5
+	var sh: float = 3.0
+	var stone: Color = Color(0.52, 0.51, 0.49)
+	var lit: Color = Color(0.80, 0.79, 0.75, 0.35)
+	var shade: Color = Color(0, 0, 0, 0.22)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])
 	var dirs: Array = [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP]

@@ -33,6 +33,8 @@ func _build() -> void:
 		# No check badge on a level that was not passed: a tick over "you need at least 70%" is
 		# the card congratulating the player for failing.
 		_parts = ResultCard.build(self, _accent(), _passed, "Continue", close_window)
+		if _passed:
+			ResultCard.celebrate(self, _parts)
 
 func set_title(title) -> void:
 	_build()

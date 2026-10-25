@@ -4,8 +4,8 @@ signal pipe_pressed(_board_pos)
 
 var board_pos := Vector2i.ZERO
 
-# The road is asphalt (asphalt.gdshader, one material shared by every road sprite) with a concrete
-# CURB wherever it meets something that is not road (_draw_curb, from the neighbors set_rot finds).
+# The road is asphalt (asphalt.gdshader, one material shared by every road sprite) with a soft
+# shadow wherever it meets something that is not road (_draw_curb, from the neighbors set_rot finds).
 # It was flat gray squares, each with a yellow dot, straight onto the lawn.
 static var _asphalt: ShaderMaterial = null
 var _open: Array = [true, true, true, true]       # r, d, l, u: is there road that way
@@ -23,20 +23,18 @@ func _ready() -> void:
 	add_child(_curb)
 	move_child(_curb, $PipeImageRD.get_index() + 1)
 
-# The curbs JOIN at every corner. Each closed side gets a strip (4.0 px) along its edge and a
-# shadow (5.0 px) falling onto the road. Where two closed sides meet on one tile (a bend) the strips are
-# MITERED -- each ends on the 45-degree diagonal -- so they meet without overlapping; where two open
-# sides meet but the tile across the corner is not road (the inside corner of a junction or a bend
-# seen from outside), this tile draws the small corner piece that joins its two neighbors' strips,
-# with the lit edge and the shadow carried round it. Drawn first as plain full-length strips, they
-# overlapped on bends and left a square hole at every inside corner.
+# NO CURB: the lot meets the lawn with only a soft shadow (3.0 px) falling onto the asphalt along
+# each closed side. A 4 px stone curb with a lit edge used to run round the lot; it served no purpose
+# in a parking lot and read as walls (user, 2026-10-25). The shadows still JOIN at every corner: on a
+# bend each ends on the 45-degree diagonal (mitered), and at an inside corner (two open sides, no
+# road across the corner) this tile draws the small corner piece that carries the shadow round.
 func _draw_curb() -> void:
 	var t: float = 20.0
-	var cw: float = 4.0
-	var sh: float = 5.0
+	var cw: float = 0.0
+	var sh: float = 3.0
 	var stone: Color = Color(0.66, 0.65, 0.62)
-	var lit: Color = Color(0.85, 0.84, 0.80)
-	var shade: Color = Color(0, 0, 0, 0.30)
+	var lit: Color = Color(0, 0, 0, 0)
+	var shade: Color = Color(0, 0, 0, 0.25)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])
 	var dirs: Array = [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP]

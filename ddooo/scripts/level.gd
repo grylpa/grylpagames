@@ -116,6 +116,7 @@ func new_game(from_scratch = true):
 	create_board()
 	ambient_audios.shuffle()
 	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	game.play_sound("ambient")
 	# Show level-start info popup; game begins when user dismisses it
 	var lvl: Dictionary = DdoooLevelConfig.get_level(level)

@@ -112,6 +112,7 @@ func new_game(from_scratch=true):
 
 	ambient_audios.shuffle()
 	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	game.play_sound("ambient")
 
 	started_playing.emit()
@@ -457,6 +458,7 @@ func _process(_delta: float) -> void:
 			
 func on_agent_need_to_remove_agent(agent):	
 	if agent.timed_out and not agent.is_model and agent.is_correct:
+		_show_score_popup(agent.board_pos, "-1", false)
 		# The right answer expired untouched: a miss at that edge, not a round that never was.
 		_record_dir_trial(false, 0)
 		game.add_score_and_time(-1,-5)
@@ -485,6 +487,30 @@ func _record_dir_trial(right: bool, ms: int) -> void:
 		"dir_name": DIR_NAME[_model_dir], "right": right, "ms": ms})
 	_model_dir = -1
 
+# THE SCORE RISES FROM THE ANSWER: "+N" in green over a right one, "-1" in red over a wrong one (or
+# over the right one, when it expired untouched), floating up and fading -- as Pinpoint does it.
+const FEEDBACK_OK_TEXT_COLOR: Color = Color(0.3, 1.0, 0.3)
+const FEEDBACK_BAD_TEXT_COLOR: Color = Color(1.0, 0.4, 0.4)
+
+func _show_score_popup(board_pos: Vector2i, text: String, is_correct: bool) -> void:
+	var label: Label = Label.new()
+	label.text = text
+	label.add_theme_color_override("font_color",
+		FEEDBACK_OK_TEXT_COLOR if is_correct else FEEDBACK_BAD_TEXT_COLOR)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	label.add_theme_constant_override("outline_size", 6)
+	label.add_theme_font_size_override("font_size", 32)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.custom_minimum_size = Vector2(game.tile_size * 3, 0)
+	var px: Vector2 = game.board_to_px(board_pos)
+	label.position = px - Vector2(game.tile_size * 1.5, game.tile_size * 0.5)
+	label.z_index = 20
+	add_child(label)
+	var tween: Tween = create_tween()
+	tween.tween_property(label, "position:y", px.y - game.tile_size * 2.5, 0.65)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.65)
+	tween.tween_callback(label.queue_free)
+
 func on_agent_pressed(agent):
 	if !agent.is_model and !game.paused():
 		if agent.is_correct:
@@ -493,6 +519,7 @@ func on_agent_pressed(agent):
 			_record_dir_trial(true, int(time_since_shown_alternatives_ms))
 			_add_time_to_answer_ms(time_since_shown_alternatives_ms)
 			game.add_score_and_time(score_to_add,15)
+			_show_score_popup(agent.board_pos, "+" + str(score_to_add), true)
 			game.add_correct_or_mistake(1,0)
 			num_corrects_in_level_so_far += 1
 			game.play_sound("delivery")
@@ -502,6 +529,7 @@ func on_agent_pressed(agent):
 		else:
 			_record_dir_trial(false, int(game.game_time - time_shown_alternatives_ms))
 			game.add_score_and_time(-1,-5)
+			_show_score_popup(agent.board_pos, "-1", false)
 			game.add_correct_or_mistake(0,1)
 			game.play_sound("swoosh")
 			game.tutorial_notify("answered_wrong")

@@ -673,4 +673,6 @@ falses mean different things, and this game never calls `record_no_answer()`.
 
 ## Sounds
 
+A FESTIVAL ambient (`whack_ambient.ogg`, `devtools/make_ambient_sounds.py`: a crowd talking, a calliope waltz from a stand nearby, now and then a cheer, the bell of a high striker, a balloon; it was a slow pad of drifting chords) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu (`show_main_menu`). The game had no ambient before.
+
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `hit` a bonk, `miss` a whiff, `appear` a pop as a target comes up, `wrong` a soft low note for a target left to expire. They replaced a tap, a bump, a click and a swoosh.

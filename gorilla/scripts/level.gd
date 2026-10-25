@@ -101,6 +101,8 @@ var feet_audio: AudioStream = preload("res://art/sounds/kenney/Audio/footstep_gr
 var delivered_audio: AudioStream = preload("res://art/sounds/gorilla_crunch.ogg")
 var start_audio: AudioStream = preload("res://art/sounds/gorilla_start.ogg")
 var swoosh_audio := preload("res://art/sounds/gorilla_warp.ogg")
+# a monster eaten while the power is on (a chomp and a sparkle); it used to pass in silence
+var gulp_audio: AudioStream = preload("res://art/sounds/gorilla_gulp.ogg")
 func _ready() -> void:
 	game = GorillaG.game
 	game.zoomed_in = true
@@ -115,6 +117,7 @@ func _ready() -> void:
 	game.add_sound(self, "delivery", delivered_audio)
 	game.add_sound(self, "start", start_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
+	game.add_sound(self, "gulp", gulp_audio)
 
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
@@ -1048,6 +1051,7 @@ func _check_agent_collisions():
 				a.mark_hit()
 				time_to_spawn_agent = MainGlobals.timems() + 1000
 				game.add_score_and_time(10, 0)
+				game.play_sound("gulp")
 			else:
 				player.mark_hit()
 				collision.emit()

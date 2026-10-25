@@ -26,8 +26,10 @@ class_name PtbitsArt
 
 # --- palette ------------------------------------------------------------------------------------
 
-const BG_TOP: Color = Color(0.137, 0.165, 0.243)
-const BG_BOT: Color = Color(0.051, 0.063, 0.102)
+# a deep violet-blue, warmer than the slate it was ("the background can be improved greatly")
+const BG_TOP: Color = Color(0.180, 0.145, 0.300)
+const BG_BOT: Color = Color(0.055, 0.045, 0.115)
+const NEON: Color = Color(1.0, 0.86, 0.62)
 const SEAM: Color = Color(1.0, 1.0, 1.0, 0.030)
 const VIGNETTE: Color = Color(0.008, 0.012, 0.024)
 const FRAME_EDGE: Color = Color(0.353, 0.412, 0.541)
@@ -90,6 +92,81 @@ static func backdrop(ci: CanvasItem, area: Rect2, inlet_x0: float, inlet_x1: flo
 			Vector2(gw, gw * 0.8)), false, Color(INLET_LIGHT.r, INLET_LIGHT.g, INLET_LIGHT.b, 0.16))
 
 	_vignette(ci, area)
+
+# The chamber's FLOOR, over the gradient: perforated metal -- a grid of small holes, catching a little
+# more of the inlet's light under the cone. The backdrop was a gradient with seams, which the user found plain. All of it is
+# a few percent of white (5-12%), so bg_at() (what the contrast probe measures against) still holds. The holes
+# are 2x2 rects, not circles: about 1,400 of them redraw every frame.
+static func floor_detail(ci: CanvasItem, area: Rect2, inlet_x0: float, inlet_x1: float) -> void:
+	var l: float = area.position.x
+	var t: float = area.position.y
+	var r: float = l + area.size.x
+	var b: float = t + area.size.y
+	var cx: float = (inlet_x0 + inlet_x1) * 0.5
+	var pitch: float = 22.0
+	var y: float = t + pitch * 0.5
+	var row: int = 0
+	while y < b:
+		var x: float = l + pitch * (0.5 if row % 2 == 0 else 1.0)
+		var depth: float = (y - t) / maxf(1.0, area.size.y)
+		var cone_half: float = (inlet_x1 - inlet_x0) * 0.5 + 150.0 * depth
+		while x < r:
+			var in_cone: float = clampf(1.0 - absf(x - cx) / maxf(1.0, cone_half), 0.0, 1.0)
+			var a: float = 0.050 + 0.070 * in_cone * (1.0 - depth * 0.6)
+			ci.draw_rect(Rect2(x - 1.0, y - 1.0, 2.0, 2.0), Color(INLET_LIGHT.r, INLET_LIGHT.g, INLET_LIGHT.b, a))
+			ci.draw_rect(Rect2(x - 1.0, y + 1.0, 2.0, 1.0), Color(0, 0, 0, 0.10))
+			x += pitch
+		y += pitch * 0.866
+		row += 1
+
+# LANE GUIDES: under each basket a column of faint chevrons pointing UP at it -- the way a ball has to
+# be pushed (up and over, into the basket of its color), said by the floor itself, the way a pinball
+# table's lanes are marked. Brighter nearer the basket, a touch of its color.
+static func lane_guides(ci: CanvasItem, area: Rect2, baskets: Array, colors: Array, t: float) -> void:
+	var b: float = area.position.y + area.size.y
+	for i in baskets.size():
+		var p: Variant = baskets[i]
+		if not (p is PackedVector2Array) or (p as PackedVector2Array).size() < 4:
+			continue
+		var poly: PackedVector2Array = p
+		var cx: float = (poly[0].x + poly[1].x) * 0.5
+		var bottom: float = maxf(poly[2].y, poly[3].y)
+		var half: float = (poly[1].x - poly[0].x) * 0.22
+		var col: Color = Color(1, 1, 1).lerp(colors[i % colors.size()] as Color, 0.35)
+		var y: float = bottom + 46.0
+		var k: int = 0
+		while y < b - 70.0 and k < 6:
+			# a slow chase upward, one chevron after another lighting a little
+			var chase: float = 0.5 + 0.5 * sin(t * 2.2 - float(k) * 0.9)
+			var a: float = (0.16 - 0.022 * float(k)) * (0.65 + 0.35 * chase)
+			var c: Color = Color(col.r, col.g, col.b, a)
+			ci.draw_polyline(PackedVector2Array([Vector2(cx - half, y + half * 0.55), Vector2(cx, y),
+				Vector2(cx + half, y + half * 0.55)]), c, 5.0, true)
+			y += 44.0
+			k += 1
+
+# Strips of warm light along the two side walls, glowing softly onto the floor beside them.
+static func wall_lights(ci: CanvasItem, area: Rect2, glow: Texture2D) -> void:
+	var l: float = area.position.x
+	var r: float = l + area.size.x
+	var t: float = area.position.y
+	var b: float = t + area.size.y
+	for x: float in [l + 5.0, r - 5.0]:
+		var inward: float = 1.0 if x < (l + r) * 0.5 else -1.0
+		hgrad(ci, quad(Vector2(x, t + 40.0), Vector2(x + inward * 46.0, t + 40.0), Vector2(x + inward * 46.0, b - 40.0),
+			Vector2(x, b - 40.0)), Color(NEON.r, NEON.g, NEON.b, 0.07), Color(NEON.r, NEON.g, NEON.b, 0.0))
+		ci.draw_line(Vector2(x, t + 40.0), Vector2(x, b - 40.0), Color(NEON.r, NEON.g, NEON.b, 0.35), 3.0, true)
+		ci.draw_line(Vector2(x, t + 40.0), Vector2(x, b - 40.0), Color(1, 1, 1, 0.45), 1.0, true)
+
+# A basket's own light on the floor above it: a soft pool of its color, breathing slowly, so a ball's
+# color already points at its basket from across the arena.
+static func basket_pool(ci: CanvasItem, p: PackedVector2Array, col: Color, pulse: float, glow: Texture2D) -> void:
+	if glow == null or p.size() < 4:
+		return
+	var top_mid: Vector2 = (p[0] + p[1]) * 0.5
+	var w: float = (p[1].x - p[0].x) * 2.6
+	ci.draw_texture_rect(glow, Rect2(top_mid - Vector2(w * 0.5, w * 0.62), Vector2(w, w * 0.8)), false,
+		Color(col.r, col.g, col.b, 0.22 + 0.08 * pulse))
 
 # Dust in the light. Fourteen specks drifting down and swaying, positions derived from the clock
 # rather than stored, so it costs nothing to keep and cannot get out of step with anything. A still

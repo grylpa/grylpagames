@@ -19,4 +19,4 @@ grow_vertical = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 2
-color = Color(0, 0, 0, 0.6509804)
+color = Color(0, 0, 0, 0.88)

@@ -115,6 +115,14 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	# the physical sounds (devtools/make_action_sounds.py): a tool picked up, a tool pushing a ball, a
+	# ball off a side bumper, a new ball -- the game had only a right and a wrong
+	game.add_sound(self, "grab", preload("res://art/sounds/ptbits_grab.ogg"))
+	game.add_sound(self, "nudge", preload("res://art/sounds/ptbits_nudge.ogg"))
+	game.add_sound(self, "bump", preload("res://art/sounds/ptbits_bump.ogg"))
+	game.add_sound(self, "spawn", preload("res://art/sounds/ptbits_spawn.ogg"))
+	for vol: Array in [["grab", -6.0], ["nudge", -8.0], ["bump", -8.0], ["spawn", -10.0]]:
+		game.set_sound_volume(vol[0], vol[1])
 	if MainGlobals.is_mobile():
 		tool_radius = 54.0  # twice as big so a fingertip doesn't hide it
 		tool_bottom_gap = 90.0  # keep the loops clear of the (taller) mobile button bar
@@ -493,9 +501,14 @@ func _spawn_ball(force_color: int = -1, at_x: float = -1.0) -> void:
 		sx = clampf(at_x, min_x, max_x)
 	ball.global_position = Vector2(sx, play_top + ball_radius + 4.0)
 
+	# report contacts so a tool pushing the ball can be heard (_on_ball_touched)
+	ball.contact_monitor = true
+	ball.max_contacts_reported = 2
+	ball.body_entered.connect(_on_ball_touched.bind(ball))
 	add_child(ball)
 	_balls.append(ball)
 	spawned_count += 1
+	game.play_sound("spawn")
 	game.tutorial_notify("ball_spawned")   # no-op outside tutorial mode
 
 func _resolve_ball(ball: RigidBody2D, scored: bool) -> void:
@@ -717,7 +730,19 @@ func _grab_at(pos: Vector2) -> AnimatableBody2D:
 	return best
 
 # Single entry point for picking a tool up, so the tutorial notify covers touch and mouse alike.
+# A tool meeting a ball: a soft bonk, at most once every 150 ms per ball, so a ball resting against
+# a tool that is being dragged does not buzz.
+func _on_ball_touched(body: Node, ball: RigidBody2D) -> void:
+	if not (body is AnimatableBody2D) or not is_instance_valid(ball):
+		return
+	var last: int = int(ball.get_meta("touch_ms", -1000))
+	if game.game_time - last < 150:
+		return
+	ball.set_meta("touch_ms", game.game_time)
+	game.play_sound("nudge")
+
 func _begin_drag(t: AnimatableBody2D, idx: int, pos: Vector2) -> void:
+	game.play_sound("grab")
 	_dragging_tool = t
 	_drag_index = idx
 	_drag_target = pos
@@ -792,6 +817,8 @@ func _sense_bumper_hits() -> void:
 			var d: float = _dist_to_segment(b.global_position, tri[0], tri[1])
 			d = minf(d, _dist_to_segment(b.global_position, tri[1], tri[2]))
 			if d <= ball_radius + 3.0:
+				if _bumper_glow[i] < 0.5:
+					game.play_sound("bump")
 				_bumper_glow[i] = 1.0
 				break
 
@@ -814,6 +841,13 @@ func _draw() -> void:
 		_glow_tex = PtbitsG.glow_texture()
 
 	PtbitsArt.backdrop(self, area, _spawn_min_x, _spawn_max_x, _glow_tex)
+	PtbitsArt.floor_detail(self, area, _spawn_min_x, _spawn_max_x)
+	PtbitsArt.wall_lights(self, area, _glow_tex)
+	PtbitsArt.lane_guides(self, area, _basket_polys, COLORS, _art_t)
+	var pool_pulse: float = 0.5 + 0.5 * sin(_art_t * 0.9)
+	for i in num_colors:
+		if i < _basket_polys.size() and _basket_polys[i] is PackedVector2Array:
+			PtbitsArt.basket_pool(self, _basket_polys[i], COLORS[i], pool_pulse, _glow_tex)
 	PtbitsArt.motes(self, area, _art_t)
 	PtbitsArt.loss_zone(self, area, play_bottom - 30.0)
 	PtbitsArt.frame(self, area)

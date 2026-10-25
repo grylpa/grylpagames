@@ -7,7 +7,8 @@
 **Singleton:** `MovingCardsG`
 **Save key (short name):** `movingcards`
 **Initial time:** 5 minutes
-**Background color:** `0xFF8A5CFF` (warm orange)
+**Background:** a teal baize table inside a wooden rail (`scripts/felt.gdshader` on the Level's full-screen
+`TextureRect`, set up by `level.gd` `_dress_table()`); it was the flat orange image `art/bk3.jpg`
 
 Moving Cards is a card memory game. The player sees cards face-up for a configurable display time, then they flip face-down and move around the screen. The player must click them in the memorized order. All parameters (number of cards, rounds per level, movement style, speed, display time) are set per level in `level_config.gd`.
 
@@ -27,7 +28,8 @@ movingcards/
 │   ├── main.gd
 │   ├── level.gd
 │   ├── hud.gd
-│   └── card.gd
+│   ├── card.gd
+│   └── felt.gdshader     the table (slate-teal baize)
 └── scenes/
     ├── main.tscn
     ├── level.tscn
@@ -225,8 +227,26 @@ with dotted paths behind them for where they have glided.
 ## Sounds
 
 Made for this game by `devtools/make_answer_sounds.py` (see Witness's doc): `tap` a light card tap,
-`correct` a rising two-note chime, `wrong` a soft low note (all in `main.gd`), and one steady ambient
-loop (`movingcards_ambient.ogg`). They replaced a generic tap, an arcade coin, a swoosh and three stock
-ocean-wave loops. The background was left as it is: the cards are what is tracked.
+`correct` a rising two-note chime, `wrong` a soft low note (all in `main.gd`), and one ambient
+loop (`movingcards_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB: bossa nova at the card table -- nylon guitar, bass, shaker, vibes; it was a slow pad). They replaced a generic tap, an arcade coin, a swoosh and three stock
+ocean-wave loops.
 
-**Cards cast a soft shadow** (`card.gd` `_draw`, three faint offset rects under the 80x80 card), so they lie on the table rather than looking pasted on. The faces and backs are the stimulus and are untouched.
+**The table** (`felt.gdshader`): a slate-teal baize with a fine fiber texture, a soft overhead light
+and a darker edge. Low contrast and directionless on purpose -- the card backs are patterns (stripes,
+houndstooth) and part of the stimulus, so the table must not echo them. It replaced a flat orange image
+that the user found boring. Round it, a TABLE (the felt alone was "still boring"): a polished wooden
+rail with its grain along each side, lit on its inner edge and casting a shadow onto the felt, and a
+thin gold inlay line a little way in -- all at the edges, nothing patterned. The rail goes round what
+is SEEN: the rect runs past the screen, so `_dress_table` passes the visible part below the HUD strip
+(`HUD_STRIP`) as the shader's `table` rect.
+
+**The cards stay face up to be looked at.** After each correct tap that is not the last, the cards turn
+back 0.7 s later -- unless anything was tapped since or the round finished (`_tap_seq`). Checked only by
+round, a quick tap on the LAST card inside those 0.7 s let the earlier timer turn every card back over
+during the two seconds meant for looking at the right answer. The clue (`show_clue`) is guarded the same way.
+
+**Cards cast a soft shadow** (`card.gd` `_draw`): ONE pre-blurred 64x64 texture (`_make_shadow`, made
+once, shared) drawn filtered under the 80x80 card, so it lies on the table rather than looking pasted
+on. The first version stacked three hard-edged translucent rects; their edges snapped from pixel to
+pixel as a card moved at sub-pixel steps, and the moving card FLICKERED. The faces and backs are the
+stimulus and are untouched.

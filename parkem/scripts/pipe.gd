@@ -22,19 +22,21 @@ func _ready() -> void:
 	add_child(_kerb)
 	move_child(_kerb, $PipeImageRD.get_index() + 1)
 
-# The kerbs JOIN at every corner. Each closed side gets a strip (4.0 px) along its edge and a
-# shadow (5.0 px) falling onto the floor. Where two closed sides meet on one tile (a bend) the strips are
+# The kerbs JOIN at every corner. Each closed side gets a strip (1.5 px) along its edge and a
+# shadow (3.0 px) falling onto the floor. Where two closed sides meet on one tile (a bend) the strips are
 # MITERED -- each ends on the 45-degree diagonal -- so they meet without overlapping; where two open
 # sides meet but the tile across the corner is not floor (the inside corner of a junction or a bend
 # seen from outside), this tile draws the small corner piece that joins its two neighbors' strips,
-# with the lit edge and the shadow carried round it. Drawn first as plain full-length strips, they
+# with the lit edge and the shadow carried round it. Kept THIN and close to the surface's own
+# tone: at 4-8 px with a bright stone and a lit line they read as thick walls and distracted from
+# play (user, 2026-10-25). Drawn first as plain full-length strips, they
 # overlapped on bends and left a square hole at every inside corner.
 func _draw_kerb() -> void:
 	var t: float = 20.0
-	var cw: float = 4.0
-	var sh: float = 5.0
+	var cw: float = 1.5
+	var sh: float = 3.0
 	var stone: Color = Color(0.40, 0.40, 0.38)
-	var lit: Color = Color(0.58, 0.57, 0.53)
+	var lit: Color = Color(0.58, 0.57, 0.53, 0.5)
 	var shade: Color = Color(0, 0, 0, 0.32)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])

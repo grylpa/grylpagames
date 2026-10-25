@@ -99,6 +99,7 @@ func set_game(_game):
 	# for the games that need it most. One frame later, _ready has finished and the answer is real.
 	call_deferred("_maybe_add_tutorial_button")
 	_restyle()
+	_add_picture()
 	call_deferred("_ensure_full_width")
 
 # --- the look ---------------------------------------------------------------------------------
@@ -145,7 +146,76 @@ func _restyle() -> void:
 	if _pulse == null or not _pulse.is_valid():
 		_pulse = GameButton.pulse(%StartNewGameButton, ACCENT)
 
+# THE GAME'S ICON beside its name: its own chooser tile, small, at the top left and centered on the
+# title's line -- rounded (a rounded panel that clips its child), a thin gold hairline round it and a
+# soft shadow -- so each game's menu says which game this is at a glance instead of being the same
+# title-and-START page in every game. It sat above the options at first, which only fitted when the
+# menu had few rows; at the title it always has room. Skipped quietly when a game has no tile.
+var _picture: Control = null
+const PICTURE_MARGIN: float = 16.0
+
+func _add_picture() -> void:
+	if _picture != null or game == null:
+		return
+	var path: String = "res://%s/art/game_screen_200.png" % str(game.file_names_prefix)
+	if not ResourceLoader.exists(path):
+		return
+	var clip: Panel = Panel.new()
+	var round_sb: StyleBoxFlat = StyleBoxFlat.new()
+	round_sb.bg_color = Color(0, 0, 0, 1)
+	round_sb.set_corner_radius_all(12)
+	round_sb.shadow_color = Color(0, 0, 0, 0.5)
+	round_sb.shadow_size = 10
+	round_sb.shadow_offset = Vector2(0, 4)
+	round_sb.anti_aliasing = true
+	clip.add_theme_stylebox_override("panel", round_sb)
+	clip.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var img: TextureRect = TextureRect.new()
+	img.texture = load(path)
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	img.set_anchors_preset(Control.PRESET_FULL_RECT)
+	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip.add_child(img)
+	var rim: Panel = Panel.new()
+	var rim_sb: StyleBoxFlat = StyleBoxFlat.new()
+	rim_sb.bg_color = Color(0, 0, 0, 0)
+	rim_sb.set_corner_radius_all(12)
+	rim_sb.set_border_width_all(2)
+	rim_sb.border_color = Color(ACCENT, 0.65)
+	rim_sb.anti_aliasing = true
+	rim.add_theme_stylebox_override("panel", rim_sb)
+	rim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip.add_child(rim)
+	$ColorRect.add_child(clip)
+	_picture = clip
+	_fit_picture.call_deferred()
+
+# Placed against the title every frame the menu is shown (the title's size settles a frame or two
+# after it is set, and a phone rotates): as tall as about one and a half title lines, its middle on
+# the title's middle. It shrinks rather than touch a long centered title, and hides below 32 px.
+func _fit_picture() -> void:
+	if _picture == null or not is_instance_valid(_picture):
+		return
+	var tr: Rect2 = %Title.get_global_rect()
+	var title_h: float = float(%Title.get_theme_font_size("font_size")) * 1.5
+	var side: float = clampf(title_h, 40.0, MainGlobals.ui_font_size(64))
+	var host: Control = $ColorRect
+	var origin: Vector2 = host.get_global_rect().position
+	# the title's TEXT, not its label (which may span the screen): measured from its font
+	var text_w: float = %Title.get_theme_font("font").get_string_size(%Title.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+		%Title.get_theme_font_size("font_size")).x
+	var text_left: float = tr.position.x + (tr.size.x - text_w) * 0.5
+	side = minf(side, text_left - origin.x - PICTURE_MARGIN * 2.0)
+	_picture.visible = side >= 32.0
+	_picture.size = Vector2(side, side)
+	_picture.global_position = Vector2(origin.x + PICTURE_MARGIN, tr.get_center().y - side * 0.5)
+
 func _process(delta: float) -> void:
+	if _picture != null and visible:
+		_fit_picture()
 	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
 		_bg_t += delta
 		_bg.queue_redraw()

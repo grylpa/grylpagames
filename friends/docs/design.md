@@ -20,13 +20,14 @@ pool dino and couples draw on.
 friends/
 ├── art/
 │   ├── game_screen_200.png     chooser thumbnail
-│   ├── grass.png               level background
+│   ├── grass.png               (unused: the background is dusk.gdshader)
 │   └── zig1.png
 ├── docs/design.md              this file
 ├── scenes/
 │   ├── main.tscn               Main (Node) — Level, HUD, GameTick, Help
 │   └── level.tscn              Level (CanvasLayer) — board, buttons, captions
 └── scripts/
+    ├── dusk.gdshader           the evening backdrop
     ├── globals.gd              autoloaded as FriendsG
     ├── level_config.gd         FriendsLevelConfig — LEVELS
     ├── level.gd                the game
@@ -43,7 +44,7 @@ animation sets `new_person_card.scale` directly.
 
 | Node | Role |
 |------|------|
-| `TextureRect` | grass background |
+| `TextureRect` | holds the dusk backdrop (`dusk.gdshader` on a child `ColorRect`) |
 | `ReadyButton` | "I have memorized them" — ends the study phase early |
 | `HBoxContainer` | the two answer buttons: `SayHiButton`, `IgnoreButton` |
 | `Instructions` | the line above the board; changes with the mode |
@@ -239,11 +240,25 @@ returns for good when the mode has changed or the level is over.
 
 ## The look
 
-`_apply_look()`, called from `_ready()`. The board's ground is the drawn backdrop the rest of the
-app uses (`scripts/screen_backdrop.gd`) in this game's own green, in place of the tiled
-`friends/art/grass.png`; the answer buttons and the Ready button are `GameButton` (Say Hi filled,
-Ignore a ghost — the same weight relationship the confirmation dialog uses); the instruction and
-reaction labels take the app's prose font.
+`_apply_look()`, called from `_ready()`. Everything was redone on the user's request ("better visuals,
+background, buttons, messages, everything"):
+
+- **The evening** (`scripts/dusk.gdshader`, on a `ColorRect` inside the Level's `TextureRect`): dusk,
+  deep indigo at the top warming to plum and a low amber glow, with three layers of soft out-of-focus
+  lights drifting slowly, thickest toward the bottom like a lit street, and a vignette. Kept dark so
+  the photos are the brightest things on screen; it matches the evening-stroll ambient. It replaced
+  the shared green backdrop (`ScreenBackdrop`), which had replaced a tiled `grass.png`.
+- **The cards are printed photos** (the shared card's `set_photo(true)`): a warm white frame with a
+  soft shadow and the name in dark ink on the frame's bottom margin, in place of the zigzag border and
+  yellow name bar. The friends shown at the start are each tilted a few degrees (`randf_range(-3.5,
+  3.5)`), laid on the table by hand; the arriving stranger stands straight.
+- **Raised buttons** (`_style_button`, the game's own): a darker lip along the bottom, a soft
+  shadow, a gloss across the top half; pressed, they sink. Say Hi a warm green, Ignore a muted plum,
+  Ready a warm gold with dark text.
+- **The friend's reply is a speech bubble** (`CorrectText` green, `WrongText` plum): rounded, with a
+  shadow, inset 70 px from each side -- it was a full-width bar in bright green or red with a yellow
+  border.
+- The instruction caption is a warm cream with a soft shadow.
 
 ## What this game measures
 
@@ -284,5 +299,5 @@ Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it 
 for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
 "shown" sound). Names in code kept: `dispatch` = the target appearing (a soft step and a small chime), `delivery` = a right
 answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
-one STEADY loop (`friends_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+one STEADY loop (`friends_ambient.ogg`: an EVENING STROLL -- a far town murmur, cars passing now and then, a mellow horn far off, blackbirds answering across the street, a breeze in the leaves; made by `devtools/make_ambient_sounds.py`. It was a pad on hiss, which the user found bad). They replaced a heavy bell, an
 arcade coin, a swoosh and three stock ocean-wave loops picked at random.

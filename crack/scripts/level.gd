@@ -500,11 +500,12 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var bezel_r: float = dial_r + 18.0
 
 	# OPEN IS UNMISSABLE: the whole dial goes green (as it did before the metal look -- a lamp and a
-	# faint halo alone were not enough), a broad green glow round it, and a green ring in the bezel.
+	# faint halo alone were not enough), a green glow hugging the bezel, and a green ring in it. The
+	# glow stays within 16 px of the bezel: at 42 px it spread over the labels above the dial.
 	if op:
 		for k in 8:
-			canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 8.0 + 34.0 * (1.0 - float(k) / 8.0),
-				Color(0.30, 0.95, 0.45, 0.07), true, -1.0, true)
+			canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 4.0 + 12.0 * (1.0 - float(k) / 8.0),
+				Color(0.30, 0.95, 0.45, 0.10), true, -1.0, true)
 	canvas.draw_circle(Vector2(dcx + 4.0, dcy + 7.0), bezel_r + 9.0, Color(0, 0, 0, 0.45), true, -1.0, true)
 	# the bezel: chrome, its rings dark and light so it reads as a turned metal ring
 	var rings: Array = [[8.0, CHROME_LO], [5.5, CHROME_HI], [3.0, CHROME_MID], [0.5, CHROME_LO]]

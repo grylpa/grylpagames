@@ -318,4 +318,12 @@ and a letter of dots were tried on the way.
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a bell chime for right, a soft low bell note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
 
-**The table is felt** (`felt.gdshader` -- this game's own copy of Change's -- on a full-screen ColorRect in a CanvasLayer at -10, added in `main.gd`), in the old clear color's green. Only the surround changed: the panels are the stimulus.
+**The table is felt** (`felt.gdshader` -- this game's own copy of Change's -- on a full-screen ColorRect in a CanvasLayer at -10, added in `main.gd`), in the old clear color's green.
+
+**The panels' FORM, not their colors** (`level.gd` `_apply_layout`): the panel, letter and dot colors are
+set per level and are part of the stimulus, so they are untouched. The dots panel is rounded (16) with
+a soft shadow (`_style_panel`); the options are RAISED tiles -- a darker lip along the bottom in the
+panel's own color, a shadow, sinking into the lip when pressed. The two holder `PanelContainer`s draw
+nothing (their default pale frame sat round the panels like a mat), the dots are anti-aliased (same
+size and color), and the floating feedback ("+N", "-> K") has a thick dark outline so it reads over a
+panel of any color -- red on a red panel was invisible.

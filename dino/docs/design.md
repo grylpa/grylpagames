@@ -234,7 +234,18 @@ The task signature stores `source`, so faces and dinosaurs are never pooled: the
 
 The Recall tab is always present. It needs 3 sessions and at least two lag groups with 4+ repeats each before it draws; until then it says how many sessions are left.
 
+## The answer buttons
+
+`level.gd` `_make_button` draws them RAISED: a darker lip along the bottom (7 px), a soft drop shadow,
+a pale gloss across the top half (a child `Panel` that ignores the mouse) and a dark outline on the
+label; pressed, the button sinks into its lip (2 px). The gloss stays put: a child that follows
+`button_down` falls out of step when the pointer is dragged off a held button (see `GameButton`).
+Disabled, they fade
+to 40%. They were flat rounded rectangles.
+
 ## Sounds
+
+An ambient (`dino_ambient.ogg`, `devtools/make_ambient_sounds.py`: a JUNGLE -- insects, tropical birds, a creek, a big animal calling far off, a soft marimba; it was a slow pad of drifting chords) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu (`show_main_menu`). The game had no ambient before.
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a marimba chime for right, a soft low marimba note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

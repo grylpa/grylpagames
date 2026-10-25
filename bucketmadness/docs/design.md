@@ -517,6 +517,11 @@ above rather than being a hole, a shadow under that lip so the throat recedes, a
 edge that catches the light — so the chute visibly DELIVERS into the row of containers instead of
 merely stopping above them.
 
+The lip and its shadow are drawn OVER the falling item: they live on their own child of the chute
+(`ChuteView._mouth`, `z_index` 20), so an item slides out from under the top edge into the light. They
+were part of the chute's own drawing, under everything, and a sliding item covered them. (%FallArea
+clips at the mouth, so above the lip the item is hidden.)
+
 ## "complete!" only when it was
 
 This game can END a level without PASSING it, so `show_level_done_popup` is called with the gate
@@ -617,6 +622,8 @@ old tile was a screen grab. It is now the game in one picture: a blue star falli
 three pails (red, blue, green, from `Sleek.PALETTE`), the blue one lit.
 
 ## Sounds
+
+A FACTORY ambient (`bucketmadness_ambient.ogg`, `devtools/make_ambient_sounds.py`: a motor's hum, conveyor rollers ticking, now and then a hiss of air, a servo, a far clank, and things rattling down a chute) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu. Its right/wrong sounds were inaudible until the shared registry stopped using positional players (see `scripts/generic_game_util.gd` `add_sound`).
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

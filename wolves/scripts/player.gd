@@ -41,6 +41,15 @@ func _ready() -> void:
 	z_index = 10
 	$Head.z_index = z_index
 	isready = true
+	# the dog is DRAWN (beast_art.gd: a border collie, in the sheep's flat style) under the head node, whose own
+	# sprite -- the generic blob, tinted blue -- is made invisible
+	_art = preload("res://wolves/scripts/beast_art.gd").new()
+	_art.set("kind", "dog")
+	$Head.self_modulate = Color(1, 1, 1, 0)
+	$Head.modulate = Color(1, 1, 1, 1)
+	$Head.add_child(_art)
+
+var _art: Node2D = null
 
 func play():
 	# $Head.play("PlayerHeadEyes")
@@ -53,7 +62,7 @@ func reset():
 
 func set_color(_color):
 	color = _color
-	$Head.set_modulate(color)
+	$Head.set_modulate(color if _art == null else Color(1, 1, 1, 1))
 
 func set_pos(p, dir):
 	direction = dir

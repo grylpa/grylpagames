@@ -73,19 +73,25 @@ var in_answring_mode := false
 @export var player_scene: PackedScene = load("res://mmm/scenes/player.tscn")
 
 # SOUNDS made for this game (devtools/make_mmm_sounds.py). The names in code are the old ones:
-# `motor` is the castle halls' ambience (it was a car engine, registered and never played -- it now
-# plays from the round's start), `feet` footsteps on stone (they were on grass), `delivery` a coin
+# `motor` is the castle's ambience -- wind moaning in the corridors, torches crackling, a drip, a
+# chain, a harp phrase far off (devtools/make_ambient_sounds.py; it was a car engine, then a noise
+# bed). It starts with the first round and plays on between rounds until the main menu. `feet` footsteps on stone (they were on grass), `delivery` a coin
 # picked up, `right` a room named right (it shared the coin's sound), `gaveup` a room named wrong,
-# `swoosh` the shimmer as the floor plan opens out, `explosion` a muffled boom when a hazard catches
-# you (it was a car crash), `start` a heavy door closing behind you. `dispatch` is never played.
+# `swoosh` the shimmer as the floor plan opens out, `explosion` an explosion when a hazard catches
+# you (it was a car crash, then a muffled boom), `start` a heavy door closing behind you. `dispatch` is never played.
 var explosion_audio := preload("res://art/sounds/mmm_hit.ogg")
-var motor_audio := preload("res://art/sounds/mmm_halls.ogg")
+var motor_audio := preload("res://art/sounds/mmm_ambient.ogg")
 var feet_audio := preload("res://art/sounds/mmm_steps.ogg")
 var delivered_audio := preload("res://art/sounds/mmm_coin.ogg")
 var right_audio := preload("res://art/sounds/mmm_right.ogg")
 var start_audio := preload("res://art/sounds/mmm_start.ogg")
 var swoosh_audio := preload("res://art/sounds/mmm_reveal.ogg")
 var gaveup_audio := preload("res://art/sounds/mmm_wrong.ogg")
+# the castle's hazards can be HEARD: a fuse fizzing near a bomb, a monster's growl near a moving one,
+# each louder the closer the nearest one is (_hazard_sounds; devtools/make_ambient_sounds.py)
+var fuse_audio := preload("res://art/sounds/mmm_fuse_ambient.ogg")
+var enemy_audio := preload("res://art/sounds/mmm_enemy_ambient.ogg")
+const HAZARD_HEAR_TILES: float = 4.0
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -117,9 +123,11 @@ func _ready() -> void:
 	game.add_sound(self, "start", start_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
 	game.add_sound(self, "right", right_audio)
-	for vol: Array in [["motor", -9.0], ["feet", 2.0], ["delivery", -4.0], ["right", -3.0], ["swoosh", -3.0]]:
+	for vol: Array in [["motor", -7.0], ["feet", 2.0], ["delivery", -4.0], ["right", -3.0], ["swoosh", -3.0]]:
 		game.set_sound_volume(vol[0], vol[1])
 	game.add_sound(self, "gaveup", gaveup_audio)	
+	game.add_sound(self, "fuse", fuse_audio, true)
+	game.add_sound(self, "enemy", enemy_audio, true)
 
 	MAX_COLORS_TO_USE = min(MAX_COLORS_TO_USE, game.colors.size())
 	# Each round card is followed through its OWN `closed` signal (level_is_done, _finish_level). The
@@ -284,6 +292,31 @@ func _process(delta: float) -> void:
 		if time_to_hide > 0 and MainGlobals.timems() >= time_to_hide:
 			_start_playing()
 		check_agent_collisions()
+	_hazard_sounds()
+
+# The nearest bomb and the nearest moving monster each set the loudness of their own loop: silent
+# beyond HAZARD_HEAR_TILES, full when touching. Only once the round is really being played (after the
+# lights go down), never in the tutorial castle (which has no hazards anyway).
+func _hazard_sounds() -> void:
+	var live: bool = player != null and not player.was_hit and game.playing and not game.paused() \
+			and game.level_is_ready and not game.level_is_done and not play_start_sound
+	var near: Array = [INF, INF]                    # [bomb, monster], in tiles
+	if live:
+		for a in agents:
+			if a.was_hit or a.arrived:
+				continue
+			var d: float = (a.position - player.position).length() / float(game.tile_size)
+			var k: int = 0 if a.agent_type == 0 else 1
+			near[k] = minf(near[k], d)
+	var names: Array = ["fuse", "enemy"]
+	for k in 2:
+		var closeness: float = clampf(1.0 - float(near[k]) / HAZARD_HEAR_TILES, 0.0, 1.0)
+		if closeness <= 0.0:
+			if game.is_sound_playing(names[k]):
+				game.stop_sound(names[k])
+			continue
+		game.set_sound_volume(names[k], lerpf(-30.0, -4.0, closeness))
+		game.play_sound(names[k], false)
 	
 func add_pipe(p, room_id := -1):
 	if board[p.y][p.x].ispipe:
@@ -1677,7 +1710,8 @@ func _on_game_popup_closed():
 func level_is_done(didwin: bool):
 	last_level_was_a_win = didwin
 	game.level_is_done = true
-	game.stop_sound("motor")
+	# the halls play on between rounds (stopping them here was a gap at every round); main.gd stops
+	# them at the main menu
 	game.stop_sound("feet")
 	BE.send_event("level_done", "Mmm", {
 		"level": level,

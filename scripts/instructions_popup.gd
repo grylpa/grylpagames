@@ -86,6 +86,159 @@ const ICON_PAD: float = 8.0
 
 func set_text(text):
 	%Text.text = text
+	_build_steps(str(text))
+
+# THE TEXT IS SET, NOT DUMPED. Numbered "1. ... 2. ..." lines become STEPS -- a gold number badge
+# and the line beside it, wrapping under itself -- with what comes before the list as a lead
+# paragraph (%Text) and what follows it as a closing one. Any other text is set as PARAGRAPHS: the
+# first is the lead, a step larger and brighter, and each one after it gets a small gold marker. Set
+# as one block of text the steps ran together into a wall, and a short text sat at the top of a
+# full-height empty card; the card now fits its text (_fit_card) and stands centered.
+# %Text then shows only the lead; the whole string is kept in its "full_text" meta (set_font_size
+# rebuilds the body from it at the new size).
+var _steps_box: VBoxContainer = null
+var _tail_label: Label = null
+const BODY_INK: Color = Color(0.929, 0.941, 0.969)
+const LEAD_INK: Color = Color(1.0, 0.97, 0.90)
+
+func _ensure_wrap() -> void:
+	if _steps_box != null:
+		return
+	var scroll: ScrollContainer = %Text.get_parent() as ScrollContainer
+	var wrap: VBoxContainer = VBoxContainer.new()
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_theme_constant_override("separation", 14)
+	scroll.add_child(wrap)
+	%Text.reparent(wrap)
+	%Text.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_steps_box = VBoxContainer.new()
+	_steps_box.add_theme_constant_override("separation", 12)
+	wrap.add_child(_steps_box)
+	_tail_label = Label.new()
+	_tail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tail_label.add_theme_font_override("font", MainGlobals.get_text_font())
+	_tail_label.add_theme_color_override("font_color", Color(0.80, 0.82, 0.88))
+	wrap.add_child(_tail_label)
+	wrap.resized.connect(func() -> void: _fit_card.call_deferred())
+
+func _body_label(text: String, fs: int, ink: Color) -> Label:
+	var body: Label = Label.new()
+	body.text = text
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_font_override("font", MainGlobals.get_text_font())
+	body.add_theme_font_size_override("font_size", fs)
+	body.add_theme_color_override("font_color", ink)
+	return body
+
+func _build_steps(text: String) -> void:
+	var rx: RegEx = RegEx.new()
+	rx.compile("^\\s*(\\d+)[.)]\\s+(.*)$")
+	var lead: Array = []
+	var steps: Array = []        # [number, text]
+	var tail: Array = []
+	for line: String in text.split("\n"):
+		var m: RegExMatch = rx.search(line)
+		if m != null:
+			for t: String in tail:          # a loose line between steps belongs to the step above
+				if not steps.is_empty():
+					steps[-1][1] = str(steps[-1][1]) + " " + t
+			tail.clear()
+			steps.append([m.get_string(1), m.get_string(2)])
+		elif steps.is_empty():
+			lead.append(line)
+		elif line.strip_edges() != "":
+			tail.append(line)
+	_ensure_wrap()
+	for c: Node in _steps_box.get_children():
+		c.queue_free()
+	# the body size, kept apart from %Text's own (the lead is set a step larger than it)
+	if not %Text.has_meta("base_fs"):
+		%Text.set_meta("base_fs", %Text.get_theme_font_size("font_size"))
+	var fs: int = int(%Text.get_meta("base_fs"))
+	%Text.add_theme_font_size_override("font_size", fs)
+	%Text.set_meta("full_text", text)
+	if steps.size() < 2:
+		_build_paragraphs(text, fs)
+		return
+	var lead_text: String = "\n".join(lead).strip_edges()
+	%Text.visible = lead_text != ""
+	%Text.text = lead_text
+	%Text.add_theme_color_override("font_color", LEAD_INK)
+	_tail_label.text = "\n".join(tail).strip_edges()
+	_tail_label.visible = _tail_label.text != ""
+	_tail_label.add_theme_font_size_override("font_size", fs)
+	for st: Array in steps:
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		var badge: PanelContainer = PanelContainer.new()
+		var bs: StyleBoxFlat = StyleBoxFlat.new()
+		bs.bg_color = ScreenBackdrop.ACCENT
+		bs.set_corner_radius_all(999)
+		bs.anti_aliasing = true
+		badge.add_theme_stylebox_override("panel", bs)
+		var side: float = float(fs) * 1.45
+		badge.custom_minimum_size = Vector2(side, side)
+		badge.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		var num: Label = Label.new()
+		num.text = str(st[0])
+		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		num.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		num.add_theme_font_override("font", MainGlobals.get_text_font())
+		num.add_theme_font_size_override("font_size", int(float(fs) * 0.8))
+		num.add_theme_color_override("font_color", ResultCard.HEADER_INK)
+		badge.add_child(num)
+		row.add_child(badge)
+		row.add_child(_body_label(str(st[1]), fs, BODY_INK))
+		_steps_box.add_child(row)
+
+# Paragraphs (split on blank lines): the first is the lead, in %Text, a step larger; each of the
+# others is a row with a small gold marker level with its first line.
+func _build_paragraphs(text: String, fs: int) -> void:
+	var paras: Array = []
+	for para: String in text.split("\n\n"):
+		var t: String = para.strip_edges()
+		if t != "":
+			paras.append(t)
+	if paras.is_empty():
+		return
+	%Text.visible = true
+	%Text.text = str(paras[0])
+	%Text.add_theme_color_override("font_color", LEAD_INK)
+	%Text.add_theme_font_size_override("font_size", int(round(float(fs) * 1.08)))
+	_tail_label.visible = false
+	for k in range(1, paras.size()):
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", int(float(fs) * 0.6))
+		var mark: Control = Control.new()
+		var line_h: float = float(fs) * 1.4
+		mark.custom_minimum_size = Vector2(float(fs) * 0.5, line_h)
+		mark.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		var r: float = maxf(3.0, float(fs) * 0.17)
+		mark.draw.connect(func() -> void:
+			mark.draw_circle(Vector2(mark.size.x * 0.5, line_h * 0.55), r, ScreenBackdrop.ACCENT, true, -1.0, true))
+		row.add_child(mark)
+		row.add_child(_body_label(str(paras[k]), fs, BODY_INK))
+		_steps_box.add_child(row)
+
+# The card is as tall as its text and centered in the space it has; a text taller than that space
+# fills it and scrolls, as before.
+func _fit_card() -> void:
+	var scroll: ScrollContainer = %Text.get_parent().get_parent() as ScrollContainer
+	if scroll == null:
+		return
+	var frame: PanelContainer = scroll.get_parent() as PanelContainer
+	var holder: Control = frame.get_parent() as Control
+	var sb: StyleBox = frame.get_theme_stylebox("panel")
+	var pad: float = sb.get_minimum_size().y if sb != null else 0.0
+	var room: float = holder.size.y - float(holder.get_theme_constant("margin_bottom")) - pad
+	var content: float = (%Text.get_parent() as Control).get_combined_minimum_size().y
+	if content + 2.0 < room:
+		scroll.custom_minimum_size.y = content + 2.0
+		frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	else:
+		scroll.custom_minimum_size.y = 0.0
+		frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 func _on_x_close_scene_button_pressed() -> void:
 	close_window()
@@ -299,6 +452,18 @@ func add_close_button() -> void:
 	_close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_close_btn.pressed.connect(close_window)
 	_style_footer_button(_close_btn)
+	# FILLED, in the app's gold: it is what nearly every player presses here, so it is the one
+	# button with weight -- the tutorial offer beside it stays an outline
+	for state: String in ["normal", "hover", "pressed", "focus"]:
+		var sb: StyleBoxFlat = (_close_btn.get_theme_stylebox(state) as StyleBoxFlat).duplicate() as StyleBoxFlat
+		sb.bg_color = ScreenBackdrop.ACCENT.darkened(0.14) if state == "pressed" \
+			else (ScreenBackdrop.ACCENT.lightened(0.08) if state == "hover" else ScreenBackdrop.ACCENT)
+		sb.border_color = sb.bg_color
+		sb.content_margin_left = 26.0
+		sb.content_margin_right = 26.0
+		_close_btn.add_theme_stylebox_override(state, sb)
+	for c: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		_close_btn.add_theme_color_override(c, ResultCard.HEADER_INK)
 	_footer_row().add_child(_close_btn)
 	_layout_footer()
 
@@ -342,6 +507,9 @@ func set_font_size(_font_size: int):
 	# Desktop size in, mobile scaling out — the same rule as everywhere else in the app. The seven
 	# hand-written pairs were doing 22 -> 36 by hand, which is 1.64 against the 1.6 this applies.
 	MainGlobals.set_font_size(%Text, _font_size if _font_size > 0 else DEFAULT_TEXT_SIZE)
+	%Text.set_meta("base_fs", %Text.get_theme_font_size("font_size"))
+	if %Text.has_meta("full_text"):
+		_build_steps(str(%Text.get_meta("full_text")))
 
 func _on_background_panel_gui_input(_event: InputEvent) -> void:
 	pass

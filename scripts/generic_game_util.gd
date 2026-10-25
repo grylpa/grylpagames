@@ -28,7 +28,14 @@ var _tutorial_snapshot: Dictionary = {}
 var tutorial_runner = null
 var sounds = {}
 var sounds_resource_list = {}
-var in_focus := true
+# Every way a game marks focus lost or regained -- through handle_event, or (a dozen games) by
+# setting this directly from their own input handler -- goes through the setter, so the looping
+# sounds are always brought back (_on_focus_sound).
+var in_focus: bool = true:
+	set(v):
+		if v != in_focus:
+			in_focus = v
+			_on_focus_sound(v)
 var corrects := 0
 var mistakes := 0
 var show_scores_level := false
@@ -1597,6 +1604,7 @@ func show_level_done_popup(parent, title, text, level_id=0, text_add="", passed=
 			text += "\nTime left: %s" % time_left_str()
 	text += text_add
 	sig_card_shown.emit()
+	_card_sound(parent, "ui_level_done" if passed else "ui_level_failed")
 	var ldp = level_done_popup_scene.instantiate()
 	parent.add_child(ldp)
 	# Before set_title: the card is built on the first of these calls, and whether the level was
@@ -1607,6 +1615,24 @@ func show_level_done_popup(parent, title, text, level_id=0, text_add="", passed=
 	# Returned so a caller can wait for THIS card (its `closed` signal) rather than for any card.
 	return ldp
 
+# THE CARDS HAVE SOUNDS (devtools/make_ui_sounds.py): a rising fanfare for a level complete, two soft
+# falling notes for a level not passed or a round lost, three descending notes over a low tone for the
+# game over, a soft chime for a round won. Through the registry like every other sound, so mute and
+# stop_all_sounds cover them. The cards used to appear in silence in every game.
+const UI_SOUNDS: Dictionary = {
+	"ui_level_done": preload("res://art/sounds/ui_level_done.ogg"),
+	"ui_level_failed": preload("res://art/sounds/ui_level_failed.ogg"),
+	"ui_game_over": preload("res://art/sounds/ui_game_over.ogg"),
+	"ui_card": preload("res://art/sounds/ui_card.ogg"),
+}
+
+func _card_sound(parent, key: String) -> void:
+	if parent == null or not (parent is Node) or not parent.is_inside_tree() or tutorial_mode:
+		return
+	add_sound(parent, key, UI_SOUNDS[key])
+	set_sound_volume(key, -5.0)
+	play_sound(key)
+
 func show_game_popup(parent, title, text, text_add=""):
 	if title == null:
 		title = ""
@@ -1614,6 +1640,12 @@ func show_game_popup(parent, title, text, text_add=""):
 		text = ""
 	text += text_add
 	sig_card_shown.emit()
+	# a sound for news, none for a briefing ("Level 3"), which comes before nearly every round
+	match ResultCard.tone_for(str(title)):
+		ResultCard.Tone.WIN:
+			_card_sound(parent, "ui_card")
+		ResultCard.Tone.LOSS:
+			_card_sound(parent, "ui_game_over" if str(title).to_lower().contains("game over") else "ui_level_failed")
 	var ldp = game_popup_scene.instantiate()
 	parent.add_child(ldp)
 	ldp.set_title(title)
@@ -1637,6 +1669,16 @@ func time_left_str():
 	var s:int = time_left_sec - h * 3600 - m * 60
 	return "%02d:%02d:%02d" % [h,m,s]
 
+# Every sound is a PLAIN AudioStreamPlayer, not positional. They were AudioStreamPlayer2Ds parented
+# wherever add_sound was called, so their loudness depended on how far that node's origin was from
+# the camera: in the games that pan and zoom (Mind Palace, Storm, Gorilla, Headlights...) an
+# ambient loop faded, panned, and fell silent past max_distance -- the "pauses" in the ambient. No
+# game placed a sound anywhere on purpose.
+#
+# LOOPING is set on EVERY stream the name can play: each one of a list (play_sound picks among them
+# at random), and on a re-registration too. It used to be set once, on the stream picked at the first
+# call, so a list's other tracks -- and the new track when a game re-registered a name with a
+# reshuffled list -- played once and stopped, leaving silence until the next level.
 func add_sound(parent, _name, _resource_or_list, _loop := false):
 	var _resource
 	if _resource_or_list is Array:
@@ -1646,22 +1688,27 @@ func add_sound(parent, _name, _resource_or_list, _loop := false):
 	else:
 		_resource = _resource_or_list
 		sounds_resource_list.erase(_name)
+	if _loop:
+		for res in (_resource_or_list if _resource_or_list is Array else [_resource_or_list]):
+			_set_looping(res)
 
 	var s_exist = sounds.get(_name,null)
-	if s_exist != null:
+	# a player left behind by a game scene that has since been freed does not count
+	if s_exist != null and is_instance_valid(s_exist):
 		s_exist.stream = _resource
 		return
-	var s = AudioStreamPlayer2D.new()
+	var s = AudioStreamPlayer.new()
 	parent.add_child(s)
 	s.stream = _resource
-	if _loop:
-		if _resource is AudioStreamWAV:
-			_resource.loop_mode = AudioStreamWAV.LOOP_FORWARD
-			_resource.loop_begin = 0
-			_resource.loop_end = int(_resource.get_length() * _resource.mix_rate)
-		else:
-			_resource.loop = true
 	sounds[_name] = s
+
+func _set_looping(res) -> void:
+	if res is AudioStreamWAV:
+		res.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		res.loop_begin = 0
+		res.loop_end = int(res.get_length() * res.mix_rate)
+	elif res is AudioStreamOggVorbis or res is AudioStreamMP3:
+		res.loop = true
 
 func play_sound(_name, from_start := true):
 	var _resource_list = sounds_resource_list.get(_name, [])
@@ -1739,7 +1786,27 @@ func pause(_set_pause: bool):
 
 func _on_changed_focus(_gained_focus: bool):
 	in_focus = _gained_focus
-	# print("Focus changed: " + str(in_focus))
+
+# EVERY SOUND PAUSES WITH THE FOCUS AND COMES BACK WITH IT. On losing focus each playing sound is
+# paused where it is (stream_paused); on regaining it the same ones resume from there. Leaving the
+# window (or the app, on a phone) used to leave an ambient loop either playing on over whatever the
+# player switched to, or silent for the rest of the session (Mind Palace): most games start their loop
+# once, at the start of a level, and nothing restarted it.
+var _paused_at_focus_out: Array = []
+
+func _on_focus_sound(gained: bool) -> void:
+	if not gained:
+		_paused_at_focus_out.clear()
+		for key: String in sounds:
+			if is_sound_playing(key) and not sounds[key].stream_paused:
+				sounds[key].stream_paused = true
+				_paused_at_focus_out.append(key)
+		return
+	for key: String in _paused_at_focus_out:
+		var s: Node = sounds.get(key, null)
+		if s != null and is_instance_valid(s):
+			s.set("stream_paused", false)
+	_paused_at_focus_out.clear()
 
 func show_yesno_dlg(parent, title, text, ok_text, cancel_text, ok_func, cancel_func):
 	var dlg = conformation_dlg.instantiate()
