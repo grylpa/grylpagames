@@ -103,7 +103,6 @@ const HEAD_CAP_STEPS: int = 10       # resolution of the rounded snout and neck 
 # outline puts a ring ON the body wherever the head overlaps it — which is what made the head read
 # as a separate disc rotating over an unrelated body.
 const HEAD_HALO_FADE: float = 0.55   # share of the length over which the halo fades out
-const HEAD_STRIPE_FROM: float = 0.42 # dorsal stripe starts this far back from the nose
 const HEAD_BACK_W: float = 0.80      # how far behind the head point the head's fill reaches, body widths (far enough
                                      # that the head tapers into the neck instead of ending in a square cut)
 
@@ -181,13 +180,7 @@ const CHILD_START_DROP: float = 60.0 # child starts this far below the mother's 
 const CHILD_START_LEN_PX: float = 120.0    # visible tail the moment a session starts
 const CHILD_GROW_PX_PER_MS: float = 0.011  # ~40 s from there to filling the screen
 
-# Skin pattern. Both parts are drawn on the IDENTICAL path as the body, so their joints behave
-# exactly as the body's do — no normals, no offsets, no UVs. That is the whole point: every
-# previous attempt at skin failed at the turns because it needed one of those three.
-const BAND_PX: float = 12.0          # spacing of the dark bands along the body
-const BAND_DARK: float = 0.82        # how dark a band gets, as a multiplier
-const BAND_MAX: int = 220            # cap on bands (the gradient stays a sane size); at 56 the rest of the long
-                                     # mother past the 56th band was one flat dark brown, "the end of a pipe"
+# (The skin is a texture now, _build_skin; the crossband constants are gone.)
 const TAIL_SOLID: float = 0.82       # gradient offset at which the tail dissolve begins
 # Slither: a lateral undulation traveling down the body toward the tail.
 #
@@ -211,15 +204,10 @@ const SLITHER_RAMP_W: float = 3.5    # body widths behind the head before it eas
 const STRIPE_W: float = 0.20         # dorsal sheen width, as a share of body width
 const STRIPE_LIGHT: float = 0.40     # (kept for the thumbnail script, which mirrors these)
 # THE SPINE IS A SHEEN, not a stripe: sunlight along the top of a round body -- warm white and
-# faint, a plain line on the same path (no texture: see "NO TEXTURE" where the lines are made).
+# faint, a plain line on the same path. (No longer drawn: the skin texture's scales are the back.)
 # Drawn as an opaque lighter line it came out a flat gray strip down the middle of every body,
 # which read as a cable inside a tube.
 const SHEEN: Color = Color(1.0, 0.96, 0.86, 0.16)
-# Crossbands hold their color and turn over BAND_EDGE of each half period. A plain alternation of
-# stops interpolated into a triangle wave, which read as blurry corrugated pipe; 0.30 was crisp but
-# FLICKERED: the body's length changes a little every frame as it slithers, so the bands slide by a
-# fraction of a pixel, and a hard edge shows that as shimmer. 0.6 keeps them distinct and still.
-const BAND_EDGE: float = 0.6
 
 # Child body history ring buffer — interpolated to eliminate jitter
 const HISTORY_INTERVAL_MS: float = 16.0
@@ -342,22 +330,6 @@ func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
 		var a2: float = lerpf(PI * 0.5, -PI * 0.5, float(i) / float(HEAD_CAP_STEPS))
 		pts.append(Vector2(nose_x + cos(a2) * (hw0 + extra), sin(a2) * (hw0 + extra)))
 	return pts
-
-# The skin at a distance back from the head, as 1.0 (base) .. BAND_DARK (crossband). Mirrors
-# _build_gradient exactly: each half period holds its color and turns over BAND_EDGE of it, the turn
-# centered on the boundary.
-func _band_shade(dist_px: float) -> float:
-	var h: float = maxf(0.0, dist_px) / maxf(1.0, BAND_PX * 0.5)
-	var i: int = int(floor(h))
-	var f: float = h - float(i)
-	var mine: float = 1.0 if i % 2 == 0 else BAND_DARK
-	var other: float = BAND_DARK if i % 2 == 0 else 1.0
-	var e: float = BAND_EDGE
-	if f < e * 0.5 and i > 0:
-		return lerpf(other, mine, 0.5 + f / e)
-	if f > 1.0 - e * 0.5:
-		return lerpf(other, mine, 0.5 + (1.0 - f) / e)
-	return mine
 
 # The head is drawn with the SAME three ingredients as the body and in the same order: faint halo,
 # banded fill, lighter spine. No dark outline, because the body has none.
@@ -606,10 +578,9 @@ func _ready() -> void:
 		bl.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		bl.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		bl.gradient = _tail_gradient()
-	# NO TEXTURE on any body line. A cross-width shading texture (dark flanks, lit back) was tried:
-	# straight, it made the body round; on every TURN the round joint's texture coordinates did not
-	# match the segments', and the body broke into what looked like separate tubes overlapping.
-	# It is the UV case of the rule above -- skin that needs normals, offsets or UVs fails at turns.
+	# The skin is a TEXTURE (see _build_skin). An earlier texture failed at the turns, when the path
+	# had real corners: a round joint's texture coordinates did not match the segments'. With the
+	# corners rounded wider than the body, _smooth_body and 2 px points, the joints are invisible.
 	for body: Line2D in [_l_mother, _l_child, _l_mother_st, _l_child_st]:
 		# No cap at the head end: the head covers it, and a round cap there showed round the neck
 		# as a lighter half-disc.
@@ -1114,7 +1085,6 @@ var _l_mother_sh: Line2D = null
 var _l_child_sh: Line2D = null
 var _l_mother_st: Line2D = null      # dorsal stripe, same path, drawn over the body
 var _l_child_st: Line2D = null
-var _bands: Dictionary = {}          # line -> band count its gradient was built for
 var _props_canvas: Control = null
 # The ground gradient and the vignette never change, yet they were rebuilt from primitives every
 # frame: 24 alpha rects and 48 alpha rects respectively, measured at 442 us and 983 us per frame —
@@ -1198,61 +1168,6 @@ func _tail_gradient() -> Gradient:
 	var g: Gradient = Gradient.new()
 	g.offsets = PackedFloat32Array([0.0, TAIL_SOLID, 1.0])
 	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
-	return g
-
-# Banding and the tail dissolve, baked into one Gradient.
-#
-# NOTE Line2D.gradient REPLACES default_color rather than multiplying it, so everything about the
-# body's color has to live in here — an earlier version set the pulse brightness on
-# default_color, where it was silently ignored. The per-frame brightness now rides on `modulate`,
-# which does multiply.
-# The dorsal stripe gets a CONSTANT color, not the body's banding. Sharing the banded gradient
-# made the stripe's dark stops (value 0.72) come out darker than the body's lit regions (0.88), so
-# along the length the spine alternated between lighter and darker than the body it sits on and
-# canceled itself out. Only the tail dissolve is kept, so it fades with the body it rides on.
-func _build_plain_gradient(col: Color) -> Gradient:
-	var g: Gradient = Gradient.new()
-	g.offsets = PackedFloat32Array([0.0, TAIL_SOLID, 1.0])
-	g.colors = PackedColorArray([
-		Color(col.r, col.g, col.b, col.a), Color(col.r, col.g, col.b, col.a), Color(col.r, col.g, col.b, 0.0)])
-	return g
-
-# `band_col` is the crossband. Alternating two real colors is what makes this read as a patterned
-# animal; alternating one color with a darker copy of itself (which is what BAND_DARK used to do)
-# only ever looks like uneven lighting.
-func _build_gradient(base_col: Color, span_px: float, band_col: Color = Color(0, 0, 0, 0)) -> Gradient:
-	var offs: PackedFloat32Array = PackedFloat32Array()
-	var cols: PackedColorArray = PackedColorArray()
-	var dark: Color = band_col
-	if band_col.a <= 0.0:
-		dark = Color(base_col.r * BAND_DARK, base_col.g * BAND_DARK, base_col.b * BAND_DARK, 1.0)
-	var half: float = BAND_PX * 0.5
-	var span: float = maxf(half * 2.0, span_px)
-	var n_steps: int = clampi(int(span / half), 2, BAND_MAX * 2)
-	var e: float = BAND_EDGE * half * 0.5
-	for i in range(n_steps + 1):
-		# ANCHORED IN PIXELS from the head: offset = distance / length. As the child's body grows,
-		# a band 100 px back stays 100 px back — only new bands appear at the tail. Dividing 0..1
-		# into equal fractions instead made every band shift a little each time the length changed,
-		# which is what the tail jitter during growth actually was.
-		#
-		# Two stops per half period, holding its color between them: the color turns only across
-		# the boundary (BAND_EDGE), so the bands are crisp. _band_shade mirrors this for the head.
-		var c: Color = base_col if i % 2 == 0 else dark
-		var lo: float = 0.0 if i == 0 else float(i) * half + e
-		var hi: float = float(i + 1) * half - e
-		for d: float in [lo, hi]:
-			var t: float = clampf(d / span, 0.0, 1.0)
-			var a: float = 1.0
-			if t > TAIL_SOLID:
-				a = 1.0 - (t - TAIL_SOLID) / (1.0 - TAIL_SOLID)
-			if not offs.is_empty() and t <= offs[offs.size() - 1]:
-				continue
-			offs.append(t)
-			cols.append(Color(c.r, c.g, c.b, a))
-	var g: Gradient = Gradient.new()
-	g.offsets = offs
-	g.colors = cols
 	return g
 
 # Seed the history ring with a flat run at the starting position, so the child HAS a tail on
@@ -1355,7 +1270,7 @@ func _densify(pts: PackedVector2Array, max_seg: float) -> PackedVector2Array:
 # uses anything but 1.0 — it is the one the player is steering.
 func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: float,
 		base_col: Color, openness: float, _stable_len: float, glow: float = 1.0,
-		band_col: Color = Color(0, 0, 0, 0)) -> void:
+		_band_col: Color = Color(0, 0, 0, 0)) -> void:
 	if pts.size() < 2:
 		ln.points = PackedVector2Array()
 		sh.points = PackedVector2Array()
@@ -1375,37 +1290,7 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	ln.modulate = Color(m, m, m, 1.0)
 	st.modulate = ln.modulate
 
-	# Bands are spaced in PIXELS, but gradient offsets are normalized over the line — so the band
-	# count has to track the body's length, or the spacing would stretch as the child grows.
-	#
-	# Measured against ARC length it changed ~19 times per 700 frames, because the arc lengthens
-	# and shortens as the breath steepens the path. Every change renormalizes the offsets and
-	# shifts EVERY band a little, which would read as the pattern crawling. The HORIZONTAL span is
-	# the stable proxy: constant for the mother, monotonically growing for the child, so the count
-	# settles and stops churning.
-	# Rebuild only when the number of stops would actually change; the stops themselves are
-	# pinned to pixel distances from the head, so growth appends bands rather than moving them.
-	#
-	# The length used here is the SMOOTH one passed in, not the measured span. The snapped-time
-	# sampler quantises the tail to the 2 px sample step, so the measured span oscillates by up to
-	# one step every frame (132 shrinks per 900 frames, measured) — feeding that into the gradient
-	# would put that wobble into the pattern. The tail tip itself still moves those 2 px, where the
-	# alpha ramp has already faded it to nothing.
-	# THE BANDS ARE PLACED BY THE BODY'S REAL LENGTH, EVERY FRAME. A Line2D lays its gradient along
-	# its actual arc, which changes a little every frame as the body slithers; with stops normalized
-	# by a steadier proxy (the horizontal span, or the growth cap), every band slid by a fraction of a
-	# pixel each frame and the bodies shimmered -- hidden for a long time under an opaque spine stripe.
-	# Normalized by the real arc, a band at distance d from the head is drawn at exactly d whatever the
-	# rest of the body does; only the tail tip moves. Rebuilt every frame: a gradient of at most
-	# 2 * BAND_MAX * 2 stops, for two bodies. (The smooth length passed in, `_stable_len`, is no longer
-	# needed for the pattern.)
-	var arc: float = 0.0
-	for i in range(1, pts.size()):
-		arc += pts[i].distance_to(pts[i - 1])
-	arc = maxf(1.0, arc)
-	# (the skin texture carries the pattern now; the gradient set at _ready only fades the tail)
-	if band_col.a < 0.0:
-		ln.gradient = _build_gradient(base_col, arc, band_col)
+	# (the skin texture carries the pattern; the gradient set at _ready only fades the tail)
 	ln.points = pts
 	st.points = PackedVector2Array()        # no dorsal stripe: the scales and diamonds are the back
 	var shifted: PackedVector2Array = PackedVector2Array()

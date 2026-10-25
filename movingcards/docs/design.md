@@ -245,13 +245,27 @@ back 0.7 s later -- unless anything was tapped since or the round finished (`_ta
 round, a quick tap on the LAST card inside those 0.7 s let the earlier timer turn every card back over
 during the two seconds meant for looking at the right answer. The clue (`show_clue`) is guarded the same way.
 
-**The front is a clean cream tile** (`card.gd` `_dress_face` / `_draw_face`, on a child of `CardFront`,
-so it shows and hides with it): a soft bevel, lit top-left and shaded bottom-right, and the number
-large in deep navy (`CardLabel`, in the app's text face) -- nothing else. **A tap is marked
-unmistakably** (`clicked` sets `_mark`): a 7 px ring in green or red and a wash of the same color over
-the face. History: a plain white square with a black number in a black and white frame; then a
-playing card with corner indices ("not the goal") whose right/wrong frame was too faint (user,
-2026-10-25). The old `CardFrontFrame` panel is hidden; the edge round both sides is a fine navy line.
+**The card is ONE ROUNDED SHAPE on both sides** (`card.gd`, `CARD_RADIUS` 14): the face, the tap mark,
+the fine navy edge (`CardBorder`, rounded) and the patterned BACK (`rounded.gdshader` cuts the square
+back art's corners) all share the radius, so turning a card over keeps its shape, and the gold line
+inside the face and the inside of the mark stay visibly curved (at 9 px they came out nearly square).
+
+**The front** (`_dress_face` / `_draw_face`, on a child of `CardFront`, so it shows and hides with it):
+warm cream stock deepening a touch toward the bottom, a soft bevel (a lit edge along the top-left of
+the rounded outline, a shaded one along the bottom-right), a fine gold line inset with its own rounded
+corners and a fainter one inside it, and the number large in deep navy with a soft shadow (`CardLabel`,
+in the app's text face). **A tap is marked unmistakably** (`clicked` sets `_mark`): a 6 px rounded
+ring in green or red and a wash of the same color over the face. History: a plain white square with a
+black number in a black and white frame; a playing card with corner indices ("not the goal") whose
+right/wrong frame was too faint; a plain cream tile ("a bit bland"). The old `CardFrontFrame` panel is
+hidden.
+
+**The card FLIPS** (`_flip_to`): showing or hiding a face narrows the card to its edge (`scale.x` to 0),
+puts up the other face and opens it again, 0.2 s in all. The faces used to swap in one frame.
+
+**Cards stay on the table** (`level.gd` `TABLE_SIDE` 40): every placement and every arc's bow keep the
+cards inside the felt's gold inlay line; they were placed to within 6 px of the screen edge, over the
+wooden rail.
 
 **Cards cast a soft shadow** (`card.gd` `_draw`): ONE pre-blurred 64x64 texture (`_make_shadow`, made
 once, shared) drawn filtered under the 80x80 card, so it lies on the table rather than looking pasted
