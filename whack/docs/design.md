@@ -670,3 +670,7 @@ and no Accuracy, which is the number it is most about.
 Note the one case where not answering is CORRECT: a round with no real target where the player
 held back is `record_answer(false, false)` — a true negative — not a missing answer. The two
 falses mean different things, and this game never calls `record_no_answer()`.
+
+## Sounds
+
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `hit` a bonk, `miss` a whiff, `appear` a pop as a target comes up, `wrong` a soft low note for a target left to expire. They replaced a tap, a bump, a click and a swoosh.

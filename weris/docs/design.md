@@ -354,3 +354,8 @@ seven loose rows, back to front, each row hiding the cut-off chests of the row b
 rows running past the top edge, everyone in full colour on a warm background. The one you studied is
 in there somewhere. Singling one person out with a glow, and a scattered unordered crowd, were both
 tried and turned down (the first read as scary, the second as a mess).
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a bell chime for right, a soft low bell note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

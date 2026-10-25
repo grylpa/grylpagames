@@ -213,3 +213,14 @@ a bright rim, a sweep, and a single large blip off to one side. "Where did it fl
 the game asks, and a radar is the picture of it. Drawn bold -- few lines, thick rim, big blip -- so it
 still reads at chooser size; a finer radar with more rings lost its appeal when small. A compass with a
 push pin and an eye with a spark at the edge of its view were turned down.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it makes the same set
+for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
+"shown" sound). Names in code kept: `dispatch` = the target appearing (a radar ping), `delivery` = a right
+answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
+one STEADY loop (`didi_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+arcade coin, a swoosh and three stock ocean-wave loops picked at random.
+The ambient is steady for the same reason the backdrop is featureless: this game measures attention,
+and nothing in the background should pull it.

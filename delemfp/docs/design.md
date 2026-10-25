@@ -351,3 +351,14 @@ its end and no further, and the other streets are faint shapes in the dark -- th
 remember. The beam is a cone from the head, blurred, fading with distance.
 
 The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door`, `_dock`, `_vehicle`): the game's own head, cargo and axle sprites (`art/head2-4x.png`, `art/agent_body1.png`, `art/agent_tail1.png`) tinted to a vehicle color and joined by the dark line with its black backing, the pale green door bar, and the trapezoid docks (`art/target-no-arrow-4x.png`, `art/receiver_torquise-no-arrow-4x.png`), on `GrassField`'s lawn. No numbers: digits are text, and tiles carry none. At 200 px there is room for one junction, one or two docks and one or two vehicles, drawn big.
+
+## Sounds
+
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `dispatch` a new delivery (a soft two-tone bell), `delivery` one delivered (a thud and a ding). The engine recording stays. They replaced a heavy bell and an arcade coin.
+
+## The road (the 2026-10-25 look pass)
+
+The road is asphalt (`asphalt.gdshader`, one material on every road sprite, set in `pipe.gd`'s
+`_dress_road`): aggregate grain, faint wear, a rare stain, in world coordinates, with the tile art's
+yellow markings kept. Each side with no road beyond it gets a concrete curb with a lit edge and a
+shadow on the road. **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.

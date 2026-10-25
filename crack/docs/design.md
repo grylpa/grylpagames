@@ -90,11 +90,13 @@ showed), as the dial turns with the slides. The dial: a chrome bezel in light an
 face with silver ticks and numbers, and a knurled chrome knob whose domed cap is drawn unrotated so it
 stays lit from the top left. It was flat navy rectangles and a blue dial.
 
-**Open or locked** is a small lamp above the dial, red while locked and green while open, and a soft
-green glow round the dial while open. The whole dial used to turn green.
+**Open or locked**: a small lamp above the dial (red / green), and while open the WHOLE DIAL turns
+green -- the face (`DIAL_FACE_OPEN`), its ticks and numbers -- with a green ring in the bezel and a broad
+green glow round it. A lamp and a faint halo alone were tried and were not clear enough; the old
+design's green dial was.
 
 **Sounds** (`devtools/make_crack_sounds.py`; it had none): `click`, one notch of the dial's ratchet,
-each time the dial passes one of its 100 marks (about twelve a second while it turns, -10 dB);
+each time the dial passes one of its 100 marks (about twelve a second while it turns, -18 dB): a soft, low, damped tock -- a bright 3.2 kHz tick was tried and was harsh;
 `unlock`, two bolts drawing back and the latch giving, when a cycle opens the safe; `lock`, one bolt
 sliding home, when a cycle closes it. Soft throughout: this is one of the calm games.
 

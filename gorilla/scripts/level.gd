@@ -93,11 +93,14 @@ var last_level_was_a_win: bool = false
 @export var peripheral_gorilla_scene: PackedScene
 @export var empty_space_scene: PackedScene
 
-var explosion_audio: AudioStream = preload("res://art/sounds/car-crash-1.mp3")
+# Made for this game (devtools/make_action_sounds.py), names in code kept: `explosion` caught (a soft
+# thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short
+# whistle (was a click), `swoosh` through a portal (a rising warp). The grass footsteps stay.
+var explosion_audio: AudioStream = preload("res://art/sounds/gorilla_oof.ogg")
 var feet_audio: AudioStream = preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
-var delivered_audio: AudioStream = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var start_audio: AudioStream = preload("res://art/sounds/click-2.mp3")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+var delivered_audio: AudioStream = preload("res://art/sounds/gorilla_crunch.ogg")
+var start_audio: AudioStream = preload("res://art/sounds/gorilla_start.ogg")
+var swoosh_audio := preload("res://art/sounds/gorilla_warp.ogg")
 func _ready() -> void:
 	game = GorillaG.game
 	game.zoomed_in = true
@@ -261,6 +264,7 @@ func create_board():
 
 	for pipe in pipes:			
 		pipe.set_rot(board)
+	_add_wall_shade()
 
 	var player_pos = Vector2i(room_rect.position.x + room_size / 2, room_rect.position.y + room_size / 2)
 	_create_player(player_pos)
@@ -1390,3 +1394,40 @@ func create_camera():
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
 	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/BackgroundRect") as CanvasItem, game, 13)
+
+# THE BOARD'S EDGE CASTS A SOFT SHADOW INWARD: a band along every side where floor meets anything that
+# is not floor, fading out over WALL_SHADE of a tile, so the room reads as enclosed rather than a flat
+# tile sheet on the lawn. On the floors' z (-1, pipe.gd), added after every tile: over the floor, under
+# the apples and fences. Loops over the board array, not game.board_size (a rebuild resizes first).
+const WALL_SHADE: float = 0.35
+var _wall_shade: Node2D = null
+
+func _add_wall_shade() -> void:
+	if _wall_shade != null and is_instance_valid(_wall_shade):
+		_wall_shade.queue_free()
+	_wall_shade = Node2D.new()
+	_wall_shade.z_index = -1
+	_wall_shade.draw.connect(_draw_wall_shade)
+	add_child(_wall_shade)
+
+func _draw_wall_shade() -> void:
+	var t: float = float(game.tile_size)
+	var d: float = t * WALL_SHADE
+	var dark: Color = Color(0.0, 0.0, 0.05, 0.28)
+	var clear: Color = Color(0.0, 0.0, 0.05, 0.0)
+	var cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
+	for y in board.size():
+		for x in board[y].size():
+			var cell: OneCell = board[y][x]
+			if cell == null or not cell.ispipe:
+				continue
+			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(x, y) + dv
+				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size() and board[q.y][q.x] != null and board[q.y][q.x].ispipe:
+					continue
+				var n: Vector2 = Vector2(dv)
+				var side: Vector2 = Vector2(-n.y, n.x)
+				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
+				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
+				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)

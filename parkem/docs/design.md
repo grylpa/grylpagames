@@ -101,6 +101,22 @@ Three ways a creature leaves the board, and only the first is bad for the player
 at all until its ten seconds are up; a player waiting for feedback sees nothing happening and
 assumes they are doing it wrong.
 
+## Look and sound (the 2026-10-24 pass)
+
+- **The floor is worn flagstone** (`flagstone.gdshader`, one material shared by every floor sprite,
+  set in `pipe.gd`'s `_ready`): irregular slabs (nearest of a jittered grid, about 46 px), each its own
+  shade, thin faint joints with a little moss, in world coordinates. **Low contrast on purpose**: a
+  closed door is a thin diagonal line and must stay the clearest line on the floor -- a first version's
+  dark, wide joints ran at every angle and competed with the doors.
+- **A stone kerb** (`pipe.gd` `_draw_kerb`) on each side of a floor tile with no floor beyond it, with
+  its shadow on the floor. The floor was flat gray squares straight onto the grass.
+- **Sounds** (`devtools/make_parkem_sounds.py`; names in code kept): `motor` = an evening garden
+  (breeze, crickets), `dispatch` = a creature appearing, `swoosh` = a creature setting off (a patter of
+  little feet), `door` = a door turned (a short soft clack, -3 dB -- it is the player's every move),
+  `parked` = a creature reaching its goal (a smug "nom"), `delivery` = a creature kept away until it
+  gave up (a light chime), `explosion` = a creature hitting a hazard or another (a cartoon pop). The old
+  set was still the parking game's: a car engine, a car crash, a door creak, an arcade coin.
+
 ## Difficulty
 
 Every per-level number lives in `parkem/scripts/level_config.gd` (`ParkemLevelConfig.LEVELS`), read
@@ -298,3 +314,5 @@ Four tiles were made for this game and the first three are worth knowing about:
 
 `devtools/install_thumbs.py` copies it in; the published thumbnail under `docs/src/thumbs/` is
 derived from it by the games-doc build and must not be written by hand.
+
+**Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no floor across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.

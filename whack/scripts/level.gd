@@ -117,9 +117,12 @@ var _flash_color: Color = Color.TRANSPARENT
 var _flash_alpha: float = 0.0
 var _flash_pos: Vector2 = Vector2.ZERO
 
-var _hit_sound: AudioStream = preload("res://art/sounds/tap-1.mp3")
-var _miss_sound: AudioStream = preload("res://art/sounds/bump-sound-7.mp3")
-var _appear_sound: AudioStream = preload("res://art/sounds/click-2.mp3")
+# Made for this game (devtools/make_action_sounds.py): a bonk for a hit, a whiff for a miss, a pop for a
+# target appearing, a soft low note for a target left to expire. They replaced a tap, a bump, a click
+# and a swoosh.
+var _hit_sound: AudioStream = preload("res://art/sounds/whack_bonk.ogg")
+var _miss_sound: AudioStream = preload("res://art/sounds/whack_whiff.ogg")
+var _appear_sound: AudioStream = preload("res://art/sounds/whack_appear.ogg")
 
 @onready var _draw_area: Control = $DrawArea
 
@@ -140,7 +143,7 @@ func _ready() -> void:
 	game.add_sound(self, "hit", _hit_sound)
 	game.add_sound(self, "miss", _miss_sound)
 	game.add_sound(self, "appear", _appear_sound)
-	game.add_sound(self, "wrong", preload("res://art/sounds/swoosh.mp3"))
+	game.add_sound(self, "wrong", preload("res://art/sounds/whack_wrong.ogg"))
 	var vp_size: Vector2 = get_viewport().get_visible_rect().size
 	_draw_area.position = Vector2.ZERO
 	_draw_area.size = vp_size

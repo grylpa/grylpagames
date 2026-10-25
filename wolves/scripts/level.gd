@@ -86,7 +86,9 @@ var in_answring_mode := false
 
 var ambient_audio := preload("res://wolves/art/audio/delon_boomkin-sheep-bells-ringing-457441.mp3")
 var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
-var start_audio := preload("res://art/sounds/click-2.mp3")
+# `start` is a shepherd's two-note whistle (devtools/make_action_sounds.py; it was a click). `swoosh` is
+# registered and never played.
+var start_audio := preload("res://art/sounds/wolves_start.ogg")
 var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
 
 var sheep_audios := [

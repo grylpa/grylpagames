@@ -231,3 +231,14 @@ the maze as it was while lit: the streets on the lawn, a dark red bomb, the blue
 its start and a dotted route round the bomb to the goal. The dark around it carries the rest of the
 streets, faint. Earlier drafts (a split between lit and dark, a light switch, a remembered route on
 the dark board, a light bulb with the maze in its glass) were turned down.
+
+## Sounds
+
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `motor` a dark corridor's low hum (was a car engine), `feet` steps on stone (were on grass), `delivered` the lights coming on (a switch and a rising shimmer; was an arcade coin), `explosion` a muffled boom (was a car crash), `start` a soft switch click.
+
+## The road (the 2026-10-25 look pass)
+
+The road is asphalt (`asphalt.gdshader`, one material on every road sprite, set in `pipe.gd`'s
+`_dress_road`): aggregate grain, faint wear, a rare stain, in world coordinates, with the tile art's
+yellow markings kept. Each side with no road beyond it gets a concrete curb with a lit edge and a
+shadow on the road. **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.

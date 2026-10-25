@@ -290,3 +290,14 @@ fewer than `MIN_PER_DIR` rounds is never marked — a proportion out of four is 
 `add_agent_pos_dir()` assigns them. `DIR_SLOT` maps those four onto the same 3x3, which is why
 the shared panel needs no knowledge of either scheme. The direction recorded is the MODEL's —
 where the shape flashed — because the alternatives that follow stand somewhere else entirely.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it makes the same set
+for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
+"shown" sound). Names in code kept: `dispatch` = the target appearing (a faint airy tick), `delivery` = a right
+answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
+one STEADY loop (`pop_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+arcade coin, a swoosh and three stock ocean-wave loops picked at random.
+The ambient is steady for the same reason the backdrop is featureless: this game measures attention,
+and nothing in the background should pull it.

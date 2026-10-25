@@ -13,9 +13,13 @@ var num_friends := [3,0]	# per row
 var cards = []
 var times_to_answer := []
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
+# SOUNDS made for this game (devtools/make_answer_sounds.py): `dispatch` the target appearing
+# (a soft step and a small chime), `delivery` a right answer (a rising chime), `swoosh` a wrong one (a soft low note), and
+# one STEADY ambient loop. They replaced a heavy bell, an arcade coin, a swoosh and three stock
+# ocean-wave loops.
+var dispatch_audio := preload("res://art/sounds/friends_show.ogg")
+var delivery_audio := preload("res://art/sounds/friends_right.ogg")
+var swoosh_audio := preload("res://art/sounds/friends_wrong.ogg")
 
 var card_size := Vector2i(100,150)
 var new_person_size := Vector2i(150,225)
@@ -36,9 +40,7 @@ const CARD_SCRIPT: GDScript = preload("res://shared/scripts/card.gd")
 const YELLOW: Color = Color(1, 0.8039216, 0, 1)  # friends card border color
 
 var ambient_audios := [ 
-	preload("res://art/sounds/ocean-waves-2.mp3"), 
-	preload("res://art/sounds/ocean-waves-3.mp3"), 
-	preload("res://art/sounds/ocean-waves-4.mp3")
+	preload("res://art/sounds/friends_ambient.ogg"),
 ]
 
 signal started_playing

@@ -367,3 +367,14 @@ this is EIGHT tests at once: at 2.0 the chance of at least one false mark across
 fewer than `MIN_PER_DIR` rounds is never marked — a proportion out of four is not a finding.
 
 Recorded in `_finish_periph_question()`, before `periph_dir_idx` is cleared a few lines below.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it makes the same set
+for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
+"shown" sound). Names in code kept: `dispatch` = the target appearing (a soft camera-flash click), `delivery` = a right
+answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
+one STEADY loop (`ddooo_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+arcade coin, a swoosh and three stock ocean-wave loops picked at random.
+The ambient is steady for the same reason the backdrop is featureless: this game measures attention,
+and nothing in the background should pull it.

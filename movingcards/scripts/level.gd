@@ -32,9 +32,7 @@ const MIN_TRAVEL_DIST: float = 180.0
 @export var card_scene: PackedScene = load("res://movingcards/scenes/card.tscn")
 
 var ambient_audios: Array = [
-	preload("res://art/sounds/ocean-waves-2.mp3"),
-	preload("res://art/sounds/ocean-waves-3.mp3"),
-	preload("res://art/sounds/ocean-waves-4.mp3"),
+	preload("res://art/sounds/movingcards_ambient.ogg"),
 ]
 
 signal sig_can_start_clicking

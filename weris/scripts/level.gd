@@ -54,8 +54,9 @@ var _rollback_score_on_next_level: bool = false
 func _ready() -> void:
 	game = WerisG.game
 	game.sig_time_over.connect(on_time_over)
-	game.add_sound(self, "correct", preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg"))
-	game.add_sound(self, "wrong", preload("res://art/sounds/swoosh.mp3"))
+	# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+	game.add_sound(self, "correct", preload("res://art/sounds/weris_right.ogg"))
+	game.add_sound(self, "wrong", preload("res://art/sounds/weris_wrong.ogg"))
 	level = WerisG.starting_level
 	increase_difficulty(false)
 	_apply_look()

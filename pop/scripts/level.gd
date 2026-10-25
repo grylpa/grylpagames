@@ -54,14 +54,16 @@ var times_to_answer: Array = []
 # node is more machinery than the thing deserves.
 var box_texture: Texture2D = preload("res://art/box.png")
 
-var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
+# SOUNDS made for this game (devtools/make_answer_sounds.py): `dispatch` the target appearing
+# (a faint airy tick), `delivery` a right answer (a rising chime), `swoosh` a wrong one (a soft low note), and
+# one STEADY ambient loop. They replaced a heavy bell, an arcade coin, a swoosh and three stock
+# ocean-wave loops.
+var dispatch_audio = preload("res://art/sounds/pop_show.ogg")
+var delivery_audio = preload("res://art/sounds/pop_right.ogg")
+var swoosh_audio = preload("res://art/sounds/pop_wrong.ogg")
 
 var ambient_audios = [ 
-	preload("res://art/sounds/ocean-waves-2.mp3"), 
-	preload("res://art/sounds/ocean-waves-3.mp3"), 
-	preload("res://art/sounds/ocean-waves-4.mp3")
+	preload("res://art/sounds/pop_ambient.ogg"),
 ]
 
 signal started_playing

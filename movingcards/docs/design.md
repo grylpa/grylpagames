@@ -221,3 +221,12 @@ It is now **memory-game cards on the move**: rounded pastel tiles (not playing c
 swap arrows, read as a gambling game, and the game's square card sprites alone read as dice) on a
 warm light background, three face down with a plain white ring and one still face up showing a star,
 with dotted paths behind them for where they have glided.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (see Witness's doc): `tap` a light card tap,
+`correct` a rising two-note chime, `wrong` a soft low note (all in `main.gd`), and one steady ambient
+loop (`movingcards_ambient.ogg`). They replaced a generic tap, an arcade coin, a swoosh and three stock
+ocean-wave loops. The background was left as it is: the cards are what is tracked.
+
+**Cards cast a soft shadow** (`card.gd` `_draw`, three faint offset rects under the 80x80 card), so they lie on the table rather than looking pasted on. The faces and backs are the stimulus and are untouched.

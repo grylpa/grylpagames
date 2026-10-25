@@ -128,8 +128,9 @@ const _CONFUSABLE_WITH: Dictionary = {
 	"color_shape": ["square", "filled"],
 }
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+var correct_audio = preload("res://art/sounds/monkeyc_right.ogg")
+var wrong_audio = preload("res://art/sounds/monkeyc_wrong.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing

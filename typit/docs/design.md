@@ -257,3 +257,15 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Declares its own `score_columns`: its array is not the generic shape, and without that its session length would be filed as `level` and its breathing rate as `pct_correct`.
+
+## Look and sound (the 2026-10-25 pass)
+
+- **Keycaps** (`_draw_key`): each key is drawn as a rounded cap INSIDE its own rect -- a darker base
+  (the cap's side) along the bottom, a lighter face lit along its top edge, and the face dropping onto
+  the base while pressed. **The rect itself is untouched**: taps are measured against it (spine
+  distance, bias, the heat map), so the look may never change a key's size or position. It was a flat
+  square with a hairline border.
+- **Sounds** (`devtools/make_action_sounds.py`; it had none): `key` a soft click on every correct
+  character (-10 dB, pitch varied 0.94-1.06 so a run is not a machine gun), `back` a lighter click for
+  backspace, `miss` a soft low tock for a wrong key, `done` a gentle chime when the last character of
+  the passage is typed.

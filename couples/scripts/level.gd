@@ -55,8 +55,9 @@ const CARD_ASPECT: float = 566.0 / 374.0  # uniform card frame aspect: max dino 
 const WHITE: Color = Color(1, 1, 1, 1)
 const FEEDBACK_MS: float = 950.0
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+var correct_audio = preload("res://art/sounds/couples_right.ogg")
+var wrong_audio = preload("res://art/sounds/couples_wrong.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing

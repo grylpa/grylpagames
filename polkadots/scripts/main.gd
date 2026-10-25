@@ -14,6 +14,19 @@ func _ready() -> void:
 	game = PolkadotsG.game
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
+	# The table under the panels: felt (felt.gdshader) on its own layer behind everything, in the
+	# clear color's green. Only the surround -- the panels, which are the stimulus, are untouched.
+	var table: CanvasLayer = CanvasLayer.new()
+	table.layer = -10
+	var felt: ColorRect = ColorRect.new()
+	felt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	felt.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = preload("res://polkadots/scripts/felt.gdshader")
+	mat.set_shader_parameter("size", Vector2(MainGlobals.screen_size))
+	felt.material = mat
+	table.add_child(felt)
+	add_child(table)
 	PolkadotsG.load_settings()
 	PolkadotsG.init_globals()
 
@@ -34,8 +47,9 @@ func _ready() -> void:
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
 	$Level.update_score.connect(_on_level_update_score)
 
-	game.add_sound(self, "correct", preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg"))
-	game.add_sound(self, "wrong", preload("res://art/sounds/swoosh.mp3"))
+	# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+	game.add_sound(self, "correct", preload("res://art/sounds/polkadots_right.ogg"))
+	game.add_sound(self, "wrong", preload("res://art/sounds/polkadots_wrong.ogg"))
 	game.set_instructions("Polka Dots",
 		"Look at the dot pattern\n\n" +
 		"The dots outline a letter or number\n\n" +

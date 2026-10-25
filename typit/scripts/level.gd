@@ -77,8 +77,24 @@ var _last_tap_wall_ms: int = -100
 
 # ---- Ready ----
 
+# SOUNDS (devtools/make_action_sounds.py; it had none): a soft key click on every character, its pitch
+# varied a touch so a run of them is not a machine gun, a lighter click for backspace, a soft low tock
+# for a wrong key, and a gentle chime when the passage is fully typed. Kept quiet: they sound on
+# every press.
+const KEY_AUDIO: AudioStream = preload("res://art/sounds/typit_key.ogg")
+const BACK_AUDIO: AudioStream = preload("res://art/sounds/typit_back.ogg")
+const MISS_AUDIO: AudioStream = preload("res://art/sounds/typit_miss.ogg")
+const DONE_AUDIO: AudioStream = preload("res://art/sounds/typit_done.ogg")
+
 func _ready() -> void:
 	game = TypitG.game
+	game.add_sound(self, "key", KEY_AUDIO)
+	game.add_sound(self, "back", BACK_AUDIO)
+	game.add_sound(self, "miss", MISS_AUDIO)
+	game.add_sound(self, "done", DONE_AUDIO)
+	game.set_sound_volume("key", -10.0)
+	game.set_sound_volume("back", -10.0)
+	game.set_sound_volume("miss", -6.0)
 	_refresh_screen_size()
 	_font = MainGlobals.get_system_sans_font()
 	# Bundled monospace font (JetBrains Mono, SIL OFL 1.1 — best disambiguation of
@@ -253,6 +269,7 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 			if _char_pressed.size() > _target_pos:
 				_char_pressed.resize(_target_pos)
 			_backspaces += 1
+			game.play_sound("back")
 		_canvas.queue_redraw()
 		return
 
@@ -336,10 +353,17 @@ func _handle_keypress(key: Dictionary, touch_pos: Vector2) -> void:
 
 	if is_correct:
 		_correct_chars += 1
+		var click: Node = game.sounds.get("key", null)
+		if click != null:
+			click.pitch_scale = randf_range(0.94, 1.06)
+		game.play_sound("key")
 	else:
 		_mistakes += 1
 		_wrong_key_label = key.label
 		_error_flash_ms = ERROR_FLASH_DUR
+		game.play_sound("miss")
+	if _target_pos >= _target.length():
+		game.play_sound("done")
 
 	_canvas.queue_redraw()
 
@@ -983,12 +1007,39 @@ func _draw_key(canvas: CanvasItem, k: Dictionary, is_pressed: bool) -> void:
 	if is_pressed or shift_active:
 		bg = Color(minf(bg.r * 1.6, 1.0), minf(bg.g * 1.6, 1.0), minf(bg.b * 1.9, 1.0), bg.a)
 	var rect: Rect2 = Rect2(cx - kw * 0.5, cy - kh * 0.5, kw, kh)
-	canvas.draw_rect(rect, bg, true, -1.0)
+	# A KEYCAP, drawn inside the key's own rect -- the rect is what the taps are measured against, so
+	# nothing here may change its size or position: rounded corners, a darker base along the bottom
+	# (the cap's side), a lighter top face lit along its upper edge, and the cap pressing DOWN when
+	# hit (the face drops onto the base). It was a flat square with a hairline border.
+	var down: bool = is_pressed
+	var r: float = minf(kw, kh) * 0.16
+	var base: StyleBoxFlat = StyleBoxFlat.new()
+	base.bg_color = bg.darkened(0.35)
+	base.set_corner_radius_all(int(r))
+	canvas.draw_style_box(base, rect)
+	var lift: float = 0.0 if down else maxf(2.0, kh * 0.06)
+	var face_rect: Rect2 = Rect2(rect.position + Vector2(1.0, 1.0), rect.size - Vector2(2.0, 2.0 + lift))
+	if down:
+		face_rect.position.y += 1.0
+	var face: StyleBoxFlat = StyleBoxFlat.new()
+	face.bg_color = bg
+	face.set_corner_radius_all(int(r))
+	face.border_width_top = 1
+	face.border_color = bg.lightened(0.22)
+	canvas.draw_style_box(face, face_rect)
 	if shift_active:
-		canvas.draw_rect(rect, Color(0.55, 0.80, 1.0, 0.9), false, 2.0)
+		var ring: StyleBoxFlat = StyleBoxFlat.new()
+		ring.draw_center = false
+		ring.set_border_width_all(2)
+		ring.border_color = Color(0.55, 0.80, 1.0, 0.9)
+		ring.set_corner_radius_all(int(r))
+		canvas.draw_style_box(ring, face_rect)
 	if _error_flash_ms > 0.0 and k.label == _wrong_key_label:
-		canvas.draw_rect(rect, Color(1.0, 0.12, 0.08, (_error_flash_ms / ERROR_FLASH_DUR) * 0.60))
-	canvas.draw_rect(rect, Color(0.28, 0.36, 0.52, 0.55), false, 1.0)
+		var flash: StyleBoxFlat = StyleBoxFlat.new()
+		flash.bg_color = Color(1.0, 0.12, 0.08, (_error_flash_ms / ERROR_FLASH_DUR) * 0.60)
+		flash.set_corner_radius_all(int(r))
+		canvas.draw_style_box(flash, rect)
+	cy = face_rect.get_center().y
 	if _font == null:
 		return
 	# On case-sensitive levels, letter keys show the case that will actually be typed.

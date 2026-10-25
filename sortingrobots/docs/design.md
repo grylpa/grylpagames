@@ -454,3 +454,8 @@ old tile was a screen grab. It is now a robot claw lifting a glowing gold star o
 from above, under a warm work light, the belt striped yellow and black at its edges, a blue circle, a
 green square and a red triangle riding past -- colors from `Sleek.PALETTE`. A first, all-grey version was
 dull.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

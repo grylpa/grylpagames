@@ -103,8 +103,9 @@ var _basket_front: Node2D = null
 # lesson is exactly the "game free-running when it matters" the tutorial must not do.
 var tutorial_hold_spawn: bool = false
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+var correct_audio = preload("res://art/sounds/ptbits_right.ogg")
+var wrong_audio = preload("res://art/sounds/ptbits_wrong.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing

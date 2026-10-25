@@ -111,8 +111,9 @@ var _color_names: Array = ["RED", "BLUE", "GREEN", "YELLOW", "PURPLE"]
 # Item colors are compared for EQUALITY by the rule tests, so every color must come from here.
 var _color_values: Dictionary = Sleek.PALETTE
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+var correct_audio = preload("res://art/sounds/sortingrobots_right.ogg")
+var wrong_audio = preload("res://art/sounds/sortingrobots_wrong.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing

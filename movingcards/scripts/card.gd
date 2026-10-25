@@ -17,6 +17,15 @@ var _span: float = 0.0
 func _ready() -> void:
 	$CardLabel.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 
+# A soft SHADOW under the card, down and to the right, so it lies on the table instead of looking
+# pasted onto it. Drawn by the card itself, so it is under its sprites and moves with it. Only the
+# shadow: the card's face and back are the stimulus and are untouched.
+func _draw() -> void:
+	var r: Rect2 = Rect2(Vector2(-40.0, -40.0), Vector2(80.0, 80.0))
+	for k in 3:
+		var g: float = 1.0 + float(k) * 2.0
+		draw_rect(Rect2(r.position + Vector2(3.0, 5.0) - Vector2(g, g) * 0.5, r.size + Vector2(g, g)), Color(0.15, 0.05, 0.0, 0.10))
+
 func set_id(_id: int) -> void:
 	id = _id
 	$CardLabel.text = str(id)

@@ -81,8 +81,10 @@ const FLIP_SEC: float = 0.16
 const STAGGER_SEC: float = 0.30
 const FEEDBACK_SEC: float = 1.0
 
-var swap_audio = preload("res://art/sounds/swoosh.mp3")
-var solved_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+# Made for this game (devtools/make_answer_sounds.py): a tile sliding into place for a swap, a full
+# chime arpeggio for the picture solved. They replaced a swoosh and an arcade coin.
+var swap_audio = preload("res://art/sounds/mosaic_swap.ogg")
+var solved_audio = preload("res://art/sounds/mosaic_solved.ogg")
 
 signal sig_level_is_done(didwin: bool)
 signal started_playing

@@ -25,9 +25,11 @@ func _ready() -> void:
 	})
 	$Help.close_help.connect(_on_help_close_help)
 
-	game.add_sound(self, "tap", preload("res://art/sounds/tap-1.mp3"))
-	game.add_sound(self, "correct", preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg"))
-	game.add_sound(self, "wrong", preload("res://art/sounds/swoosh.mp3"))
+	# Made for this game (devtools/make_answer_sounds.py): a light card tap, a rising chime for a right
+	# answer, a soft low note for a wrong one. They replaced a generic tap, an arcade coin and a swoosh.
+	game.add_sound(self, "tap", preload("res://art/sounds/movingcards_tap.ogg"))
+	game.add_sound(self, "correct", preload("res://art/sounds/movingcards_right.ogg"))
+	game.add_sound(self, "wrong", preload("res://art/sounds/movingcards_wrong.ogg"))
 
 	game.set_instructions("Moving Cards",
 		"Remember the cards and the order you need to click\n\n" +

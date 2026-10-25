@@ -311,3 +311,8 @@ Response times are handed to the shared session record as a whole distribution, 
 Accuracy is stored as four counts, not a percentage: `game.record_answer(said_yes, was_yes)` at the decision point. A percentage cannot separate how well the player tells the cases apart from how willing they are to say yes, and someone compensating for a slip by guessing more holds the percentage steady while both hits and false alarms rise. Unanswered trials go to `record_no_answer()` and never into the four counts — no decision was made, so calling it a "no" would invent one.
 
 The task signature stores `source` and `n_back`. "2-back with faces" and "2-back with shapes" are different tasks that would otherwise share only a level number.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a marimba chime for right, a soft low marimba note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

@@ -312,3 +312,10 @@ each row of dots runs along the ellipse of its own height at that height's width
 as it turns away, the shading follows the same width, light comes from the upper left, and the steam
 rises from the middle of the coffee. A bow tie and an umbrella in polka dots, a colour-vision plate
 and a letter of dots were tried on the way.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a bell chime for right, a soft low bell note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+**The table is felt** (`felt.gdshader` -- this game's own copy of Change's -- on a full-screen ColorRect in a CanvasLayer at -10, added in `main.gd`), in the old clear color's green. Only the surround changed: the panels are the stimulus.
