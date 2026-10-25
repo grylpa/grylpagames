@@ -740,6 +740,8 @@ is registered now as "Counting (how far out you were)", lower being better.
 
 ## Sounds
 
+Caught by a monster plays `oof` (a bonk and a comic falling "wah"); eating a monster while the power is on plays `gulp` (a chomp, a rising bloop, a sparkle -- it used to pass in silence). Both from `devtools/make_action_sounds.py`. The gorilla itself makes NO sound: the game is noticing it go by silently.
+
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `explosion` caught (a soft thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short whistle, `swoosh` the warp through a portal (a rising sweep). The grass footsteps stay -- it is outdoors.
 
 **The board's edge casts a soft shadow inward** (`level._add_wall_shade()`, `WALL_SHADE` 0.35 of a

@@ -197,6 +197,12 @@ so it cannot jump when the sampler adds or drops a vertex.
 
 Note the amplitude scales **both** ways: at a body width of 80, `0.32` is a 26 px wobble.
 
+**It fades out where the path is steep** (by the square of the path's horizontal share over ±3
+samples). On a steep diagonal a Y shift slides a point ALONG the body rather than across it, so the
+body stretched and squeezed under its own bands and the diagonal parts jittered (user, 2026-10-25).
+Fading the amplitude keeps the Y-only proof intact; an attempt to fix it by displacing along the
+normal again was backed out for the reason above.
+
 ### Sampling
 
 Both bodies are sampled at times snapped to a fixed grid

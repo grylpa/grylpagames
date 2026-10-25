@@ -54,6 +54,8 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	game.save_score(get_game_score(_didwin, false))
 
 func show_main_menu():
+	game.stop_sound("amb_card")
+	game.stop_sound("amb_crowd")
 	main_menu.show_continue_and_start_new(false)
 	main_menu.show()
 	$Level.hide()

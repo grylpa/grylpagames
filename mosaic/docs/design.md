@@ -190,5 +190,7 @@ No coached tutorial (`MainCfg.tutorials`); the instructions screen explains it.
 
 ## Sounds
 
+An ambient (`mosaic_ambient.ogg`, `devtools/make_ambient_sounds.py`: a kalimba ostinato under a glass-bell melody; it was a slow pad of drifting chords) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu. The swap and solved sounds were registered all along but inaudible until the shared registry stopped using positional players.
+
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): `swap` a tile sliding into place, `solved` a full chime arpeggio for the picture solved. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

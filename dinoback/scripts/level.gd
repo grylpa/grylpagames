@@ -164,22 +164,62 @@ func _make_label(font_size: int, fg: Color) -> Label:
 	return lbl
 
 func _make_button(txt: String, bg: Color) -> Button:
+	# A RAISED button: a darker lip along the bottom (the button's side), a soft shadow under it and
+	# a gloss across its top half (it stays put: a child that follows button_down falls out of step
+	# when the pointer is dragged off a held button, see GameButton); pressed, it sinks into the lip. It was a flat rounded rectangle.
 	var b: Button = Button.new()
 	b.text = txt
 	b.add_theme_font_size_override("font_size", 34)
+	b.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 1, 1))
+	b.add_theme_color_override("font_pressed_color", Color(1, 1, 1, 0.9))
+	b.add_theme_color_override("font_outline_color", bg.darkened(0.55))
+	b.add_theme_constant_override("outline_size", 6)
 	var st: StyleBoxFlat = StyleBoxFlat.new()
 	st.bg_color = bg
-	st.set_corner_radius_all(14)
-	st.set_border_width_all(3)
-	st.border_color = bg.darkened(0.35)
+	st.set_corner_radius_all(18)
+	st.border_width_bottom = 7
+	st.border_color = bg.darkened(0.40)
+	st.shadow_color = Color(0, 0, 0, 0.35)
+	st.shadow_size = 6
+	st.shadow_offset = Vector2(0, 4)
+	st.content_margin_bottom = 7
+	st.anti_aliasing = true
 	var st_hover: StyleBoxFlat = st.duplicate() as StyleBoxFlat
-	st_hover.bg_color = bg.lightened(0.12)
+	st_hover.bg_color = bg.lightened(0.10)
+	var st_down: StyleBoxFlat = st.duplicate() as StyleBoxFlat
+	st_down.bg_color = bg.darkened(0.06)
+	st_down.border_width_bottom = 2
+	st_down.expand_margin_top = -5
+	st_down.shadow_size = 2
+	st_down.shadow_offset = Vector2(0, 1)
+	st_down.content_margin_bottom = 2
+	var st_off: StyleBoxFlat = st.duplicate() as StyleBoxFlat
+	st_off.bg_color = Color(bg, 0.40)
+	st_off.border_color = Color(bg.darkened(0.40), 0.40)
+	st_off.shadow_color = Color(0, 0, 0, 0.12)
 	b.add_theme_stylebox_override("normal", st)
 	b.add_theme_stylebox_override("hover", st_hover)
-	b.add_theme_stylebox_override("pressed", st_hover)
-	b.add_theme_stylebox_override("focus", st)
-	b.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	b.add_theme_stylebox_override("pressed", st_down)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_stylebox_override("disabled", st_off)
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# the gloss: a pale band across the top half, inset, rounded like the button
+	var gloss: Panel = Panel.new()
+	gloss.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var gs: StyleBoxFlat = StyleBoxFlat.new()
+	gs.bg_color = Color(1, 1, 1, 0.16)
+	gs.corner_radius_top_left = 14
+	gs.corner_radius_top_right = 14
+	gs.corner_radius_bottom_left = 6
+	gs.corner_radius_bottom_right = 6
+	gloss.add_theme_stylebox_override("panel", gs)
+	gloss.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	gloss.anchor_bottom = 0.42
+	gloss.offset_left = 6
+	gloss.offset_right = -6
+	gloss.offset_top = 4
+	b.add_child(gloss)
 	return b
 
 func _layout() -> void:

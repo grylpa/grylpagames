@@ -56,7 +56,9 @@ var level: int = 1
 var dispatch_audio = preload("res://art/sounds/deliverem_call.ogg")
 var delivery_audio = preload("res://art/sounds/deliverem_deliver.ogg")
 var door_audio = preload("res://art/sounds/deliverem_gate.ogg")
-var motor_audio = preload("res://art/sounds/engine-pulling-something.mp3")
+# the ambient, still called "motor" in code: a day street: the van idling, cars passing, a far horn (devtools/make_ambient_sounds.py; it was a
+# stock engine recording)
+var motor_audio: AudioStream = preload("res://art/sounds/deliverem_ambient.ogg")
 
 var player
 
@@ -81,6 +83,7 @@ func _ready() -> void:
 
 	game.add_sound(self, "door", door_audio, false)
 	game.add_sound(self, "motor", motor_audio, true)
+	game.set_sound_volume("motor", -6.0)
 
 	game.add_sound(self, "dispatch", dispatch_audio, false)
 	game.add_sound(self, "delivery", delivery_audio, false)
@@ -347,7 +350,7 @@ func add_agent_at(p: Vector2i, direction: int):
 	if not game.is_sound_playing("dispatch"):
 		game.play_sound("dispatch")
 	if not game.is_sound_playing("motor"):
-		MainGlobals.do_after(0.5, func(): game.play_sound("motor"))
+		MainGlobals.do_after(0.5, func(): game.play_sound("motor", false))
 	
 func display_reminder():
 	game.tutorial_notify("reminder_shown")

@@ -14,6 +14,9 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))  # fallback only; grass.png covers it
 	WhackG.load_settings()
 	main_menu = game.create_main_menu(self)
+	# the ambient loop (devtools/make_ambient_sounds.py): on while the board is up, off at the menu
+	game.add_sound(self, "ambient", preload("res://art/sounds/whack_ambient.ogg"), true)
+	game.set_sound_volume("ambient", -6.0)
 
 	main_menu.sig_start_game.connect(_on_main_menu_menu_start_game)
 	main_menu.sig_slider_changed.connect(_on_menu_slider_changed)
@@ -114,6 +117,7 @@ func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
 func show_main_menu() -> void:
+	game.stop_sound("ambient")
 	main_menu.show_continue_and_start_new(false)
 	main_menu.show()
 	$Level.hide()
@@ -121,6 +125,7 @@ func show_main_menu() -> void:
 	MainGlobals.add_action_button(null)
 
 func show_level() -> void:
+	game.play_sound("ambient", false)
 	get_viewport().gui_release_focus()
 	$Level.show()
 	main_menu.hide()

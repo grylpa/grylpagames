@@ -35,7 +35,7 @@ const SOUNDS: Dictionary = {
 	"lift": preload("res://art/sounds/ants_lift.ogg"),
 	"crush": preload("res://art/sounds/ants_crush.ogg"),
 }
-const SOUND_DB: Dictionary = {"garden": -9.0, "spray": -6.0, "water": -4.0, "cloche": -6.0, "crush": -2.0}
+const SOUND_DB: Dictionary = {"garden": -6.0, "spray": -6.0, "water": -4.0, "cloche": -6.0, "crush": -2.0}
 const PLACE_SOUND: Dictionary = {AntObstacle.Kind.STONE: "stone", AntObstacle.Kind.TWIG: "twig",
 	AntObstacle.Kind.WATER: "water", AntObstacle.Kind.LURE: "bait", AntObstacle.Kind.CLOCHE: "cloche"}
 signal started_playing
@@ -611,17 +611,31 @@ func _food_position(_i: int, n: int) -> Vector2:
 
 # --- the tick ---------------------------------------------------------------
 
+# The garden plays the whole time the level is on screen -- between rounds and under a round's card
+# too -- and is PAUSED (not stopped) only at the main menu or an explicit pause, resuming where it
+# was; losing the window's focus pauses it like every sound (GenericGameUtil). It used to stop
+# whenever the colony was not running, and then pause whenever any card was up: both left a silence
+# between every two rounds, the "gaps" in the ambient.
+func _keep_garden() -> void:
+	var player: Node = game.sounds.get("garden", null)
+	if player == null:
+		return
+	var hush: bool = not is_visible_in_tree() or game._pause or not game.in_focus
+	if hush:
+		player.set("stream_paused", true)
+		return
+	player.set("stream_paused", false)
+	game.play_sound("garden", false)
+
 # _process, NOT _physics_process. There is no physics engine in this game -- no bodies, no shapes,
 # no collision server -- so the physics tick buys nothing, and stepping at 60 Hz while DRAWING at
 # the display's refresh rate means the two cadences disagree: every ant repeats a position or skips
 # one whenever they drift apart, which is visible as a fine stutter on everything at once. Stepped
 # here, a drawn frame is always the frame that was just simulated.
 func _process(delta: float) -> void:
+	_keep_garden()
 	if not _running or not game.playing or game.paused():
-		# The garden plays only while the colony does: not under a card, a pause or the menu.
-		game.stop_sound("garden")
 		return
-	game.play_sound("garden", false)
 	# A long frame must not teleport ants through each other: the contact pass only separates
 	# overlaps it can see, and a 0.5s step moves an ant 28 units, three whole body widths.
 	if _pan_accum != Vector2.ZERO and _can_pan:

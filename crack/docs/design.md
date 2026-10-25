@@ -91,9 +91,9 @@ face with silver ticks and numbers, and a knurled chrome knob whose domed cap is
 stays lit from the top left. It was flat navy rectangles and a blue dial.
 
 **Open or locked**: a small lamp above the dial (red / green), and while open the WHOLE DIAL turns
-green -- the face (`DIAL_FACE_OPEN`), its ticks and numbers -- with a green ring in the bezel and a broad
-green glow round it. A lamp and a faint halo alone were tried and were not clear enough; the old
-design's green dial was.
+green -- the face (`DIAL_FACE_OPEN`), its ticks and numbers -- with a green ring in the bezel and a green
+glow hugging it (within 16 px of the bezel: a 42 px glow spread over the labels above the dial). A lamp
+and a faint halo alone were tried and were not clear enough; the old design's green dial was.
 
 **Sounds** (`devtools/make_crack_sounds.py`; it had none): `click`, one notch of the dial's ratchet,
 each time the dial passes one of its 100 marks (about twelve a second while it turns, -18 dB): a soft, low, damped tock -- a bright 3.2 kHz tick was tried and was harsh;

@@ -144,7 +144,7 @@ static func stats_row_cells(row_name: String, values: Array, state: int) -> Arra
 	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(name_lbl, 15)
+	MainGlobals.set_font_size(name_lbl, 17)
 	name_cell.add_child(name_lbl)
 	if note != "":
 		var note_lbl: Label = Label.new()
@@ -152,7 +152,7 @@ static func stats_row_cells(row_name: String, values: Array, state: int) -> Arra
 		note_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		note_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		note_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-		MainGlobals.set_font_size(note_lbl, 11)
+		MainGlobals.set_font_size(note_lbl, 13)
 		note_lbl.add_theme_color_override("font_color", Color(0.72, 0.74, 0.78, 1.0))
 		name_cell.add_child(note_lbl)
 
@@ -160,7 +160,7 @@ static func stats_row_cells(row_name: String, values: Array, state: int) -> Arra
 	# Width fixed; the HEIGHT is a minimum the caller may raise once it knows its own size, so
 	# every row can be made exactly equal. Expanding here instead lets the container hand the
 	# remainder out unevenly and the first row comes out a pixel taller than the rest.
-	spark.custom_minimum_size = Vector2(MainGlobals.ui_font_size(150), MainGlobals.ui_font_size(40))
+	spark.custom_minimum_size = Vector2(MainGlobals.ui_font_size(160), MainGlobals.ui_font_size(44))
 	spark.size_flags_vertical = Control.SIZE_FILL
 	spark.set_values(values)
 	# Every value is already a distance from a baseline in units of its own spread, so the band a
@@ -171,7 +171,7 @@ static func stats_row_cells(row_name: String, values: Array, state: int) -> Arra
 
 	var state_lbl: Label = Label.new()
 	state_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(state_lbl, 13)
+	MainGlobals.set_font_size(state_lbl, 15)
 	match state:
 		StatsBaseline.State.WATCH:
 			state_lbl.text = "getting worse"

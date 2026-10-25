@@ -154,15 +154,19 @@ There was no weather: a storm game on a sunny lawn. Three things, none of them t
   across a doorway. On the floor's z, added just before the water layer, so the water draws over it.
   It loops over the board ARRAY, not `game.board_size`: during a rebuild the size changes first, and
   `probe_storm_rebuild` caught it reading past the end.
-- **The blackout is gentle** (`main.gd`, `on_show_blackout`): the same darkness at the same moments
-  (`blackout_every_sec`), but down fast, one slow flicker back, then up over a third of a second. It
-  used to cut hard on and off three times in a quarter second -- about eight flashes a second, the
-  kind of flashing that can trigger photosensitive seizures. Now under two changes a second.
+- **The blackout is a hard cut** (`main.gd`, `on_show_blackout`): thunder, then the house lights
+  cut out -- dark 0.03 s, a flash of light 0.06 s, dark 0.16 s, back. Alarming on purpose. A gentle
+  fade-and-flicker version (for photosensitivity: this is about eight changes a second, for a quarter
+  second) replaced it for a while; the user found it no longer alarming and it was restored. The dark
+  is 88% black (`blackout.tscn`); it was 65%, which was enough over the old sunny lawn, but the storm
+  overlay (`storm_rain.gdshader`) now darkens the scene itself, and the same overlay over an already
+  dim picture no longer read as the lights failing.
 
 ## Sounds
 
 The rain loops (`rain_1..4.ogg`), the thunder (`thunder_1..4.mp3`) and the water pour are recordings
-and stay. Made for this game by `devtools/make_storm_sounds.py`: four **drips** (`storm_drip_1..4`, the
+and stay. The thunder has TWO players, `thunder` and `thunder2`, used in turn by `on_show_blackout`:
+with one, a blackout that came while the last roll was still rumbling cut it off mid-sound. Made for this game by `devtools/make_storm_sounds.py`: four **drips** (`storm_drip_1..4`, the
 "plink" of a drop into water, one every 2-8 s), a **new leak** (`storm_leak`, wet plaster creaking and a
 heavy first splat), **footsteps** on a wooden floor (`storm_steps`, a two-step loop while walking) and a
 tool **set down** (`storm_set`, a hollow thunk). They replaced retro arcade "blops", a swoosh, footsteps

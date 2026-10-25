@@ -58,6 +58,19 @@ func _ready() -> void:
 	if agent_type == 0:
 		var s = $Head.scale
 		$Head.scale = Vector2(s.x,s.y * 0.8)
+	else:
+		_dress_as_wolf()
+
+# A wolf is DRAWN (beast_art.gd, in the sheep's flat style: gray, a dark saddle, upright ears, amber eyes) under
+# the head node, whose own sprite -- the generic blob, tinted yellow -- is made invisible.
+var _art: Node2D = null
+
+func _dress_as_wolf() -> void:
+	_art = preload("res://wolves/scripts/beast_art.gd").new()
+	_art.set("kind", "wolf")
+	$Head.self_modulate = Color(1, 1, 1, 0)
+	$Head.modulate = Color(1, 1, 1, 1)
+	$Head.add_child(_art)
 
 func set_id(_id):
 	agent_id = _id
@@ -67,7 +80,8 @@ func set_type(_agent_type):
 
 func set_color(_color):
 	color = _color
-	$Head.set_modulate(color)
+	# a drawn wolf wears its own coat; the tint was only for the blob
+	$Head.set_modulate(color if _art == null else Color(1, 1, 1, 1))
 		
 func set_color_idx(_color_idx = -1):
 	var coloridx = 0

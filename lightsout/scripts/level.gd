@@ -82,11 +82,13 @@ var _tutorial_bombs_hit: Dictionary = {}
 @export var target_scene: PackedScene = load("res://lightsout/scenes/target.tscn")
 @export var player_scene: PackedScene = load("res://lightsout/scenes/player.tscn")
 
-# Made for this game (devtools/make_action_sounds.py), names in code kept: `motor` a dark corridor's
-# low hum (was a car engine), `feet` steps on stone (were on grass), `delivered` the lights coming on
-# (was an arcade coin), `explosion` a muffled boom (was a car crash), `start` a soft switch click.
+# Made for this game (devtools/make_action_sounds.py, make_ambient_sounds.py), names in code kept:
+# `motor` the ambient, a quiet night -- a slow harp ostinato in minor, a low reed, crickets (was a car
+# engine, then a low hum); `feet` steps on stone (were on grass), `delivered` the lights coming on
+# (was an arcade coin), `explosion` a big explosion with debris (was a car crash), `start` a soft
+# switch click. The ambient plays on between rounds and stops at the main menu (main.gd).
 var explosion_audio = preload("res://art/sounds/lightsout_boom.ogg")
-var motor_audio = preload("res://art/sounds/lightsout_hum.ogg")
+var motor_audio = preload("res://art/sounds/lightsout_ambient.ogg")
 var feet_audio = preload("res://art/sounds/lightsout_steps.ogg")
 var delivered_audio = preload("res://art/sounds/lightsout_lights.ogg")
 var start_audio = preload("res://art/sounds/lightsout_start.ogg")
@@ -108,8 +110,8 @@ func _ready() -> void:
 	game.add_sound(self, "delivered", delivered_audio, false)
 	game.add_sound(self, "start", start_audio, false)
 	
-	motor_audio.loop = true
 	game.add_sound(self, "motor", motor_audio, true)
+	game.set_sound_volume("motor", -6.0)
 
 	feet_audio.loop = true
 	game.add_sound(self, "feet", feet_audio, true)
@@ -872,7 +874,6 @@ func _on_level_done_popup_closed():
 func level_is_done(didwin: bool):
 	last_level_was_a_win = didwin
 	game.level_is_done = true
-	game.stop_sound("motor")
 	game.stop_sound("feet")
 	if game.tutorial_mode or _tutorial_board:
 		# "Round 1 of Level 1 completed" landing on (or just after) the coach's closing caption is

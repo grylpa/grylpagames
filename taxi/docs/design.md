@@ -50,9 +50,10 @@ board is cut by (10, 6) tiles. `game.max_board_size` grows with the level even w
   WORLD coordinates so it runs on across tiles whatever a tile's rotation. The tile art's yellow
   center dot is kept as a small road stud. The art itself (flat gray squares) is unchanged. A first
   version had stains everywhere and read as camouflage.
-- **Curbs**: `pipe.gd` draws a pale concrete curb with a lit edge on each side of a road tile that
-  has no road beyond it (`_open`, filled in by `set_rot` from the neighbors it already checks), and
-  the curb's shadow falling onto the road.
+- **No curbs**: `pipe.gd` draws only a soft 3 px shadow on the asphalt along each side of a road tile
+  that has no road beyond it (`_open`, filled in by `set_rot` from the neighbors it already checks).
+  A pale concrete curb with a lit edge used to run round the lot; in a parking lot it served no
+  purpose and read as thick walls (user, 2026-10-25).
 - **Cabs cast a soft shadow** down and to the right, turning with the cab (`agent.gd` `_draw`, a
   rounded rectangle along the cab's length, two faint layers). The cab sprite's long axis runs along
   its local X.

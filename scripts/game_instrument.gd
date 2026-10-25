@@ -357,7 +357,9 @@ static func _z_for(sessions: Array, metric: String) -> Array:
 		out = out.slice(out.size() - SUMMARY_SPARK_LEN)
 	return out
 
-# THE SUMMARY TAB: what this game says about how you are doing.
+# THE SUMMARY TAB: what this game says about how you are doing. Its type was raised a few steps
+# (the verdict 16 -> 21, the notes and readout 12-15 -> 14-18): at the old sizes the tab was a few
+# small lines over a mostly empty card.
 #
 # The verdict and the difficulty note first, because they are the answer to the question people
 # open this for. Then anything the game measures that is NOT a chart — a confusion matrix, the
@@ -375,7 +377,7 @@ static func summary_for(folder: String) -> Control:
 	trend.text = str(v["trend"])
 	trend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	trend.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(trend, 16)
+	MainGlobals.set_font_size(trend, 21)
 	trend.add_theme_color_override("font_color", _verdict_color(int(v["state"])))
 	col.add_child(trend)
 
@@ -384,7 +386,7 @@ static func summary_for(folder: String) -> Control:
 		ch.text = str(v["challenge"])
 		ch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ch.add_theme_font_override("font", MainGlobals.get_text_font())
-		MainGlobals.set_font_size(ch, 13)
+		MainGlobals.set_font_size(ch, 16)
 		ch.add_theme_color_override("font_color", Color(0.72, 0.75, 0.80, 1.0))
 		col.add_child(ch)
 
@@ -409,7 +411,7 @@ static func summary_for(folder: String) -> Control:
 			sl.text = line
 			sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			sl.add_theme_font_override("font", MainGlobals.get_text_font())
-			MainGlobals.set_font_size(sl, 13)
+			MainGlobals.set_font_size(sl, 16)
 			sl.add_theme_color_override("font_color", ScreenBackdrop.STATS_MARK)
 			col.add_child(sl)
 		return col
@@ -530,7 +532,7 @@ static func _waiting(text: String) -> Control:
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(lbl, 15)
+	MainGlobals.set_font_size(lbl, 17)
 	lbl.add_theme_color_override("font_color", Color(0.62, 0.65, 0.70, 1.0))
 	return lbl
 
@@ -725,7 +727,7 @@ static func _accuracy_row(title: String, n_right: int, n_total: int, median_ms: 
 	var name_lbl: Label = Label.new()
 	name_lbl.text = title
 	name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(name_lbl, 15)
+	MainGlobals.set_font_size(name_lbl, 17)
 	name_lbl.add_theme_color_override("font_color", Color(0.86, 0.88, 0.92, 1.0))
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(name_lbl)
@@ -736,7 +738,7 @@ static func _accuracy_row(title: String, n_right: int, n_total: int, median_ms: 
 	# are not the same thing.
 	pct_lbl.text = "Accuracy: %d%%" % int(round(pct))
 	pct_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(pct_lbl, 15)
+	MainGlobals.set_font_size(pct_lbl, 17)
 	pct_lbl.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
 	head.add_child(pct_lbl)
 	row.add_child(head)
@@ -769,7 +771,7 @@ static func _note(text: String) -> Label:
 	lbl.text = text
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(lbl, 12)
+	MainGlobals.set_font_size(lbl, 14)
 	lbl.add_theme_color_override("font_color", Color(0.72, 0.74, 0.78, 1.0))
 	return lbl
 
@@ -782,7 +784,7 @@ static func _captioned(body: Control, text: String) -> Control:
 	lbl.text = text
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(lbl, 13)
+	MainGlobals.set_font_size(lbl, 15)
 	lbl.add_theme_color_override("font_color", Color(0.72, 0.74, 0.78, 1.0))
 	box.add_child(lbl)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1231,7 +1233,7 @@ static func _summary(gu: GenericGameUtil) -> Control:
 	var head: Label = Label.new()
 	head.text = "Your last %d session%s" % [n, "" if n == 1 else "s"]
 	head.add_theme_font_override("font", MainGlobals.get_text_font())
-	MainGlobals.set_font_size(head, 15)
+	MainGlobals.set_font_size(head, 18)
 	head.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
 	box.add_child(head)
 
@@ -1253,7 +1255,7 @@ static func _summary(gu: GenericGameUtil) -> Control:
 		var name_lbl: Label = Label.new()
 		name_lbl.text = str(METRIC_LABELS[k2])
 		name_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-		MainGlobals.set_font_size(name_lbl, 14)
+		MainGlobals.set_font_size(name_lbl, 16)
 		name_lbl.add_theme_color_override("font_color", Color(0.78, 0.80, 0.84, 1.0))
 		grid.add_child(name_lbl)
 		var val_lbl: Label = Label.new()
@@ -1263,7 +1265,7 @@ static func _summary(gu: GenericGameUtil) -> Control:
 		val_lbl.text = ("%d" % int(round(float(totals[k2]) / float(n)))) if per_session \
 			else ("%d" % int(round(float(totals[k2]))))
 		val_lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-		MainGlobals.set_font_size(val_lbl, 14)
+		MainGlobals.set_font_size(val_lbl, 16)
 		val_lbl.add_theme_color_override("font_color", ScreenBackdrop.STATS_MARK)
 		grid.add_child(val_lbl)
 	return box

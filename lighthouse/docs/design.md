@@ -5,7 +5,10 @@ the sea can be seen except where light falls on it: a lighthouse in the middle s
 widening as it goes out, and the boat carries a small light of its own. Rocks, wrecks and cliffs show
 only in slices as the light passes over them, so getting across is remembering where they were. The
 view is top-down: the lighthouse is seen as its head from above (`_draw_lantern`: a gallery with a railing of posts, the
-lantern's glass lit from inside with a white-hot spot that turns with the beam, a red cap).
+lantern's glass dark amber except where the lens points -- a white-hot arc that turns with the beam
+and fades out a quarter turn either side (`_glass_lit`) -- and a red cap whose warm rim is lit on the
+beam's side only). Lit evenly all round, as it first was, the whole tower glowed in every direction
+but the beam's.
 
 ## Files
 
@@ -72,8 +75,9 @@ obstacle showed as a faint silhouette in the dark.
   no afterglow**. It lights everything in its way, not just the nearest thing.
 - `_boat_lamp`: a cone at the bow (`_cone_texture`), bright at the boat and fading to nothing at
   `boat_light`.
-- **Only those two are lights.** The faint glows round the lantern (and a small flare where the lens
-  faces), the boat's lamp and the green harbor light are soft additive sprites drawn just above the dark layer (`_draw_glows`), not
+- **Only those two are lights.** The faint glow by the lantern (small, 1.6x the tower's radius, and
+  pushed half a radius toward the beam -- it was 2.8x and centered, lighting the tower all round), a
+  small flare where the lens faces, the boat's lamp and the green harbor light are soft additive sprites drawn just above the dark layer (`_draw_glows`), not
   PointLight2Ds. Five moving lights was the likeliest cause of jitter on a phone: a 2D light costs per
   lit pixel of every item it touches, the beam covers most of the screen, and every extra light
   multiplied that. The lighthouse's rock has a SOFT edge fading into the water: a hard disc with a

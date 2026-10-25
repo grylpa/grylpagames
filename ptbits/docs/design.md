@@ -97,6 +97,8 @@ ball texture, the tool disc and the basket lips all shade in the same direction.
 | Part | What it is |
 |---|---|
 | `backdrop` | gradient, panel seams for scale, a widening cone of light from the inlet, vignette |
+| `floor_detail` | perforated metal (a staggered grid of 2x2 holes, 5-12% white, brighter under the inlet's cone) and four faint arcs fanning down from the inlet -- added when the user found the backdrop plain; still a few percent of white, so `bg_at` holds |
+| `basket_pool` | each basket's own light on the floor above it: a soft pool of its color, breathing slowly, so a ball's color points at its basket from across the arena |
 | `motes` | 14 specks drifting in the light, positions derived from the clock, no state |
 | `loss_zone` | hazard wash + dashed line at the open bottom — the drop costs points and nothing said so |
 | `frame` | inner shadow on three walls + a hairline of lit metal, so the field is recessed |
@@ -188,6 +190,8 @@ along it, the paddle head is a tipped disc with thickness, its handle a cylinder
 It replaced a screenshot of the arena, which did not read at the chooser's small size.
 
 ## Sounds
+
+The physical sounds (`devtools/make_action_sounds.py`, wired in `level.gd`): `grab` a tool picked up (a soft click), `nudge` a tool pushing a ball (a soft bonk; balls report contacts, `_on_ball_touched`, at most once per 150 ms per ball so a resting ball does not buzz), `bump` a ball off a side bumper (a springy twang, on the bumper glow's rising edge), `spawn` a new ball (a bubble pop). An ambient pad (`ptbits_ambient.ogg`, `devtools/make_ambient_sounds.py`) plays while the board is up (`main.gd` `show_level`) and stops at the menu (`show_main_menu`). Before, the game had only a right and a wrong.
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a wooden chime for a ball in the right basket, a low wooden note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

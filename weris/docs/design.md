@@ -7,7 +7,7 @@
 **Singleton:** `WerisG`
 **Save key (short name):** `weris`
 **Initial time:** 5 minutes
-**Background color:** `0x3C5D3EFF` (same dark green as OOO / Friends)
+**Background:** a dark corkboard (`scripts/cork.gdshader`, see "The look")
 
 Weris is a face-recognition speed game. The player studies one person (with their name), then must find that person in a growing grid of faces as fast as possible — without any name labels. It trains detection speed, which can later be tracked via response-time reports.
 
@@ -23,6 +23,7 @@ weris/
 │   ├── globals.gd            + globals.gd.uid
 │   ├── main.gd               + main.gd.uid
 │   ├── level.gd              + level.gd.uid
+│   ├── cork.gdshader         the corkboard backdrop
 │   └── card.gd               + card.gd.uid
 └── scenes/
     ├── main.tscn
@@ -325,11 +326,21 @@ Only the failed level's points go back; everything earned in levels already pass
 
 ## The look
 
-`_apply_look()`, called from `_ready()`. The board's ground is the drawn backdrop the rest of the
-app uses (`scripts/screen_backdrop.gd`) in this game's own green — a gradient, a pool of light at
-the top, slow dust and a vignette — in place of the tiled `res://art/grass.png` that every screen in
-the app used to wear. The instruction, find and feedback labels take the app's prose font, and the
-countdown takes the app's accent.
+`_apply_look()`, called from `_ready()`. The photos are PINNED TO A CORKBOARD:
+
+- **The board** (`scripts/cork.gdshader`, on a `ColorRect` inside the Level's `TextureRect`): dark
+  cork -- granules at two scales, a speckle of darker and lighter grains, a soft pool of light toward
+  the top center, a darker edge. Dark and low in contrast on purpose: the faces are the game, and a
+  busy board would make finding one harder in a way the game does not mean to measure. It replaced
+  the shared green backdrop (`ScreenBackdrop`), which had replaced a tiled grass texture.
+- **The cards are printed photos** (the shared card's `set_photo(true)`: a warm white frame with a
+  soft shadow, in place of the yellow zigzag), each with a **pushpin** at its top (`_add_pin`: a
+  colored head with a highlight and its shadow; the color is fixed by the card's place in the tree).
+  The grid's photos are tilted a couple of degrees each (`randf_range(-2.5, 2.5)`); the one to study
+  stands straight.
+- The captions (instruction, "Where is ...?", the countdown) are a warm cream with a shadow, to read
+  on the cork. The feedback is a **speech bubble** (`_feedback_bubble`): green with light text when
+  found, red when wrong or out of time. It was dark green or red text on a translucent dark box.
 
 Nothing about the layout, the flow or the logic changed: only what it is made of.
 
@@ -359,3 +370,9 @@ tried and turned down (the first read as scary, the second as a mess).
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a bell chime for right, a soft low bell note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+Two AMBIENTS (`devtools/make_ambient_sounds.py`), one per phase (`level.gd` `_ambient`): while the face
+is studied, a few slow electric-piano notes over a soft pad (`weris_card_ambient.ogg`, -7 dB); while the
+crowd is searched, a room of people talking, glasses clinking, a laugh (`weris_crowd_ambient.ogg`,
+-9 dB). The other one is PAUSED, not stopped, so each resumes where it was; both stop at the main menu.
+The game had no ambient before.

@@ -2,10 +2,13 @@ extends CanvasLayer
 
 signal start_game
 
-var gameover_audio := preload("res://art/sounds/gameover-1.mp3")
-# Finishing is not losing. This panel is shown for both, and it played the game-over sting either
-# way -- so every game in the app has been congratulating the player with the sound of failure.
-var finished_audio := preload("res://art/sounds/game-level-done.mp3")
+# Made for the app (devtools/make_ui_sounds.py): `ui_end_lose` a gentle falling phrase settling on a
+# warm low chord, `ui_end_win` a short fanfare with a timpani roll and bells. They replaced two stock
+# stings. Finishing is not losing: this panel is shown for both, and it once played the game-over
+# sting either way. GameOverAudio is a PLAIN player (it was positional, like every sound in the app
+# once was, so its loudness depended on where the camera stood).
+var gameover_audio: AudioStream = preload("res://art/sounds/ui_end_lose.ogg")
+var finished_audio: AudioStream = preload("res://art/sounds/ui_end_win.ogg")
 var game:GenericGameUtil
 
 var _last_countdown_time := 0
@@ -100,6 +103,9 @@ func reset():
 	$Panel.hide()
 	$CountdownLabel.hide()	
 	game_already_over = false
+	if _final != null and is_instance_valid(_final):
+		_final.queue_free()
+	_final = null
 	# $LivesContainer.hide()
 
 func new_game(from_scratch = true):
@@ -135,6 +141,7 @@ func game_over(_didwin: bool, _wasaborted: bool):
 	tween_scale.tween_property($Message, "scale", Vector2(1.18, 1.18), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween_scale.parallel().tween_property($Message, "rotation", 0.0, 0.34).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween_scale.tween_property($Message, "scale", Vector2(1.0, 1.0), 0.16)
+	_show_final_score.call_deferred(_didwin)
 	await MainGlobals.sleep(1)
 	$StartButton.show()
 	# and the button arrives after it, rising into place
@@ -159,6 +166,89 @@ func game_over(_didwin: bool, _wasaborted: bool):
 	_beat.set_loops()
 	_beat.tween_property(btn, "scale", Vector2(1.045, 1.045), 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_beat.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.75).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+# THE FINAL SCORE, under the banner: a small "Score" over the number, which counts up from zero as the
+# banner settles, and a gold "New best!" tag when the game reports one. A finish also throws the
+# confetti a level-done card throws. The screen used to be the banner and the button over an empty
+# dark scrim, and the score was only in the HUD's corner.
+var _final: Control = null
+var _best_at_ms: int = -100000
+
+func _note_new_best() -> void:
+	_best_at_ms = Time.get_ticks_msec()
+
+func _show_final_score(didwin: bool) -> void:
+	if not MainGlobals.sig_new_best_score.is_connected(_note_new_best):
+		MainGlobals.sig_new_best_score.connect(_note_new_best)
+	if _final != null and is_instance_valid(_final):
+		_final.queue_free()
+	var box: VBoxContainer = VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 0)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(box)
+	move_child(box, $Message.get_index())
+	_final = box
+	var cap: Label = Label.new()
+	cap.text = "Score"
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cap.add_theme_font_override("font", MainGlobals.get_text_font())
+	cap.add_theme_color_override("font_color", Color(ResultCard.TEXT, 0.6))
+	MainGlobals.set_font_size(cap, 20)
+	box.add_child(cap)
+	var num: Label = Label.new()
+	num.text = "0"
+	num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	num.add_theme_font_override("font", MainGlobals.get_text_font())
+	num.add_theme_color_override("font_color", _WIN_BG if didwin else Color(1.0, 0.93, 0.86))
+	num.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+	num.add_theme_constant_override("outline_size", 6)
+	MainGlobals.set_font_size(num, 64)
+	box.add_child(num)
+	var tag: Label = Label.new()
+	tag.text = "New best!"
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.add_theme_font_override("font", MainGlobals.get_text_font())
+	tag.add_theme_color_override("font_color", ResultCard.HEADER_INK)
+	var tsb: StyleBoxFlat = StyleBoxFlat.new()
+	tsb.bg_color = _WIN_BG
+	tsb.set_corner_radius_all(999)
+	tsb.content_margin_left = 16.0
+	tsb.content_margin_right = 16.0
+	tsb.content_margin_top = 2.0
+	tsb.content_margin_bottom = 4.0
+	tag.add_theme_stylebox_override("normal", tsb)
+	tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tag.modulate.a = 0.0
+	MainGlobals.set_font_size(tag, 20)
+	box.add_child(tag)
+	# below the banner, halfway to the button
+	await get_tree().process_frame
+	if not is_instance_valid(box):
+		return
+	var top: float = $Message.position.y + $Message.size.y * 1.0 + 40.0
+	var w: float = float(MainGlobals.screen_size.x)
+	box.position = Vector2(0.0, top)
+	box.size = Vector2(w, box.get_combined_minimum_size().y)
+	box.modulate.a = 0.0
+	var score: int = int(game.score) if game != null else 0
+	var tw: Tween = box.create_tween()
+	tw.tween_interval(0.35)
+	tw.tween_property(box, "modulate:a", 1.0, 0.25)
+	tw.tween_method(func(v: float) -> void: num.text = str(int(round(v))), 0.0, float(score),
+		clampf(0.4 + float(absi(score)) / 2000.0, 0.4, 1.1)).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_callback(func() -> void:
+		if Time.get_ticks_msec() - _best_at_ms < 4000:
+			tag.pivot_offset = tag.size * 0.5
+			tag.scale = Vector2(0.6, 0.6)
+			var tt: Tween = tag.create_tween()
+			tt.tween_property(tag, "modulate:a", 1.0, 0.15)
+			tt.parallel().tween_property(tag, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT))
+	if didwin:
+		var burst: ResultCard.Confetti = ResultCard.Confetti.new()
+		burst.origin = $Message.position + Vector2($Message.size.x * 0.5, 0.0)
+		burst.spread = $Message.size.x * 0.5
+		add_child(burst)
 
 # --- the game-over look ---------------------------------------------------------------------
 # This screen used to be a cyan pill with a 4px black border and a default-themed "Restart Game"
@@ -241,6 +331,10 @@ func _draw_banner(fx: Control, bg: Color, didwin: bool) -> void:
 	# a wheel turning under fixed text is the one motion the eye cannot ignore or adapt to, and it
 	# goes from festive to a headache in about ten seconds. Both of these settle instead: a burst
 	# rises, fades and is gone, and the next one is somewhere else.
+	# a soft glow of the banner's color, so it stands in light rather than on a flat dark scrim
+	var glow_r: float = w * 0.95
+	fx.draw_texture_rect(_glow_tex(), Rect2(mid - Vector2(glow_r, glow_r), Vector2(glow_r, glow_r) * 2.0), false,
+		Color(bg.r, bg.g, bg.b, 0.30))
 	if didwin:
 		_draw_fireworks(fx, mid, w, h, bg)
 	else:
@@ -275,6 +369,25 @@ func _draw_banner(fx: Control, bg: Color, didwin: bool) -> void:
 		fx.draw_line(Vector2(x, 8.0), Vector2(x + dash * 0.55, 8.0), Color(1, 1, 1, 0.30), 2.0)
 		fx.draw_line(Vector2(x, h - 18.0), Vector2(x + dash * 0.55, h - 18.0), Color(0, 0, 0, 0.22), 2.0)
 		x += dash
+
+# A smooth radial falloff, white at the center to clear at the rim (drawn tinted). Concentric circles
+# showed as rings.
+static var _glow: GradientTexture2D = null
+
+static func _glow_tex() -> GradientTexture2D:
+	if _glow == null:
+		var g: Gradient = Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.45, Color(1, 1, 1, 0.35))
+		_glow = GradientTexture2D.new()
+		_glow.gradient = g
+		_glow.fill = GradientTexture2D.FILL_RADIAL
+		_glow.fill_from = Vector2(0.5, 0.5)
+		_glow.fill_to = Vector2(1.0, 0.5)
+		_glow.width = 256
+		_glow.height = 256
+	return _glow
 
 # Deterministic 0..1 from an integer, so every spark can be recomputed from the clock instead of
 # stored. No particle lives anywhere.

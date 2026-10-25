@@ -64,6 +64,27 @@ That reproduces exactly what the original four frames `[sheep1, sheep2, sheep3, 
 `speed = 5` over 4), but the largest step is 2.7 deg per frame instead of 10, so the sway reads as
 motion rather than three discrete poses.
 
+## The dog and the wolves are drawn
+
+`scripts/beast_art.gd`, a `Node2D` added as a child of the animal's `Head` (the dog in `player.gd`
+`_ready`, a wolf in `agent.gd` `_dress_as_wolf`; sheep keep their sprite). The head's own sprite -- the
+app's generic blob, tinted blue for the dog and yellow for the wolves -- is made invisible with
+`self_modulate` rather than removed, so the head's rotation still steers the animal and the bark /
+eat / scare scale tweens still play on it; `set_color` leaves the head untinted once the art is there.
+
+Seen from above, facing +x, in level pixels (the head's 0.25 scale is undone), light from the top
+left of the SCREEN (the shadow and the rim are rotated back by the animal's own rotation):
+
+- **dog**: a border collie -- black coat with a pale rim on the lit side, a white ruff round the neck,
+  a white blaze and muzzle, folded ears, a plumed tail with a white tip that wags fast.
+- **wolf**: grey with a darker saddle along the back, a pale long muzzle, upright pointed ears, amber
+  eyes, a bushy tail with a dark tip that sways slowly.
+
+The paws stride in diagonal pairs while the animal moves (from its own change of position) and come
+to rest when it stops. Ellipses are real polygons with a thin anti-aliased edge: a unit circle drawn
+under a scaling transform scaled its anti-aliasing feather too, and the first version came out
+blurred. Tails are one continuous stroke: stacked discs left seams that read as rings.
+
 ## A* Pathfinding
 
 - Used for scared sheep routing back to compound
@@ -207,6 +228,7 @@ wolves/
     ├── level.gd               (core gameplay: board, fences, sheep AI)
     ├── agent.gd               (agent/sheep movement and animation)
     ├── player.gd              (player movement, body animation)
+    ├── beast_art.gd           (the dog and the wolves, drawn from above)
     ├── pipe.gd                (tile logic; fences, coins, bricks)
     ├── empty_space.gd         (wall visibility logic)
     ├── target.gd              (unused)

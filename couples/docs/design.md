@@ -174,5 +174,7 @@ Response times are handed to the shared session record as a whole distribution, 
 
 ## Sounds
 
+An ambient (`couples_ambient.ogg`, `devtools/make_ambient_sounds.py`: playful pizzicato and a music-box tune; it was a slow pad of drifting chords, heard as one irritating tone) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu (`show_main_menu`). The game had no ambient before.
+
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a bell chime for a right pair, a soft low bell note for a wrong one. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

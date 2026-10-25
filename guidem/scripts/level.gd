@@ -44,7 +44,9 @@ var max_speed_scale = 1.0
 var dispatch_audio := preload("res://art/sounds/guidem_call.ogg")
 var delivery_audio := preload("res://art/sounds/guidem_deliver.ogg")
 var door_audio := preload("res://art/sounds/guidem_gate.ogg")
-var motor_audio := preload("res://art/sounds/engine-pulling-something.mp3")
+# the ambient, still called "motor" in code: a parking garage: engines idling in a concrete echo, a car door now and then (devtools/make_ambient_sounds.py; it was a
+# stock engine recording)
+var motor_audio: AudioStream = preload("res://art/sounds/guidem_ambient.ogg")
 var explosion_audio := preload("res://art/sounds/guidem_bump.ogg")
 
 # signal game_over(didwin:bool)
@@ -61,6 +63,7 @@ func _ready() -> void:
 
 	game.add_sound(self, "door", door_audio, false)
 	game.add_sound(self, "motor", motor_audio, true)
+	game.set_sound_volume("motor", -6.0)
 
 	game.add_sound(self, "dispatch", dispatch_audio, false)
 	game.add_sound(self, "delivery", delivery_audio, false)
@@ -272,7 +275,7 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	if not game.is_sound_playing("dispatch"):
 		game.play_sound("dispatch")
 	if not game.is_sound_playing("motor"):
-		MainGlobals.do_after(0.5, func(): game.play_sound("motor"))
+		MainGlobals.do_after(0.5, func(): game.play_sound("motor", false))
 			
 func on_clicked_door(pos: Vector2i):
 	#if board[pos.y][pos.x].has_agent:

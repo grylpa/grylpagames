@@ -219,13 +219,20 @@ and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
 
+## Score popups
+
+The score rises from the answer (`level.gd` `_show_score_popup`, a copy of Pinpoint's): "+N" in green
+over a right answer, "-1" in red over a wrong one, and "-1" over the right one when it expired
+untouched -- floating up a couple of tiles and fading over 0.65 s, with a dark outline so it reads on
+the backdrop. Before, the score changed only in the HUD.
+
 ## Sounds
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it makes the same set
 for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
 "shown" sound). Names in code kept: `dispatch` = the target appearing (a spotlight clunk), `delivery` = a right
 answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
-one STEADY loop (`ooo_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+one loop (`ooo_ambient.ogg`, -6 dB: noir jazz in G minor -- a walking bass, brushes, vibraphone, made by `devtools/make_ambient_sounds.py` with its music engine `devtools/music.py`. The first version laid band-passed white noise under a thin chord (heard as hiss), the second was a slow pad of held chords (heard, over minutes, as "almost-single-tone" and irritating); the tune is kept sparse and soft, never tied to when a shape flashes). They replaced a heavy bell, an
 arcade coin, a swoosh and three stock ocean-wave loops picked at random.
-The ambient is steady for the same reason the backdrop is featureless: this game measures attention,
+The ambient is calm for the same reason the backdrop is featureless: this game measures attention,
 and nothing in the background should pull it.

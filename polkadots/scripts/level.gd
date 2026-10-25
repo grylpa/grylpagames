@@ -46,6 +46,7 @@ var _total_response_time_ms: float = 0.0
 var _can_click: bool = false
 var _round_id: int = 0
 var _first_round: bool = true
+var _style_panel: StyleBoxFlat = null
 var _style_normal: StyleBoxFlat = null
 var _style_hover: StyleBoxFlat = null
 var _style_pressed: StyleBoxFlat = null
@@ -130,36 +131,48 @@ func get_level() -> int:
 
 func _apply_layout() -> void:
 	# Build and apply the box style early so it's ready before GameArea is shown
-	_style_normal = StyleBoxFlat.new()
-	_style_normal.bg_color = _panels_bk_color
-	_style_normal.border_width_left = 2
-	_style_normal.border_width_top = 2
-	_style_normal.border_width_right = 2
-	_style_normal.border_width_bottom = 2
-	_style_normal.border_color = Color(0.35, 0.35, 0.55, 1.0)
-	_style_normal.corner_radius_top_left = 8
-	_style_normal.corner_radius_top_right = 8
-	_style_normal.corner_radius_bottom_left = 8
-	_style_normal.corner_radius_bottom_right = 8
-	_style_normal.content_margin_left = 0.0
-	_style_normal.content_margin_right = 0.0
-	_style_normal.content_margin_top = 0.0
-	_style_normal.content_margin_bottom = 0.0
+	# THE FORM, not the colors: the panel and letter colors are set per level and are part of the
+	# stimulus, so they are untouched. The panels are rounded with a soft shadow, and the options are
+	# RAISED tiles -- a darker lip along the bottom in the panel's own color, sinking when pressed.
+	# They had square-ish corners and a bluish border that clashed with every panel color.
+	# One light, from the top left, for everything: every shadow falls down and to the right. The
+	# options' shadows used to be cut off square by the button's own clip_contents (so each had a
+	# square dark block under its rounded bottom), and fell straight down while the light elsewhere
+	# in the app comes from the top left.
+	_style_panel = StyleBoxFlat.new()
+	_style_panel.bg_color = _panels_bk_color
+	_style_panel.set_corner_radius_all(16)
+	_style_panel.shadow_color = Color(0, 0, 0, 0.40)
+	_style_panel.shadow_size = 10
+	_style_panel.shadow_offset = Vector2(5, 6)
+	_style_panel.anti_aliasing = true
+	_style_normal = _style_panel.duplicate() as StyleBoxFlat
+	_style_normal.border_width_bottom = 7
+	_style_normal.border_color = _panels_bk_color.darkened(0.40)
+	_style_normal.shadow_size = 7
+	_style_normal.shadow_offset = Vector2(4, 5)
 	_style_hover = _style_normal.duplicate() as StyleBoxFlat
-	_style_hover.bg_color = _panels_bk_color.darkened(0.1)#  Color(0.95, 0.75, 0.25, 1.0)
+	_style_hover.bg_color = _panels_bk_color.lightened(0.08)
 	_style_pressed = _style_normal.duplicate() as StyleBoxFlat
-	_style_pressed.bg_color = _panels_bk_color.darkened(0.2)
-	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_normal)
+	_style_pressed.bg_color = _panels_bk_color.darkened(0.10)
+	_style_pressed.border_width_bottom = 2
+	_style_pressed.expand_margin_top = -5
+	_style_pressed.shadow_size = 2
+	_style_pressed.shadow_offset = Vector2(1, 1)
+	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_panel)
 
 	var dots_panel: Control = $"Root/GameArea/HBox/DotsPanel"
 	var opts_panel: Control = $"Root/GameArea/HBox/OptionsPanel"
 	var dots_margin: MarginContainer = $"Root/GameArea/HBox/DotsPanel/DotsMargin"
 
+	# the two holders draw nothing: their default pale frame sat round the panels like a mat
+	for holder: Control in [dots_panel, opts_panel]:
+		holder.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+
 	# Zero out minimum sizes so large fonts don't push the layout beyond the viewport
+	# (not clipped: a clip there cut the panels' and the options' shadows off square)
 	dots_panel.custom_minimum_size = Vector2(0, 0)
-	dots_panel.clip_contents = true
 	opts_panel.custom_minimum_size = Vector2(0, 0)
-	opts_panel.clip_contents = true
 	%OptionsVBox.custom_minimum_size = Vector2(0, 0)
 
 	dots_panel.size_flags_stretch_ratio = 2.0
@@ -189,7 +202,7 @@ func _start_round() -> void:
 	%CharLabel.text = _correct_char
 	%CharLabel.add_theme_font_size_override("font_size", 200)
 	# Ensure the right number of persistent buttons exist; reset their appearance
-	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_normal)
+	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_panel)
 	_ensure_option_buttons_count(int(_cfg["num_options"]))
 	for btn in _option_buttons:
 		btn.text = ""
@@ -445,7 +458,7 @@ func _ensure_option_buttons_count(n: int) -> void:
 	while _option_buttons.size() < n:
 		var btn: Button = Button.new()
 		btn.custom_minimum_size = Vector2(0, 0)
-		btn.clip_contents = true
+		# NOT clip_contents: it would cut the shadow off square (the letter is sized to fit anyway)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		btn.add_theme_stylebox_override("normal", _style_normal)
@@ -456,9 +469,9 @@ func _ensure_option_buttons_count(n: int) -> void:
 		# A Button's minimum height is driven by its text, which would push the
 		# size-to-content container chain (VBox → Panel → HBox) past the screen for
 		# large fonts. The Label is anchored to the Button center and sized to its
-		# own content (grow both ways from the center), so it is always centerd,
+		# own content (grow both ways from the center), so it is always centered,
 		# auto-recenters when the letter/font changes, and does NOT contribute to the
-		# Button's minimum size. The Button's clip_contents trims any overflow.
+		# Button's minimum size. Its size is capped to the button (_configure_option_buttons).
 		var glyph: Label = Label.new()
 		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -583,6 +596,9 @@ func _show_feedback_popup(screen_pos: Vector2, text: String, is_correct: bool) -
 	label.add_theme_font_override("font", MainGlobals.get_system_sans_font())
 	label.add_theme_color_override("font_color", _FEEDBACK_OK_COLOR if is_correct else _FEEDBACK_BAD_COLOR)
 	label.add_theme_font_size_override("font_size", font_size)
+	# a thick dark outline: it rises over panels of any color (red on a red panel was invisible)
+	label.add_theme_color_override("font_outline_color", Color(0.05, 0.03, 0.03, 0.9))
+	label.add_theme_constant_override("outline_size", 12)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.custom_minimum_size = Vector2(200, 0)
 	label.pivot_offset = Vector2(100, 0)

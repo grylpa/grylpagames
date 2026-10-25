@@ -144,6 +144,7 @@ func new_game(from_scratch: bool = true) -> void:
 	game.level_label_changed("Level %d" % level)
 	ambient_audios.shuffle()
 	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	game.play_sound("ambient")
 	if game.tutorial_mode:
 		# The tutorial teaches all of this by doing it, and a wall of level numbers in front of the

@@ -18,6 +18,13 @@ extends Node2D
 #   tappable / press_dim       emit card_pressed(meta) on click; optional press dim
 #   meta                       payload passed with card_pressed
 # Label: set_label(text) + show_label(bool). The card grows/shrinks to include the label.
+# set_photo(true) (friends, weris): instead of the zig border, an OLD PRINTED PHOTO -- a frame of aged
+# card stock (cream, yellowing toward its edges, a stain or two) with a deckled, slightly uneven cut
+# edge, a nick or two out of it, a scorched stretch along one edge, a soft shadow, and the print itself
+# faintly warmed and darkened at its corners; the name in dark ink on the bottom margin rather than on
+# a yellow bar. Each card's wear is its own (_paper_seed). It was a plain warm-white frame, which the
+# user asked to look like a real card's edge, "cuts, burns etc.". The cuts and the scorch stay inside
+# the frame's margin, so no face is ever covered.
 
 signal card_pressed(meta)
 
@@ -50,6 +57,15 @@ var _image: TextureRect = null
 var _label: Label = null
 var _bar: ColorRect = null
 var _hit: Control = null
+var photo: bool = false
+var _photo_bg: Control = null
+var _photo_fx: Control = null
+var _paper_seed: int = 0
+const _PAPER: Color = Color(0.94, 0.91, 0.83)
+const _PAPER_EDGE: Color = Color(0.84, 0.76, 0.60)
+const _INK: Color = Color(0.20, 0.16, 0.13)
+const _CHAR: Color = Color(0.16, 0.09, 0.05)
+const _SINGE: Color = Color(0.55, 0.32, 0.12)
 
 func _ready() -> void:
 	_build()
@@ -134,29 +150,40 @@ func _apply_size() -> void:
 	var img_h: float = _w * img_aspect
 	var lh: float = _label_h()
 	var total_h: float = img_h + lh
+	var inset: float = _w * 0.07 if photo else frame_inset
 
 	_border.position = Vector2(-_w * 0.5, 0.0)  # top-center anchoring
 	_border.size = Vector2(_w, total_h)
+	if _photo_bg != null:
+		_photo_bg.visible = photo
+		_photo_bg.position = _border.position
+		_photo_bg.size = _border.size
+		_photo_bg.queue_redraw()
 
 	# COVER keeps the image aspect and crops; ASPECT/FILL scale the image to fill the frame
 	# (ASPECT's frame already matches the image so there's no distortion; FILL's fixed frame
 	# stretches the image to a uniform aspect).
 	_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED if fit == Fit.COVER else TextureRect.STRETCH_SCALE
-	_image.position = Vector2(frame_inset, frame_inset)
-	_image.size = Vector2(_w - frame_inset * 2.0, img_h - frame_inset * 2.0)
+	_image.position = Vector2(inset, inset)
+	_image.size = Vector2(_w - inset * 2.0, img_h - inset * 2.0)
+	if _photo_fx != null:
+		_photo_fx.visible = photo
+		_photo_fx.position = _image.position
+		_photo_fx.size = _image.size
+		_photo_fx.queue_redraw()
 
 	if lh > 0.0:
 		var font_px: float = _w * _LABEL_FONT_FRAC
 		var trim_px: float = font_px * _LABEL_TOP_TRIM
-		var inner_w: float = _w - frame_inset * 2.0
-		var bar_top: float = img_h - frame_inset + _LABEL_GAP  # yellow bar top (at the image bottom)
+		var inner_w: float = _w - inset * 2.0
+		var bar_top: float = img_h - inset + _LABEL_GAP  # yellow bar top (at the image bottom)
 		_label.add_theme_font_size_override("font_size", int(font_px))
-		_bar.position = Vector2(frame_inset, bar_top)
+		_bar.position = Vector2(inset, bar_top)
 		_bar.size = Vector2(inner_w, font_px * _LABEL_BOX_FRAC - trim_px)
 		_bar.visible = true
 		# nudge the NAME up by trim_px (its top leading goes over the image) so the VISIBLE
 		# name sits near the bar top -> less space ABOVE it; the space below is unchanged.
-		_label.position = Vector2(frame_inset, bar_top - trim_px)
+		_label.position = Vector2(inset, bar_top - trim_px + (inset * 0.6 if photo else 0.0))
 		_label.size = Vector2(inner_w, font_px * _LABEL_BOX_FRAC)
 		_label.visible = true
 	else:
@@ -176,8 +203,145 @@ func setup(tex: Texture2D, border_color: Color) -> void:
 		if ts.x > 0.0 and ts.y > 0.0:
 			_aspect = ts.y / ts.x
 	_image.texture = tex
-	_border.self_modulate = border_color
+	_border.self_modulate = Color(1, 1, 1, 0) if photo else border_color
 	_apply_size()
+
+# The printed-photo look (see the header). The zig border stays as the container but draws nothing.
+func set_photo(on: bool) -> void:
+	_build()
+	photo = on
+	if on and _photo_bg == null:
+		_paper_seed = randi()
+		_photo_bg = Control.new()
+		_photo_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_photo_bg.draw.connect(_draw_paper)
+		_pin(_photo_bg)
+		add_child(_photo_bg)
+		move_child(_photo_bg, 0)
+		_photo_fx = Control.new()
+		_photo_fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_photo_fx.draw.connect(_draw_print_age)
+		_pin(_photo_fx)
+		_border.add_child(_photo_fx)
+		_border.move_child(_photo_fx, _image.get_index() + 1)
+	_border.self_modulate = Color(1, 1, 1, 0) if on else Color(1, 1, 1, 1)
+	_bar.color = Color(0, 0, 0, 0) if on else _LABEL_BAR_COLOR
+	_label.add_theme_color_override("font_color", _INK if on else Color(0, 0, 0, 1))
+	_apply_size()
+
+# The card stock's outline: the four sides walked in small steps, each point pushed in a little at
+# random (a deckled cut), with one or two V-shaped nicks; the corners slightly rounded off.
+func _paper_outline(sz: Vector2, margin: float, rng: RandomNumberGenerator) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array()
+	var corners: Array = [Vector2(0, 0), Vector2(sz.x, 0), sz, Vector2(0, sz.y)]
+	var inward: Array = [Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 0)]
+	var nick_side: int = rng.randi_range(0, 3)
+	var nick_at: float = rng.randf_range(0.2, 0.8)
+	var nick2_side: int = (nick_side + 2) % 4 if rng.randf() < 0.5 else -1
+	var nick2_at: float = rng.randf_range(0.25, 0.75)
+	var round_r: float = margin * 0.25
+	for side in 4:
+		var a: Vector2 = corners[side]
+		var b: Vector2 = corners[(side + 1) % 4]
+		var inn: Vector2 = inward[side]
+		var length: float = a.distance_to(b)
+		var steps: int = maxi(8, int(length / 6.0))
+		var ph1: float = rng.randf_range(0.0, TAU)
+		var ph2: float = rng.randf_range(0.0, TAU)
+		for k in steps:
+			var u: float = float(k) / float(steps)
+			var p: Vector2 = a.lerp(b, u)
+			# a smooth waver, not per-point noise: spiky outlines can fail to triangulate
+			var d: float = 0.5 + 0.35 * sin(u * length * 0.21 + ph1) + 0.2 * sin(u * length * 0.53 + ph2)
+			# round the corner off a touch
+			var to_end: float = minf(u, 1.0 - u) * length
+			if to_end < round_r:
+				d += (round_r - to_end) * (round_r - to_end) / round_r * 0.6
+			for nk: Array in [[nick_side, nick_at, 0.75], [nick2_side, nick2_at, 0.5]]:
+				if int(nk[0]) == side:
+					var dist: float = absf(u - float(nk[1])) * length
+					var half: float = margin * 0.35
+					if dist < half:
+						d += (1.0 - dist / half) * margin * float(nk[2])
+			pts.append(p + inn * d)
+	return pts
+
+func _draw_paper() -> void:
+	var c: Control = _photo_bg
+	var sz: Vector2 = c.size
+	if sz.x < 4.0 or sz.y < 4.0:
+		return
+	var margin: float = _w * 0.07
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = _paper_seed
+	var outline: PackedVector2Array = _paper_outline(sz, margin, rng)
+	# the shadow: the same shape, offset, twice (a soft edge)
+	for sh: Array in [[Vector2(5, 8), 0.16], [Vector2(3, 5), 0.22]]:
+		var moved: PackedVector2Array = PackedVector2Array()
+		for p: Vector2 in outline:
+			moved.append(p + (sh[0] as Vector2))
+		c.draw_colored_polygon(moved, Color(0, 0, 0, float(sh[1])))
+	# the stock: yellowed at the edge, cream inside (a smaller lighter panel over the edge color)
+	c.draw_colored_polygon(outline, _PAPER_EDGE)
+	var inner: Rect2 = Rect2(Vector2(margin * 0.35, margin * 0.35), sz - Vector2(margin * 0.7, margin * 0.7))
+	var steps: int = 12
+	for k in steps:
+		var t: float = float(k + 1) / float(steps)
+		var r: Rect2 = inner.grow(-margin * 0.06 * float(k))
+		c.draw_rect(r, _PAPER_EDGE.lerp(_PAPER, t), true)
+	# a stain or two, faint rings of tea
+	for _i in rng.randi_range(0, 2):
+		var at: Vector2 = Vector2(rng.randf_range(0.1, 0.9) * sz.x, rng.randf_range(0.82, 0.97) * sz.y)
+		var rr: float = margin * rng.randf_range(0.6, 1.2)
+		c.draw_circle(at, rr, Color(0.60, 0.42, 0.20, 0.07), true, -1.0, true)
+		c.draw_arc(at, rr, 0.0, TAU, 24, Color(0.50, 0.33, 0.15, 0.12), 1.0, true)
+	# a SCORCHED stretch along one edge: a dark char right at the edge fading through brown into the
+	# stock, its depth wavering, kept inside the margin
+	var side: int = rng.randi_range(0, 3)
+	var u0: float = rng.randf_range(0.05, 0.45)
+	var u1: float = u0 + rng.randf_range(0.35, 0.55)
+	var corners: Array = [Vector2(0, 0), Vector2(sz.x, 0), sz, Vector2(0, sz.y)]
+	var inward: Array = [Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 0)]
+	var a: Vector2 = corners[side]
+	var b: Vector2 = corners[(side + 1) % 4]
+	var inn: Vector2 = inward[side]
+	var n: int = 48
+	var ph: float = rng.randf_range(0.0, TAU)
+	for layer: Array in [[1.15, _SINGE, 0.16], [0.95, _SINGE, 0.20], [0.75, _SINGE.darkened(0.25), 0.26],
+			[0.55, _SINGE.darkened(0.5), 0.34], [0.38, _CHAR, 0.50], [0.22, _CHAR, 0.70]]:
+		var poly: PackedVector2Array = PackedVector2Array()
+		for k in n + 1:
+			var u: float = lerpf(u0, u1, float(k) / float(n))
+			poly.append(a.lerp(b, u) + inn * 1.3)
+		for k in range(n, -1, -1):
+			var f: float = float(k) / float(n)
+			var u: float = lerpf(u0, u1, f)
+			# flat along most of its length, tapering only at its two ends, the rim ragged
+			var swell: float = smoothstep(0.0, 0.18, f) * smoothstep(1.0, 0.82, f)
+			var ragged: float = 0.72 + 0.18 * sin(f * 8.0 + ph) + 0.10 * sin(f * 19.0 + ph * 2.0)
+			var depth: float = margin * float(layer[0]) * swell * ragged
+			poly.append(a.lerp(b, u) + inn * (1.3 + depth))
+		c.draw_colored_polygon(poly, Color(layer[1] as Color, float(layer[2])))
+
+# The print itself, aged: faintly warmed, and darker toward its corners.
+static var _age_tex: GradientTexture2D = null
+
+func _draw_print_age() -> void:
+	var c: Control = _photo_fx
+	if _age_tex == null:
+		var g: Gradient = Gradient.new()
+		g.set_color(0, Color(0, 0, 0, 0))
+		g.set_color(1, Color(0, 0, 0, 1))
+		g.add_point(0.55, Color(0, 0, 0, 0.0))
+		_age_tex = GradientTexture2D.new()
+		_age_tex.gradient = g
+		_age_tex.fill = GradientTexture2D.FILL_RADIAL
+		_age_tex.fill_from = Vector2(0.5, 0.5)
+		_age_tex.fill_to = Vector2(1.0, 1.0)
+		_age_tex.width = 128
+		_age_tex.height = 128
+	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(1.0, 0.82, 0.55, 0.08), true)
+	c.draw_texture_rect(_age_tex, Rect2(Vector2.ZERO, c.size), false, Color(0.25, 0.15, 0.05, 0.35))
 
 func set_frame(patch_margin: int, inset: float) -> void:
 	frame_patch = patch_margin

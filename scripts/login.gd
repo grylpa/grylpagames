@@ -173,7 +173,43 @@ func _set_auth_form_visible(show_auth_form: bool) -> void:
 	%Username.visible = show_auth_form and _is_signup_tab()
 	%ForgotPasswordBtn.visible = show_auth_form and _is_login_tab() and not _forgot_mode
 
+# THE APP'S FACE on the name screen: its icon (art/icon_big.png, Dino's dinosaur afloat),
+# rounded, at the top of the panel. The screen a new player meets first was a bare form on the dark
+# ground. Only in the name-only layout -- with the account tabs up there is no room for it.
+var _icon: Control = null
+
+func _ensure_icon() -> void:
+	if _icon != null:
+		return
+	var side: float = MainGlobals.ui_font_size(140)
+	var clip: Panel = Panel.new()
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 1)
+	sb.set_corner_radius_all(30)
+	sb.shadow_color = Color(0, 0, 0, 0.5)
+	sb.shadow_size = 18
+	sb.shadow_offset = Vector2(0, 6)
+	sb.anti_aliasing = true
+	clip.add_theme_stylebox_override("panel", sb)
+	clip.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	clip.custom_minimum_size = Vector2(side, side)
+	clip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var img: TextureRect = TextureRect.new()
+	img.texture = preload("res://art/icon_big.png")
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	img.set_anchors_preset(Control.PRESET_FULL_RECT)
+	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip.add_child(img)
+	%GuestNamePanel.add_child(clip)
+	var spacer: Node = %GuestNamePanel.get_node_or_null("GuestTopSpacer")
+	%GuestNamePanel.move_child(clip, spacer.get_index() + 1 if spacer != null else 0)
+	_icon = clip
+
 func _place_guest_panel(name_only_layout: bool) -> void:
+	_ensure_icon()
+	_icon.visible = name_only_layout
 	if name_only_layout:
 		if _guest_local_margin.get_parent() != %VBoxContainer:
 			%VBoxContainer.add_child(_guest_local_margin)

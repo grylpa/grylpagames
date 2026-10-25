@@ -45,8 +45,7 @@ signal sig_level_is_done(didwin: bool)
 # What the score was when this level began. A level that misses the gate gives its points
 # back (see the level-done function): without that, failing forever is a way to earn forever
 # — every attempt banked its points and the retry cost nothing.
-var _bg: Control = null
-var _bg_t: float = 0.0
+var _board: ColorRect = null
 
 var _score_at_level_start: int = 0
 var _rollback_score_on_next_level: bool = false
@@ -57,6 +56,12 @@ func _ready() -> void:
 	# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
 	game.add_sound(self, "correct", preload("res://art/sounds/weris_right.ogg"))
 	game.add_sound(self, "wrong", preload("res://art/sounds/weris_wrong.ogg"))
+	# Two ambients (devtools/make_ambient_sounds.py), one per phase: a few slow electric-piano notes
+	# while the face is studied, a room of people talking while it is searched for (_ambient).
+	game.add_sound(self, "amb_card", preload("res://art/sounds/weris_card_ambient.ogg"), true)
+	game.add_sound(self, "amb_crowd", preload("res://art/sounds/weris_crowd_ambient.ogg"), true)
+	game.set_sound_volume("amb_card", -7.0)
+	game.set_sound_volume("amb_crowd", -9.0)
 	level = WerisG.starting_level
 	increase_difficulty(false)
 	_apply_look()
@@ -65,17 +70,30 @@ func _ready() -> void:
 # game's own green, in place of the tiled `res://art/grass.png` every screen used to wear, and the
 # labels set in the app's prose face.
 func _apply_look() -> void:
+	# THE CORKBOARD (cork.gdshader) the photos are pinned to; it was the shared green backdrop
 	var ground: TextureRect = $TextureRect
 	ground.texture = null
-	_bg = ScreenBackdrop.attach(ground)
-	if _bg.draw.get_connections().is_empty():
-		_bg.draw.connect(func() -> void:
-			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.WERIS_TOP, ScreenBackdrop.WERIS_BOT,
-				ScreenBackdrop.ACCENT))
+	if _board == null:
+		_board = ColorRect.new()
+		_board.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_board.set_anchors_preset(Control.PRESET_FULL_RECT)
+		var mat: ShaderMaterial = ShaderMaterial.new()
+		mat.shader = preload("res://weris/scripts/cork.gdshader")
+		_board.material = mat
+		ground.add_child(_board)
+		var fit: Callable = func() -> void: mat.set_shader_parameter("size", _board.size)
+		_board.resized.connect(fit)
+		fit.call()
 	set_process(true)
 	for label: Label in [%InstructionsLabel, %FindLabel, %FeedbackLabel]:
 		label.add_theme_font_override("font", MainGlobals.get_text_font())
-	%CountdownLabel.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
+	# the captions in a warm cream with a shadow, so they read on the cork
+	for label: Label in [%InstructionsLabel, %FindLabel, %CountdownLabel]:
+		label.add_theme_color_override("font_color", Color(1.0, 0.91, 0.72))
+		label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+		label.add_theme_constant_override("shadow_offset_y", 2)
+		label.add_theme_constant_override("shadow_outline_size", 5)
+	%FeedbackLabel.add_theme_color_override("font_color", Color(1.0, 0.96, 0.90))
 	_make_timeout_bar()
 
 # The find-phase clock, along the top edge.
@@ -125,10 +143,7 @@ func _draw_timeout_bar() -> void:
 		else Color(0.35, 0.9, 0.45).lerp(Color(1.0, 0.72, 0.15), (1.0 - left) * 2.0)
 	SessionBar.draw(_bar, _bar.size.x, left, Color(0.8, 0.85, 0.9), fill, 2.0)
 
-func _process(delta: float) -> void:
-	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
-		_bg_t += delta
-		_bg.queue_redraw()
+func _process(_delta: float) -> void:
 	if _bar != null and is_instance_valid(_bar):
 		_bar.queue_redraw()
 
@@ -166,7 +181,21 @@ func _clear_cards():
 		study_card.queue_free()
 		study_card = null
 
+# The phase's ambient plays on from where it was; the other one is paused, not stopped, so each
+# resumes mid-phrase rather than from its start every round. "" pauses both.
+func _ambient(which: String) -> void:
+	for key: String in ["amb_card", "amb_crowd"]:
+		var player: Node = game.sounds.get(key, null)
+		if player == null:
+			continue
+		if key == which:
+			player.set("stream_paused", false)
+			game.play_sound(key, false)
+		else:
+			player.set("stream_paused", true)
+
 func _start_study_phase():
+	_ambient("amb_card")
 	_clear_cards()
 	phase = Phase.STUDY
 	feedback_level_done = false
@@ -191,7 +220,9 @@ func _start_study_phase():
 	study_card = CARD_SCRIPT.new()
 	add_child(study_card)
 	study_card.fit = CARD_SCRIPT.Fit.COVER
+	study_card.set_photo(true)
 	study_card.setup(WerisG.get_person_image(target_idx), YELLOW)
+	_add_pin(study_card, float(card_w))
 	study_card.set_width(float(card_w))
 	study_card.position = Vector2(screen_w / 2.0, LABEL_BOTTOM + 4)
 
@@ -212,6 +243,7 @@ func _start_study_phase():
 	study_start_time_ms = int(game.game_time)
 
 func _start_find_phase():
+	_ambient("amb_crowd")
 	_clear_cards()
 	phase = Phase.FIND
 	%CountdownLabel.hide()
@@ -257,13 +289,50 @@ func _start_find_phase():
 		card.fit = CARD_SCRIPT.Fit.COVER
 		card.tappable = true
 		card.meta = people_in_grid[i]
+		card.set_photo(true)
 		card.setup(WerisG.get_person_image(people_in_grid[i]), YELLOW)
 		card.set_width(float(card_w))
+		card.rotation = deg_to_rad(randf_range(-2.5, 2.5))
+		_add_pin(card, float(card_w))
 		card.position = Vector2(start_x + col * (card_w + CARD_GAP), start_y + row * (card_h + CARD_GAP))
 		card.card_pressed.connect(_on_find_card_pressed)
 		find_cards.append(card)
 
 	find_start_time_ms = int(game.game_time)
+
+# A PUSHPIN at the top of a photo: a colored head with a highlight and its shadow on the photo. The
+# color is fixed by the card's position in the tree, so it does not flicker between rounds.
+const PIN_COLORS: Array = [Color(0.85, 0.20, 0.20), Color(0.20, 0.45, 0.85), Color(0.95, 0.75, 0.15),
+	Color(0.25, 0.65, 0.35), Color(0.85, 0.85, 0.82)]
+
+func _add_pin(card: Node2D, w: float) -> void:
+	var pin: Node2D = Node2D.new()
+	var r: float = clampf(w * 0.055, 3.0, 9.0)
+	var col: Color = PIN_COLORS[card.get_index() % PIN_COLORS.size()]
+	pin.position = Vector2(0.0, w * 0.045)
+	pin.draw.connect(func() -> void:
+		pin.draw_circle(Vector2(r * 0.35, r * 0.55), r * 1.05, Color(0, 0, 0, 0.35))
+		pin.draw_circle(Vector2.ZERO, r, col.darkened(0.30))
+		pin.draw_circle(Vector2(-r * 0.12, -r * 0.12), r * 0.80, col)
+		pin.draw_circle(Vector2(-r * 0.35, -r * 0.35), r * 0.28, Color(1, 1, 1, 0.75)))
+	card.add_child(pin)
+
+# The feedback as a speech bubble: green when found, red when wrong or out of time, light text.
+func _feedback_bubble(bg: Color) -> void:
+	var st: StyleBoxFlat = StyleBoxFlat.new()
+	st.bg_color = bg
+	st.set_corner_radius_all(22)
+	st.shadow_color = Color(0, 0, 0, 0.40)
+	st.shadow_size = 8
+	st.shadow_offset = Vector2(0, 4)
+	st.border_width_top = 2
+	st.border_color = Color(1, 1, 1, 0.18)
+	st.content_margin_left = 18
+	st.content_margin_right = 18
+	st.content_margin_top = 8
+	st.content_margin_bottom = 10
+	st.anti_aliasing = true
+	%FeedbackLabel.add_theme_stylebox_override("normal", st)
 
 func _build_grid_people(grid_size: int) -> Array:
 	var others := []
@@ -310,13 +379,13 @@ func _resolve_find(is_correct: bool, elapsed_ms: int, timed_out: bool):
 		num_corrects_in_level_so_far += 1
 		var first_name = WerisG.get_person_name(target_idx).split(" ")[0]
 		%FeedbackLabel.text = "Found %s! +%d" % [first_name, score]
-		%FeedbackLabel.add_theme_color_override("font_color", Color(0.05, 0.6, 0.1))
+		_feedback_bubble(Color(0.20, 0.50, 0.34, 0.94))
 	else:
 		game.play_sound("wrong")
 		game.add_score_and_time(-1, -5)
 		game.add_correct_or_mistake(0, 1)
 		%FeedbackLabel.text = "Time's up!" if timed_out else "Wrong person!"
-		%FeedbackLabel.add_theme_color_override("font_color", Color(0.75, 0.1, 0.05))
+		_feedback_bubble(Color(0.55, 0.20, 0.22, 0.94))
 
 	%FeedbackLabel.show()
 	feedback_start_time_ms = int(game.game_time)
@@ -348,6 +417,7 @@ func on_time_over():
 
 func level_is_done(didwin: bool):
 	game.level_is_done = true
+	_ambient("")
 	# The gate is decided BEFORE the level's score row is written: main.gd saves that row on
 	# game.sig_level_is_done, and it has to carry the score the player actually KEEPS, or
 	# failing the same level over and over is a way to farm the score list.

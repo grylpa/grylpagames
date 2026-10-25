@@ -16,7 +16,7 @@ func _draw() -> void:
 	if _reveal_texture != null and _reveal_alpha > 0.0:
 		draw_texture_rect(_reveal_texture, _reveal_rect, false, Color(0.78, 0.78, 0.78, _reveal_alpha))
 	for pos in dot_positions:
-		draw_circle(pos, dot_radius, dot_color)
+		draw_circle(pos, dot_radius, dot_color, true, -1.0, true)
 
 func clear_dots() -> void:
 	dot_positions = []

@@ -220,7 +220,7 @@ Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it 
 for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
 "shown" sound). Names in code kept: `dispatch` = the target appearing (a radar ping), `delivery` = a right
 answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
-one STEADY loop (`didi_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+one loop (`didi_ambient.ogg`, -6 dB: harp arpeggios in D lydian, a glass bell phrase now and then, made by `devtools/make_ambient_sounds.py` with its music engine `devtools/music.py`. The first version laid band-passed white noise under a thin chord (heard as hiss), the second was a slow pad of held chords (heard, over minutes, as "almost-single-tone" and irritating); the tune is kept sparse and soft, never tied to when a shape flashes). They replaced a heavy bell, an
 arcade coin, a swoosh and three stock ocean-wave loops picked at random.
-The ambient is steady for the same reason the backdrop is featureless: this game measures attention,
+The ambient is calm for the same reason the backdrop is featureless: this game measures attention,
 and nothing in the background should pull it.

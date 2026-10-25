@@ -97,6 +97,9 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 func show_main_menu():
+	# the pasture's bells used to ring on over the menu when a level was left part way
+	game.stop_sound("ambient")
+	game.stop_sound("feet")
 	main_menu.show()
 	$Level.hide()
 	MainGlobals.draw_path_mode = false

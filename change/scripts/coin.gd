@@ -89,15 +89,16 @@ func _draw() -> void:
 			var a: Vector2 = Vector2.from_angle(TAU * float(i) / float(ticks))
 			draw_line(a * r * 0.93, a * r * 0.995, _rim.lightened(0.18) if i % 2 == 0 else _rim.darkened(0.25),
 				maxf(1.0, r * 0.035), true)
-	# the face, shaded: rings drifting toward the light, each a touch lighter
-	draw_circle(Vector2.ZERO, r * 0.90, _face.darkened(0.16))
-	for k in 6:
-		var t: float = float(k + 1) / 6.0
-		draw_circle(Vector2(-r, -r) * 0.06 * t, r * 0.90 * (1.0 - 0.30 * t), _face.darkened(0.16).lerp(_face.lightened(0.10), t))
-	# the raised rim: lit top left, shaded bottom right
-	draw_arc(Vector2.ZERO, r * 0.82, PI * 0.75, PI * 1.75, 32, _face.lightened(0.45), maxf(1.0, r * 0.05), true)
-	draw_arc(Vector2.ZERO, r * 0.82, -PI * 0.25, PI * 0.75, 32, _rim.darkened(0.20), maxf(1.0, r * 0.05), true)
-	draw_arc(Vector2.ZERO, r * 0.90, PI * 0.80, PI * 1.70, 32, Color(1, 1, 1, 0.35), maxf(1.0, r * 0.03), true)
+	# the face, shaded: many thin rings drifting toward the light, each a touch lighter, so the
+	# shading is a smooth slope rather than visible steps
+	draw_circle(Vector2.ZERO, r * 0.90, _face.darkened(0.10))
+	for k in 16:
+		var t: float = float(k + 1) / 16.0
+		draw_circle(Vector2(-r, -r) * 0.05 * t, r * 0.90 * (1.0 - 0.28 * t), _face.darkened(0.10).lerp(_face.lightened(0.06), t))
+	# the raised rim, its light turning continuously round the circle: brightest at the top left,
+	# darkest at the bottom right. (Two half-arcs, one near white and one dark, met in a hard seam.)
+	_draw_lit_ring(r * 0.82, maxf(1.0, r * 0.05), _face.lightened(0.22), _face.darkened(0.22))
+	_draw_lit_ring(r * 0.90, maxf(1.0, r * 0.03), Color(1, 1, 1, 0.22), Color(1, 1, 1, 0.0))
 	# a sheen and a glint
 	draw_circle(Vector2(-r * 0.32, -r * 0.36), r * 0.34, Color(1, 1, 1, 0.10))
 	draw_circle(Vector2(-r * 0.42, -r * 0.46), r * 0.10, Color(1, 1, 1, 0.30))
@@ -106,6 +107,20 @@ func _draw() -> void:
 	var f: Font = _label_font()
 	_draw_embossed(f, _num, maxi(8, int(r * 0.60)), -r * 0.16, r)
 	_draw_embossed(f, _sym, maxi(6, int(r * 0.40)), r * 0.32, r)
+
+# A ring whose color follows the angle to the light (top left): `lit` facing it, `shade` facing
+# away, a smooth blend in between. One closed polyline with a color per vertex, so there is no seam.
+func _draw_lit_ring(rad: float, width: float, lit: Color, shade: Color) -> void:
+	var segs: int = 64
+	var light_dir: float = PI * 1.25
+	var pts: PackedVector2Array = PackedVector2Array()
+	var cols: PackedColorArray = PackedColorArray()
+	for i in segs + 1:
+		var a: float = TAU * float(i) / float(segs)
+		var facing: float = 0.5 + 0.5 * cos(a - light_dir)
+		pts.append(Vector2.from_angle(a) * rad)
+		cols.append(shade.lerp(lit, facing * facing * (3.0 - 2.0 * facing)))
+	draw_polyline_colors(pts, cols, width, true)
 
 func _draw_embossed(f: Font, text: String, fs: int, center_y: float, r: float) -> void:
 	var o: float = maxf(0.8, r * 0.025)

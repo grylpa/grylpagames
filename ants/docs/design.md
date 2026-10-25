@@ -161,7 +161,12 @@ there; a first, softer version was barely visible; `PATCH_ALPHA` came down from 
 the grain below gave the ground its texture, as at 0.62 the patches read as cloud shadows), and the
 fine grain -- now **a shader on the ground layer** (`soil.gdshader`): sand grains, clumps and small
 flat pebbles, a few percent paler or darker than what is under them, anchored in world units. It
-replaced about 20,000 drawn squares that read as square speckle. The rule for anything added to
+replaced about 20,000 drawn squares that read as square speckle. The shader also carries, still as
+brightness only: **dappled light** (`dapple`: a canopy's soft shade, two layers of smooth noise
+thresholded into leafy blotches, large and STILL -- see "anything that moves" below -- 7% either way,
+sun flecks between them) and
+**fallen dry leaves** (`leaf`: one chance in five per 110-unit cell, an almond shape 14-24 units long,
+10% paler with a darker midrib), added because the world was "a bit boring". The rule for anything added to
 the ground: **flat** (no shadow, no highlight -- a shadow and a lit face are how an obstacle reads),
 **out of the colors already taken** (ants near-black, food green, nests and twigs dark brown, stones
 light gray, water blue, lures gold, the scent trail dark marks), and **low contrast**. Tried and
@@ -414,7 +419,7 @@ All made for this game by `devtools/make_ants_sounds.py` (synthesized, seeded) i
 
 | sound | when |
 |---|---|
-| `garden` (30 s loop, -9 dB) | while the colony runs: a breeze, leaves, birds far off. Stopped at the top of `_process` whenever it does not run (a card, a pause, the menu) |
+| `garden` (30 s loop, -6 dB) | the whole time the level is on screen: a breeze, leaves, birds far off, a bee passing, grasshoppers, a wood pigeon (mastered by its audible band, `music.master`). It plays on between rounds AND under a round's card, and is PAUSED (not stopped) only at the main menu, an explicit pause or a focus loss, resuming where it was (`_keep_garden`). It was stopped whenever the colony was not running (every restart began the loop from the top), then paused whenever any card was up -- both a silence between every two rounds, the "gaps". Its breeze never drops below 55% (it swelled down to 30%) |
 | `stone`, `twig`, `water`, `bait`, `cloche` | the tool is put down (`place_obstacle`) |
 | `crush` | that drop crushed ants |
 | `spray`, `eraser` | a press of the can, a rub |

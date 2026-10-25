@@ -425,11 +425,16 @@ cars before the shape was right.
 
 ## Look and sound (the 2026-10-25 pass)
 
-- **The tubes look like tubes.** The tile art is shared with the road games (asphalt gray, a dashed
-  yellow center line), so the file is left alone and `tube.gdshader` (one material on every tube
-  sprite, set in `pipe.gd`) paints the dashes out and turns the gray into the inside of a glass tube.
-  `pipe.gd` `_draw_walls` gives each side with no tube beyond it a WALL: the glass darkening toward it,
-  a metal edge, and a line of light along the glass just inside. They used to read as roads.
+- **The tubes are drawn as tubes** (`pipe.gd` `_draw_tube`): glass shaded round across its width --
+  dark at both walls, brightening to a highlight along the axis (one SYMMETRIC profile, `PROFILE_U`,
+  so neighboring tiles meet without a seam whichever way each turns) -- a coupling ring wherever a
+  tube meets the next tile, a smooth quarter-circle at a bend, a rounded cap at a dead end, and a
+  metal JUNCTION BOX (a bevelled plate with a round port) where three or four tubes meet, which is
+  where the doors sit. A dead end next to a sender or receiver is drawn running on into it, not
+  capped (drawing only). The shared road sprites are kept for their shape and made invisible
+  (`self_modulate`). History: asphalt with a dashed line and thick stone walls; then the sprites
+  painted flat gray by a shader with thin walls ("just blocks of gray", user 2026-10-25); the shader
+  (`tube.gdshader`) is deleted.
 - **Sounds** (`devtools/make_pneumo_sounds.py`; names in code kept): `motor` = the system running (a
   compressor hum, air in the pipes), `dispatch` = a capsule loaded (a hatch and a pressure hiss),
   `swoosh` = a capsule launched (a pneumatic "pfft"), `door` = a junction valve turned (a short clack,
@@ -438,3 +443,5 @@ cars before the shape was right.
   a bell and an arcade coin.
 
 **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no tube across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.
+
+**The walls are thin**: a 1.5 px strip and a 4 px shadow. At 3 px with an 8 px shadow they were thick and distracting (user, 2026-10-25).

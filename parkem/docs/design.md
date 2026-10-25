@@ -108,13 +108,22 @@ assumes they are doing it wrong.
   shade, thin faint joints with a little moss, in world coordinates. **Low contrast on purpose**: a
   closed door is a thin diagonal line and must stay the clearest line on the floor -- a first version's
   dark, wide joints ran at every angle and competed with the doors.
-- **A stone kerb** (`pipe.gd` `_draw_kerb`) on each side of a floor tile with no floor beyond it, with
-  its shadow on the floor. The floor was flat gray squares straight onto the grass.
+- **A thin stone kerb** (`pipe.gd` `_draw_kerb`, 1.5 px, 3 px shadow) on each side of a floor tile with
+  no floor beyond it, with its shadow on the floor. The floor was flat gray squares straight onto the
+  grass. (At 4 px it was thick and distracting.)
+- **The doors are drawn** (`door.gd` `_draw`; the two sprites are hidden). Shut, a door is a RAISED
+  BAR across the junction's diagonal -- a soft shadow, a dark base, a pale-green lit top, a post at
+  each end -- the solid thing a creature turns away from; open, it is the bar's pivot alone, a small
+  stud. The light stays at the screen's top left however the door is turned. It was a 2 px pale line
+  and a hollow ring, which on the flagstones did not look like anything a creature could bump into:
+  "where are the walls? it's very strange to see the monsters turn with no reason" (user,
+  2026-10-25). The floor never had inner walls -- bricks and doors are the only obstacles, and a
+  creature also turns where its shortest route turns.
 - **Sounds** (`devtools/make_parkem_sounds.py`; names in code kept): `motor` = an evening garden
-  (breeze, crickets), `dispatch` = a creature appearing, `swoosh` = a creature setting off (a patter of
+  (breeze, crickets; its breeze swells only gently -- a deeper swell read as gaps), `dispatch` = a creature appearing, `swoosh` = a creature setting off (a patter of
   little feet), `door` = a door turned (a short soft clack, -3 dB -- it is the player's every move),
   `parked` = a creature reaching its goal (a smug "nom"), `delivery` = a creature kept away until it
-  gave up (a light chime), `explosion` = a creature hitting a hazard or another (a cartoon pop). The old
+  gave up (a light chime), `explosion` = a creature hitting a hazard or another (a cartoon bonk with a quick downward boing and a twinkle of stars; it was an 80 ms pop so soft that a collision seemed to make no sound). The old
   set was still the parking game's: a car engine, a car crash, a door creak, an arcade coin.
 
 ## Difficulty

@@ -95,11 +95,13 @@ The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door
 
 ## Sounds
 
+The ambient, still `motor` in code, is a parking garage -- the ventilation, an engine idling in the rows, doors thudding, a remote's chirp, heels on concrete, a tire squealing round a ramp, a car starting and pulling away, all in a concrete echo (`guidem_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB). The first garage was two idling engines low-passed under 900 Hz, which a phone or laptop speaker plays as nothing ("no ambient sound at all"); every ambient is now mastered by its audible band (`music.master`). It replaced the stock `engine-pulling-something.mp3`. The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
+
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `dispatch` a new car (a soft two-tone bell), `delivery` one parked (a thud and a ding), `door` a junction turned (a short clack), `explosion` two cars crashing (a soft bonk; it was a car crash). The engine recording stays.
 
 ## The road (the 2026-10-25 look pass)
 
 The road is asphalt (`asphalt.gdshader`, one material on every road sprite, set in `pipe.gd`'s
 `_dress_road`): aggregate grain, faint wear, a rare stain, in world coordinates, with the tile art's
-yellow markings kept. Each side with no road beyond it gets a concrete curb with a lit edge and a
-shadow on the road. **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.
+yellow markings kept. Each side with no road beyond it gets a thin curb with a faint lit edge and a
+shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surface's own tone, a 3 px shadow, the lit edge faint): at 4 px with a bright stone and a lit line the walls were thick and distracting (user, 2026-10-25). **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.

@@ -46,8 +46,7 @@ var ambient_audios := [
 signal started_playing
 signal sig_level_is_done(didwin:bool)
 
-var _bg: Control = null
-var _bg_t: float = 0.0
+var _dusk: ColorRect = null
 var _swipe_start: Vector2 = Vector2.ZERO
 var _swipe_tracking: bool = false
 
@@ -74,13 +73,21 @@ func _ready() -> void:
 # swipe and the right arrow are what say it. A button on the left labelled with the gesture that
 # goes right is a trap, and the project has been caught by it before.
 func _apply_look() -> void:
+	# THE EVENING (dusk.gdshader): dusk and soft out-of-focus lights, behind everything. It was the
+	# shared dark-green backdrop with stars.
 	var ground: TextureRect = $TextureRect
 	ground.texture = null
-	_bg = ScreenBackdrop.attach(ground)
-	if _bg.draw.get_connections().is_empty():
-		_bg.draw.connect(func() -> void:
-			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.FRIENDS_TOP, ScreenBackdrop.FRIENDS_BOT,
-				ScreenBackdrop.ACCENT))
+	if _dusk == null:
+		_dusk = ColorRect.new()
+		_dusk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_dusk.set_anchors_preset(Control.PRESET_FULL_RECT)
+		var mat: ShaderMaterial = ShaderMaterial.new()
+		mat.shader = preload("res://friends/scripts/dusk.gdshader")
+		_dusk.material = mat
+		ground.add_child(_dusk)
+		var fit: Callable = func() -> void: mat.set_shader_parameter("size", _dusk.size)
+		_dusk.resized.connect(fit)
+		fit.call()
 	set_process(true)
 
 	# [left spacer] Ignore [gap] Say Hi [right spacer]. Moving Ignore in front of Say Hi on its own
@@ -95,17 +102,92 @@ func _apply_look() -> void:
 	%IgnoreButton.text = "\u2190  Ignore"
 	%SayHiButton.text = "Say Hi  \u2192"
 	var fs: int = 34 if MainGlobals.is_mobile() else 24
-	GameButton.style(%IgnoreButton, ScreenBackdrop.ACCENT, ResultCard.HEADER_INK, fs, true)
-	GameButton.style(%SayHiButton, ScreenBackdrop.ACCENT, ResultCard.HEADER_INK, fs)
-	GameButton.style($ReadyButton, ScreenBackdrop.ACCENT, ResultCard.HEADER_INK, fs)
+	_style_button(%IgnoreButton, Color(0.46, 0.36, 0.52), fs)
+	_style_button(%SayHiButton, Color(0.24, 0.60, 0.40), fs)
+	_style_button($ReadyButton, Color(0.93, 0.66, 0.26), fs)
 	ScreenBackdrop.style_caption(%Instructions)
-	%CorrectText.add_theme_font_override("font", MainGlobals.get_text_font())
-	%WrongText.add_theme_font_override("font", MainGlobals.get_text_font())
+	%Instructions.add_theme_color_override("font_color", Color(1.0, 0.90, 0.74))
+	%Instructions.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+	%Instructions.add_theme_constant_override("shadow_offset_y", 2)
+	%Instructions.add_theme_constant_override("shadow_outline_size", 4)
+	# the friend's reply: a soft speech bubble -- green when they say Hi back, plum when puzzled --
+	# not a full-width bar in bright green or red with a yellow border
+	for pair: Array in [[%CorrectText, Color(0.20, 0.50, 0.34, 0.94)], [%WrongText, Color(0.50, 0.22, 0.30, 0.94)]]:
+		var lbl: Label = pair[0]
+		lbl.add_theme_font_override("font", MainGlobals.get_text_font())
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.90))
+		var bubble: StyleBoxFlat = StyleBoxFlat.new()
+		bubble.bg_color = pair[1]
+		bubble.set_corner_radius_all(26)
+		bubble.shadow_color = Color(0, 0, 0, 0.40)
+		bubble.shadow_size = 10
+		bubble.shadow_offset = Vector2(0, 4)
+		bubble.border_width_top = 2
+		bubble.border_color = Color(1, 1, 1, 0.18)
+		bubble.content_margin_top = 10
+		bubble.content_margin_bottom = 10
+		bubble.anti_aliasing = true
+		lbl.add_theme_stylebox_override("normal", bubble)
+		lbl.offset_left = 70
+		lbl.offset_right = -70
 
-func _process(delta: float) -> void:
-	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
-		_bg_t += delta
-		_bg.queue_redraw()
+# A RAISED button (Friends' own): a darker lip along the bottom, a soft shadow, a gloss across the
+# top half and a dark outline on the label; pressed, it sinks into the lip.
+func _style_button(b: Button, col: Color, fs: int) -> void:
+	b.theme = null
+	b.add_theme_font_size_override("font_size", fs)
+	b.add_theme_font_override("font", MainGlobals.get_text_font())
+	var ink: Color = Color(1, 1, 1, 1) if col.get_luminance() < 0.55 else Color(0.20, 0.12, 0.05)
+	for k: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(k, ink)
+	b.add_theme_color_override("font_outline_color", col.darkened(0.55) if ink.r > 0.5 else Color(1, 1, 1, 0.0))
+	b.add_theme_constant_override("outline_size", 5 if ink.r > 0.5 else 0)
+	var st: StyleBoxFlat = StyleBoxFlat.new()
+	st.bg_color = col
+	st.set_corner_radius_all(18)
+	st.border_width_bottom = 6
+	st.border_color = col.darkened(0.40)
+	st.shadow_color = Color(0, 0, 0, 0.40)
+	st.shadow_size = 7
+	st.shadow_offset = Vector2(0, 4)
+	st.content_margin_left = 26
+	st.content_margin_right = 26
+	st.content_margin_top = 10
+	st.content_margin_bottom = 12
+	st.anti_aliasing = true
+	var st_hover: StyleBoxFlat = st.duplicate() as StyleBoxFlat
+	st_hover.bg_color = col.lightened(0.10)
+	var st_down: StyleBoxFlat = st.duplicate() as StyleBoxFlat
+	st_down.bg_color = col.darkened(0.06)
+	st_down.border_width_bottom = 2
+	st_down.content_margin_top = 14
+	st_down.content_margin_bottom = 8
+	st_down.shadow_size = 2
+	st_down.shadow_offset = Vector2(0, 1)
+	b.add_theme_stylebox_override("normal", st)
+	b.add_theme_stylebox_override("hover", st_hover)
+	b.add_theme_stylebox_override("pressed", st_down)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	if b.get_node_or_null("Gloss") == null:
+		var gloss: Panel = Panel.new()
+		gloss.name = "Gloss"
+		gloss.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var gs: StyleBoxFlat = StyleBoxFlat.new()
+		gs.bg_color = Color(1, 1, 1, 0.16)
+		gs.corner_radius_top_left = 14
+		gs.corner_radius_top_right = 14
+		gs.corner_radius_bottom_left = 6
+		gs.corner_radius_bottom_right = 6
+		gloss.add_theme_stylebox_override("panel", gs)
+		gloss.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		gloss.anchor_bottom = 0.42
+		gloss.offset_left = 6
+		gloss.offset_right = -6
+		gloss.offset_top = 4
+		b.add_child(gloss)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+func _process(_delta: float) -> void:
 	_tick_person()
 
 # Right is Hi, left is Ignore — the same pairing the buttons are laid out in and the arrows point
@@ -164,6 +246,7 @@ func new_game(from_scratch=true):
 
 	ambient_audios.shuffle()
 	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	game.play_sound("ambient")
 
 	started_playing.emit()
@@ -182,6 +265,7 @@ func create_board() -> void:
 	var tmp_c = CARD_SCRIPT.new()
 	add_child(tmp_c)
 	tmp_c.fit = CARD_SCRIPT.Fit.COVER
+	tmp_c.set_photo(true)
 	tmp_c.show_label(true)
 
 	var card_w = MainGlobals.screen_size.x / 6
@@ -258,6 +342,7 @@ func set_new_person_id(card_id: int):
 		new_person_card = CARD_SCRIPT.new()
 		add_child(new_person_card)
 		new_person_card.fit = CARD_SCRIPT.Fit.COVER
+		new_person_card.set_photo(true)
 		new_person_card.set_width(new_person_size.x)
 		new_person_card.set_card_position(FriendsG.board_to_px(new_person_card_pos))
 	new_person_card.meta = card_id  # the guessed person shows no name
@@ -268,6 +353,9 @@ func add_card_at(p: Vector2, card_id: int):
 	var card = CARD_SCRIPT.new()
 	add_child(card)
 	card.fit = CARD_SCRIPT.Fit.COVER
+	card.set_photo(true)
+	# laid on the table by hand: each a few degrees off straight
+	card.rotation = deg_to_rad(randf_range(-3.5, 3.5))
 	card.meta = card_id
 	card.setup(FriendsG.get_person_image(card_id), YELLOW)
 	card.set_label(FriendsG.first_name(FriendsG.get_person_name(card_id)))

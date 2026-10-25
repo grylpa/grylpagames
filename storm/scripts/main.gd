@@ -270,28 +270,24 @@ func on_menu_slider_changed(id, val):
 		StormG.starting_level = roundi(val)
 		StormG.save_settings()
 
-# A BLACKOUT: the thunder, and the house lights fail -- down fast, one slow flicker back, then up
-# again over a third of a second. It used to cut hard on and off three times in a quarter second,
-# about eight flashes a second, which is the kind of flashing that can trigger photosensitive
-# seizures; this stays under two changes a second. Same darkness, same moment, same rhythm per level
-# (`blackout_every_sec`).
-var _blackout_tween: Tween = null
+# A BLACKOUT: the thunder, and the house lights cut out hard -- dark, a split-second flash of light,
+# dark again, then back. Alarming on purpose. (A gentler fade-and-flicker version replaced it for a
+# while, for photosensitivity; the user wanted the alarm back, 2026-10-25.) The dark is 88% black: it
+# was 65%, which was enough over the old sunny lawn, but the storm now darkens the scene itself, and
+# the same overlay over an already dim picture no longer read as the lights failing.
+# The thunder alternates between two players, so a new roll never cuts off one still rumbling.
+var _thunder_turn: bool = false
 
 func on_show_blackout():
-	game.play_sound("thunder")
-	var rect: CanvasItem = $Blackout/BlackoutRect
-	if _blackout_tween != null and _blackout_tween.is_valid():
-		_blackout_tween.kill()
-	rect.modulate.a = 0.0
+	_thunder_turn = not _thunder_turn
+	game.play_sound("thunder2" if _thunder_turn else "thunder")
 	$Blackout.show()
-	_blackout_tween = create_tween()
-	_blackout_tween.tween_property(rect, "modulate:a", 1.0, 0.08)
-	_blackout_tween.tween_interval(0.25)
-	_blackout_tween.tween_property(rect, "modulate:a", 0.45, 0.18)
-	_blackout_tween.tween_property(rect, "modulate:a", 1.0, 0.18)
-	_blackout_tween.tween_interval(0.12)
-	_blackout_tween.tween_property(rect, "modulate:a", 0.0, 0.35)
-	_blackout_tween.tween_callback($Blackout.hide)
+	await MainGlobals.sleep(0.03)
+	$Blackout.hide()
+	await MainGlobals.sleep(0.06)
+	$Blackout.show()
+	await MainGlobals.sleep(0.16)
+	$Blackout.hide()
 
 # One row per finished level, [time, score, level], from every play's record, oldest first.
 func level_score_rows(records: Array) -> Array:

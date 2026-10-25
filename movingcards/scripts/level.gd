@@ -45,6 +45,26 @@ func _ready() -> void:
 	game = MovingCardsG.game
 	MovingCardsG.init_globals()
 	level = MovingCardsG.starting_level
+	_dress_table()
+
+# The table: a teal baize (felt.gdshader) on the full-screen TextureRect, in place of its flat orange
+# image. The shader works in the rect's own pixels, so it is told the rect's size whenever that changes.
+const HUD_STRIP: float = 58.0
+
+func _dress_table() -> void:
+	var bg: TextureRect = $TextureRect
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = preload("res://movingcards/scripts/felt.gdshader")
+	bg.material = mat
+	var fit: Callable = func() -> void:
+		mat.set_shader_parameter("size", bg.size)
+		# the table's rail goes round what is SEEN: the screen below the HUD's strip
+		var view: Rect2 = Rect2(Vector2(0.0, HUD_STRIP), Vector2(MainGlobals.screen_size) - Vector2(0.0, HUD_STRIP))
+		var r: Rect2 = bg.get_global_rect().intersection(view)
+		mat.set_shader_parameter("table", Vector4(r.position.x - bg.global_position.x, r.position.y - bg.global_position.y,
+			r.size.x, r.size.y))
+	bg.resized.connect(fit)
+	fit.call()
 
 func new_game(from_scratch: bool = true) -> void:
 	show()
@@ -62,6 +82,7 @@ func new_game(from_scratch: bool = true) -> void:
 	# Registered fresh each time: the list is shuffled, so which track "ambient" refers to changes
 	# from game to game. add_sound() updates the stream of a name it already knows.
 	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	game.play_sound("ambient")
 
 func _load_level_cfg() -> void:
@@ -416,9 +437,12 @@ func score_at_level_start() -> int:
 
 # ---- Input handling ----
 
+var _tap_seq: int = 0
+
 func _on_card_pressed(_p: Vector2, _card_id: int) -> void:
 	if !can_start_clicking:
 		return
+	_tap_seq += 1
 	game.play_sound("tap")
 	var c = find_card(_card_id)
 	if _card_id != card_click_order[expected_card_idx_clicked]:
@@ -465,9 +489,15 @@ func _on_card_pressed(_p: Vector2, _card_id: int) -> void:
 			_finish_round(true)
 		else:
 			expected_card_idx_clicked += 1
+			# The cards turn back after a moment -- unless anything was tapped since, or the round
+			# was finished meanwhile. Checked only by round, a quick tap on the LAST card inside
+			# these 0.7 s let this timer turn every card back over during the two seconds meant for
+			# looking at the right answer.
+			_tap_seq += 1
+			var seq: int = _tap_seq
 			var rid: int = _round_id
 			await MainGlobals.sleep(0.7)
-			if _round_id != rid:
+			if _round_id != rid or _tap_seq != seq or not can_start_clicking:
 				return
 			for _c in cards:
 				_c.hide_card()
@@ -491,5 +521,7 @@ func show_clue() -> void:
 	if c != null:
 		update_score.emit(-2)
 		c.reveal_card()
+		var seq: int = _tap_seq
 		await MainGlobals.sleep(0.4)
-		c.hide_card()
+		if _tap_seq == seq and can_start_clicking:
+			c.hide_card()

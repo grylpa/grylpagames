@@ -28,14 +28,29 @@ var top_inset: float = 40.0:
 	set(v):
 		top_inset = v
 		queue_redraw()
+		if _mouth != null:
+			_mouth.queue_redraw()
 
 var _offset: float = 0.0
 
+# THE MOUTH IS DRAWN OVER THE ITEMS. The lip and the shadow under it are on their own child, raised
+# above the falling item (z_index), so an item slides out from UNDER the top edge into the light. They
+# were part of the chute's own drawing, under everything, and an item sliding down covered them.
+var _mouth: Control = null
+const MOUTH_Z: int = 20
+
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mouth = Control.new()
+	_mouth.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mouth.z_index = MOUTH_Z
+	_mouth.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_mouth.draw.connect(_draw_mouth)
+	add_child(_mouth)
 
 func _ready() -> void:
 	resized.connect(queue_redraw)
+	resized.connect(_mouth.queue_redraw)
 
 func _process(delta: float) -> void:
 	_offset = fmod(_offset + speed * delta, CHEVRON_GAP)
@@ -91,25 +106,6 @@ func _draw() -> void:
 	_rail(Vector2(t0.x, 0.0), Vector2(t1.x, h), 1.0)
 	_rail(Vector2(t0.y, 0.0), Vector2(t1.y, h), -1.0)
 
-	# A lip at the mouth: the chute is a piece of hardware bolted to something above, not a hole.
-	var lip_h: float = maxf(h * 0.035, 7.0)
-	draw_polygon(
-		PackedVector2Array([Vector2(t0.x - 6.0, -1.0), Vector2(t0.y + 6.0, -1.0),
-			Vector2(_edges(0.04).y + 3.0, lip_h), Vector2(_edges(0.04).x - 3.0, lip_h)]),
-		PackedColorArray([LIP, LIP, LIP.darkened(0.35), LIP.darkened(0.35)]))
-	draw_line(Vector2(t0.x - 6.0, 0.0), Vector2(t0.y + 6.0, 0.0), LIP.lightened(0.35), 2.0)
-	var bolts: int = 6
-	for i in range(bolts):
-		var bx: float = lerpf(t0.x + 8.0, t0.y - 8.0, (float(i) + 0.5) / float(bolts))
-		draw_circle(Vector2(bx, lip_h * 0.5), 2.2, RIVET)
-
-	# Shadow under the mouth, so the throat looks like it recedes.
-	draw_polygon(
-		PackedVector2Array([Vector2(t0.x, lip_h), Vector2(t0.y, lip_h),
-			Vector2(_edges(0.10).y, h * 0.10), Vector2(_edges(0.10).x, h * 0.10)]),
-		PackedColorArray([Color(0, 0, 0, 0.45), Color(0, 0, 0, 0.45),
-			Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.0)]))
-
 	# The bottom edge flares outward and catches the light: the chute visibly DELIVERS into the row
 	# of containers below instead of simply stopping.
 	var out_l: Vector2 = Vector2(t1.x - 10.0, h)
@@ -118,6 +114,31 @@ func _draw() -> void:
 		PackedVector2Array([Vector2(_edges(0.93).x, h * 0.93), Vector2(_edges(0.93).y, h * 0.93), out_r, out_l]),
 		PackedColorArray([WALL_MID, WALL_MID, LIP.darkened(0.2), LIP.darkened(0.2)]))
 	draw_line(out_l, out_r, LIP.lightened(0.25), 3.0, true)
+
+# A lip at the mouth (the chute is a piece of hardware bolted to something above, not a hole) and
+# the shadow under it, so the throat recedes -- drawn on _mouth, over the falling item.
+func _draw_mouth() -> void:
+	var h: float = size.y
+	if size.x < 10.0 or h < 10.0:
+		return
+	var t0: Vector2 = _edges(0.0)
+	var lip_h: float = maxf(h * 0.035, 7.0)
+	_mouth.draw_polygon(
+		PackedVector2Array([Vector2(t0.x, lip_h), Vector2(t0.y, lip_h),
+			Vector2(_edges(0.10).y, h * 0.10), Vector2(_edges(0.10).x, h * 0.10)]),
+		PackedColorArray([Color(0, 0, 0, 0.55), Color(0, 0, 0, 0.55),
+			Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.0)]))
+	_mouth.draw_polygon(
+		PackedVector2Array([Vector2(t0.x - 6.0, -1.0), Vector2(t0.y + 6.0, -1.0),
+			Vector2(_edges(0.04).y + 3.0, lip_h), Vector2(_edges(0.04).x - 3.0, lip_h)]),
+		PackedColorArray([LIP, LIP, LIP.darkened(0.35), LIP.darkened(0.35)]))
+	_mouth.draw_line(Vector2(t0.x - 6.0, 0.0), Vector2(t0.y + 6.0, 0.0), LIP.lightened(0.35), 2.0)
+	# a thin dark edge under the lip: where the item comes out from
+	_mouth.draw_line(Vector2(_edges(0.04).x - 3.0, lip_h), Vector2(_edges(0.04).y + 3.0, lip_h), Color(0, 0, 0, 0.6), 2.0)
+	var bolts: int = 6
+	for i in range(bolts):
+		var bx: float = lerpf(t0.x + 8.0, t0.y - 8.0, (float(i) + 0.5) / float(bolts))
+		_mouth.draw_circle(Vector2(bx, lip_h * 0.5), 2.2, RIVET)
 
 # A rail as a tapering band with a lit inner edge and rivets, rather than a 3px line.
 func _rail(top: Vector2, bot: Vector2, inward: float) -> void:

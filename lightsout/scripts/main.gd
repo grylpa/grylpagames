@@ -96,6 +96,8 @@ func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
 func show_main_menu():
+	game.stop_sound("motor")
+	game.stop_sound("feet")
 	main_menu.show()
 	$Level.hide()
 	MainGlobals.update_bottom_bar(["help","mute","scores"])

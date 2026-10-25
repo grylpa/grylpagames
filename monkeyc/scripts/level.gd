@@ -203,6 +203,11 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	# the robot arm is heard taking an item (devtools/make_action_sounds.py, "robot")
+	game.add_sound(self, "grab", preload("res://art/sounds/robot_grab.ogg"))
+	game.set_sound_volume("grab", -3.0)
+	game.add_sound(self, "pass", preload("res://art/sounds/robot_pass.ogg"))
+	game.set_sound_volume("pass", -6.0)
 	_apply_sleek_chrome()
 	# Reserve the app's header and the bottom bar, then hand whatever is left to the belts — the
 	# same arrangement sortingrobots uses (_size_belts there). This game had a FIXED 148/192px top
@@ -838,6 +843,8 @@ func _take_item() -> void:
 			idx -= 1
 		var to_right: bool = true if num_belts < 2 else (window_belt == 1)
 		_claw_pull(to_right)
+	else:
+		game.play_sound("pass")              # the robot lets this one go by
 	_discard_window()
 	_showing_demo_action = false
 	game.tutorial_notify("item_resolved")
@@ -900,6 +907,7 @@ func _claw_pull(to_right: bool) -> void:
 	# retracts by itself once the flyer is freed. An arm that is not doing the picking is scenery.
 	if _robots != null and is_instance_valid(_robots):
 		_robots.hold(1 if to_right else 0, flyer)
+	game.play_sound("grab")
 	var sw: float = float(MainGlobals.screen_size.x)
 	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
 	var tw: Tween = flyer.create_tween()

@@ -67,7 +67,7 @@ var dict_tran_id_to_target = {}
 # names in code are the old ones: `motor` an evening garden (breeze, crickets), `dispatch` a creature
 # appearing, `swoosh` a creature setting off, `door` a door turned (a short clack -- it is the
 # player's every move), `parked` a creature reaching its goal (a smug "nom"), `delivery` a creature
-# kept away until it gave up (a light chime), `explosion` a creature hitting a hazard or another (a pop).
+# kept away until it gave up (a light chime), `explosion` a creature hitting a hazard or another (a cartoon bonk).
 var dispatch_audio = preload("res://art/sounds/parkem_spawn.ogg")
 var parked_audio = preload("res://art/sounds/parkem_reached.ogg")
 var delivery_audio = preload("res://art/sounds/parkem_stopped.ogg")

@@ -78,11 +78,18 @@ one won in ten seconds.
   open). Only the edge darkens -- the floor's COLOR is what the player remembers, and every room's
   middle is untouched. The floor sprites are at z -1 (`pipe.gd` `_ready`) so the band lies over the
   floor and under the coin and bricks. It loops over the board array, not `game.board_size`.
-- **Sounds** (`devtools/make_mmm_sounds.py`; names in code kept): `motor` = the castle halls' ambience,
-  now played from the round's start (it was a car engine, registered and never played); `feet` =
+- **Sounds** (`devtools/make_mmm_sounds.py`, `make_ambient_sounds.py`; names in code kept): `motor` =
+  the castle's ambience, `mmm_ambient.ogg` -- wind moaning through the corridors, torches crackling, a
+  drip, a chain, a harp phrase far off (it was a car engine registered and never played, then a band
+  of noise the user heard as "just white noise"). It starts with the first round and plays ON between
+  rounds (stopping it at every round end was the "gaps"); `main.gd` `show_main_menu` stops it. The
+  HAZARDS ARE HEARD: `fuse` (a fizzing fuse) and `enemy` (a monster's growl) are loops whose loudness
+  follows the nearest bomb and the nearest moving monster, silent beyond `HAZARD_HEAR_TILES` (4) and
+  -4 dB when touching (`_hazard_sounds`, only while the round is really played). `feet` =
   steps on stone (were on grass); `delivery` = coin pickup; `right` = a room named right (it shared the
   coin's sound); `gaveup` = named wrong; `swoosh` = a shimmer as the floor plan opens out; `explosion` =
-  a muffled boom when a hazard catches you (was a car crash); `start` = a heavy door closing.
+  the big explosion Lights Out uses (`make_action_sounds.boom`, a little shorter) when a hazard catches
+  you (it was a car crash, then a 45-95 Hz boom a phone plays as nothing); `start` = a heavy door closing.
 
 ## Difficulty
 

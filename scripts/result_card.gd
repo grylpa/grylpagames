@@ -176,8 +176,77 @@ static func _shell(host: CanvasLayer, accent: Color, badge: bool, on_close: Call
 	foot.add_theme_constant_override("margin_bottom", 22)
 	col.add_child(foot)
 
+	_enter(host, scrim, card)
 	return {"title": title_label, "rows": rows, "card": card, "foot": foot,
 		"width": card_w, "mobile": mob}
+
+# THE CARD ARRIVES: the scrim fades in and the card pops up from 90% with a small overshoot, a
+# quarter of a second. It used to appear all at once, which read as a glitch more than an event.
+# Tweens the scrim's MODULATE, not its color, so game_popup's hold() can still set the color.
+static func _enter(host: CanvasLayer, scrim: ColorRect, card: Control) -> void:
+	scrim.modulate.a = 0.0
+	card.modulate.a = 0.0
+	card.scale = Vector2(0.9, 0.9)
+	card.resized.connect(func() -> void: card.pivot_offset = card.size * 0.5)
+	var tw: Tween = host.create_tween()
+	tw.tween_property(scrim, "modulate:a", 1.0, 0.16)
+	tw.parallel().tween_property(card, "modulate:a", 1.0, 0.20)
+	tw.parallel().tween_property(card, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+# CONFETTI out of the top of the card, for a level complete: some fifty paper bits in the card colors
+# thrown up and out, tumbling and falling under gravity, fading over the last half second.
+static func celebrate(host: CanvasLayer, parts: Dictionary) -> void:
+	var card: Control = parts.get("card", null)
+	if card == null:
+		return
+	await host.get_tree().process_frame
+	await host.get_tree().process_frame
+	if not is_instance_valid(card):
+		return
+	var burst: Confetti = Confetti.new()
+	var r: Rect2 = card.get_global_rect()
+	burst.origin = Vector2(r.position.x + r.size.x * 0.5, r.position.y + 24.0)
+	burst.spread = r.size.x * 0.4
+	host.add_child(burst)
+
+class Confetti extends Node2D:
+	var origin: Vector2 = Vector2.ZERO
+	var spread: float = 200.0
+	var _bits: Array = []
+	var _age: float = 0.0
+	const LIFE: float = 1.9
+	const COLORS: Array = [Color(0.976, 0.792, 0.353), Color(0.949, 0.478, 0.353), Color(0.478, 0.749, 0.902),
+		Color(0.45, 0.85, 0.60), Color(0.95, 0.95, 0.98), Color(0.80, 0.55, 0.95)]
+
+	func _ready() -> void:
+		for i in 56:
+			var ang: float = deg_to_rad(randf_range(-160.0, -20.0))
+			_bits.append({
+				"p": origin + Vector2(randf_range(-spread, spread), 0.0),
+				"v": Vector2.from_angle(ang) * randf_range(260.0, 620.0),
+				"r": randf() * TAU, "w": randf_range(-9.0, 9.0),
+				"c": COLORS[i % COLORS.size()], "s": Vector2(randf_range(11.0, 18.0), randf_range(6.0, 10.0))})
+
+	func _process(delta: float) -> void:
+		_age += delta
+		if _age > LIFE:
+			queue_free()
+			return
+		for b: Dictionary in _bits:
+			b["v"] = (b["v"] as Vector2) * (1.0 - 1.4 * delta) + Vector2(0.0, 900.0 * delta)
+			b["p"] = (b["p"] as Vector2) + (b["v"] as Vector2) * delta
+			b["r"] = float(b["r"]) + float(b["w"]) * delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var fade: float = clampf((LIFE - _age) / 0.5, 0.0, 1.0)
+		for b: Dictionary in _bits:
+			var sz: Vector2 = b["s"]
+			# a paper bit turning over: its width swings as it tumbles
+			var flip: float = absf(cos(float(b["r"]) * 1.7))
+			draw_set_transform(b["p"], float(b["r"]), Vector2(0.25 + 0.75 * flip, 1.0))
+			draw_rect(Rect2(-sz * 0.5, sz), Color(b["c"], fade))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 static func _card_style() -> StyleBoxFlat:
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
@@ -267,8 +336,6 @@ static func _button(label: String, accent: Color, mob: bool, on_close: Callable,
 		sb.set_corner_radius_all(16)
 		sb.content_margin_top = 14.0
 		sb.content_margin_bottom = 14.0
-		sb.content_margin_left = 18.0 if mob else 26.0
-		sb.content_margin_right = 18.0 if mob else 26.0
 		btn.add_theme_stylebox_override(state, sb)
 	btn.pressed.connect(func() -> void: on_close.call())
 	return btn

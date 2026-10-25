@@ -172,7 +172,10 @@ func _ready() -> void:
 	game.add_sound(self, "gaveup", gaveup_audio)	
 	game.add_sound(self, "water_drop", water_drop_audio)
 	game.add_sound(self, "rain", rain_audio, true)
+	# two thunder players, used in turn (main.gd on_show_blackout): with one, a blackout that came
+	# while the last roll was still rumbling cut it off mid-sound -- a "break in the thunder"
 	game.add_sound(self, "thunder", thunder_audio)
+	game.add_sound(self, "thunder2", thunder_audio)
 	game.add_sound(self, "tap", tap_audio)
 	game.add_sound(self, "water_pour", water_pour_audio)
 	game.set_sound_volume("water_drop", -6.0)
