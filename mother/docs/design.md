@@ -21,7 +21,7 @@ mother/
 
 ## Layout
 
-- **Single background**: dark, unified (no split).
+- **Single background**: the lit dune field (see Environment), unified (no split).
 - **Mother y range**: `M_TOP_FRAC=30%` to `M_BOT_FRAC=56%` (center ~43%, just above screen mid). Child starts 60px below `_m_bot_y` at session start.
 - **Both heads at `HEAD_X_FRAC=0.82`**.
 
@@ -44,7 +44,7 @@ It is now a desert in full sun:
 | child's body / bands | 46 / 216 |
 
 **Desert shadows are blue.** In open sun the only light reaching a shadow is skylight, so the slip
-faces and troughs are cooled (`BARCHAN_SHADOW` has more blue than red) while lit sand is warm. That
+faces and troughs were cooled (the old crescents' shadow had more blue than red) while lit sand is warm; the dune field's shadow (`DUNE_SHADE`) is a warm orange instead, as on the tile. That
 warm-lit / cool-shadow split is where a desert's color actually comes from, and having everything
 one brown is why the old scheme read as mud.
 
@@ -127,6 +127,15 @@ head (pixels reversing brightness frame to frame): 0.145 before the look pass, 0
 with this. The gradient is rebuilt every frame (at most 2 * BAND_MAX * 2 stops, two bodies), and the
 head's bands now match the body's at true `BAND_PX` with no stretch factor. `BAND_EDGE` is 0.6 (0.30
 was crisp and shimmered).
+
+**No body segment is longer than `BODY_MAX_SEG_PX` (2 px)** (`_densify`, after the slither). A Line2D
+colors its gradient PER VERTEX and blends between vertices, so a band edge inside a long segment is
+smeared across it, differently every frame. The bodies are sampled every 2 px of x, so on a steep
+diagonal the vertices were 6-10 px apart along the body, and only the diagonal parts shimmered (user,
+2026-10-25) -- the cause the slither fixes never touched.
+
+**`BAND_MAX` is 220.** At 56 the long mother ran out of bands well before her tail, and the rest of the
+body took the last stop's one dark brown, which read as "the end of a pipe".
 
 **Stops are anchored in PIXELS from the head** (`offset = distance / length`), so a band 100 px
 back stays 100 px back as the child's body grows and only new bands appear at the tail. Splitting
@@ -224,6 +233,20 @@ full length in ~12 s, so every session opened with the tail visibly stretching.
 
 ## The head
 
+**A snake's head, seen from above** (2026-10-25, "a bit strange and not snaky at all"): long
+(`HEAD_LEN_W` 1.85), the front half of an ELLIPSE so the snout is round (`_head_half_width`), widest at
+the jaw a little behind its middle (`HEAD_JAW_AT` 0.58), then tapering into a neck narrower than the
+jaw (`HEAD_NECK_W` 0.60) -- and drawn far enough back (`HEAD_BACK_W` 0.80) that it tapers into the body
+rather than ending in a square cut. Small eyes set out at the sides (`HEAD_EYE_R` 0.095), two
+nostrils near the snout. It was a short blunt wedge with large eyes, which read as a pentagon.
+
+**The tongue flicks** (`_draw_tongue`): every 1.5-5 s at random, each head on its own clock, a forked
+red tongue darts out of the snout and back twice within half a second. The heads redraw every frame
+for it (they redrew at 3.5 fps, the old sprite cadence).
+
+**The body is not one width** (`_make_body_line`'s `width_curve`): a slimmer neck behind the head,
+swelling to the belly a third of the way back, then narrowing to the tail.
+
 **Drawn, not a sprite.** It was `head1/2/3-4x.png` — a white ellipse with a black border and two
 eyes. **No transform can make an ellipse snake-like**: scale, rotation and skew are affine, so they
 map a rectangle to a parallelogram and can never taper. Squashing the quad narrower at the nose
@@ -254,9 +277,13 @@ is what makes it a snake.
 
 ## Environment
 
-- **A field of barchan dunes** (`_draw_barchans`), seen from above: each a crescent with sand
-  heaped along the windward arc, a steep slip face in shadow inside the curve, and two horns
-  trailing downwind. Bigger ones drift faster, which is where the parallax now comes from.
+- **A lit DUNE FIELD** (`_build_dune_tex`, drawn first in `_do_draw`): diagonal ridges, each a long
+  sunlit windward slope rising to a bright crest and a steep slip face behind it in warm shadow, baked
+  once into a 384x240 texture that repeats along x (every term is periodic in it, the diagonal tilt by
+  a whole-number u term) and drifts at `DUNE_PARALLAX` of the world's speed, one repeat per
+  `DUNE_SPAN_W` screen widths. It is the chooser tile's desert, and it replaced a pale flat gradient
+  with faint sand patches and barchan crescents that barely read ("make the game background as
+  interesting as the icon", user 2026-10-25). Contrast is held moderate so the snakes stay the subject.
 - **Drifting dust** (`DUST_COUNT`): size, speed and opacity all derive from the **same** depth
   value as the mote's y, so a nearer mote is bigger, faster and brighter together. Rolling them
   independently just looks like noise. Dust also drifts faster than the fastest pebble, so the
@@ -298,12 +325,11 @@ glitch. A layout that has not been sized yet is enough to produce it. Checked at
 ## Thumbnail
 
 `mother/art/game_screen_200.png` is **drawn by `devtools/make_thumbs.py`, `mother()`** (install with
-`install_thumbs.py mother`): the mother tracing a breath and the child below, in the game's own
-colors, banded as the game bands them (crisp crossbands, a faint sheen, the head with glinting eyes),
-on warm sand with the desert's own furniture: two barchan crescents (lit crest falling to the blue slip face), dry scrub, pebbles and a beetle. No text, no sky, no ripples (drawn segment by segment their alpha piled up into solid bars). A bare-sand version was tried for one round and was boring. The bodies
-are drawn as strips straight ACROSS the path, so each band is a straight crossband -- drawn as discs
-they came out as chevrons. The old tile was a screen grab with the goal and phase text on it, and
-`mother/docs/make_thumbnail.py` still draws the night scene that was replaced: it is superseded.
+`install_thumbs.py mother`): the mother and her child crossing lit dunes on the same wave, the child
+just below and behind, banded as the game bands them, on golden sand with sunlit slopes and rust-orange
+shadow faces. No text. The bodies are drawn as strips straight ACROSS the path, so each band is a
+straight crossband. Earlier tiles: a screen grab with text, then the game's own view, then a close-up
+on flat sand ("still boring"). `mother/docs/make_thumbnail.py` still draws the night scene that was replaced: it is superseded.
 
 **Verification here was structural only.** Headless Godot has no renderer, so a probe cannot see
 anything (screenshots from a windowed run, as in the 2026-10-24 look pass, can) — probes confirm points, widths, colors, z-order and
@@ -651,7 +677,10 @@ Full-width lines at fixed heights read as lined paper.
 ## Sound: the wind breathes
 
 One sound, `art/sounds/mother_wind.ogg` (`devtools/make_mother_sounds.py`): a steady desert wind
-whose VOLUME follows the breath (`_wind_sound`, `WIND_DB` -28 exhaled to -13 inhaled, eased) -- the
+whose VOLUME follows the breath (`_wind_sound`, `WIND_DB` -17 exhaled to -8 inhaled, eased; it was
+-28 to -13, and at -28 a phone plays nothing, so every exhale was heard as a BREAK; the loop is now
+mastered by its audible band, and is PAUSED rather than stopped under a card, so it never restarts from
+the top) -- the
 mother's in Guided mode, the player's own in Active mode -- so the breath can be followed by ear. It
 plays only while a session runs. The loop itself is kept steady on purpose: a wind that gusted on its
 own would fight the guide. **Volume only, in 0.4 dB steps** (`WIND_STEP_DB`): the pitch followed the

@@ -231,8 +231,13 @@ func set_photo(on: bool) -> void:
 
 # The card stock's outline: the four sides walked in small steps, each point pushed in a little at
 # random (a deckled cut), with one or two V-shaped nicks; the corners slightly rounded off.
+var _outline_side: PackedInt32Array = PackedInt32Array()
+var _outline_u: PackedFloat32Array = PackedFloat32Array()
+
 func _paper_outline(sz: Vector2, margin: float, rng: RandomNumberGenerator) -> PackedVector2Array:
 	var pts: PackedVector2Array = PackedVector2Array()
+	_outline_side.clear()
+	_outline_u.clear()
 	var corners: Array = [Vector2(0, 0), Vector2(sz.x, 0), sz, Vector2(0, sz.y)]
 	var inward: Array = [Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 0)]
 	var nick_side: int = rng.randi_range(0, 3)
@@ -245,14 +250,18 @@ func _paper_outline(sz: Vector2, margin: float, rng: RandomNumberGenerator) -> P
 		var b: Vector2 = corners[(side + 1) % 4]
 		var inn: Vector2 = inward[side]
 		var length: float = a.distance_to(b)
-		var steps: int = maxi(8, int(length / 6.0))
+		# a FIXED number of points per side, and a waver measured along the side as a fraction of it
+		# (and in units of the margin across it): the edge then scales with the card as one shape. Both
+		# were in pixels, so while a card grew or shrank the point count and the waves changed every
+		# frame and the cuts and burns jittered.
+		var steps: int = 44 if side % 2 == 1 else 32
 		var ph1: float = rng.randf_range(0.0, TAU)
 		var ph2: float = rng.randf_range(0.0, TAU)
 		for k in steps:
 			var u: float = float(k) / float(steps)
 			var p: Vector2 = a.lerp(b, u)
 			# a smooth waver, not per-point noise: spiky outlines can fail to triangulate
-			var d: float = 0.5 + 0.35 * sin(u * length * 0.21 + ph1) + 0.2 * sin(u * length * 0.53 + ph2)
+			var d: float = margin * (0.07 + 0.05 * sin(u * TAU * 5.0 + ph1) + 0.03 * sin(u * TAU * 13.0 + ph2))
 			# round the corner off a touch
 			var to_end: float = minf(u, 1.0 - u) * length
 			if to_end < round_r:
@@ -264,6 +273,8 @@ func _paper_outline(sz: Vector2, margin: float, rng: RandomNumberGenerator) -> P
 					if dist < half:
 						d += (1.0 - dist / half) * margin * float(nk[2])
 			pts.append(p + inn * d)
+			_outline_side.append(side)
+			_outline_u.append(u)
 	return pts
 
 func _draw_paper() -> void:
@@ -295,33 +306,34 @@ func _draw_paper() -> void:
 		var rr: float = margin * rng.randf_range(0.6, 1.2)
 		c.draw_circle(at, rr, Color(0.60, 0.42, 0.20, 0.07), true, -1.0, true)
 		c.draw_arc(at, rr, 0.0, TAU, 24, Color(0.50, 0.33, 0.15, 0.12), 1.0, true)
-	# a SCORCHED stretch along one edge: a dark char right at the edge fading through brown into the
-	# stock, its depth wavering, kept inside the margin
+	# a SCORCHED stretch along one edge: a dark char right at the cut edge fading through brown into
+	# the stock, its depth wavering, kept inside the margin. Its outer boundary IS the paper's cut edge
+	# (the outline's own points), so no sliver of paper shows between the char and the edge -- built
+	# from the rect's straight edge, a thin bright line of stock showed under it, which shimmered as a
+	# card changed size.
 	var side: int = rng.randi_range(0, 3)
-	var u0: float = rng.randf_range(0.05, 0.45)
+	var u0: float = rng.randf_range(0.05, 0.40)
 	var u1: float = u0 + rng.randf_range(0.35, 0.55)
-	var corners: Array = [Vector2(0, 0), Vector2(sz.x, 0), sz, Vector2(0, sz.y)]
 	var inward: Array = [Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 0)]
-	var a: Vector2 = corners[side]
-	var b: Vector2 = corners[(side + 1) % 4]
 	var inn: Vector2 = inward[side]
-	var n: int = 48
 	var ph: float = rng.randf_range(0.0, TAU)
-	for layer: Array in [[1.15, _SINGE, 0.16], [0.95, _SINGE, 0.20], [0.75, _SINGE.darkened(0.25), 0.26],
-			[0.55, _SINGE.darkened(0.5), 0.34], [0.38, _CHAR, 0.50], [0.22, _CHAR, 0.70]]:
-		var poly: PackedVector2Array = PackedVector2Array()
-		for k in n + 1:
-			var u: float = lerpf(u0, u1, float(k) / float(n))
-			poly.append(a.lerp(b, u) + inn * 1.3)
-		for k in range(n, -1, -1):
-			var f: float = float(k) / float(n)
-			var u: float = lerpf(u0, u1, f)
-			# flat along most of its length, tapering only at its two ends, the rim ragged
-			var swell: float = smoothstep(0.0, 0.18, f) * smoothstep(1.0, 0.82, f)
-			var ragged: float = 0.72 + 0.18 * sin(f * 8.0 + ph) + 0.10 * sin(f * 19.0 + ph * 2.0)
-			var depth: float = margin * float(layer[0]) * swell * ragged
-			poly.append(a.lerp(b, u) + inn * (1.3 + depth))
-		c.draw_colored_polygon(poly, Color(layer[1] as Color, float(layer[2])))
+	var edge: PackedVector2Array = PackedVector2Array()
+	var fs: PackedFloat32Array = PackedFloat32Array()
+	for k in outline.size():
+		if _outline_side[k] == side and _outline_u[k] >= u0 and _outline_u[k] <= u1:
+			edge.append(outline[k])
+			fs.append((_outline_u[k] - u0) / (u1 - u0))
+	if edge.size() >= 3:
+		for layer: Array in [[1.15, _SINGE, 0.16], [0.95, _SINGE, 0.20], [0.75, _SINGE.darkened(0.25), 0.26],
+				[0.55, _SINGE.darkened(0.5), 0.34], [0.38, _CHAR, 0.50], [0.22, _CHAR, 0.70]]:
+			var poly: PackedVector2Array = edge.duplicate()
+			for k in range(edge.size() - 1, -1, -1):
+				var f: float = fs[k]
+				# flat along most of its length, tapering only at its two ends, the rim ragged
+				var swell: float = smoothstep(0.0, 0.18, f) * smoothstep(1.0, 0.82, f)
+				var ragged: float = 0.72 + 0.18 * sin(f * 8.0 + ph) + 0.10 * sin(f * 19.0 + ph * 2.0)
+				poly.append(edge[k] + inn * maxf(0.3, margin * float(layer[0]) * swell * ragged))
+			c.draw_colored_polygon(poly, Color(layer[1] as Color, float(layer[2])))
 
 # The print itself, aged: faintly warmed, and darker toward its corners.
 static var _age_tex: GradientTexture2D = null

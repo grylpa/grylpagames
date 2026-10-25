@@ -182,19 +182,35 @@ func _ensure_icon() -> void:
 	if _icon != null:
 		return
 	var side: float = MainGlobals.ui_font_size(140)
+	# The shadow is a SEPARATE panel behind the clipping one: a clipping panel uses everything it draws
+	# as the mask, its shadow included, so the picture showed through the shadow and the rounded
+	# corners came out squarish and dark.
+	var holder: Control = Control.new()
+	holder.custom_minimum_size = Vector2(side, side)
+	holder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shadow: Panel = Panel.new()
+	var ssb: StyleBoxFlat = StyleBoxFlat.new()
+	ssb.bg_color = Color(0, 0, 0, 1)
+	ssb.set_corner_radius_all(30)
+	ssb.shadow_color = Color(0, 0, 0, 0.5)
+	ssb.shadow_size = 18
+	ssb.shadow_offset = Vector2(0, 6)
+	ssb.anti_aliasing = true
+	shadow.add_theme_stylebox_override("panel", ssb)
+	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(shadow)
 	var clip: Panel = Panel.new()
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
 	sb.bg_color = Color(0, 0, 0, 1)
 	sb.set_corner_radius_all(30)
-	sb.shadow_color = Color(0, 0, 0, 0.5)
-	sb.shadow_size = 18
-	sb.shadow_offset = Vector2(0, 6)
 	sb.anti_aliasing = true
 	clip.add_theme_stylebox_override("panel", sb)
 	clip.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
-	clip.custom_minimum_size = Vector2(side, side)
-	clip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	clip.set_anchors_preset(Control.PRESET_FULL_RECT)
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(clip)
 	var img: TextureRect = TextureRect.new()
 	img.texture = preload("res://art/icon_big.png")
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -202,10 +218,10 @@ func _ensure_icon() -> void:
 	img.set_anchors_preset(Control.PRESET_FULL_RECT)
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	clip.add_child(img)
-	%GuestNamePanel.add_child(clip)
+	%GuestNamePanel.add_child(holder)
 	var spacer: Node = %GuestNamePanel.get_node_or_null("GuestTopSpacer")
-	%GuestNamePanel.move_child(clip, spacer.get_index() + 1 if spacer != null else 0)
-	_icon = clip
+	%GuestNamePanel.move_child(holder, spacer.get_index() + 1 if spacer != null else 0)
+	_icon = holder
 
 func _place_guest_panel(name_only_layout: bool) -> void:
 	_ensure_icon()

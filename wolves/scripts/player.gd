@@ -41,7 +41,7 @@ func _ready() -> void:
 	z_index = 10
 	$Head.z_index = z_index
 	isready = true
-	# the dog is DRAWN (beast_art.gd: a border collie, in the sheep's flat style) under the head node, whose own
+	# the dog is DRAWN (beast_art.gd: a border collie, all the animals in one style) under the head node, whose own
 	# sprite -- the generic blob, tinted blue -- is made invisible
 	_art = preload("res://wolves/scripts/beast_art.gd").new()
 	_art.set("kind", "dog")
@@ -67,7 +67,7 @@ func set_color(_color):
 func set_pos(p, dir):
 	direction = dir
 	angles[0] = dir * PI/2
-	set_rots()
+	$Head.rotation = angles[0]          # placed: face that way at once
 	if !isready:
 		return
 	position = p
@@ -95,6 +95,9 @@ var time_to_turn_feet_off := 0
 var last_pos := Vector2.ZERO
 var velocity := Vector2.ZERO
 func _process(_delta: float) -> void:
+	# turning is smooth (see agent.gd): the head swings round to angles[0] a little each frame
+	if not barking:
+		$Head.rotation = lerp_angle($Head.rotation, float(angles[0]), clampf(_delta * 12.0, 0.0, 1.0))
 	velocity = (position - last_pos) / _delta
 	last_pos = position
 	if time_to_turn_feet_off > 0 and MainGlobals.timems() > time_to_turn_feet_off and is_really_moving:
@@ -132,7 +135,7 @@ func _process(_delta: float) -> void:
 			set_rots()
 
 func set_rots():
-	$Head.rotation = angles[0]
+	pass                                # _process eases the head round to angles[0]
 
 # func mark_arrived():
 # 	arrived = true

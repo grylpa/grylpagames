@@ -160,17 +160,32 @@ func _add_picture() -> void:
 	var path: String = "res://%s/art/game_screen_200.png" % str(game.file_names_prefix)
 	if not ResourceLoader.exists(path):
 		return
+	# the shadow on its own panel behind: a clipping panel masks with everything it draws, its
+	# shadow included, which squared and darkened the rounded corners
+	var holder: Control = Control.new()
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shadow: Panel = Panel.new()
+	var shadow_sb: StyleBoxFlat = StyleBoxFlat.new()
+	shadow_sb.bg_color = Color(0, 0, 0, 1)
+	shadow_sb.set_corner_radius_all(12)
+	shadow_sb.shadow_color = Color(0, 0, 0, 0.5)
+	shadow_sb.shadow_size = 10
+	shadow_sb.shadow_offset = Vector2(0, 4)
+	shadow_sb.anti_aliasing = true
+	shadow.add_theme_stylebox_override("panel", shadow_sb)
+	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(shadow)
 	var clip: Panel = Panel.new()
 	var round_sb: StyleBoxFlat = StyleBoxFlat.new()
 	round_sb.bg_color = Color(0, 0, 0, 1)
 	round_sb.set_corner_radius_all(12)
-	round_sb.shadow_color = Color(0, 0, 0, 0.5)
-	round_sb.shadow_size = 10
-	round_sb.shadow_offset = Vector2(0, 4)
 	round_sb.anti_aliasing = true
 	clip.add_theme_stylebox_override("panel", round_sb)
 	clip.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	clip.set_anchors_preset(Control.PRESET_FULL_RECT)
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(clip)
 	var img: TextureRect = TextureRect.new()
 	img.texture = load(path)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -189,8 +204,8 @@ func _add_picture() -> void:
 	rim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	rim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	clip.add_child(rim)
-	$ColorRect.add_child(clip)
-	_picture = clip
+	$ColorRect.add_child(holder)
+	_picture = holder
 	_fit_picture.call_deferred()
 
 # Placed against the title every frame the menu is shown (the title's size settles a frame or two

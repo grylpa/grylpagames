@@ -31,6 +31,9 @@ func _ready() -> void:
 	PolkadotsG.init_globals()
 
 	_main_menu = game.create_main_menu(self)
+	# a light jazz waltz while the board is up (devtools/make_ambient_sounds.py); stopped at the menu
+	game.add_sound(self, "ambient", preload("res://art/sounds/polkadots_ambient.ogg"), true)
+	game.set_sound_volume("ambient", -6.0)
 	_main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	_main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	var level_names: Array = []
@@ -68,12 +71,14 @@ func _ready() -> void:
 	game.progress_pct_format = "%d"
 
 func show_main_menu() -> void:
+	game.stop_sound("ambient")
 	_main_menu.show()
 	$Level.hide()
 	MainGlobals.update_bottom_bar(["help", "mute", "scores"])
 	MainGlobals.add_action_button(null)
 
 func show_level() -> void:
+	game.play_sound("ambient", false)
 	get_viewport().gui_release_focus()
 	$Level.show()
 	_main_menu.hide()

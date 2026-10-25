@@ -73,13 +73,14 @@ var in_answring_mode := false
 @export var player_scene: PackedScene = load("res://mmm/scenes/player.tscn")
 
 # SOUNDS made for this game (devtools/make_mmm_sounds.py). The names in code are the old ones:
-# `motor` is the castle's ambience -- wind moaning in the corridors, torches crackling, a drip, a
-# chain, a harp phrase far off (devtools/make_ambient_sounds.py; it was a car engine, then a noise
-# bed). It starts with the first round and plays on between rounds until the main menu. `feet` footsteps on stone (they were on grass), `delivery` a coin
+# `motor` is the castle's music -- a harp ostinato, a recorder-like tune, a soft drone, a frame drum
+# (devtools/make_ambient_sounds.py; it was a car engine, then a noise bed, then a soundscape of wind
+# and drips the user called "a mess"). It starts with the first round and plays on between rounds until the main menu. `feet` footsteps on stone (they were on grass), `delivery` a coin
 # picked up, `right` a room named right (it shared the coin's sound), `gaveup` a room named wrong,
 # `swoosh` the shimmer as the floor plan opens out, `explosion` an explosion when a hazard catches
 # you (it was a car crash, then a muffled boom), `start` a heavy door closing behind you. `dispatch` is never played.
 var explosion_audio := preload("res://art/sounds/mmm_hit.ogg")
+var caught_audio := preload("res://art/sounds/mmm_caught.ogg")      # a monster catching you: a roar, a chomp
 var motor_audio := preload("res://art/sounds/mmm_ambient.ogg")
 var feet_audio := preload("res://art/sounds/mmm_steps.ogg")
 var delivered_audio := preload("res://art/sounds/mmm_coin.ogg")
@@ -117,6 +118,7 @@ func _ready() -> void:
 	_fit_ground_to_board()
 
 	game.add_sound(self, "explosion", explosion_audio)
+	game.add_sound(self, "caught", caught_audio)
 	game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "feet", feet_audio, true)
 	game.add_sound(self, "delivery", delivered_audio)
@@ -1926,10 +1928,11 @@ func check_agent_collisions():
 		# var d_p_to_a = (a1.board_pos - player.board_pos).length()
 		var d_p_to_a = (a1.position - player.position).length()
 		if d_p_to_a < 0.5 * game.tile_size:
+			# a bomb goes off; a monster roars and bites -- two different deaths, two different sounds
+			game.play_sound("explosion" if a1.agent_type == 0 else "caught")
 			a1.mark_hit()
 			collision.emit()
 			player.mark_hit()
-			game.play_sound("explosion")
 			return
 		if !a1.was_hit and !a1.arrived:
 			for j in agents.size():

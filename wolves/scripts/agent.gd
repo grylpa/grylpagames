@@ -58,16 +58,22 @@ func _ready() -> void:
 	if agent_type == 0:
 		var s = $Head.scale
 		$Head.scale = Vector2(s.x,s.y * 0.8)
+		_dress_as("sheep")
 	else:
 		_dress_as_wolf()
 
-# A wolf is DRAWN (beast_art.gd, in the sheep's flat style: gray, a dark saddle, upright ears, amber eyes) under
-# the head node, whose own sprite -- the generic blob, tinted yellow -- is made invisible.
+# Sheep and wolves are DRAWN (beast_art.gd, all the animals in one style) under the head node, whose
+# own sprite -- the sheep sprite, or the generic blob tinted yellow -- is made invisible.
 var _art: Node2D = null
 
 func _dress_as_wolf() -> void:
+	_dress_as("wolf")
+
+func _dress_as(what: String) -> void:
+	if _art != null:
+		return
 	_art = preload("res://wolves/scripts/beast_art.gd").new()
-	_art.set("kind", "wolf")
+	_art.set("kind", what)
 	$Head.self_modulate = Color(1, 1, 1, 0)
 	$Head.modulate = Color(1, 1, 1, 1)
 	$Head.add_child(_art)
@@ -100,7 +106,7 @@ func set_color_idx(_color_idx = -1):
 func set_pos(p, dir):
 	direction = dir
 	angles[0] = dir * PI/2
-	set_rots()
+	$Head.rotation = angles[0]          # placed: face that way at once
 	if !isready:
 		return
 	position = p
@@ -109,6 +115,7 @@ var _speed_mul := 1.0
 var last_time_moved := MainGlobals.timems()
 
 func _process(_delta: float) -> void:
+	_ease_turn(_delta)
 	if agent_type == 0:
 		t_jitter += _delta * jitter_speed	
 		var jitter := Vector2(noise.get_noise_1d(t_jitter),noise.get_noise_1d(t_jitter + 1000.0)) * jitter_strength
@@ -140,8 +147,17 @@ func _process(_delta: float) -> void:
 	last_time_moved = MainGlobals.timems()
 	set_rots()
 		
+# TURNING IS SMOOTH: set_rots only sets where the animal faces (angles[0]); the head swings round to
+# it here, a little each frame. It used to snap, a quarter or half turn in one frame.
+const TURN_RATE: float = 12.0
+
 func set_rots():
-	$Head.rotation = angles[0]
+	pass
+
+func _ease_turn(delta: float) -> void:
+	if eaten or eating:
+		return
+	$Head.rotation = lerp_angle($Head.rotation, float(angles[0]), clampf(delta * TURN_RATE, 0.0, 1.0))
 	
 var eaten := false
 

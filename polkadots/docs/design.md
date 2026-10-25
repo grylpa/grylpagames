@@ -97,6 +97,10 @@ Settings saved as `[starting_difficulty]`.
 
 ---
 
+An AMBIENT (`polkadots_ambient.ogg`, `devtools/make_ambient_sounds.py`: a light jazz waltz -- piano
+chords, a plucked bass, brushes, a vibraphone tune) plays while the board is up (`main.gd`
+`show_level`, -6 dB) and stops at the menu. The game had none.
+
 ## Scoring
 
 - Correct tap: `+10` points
@@ -120,7 +124,13 @@ Score row format: `[unixtime, score, corrects, mistakes, didwin, wasaborted, lev
 - **`same_size_as_options` was permanently removed** from `level_config.gd` and all supporting code. The dots panel always uses `size_flags_stretch_ratio = 2.0`. Do not re-add this flag — it caused "no dots visible" bugs because viewport scaling made the erosion radius exceed the letter stroke width, leaving no interior pixels.
 - **Erosion fallback**: `erode_px = max(1, ceil(dot_radius * iw / display_size.x))`. If full erosion yields zero pixels (thin strokes), halve `try_erode` and retry until pixels are found or `try_erode == 0`. Always verify this path is preserved when changing dot generation.
 - **Option letters are drawn in a child `Label`, not the Button's own text.** Each option Button has no text; instead it holds a mouse-ignoring child `Label` (referenced via `btn.get_meta("glyph")`) that renders the letter. This is deliberate: a Button's *minimum height* is driven by its text, and the option Buttons sit in a size-to-content container chain (`OptionsVBox → OptionsMargin → OptionsPanel → HBox → GameArea`). With the large `letter_size` fonts (90–120), button-text minimum heights summed past the screen height and pushed the whole game area below the screen ("fine when empty, too tall once the letters appear"). An anchor-positioned child does not contribute to its parent Button's minimum size, so the layout stays bounded on any engine. This surfaced on the Godot **4.6 → 4.7** migration. Do NOT set option-letter text back onto the Button itself.
-  - **Centering:** the glyph Label is anchored to the Button **center** (all four anchors = 0.5) with `grow_horizontal`/`grow_vertical = GROW_DIRECTION_BOTH`, so it is content-sized and grows symmetrically around the center. This keeps the letter centerd regardless of the font's line-box metrics and auto-recenters when the letter/font changes — a full-rect Label relying on `vertical_alignment = CENTER` rendered the big glyphs bottom-aligned. The Button's `clip_contents` trims any overflow.
+  - **Centering:** the glyph Label is anchored to the Button **center** (all four anchors = 0.5) with `grow_horizontal`/`grow_vertical = GROW_DIRECTION_BOTH`, so it is content-sized and grows symmetrically around the center. This keeps the letter centered regardless of the font's line-box metrics and auto-recenters when the letter/font changes — a full-rect Label relying on `vertical_alignment = CENTER` rendered the big glyphs bottom-aligned. The letter's size is capped to the button (`_configure_option_buttons`), so nothing needs clipping.
+
+- **Any screen over the round holds its timers.** `level.gd` `_process` watches
+  `MainGlobals.any_screen_visible()` and calls `pause_round(true/false)` as a screen opens and closes,
+  the way main.gd does for the help screen. Pressing I (the instructions) used to leave the round's
+  timers running behind it. `pause_round(false)` credits a round only the time since it started, if it
+  started during the hold.
 
 ## Key Signals
 
@@ -322,8 +332,10 @@ games): a bell chime for right, a soft low bell note for wrong. They replaced an
 
 **The panels' FORM, not their colors** (`level.gd` `_apply_layout`): the panel, letter and dot colors are
 set per level and are part of the stimulus, so they are untouched. The dots panel is rounded (16) with
-a soft shadow (`_style_panel`); the options are RAISED tiles -- a darker lip along the bottom in the
-panel's own color, a shadow, sinking into the lip when pressed. The two holder `PanelContainer`s draw
+a soft shadow (`_style_panel`); the options are RAISED tiles, lifted on ONE soft shadow that shrinks
+when pressed (a darker lip under each as well read as a double shadow). One light, from the top left:
+every shadow falls down and to the right. No `clip_contents` on the options or on the two holders --
+it cut the shadows off square. The two holder `PanelContainer`s draw
 nothing (their default pale frame sat round the panels like a mat), the dots are anti-aliased (same
 size and color), and the floating feedback ("+N", "-> K") has a thick dark outline so it reads over a
 panel of any color -- red on a red panel was invisible.

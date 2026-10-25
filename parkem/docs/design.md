@@ -123,7 +123,7 @@ assumes they are doing it wrong.
   (breeze, crickets; its breeze swells only gently -- a deeper swell read as gaps), `dispatch` = a creature appearing, `swoosh` = a creature setting off (a patter of
   little feet), `door` = a door turned (a short soft clack, -3 dB -- it is the player's every move),
   `parked` = a creature reaching its goal (a smug "nom"), `delivery` = a creature kept away until it
-  gave up (a light chime), `explosion` = a creature hitting a hazard or another (a cartoon bonk with a quick downward boing and a twinkle of stars; it was an 80 ms pop so soft that a collision seemed to make no sound). The old
+  gave up (a light chime), `explosion` = a creature hitting a hazard or another (a cartoon bonk with a quick downward boing and a twinkle of stars; it was an 80 ms pop so soft that a collision seemed to make no sound). It plays from the start on every collision: a guard against replaying while it rang silenced a collision soon after another. The old
   set was still the parking game's: a car engine, a car crash, a door creak, an arcade coin.
 
 ## Difficulty

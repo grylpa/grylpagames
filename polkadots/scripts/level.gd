@@ -87,7 +87,18 @@ func _setup_timeout_bar() -> void:
 	$"Root".add_child(_timeout_bar)
 	_timeout_bar.hide()
 
+# Any screen over the round -- the instructions (I), the scores, a confirmation -- holds the round's
+# timers the way the help screen does (main.gd). Pressing I used to leave them running, so the round
+# timed out behind the instructions.
+var _screen_hold: bool = false
+
 func _process(_delta: float) -> void:
+	var covered: bool = MainGlobals.any_screen_visible() and visible
+	if covered != _screen_hold:
+		_screen_hold = covered
+		pause_round(covered)
+	if covered:
+		return
 	if not _can_click or _timeout_duration <= 0.0 or _timeout_bar == null:
 		return
 	var elapsed: float = Time.get_unix_time_from_system() - _round_start_time
@@ -133,7 +144,7 @@ func _apply_layout() -> void:
 	# Build and apply the box style early so it's ready before GameArea is shown
 	# THE FORM, not the colors: the panel and letter colors are set per level and are part of the
 	# stimulus, so they are untouched. The panels are rounded with a soft shadow, and the options are
-	# RAISED tiles -- a darker lip along the bottom in the panel's own color, sinking when pressed.
+	# RAISED tiles -- lifted on a soft shadow, which shrinks when pressed.
 	# They had square-ish corners and a bluish border that clashed with every panel color.
 	# One light, from the top left, for everything: every shadow falls down and to the right. The
 	# options' shadows used to be cut off square by the button's own clip_contents (so each had a
@@ -146,17 +157,15 @@ func _apply_layout() -> void:
 	_style_panel.shadow_size = 10
 	_style_panel.shadow_offset = Vector2(5, 6)
 	_style_panel.anti_aliasing = true
+	# ONE shadow per option: a soft drop shadow, no darker lip under it as well (the two read as a
+	# double shadow)
 	_style_normal = _style_panel.duplicate() as StyleBoxFlat
-	_style_normal.border_width_bottom = 7
-	_style_normal.border_color = _panels_bk_color.darkened(0.40)
-	_style_normal.shadow_size = 7
+	_style_normal.shadow_size = 8
 	_style_normal.shadow_offset = Vector2(4, 5)
 	_style_hover = _style_normal.duplicate() as StyleBoxFlat
 	_style_hover.bg_color = _panels_bk_color.lightened(0.08)
 	_style_pressed = _style_normal.duplicate() as StyleBoxFlat
 	_style_pressed.bg_color = _panels_bk_color.darkened(0.10)
-	_style_pressed.border_width_bottom = 2
-	_style_pressed.expand_margin_top = -5
 	_style_pressed.shadow_size = 2
 	_style_pressed.shadow_offset = Vector2(1, 1)
 	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_panel)
@@ -627,7 +636,8 @@ func pause_round(paused: bool) -> void:
 	if paused:
 		_help_open_time = Time.get_unix_time_from_system()
 	else:
-		_round_start_time += Time.get_unix_time_from_system() - _help_open_time
+		# (a round that started during the hold only lost the time since it started)
+		_round_start_time += Time.get_unix_time_from_system() - maxf(_help_open_time, _round_start_time)
 
 func _next_or_finish() -> void:
 	# ROUNDS PLAYED, not rounds won. It used to end the level after `rounds_per_level` CORRECT

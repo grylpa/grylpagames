@@ -121,6 +121,7 @@ func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
 func show_main_menu() -> void:
+	game.stop_sound("wind")
 	main_menu.show_continue_and_start_new(false)
 	main_menu.show()
 	$Level.hide()

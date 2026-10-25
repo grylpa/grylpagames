@@ -58,6 +58,15 @@ Both end the run. `mark_hit()` and `mark_arrived()` start an animation whose cal
 `on_player_remove_player()`, which **frees the player** and then calls `level_is_done()`. That
 delay matters — see the tutorial notes.
 
+**Every explosion sounds.** A monster hit plays `explosion` from the start every time; it was guarded
+by "if not already playing", and the explosion rings for seconds, so walking into hazards in quick
+succession left the last one silent. (Detour's bonk had the same guard and lost it too.)
+
+**No card over the game-over banner.** The player is removed a moment after the hit that cost the
+last life, which ends the round (`level_is_done`); by then the HUD's "Game Over" is up. The round
+still counts, but `level_is_done` returns before any round or level card when the lives are gone or
+the clock has run out -- it used to open "level not passed" on top of "Game Over".
+
 ## Scoring
 
 +10 delivered; −1 for a bomb, a new board, a timeout, or a clue. Three lives

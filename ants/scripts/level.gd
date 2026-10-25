@@ -20,11 +20,12 @@ const TUTORIAL_EVENTS: Array = ["menu_opened", "tip_shown", "obstacle_placed", "
 
 signal sig_level_is_done(didwin: bool)
 
-# SOUNDS, all made for this game by devtools/make_ants_sounds.py: a garden behind everything (a
-# breeze, leaves, birds far off) while the colony runs, and one sound per thing the player does.
+# SOUNDS, made for this game: the "garden" ambient, a light pastoral with birds over it
+# (devtools/make_ambient_sounds.py, ants_ambient.ogg; it was a breeze of soft noise with birds seconds
+# apart, heard as "full of gaps"), and one sound per thing the player does (make_ants_sounds.py).
 # Nothing sounds for the ants themselves -- a crumb arriving happens many times a second.
 const SOUNDS: Dictionary = {
-	"garden": preload("res://art/sounds/ants_garden.ogg"),
+	"garden": preload("res://art/sounds/ants_ambient.ogg"),
 	"stone": preload("res://art/sounds/ants_stone.ogg"),
 	"twig": preload("res://art/sounds/ants_twig.ogg"),
 	"water": preload("res://art/sounds/ants_water.ogg"),

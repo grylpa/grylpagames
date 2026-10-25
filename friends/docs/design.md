@@ -248,7 +248,8 @@ background, buttons, messages, everything"):
   lights drifting slowly, thickest toward the bottom like a lit street, and a vignette. Kept dark so
   the photos are the brightest things on screen; it matches the evening-stroll ambient. It replaced
   the shared green backdrop (`ScreenBackdrop`), which had replaced a tiled `grass.png`.
-- **The cards are printed photos** (the shared card's `set_photo(true)`): a warm white frame with a
+- **The cards are printed photos** (the shared card's `set_photo(true)`): OLD prints -- aged card
+  stock with a deckled, nicked edge and a scorched stretch along one side, each card its own -- with a
   soft shadow and the name in dark ink on the frame's bottom margin, in place of the zigzag border and
   yellow name bar. The friends shown at the start are each tilted a few degrees (`randf_range(-3.5,
   3.5)`), laid on the table by hand; the arriving stranger stands straight.

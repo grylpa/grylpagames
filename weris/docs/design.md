@@ -333,8 +333,8 @@ Only the failed level's points go back; everything earned in levels already pass
   the top center, a darker edge. Dark and low in contrast on purpose: the faces are the game, and a
   busy board would make finding one harder in a way the game does not mean to measure. It replaced
   the shared green backdrop (`ScreenBackdrop`), which had replaced a tiled grass texture.
-- **The cards are printed photos** (the shared card's `set_photo(true)`: a warm white frame with a
-  soft shadow, in place of the yellow zigzag), each with a **pushpin** at its top (`_add_pin`: a
+- **The cards are printed photos** (the shared card's `set_photo(true)`: an old print -- aged card
+  stock, a deckled, nicked edge, a scorched stretch -- with a soft shadow, in place of the yellow zigzag), each with a **pushpin** at its top (`_add_pin`: a
   colored head with a highlight and its shadow; the color is fixed by the card's place in the tree).
   The grid's photos are tilted a couple of degrees each (`randf_range(-2.5, 2.5)`); the one to study
   stands straight.

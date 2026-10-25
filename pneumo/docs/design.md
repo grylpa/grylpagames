@@ -425,16 +425,20 @@ cars before the shape was right.
 
 ## Look and sound (the 2026-10-25 pass)
 
-- **The tubes are drawn as tubes** (`pipe.gd` `_draw_tube`): glass shaded round across its width --
-  dark at both walls, brightening to a highlight along the axis (one SYMMETRIC profile, `PROFILE_U`,
-  so neighboring tiles meet without a seam whichever way each turns) -- a coupling ring wherever a
-  tube meets the next tile, a smooth quarter-circle at a bend, a rounded cap at a dead end, and a
-  metal JUNCTION BOX (a bevelled plate with a round port) where three or four tubes meet, which is
-  where the doors sit. A dead end next to a sender or receiver is drawn running on into it, not
-  capped (drawing only). The shared road sprites are kept for their shape and made invisible
-  (`self_modulate`). History: asphalt with a dashed line and thick stone walls; then the sprites
-  painted flat gray by a shader with thin walls ("just blocks of gray", user 2026-10-25); the shader
-  (`tube.gdshader`) is deleted.
+- **The ground is a PLANT-ROOM FLOOR, not a lawn** (`level.gd` `_fit_ground_to_board` /
+  `_draw_plant_floor`): dark steel plates in staggered rows, each a shade lighter or darker, lit along
+  its top-left edge, with seams, corner rivets and a faint brushed sheen. It is drawn on the shared
+  `GrassField` node (its draw replaced, its grass blades hidden), so the sizing, its place behind the
+  board and `probe_lawn` all still hold. A lawn under glass tubes was "not the most appropriate
+  background for a pneumatic system" (user, 2026-10-25).
+- **The tubes are clear glass guides** (`pipe.gd` `_draw_tube`): the floor shows through a faint tint
+  (the fill is the whole tile, so tiles join into one tube with no seams), and only the walls are
+  drawn -- a thin bright line along each side with no tube beyond it and a soft sheen just inside it,
+  mitered at bends, with a small joining piece at an inside corner. The shared road sprites are kept
+  for their shape and made invisible (`self_modulate`). History: asphalt with a dashed line and thick
+  stone walls; the sprites painted flat gray with thin walls ("just blocks of gray"); shaded opaque
+  tubes with couplings and junction boxes ("way too distracting -- we need to remember the game",
+  user 2026-10-25). Keep it quiet: the capsules, the doors and the ports are the game.
 - **Sounds** (`devtools/make_pneumo_sounds.py`; names in code kept): `motor` = the system running (a
   compressor hum, air in the pipes), `dispatch` = a capsule loaded (a hatch and a pressure hiss),
   `swoosh` = a capsule launched (a pneumatic "pfft"), `door` = a junction valve turned (a short clack,

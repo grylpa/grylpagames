@@ -255,6 +255,7 @@ func _brief_text(n_rooms: int) -> String:
 func new_game(from_scratch=true):
 	while _building:
 		await get_tree().process_frame
+	_wind_phase = randf() * TAU          # each storm's wind starts from its own side
 	# Claimed HERE, the moment the wait is over -- not when create_board() starts. There are two
 	# awaited frames between the two (for the briefing card to draw), and a second new_game() in them
 	# found the flag down, went on, and reset() the board a build was still filling: two builds shared
@@ -340,6 +341,7 @@ func _process(delta: float) -> void:
 	_follow_player_room(delta)
 	if _rain_mat != null and game.playing and not game.paused():
 		_rain_mat.set_shader_parameter("t", game.game_time / 1000.0)
+		_rain_mat.set_shader_parameter("wind", _wind_at(game.game_time / 1000.0))
 	# In a corridor the next step is taken the frame the player arrives, not at the next 50 ms game
 	# tick: at a run, waiting for the tick was a third of every step, and running came out only 1.3x
 	# as fast as walking. Rooms keep the tick's pace -- the pace the levels were measured at.
@@ -2273,6 +2275,17 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 func _fit_ground_to_board() -> void:
 	var field: Control = GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19)
 	_fit_weather(field)
+
+# The rain's slant over time: it HOLDS a direction for a while, then swings smoothly across to the
+# other side over a few seconds, and back -- a slow sine pushed through tanh, so it rests near each
+# extreme instead of drifting through the middle. A period of about 40 s, so the wind turns every
+# 20 s or so, and a random start per storm (`_wind_phase`), so a round does not always open the same
+# way. Between -0.40 and 0.40 (x per y). The first version was two slow sines that barely left one
+# side in a round ("it always pours from top right to bottom left"); before that a fixed 0.28.
+var _wind_phase: float = 0.0
+
+func _wind_at(sec: float) -> float:
+	return 0.40 * tanh(2.6 * sin(sec * TAU / 40.0 + _wind_phase))
 
 # THE STORM over the lawn (storm_rain.gdshader): the light darkened and cooled, rain streaks, splash
 # rings. A rect over the lawn in the lawn's own layer, after the grass -- so the house, in front,
