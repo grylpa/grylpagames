@@ -379,38 +379,30 @@ func _draw_head(nd: Node2D) -> void:
 			_head_shape(body_w, body_w * (GLOW_MUL - 1.0) * 0.5), keep):
 		nd.draw_colored_polygon(part, Color(BODY_SHADOW, GLOW_ALPHA))
 
-	# 2. banded fill, as transverse strips so each band follows the tapering outline
-	var strips: int = HEAD_STEPS * 2
-	for i in strips:
-		var t0: float = float(i) / float(strips)
-		var t1: float = float(i + 1) / float(strips)
-		var x0: float = lerpf(ln * 0.5, -ln * 0.5, t0)
-		var x1: float = lerpf(ln * 0.5, -ln * 0.5, t1)
-		# Only just past the body's end (the body line has no cap there): reaching further back it
-		# laid its own shading over the body's and the neck showed as a lighter oval.
-		if x0 < -body_w * HEAD_BACK_W:
-			break
-		var h0: float = _head_half_width(t0, half)
-		var h1: float = _head_half_width(t1, half)
-		# The head wears the body's pattern. _band_shade is a 0..1 triangle over one band period, so
-		# it doubles as the mix between base and crossband — the head's bands are then the SAME two
-		# colors as the body's rather than a dimmer version of one of them.
-		var sh: float = _band_shade(-(x0 + x1) * 0.5)
-		var band_col: Color = nd.get_meta("band", Color(0, 0, 0, 0))
-		var skin: Color
-		if band_col.a > 0.0:
-			skin = band_col.lerp(col, clampf((sh - BAND_DARK) / maxf(1.0 - BAND_DARK, 0.001), 0.0, 1.0))
-		else:
-			skin = Color(col.r * sh, col.g * sh, col.b * sh, 1.0)
-		var quad: PackedVector2Array = PackedVector2Array([
-			Vector2(x0, -h0), Vector2(x1, -h1), Vector2(x1, h1), Vector2(x0, h0)])
-		nd.draw_colored_polygon(quad, skin)
+	# 2. the skin: the head outline filled with the body's scales (its own tile, without the
+	# diamonds), mapped in the head's space so the scales run the same way as the body's
+	var tex: Texture2D = nd.get_meta("skin", null)
+	for part2: PackedVector2Array in Geometry2D.intersect_polygons(_head_shape(body_w, 0.0), keep):
+		if tex == null:
+			nd.draw_colored_polygon(part2, nd.get_meta("band", col))
+			continue
+		var uvs: PackedVector2Array = PackedVector2Array()
+		for q2: Vector2 in part2:
+			uvs.append(Vector2(q2.x / (body_w * 2.0), q2.y / (body_w * HEAD_WIDE_W) + 0.5))
+		nd.draw_colored_polygon(part2, Color.WHITE, uvs, tex)
 
-	# 3. the sheen along the back, continuing the body's: soft-edged, as three faint layers
-	for layer in 3:
-		var lw: float = body_w * STRIPE_W * (1.0 - 0.3 * float(layer))
-		nd.draw_line(Vector2(ln * 0.5 - ln * HEAD_STRIPE_FROM, 0.0), Vector2(-body_w * HEAD_BACK_W, 0.0),
-			Color(SHEEN, SHEEN.a * 0.45), lw, true)
+	# 3. the crown: a dark ARROWHEAD from between the eyes back over the skull, with a pale rim, the
+	# first mark of the diamondback pattern that runs down the body (the head wore crossbands before)
+	var tip_x: float = ln * 0.06
+	var back_x: float = -ln * 0.40
+	var arrow: PackedVector2Array = PackedVector2Array([Vector2(tip_x, 0.0), Vector2(back_x, -half * 0.42),
+		Vector2(back_x + ln * 0.14, 0.0), Vector2(back_x, half * 0.42)])
+	var rim_pts: PackedVector2Array = PackedVector2Array()
+	for q: Vector2 in arrow:
+		rim_pts.append(q * 1.14 + Vector2(-ln * 0.01, 0.0))
+	var band_c: Color = nd.get_meta("band", col)
+	nd.draw_colored_polygon(rim_pts, band_c.lightened(0.45))
+	nd.draw_colored_polygon(arrow, col)
 
 	# eyes on the flanks, looking forward: dark and glossy, a glint toward the snout. NO BLINK --
 	# snakes have no eyelids, and the blink frame (a quarter of the time) drew the eyes as two dashes.
@@ -577,10 +569,11 @@ func _ready() -> void:
 	_head_x = _screen_w * HEAD_X_FRAC
 	_m_top_y = _screen_h * M_TOP_FRAC
 	_m_bot_y = _screen_h * M_BOT_FRAC
+	# thicker on a phone, but not twice: at 2x the bodies were too wide for the curves of the breath
 	if MainGlobals.is_mobile():
-		MOTHER_W *= 2.0
-		CHILD_W *= 2.0
-		HEAD_SCALE *= 2.0
+		MOTHER_W *= 1.5
+		CHILD_W *= 1.5
+		HEAD_SCALE *= 1.5
 
 	# Bodies are Line2D nodes living above the ground canvas (z 0) and below the props canvas and
 	# the heads. Shadows go under their own body.
@@ -606,6 +599,13 @@ func _ready() -> void:
 	# at every turn. Real snakes have one, and it gives the body a spine without any offsetting.
 	_l_mother_st = _make_body_line(MOTHER_W * STRIPE_W, SHEEN, 3, false)
 	_l_child_st = _make_body_line(CHILD_W * STRIPE_W, SHEEN, 3, false)
+	for pair: Array in [[_l_mother, MOTHER_BAND, MOTHER_COL], [_l_child, CHILD_BAND, CHILD_COL]]:
+		var bl: Line2D = pair[0]
+		bl.texture = _build_skin(pair[1], pair[2])
+		bl.texture_mode = Line2D.LINE_TEXTURE_TILE
+		bl.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		bl.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		bl.gradient = _tail_gradient()
 	# NO TEXTURE on any body line. A cross-width shading texture (dark flanks, lit back) was tried:
 	# straight, it made the body round; on every TURN the round joint's texture coordinates did not
 	# match the segments', and the body broke into what looked like separate tubes overlapping.
@@ -617,6 +617,9 @@ func _ready() -> void:
 
 	_sprite_mother = _make_head(MOTHER_W, MOTHER_COL, 5, MOTHER_BAND)
 	_sprite_child = _make_head(CHILD_W, CHILD_COL, 6, CHILD_BAND)
+	for hp: Array in [[_sprite_mother, MOTHER_BAND, MOTHER_COL], [_sprite_child, CHILD_BAND, CHILD_COL]]:
+		(hp[0] as Node2D).set_meta("skin", _build_skin(hp[1], hp[2], false))
+		(hp[0] as Node2D).texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_sprite_mother.set_meta("line", _l_mother)
 	_sprite_child.set_meta("line", _l_child)
 
@@ -863,11 +866,23 @@ func new_game() -> void:
 		_props_canvas.queue_redraw()
 
 # How long ago the world was where the body point half a head-length behind the head is now.
+# A short chord (a third of a body width): the head points the way it is going NOW. Half a head-length
+# made it trail every turn, and on a phone (a wider body) it trailed twice as far: "their heads turn
+# very very slowly".
 func _back_ms(body_w: float) -> float:
-	return body_w * HEAD_LEN_W * 0.5 / maxf(_scroll_px_per_ms, 0.0001)
+	return body_w * HEAD_CHORD_W / maxf(_scroll_px_per_ms, 0.0001)
 
 func _head_chord_angle(y_head: float, y_back: float, body_w: float) -> float:
-	return atan2(y_head - y_back, body_w * HEAD_LEN_W * 0.5)
+	return atan2(y_head - y_back, body_w * HEAD_CHORD_W)
+
+const HEAD_CHORD_W: float = 0.33
+
+# THE HEAD TURNS AT ITS NECK. The head is drawn centered on its node; the node is put ahead of the
+# body's front point by most of half a head-length along the head's angle, so the NECK sits on the
+# body's end and the head swings from there. Centered on that point, it turned round its own middle
+# and its back swung off the body at every turn ("turns on an axis ... doesn't connect").
+func _neck_offset(angle: float, body_w: float) -> Vector2:
+	return Vector2.from_angle(angle) * body_w * HEAD_LEN_W * 0.40
 
 func _compute_scroll_speed() -> float:
 	var d: Array = MotherG.get_guided_durations()
@@ -940,16 +955,16 @@ func _process(delta: float) -> void:
 	if active_mode:
 		_child_angle = _head_chord_angle(_child_y, _child_y_at_time(_elapsed_ms - _back_ms(CHILD_W)), CHILD_W)
 		_sprite_child.rotation = _child_angle
-		_sprite_child.position = Vector2(_head_x, _child_y)
+		_sprite_child.position = Vector2(_head_x, _child_y) + _neck_offset(_child_angle, CHILD_W)
 	else:
 		var mother_y: float = _phase_y_at(_elapsed_ms, _m_top_y, _m_bot_y)
 		_mother_angle = _head_chord_angle(mother_y,
 			_phase_y_at(_elapsed_ms - _back_ms(MOTHER_W), _m_top_y, _m_bot_y), MOTHER_W)
 		_sprite_mother.rotation = _mother_angle
-		_sprite_mother.position = Vector2(_head_x, mother_y)
+		_sprite_mother.position = Vector2(_head_x, mother_y) + _neck_offset(_mother_angle, MOTHER_W)
 		_child_angle = _head_chord_angle(_child_y, _child_y_at_time(_elapsed_ms - _back_ms(CHILD_W)), CHILD_W)
 		_sprite_child.rotation = _child_angle
-		_sprite_child.position = Vector2(_head_x, _child_y)
+		_sprite_child.position = Vector2(_head_x, _child_y) + _neck_offset(_child_angle, CHILD_W)
 
 	_tutorial_watch()
 
@@ -971,8 +986,11 @@ func _process(delta: float) -> void:
 # holds stay exactly as they were: a box average of a straight line is the same line. At a corner
 # the guide moves by a few px at most; the score comes from the player's breathing rhythm, not from
 # distance to her.
-const PATH_ROUND_FRAC: float = 0.08
-const PATH_ROUND_TAPS: int = 9
+# 0.25 with a raised-cosine window (was 0.08, a box): the corners were curves smaller than the body
+# was wide, and a thick body folds round a curve tighter than its half-width -- worst on a phone,
+# whose taller canvas makes the ramps steeper ("all the vertices of the turns look super strange").
+const PATH_ROUND_FRAC: float = 0.25
+const PATH_ROUND_TAPS: int = 17
 
 func _phase_y_at(t_ms: float, top_y: float, bot_y: float) -> float:
 	var d: Array = MotherG.get_guided_durations()
@@ -980,10 +998,13 @@ func _phase_y_at(t_ms: float, top_y: float, bot_y: float) -> float:
 	if r <= 1.0:
 		return _phase_y_raw(t_ms, top_y, bot_y)
 	var sum: float = 0.0
+	var wsum: float = 0.0
 	for k in PATH_ROUND_TAPS:
 		var u: float = (float(k) / float(PATH_ROUND_TAPS - 1)) * 2.0 - 1.0
-		sum += _phase_y_raw(t_ms + u * r, top_y, bot_y)
-	return sum / float(PATH_ROUND_TAPS)
+		var wk: float = 0.5 + 0.5 * cos(PI * u)
+		sum += _phase_y_raw(t_ms + u * r, top_y, bot_y) * wk
+		wsum += wk
+	return sum / wsum
 
 func _phase_y_raw(t_ms: float, top_y: float, bot_y: float) -> float:
 	var d: Array = MotherG.get_guided_durations()
@@ -1128,6 +1149,57 @@ func _make_body_line(w: float, col: Color, z: int, shadow: bool) -> Line2D:
 	add_child(ln)
 	return ln
 
+# THE SKIN IS SCALES, with a DIAMONDBACK pattern -- the bodies were crossband rings, which snakes do
+# not have (user, 2026-10-25). One tile, repeated along the body (Line2D TEXTURE_TILE: across the
+# tile is across the body, along it two body widths): overlapping scales, each with a darker edge and
+# a faint sheen; down the back a dark diamond with a pale rim and a lighter heart, tip to tip with the
+# next; small dark blotches on the flanks between them; the whole shaded darker toward the flanks, so
+# the body reads as round. `base` is the light ground color, `mark` the dark pattern color.
+# (The old note against textures held when the path had real corners; the corners are now rounded
+# wider than the body and the points 2 px apart, so the joints are invisible.)
+const SKIN_W: int = 96
+const SKIN_H: int = 48
+
+func _build_skin(base: Color, mark: Color, pattern: bool = true) -> ImageTexture:
+	var img: Image = Image.create(SKIN_W, SKIN_H, false, Image.FORMAT_RGBA8)
+	var rim: Color = base.lightened(0.45)
+	for y in SKIN_H:
+		var v: float = (float(y) + 0.5) / float(SKIN_H)
+		for x in SKIN_W:
+			var u: float = (float(x) + 0.5) / float(SKIN_W)
+			var col: Color = base
+			var d: float = absf(u - 0.5) / 0.44 + absf(v - 0.5) / 0.34 if pattern else 9.0
+			if d < 0.36:
+				col = mark.lerp(base, 0.30)
+			elif d < 0.80:
+				col = mark
+			elif d < 1.0:
+				col = rim
+			var uu: float = minf(u, 1.0 - u)
+			for fv: float in ([0.13, 0.87] if pattern else []):
+				if pow(uu / 0.13, 2.0) + pow((v - fv) / 0.085, 2.0) < 1.0:
+					col = mark.lerp(base, 0.15)
+			# scales: staggered rows, each scale an ellipse with a darker edge and a faint sheen
+			var sy: float = v * 7.0
+			var row: int = int(floor(sy))
+			var fx: float = fposmod(u * 10.0 + (0.5 if row % 2 == 1 else 0.0), 1.0)
+			var fy: float = sy - float(row)
+			var dd: float = Vector2((fx - 0.5) / 0.55, (fy - 0.42) / 0.62).length()
+			var k: float = 1.0 - 0.24 * smoothstep(0.72, 1.0, dd)
+			var shine: float = 0.07 * (1.0 - smoothstep(0.0, 0.55, dd))
+			# round: darker toward the flanks
+			var across: float = 1.0 - 0.45 * pow(absf(v - 0.5) * 2.0, 2.2)
+			var c2: Color = Color(col.r * k * across + shine, col.g * k * across + shine, col.b * k * across + shine, 1.0)
+			img.set_pixel(x, y, c2)
+	return ImageTexture.create_from_image(img)
+
+# The tail's dissolve, the only thing the gradient does now (the texture carries the color).
+func _tail_gradient() -> Gradient:
+	var g: Gradient = Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, TAIL_SOLID, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
+	return g
+
 # Banding and the tail dissolve, baked into one Gradient.
 #
 # NOTE Line2D.gradient REPLACES default_color rather than multiplying it, so everything about the
@@ -1234,6 +1306,29 @@ func _slither_y(pts: PackedVector2Array, w: float, now_s: float) -> PackedVector
 		out[i] = Vector2(pts[i].x, pts[i].y + amp * ramp_f * flat * flat * sin(dx / wave * TAU - now_s * SLITHER_SPEED))
 	return out
 
+# THE BODY'S OWN CURVES ARE SMOOTHED (drawing only): a moving average of the points' y over about a
+# body width, faded in behind the head so the head stays exactly where it is. The child's path is the
+# player's own input, which turns as sharply as a key is pressed or released, and a thick body folds
+# round a turn tighter than its half-width.
+func _smooth_body(pts: PackedVector2Array, w: float) -> PackedVector2Array:
+	var n: int = pts.size()
+	if n < 5:
+		return pts
+	var spacing: float = maxf(0.5, absf(pts[0].x - pts[n - 1].x) / float(n - 1))
+	var half: int = clampi(int(w * 0.8 / spacing), 1, 40)
+	var out: PackedVector2Array = pts.duplicate()
+	for i in n:
+		var h: int = mini(half, int(float(half) * clampf(float(i) / float(half * 2), 0.0, 1.0)))
+		if h < 1:
+			continue
+		var sum: float = 0.0
+		var cnt: int = 0
+		for j in range(maxi(0, i - h), mini(n, i + h + 1)):
+			sum += pts[j].y
+			cnt += 1
+		out[i].y = sum / float(cnt)
+	return out
+
 # NO SEGMENT LONGER THAN BODY_MAX_SEG_PX. A Line2D colors its gradient PER VERTEX and blends between
 # vertices, so a crisp band edge that falls inside a long segment is smeared across it, differently
 # every frame as the body moves. The bodies are sampled every 2 px of x, so on a steep diagonal the
@@ -1266,7 +1361,7 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 		sh.points = PackedVector2Array()
 		st.points = PackedVector2Array()
 		return
-	pts = _densify(_slither_y(pts, w, _elapsed_ms * 0.001), BODY_MAX_SEG_PX)
+	pts = _densify(_slither_y(_smooth_body(pts, w), w, _elapsed_ms * 0.001), BODY_MAX_SEG_PX)
 	var o: float = clampf(openness, 0.0, 1.0)
 	var pw: float = w * lerpf(PULSE_W_LOW, PULSE_W_HIGH, o)
 	ln.width = pw
@@ -1308,13 +1403,11 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	for i in range(1, pts.size()):
 		arc += pts[i].distance_to(pts[i - 1])
 	arc = maxf(1.0, arc)
-	ln.gradient = _build_gradient(base_col, arc, band_col)
-	if int(_bands.get(ln, -1)) < 0:
-		_bands[ln] = 1
-		st.gradient = _build_plain_gradient(SHEEN)
-
+	# (the skin texture carries the pattern now; the gradient set at _ready only fades the tail)
+	if band_col.a < 0.0:
+		ln.gradient = _build_gradient(base_col, arc, band_col)
 	ln.points = pts
-	st.points = pts
+	st.points = PackedVector2Array()        # no dorsal stripe: the scales and diamonds are the back
 	var shifted: PackedVector2Array = PackedVector2Array()
 	shifted.resize(pts.size())
 	for i in pts.size():
