@@ -117,11 +117,16 @@ are crisp. One stop per half period interpolated into a triangle wave, which rea
 corrugated pipe. `_band_shade` mirrors it exactly for the head. The tail dissolve is folded into the
 same gradient.
 
-**The head's bands are stretched like the body's.** A Line2D lays its gradient along its ARC, but the
-offsets are pixels over the horizontal span (below), so every band on the body is arc / span times
-`BAND_PX` -- longer wherever the path climbs or falls. `_set_body` records that ratio per line
-(`_band_stretch`) and each head divides its distance by its own line's, so its bands match the body's
-right behind it. (Drawn at true `BAND_PX`, the head's bands were visibly narrower.)
+**The bands are placed by the body's REAL arc length, every frame** (`_set_body`). A Line2D lays its
+gradient along its actual arc, which changes slightly every frame as the body slithers. With the stops
+normalized by a steadier proxy (the horizontal span, or the growth cap) every band slid a fraction of
+a pixel each frame and the bodies flickered -- long hidden under the old opaque spine stripe, and
+plain once the spine became a faint sheen and the bands crisper. Normalized by the real arc, a band at
+distance d from the head is drawn at exactly d. Measured on consecutive frames just behind the child's
+head (pixels reversing brightness frame to frame): 0.145 before the look pass, 0.20 after it, 0.128
+with this. The gradient is rebuilt every frame (at most 2 * BAND_MAX * 2 stops, two bodies), and the
+head's bands now match the body's at true `BAND_PX` with no stretch factor. `BAND_EDGE` is 0.6 (0.30
+was crisp and shimmered).
 
 **Stops are anchored in PIXELS from the head** (`offset = distance / length`), so a band 100 px
 back stays 100 px back as the child's body grows and only new bands appear at the tail. Splitting

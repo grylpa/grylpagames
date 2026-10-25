@@ -62,13 +62,19 @@ var dict_tran_id_to_target = {}
 @export var target_scene: PackedScene = load("res://parkem/scenes/target.tscn")
 @export var bomb_scene: PackedScene = load("res://scenes/bomb_scene.tscn")
 
-var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var parked_audio = preload("res://art/sounds/bump-sound-7.mp3")
-var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio = preload("res://art/sounds/door-open-sound-1.mp3")
-var motor_audio = preload("res://art/sounds/car-ambient-driving.ogg")
-var explosion_audio = preload("res://art/sounds/car-crash-1.mp3")
-var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
+# SOUNDS made for this game (devtools/make_parkem_sounds.py), for its CREATURES -- the old set was
+# still the parking game's: a car engine under play, a car crash, a door creak, an arcade coin. The
+# names in code are the old ones: `motor` an evening garden (breeze, crickets), `dispatch` a creature
+# appearing, `swoosh` a creature setting off, `door` a door turned (a short clack -- it is the
+# player's every move), `parked` a creature reaching its goal (a smug "nom"), `delivery` a creature
+# kept away until it gave up (a light chime), `explosion` a creature hitting a hazard or another (a pop).
+var dispatch_audio = preload("res://art/sounds/parkem_spawn.ogg")
+var parked_audio = preload("res://art/sounds/parkem_reached.ogg")
+var delivery_audio = preload("res://art/sounds/parkem_stopped.ogg")
+var door_audio = preload("res://art/sounds/parkem_door.ogg")
+var motor_audio = preload("res://art/sounds/parkem_evening.ogg")
+var explosion_audio = preload("res://art/sounds/parkem_pop.ogg")
+var swoosh_audio = preload("res://art/sounds/parkem_scurry.ogg")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -90,6 +96,8 @@ func _ready() -> void:
 	game.add_sound(self, "parked", parked_audio, false)
 	game.add_sound(self, "explosion", explosion_audio, false)
 	game.add_sound(self, "swoosh", swoosh_audio, false)
+	for vol: Array in [["motor", -8.0], ["dispatch", -4.0], ["swoosh", -6.0], ["door", -3.0], ["parked", -3.0]]:
+		game.set_sound_volume(vol[0], vol[1])
 	_fit_ground_to_board()
 
 func new_game(from_scratch=true):

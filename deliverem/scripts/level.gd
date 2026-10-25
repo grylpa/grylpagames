@@ -50,9 +50,12 @@ var level: int = 1
 @export var door_scene: PackedScene = load("res://deliverem/scenes/door.tscn")
 @export var target_scene: PackedScene = load("res://deliverem/scenes/target.tscn")
 
-var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio = preload("res://art/sounds/door-open-sound-1.mp3")
+# Made for this game (devtools/make_action_sounds.py): a soft two-tone bell for a new delivery, a
+# thud and a ding for one delivered, a short clack for a junction turned. The engine recording stays. They replaced a heavy bell,
+# an arcade coin, a door creak.
+var dispatch_audio = preload("res://art/sounds/deliverem_call.ogg")
+var delivery_audio = preload("res://art/sounds/deliverem_deliver.ogg")
+var door_audio = preload("res://art/sounds/deliverem_gate.ogg")
 var motor_audio = preload("res://art/sounds/engine-pulling-something.mp3")
 
 var player

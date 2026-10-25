@@ -350,3 +350,9 @@ dilated into an even outline — the trick `FoodBit` uses to survive any floor. 
 first: it did nothing for a near-white fleece and actively hid each sheep's dark face against dark
 grass, so heads and legs vanished and a sheep read as a cloud on sticks. The faces were lightened to
 a warm mid-grey for the same reason.
+
+## Sounds
+
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `start` a shepherd's two-note whistle (was a click). The sheep, dog, wolf and bell recordings and the grass footsteps stay; `swoosh` is registered and never played.
+
+**The field is a mown pasture** (`pasture.gdshader` on each field tile's sprite, set in `pipe.gd`'s `_ready`): a lighter, yellower green than the lawn outside the fence, broad mowing stripes, blade grain and darker tufts, in world coordinates. It replaced a gray stone tile that read as asphalt. Mid-light on purpose: the white sheep and the dark wolves must both stand out. The compound keeps its per-level color, and `FIELD_WASH` still applies over it.

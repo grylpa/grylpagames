@@ -218,3 +218,14 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it makes the same set
+for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
+"shown" sound). Names in code kept: `dispatch` = the target appearing (a spotlight clunk), `delivery` = a right
+answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
+one STEADY loop (`ooo_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+arcade coin, a swoosh and three stock ocean-wave loops picked at random.
+The ambient is steady for the same reason the backdrop is featureless: this game measures attention,
+and nothing in the background should pull it.

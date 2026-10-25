@@ -233,3 +233,8 @@ Every repeat also logs its LAG — how many cards since that card was last shown
 The task signature stores `source`, so faces and dinosaurs are never pooled: they are different abilities.
 
 The Recall tab is always present. It needs 3 sessions and at least two lag groups with 4+ repeats each before it draws; until then it says how many sessions are left.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a marimba chime for right, a soft low marimba note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

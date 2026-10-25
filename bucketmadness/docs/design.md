@@ -615,3 +615,8 @@ game does not keep; both halves need `MIN_PER_BUCKET` rounds or the comparison i
 `art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `bucket_madness()`), not grabbed. The
 old tile was a screen grab. It is now the game in one picture: a blue star falling down the chute toward
 three pails (red, blue, green, from `Sleek.PALETTE`), the blue one lit.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

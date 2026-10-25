@@ -187,3 +187,7 @@ gradient. The baskets and paddles are projected from their 3-D forms (`_wicker_b
 along it, the paddle head is a tipped disc with thickness, its handle a cylinder, its loop a ring.
 It replaced a screenshot of the arena, which did not read at the chooser's small size.
 
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a wooden chime for a ball in the right basket, a low wooden note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

@@ -73,7 +73,7 @@ func _ready() -> void:
 	game.add_sound(self, "click", CLICK_AUDIO)
 	game.add_sound(self, "unlock", UNLOCK_AUDIO)
 	game.add_sound(self, "lock", LOCK_AUDIO)
-	game.set_sound_volume("click", -10.0)
+	game.set_sound_volume("click", -18.0)
 	game.set_sound_volume("unlock", -4.0)
 	game.set_sound_volume("lock", -4.0)
 	_screen_w = float(MainGlobals.screen_size.x)
@@ -384,6 +384,7 @@ const CHROME_HI: Color = Color(0.88, 0.89, 0.92)
 const CHROME_MID: Color = Color(0.60, 0.62, 0.66)
 const CHROME_LO: Color = Color(0.32, 0.33, 0.36)
 const DIAL_FACE: Color = Color(0.09, 0.09, 0.11)
+const DIAL_FACE_OPEN: Color = Color(0.13, 0.42, 0.22)
 
 # Fine horizontal grain across the steel, fixed per position (a hash, not random each frame).
 func _draw_brushing(canvas: CanvasItem, r: Rect2) -> void:
@@ -498,16 +499,20 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var dcy: float = cy
 	var bezel_r: float = dial_r + 18.0
 
+	# OPEN IS UNMISSABLE: the whole dial goes green (as it did before the metal look -- a lamp and a
+	# faint halo alone were not enough), a broad green glow round it, and a green ring in the bezel.
 	if op:
-		for k in 5:
-			canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 8.0 + 14.0 * (1.0 - float(k) / 5.0),
-				Color(0.30, 0.95, 0.45, 0.05), true, -1.0, true)
+		for k in 8:
+			canvas.draw_circle(Vector2(dcx, dcy), bezel_r + 8.0 + 34.0 * (1.0 - float(k) / 8.0),
+				Color(0.30, 0.95, 0.45, 0.07), true, -1.0, true)
 	canvas.draw_circle(Vector2(dcx + 4.0, dcy + 7.0), bezel_r + 9.0, Color(0, 0, 0, 0.45), true, -1.0, true)
 	# the bezel: chrome, its rings dark and light so it reads as a turned metal ring
 	var rings: Array = [[8.0, CHROME_LO], [5.5, CHROME_HI], [3.0, CHROME_MID], [0.5, CHROME_LO]]
 	for rg: Array in rings:
 		canvas.draw_circle(Vector2(dcx, dcy), bezel_r + float(rg[0]), rg[1], true, -1.0, true)
 	canvas.draw_arc(Vector2(dcx, dcy), bezel_r + 6.5, PI * 0.95, PI * 1.55, 24, Color(1, 1, 1, 0.55), 2.0, true)
+	if op:
+		canvas.draw_arc(Vector2(dcx, dcy), bezel_r + 3.0, 0.0, TAU, 64, Color(0.35, 1.0, 0.50, 0.95), 3.0, true)
 	canvas.draw_circle(Vector2(dcx, dcy), bezel_r - 1.0, Color(0.06, 0.06, 0.07), true, -1.0, true)
 
 	# Gold indicator triangle (fixed)
@@ -522,8 +527,9 @@ func _do_draw(canvas: CanvasItem) -> void:
 	var dial_rot: float = deg_to_rad(_long_angle)
 	canvas.draw_set_transform(Vector2(dcx, dcy), dial_rot, Vector2.ONE)
 
-	canvas.draw_circle(Vector2.ZERO, dial_r, DIAL_FACE, true, -1.0, true)
-	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, DIAL_FACE.lightened(0.04), true, -1.0, true)
+	var face: Color = DIAL_FACE_OPEN if op else DIAL_FACE
+	canvas.draw_circle(Vector2.ZERO, dial_r, face, true, -1.0, true)
+	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, face.lightened(0.06), true, -1.0, true)
 	canvas.draw_circle(Vector2.ZERO, dial_r * 0.88, Color(0.30, 0.31, 0.34), false, 1.5, true)
 
 	for i in range(100):
@@ -535,7 +541,8 @@ func _do_draw(canvas: CanvasItem) -> void:
 		canvas.draw_line(
 			Vector2(cos(a) * (dial_r - tlen), sin(a) * (dial_r - tlen)),
 			Vector2(cos(a) * (dial_r - 1.0), sin(a) * (dial_r - 1.0)),
-			Color(0.90, 0.91, 0.93) if is_major else Color(0.58, 0.60, 0.64), tw, true)
+			(Color(0.75, 1.0, 0.82) if op else Color(0.90, 0.91, 0.93)) if is_major
+				else (Color(0.45, 0.80, 0.55) if op else Color(0.58, 0.60, 0.64)), tw, true)
 
 	# Numbers — each rotated perpendicular to its tick
 	var num_fs: int = 22 if MainGlobals.is_mobile() else 15
@@ -547,7 +554,7 @@ func _do_draw(canvas: CanvasItem) -> void:
 		var num_screen: Vector2 = Vector2(dcx + cos(phi) * num_r, dcy + sin(phi) * num_r)
 		canvas.draw_set_transform(num_screen, phi + PI * 0.5, Vector2.ONE)
 		canvas.draw_string(score_font, Vector2(-num_clip * 0.5, -num_fs * 0.5), str(i * 10),
-			HORIZONTAL_ALIGNMENT_CENTER, num_clip, num_fs, Color(0.88, 0.89, 0.92))
+			HORIZONTAL_ALIGNMENT_CENTER, num_clip, num_fs, Color(0.80, 1.0, 0.85) if op else Color(0.88, 0.89, 0.92))
 
 	# Back to dial-local for the knob
 	canvas.draw_set_transform(Vector2(dcx, dcy), dial_rot, Vector2.ONE)

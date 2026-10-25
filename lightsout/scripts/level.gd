@@ -82,11 +82,14 @@ var _tutorial_bombs_hit: Dictionary = {}
 @export var target_scene: PackedScene = load("res://lightsout/scenes/target.tscn")
 @export var player_scene: PackedScene = load("res://lightsout/scenes/player.tscn")
 
-var explosion_audio = preload("res://art/sounds/car-crash-1.mp3")
-var motor_audio = preload("res://art/sounds/car-ambient-driving.ogg")
-var feet_audio = preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
-var delivered_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var start_audio = preload("res://art/sounds/click-2.mp3")
+# Made for this game (devtools/make_action_sounds.py), names in code kept: `motor` a dark corridor's
+# low hum (was a car engine), `feet` steps on stone (were on grass), `delivered` the lights coming on
+# (was an arcade coin), `explosion` a muffled boom (was a car crash), `start` a soft switch click.
+var explosion_audio = preload("res://art/sounds/lightsout_boom.ogg")
+var motor_audio = preload("res://art/sounds/lightsout_hum.ogg")
+var feet_audio = preload("res://art/sounds/lightsout_steps.ogg")
+var delivered_audio = preload("res://art/sounds/lightsout_lights.ogg")
+var start_audio = preload("res://art/sounds/lightsout_start.ogg")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)

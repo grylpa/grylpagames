@@ -37,11 +37,15 @@ var max_speed_scale = 1.0
 @export var door_scene: PackedScene = load("res://guidem/scenes/door.tscn")
 @export var target_scene: PackedScene = load("res://guidem/scenes/target.tscn")
 
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
+# Made for this game (devtools/make_action_sounds.py): a soft two-tone bell for a new delivery, a
+# thud and a ding for one delivered, a short clack for a junction turned, a soft bonk for
+# two cars crashing. The engine recording stays. They replaced a heavy bell,
+# an arcade coin, a door creak and a car crash.
+var dispatch_audio := preload("res://art/sounds/guidem_call.ogg")
+var delivery_audio := preload("res://art/sounds/guidem_deliver.ogg")
+var door_audio := preload("res://art/sounds/guidem_gate.ogg")
 var motor_audio := preload("res://art/sounds/engine-pulling-something.mp3")
-var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
+var explosion_audio := preload("res://art/sounds/guidem_bump.ogg")
 
 # signal game_over(didwin:bool)
 signal started_playing

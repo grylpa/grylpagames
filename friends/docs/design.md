@@ -277,3 +277,12 @@ filled the gap between its legs. The waving hand is drawn after the smoothing, s
 melted fingers into a fist -- and built as a hand is: a palm on the end of the forearm, taller than
 wide; four fingers each rising from its own place along the palm's top edge, the middle one longest;
 the thumb out of the palm's inner side from partway up.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; it makes the same set
+for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its own key and with its own
+"shown" sound). Names in code kept: `dispatch` = the target appearing (a soft step and a small chime), `delivery` = a right
+answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
+one STEADY loop (`friends_ambient.ogg`: a soft pad and air, no events). They replaced a heavy bell, an
+arcade coin, a swoosh and three stock ocean-wave loops picked at random.

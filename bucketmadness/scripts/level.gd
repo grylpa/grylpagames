@@ -89,8 +89,9 @@ var pair_font_size: int = 36
 var item_w: float = 140.0
 var item_h: float = 88.0
 
-var correct_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var wrong_audio = preload("res://art/sounds/swoosh.mp3")
+# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
+var correct_audio = preload("res://art/sounds/bucketmadness_right.ogg")
+var wrong_audio = preload("res://art/sounds/bucketmadness_wrong.ogg")
 
 var _swipe_start: Vector2 = Vector2.ZERO
 var _swipe_tracking: bool = false

@@ -187,3 +187,8 @@ were too detailed to read once cut up and shrunk, and arrows or a lifted piece v
 ## Not yet
 
 No coached tutorial (`MainCfg.tutorials`); the instructions screen explains it.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): `swap` a tile sliding into place, `solved` a full chime arpeggio for the picture solved. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

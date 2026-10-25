@@ -42,14 +42,16 @@ var times_to_answer: Array = []
 @export var pipe_scene: PackedScene = load("res://ooo/scenes/pipe.tscn")
 @export var agent_scene: PackedScene = load("res://ooo/scenes/agent.tscn")
 
-var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var swoosh_audio = preload("res://art/sounds/swoosh.mp3")
+# SOUNDS made for this game (devtools/make_answer_sounds.py): `dispatch` the target appearing
+# (a spotlight clunk), `delivery` a right answer (a rising chime), `swoosh` a wrong one (a soft low note), and
+# one STEADY ambient loop. They replaced a heavy bell, an arcade coin, a swoosh and three stock
+# ocean-wave loops.
+var dispatch_audio = preload("res://art/sounds/ooo_show.ogg")
+var delivery_audio = preload("res://art/sounds/ooo_right.ogg")
+var swoosh_audio = preload("res://art/sounds/ooo_wrong.ogg")
 
 var ambient_audios = [ 
-	preload("res://art/sounds/ocean-waves-2.mp3"), 
-	preload("res://art/sounds/ocean-waves-3.mp3"), 
-	preload("res://art/sounds/ocean-waves-4.mp3")
+	preload("res://art/sounds/ooo_ambient.ogg"),
 ]
 
 signal started_playing

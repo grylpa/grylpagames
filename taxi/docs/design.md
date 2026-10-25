@@ -198,3 +198,5 @@ lawn, since fuel is the other half of the job. The lawn is `GrassField`'s colors
 lot's 65/65/65 asphalt between gravel kerbs, with its yellow dots moved into two faint rows so the
 route is the only line along the middle. Checked at chooser size: cab, route, customer and pump all
 still read.
+
+**Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.

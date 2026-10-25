@@ -13,9 +13,16 @@ var bricks:Array[Sprite2D] = []
 
 var active_brick = null
 
+static var _pasture: ShaderMaterial = null
+
 func _ready() -> void:
 	game = WolvesG.game
 	bricks = [$PipeBrick1, $PipeBrick2, $PipeBrick3]
+	# the field is a mown pasture (pasture.gdshader); the compound keeps its per-level color
+	if _pasture == null:
+		_pasture = ShaderMaterial.new()
+		_pasture.shader = preload("res://wolves/scripts/pasture.gdshader")
+	$PipeImageNoDir.material = _pasture
 
 # Inside the fence the ground is a flat WASH over the lawn, not a grass sprite.
 #

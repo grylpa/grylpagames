@@ -422,3 +422,19 @@ through its tube, a dark rubber wear ring where each nose meets the body, all sh
 the way: the pipework was dropped (on the lawn it was irrelevant, and no layout of it read well), the
 station numbers too (unreadable at that size), and the carriers went through pills, flat-ended cans and
 cars before the shape was right.
+
+## Look and sound (the 2026-10-25 pass)
+
+- **The tubes look like tubes.** The tile art is shared with the road games (asphalt gray, a dashed
+  yellow center line), so the file is left alone and `tube.gdshader` (one material on every tube
+  sprite, set in `pipe.gd`) paints the dashes out and turns the gray into the inside of a glass tube.
+  `pipe.gd` `_draw_walls` gives each side with no tube beyond it a WALL: the glass darkening toward it,
+  a metal edge, and a line of light along the glass just inside. They used to read as roads.
+- **Sounds** (`devtools/make_pneumo_sounds.py`; names in code kept): `motor` = the system running (a
+  compressor hum, air in the pipes), `dispatch` = a capsule loaded (a hatch and a pressure hiss),
+  `swoosh` = a capsule launched (a pneumatic "pfft"), `door` = a junction valve turned (a short clack,
+  the player's every move), `delivery` = a capsule arriving (whoosh, thud, ding), `explosion` = two
+  capsules colliding (a hollow metal clang). The old set was a car engine, a car crash, a door creak,
+  a bell and an arcade coin.
+
+**Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no tube across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.

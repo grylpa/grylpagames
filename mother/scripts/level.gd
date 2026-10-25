@@ -232,9 +232,11 @@ const STRIPE_LIGHT: float = 0.40     # (kept for the thumbnail script, which mir
 # Drawn as an opaque lighter line it came out a flat gray strip down the middle of every body,
 # which read as a cable inside a tube.
 const SHEEN: Color = Color(1.0, 0.96, 0.86, 0.16)
-# Crossbands are CRISP: each half period holds its color and turns over BAND_EDGE of it. A plain
-# alternation of stops interpolated into a triangle wave, which read as blurry corrugated pipe.
-const BAND_EDGE: float = 0.30
+# Crossbands hold their color and turn over BAND_EDGE of each half period. A plain alternation of
+# stops interpolated into a triangle wave, which read as blurry corrugated pipe; 0.30 was crisp but
+# FLICKERED: the body's length changes a little every frame as it slithers, so the bands slide by a
+# fraction of a pixel, and a hard edge shows that as shimmer. 0.6 keeps them distinct and still.
+const BAND_EDGE: float = 0.6
 
 # Child body history ring buffer — interpolated to eliminate jitter
 const HISTORY_INTERVAL_MS: float = 16.0
@@ -356,16 +358,6 @@ func _head_shape(body_w: float, extra: float) -> PackedVector2Array:
 		pts.append(Vector2(nose_x + cos(a2) * (hw0 + extra), sin(a2) * (hw0 + extra)))
 	return pts
 
-# THE BODY'S BANDS ARE STRETCHED, the head's must be too. The gradient's offsets are pixels over
-# the HORIZONTAL span (the stable proxy, see _set_body), but a Line2D lays a gradient along its ARC,
-# which is longer wherever the path climbs or falls -- so every band on the body comes out
-# arc / span times BAND_PX. The head drew true BAND_PX and its bands were visibly narrower than the
-# body's right behind it. _set_body records the ratio per line; each head reads its own line's.
-var _band_stretch: Dictionary = {}
-
-func _head_band_stretch(nd: Node2D) -> float:
-	return maxf(1.0, float(_band_stretch.get(nd.get_meta("line", null), 1.0)))
-
 # The skin at a distance back from the head, as 1.0 (base) .. BAND_DARK (crossband). Mirrors
 # _build_gradient exactly: each half period holds its color and turns over BAND_EDGE of it, the turn
 # centered on the boundary.
@@ -418,7 +410,7 @@ func _draw_head(nd: Node2D) -> void:
 		# The head wears the body's pattern. _band_shade is a 0..1 triangle over one band period, so
 		# it doubles as the mix between base and crossband — the head's bands are then the SAME two
 		# colors as the body's rather than a dimmer version of one of them.
-		var sh: float = _band_shade(-(x0 + x1) * 0.5 / _head_band_stretch(nd))
+		var sh: float = _band_shade(-(x0 + x1) * 0.5)
 		var band_col: Color = nd.get_meta("band", Color(0, 0, 0, 0))
 		var skin: Color
 		if band_col.a > 0.0:
@@ -1170,7 +1162,7 @@ func _slither_y(pts: PackedVector2Array, w: float, now_s: float) -> PackedVector
 # `glow` scales the halo's alpha: 1.0 is the resting glow, higher burns brighter. Only the child
 # uses anything but 1.0 — it is the one the player is steering.
 func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: float,
-		base_col: Color, openness: float, stable_len: float, glow: float = 1.0,
+		base_col: Color, openness: float, _stable_len: float, glow: float = 1.0,
 		band_col: Color = Color(0, 0, 0, 0)) -> void:
 	if pts.size() < 2:
 		ln.points = PackedVector2Array()
@@ -1207,15 +1199,21 @@ func _set_body(ln: Line2D, sh: Line2D, st: Line2D, pts: PackedVector2Array, w: f
 	# one step every frame (132 shrinks per 900 frames, measured) — feeding that into the gradient
 	# would put that wobble into the pattern. The tail tip itself still moves those 2 px, where the
 	# alpha ramp has already faded it to nothing.
-	var span: float = maxf(1.0, stable_len)
+	# THE BANDS ARE PLACED BY THE BODY'S REAL LENGTH, EVERY FRAME. A Line2D lays its gradient along
+	# its actual arc, which changes a little every frame as the body slithers; with stops normalized
+	# by a steadier proxy (the horizontal span, or the growth cap), every band slid by a fraction of a
+	# pixel each frame and the bodies shimmered -- hidden for a long time under an opaque spine stripe.
+	# Normalized by the real arc, a band at distance d from the head is drawn at exactly d whatever the
+	# rest of the body does; only the tail tip moves. Rebuilt every frame: a gradient of at most
+	# 2 * BAND_MAX * 2 stops, for two bodies. (The smooth length passed in, `_stable_len`, is no longer
+	# needed for the pattern.)
 	var arc: float = 0.0
 	for i in range(1, pts.size()):
 		arc += pts[i].distance_to(pts[i - 1])
-	_band_stretch[ln] = arc / span
-	var n_steps: int = clampi(int(maxf(BAND_PX, span) / (BAND_PX * 0.5)), 2, BAND_MAX * 2)
-	if int(_bands.get(ln, -1)) != n_steps:
-		_bands[ln] = n_steps
-		ln.gradient = _build_gradient(base_col, span, band_col)
+	arc = maxf(1.0, arc)
+	ln.gradient = _build_gradient(base_col, arc, band_col)
+	if int(_bands.get(ln, -1)) < 0:
+		_bands[ln] = 1
 		st.gradient = _build_plain_gradient(SHEEN)
 
 	ln.points = pts
@@ -1427,7 +1425,9 @@ func _do_draw(canvas: CanvasItem) -> void:
 					continue
 				var rpts: PackedVector2Array = PackedVector2Array()
 				var fade: PackedFloat32Array = PackedFloat32Array()
-				var rx: float = maxf(0.0, cx - seg_half)
+				# on a FIXED grid of screen x, as the full-width ripples were: starting the samples at the
+				# stretch's moving edge slid every vertex along the wave each frame, and the lines shimmered
+				var rx: float = ceilf(maxf(0.0, cx - seg_half) / rx_step) * rx_step
 				while rx <= minf(w, cx + seg_half):
 					rpts.append(Vector2(rx, y_base + bg_item.amp * sin((rx + scroll_off) * TAU / bg_item.period + bg_item.phase)))
 					fade.append(pow(sin(clampf((rx - (cx - seg_half)) / (seg_half * 2.0), 0.0, 1.0) * PI), 0.7))

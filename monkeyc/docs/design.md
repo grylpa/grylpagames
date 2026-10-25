@@ -484,3 +484,8 @@ cannot ask to see more or answer early, so it says nothing about them.
 tile was a screen grab. It is now the question the game asks: a robot arm holding a purple block over two
 funnels, one blue-rimmed and one red, with a gold question mark between them -- which way does its rule
 send it? Colors from `Sleek.PALETTE`.
+
+## Sounds
+
+Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
+games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.

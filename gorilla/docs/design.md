@@ -737,3 +737,12 @@ The Counting tab is always present. It needs 3 sessions and answers at two or mo
 an answer time nor a percentage, and `StatsOverview.METRICS` knew only the metrics other games
 keep — so Gorilla contributed nothing at all to Attention & Speed in "Your progress". The metric
 is registered now as "Counting (how far out you were)", lower being better.
+
+## Sounds
+
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `explosion` caught (a soft thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short whistle, `swoosh` the warp through a portal (a rising sweep). The grass footsteps stay -- it is outdoors.
+
+**The board's edge casts a soft shadow inward** (`level._add_wall_shade()`, `WALL_SHADE` 0.35 of a
+tile, faint), so the room reads as enclosed rather than a flat tile sheet on the lawn. The floor
+sprites are at z -1 (`pipe.gd` `_ready`) so the band lies over the floor and under the apples, bricks
+and fences. It loops over the board array, not `game.board_size`.

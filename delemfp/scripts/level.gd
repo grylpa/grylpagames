@@ -41,8 +41,11 @@ var _tutorial_countdown_seen: bool = false
 @export var agent_scene: PackedScene = load("res://delemfp/scenes/agent.tscn")
 @export var target_scene: PackedScene = load("res://delemfp/scenes/target.tscn")
 
-var dispatch_audio = preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var delivery_audio = preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
+# Made for this game (devtools/make_action_sounds.py): a soft two-tone bell for a new delivery, a
+# thud and a ding for one delivered. The engine recording stays. They replaced a heavy bell,
+# an arcade coin.
+var dispatch_audio = preload("res://art/sounds/delemfp_call.ogg")
+var delivery_audio = preload("res://art/sounds/delemfp_deliver.ogg")
 var motor_audio = preload("res://art/sounds/engine-pulling-something.mp3")
 
 signal game_over(didwin:bool)
