@@ -118,8 +118,9 @@ signal sig_game_popup_closed
 @warning_ignore("unused_signal") signal sig_scores_viewed
 
 func _ready():
-	# Every dock sprite in every route game is dressed with the one drawn dock (scripts/dock_art.gd)
-	# the moment it enters the tree -- no game calls it, so none can be missed.
+	# Every dock sprite in every route game is dressed with the one drawn dock (scripts/dock_art.gd),
+	# and every monster head/body with the drawn monster (scripts/monster_art.gd), the moment it
+	# enters the tree -- no game calls them, so none can be missed.
 	get_tree().node_added.connect(_dress_dock)
 	# await get_tree().process_frame
 	var sz
@@ -133,6 +134,8 @@ func _ready():
 func _dress_dock(node: Node) -> void:
 	if node is Sprite2D:
 		DockArt.dress(node as Sprite2D)
+	elif node is AnimatedSprite2D:
+		MonsterArt.watch(node as AnimatedSprite2D)
 
 func global_need_to_close_info_popups():
 	sig_need_to_close_info_popups.emit()

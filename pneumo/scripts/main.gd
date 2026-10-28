@@ -11,7 +11,7 @@ func _ready() -> void:
 	# Palette index 10 (#004d33, deep yellowish green) sits almost on top of this game's own
 	# background (measured rgb 0.00,0.30,0.20 against 0.00,0.32,0.11 -- a distance of 0.17 when
 	# the next nearest color is 0.88), so a capsule wearing it is nearly invisible.
-	game.skip_color_idxs = [10]
+	game.skip_color_idxs = [10] + GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS
 	# The clock belongs to the LEVEL here, not to the session: running it out is how a level is
 	# passed, so it must not be the end of the game (see Level.on_time_over).
 	game.game_over_on_time_out = false

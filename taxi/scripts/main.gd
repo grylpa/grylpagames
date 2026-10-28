@@ -11,6 +11,8 @@ var _did_per_level_save: bool = false
 
 func _ready() -> void:
 	game = TaxiG.game
+	# live docks must not look like the idle orange ones (GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS)
+	game.skip_color_idxs = GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS.duplicate()
 	game.initial_score = 5000
 	game.forced_board_size = Vector2i(31,31)	
 	# game.init_sizes()

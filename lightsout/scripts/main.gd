@@ -8,6 +8,8 @@ var _did_per_level_save: bool = false
 
 func _ready() -> void:
 	game = LightsG.game
+	# live docks must not look like the idle orange ones (GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS)
+	game.skip_color_idxs = GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS.duplicate()
 	randomize()
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
 	LightsG.load_settings()
