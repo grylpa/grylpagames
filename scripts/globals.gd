@@ -118,6 +118,9 @@ signal sig_game_popup_closed
 @warning_ignore("unused_signal") signal sig_scores_viewed
 
 func _ready():
+	# Every dock sprite in every route game is dressed with the one drawn dock (scripts/dock_art.gd)
+	# the moment it enters the tree -- no game calls it, so none can be missed.
+	get_tree().node_added.connect(_dress_dock)
 	# await get_tree().process_frame
 	var sz
 	if is_mobile():
@@ -126,6 +129,10 @@ func _ready():
 	# else:
 	# 	sz = Vector2(680,1000)
 	# 	_set_app_screen_size(sz)
+
+func _dress_dock(node: Node) -> void:
+	if node is Sprite2D:
+		DockArt.dress(node as Sprite2D)
 
 func global_need_to_close_info_popups():
 	sig_need_to_close_info_popups.emit()

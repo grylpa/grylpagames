@@ -128,6 +128,10 @@ func _process(_delta: float) -> void:
 	check_agent_collisions()
 	
 func add_pipe(p):
+	# A dock's lobby cell is added by add_target() AND again by the grid loop when it lies on a
+	# grid line; a second tube there drew its glass twice, so the lobbies came out lighter.
+	if board[p.y][p.x].ispipe:
+		return
 	board[p.y][p.x].ispipe = true
 	var pipe = pipe_scene.instantiate()
 	pipe.board_pos = p
@@ -876,6 +880,13 @@ func _draw_plant_floor(f: Control) -> void:
 			if board[by][bx].ispipe or board[by][bx].istarget:
 				var c: Vector2 = game.board_to_px(Vector2i(bx, by)) - f.position
 				f.draw_rect(Rect2(c - Vector2(tsz, tsz) * 0.5, Vector2(tsz, tsz)).grow(0.5), FLOOR_STEEL, true)
+				# and under the bit a rounded inside corner adds to the tube (pipe.gd)
+				if board[by][bx].ispipe:
+					for ci: int in PneumoPipe.fillet_corners(board, Vector2i(bx, by)):
+						var poly: PackedVector2Array = PneumoPipe.fillet_polygon(ci, tsz * 0.5 + 0.5)
+						for k in poly.size():
+							poly[k] += c
+						f.draw_colored_polygon(poly, FLOOR_STEEL)
 	# a faint brushed sheen across the floor, from the top left
 	var steps: int = 24
 	for k2 in steps:
