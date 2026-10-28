@@ -214,7 +214,7 @@ func _add_picture() -> void:
 func _fit_picture() -> void:
 	if _picture == null or not is_instance_valid(_picture):
 		return
-	var tr: Rect2 = %Title.get_global_rect()
+	var title_r: Rect2 = %Title.get_global_rect()
 	var title_h: float = float(%Title.get_theme_font_size("font_size")) * 1.5
 	var side: float = clampf(title_h, 40.0, MainGlobals.ui_font_size(64))
 	var host: Control = $ColorRect
@@ -222,11 +222,11 @@ func _fit_picture() -> void:
 	# the title's TEXT, not its label (which may span the screen): measured from its font
 	var text_w: float = %Title.get_theme_font("font").get_string_size(%Title.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
 		%Title.get_theme_font_size("font_size")).x
-	var text_left: float = tr.position.x + (tr.size.x - text_w) * 0.5
+	var text_left: float = title_r.position.x + (title_r.size.x - text_w) * 0.5
 	side = minf(side, text_left - origin.x - PICTURE_MARGIN * 2.0)
 	_picture.visible = side >= 32.0
 	_picture.size = Vector2(side, side)
-	_picture.global_position = Vector2(origin.x + PICTURE_MARGIN, tr.get_center().y - side * 0.5)
+	_picture.global_position = Vector2(origin.x + PICTURE_MARGIN, title_r.get_center().y - side * 0.5)
 
 func _process(delta: float) -> void:
 	if _picture != null and visible:

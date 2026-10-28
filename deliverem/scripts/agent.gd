@@ -18,13 +18,6 @@ var head_dist = 28
 var tail_dist_back = body_dist
 var angles = []
 var body_ids = [1,2,3]
-var agent_textures = [
-	preload("res://art/agent_body1.png"),
-	preload("res://art/agent_body2.png"),
-	preload("res://art/agent_body3.png"),
-	preload("res://art/agent_body4.png"),
-	preload("res://art/agent_body5.png")
-]
 
 var color
 var isready = false
@@ -36,34 +29,51 @@ func _ready() -> void:
 	$Tail.modulate = color
 	$Tail.play("TailWheels")
 	$Head.play("HeadEyes")
-	$Skeleton.modulate = color.darkened(0.1)
 	$Skeleton.add_point(Vector2.ZERO)
 	angles.append(0)
 	angles.append(0)
 	nbody_parts = body_ids.size()
 	tail_dist_back = body_dist * nbody_parts + head_dist
 	$Tail.hide()
-	var txtidx = 0
 	z_index = 10
 	$Head.z_index = z_index
 	$Skeleton.z_index = -10
 	$Tail.z_index = z_index-nbody_parts-1
+	var cargo_order: Array = range(CargoTrainArt.CARGO_KINDS)
 	for i in nbody_parts:
-		var body = Sprite2D.new()
-		if txtidx == 0:
-			agent_textures.shuffle()
-		txtidx = (txtidx + 1) % agent_textures.size()
-		body.texture = agent_textures[txtidx]
-		body.scale = Vector2(0.25,0.25)
-		# body.texture = preload("res://deliverem/art/agent_body.png")
-		body.modulate = color
+		# A flatbed cart with its load; the loads are dealt round so neighbors differ.
+		if i % cargo_order.size() == 0:
+			cargo_order.shuffle()
+		var body: CargoTrainArt = CargoTrainArt.new(CargoTrainArt.Kind.WAGON, color,
+			cargo_order[i % cargo_order.size()])
 		body.z_index = z_index-i-1
 		add_child(body)
 		bodies.append(body)
 		body.hide()
 		angles.append(0)
 	time_created = MainGlobals.timems()
+	_build_art()
 	isready = true
+
+# The drawn vehicle (scripts/cargo_train_art.gd): an engine where the head is, a van where the
+# tail is, and the drawbar between them in the train's color. The head and tail sprites stay -- they are what
+# moves and turns -- but are made invisible by the art that follows them.
+var _head_art: CargoTrainArt = null
+var _tail_art: CargoTrainArt = null
+
+func _build_art() -> void:
+	_head_art = CargoTrainArt.new(CargoTrainArt.Kind.ENGINE, color)
+	add_child(_head_art)
+	_head_art.set_follow($Head, false)
+	_head_art.rotation = $Head.rotation
+	_tail_art = CargoTrainArt.new(CargoTrainArt.Kind.VAN, color)
+	add_child(_tail_art)
+	_tail_art.set_follow($Tail, false)
+	$Skeleton.modulate = Color.WHITE
+	$Skeleton.default_color = CargoTrainArt.link_color(color)
+	$Skeleton.width = 4.0
+	$SkeletonBK.width = 6.5
+	$SkeletonBK.default_color = Color(0.0, 0.0, 0.0, 0.6)
 
 func set_pos(p, dir):
 	direction = dir
@@ -182,12 +192,72 @@ func pos_back_along_trail(dist):
 		b = a
 	return null
 			
+# --- Smooth turns (drawing only) ---------------------------------------------------------------
+#
+# The truck's logical path is tile center to tile center, so every turn is a right-angle corner,
+# and parts parked ON that path swung round on the spot. The DRAWN parts are posed off the same
+# trail, but smoothed: each cart sits at the average of the trail over a short window around its
+# place and points along the chord across that window, so it rounds the corner on an arc and turns
+# as it goes; the engine keeps its true position and points along the chord to a point behind it.
+# Nothing the game reads (position, the Tail node, body_ids) changes.
+const POSE_HALF: float = 12.0
+const HEAD_CHORD: float = 18.0
+# A truck that reverses at a dead end flips its chord by half a turn in one frame; the drawn parts
+# swing round at no more than this instead. Fast enough that an ordinary corner never hits it.
+const ART_TURN_RATE: float = 12.0     # rad/s
+var _posed: bool = false
+
+func _turn_toward(part: Node2D, target: float) -> void:
+	# a part's first heading, or the first since it came into view, is not a turn
+	if not _posed or not part.visible:
+		part.rotation = target
+		return
+	var step: float = ART_TURN_RATE * get_process_delta_time()
+	part.rotation += clampf(wrapf(target - part.rotation, -PI, PI), -step, step)
+
+func _trail_at(d: float) -> Vector2:
+	if d <= 0.0:
+		return position
+	var p = pos_back_along_trail(d)
+	if p == null:
+		return time_back_positions[0] if not time_back_positions.is_empty() else position
+	return p
+
+func _smoothed_at(d: float) -> Vector2:
+	var sum: Vector2 = Vector2.ZERO
+	for k in 5:
+		sum += _trail_at(d + POSE_HALF * (float(k) - 2.0) * 0.5)
+	return sum / 5.0
+
+func _chord_angle(d_front: float, d_back: float, fallback: float) -> float:
+	var v: Vector2 = _trail_at(d_front) - _trail_at(d_back)
+	return v.angle() if v.length() > 1.0 else fallback
+
+func _pose_art() -> void:
+	if _head_art == null:
+		return
+	_turn_toward(_head_art, _chord_angle(0.0, HEAD_CHORD, _head_art.rotation))
+	var npts: int = $Skeleton.get_point_count()
+	for i in bodies.size():
+		var d: float = i * body_dist + head_dist
+		bodies[i].position = _smoothed_at(d) - position
+		_turn_toward(bodies[i], _chord_angle(d - POSE_HALF, d + POSE_HALF, bodies[i].rotation))
+		if i + 1 < npts:
+			$Skeleton.set_point_position(i + 1, bodies[i].position)
+	_tail_art.position = _smoothed_at(tail_dist_back) - position
+	_turn_toward(_tail_art, _chord_angle(tail_dist_back - POSE_HALF, tail_dist_back + POSE_HALF,
+		_tail_art.rotation))
+	if npts > bodies.size() + 1:
+		$Skeleton.set_point_position(bodies.size() + 1, _tail_art.position)
+	_posed = true
+
 func set_rots():
 	$Head.rotation = angles[0]
 	$Tail.rotation = angles[-1]
 	for i in nbody_parts:
 		bodies[i].rotation = angles[i+1]
-	
+	_pose_art()
+
 func add_body(_id):
 	pass
 	
@@ -206,7 +276,7 @@ func remove_body(id):
 			can_move = false
 		var body = bodies[idx]
 		var tween_color = MainGlobals.make_tween()
-		tween_color.tween_property(body, "modulate", color.darkened(0.4), 0.45)
+		tween_color.tween_property(body, "modulate", Color(0.6, 0.6, 0.6), 0.45)
 		var tween_scale = MainGlobals.make_tween()
 		var oldscale = body.scale
 		tween_scale.tween_property(body, "scale", oldscale * 2, 0.2)
