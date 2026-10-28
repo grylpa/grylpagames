@@ -7,6 +7,8 @@ var _did_per_level_save: bool = false
 
 func _ready() -> void:
 	game = ParkemG.game
+	# live docks must not look like the idle orange ones (GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS)
+	game.skip_color_idxs = GenericGameUtil.DOCK_LOOKALIKE_COLOR_IDXS.duplicate()
 	game.score_for_collision = [0, 0]
 	game.score_for_deliver_one = [10, 10]
 	# The clock belongs to the LEVEL here, not to the session: running it out is how a level is
@@ -204,13 +206,9 @@ func on_game_no_more_packets():
 # wear the HUD's default icon, which is the same picture the lives counter uses — so a number
 # counting how many more may park read as how many lives the player had left.
 func _creature_head_icon() -> Texture2D:
-	var head: AnimatedSprite2D = preload("res://scenes/head_anim.tscn").instantiate()
-	var frames: SpriteFrames = head.sprite_frames
-	var tex: Texture2D = null
-	if frames != null and frames.has_animation("Enemy"):
-		tex = frames.get_frame_texture("Enemy", 0)
-	head.free()
-	return tex
+	# the monster head the board draws (scripts/monster_art.gd), as a picture: made by
+	# devtools/make_thumbs.py monster_icon
+	return preload("res://art/monster_head_icon.png")
 
 
 

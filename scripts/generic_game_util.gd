@@ -746,12 +746,24 @@ func is_corner(p, width=1):
 	(p.x >= board_size.x-width and p.y < width) or \
 	(p.x >= board_size.x-width and p.y >= board_size.y - width)
 
+# The i-th color this game may hand out: skip_color_idxs are passed over here as in next_color(),
+# so a game that colors by index never gets a skipped color either.
 func color_by_index(i):
-	return colors[i % colors.size()]
+	if skip_color_idxs.is_empty():
+		return colors[i % colors.size()]
+	var allowed: Array = []
+	for k in colors.size():
+		if not skip_color_idxs.has(k):
+			allowed.append(colors[k])
+	return allowed[i % allowed.size()]
 
 # Palette entries this game must never hand out, by index. A game sets it when one of the shared
-# colors is too close to its own background to be read as a distinct thing.
+# colors is too close to its own background to be read as a distinct thing, or to its idle docks.
 var skip_color_idxs: Array = []
+# Orange and brown: next to the idle docks (scripts/dock_art.gd draws them orange), a live sender or
+# receiver in either did not stand out from them (user, 2026-10-28). The games with idle docks
+# beside live ones skip these.
+const DOCK_LOOKALIKE_COLOR_IDXS: Array = [4, 11]
 
 func next_color():
 	var guard: int = 0
