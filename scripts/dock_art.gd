@@ -51,6 +51,10 @@ const TEXTURES: Dictionary = {
 # goes on -x while the chevrons still point +x (out: a receiver takes things in from the board).
 const REVERSED_NAMES: Array = ["ReceiverImage", "DestinationImage"]
 
+# What a game can show inside a dock: while any of it (or the number) is shown, the dock carries
+# no chevrons -- an arrow under a bomb, say, was clutter (Lights Out; user, 2026-10-28).
+const CONTENT_NAMES: Array = ["TargetBomb", "TargetIcon", "GasStation"]
+
 const PAD_HALF_ALONG: float = 17.0      # along the road: room for three chevrons
 # The pad sits this far toward the board from the dock's node: centered on it, its outer half ran
 # off the screen where a game puts its docks at the very edge (taxi).
@@ -70,6 +74,7 @@ var animated: bool = false
 var reversed: bool = false
 var sprite: Sprite2D = null
 var _label: Label = null
+var _contents: Array = []      # things a game shows INSIDE the dock (a bomb, an icon, a gas station)
 var _last_key: String = ""
 
 
@@ -97,10 +102,15 @@ static func _attach(spr: Sprite2D, spec: Array) -> void:
 	var parent: Node = spr.get_parent()
 	parent.add_child(art)
 	parent.move_child(art, spr.get_index() + 1)
-	if art.kind == Kind.NUMBER:
-		art._label = parent.get_node_or_null("TargetText") as Label
-		if art._label != null:
-			art._fit_label()
+	# every dock with a number Label gets it fitted (Lights Out shows one on its live docks), and
+	# notes what else the game can show inside it
+	art._label = parent.get_node_or_null("TargetText") as Label
+	if art._label != null:
+		art._fit_label()
+	for n: String in CONTENT_NAMES:
+		var cn: CanvasItem = parent.get_node_or_null(n) as CanvasItem
+		if cn != null:
+			art._contents.append(cn)
 	art._follow()
 
 
@@ -131,7 +141,13 @@ func _follow() -> void:
 	z_index = sprite.z_index
 	z_as_relative = sprite.z_as_relative
 	modulate = Color(1, 1, 1, sprite.modulate.a)
-	if _label != null and is_instance_valid(_label):
+	# what the game shows inside the dock goes to the PAD's center (the pad sits toward the board)
+	if visible:
+		var pad_c: Vector2 = position + Vector2(PAD_SHIFT * (-1.0 if reversed else 1.0), 0.0).rotated(rotation)
+		for cn: CanvasItem in _contents:
+			if is_instance_valid(cn) and cn is Node2D:
+				(cn as Node2D).position = pad_c
+	if visible and _label != null and is_instance_valid(_label):
 		_label.add_theme_color_override("font_color", _hue().darkened(0.72))
 		var side: float = -1.0 if reversed else 1.0
 		_label.position = position + Vector2(PAD_SHIFT * side, 0.0).rotated(rotation) - _label.size * 0.5
@@ -145,10 +161,20 @@ func _process(_delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	var key: String = "%s|%.3f|%s|%s" % [str(_hue()), global_rotation, str(_faded()),
-		str(_label != null and _label.visible)]
+		str(_has_content())]
 	if animated or key != _last_key:
 		_last_key = key
 		queue_redraw()
+
+
+func _has_content() -> bool:
+	# a number counts only when there is one: Lights Out shows its live docks' label with no text
+	if _label != null and is_instance_valid(_label) and _label.visible and not _label.text.strip_edges().is_empty():
+		return true
+	for cn: CanvasItem in _contents:
+		if is_instance_valid(cn) and cn.visible:
+			return true
+	return false
 
 
 func _faded() -> bool:
@@ -249,7 +275,7 @@ func _draw() -> void:
 	_outline(pad, ink, 2.0)
 	match kind:
 		Kind.NUMBER:
-			if _label != null and is_instance_valid(_label) and _label.visible:
+			if _has_content():
 				pass    # the number itself is the dock's mark
 			else:
 				_draw_chevrons(hue, ink, false, pc.x)
@@ -260,7 +286,8 @@ func _draw() -> void:
 				draw_colored_polygon(slat, hue.lightened(0.35))
 				_outline(slat, ink, 1.0)
 		_:
-			_draw_chevrons(hue, ink, animated and visible, pc.x)
+			if not _has_content():
+				_draw_chevrons(hue, ink, animated and visible, pc.x)
 
 
 # Three chevrons along the road, pointing +x (the way things flow; a receiver's node is turned half
