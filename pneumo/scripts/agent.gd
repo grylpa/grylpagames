@@ -79,6 +79,10 @@ func _ready() -> void:
 		bodies.append(body)
 		body.hide()
 		angles.append(0)
+		PneumoCapsuleArt.attach(body, anim, false)
+	# the drawn canisters (capsule_art.gd): the lead capsule's own, with its nose
+	PneumoCapsuleArt.attach($Head, $Head, true)
+	$Skeleton.width = 3.0
 	isready = true
 	time_created_ms = MainGlobals.timems()
 

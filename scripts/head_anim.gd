@@ -22,12 +22,19 @@ const SMOOTH_WINDOW: float = 18.0
 var _target_rot: float = 0.0
 var _written_rot: float = INF
 var _path: PathSmoother = PathSmoother.new(SMOOTH_WINDOW)
+# The smoothing is an OFFSET added to wherever the game (or DockArt, for a bomb inside a dock) put
+# the head: a position this did not write is taken as the new rest position.
+var _rest_pos: Vector2 = Vector2.ZERO
+var _written_pos: Vector2 = Vector2.INF
 
 func _process(delta: float) -> void:
 	var host: Node2D = get_parent() as Node2D
 	if host != null:
+		if position != _written_pos:
+			_rest_pos = position
 		_path.push(host.global_position)
-		global_position = _path.point()
+		position = _rest_pos + host.to_local(_path.point())
+		_written_pos = position
 	if not is_equal_approx(rotation, _written_rot):
 		_target_rot = rotation
 		if _written_rot == INF:
