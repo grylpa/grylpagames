@@ -16,12 +16,17 @@ func init(box_w, sep, swatch_color:Color, text:String = "", count_text:String = 
 	sbs.bg_color = Color.TRANSPARENT
 	sbs.set_border_width_all(sep)
 	# sbs.border_color = Color.TRANSPARENT#Color(0.1, 0.1, 0.1, 0)
-	sbs.border_color = Color(0.9, 0.9, 0.4, 1.0)
+	sbs.border_color = Color.TRANSPARENT
 	add_theme_stylebox_override("panel", sbs)
 
+	# THE SWATCH IS DRAWN: a rounded, beveled tile in grays that its color tints (modulate), with a
+	# gentle rim and a soft shadow. It was a square of noise texture inside a hard yellow frame.
 	var swatch = %Swatch
 	swatch.modulate = swatch_color
 	swatch.set_custom_minimum_size(Vector2(box_w, box_w))
+	swatch.texture = null
+	if not swatch.draw.is_connected(_draw_swatch):
+		swatch.draw.connect(_draw_swatch.bind(swatch))
 
 	if StormToolArt.draws(tool_name):
 		%Texture.texture = null
@@ -67,3 +72,22 @@ func init(box_w, sep, swatch_color:Color, text:String = "", count_text:String = 
 		%CountText.hide()
 
 	return swatch
+
+
+func _draw_swatch(sw: Control) -> void:
+	var r: Rect2 = Rect2(Vector2.ZERO, sw.size).grow(-1.0)
+	var rad: int = int(r.size.x * 0.18)
+	var shadow: StyleBoxFlat = StyleBoxFlat.new()
+	shadow.bg_color = Color(0, 0, 0, 0.35)
+	shadow.set_corner_radius_all(rad)
+	sw.draw_style_box(shadow, Rect2(r.position + Vector2(1.5, 2.5), r.size))
+	var face: StyleBoxFlat = StyleBoxFlat.new()
+	face.bg_color = Color(0.86, 0.86, 0.86)
+	face.set_corner_radius_all(rad)
+	face.set_border_width_all(2)
+	face.border_color = Color(0.25, 0.25, 0.25)
+	sw.draw_style_box(face, r)
+	var hi: StyleBoxFlat = StyleBoxFlat.new()
+	hi.bg_color = Color(1, 1, 1, 0.55)
+	hi.set_corner_radius_all(maxi(1, rad - 2))
+	sw.draw_style_box(hi, Rect2(r.position + Vector2(3, 3), Vector2(r.size.x - 6, r.size.y * 0.42)))

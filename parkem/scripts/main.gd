@@ -29,7 +29,7 @@ func _ready() -> void:
 		"N": "New game",
 	})
 	$Help.close_help.connect(_on_help_close_help)
-	hud.set_packets_icon(_creature_head_icon(), 0.25)
+	hud.set_packets_icon(_creature_head_icon(), 0.25, Color.WHITE)
 	hud.set_game(game)
 	hud.show_packets()
 	hud.show()

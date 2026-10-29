@@ -311,7 +311,7 @@ static func _header(parent: Control, accent: Color, badge: bool, card_w: float, 
 	row.add_child(title_label)
 	return title_label
 
-static func _button(label: String, accent: Color, mob: bool, on_close: Callable,
+static func _button(label: String, accent: Color, _mob: bool, on_close: Callable,
 		ghost: bool = false) -> Button:
 	var btn: Button = Button.new()
 	btn.text = label

@@ -689,8 +689,9 @@ func set_lives_icon(_texture, _scale:Vector2 = Vector2(1,1), _modulate = null):
 	%LivesIcon.set_size(new_sz)
 	%LivesIcon.custom_minimum_size = new_sz
 	# %LivesIcon.texture.scale = Vector2(_scale,_scale)
-	if _modulate:
-		%LivesIcon.modulate = _modulate
+	# a game's own icon is tinted the HUD's yellow unless it says otherwise (the default icon,
+	# art/player_head_icon.png, is drawn in its colors and is not tinted)
+	%LivesIcon.modulate = _modulate if _modulate else Color(1, 1, 0, 1)
 
 
 # `_modulate` exists because the icon carries a yellow tint from the scene, to match the yellow
@@ -717,8 +718,7 @@ func set_packets_icon(_texture, _scale := 1.0, _modulate = null):
 	%PacketsIcon.texture = _texture
 	var tex_size = %PacketsIcon.texture.get_size()
 	%PacketsIcon.custom_minimum_size = tex_size * _scale
-	if _modulate != null:
-		%PacketsIcon.modulate = _modulate
+	%PacketsIcon.modulate = _modulate if _modulate != null else Color(1, 1, 0, 1)
 
 func update_corrects_mistakes():
 	if game == null:

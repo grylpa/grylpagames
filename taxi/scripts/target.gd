@@ -87,6 +87,10 @@ func flash_and_reset():
 
 func set_gas_station():
 	is_gas_station = true
+	if not $GasStation.has_node("Art"):
+		var art: Node2D = preload("res://taxi/scripts/gas_station_art.gd").new()
+		art.name = "Art"
+		$GasStation.add_child(art)
 	$GasStation.show()
 	$GasStation.rotation = 0
 	$TargetImage.hide()

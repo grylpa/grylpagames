@@ -185,7 +185,7 @@ var swipe_start_pos:Vector2
 var swipe_did_step: bool = false
 var swipe_dir: Vector2 = Vector2.ZERO
 
-# --- Digitized swipe: the breathing games (udbr, mother, crack, river) --------------------------
+# --- Digitized swipe: the breathing games (udbr, mother, crack) --------------------------
 #
 # Their direction comes from WHERE THE FINGER IS, sampled over a fixed time window, and is decided
 # once per frame — not from the size of individual touch events.

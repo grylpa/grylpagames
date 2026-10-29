@@ -5,7 +5,8 @@ var game:GenericGameUtil
 var main_menu
 
 # var taxi_tex: Texture2D = preload("res://taxi//art//taxi_head1.png")
-var taxi_tex: Texture2D = preload("res://art/taxi-clean-1.png")
+# the drawn cab (devtools/make_thumbs.py taxi_icons), like the cabs on the board
+var taxi_tex: Texture2D = preload("res://art/taxi_icon.png")
 var buy_taxi_btn = null
 var _did_per_level_save: bool = false
 
@@ -33,7 +34,7 @@ func _ready() -> void:
 		"N": "New game",
 	})
 	$Help.close_help.connect(_on_help_close_help)
-	hud.set_lives_icon(taxi_tex, Vector2(0.2,0.2))
+	hud.set_lives_icon(taxi_tex, Vector2(0.2,0.2), Color.WHITE)
 	hud.set_game(game)
 	hud.show_lives()
 	hud.show()
@@ -164,7 +165,7 @@ func show_level():
 	MainGlobals.update_bottom_bar(["help","mute","fast", "slow"])
 	MainGlobals.add_action_button(null)
 	var btnsz = 100 if MainGlobals.is_mobile() else 50
-	buy_taxi_btn = MainGlobals.add_action_button("res://taxi/art/buy1_w_taxi.png", Vector2(btnsz,btnsz))
+	buy_taxi_btn = MainGlobals.add_action_button("res://taxi/art/buy_taxi.png", Vector2(btnsz,btnsz))
 	# null when there is no app action bar to put it on -- a probe loading this scene alone
 	if buy_taxi_btn != null:
 		buy_taxi_btn.pressed.connect(_on_buy_taxi)

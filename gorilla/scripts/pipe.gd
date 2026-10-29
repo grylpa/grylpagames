@@ -35,6 +35,10 @@ func _ready() -> void:
 	game = GorillaG.game
 	bricks = [$PipeBrick1, $PipeBrick2, $PipeBrick3]
 	_coin_natural_scale = $PipeCoin1.scale
+	# the wormhole is drawn (wormhole_art.gd), shown only while the coin sprite is the wormhole
+	var hole: Node2D = preload("res://gorilla/scripts/wormhole_art.gd").new()
+	hole.set("hole_texture", worm_hole_texture)
+	$PipeCoin1.add_child(hole)
 	# The floor one step down, so the level's edge shading (level._add_wall_shade) lies over the floor
 	# and under the apple, bricks and fences.
 	for fl: Sprite2D in [$PipeFloor1, $PipeFloor2, $PipeFloor3, $PipeImageNoDir, $PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:

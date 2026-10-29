@@ -105,21 +105,21 @@ func _ensure_wrap() -> void:
 	if _steps_box != null:
 		return
 	var scroll: ScrollContainer = %Text.get_parent() as ScrollContainer
-	var wrap: VBoxContainer = VBoxContainer.new()
-	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wrap.add_theme_constant_override("separation", 14)
-	scroll.add_child(wrap)
-	%Text.reparent(wrap)
+	var _wrap_box: VBoxContainer = VBoxContainer.new()
+	_wrap_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_wrap_box.add_theme_constant_override("separation", 14)
+	scroll.add_child(_wrap_box)
+	%Text.reparent(_wrap_box)
 	%Text.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_steps_box = VBoxContainer.new()
 	_steps_box.add_theme_constant_override("separation", 12)
-	wrap.add_child(_steps_box)
+	_wrap_box.add_child(_steps_box)
 	_tail_label = Label.new()
 	_tail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tail_label.add_theme_font_override("font", MainGlobals.get_text_font())
 	_tail_label.add_theme_color_override("font_color", Color(0.80, 0.82, 0.88))
-	wrap.add_child(_tail_label)
-	wrap.resized.connect(func() -> void: _fit_card.call_deferred())
+	_wrap_box.add_child(_tail_label)
+	_wrap_box.resized.connect(func() -> void: _fit_card.call_deferred())
 
 func _body_label(text: String, fs: int, ink: Color) -> Label:
 	var body: Label = Label.new()

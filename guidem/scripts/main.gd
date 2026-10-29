@@ -23,6 +23,8 @@ func _ready() -> void:
 	})
 	$Help.close_help.connect(_on_help_close_help)
 	hud.set_game(game)
+	# the count is of cars still to park: the engine the board draws (devtools/make_thumbs.py hud_icons)
+	hud.set_packets_icon(preload("res://art/engine_icon.png"), 0.2, Color.WHITE)
 	hud.show_packets()
 	hud.show()
 	game.sig_game_is_done.connect(on_game_is_done)

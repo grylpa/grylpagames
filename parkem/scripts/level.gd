@@ -465,6 +465,10 @@ func on_door_type_changed(pos: Vector2i):
 		agent.path = find_agent_path(agent)
 
 func on_clicked_door(pos: Vector2i):
+	# never while an actor is in the door's cell (scripts/door_guard.gd)
+	for d0 in doors:
+		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents, float(game.tile_size)):
+			return
 	game.record_count("door_actions")
 	for i in doors.size():
 		var door = doors[i]

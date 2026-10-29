@@ -171,7 +171,7 @@ One slider entry:
 
 ## Shared System Notes
 
-See `rlmadness/docs/design.md` → "Shared system changes" for details on:
+See `docs/scores_and_charts.md` for details on:
 - Chart tab design and x-axis toggle
 - `score_was_changed` save gate
 - Per-level saves: `save_score` is called at each level completion so the speed table shows all levels played within a session, not just the final one

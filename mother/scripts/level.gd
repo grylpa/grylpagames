@@ -14,7 +14,7 @@ var HEAD_SCALE: float = 0.74
 
 # --- Palette: NIGHT DESERT ---------------------------------------------------------------------
 # This is a breathing game in the "Serenity" category, and every sibling there is dark and
-# low-chroma (crack 0.04,0.05,0.09; river 0.06,0.18,0.34; udbr 0.04,0.07,0.14). It used to be the
+# low-chroma (crack 0.04,0.05,0.09; udbr 0.04,0.07,0.14). It used to be the
 # one bright, high-chroma screen in the category — saturated sand under a pure-green mother and a
 # saturated indigo child, three unrelated hue families all shouting at once. It also contradicted
 # itself: the results panel and the stats graph were already dark, so the palette flipped the
