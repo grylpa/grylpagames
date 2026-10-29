@@ -491,7 +491,10 @@ func can_go_to(p, trans_id:int):
 		return false
 	var cell = board[p.y][p.x]
 	var cond = cell.ispipe and !cell.pipe.blocked
-	cond = cond and (!cell.istarget or cell.target.transaction_id == trans_id)
+	# a dock is entered only as the creature's own RECEIVER: its sender carries the same transaction
+	# id, and a creature turned back from a brick in front of its sender drove back into it, then out
+	# again, back and forth
+	cond = cond and (!cell.istarget or (cell.target.transaction_id == trans_id and cell.target.is_receiver))
 	return cond
 	
 func all_agents_done():
@@ -575,6 +578,15 @@ func tick():
 						else:
 							q = path_q
 							dir = path_dir
+					# an OPEN junction (door_type 0) with the way ahead blocked turns aside like a
+					# plain road does, instead of falling through to turning back
+					if door_type == 0 and !can_go_to(p + game.DirArray[dir], agent.transaction_id):
+						for diradd in [1, 3]:
+							var side_dir: int = (dir + diradd) % 4
+							if can_go_to(p + game.DirArray[side_dir], agent.transaction_id):
+								dir = side_dir
+								need_to_refind_path = true
+								break
 				else:		# if not a door
 					if path_dir >= 0:
 						q = path_q
@@ -696,7 +708,11 @@ func increase_difficulty(increase=true):
 		var bsh = 12
 		var bsv = 8
 		game.max_board_size -= Vector2i(bsh,bsv)
-	game.init_sizes()
+	# MainGlobals.screen_size already stops above the app's button bar; GenericGameUtil's own
+	# buttons_height (40) took it off a second time, and with the odd trim that cost the board two
+	# rows it had room for
+	game.buttons_height = 0
+	game.init_sizes_odd()     # odd sides: every edge ends in dock bays
 
 # How many creatures the player has turned back in this level. Not a quota — the level does not
 # end on it — but it is what the level card reports and what the tutorial's closing step reads.
@@ -774,15 +790,24 @@ func on_agent_started_moving(transaction_id):
 	
 func activate_transaction(transaction_id):
 	game.play_sound("swoosh")
-	for t in targets:
-		if t.transaction_id == transaction_id:
-			# if t.is_receiver:
-			# 	t.flash()
-			if t.is_sender:
-				t.flash_and_reset()
+	var leaving = null
 	for agent in agents:
 		if agent.transaction_id == transaction_id:
 			agent.is_moving = true
+			leaving = agent
+	for t in targets:
+		if t.transaction_id == transaction_id:
+			if t.is_sender:
+				_reset_sender_when_clear(t, leaving, transaction_id)
+
+# The sender stays until the creature has left it with ALL its body: it used to shrink away half a
+# second after the head set off, while the body was still coming out of it.
+func _reset_sender_when_clear(t, agent, tid: int) -> void:
+	while agent != null and is_instance_valid(agent) and not agent.was_hit and not agent.is_clear_of_dock():
+		await get_tree().process_frame
+	# not if the sender has meanwhile been handed a new creature
+	if is_instance_valid(t) and t.is_sender and t.transaction_id == tid:
+		t.flash_and_reset()
 
 func on_agent_pressed(transaction_id, _agent_board_pos):
 	activate_transaction(transaction_id)
@@ -835,7 +860,7 @@ func calc_cost_to_move_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, id: i
 		return -1
 	if tocell.istarget:
 		var trans_id = tocell.target.transaction_id
-		if trans_id != id:
+		if trans_id != id or not tocell.target.is_receiver:     # never back into its own sender
 			return -1
 	var fromcell = board[from.y][from.x]
 	if fromcell.door_type == 1:	#door slanted from topleft to bottomright

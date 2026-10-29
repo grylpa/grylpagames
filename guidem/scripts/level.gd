@@ -453,6 +453,9 @@ func increase_difficulty(increase=true):
 # desktop screen holds 16 rows: from level 5 (17 and up) the board was cut to 16, and the bottom
 # docks sat right against the last full road, unlike the other three sides.
 func _fit_board_to_screen(size_wanted: int) -> void:
+	# MainGlobals.screen_size already stops above the app's button bar; GenericGameUtil's own
+	# buttons_height (40) took it off a second time, costing the board rows it had room for
+	game.buttons_height = 0
 	game.max_board_size = Vector2i(size_wanted, size_wanted)
 	game.init_sizes()
 	var fitted: Vector2i = game.board_size

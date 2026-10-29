@@ -712,6 +712,18 @@ func init_sizes():
 		MainGlobals.path_screen_offset = screen_offset
 		MainGlobals.path_board_size = board_size
 
+# init_sizes(), then each board side trimmed to an ODD number of cells, still centered. The route
+# games put their docks on the even rows and columns 2..n-2, joined to the board by stubs on the
+# odd row/column next to the edge -- with an even side that row is n-2, a full lane, and the edge
+# came out flat with no dock bays (Detour's bottom, 2026-10-29). Valet does the same in its own
+# _fit_board_to_screen.
+func init_sizes_odd():
+	init_sizes()
+	var bs: Vector2i = board_size
+	if bs.x % 2 == 0 or bs.y % 2 == 0:
+		max_board_size = Vector2i(bs.x - (1 - bs.x % 2), bs.y - (1 - bs.y % 2))
+		init_sizes()
+
 func get_visible_height():
 	return screen_size.y - header_height - buttons_height
 

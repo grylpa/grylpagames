@@ -15,6 +15,12 @@ func set_rot(board):
 	var l = p.x > 0 and board[p.y][p.x-1].ispipe
 	var u = p.y > 0 and board[p.y-1][p.x].ispipe
 	_open = [r, d, l, u]
+	# a road end that runs into a dock is open for the curbs: the dock covers it, and a curb across
+	# it showed as a light line at the dock's edge
+	for k in 4:
+		var nq: Vector2i = p + [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP][k]
+		if not _open[k] and RoadCorners.kind(board, nq) == 2:
+			_open[k] = true
 	_diag = []
 	for i in 4:
 		var q: Vector2i = p + [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP][i] \

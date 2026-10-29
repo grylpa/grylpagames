@@ -57,6 +57,22 @@ func set_sender(_is_sender: bool, _color: Color, _transaction_id: int):
 	color = _color
 	$SenderImage.set_modulate(color)
 	modulate = Color(1,1,1,0.8)
+	if is_sender:
+		# it APPEARS gradually too, quicker than it goes: fades in while growing to full size
+		_kill_fade()
+		modulate.a = 0.0
+		scale = Vector2(0.85, 0.85)
+		_fade_tw = MainGlobals.make_tween()
+		_fade_tw.set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		_fade_tw.tween_property(self, "modulate:a", 0.8, 0.4)
+		_fade_tw.tween_property(self, "scale", Vector2.ONE, 0.4)
+
+var _fade_tw: Tween = null
+
+func _kill_fade() -> void:
+	if _fade_tw != null and _fade_tw.is_valid():
+		_fade_tw.kill()
+	_fade_tw = null
 
 func set_img_rot(rot):
 	$TargetImage.rotation = rot
@@ -72,8 +88,25 @@ func flash():
 	tween_scale.tween_property(self, "scale", Vector2(1.5,1.5), 0.2)
 	tween_scale.tween_property(self, "scale", Vector2(1.0,1.0), 0.3)
 
+# The sender goes GRADUALLY once its creature is clear of it: it fades out while settling a little
+# smaller, over most of a second, then is put back to an idle dock at full size and opacity. (It
+# used to swell and snap away in half a second.)
 func flash_and_reset():
-	var tween_scale = MainGlobals.make_tween()
-	tween_scale.tween_property(self, "scale", Vector2(1.5,1.5), 0.2)
-	tween_scale.tween_property(self, "scale", Vector2(0.1,0.1), 0.3)
-	tween_scale.tween_callback(reset_sender_receiver)
+	_kill_fade()
+	var tw = MainGlobals.make_tween()
+	_fade_tw = tw
+	tw.set_parallel(true).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "modulate:a", 0.0, 0.9)
+	tw.tween_property(self, "scale", Vector2(0.8, 0.8), 0.9)
+	tw.chain().tween_callback(_finish_reset)
+
+func _finish_reset() -> void:
+	reset_sender_receiver()
+	scale = Vector2.ONE
+	# stay transparent until the drawn dock (scripts/dock_art.gd, which copies the sprite's
+	# visibility a frame later) has hidden too; restored to full opacity before the next use
+	modulate.a = 0.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if is_zero_approx(modulate.a) and not is_sender:     # a new sender fades itself in
+		modulate.a = 1.0

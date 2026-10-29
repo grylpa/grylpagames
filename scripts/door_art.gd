@@ -102,23 +102,23 @@ func _draw_ring(ofs: Vector2, r: float) -> void:
 	draw_circle(Vector2(-r * 0.15, -r * 0.18), r * 0.22, Color(1, 1, 1, 0.7), true, -1.0, true)
 
 
-func _draw_brackets(light: Vector2, ofs: Vector2) -> void:
-	var arm: float = half * 0.30     # short: longer arms made an open door look like a closed cage
-	var w: float = half * 0.17
+# OPEN: four nail heads, one where each end of a shut gate's bar would be, drawn exactly like the
+# gate's ends -- the bar's width, a dark edge, a steel bolt -- each a short stub reaching toward the
+# cell's center, so the door reads as the
+# same part with its bar taken away. (Corner brackets were tried: long ones read as a closed cage,
+# and at the bar's width they turned into blobs.)
+func _draw_brackets(_light: Vector2, ofs: Vector2) -> void:
+	var w: float = half * 0.30
+	var reach: float = half * 1.30
 	for sx: float in [-1.0, 1.0]:
 		for sy: float in [-1.0, 1.0]:
-			var c: Vector2 = Vector2(sx, sy) * (half - w * 0.5)
-			var p1: Vector2 = c - Vector2(sx, 0.0) * arm
-			var p2: Vector2 = c - Vector2(0.0, sy) * arm
-			var pts: PackedVector2Array = PackedVector2Array([p1, c, p2])
-			var sh: PackedVector2Array = PackedVector2Array([p1 + ofs, c + ofs, p2 + ofs])
-			draw_polyline(sh, Color(0, 0, 0, 0.30), w + 1.0, true)
-			draw_polyline(pts, INK, w + 1.4, true)
-			for e: Vector2 in [p1, p2]:
-				draw_circle(e, (w + 1.4) * 0.5, INK, true, -1.0, true)
-			draw_polyline(pts, GREEN, w, true)
-			for e: Vector2 in [p1, p2, c]:
-				draw_circle(e, w * 0.5, GREEN, true, -1.0, true)
-			# lit edge on the side toward the light
-			var lift: Vector2 = Vector2(0.0, -w * 0.22) if light.y < 0.0 else Vector2(0.0, w * 0.22)
-			draw_line(p1 + lift, c + lift, Color(1, 1, 1, 0.35), w * 0.25, true)
+			var dir: Vector2 = Vector2(sx, sy).normalized()
+			var p: Vector2 = dir * reach
+			# a stub of the bar, reaching a little toward the cell's center
+			var tip: Vector2 = p - dir * w * 0.8
+			_bar(p + ofs, tip + ofs, w + 1.0, Color(0, 0, 0, 0.30))
+			_bar(p, tip, w + 1.6, INK)
+			_bar(p, tip, w, GREEN)
+			var bolt: Vector2 = p - dir * w * 0.15
+			draw_circle(bolt, w * 0.24, STEEL, true, -1.0, true)
+			draw_circle(bolt, w * 0.24, INK, false, 0.8, true)

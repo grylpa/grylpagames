@@ -199,6 +199,9 @@ func create_board() -> void:
 	target_lobbies.clear()
 	agent_positions.clear()
 	add_pipe(player.board_pos)
+	# drawn as a DOCK cell by its neighbors' curbs and rims (scripts/road_corners.gd): the depot
+	# stands on it, and the road runs square up under it like every other dock
+	board[player.board_pos.y][player.board_pos.x].set_meta("under_dock", true)
 	var rng = RandomNumberGenerator.new()
 	var wall = rng.randi_range(0,3)
 	for i in ntargets:
@@ -285,7 +288,9 @@ func create_board() -> void:
 	show_hide_walls()
 
 	for pipe in pipes:
-		pipe.set_rot(board)		
+		pipe.set_rot(board)
+		if pipe.board_pos == player.board_pos:
+			pipe.hide_surface()     # the depot stands on it
 				
 	for _i in DelemfpG.num_agents:
 		# var p = game.get_agent_start_pos()
@@ -361,7 +366,9 @@ func add_agent_at(p: Vector2i, direction: int):
 		return
 	time_to_start_camera = MainGlobals.timems() + 5000
 	MainGlobals.global_start_countdown(5)
-	MainGlobals.sig_global_countdown_finished.connect(_on_sig_global_countdown_finished)
+	# once only: every dispatch reaches here, and connecting again errored
+	if not MainGlobals.sig_global_countdown_finished.is_connected(_on_sig_global_countdown_finished):
+		MainGlobals.sig_global_countdown_finished.connect(_on_sig_global_countdown_finished)
 	# await MainGlobals.sleep(5)
 	# create_camera()
 	
@@ -521,7 +528,10 @@ func increase_difficulty(increase=true):
 	game.max_board_size = Vector2i(s,s)
 	num_more_packets = int(cfg["num_more_packets"])
 	rounds_per_level = int(cfg["rounds"])
-	game.init_sizes()
+	# MainGlobals.screen_size already stops above the app's button bar; GenericGameUtil's own
+	# buttons_height (40) took it off a second time, costing the board rows it had room for
+	game.buttons_height = 0
+	game.init_sizes_odd()     # odd sides: the docks on every edge line up with the roads
 
 var time_last_dispatch = -10000
 func _on_agent_dispatch_timer_timeout() -> void:

@@ -494,7 +494,7 @@ func _rbox(r: Rect2, rad: float) -> PackedVector2Array:
 	return pts
 
 
-func _draw_passenger(hue: Color, ofs: Vector2, t: float) -> void:
+func _draw_passenger(hue: Color, _ofs: Vector2, t: float) -> void:
 	# A BOLD BADGE, readable at phone size: a disc in their color with a dark rim and a white person
 	# (head and shoulders) on it, over a soft shadow; it bobs gently now and then, as if waving for
 	# a cab. (A tiny drawn person with a raised arm could not be read on a small screen.)

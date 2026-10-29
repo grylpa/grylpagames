@@ -29,6 +29,9 @@ const STEPS: Array = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]
 static func kind(board: Array, q: Vector2i) -> int:
 	if q.y < 0 or q.y >= board.size() or q.x < 0 or q.x >= board[q.y].size():
 		return -1
+	if board[q.y][q.x].has_meta("under_dock"):
+		return 2      # a road cell a dock stands on (the depot) is drawn as a dock: the road runs
+		              # square up under it, as it does into every other dock
 	if board[q.y][q.x].ispipe:
 		return 1
 	return 2 if board[q.y][q.x].istarget else 0

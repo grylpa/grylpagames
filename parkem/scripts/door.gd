@@ -17,29 +17,27 @@ const BAR_BASE: Color = Color(0.20, 0.33, 0.22)
 const BAR_LIT: Color = Color(0.70, 0.90, 0.72)
 const STUD: Color = Color(0.55, 0.62, 0.56)
 
+# SHUT, it is the shared drawn gate (scripts/door_art.gd, the same as Valet's and the other route
+# games'): a green bar with a light stripe, a bolt at each end and the pivot hub in the middle. Open,
+# it stays this game's own single stud (_draw).
+var _gate: DoorArt = null
+
 func _ready() -> void:
 	$DoorOpen.hide()
 	$DoorDiag.hide()
+	_gate = DoorArt.new()
+	_gate.kind = "gate"
+	_gate.half = 16.0          # a little longer and thicker than the old bar (+-12), nearer Valet's
+	add_child(_gate)
 	set_rot(0)
 
 func _draw() -> void:
 	# the light comes from the top left of the SCREEN whatever way the door is turned
 	var down: Vector2 = Vector2(1.2, 2.0).rotated(-rotation)
-	if rot_idx == 0:
+	if rot_idx == 0:      # open: the stud; shut, the gate (_gate) draws
 		draw_circle(down * 0.6, 3.4, Color(0, 0, 0, 0.30))
 		draw_circle(Vector2.ZERO, 3.0, STUD.darkened(0.35))
 		draw_circle(Vector2(-0.6, -0.6).rotated(-rotation), 2.0, STUD)
-		return
-	var a: Vector2 = Vector2(-12, -12)
-	var b: Vector2 = Vector2(12, 12)
-	draw_line(a + down, b + down, Color(0, 0, 0, 0.35), 6.0, true)
-	draw_line(a, b, BAR_BASE, 5.0, true)
-	draw_line(a - down * 0.35, b - down * 0.35, BAR, 3.4, true)
-	draw_line(a - down * 0.55 + (b - a) * 0.08, b - down * 0.55 - (b - a) * 0.08, BAR_LIT, 1.0, true)
-	for p: Vector2 in [a, b]:
-		draw_circle(p + down * 0.5, 3.6, Color(0, 0, 0, 0.30))
-		draw_circle(p, 3.2, BAR_BASE)
-		draw_circle(p - down * 0.25, 2.3, BAR_LIT)
 
 func set_board_pos(p):
 	board_pos = p
@@ -49,6 +47,8 @@ func set_rot(_rot_idx, dtime_to_reset_ms = -1):
 	rot_idx = _rot_idx
 	rotation = PI / 2.0 if rot_idx == 2 else 0.0
 	modulate = Color(1,1,1,1)
+	if _gate != null:
+		_gate.visible = rot_idx != 0
 	queue_redraw()
 	if rot_idx == 0:
 		time_to_reset_ms = 0
