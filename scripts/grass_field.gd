@@ -38,14 +38,17 @@ const BLADE_HI: Color = Color(0.106, 0.514, 0.243)
 
 # One blade per this many square units of board. 24 gives roughly 60% ink once the blades overlap,
 # which is where a field stops reading as ground with grass on it and starts reading as grass.
-const BLADE_AREA: float = 20.0
-const MAX_BLADES: int = 320000
+const BLADE_AREA: float = 2.2
+const MAX_BLADES: int = 900000
 # Bigger blades rather than more of them: coverage is count x ink, and ink grows with the blade
 # while the cost grows with the count. At 1.7 x 9 a quarter of a million blades still only inked
 # 32% of the board and read as fuzz on green; at 2.2 x 12 the same count reaches ~66%, which is a
 # lawn. A 12-unit blade against a 40-unit cell is about right for the scale the camera shows.
-const BLADE_W: float = 2.2
-const BLADE_LEN: float = 12.0
+# 2026-10-29: SHORTER AND DENSER, a close-mown lawn rather than long grass -- 0.9 x 1.4 blades, nine
+# times as many (one per 2.2 square units), which keeps the coverage near the same while the texture gets
+# finer and calmer behind the game.
+const BLADE_W: float = 0.9
+const BLADE_LEN: float = 1.4
 
 # The whole installation, in one call a game makes from wherever its board geometry becomes known:
 # hides the tiled ground it replaces, attaches the field, sizes it to the board with a margin, and
@@ -124,8 +127,8 @@ static func sow(bg: Control, seed_i: int = 1) -> void:
 	rng.seed = 0x9E3779B9 + seed_i * 2654435761
 	for i in n:
 		var p: Vector2 = Vector2(rng.randf() * w, rng.randf() * h)
-		var lean: float = rng.randf_range(-0.5, 0.5)
-		var s: float = rng.randf_range(0.55, 1.45)
+		var lean: float = rng.randf_range(-0.4, 0.4)
+		var s: float = rng.randf_range(0.7, 1.3)
 		mm.set_instance_transform_2d(i, Transform2D(lean, Vector2(s, s), 0.0, p))
 		# Darker at the root end of the range, brighter at the tip end, mixed per blade so the field
 		# has depth rather than one flat green.

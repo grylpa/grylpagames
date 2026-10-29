@@ -34,6 +34,8 @@ func set_rot(board):
 			rc[i] = 1.0
 		_mat.set_shader_parameter("round_corners", rc)
 		_mat.set_shader_parameter("round_r", RoadCorners.R)
+		_mat.set_shader_parameter("open_sides", Vector4(1.0 if r else 0.0, 1.0 if d else 0.0,
+			1.0 if l else 0.0, 1.0 if u else 0.0))
 	if _curb != null:
 		_curb.queue_redraw()
 	if _fill != null:

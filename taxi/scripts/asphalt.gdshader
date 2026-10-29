@@ -8,6 +8,7 @@ shader_type canvas_item;
 
 varying vec2 world;
 varying vec2 tile_local;
+varying vec2 cell_at;
 
 // ROUNDED OUTER CORNERS (scripts/road_corners.gd convex): a corner flagged here is cut off on an arc
 // of round_r, in the tile's own frame (the offset from the tile's center), so a bend's outside
@@ -35,6 +36,34 @@ void vertex() {
 	// the sprite's own pixels (a 40 px tile, centered) turned like the tile but NOT scaled, whatever
 	// scale the board is drawn at
 	tile_local = mat2(normalize(MODEL_MATRIX[0].xy), normalize(MODEL_MATRIX[1].xy)) * VERTEX;
+	cell_at = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xy;
+}
+
+// THE PLAZA (2026-10-29): a paved city square instead of a plain lot, and still plainly a GRID --
+// the cabs move cell by cell, so every cell is one square of basket-weave brick (four quarters, the
+// bricks turned in alternate quarters) framed by a granite border on the cell lines. Warm gray
+// brick, each brick a slightly different tone.
+vec3 plaza(vec2 lp, vec2 at, vec2 w) {
+	vec2 id = floor(at / 40.0 + 0.5);
+	vec2 q = lp + vec2(20.0);                       // 0..40 across the cell
+	float border = min(min(q.x, q.y), min(40.0 - q.x, 40.0 - q.y));
+	vec3 granite = vec3(0.40, 0.40, 0.42) * (0.92 + 0.12 * hash(floor(w / 1.5)));
+	if (border < 2.6) {
+		return mix(vec3(0.20, 0.20, 0.22), granite, smoothstep(0.3, 0.9, border));
+	}
+	vec2 inner = q - vec2(2.6);                     // 0..34.8
+	vec2 quad = floor(inner / 17.4);
+	vec2 qp = inner - quad * 17.4;                  // 0..17.4 inside a quarter
+	bool turn = mod(quad.x + quad.y, 2.0) > 0.5;
+	vec2 bp = turn ? qp.yx : qp;
+	float row = floor(bp.y / 5.8);
+	vec2 bq = vec2(bp.x, bp.y - row * 5.8);
+	float joint = min(min(bq.y, 5.8 - bq.y), min(bp.x, 17.4 - bp.x));
+	vec2 brick_id = id * 13.0 + quad * 3.0 + vec2(row, 0.0);
+	vec3 brick = mix(vec3(0.56, 0.47, 0.40), vec3(0.64, 0.55, 0.46), hash(brick_id));
+	brick *= 0.94 + 0.10 * hash(floor(w / 1.3));
+	vec3 mortar = vec3(0.30, 0.27, 0.25);
+	return mix(mortar, brick, smoothstep(0.35, 0.9, joint));
 }
 
 void fragment() {
@@ -63,5 +92,6 @@ void fragment() {
 			}
 		}
 	}
+	col = plaza(tile_local, cell_at, world);
 	COLOR = vec4(col, tex.a * keep);
 }
