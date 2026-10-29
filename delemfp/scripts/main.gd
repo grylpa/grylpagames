@@ -75,7 +75,7 @@ func start_tutorial() -> void:
 	# the player is steering by watching it, and a caption sitting on it makes the step unplayable.
 	# The rest is what must be read or pressed.
 	runner.keep_clear = [
-		func(): return Rect2($Level.tutorial_agent_pos() - Vector2(52, 52), Vector2(104, 104)) if $Level.tutorial_agent() != null else null,
+		func(): return _agent_spot(),
 		func(): return $Level.tutorial_dispatch_label(),
 		func(): return $Level.tutorial_bottom_button("ClueButton"),
 		func(): return $Level.tutorial_bottom_button("ZoomButton"),
@@ -250,3 +250,11 @@ func add_score_line_vals(score_row: Array) -> Array:
 		var val = score_row[6]
 		return [str(int(val)) if not val is String else val]
 	return []
+
+
+# The truck's spotlight rect for the tutorial, or null before there is a truck. (A ternary between a
+# Rect2 and null is the INCOMPATIBLE_TERNARY warning.)
+func _agent_spot() -> Variant:
+	if $Level.tutorial_agent() == null:
+		return null
+	return Rect2($Level.tutorial_agent_pos() - Vector2(52, 52), Vector2(104, 104))

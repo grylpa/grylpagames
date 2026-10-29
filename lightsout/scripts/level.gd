@@ -971,7 +971,10 @@ func _apply_level() -> void:
 	time_between_dispatches_ms = cfg.get("dispatch_ms", 5000)
 	num_more_packets = 0
 	max_speed_scale = 1.0
-	game.init_sizes()
+	# MainGlobals.screen_size already stops above the app's button bar; GenericGameUtil's own
+	# buttons_height (40) took it off a second time, costing the board rows it had room for
+	game.buttons_height = 0
+	game.init_sizes_odd()     # odd sides: every edge ends in dock bays
 
 func add_player_at(p: Vector2i, direction: int):
 	if player != null:

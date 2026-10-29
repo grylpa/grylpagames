@@ -649,7 +649,10 @@ func increase_difficulty(increase=true):
 		var bsv = 6
 		game.max_board_size -= Vector2i(bsh,bsv)
 		game.forced_board_size -= Vector2i(bsh, bsv)
-	game.init_sizes()
+	# MainGlobals.screen_size already stops above the app's button bar; GenericGameUtil's own
+	# buttons_height (40) took it off a second time, costing the board rows it had room for
+	game.buttons_height = 0
+	game.init_sizes_odd()     # odd sides: every edge ends in dock bays
 
 func add_mission(p, dir):
 	var sender = find_closest_target(p, false)	

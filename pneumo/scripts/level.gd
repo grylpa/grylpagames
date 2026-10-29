@@ -601,7 +601,10 @@ func increase_difficulty(increase=true):
 		var bsh = 2
 		var bsv = 2
 		game.max_board_size -= Vector2i(bsh,bsv)
-	game.init_sizes()
+	# MainGlobals.screen_size already stops above the app's button bar; GenericGameUtil's own
+	# buttons_height (40) took it off a second time, costing the board rows it had room for
+	game.buttons_height = 0
+	game.init_sizes_odd()     # odd sides: every edge ends in dock bays
 
 # How many capsules the player has landed in this level. It does not END the level — the clock does
 # that — but it is what PASSES it: see level_is_done().

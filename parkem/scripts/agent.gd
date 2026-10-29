@@ -110,6 +110,54 @@ func set_pos(p, dir):
 	if !isready:
 		return
 	position = p
+	_seed_trail(p, dir)
+
+# THE WHOLE CREATURE EXISTS FROM THE START, coiled back inside its dispatcher: the trail is laid
+# straight back from the head into the dispatcher at spawn, so every body part has its place and
+# heading from the first frame. A part still inside the dispatcher is parked at its center, under it
+# (the dock draws above the creature), and shows as it comes out. Before, a part only appeared once
+# the head had driven far enough to lay a trail for it -- a gap, then the part popping in with its
+# link -- and started at a wrong angle that it then corrected.
+var _dock_center: Vector2 = Vector2.ZERO
+var _out_dir: Vector2 = Vector2.RIGHT
+
+func _seed_trail(p: Vector2, dir: int) -> void:
+	_out_dir = Vector2.RIGHT.rotated(dir * PI / 2.0)
+	_dock_center = p - _out_dir * float(game.tile_size)
+	time_back_positions.clear()
+	var back: float = float(tail_dist_back) * 1.5 + float(game.tile_size)
+	time_back_positions.push_back(p - _out_dir * back)
+	time_back_positions.push_back(p)
+	back_total_len = back
+	_place_bodies()
+
+# Whether the whole creature is clear of its dispatcher: its LAST part has passed the dispatcher's
+# outer edge (half a tile beyond its center) and a little more.
+func is_clear_of_dock() -> bool:
+	if bodies.is_empty():
+		return (position - _dock_center).dot(_out_dir) > float(game.tile_size)
+	var last_pos = pos_back_along_trail((bodies.size() - 1) * body_dist + head_dist)
+	if last_pos == null:
+		return false
+	return (last_pos - _dock_center).dot(_out_dir) > float(game.tile_size) * 0.9
+
+# Every body part on the trail; one still behind the dispatcher's center waits there, hidden.
+func _place_bodies() -> void:
+	for i in bodies.size():
+		var trail_pos = pos_back_along_trail(i * body_dist + head_dist)
+		if trail_pos == null:
+			continue
+		var inside: bool = (trail_pos - _dock_center).dot(_out_dir) < 0.0
+		if inside:
+			trail_pos = _dock_center
+		bodies[i].position = trail_pos - position
+		bodies[i].visible = not inside
+		while $Skeleton.get_point_count() < i + 2:
+			$Skeleton.add_point(Vector2.ZERO)
+		$Skeleton.set_point_position(i + 1, bodies[i].position)
+		angles[i + 1] = _out_dir.angle() if inside else \
+			$Skeleton.get_point_position(i + 1).angle_to_point($Skeleton.get_point_position(i))
+	set_rots()
 			
 var time_set_target_pos = MainGlobals.timems()
 
@@ -170,26 +218,13 @@ func _process(delta: float) -> void:
 				# the trail from the front and made the followers lurch.
 				if time_back_positions.size() > 1:
 					back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
-			while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
+			# drop the oldest stretch only while enough trail remains for the whole body (the long
+			# seeded stretch into the dispatcher must not go in one piece while parts still need it)
+			while time_back_positions.size() > 2 and back_total_len \
+					- (time_back_positions[1] - time_back_positions[0]).length() > tail_dist_back * 1.5:
 				back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
 				time_back_positions.pop_front()
-			var trail_pos
-			#for i in range(nbody_parts-1,-1,-1):
-			for i in bodies.size():
-				trail_pos = pos_back_along_trail(i * body_dist + head_dist)
-				if trail_pos != null:
-					last = bodies[i].position
-					bodies[i].position = trail_pos - position
-					bodies[i].show()
-					while $Skeleton.get_point_count() < i+2:
-						$Skeleton.add_point(Vector2.ZERO)
-					$Skeleton.set_point_position(i+1, bodies[i].position)
-					angles[i+1] = $Skeleton.get_point_position(i+1).angle_to_point($Skeleton.get_point_position(i))
-			
-			# if $Skeleton.get_point_count() > nbody_parts+1:
-			# 	angles[-1] = $Skeleton.get_point_position(nbody_parts+1).angle_to_point($Skeleton.get_point_position(nbody_parts))
-				
-			set_rots()
+			_place_bodies()
 		# The leg ended between two frames, so the head is parked a fraction of a tile short
 		# until the board hands it the next one. Finish the tile instead of standing still:
 		# it can only ever move forward, and by less than one frame of travel.

@@ -14,6 +14,12 @@ func set_rot(board):
 	var l = p.x > 0 and board[p.y][p.x-1].ispipe
 	var u = p.y > 0 and board[p.y-1][p.x].ispipe
 	_open = [r, d, l, u]
+	# a road end that runs into a dock is open for the curbs: the dock covers it, and a curb across
+	# it showed as a light line at the dock's edge
+	for k in 4:
+		var nq: Vector2i = p + [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP][k]
+		if not _open[k] and RoadCorners.kind(board, nq) == 2:
+			_open[k] = true
 	_diag = []
 	for i in 4:
 		var q: Vector2i = p + [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP][i] \
@@ -120,6 +126,17 @@ func _dress_road() -> void:
 # tone: at 4-8 px with a bright stone and a lit line they read as thick walls and distracted from
 # play (user, 2026-10-25). Drawn first as plain full-length strips, they
 # overlapped on bends and left a square hole at every inside corner.
+# The depot stands on this cell (the truck starts here): its road is not drawn, or it showed past
+# the depot's outer end (the depot's pad sits a little toward the board).
+func hide_surface() -> void:
+	# hidden, not made transparent: the asphalt shader sets COLOR itself and ignores modulate
+	for sp: Sprite2D in [$PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
+		sp.visible = false
+	if _curb != null:
+		_curb.hide()
+	if _fill != null:
+		_fill.hide()
+
 func _draw_fillets() -> void:
 	for i: int in _fillets:
 		_fill.draw_colored_polygon(RoadCorners.polygon(i, 20.0), Color.WHITE)
