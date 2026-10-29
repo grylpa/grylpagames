@@ -36,18 +36,29 @@ func _draw() -> void:
 		var radius: float = t["radius"]
 		var color: Color = t["color"]
 		var age: float = t["age"]
-		# Outer target circle
-		draw_circle(pos, radius, color)
-		# Center dot (aiming guide) — omitted for same-color decoys
+		# A DOMED BUTTON RISING OUT OF A BURROW: a dark earth ring under it, a soft shadow, the dome
+		# in the target's color with a darker rim and a crescent of gloss. Was a
+		# flat disc. The color and the white center dot are unchanged in meaning -- the dot is the
+		# ONLY difference on a same-color decoy -- so the dot stays crisp, white and centered.
+		draw_circle(pos, radius * 1.16, Color(0.16, 0.11, 0.07))
+		draw_circle(pos + Vector2(0.0, radius * 0.06), radius * 1.06, Color(0.08, 0.05, 0.03))
+		draw_circle(pos + Vector2(radius * 0.07, radius * 0.11), radius, Color(0, 0, 0, 0.45))
+		draw_circle(pos, radius, color.darkened(0.30))
+		draw_circle(pos - Vector2(radius, radius) * 0.06, radius * 0.88, color)
+		# the gloss is a thin CRESCENT along the upper-left edge, never a pale disc: a round light
+		# spot looked like the white center dot that marks the real target (user, 2026-10-29)
+		draw_arc(pos - Vector2(radius, radius) * 0.04, radius * 0.74, PI * 1.05, PI * 1.45, 16,
+			color.lightened(0.45), radius * 0.10, true)
 		if t["draw_dot"]:
-			draw_circle(pos, radius * 0.22, Color(1.0, 1.0, 1.0, 0.85))
-		# Thin ring outline
-		draw_arc(pos, radius, 0.0, TAU, 48, Color(1.0, 1.0, 1.0, 0.4), 2.0)
+			draw_circle(pos, radius * 0.24, Color(0, 0, 0, 0.25))
+			draw_circle(pos, radius * 0.22, Color(1.0, 1.0, 1.0, 0.95))
+		draw_arc(pos, radius, 0.0, TAU, 48, color.darkened(0.55), 2.0, true)
 		# Countdown arc: starts full, depletes clockwise as age approaches 1.0
 		var remaining: float = 1.0 - age
 		var arc_end: float = -PI * 0.5 + remaining * TAU
 		var arc_col: Color = Color(1.0, 1.0, 1.0, 0.85).lerp(Color(1.0, 0.25, 0.0, 1.0), age)
-		draw_arc(pos, radius + 9.0, -PI * 0.5, arc_end, 48, arc_col, 4.0)
+		draw_arc(pos, radius + 9.0, 0.0, TAU, 48, Color(0, 0, 0, 0.30), 6.0, true)
+		draw_arc(pos, radius + 9.0, -PI * 0.5, arc_end, 48, arc_col, 4.0, true)
 
 	# Flash feedback
 	if flash_alpha > 0.0:

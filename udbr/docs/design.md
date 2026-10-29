@@ -34,7 +34,7 @@ untouched, because a real key sends a real release.
 `MainGlobals.is_in_digitized_swipe_up` / `_dn` are *latched*: `_update_digitized_swipe()` holds the
 last direction while the finger is still, because a finger held motionless sends no drag events and
 holding still is meaningful here. The breathing games then **poll** those flags every frame
-(`udbr/scripts/level.gd:448`, and the same in river, crack and mother).
+(`udbr/scripts/level.gd:448`, and the same in crack and mother).
 
 That makes them the only games that can get stuck. A touch can be taken away without ever sending
 its release -- an Android system gesture, the notification shade, the recents switcher. When that

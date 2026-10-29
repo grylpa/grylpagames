@@ -20,7 +20,7 @@ matches that area's rule) or **back out to the field** (if it doesn't). While an
 full, aliens that walk up to it are turned away and each one costs a miss.
 
 Successor to `rlmadness` (same rapid rule-switching under interference, arcade presentation).
-`rlmadness` remains commented out of `scripts/config.gd`.
+`rlmadness` has since been removed from the project (2026-10-29).
 
 From level 4 an **interference layer** switches on — see [Interference layer](#interference-layer).
 It exists because the base game, while pleasant, was measurably gentler than rlmadness, and for

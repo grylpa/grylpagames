@@ -79,7 +79,7 @@ Settings saved as `[starting_difficulty]`. Board size forced to 11×11.
 
 - **Scores tab**: Date | Score | Level
 - **Speed tab**: grouped by level, shows avg response time and % correct
-- **Chart tab**: all three metrics (Score, Avg Time, % Correct); see shared system notes in `rlmadness/docs/design.md`
+- **Chart tab**: all three metrics (Score, Avg Time, % Correct); see `docs/scores_and_charts.md`
 
 ---
 
@@ -91,7 +91,7 @@ Slider entry: `Difficulty` (1–9). Bottom bar includes help, mute, scores butto
 
 ## Shared System Notes
 
-See `rlmadness/docs/design.md` → "Shared system changes" for details on:
+See `docs/scores_and_charts.md` for details on:
 - Chart tab design and x-axis toggle
 - `score_was_changed` save gate
 - Monotonic mode, % Correct column

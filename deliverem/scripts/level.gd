@@ -364,6 +364,10 @@ func display_reminder():
 	show_reminder.emit(text)
 		
 func on_clicked_door(pos: Vector2i):
+	# never while an actor is in the door's cell (scripts/door_guard.gd)
+	for d0 in doors:
+		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents, float(game.tile_size)):
+			return
 	# A door is an Area2D and its input is not pause-gated, so without this a click lands while a
 	# caption, the help screen or a popup is up — and during a tutorial it would satisfy the very
 	# step that is still explaining what doors are.

@@ -460,6 +460,10 @@ func on_door_type_changed(pos: Vector2i):
 			board[pos.y][pos.x].door_type = door.rot_idx
 
 func on_clicked_door(pos: Vector2i):
+	# never while an actor is in the door's cell (scripts/door_guard.gd)
+	for d0 in doors:
+		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents + taxis, float(game.tile_size)):
+			return
 	for i in doors.size():
 		var door = doors[i]
 		if door.board_pos == pos:

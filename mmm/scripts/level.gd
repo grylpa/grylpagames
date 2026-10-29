@@ -97,8 +97,6 @@ const HAZARD_HEAR_TILES: float = 4.0
 signal started_playing
 signal sig_level_is_done(didwin:bool)
 
-var _field: Control = null
-
 signal delivered_one
 signal collision
 signal update_score(score:int)

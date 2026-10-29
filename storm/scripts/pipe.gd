@@ -60,6 +60,21 @@ func _ready() -> void:
 		else:
 			StormToolArt.draw_tool(_tool_draw, action, Vector2.ZERO, 38.0, _tool_fill()))
 	add_child(_tool_draw)
+	# the floor tile and the furniture are drawn (room_art.gd); their sprites stay for visibility,
+	# placement and the room's tint, with their own pixels hidden
+	$PipeFloor2.self_modulate = Color(1, 1, 1, 0)
+	var floor_art: Node2D = Node2D.new()
+	floor_art.scale = Vector2.ONE / $PipeFloor2.scale
+	floor_art.draw.connect(func() -> void: StormRoomArt.draw_floor(floor_art, 20.0, board_pos))
+	floor_art.z_index = 0
+	$PipeFloor2.add_child(floor_art)
+	_furniture_art = Node2D.new()
+	_furniture_art.draw.connect(func() -> void:
+		StormRoomArt.draw_furniture(_furniture_art, _furniture_kind, furniture_ruined))
+	_furniture_art.visible = false
+	_furniture_art.scale = Vector2(1.3, 1.3)     # most of the tile, so a piece reads at a glance
+	add_child(_furniture_art)
+	move_child(_furniture_art, $Furniture.get_index() + 1)
 
 func can_fill():
 	return has_brick < 0 and has_coin < 0 and !is_drain
@@ -213,15 +228,24 @@ func set_action(_action:String, _texture:Array, _action_level:float, _overflow_l
 		if action == "drain":
 			is_drain = true
 
+var _furniture_art: Node2D = null
+var _furniture_kind: String = ""
+
 func set_furniture(_texture:Texture2D, _val:int, _modulate:Color):
-	$Furniture.show()
+	# drawn (room_art.gd) from which picture this is; the sprite only carries the texture
 	$Furniture.texture = _texture
 	$Furniture.modulate = _modulate
+	$Furniture.hide()
+	_furniture_kind = _texture.resource_path.get_file().get_basename()
+	_furniture_art.visible = true
+	_furniture_art.queue_redraw()
 	furniture_value = _val
 
 # Soaked through: dark and dull, so it reads as lost from across the room.
 func ruin_furniture() -> void:
 	furniture_ruined = true
+	if _furniture_art != null:
+		_furniture_art.queue_redraw()
 	var m: Color = $Furniture.modulate
 	var grey: float = (m.r + m.g + m.b) / 3.0
 	$Furniture.modulate = Color(lerpf(m.r, grey, 0.7) * 0.45, lerpf(m.g, grey, 0.7) * 0.45,

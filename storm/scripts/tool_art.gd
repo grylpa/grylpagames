@@ -149,7 +149,11 @@ static func _bucket(ci: CanvasItem, mid: Vector2, s: float, f: float) -> void:
 	var bot_half: float = s * 0.28
 	var lw: float = _line_w(s)
 	# The handle first, so the rim covers where it meets.
-	ci.draw_arc(Vector2(cx, top_y), top_half * 0.92, PI * 1.08, PI * 1.92, 18, STEEL_DARK,
+	# Light steel with a dark edge, so its top reads on the dark menu tiles and on the floor alike
+	# (in dark steel it vanished against the tile).
+	ci.draw_arc(Vector2(cx, top_y), top_half * 0.92, PI * 1.08, PI * 1.92, 18, INK,
+		maxf(1.2, s * 0.05) + 1.4, true)
+	ci.draw_arc(Vector2(cx, top_y), top_half * 0.92, PI * 1.08, PI * 1.92, 18, STEEL_LIT,
 		maxf(1.2, s * 0.05), true)
 	var wall: float = s * 0.05
 	ci.draw_colored_polygon(_trap(top_y, bot_y, top_half, bot_half, cx), STEEL)

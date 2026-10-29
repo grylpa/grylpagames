@@ -10,7 +10,6 @@ var games = [
 	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
 	["monkeyc",       "Apprentice",     "Watch the robot, then name its rule",                    "Brain twisters"],
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
-	# ["rlmadness",     "RL Madness",     "How fast can your brain switch?",                        "Brain twisters"],
 
 	["gorilla",       "Gorilla",        "Eat apples while counting gorillas",                     "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
@@ -40,7 +39,6 @@ var games = [
 	["udbr",          "Buoy",           "Float up and down with your breath",                     "Serenity"],
 	["crack",         "Crack the Safe", "Crack the safe with your breath",                        "Serenity"],
 	["mother",        "Mother Snake",   "Follow the mother snake's breathing path",               "Serenity"],
-	#["river",         "River",          "Float down the river with your breath",                  "Serenity"],
 
 	["couples",       "Couples",        "Find the two identical cards",                           "Recognition"],
 	["friends",       "Friends",        "Recognize your friends on an evening stroll",            "Recognition"],

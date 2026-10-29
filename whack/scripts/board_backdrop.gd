@@ -30,7 +30,7 @@ class_name WhackBoardBackdrop
 const TURF_A: Color = Color(0.153, 0.239, 0.153)
 const TURF_B: Color = Color(0.129, 0.208, 0.133)
 const TURF_EDGE: Color = Color(0.086, 0.141, 0.098)
-const EARTH: Color = Color(0.235, 0.176, 0.125)
+const EARTH: Color = Color(0.36, 0.24, 0.14)      # warm turned soil (a cooler one read as rock)
 const RAIL_A: Color = Color(0.706, 0.196, 0.216)
 const RAIL_B: Color = Color(0.914, 0.855, 0.725)
 const LAMP: Color = Color(1.0, 0.87, 0.58)
@@ -117,8 +117,25 @@ static func _earth(bg: Control, w: float, h: float) -> void:
 			# and never twice the same shape.
 			var wobble: float = 0.62 + 0.38 * fmod(float(k) * 2.7 + r, 1.0)
 			pts.append(c + Vector2(cos(ang), sin(ang) * 0.62) * r * wobble)
-			cols.append(EARTH.lightened(0.06 * fmod(float(k), 2.0)))
+			cols.append(EARTH.darkened(0.25))
+		# A MOLEHILL, not a flat stain: the ragged edge dark, the heap inside lighter toward the
+		# light (top left), crumbs and pebbles on it. Still irregular, never a filled circle.
 		bg.draw_polygon(pts, cols)
+		var inner: PackedVector2Array = PackedVector2Array()
+		var icols: PackedColorArray = PackedColorArray()
+		for k in n:
+			var q: Vector2 = c + (pts[k] - c) * 0.72 + Vector2(-0.06, -0.08) * r
+			inner.append(q)
+			var lit: float = clampf(((q - c) / r).dot(Vector2(-0.6, -0.8)), -1.0, 1.0)
+			icols.append(EARTH.lightened(0.10 + 0.14 * lit) if lit > 0.0 else EARTH.darkened(-0.10 * lit))
+		bg.draw_polygon(inner, icols)
+		for k in 7:
+			var a2: float = float(k) * 2.39 + r
+			var d2: float = (0.15 + 0.55 * fmod(float(k) * 0.37 + r * 0.01, 1.0)) * r
+			var pb: Vector2 = c + Vector2(cos(a2), sin(a2) * 0.6) * d2
+			var ps: float = (1.2 + fmod(float(k) * 0.71, 1.0) * 1.6) * scale_up
+			bg.draw_rect(Rect2(pb - Vector2(ps, ps * 0.7), Vector2(ps * 2.0, ps * 1.4)), EARTH.lightened(0.28))
+			bg.draw_rect(Rect2(pb + Vector2(-ps, ps * 0.3), Vector2(ps * 2.0, ps * 0.4)), EARTH.darkened(0.35))
 
 # The stall lamp, overhead. From above a lamp is a pool on the ground, not a cone in the air.
 static func _lamp(bg: Control, w: float, h: float, t: float) -> void:

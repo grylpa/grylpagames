@@ -70,7 +70,7 @@ Arms are visual only — timing is judged purely by gesture durations.
 Index 0: `duration_min` (1–20)  
 Index 1: `selected_preset` (index into GUIDED_PRESETS)
 
-## Presets (same as udbr/river)
+## Presets (same as udbr)
 
 | Label | Values |
 |-------|--------|

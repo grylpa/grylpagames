@@ -866,7 +866,7 @@ strictly more than `new_game()` — it snapshots the real session (`begin_tutori
 tutorial's own starting level. Calling `new_game()` alone leaves that setup half-applied.
 
 **`handle_new_board()` is not the only path.** Six games call `new_game()` straight off N with no
-dialog at all (`breathe`, `crack`, `mother`, `udbr`, plus `typit` and `river`, which have no
+dialog at all (`breathe`, `crack`, `mother`, `udbr`, plus `typit`, which has no
 tutorial), so each of those tests `game.restart_tutorial()` first. And four games
 (`lightsout`, `storm`, `wolves`, `mmm`) additionally dock a point for N in their `level.gd`; that is
 now skipped under `tutorial_mode`, since it would be penalising the coach's own board. Any new
@@ -900,7 +900,7 @@ breathing as the player's own pattern. Measured: `has_user_session false -> true
 Not a tutorial bug, but found while auditing one, and worth recording here because the audit is
 what surfaced it. `MainGlobals.popup_open` is global and sticky, and while it is set
 `scripts/main.gd::_process` blanks the digitized-swipe flags every frame — which silently kills
-exactly the games driven by them (udbr, mother, crack; river is commented out of the game list)
+exactly the games driven by them (udbr, mother, crack)
 and no others. Two owners set it: `ReauthPopup`, shown when the session expires after the app has
 been sitting idle, and storm's action panel. `ReauthPopup` cleared it only from its two buttons, so
 any other way of that popup going away left every breathing game dead until the app was restarted;

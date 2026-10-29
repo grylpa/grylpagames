@@ -7,6 +7,14 @@ shader_type canvas_item;
 // across tiles (and whatever a tile's rotation) instead of repeating in each one.
 
 varying vec2 world;
+varying vec2 tile_local;
+
+// ROUNDED OUTER CORNERS (scripts/road_corners.gd convex): a corner flagged here is cut off on an arc
+// of round_r, in the tile's own frame (the offset from the tile's center), so a bend's outside
+// corner is round like its inside one. Each road tile has its own copy of this material.
+uniform vec4 round_corners = vec4(0.0);
+uniform float round_r = 8.0;
+const vec2 CORNER_SIGN[4] = vec2[4](vec2(1.0, 1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0), vec2(1.0, -1.0));
 
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -24,6 +32,9 @@ float noise(vec2 p) {
 
 void vertex() {
 	world = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy;
+	// the sprite's own pixels (a 40 px tile, centered) turned like the tile but NOT scaled, whatever
+	// scale the board is drawn at
+	tile_local = mat2(normalize(MODEL_MATRIX[0].xy), normalize(MODEL_MATRIX[1].xy)) * VERTEX;
 }
 
 void fragment() {
@@ -43,5 +54,14 @@ void fragment() {
 	float dot_m = clamp((tex.r - tex.b) * 2.0, 0.0, 1.0);
 	vec3 stud = vec3(0.96, 0.80, 0.25);
 	col = mix(col, stud, dot_m);
-	COLOR = vec4(col, tex.a);
+	float keep = 1.0;
+	for (int i = 0; i < 4; i++) {
+		if (round_corners[i] > 0.5) {
+			vec2 q = tile_local * CORNER_SIGN[i] - vec2(20.0 - round_r);
+			if (q.x > 0.0 && q.y > 0.0) {
+				keep = min(keep, 1.0 - smoothstep(round_r - 0.6, round_r + 0.6, length(q)));
+			}
+		}
+	}
+	COLOR = vec4(col, tex.a * keep);
 }

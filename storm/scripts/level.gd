@@ -1097,8 +1097,15 @@ func _on_closed_intro_popup():
 		game.level_is_ready = true
 		_start_playing()
 		return
-	# One room is already all on screen in the mansion view: no preview, no zoom, straight in.
+	# One room: nothing to preview, so no countdown -- but it is played framed like every other
+	# level, glided into from the mansion view. (It used to be played in the mansion view, smaller
+	# than any other level's room.)
 	if rooms.size() <= 1:
+		var one_round: int = _preview_round
+		await _glide_to_player()
+		if one_round != _preview_round or game.level_is_done:
+			return
+		zoom_camera(true)
 		game.level_is_ready = true
 		_start_playing()
 		return
@@ -1917,6 +1924,60 @@ func hamming_d_to_player(p: Vector2i) -> int:
 	var d = (p - player.board_pos).abs()
 	return max(d.x, d.y)
 
+var _menu_blur_layer: CanvasLayer = null
+
+# Two frames after the menu is built, its slots are laid out: blur the union of their rects, padded
+# the same on every side, with the center slot's rect left sharp.
+func _fit_menu_blur(popup_node: Window, swatches: Array, center: Control, pad: float) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(popup_node) or not popup_node.visible or swatches.is_empty():
+		return
+	var area: Rect2 = Rect2()
+	var first: bool = true
+	for sw in swatches:
+		if not is_instance_valid(sw):
+			continue
+		var r: Rect2 = (sw as Control).get_global_rect()
+		area = r if first else area.merge(r)
+		first = false
+	if first:
+		return
+	var win_ofs: Vector2 = Vector2(popup_node.position)
+	var rect: Rect2 = Rect2(area.position + win_ofs, area.size).grow(pad)
+	var hole: Rect2 = Rect2()
+	if center != null and is_instance_valid(center):
+		var hr: Rect2 = center.get_global_rect()
+		hole = Rect2(hr.position + win_ofs - rect.position, hr.size)
+	var blur_layer: CanvasLayer = _show_menu_blur(rect, hole)
+	popup_node.tree_exiting.connect(func() -> void: _free_menu_blur(blur_layer))
+	popup_node.popup_hide.connect(func() -> void: _free_menu_blur(blur_layer))
+
+func _show_menu_blur(rect: Rect2, hole: Rect2) -> CanvasLayer:
+	_free_menu_blur(_menu_blur_layer)
+	var blur_layer: CanvasLayer = CanvasLayer.new()
+	blur_layer.layer = 90
+	add_child(blur_layer)
+	_menu_blur_layer = blur_layer
+	var cr: ColorRect = ColorRect.new()
+	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cr.position = rect.position
+	cr.size = rect.size
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = preload("res://storm/scenes/menu_blur.gdshader")
+	mat.set_shader_parameter("rect_size", rect.size)
+	mat.set_shader_parameter("hole", Vector4(hole.position.x, hole.position.y, hole.size.x, hole.size.y))
+	mat.set_shader_parameter("corner", maxf(6.0, minf(hole.size.x, hole.size.y) * 0.25))
+	cr.material = mat
+	blur_layer.add_child(cr)
+	return blur_layer
+
+func _free_menu_blur(blur_layer: CanvasLayer) -> void:
+	if blur_layer != null and is_instance_valid(blur_layer):
+		blur_layer.queue_free()
+	if blur_layer == _menu_blur_layer:
+		_menu_blur_layer = null
+
 func create_actions_popup(_board_pos: Vector2i) -> void:
 	var d_to_player:int = hamming_d_to_player(_board_pos)
 	if d_to_player < 0 or d_to_player > 1:
@@ -1951,7 +2012,7 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 	# sb.bg_color = Color(1, 1, 1, 0.5)
 	# sb.bg_color = Color(0.9, 0.9, 0.4, 1.0)
 	sb.set_border_width_all(border_w)
-	sb.border_color = Color(0.9, 0.9, 0.4, 1.0).darkened(1)
+	sb.border_color = Color.TRANSPARENT     # the blurred board behind it (menu_blur) is the menu's edge
 
 	var p0g = board[p0.y][p0.x].pipe.global_position
 	var p01g = board[p0.y+1][p0.x+1].pipe.global_position
@@ -2040,6 +2101,15 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 	if best_d == INF:
 		# Larger than the screen: the middle slot, kept on screen as best it can be.
 		top_left = Vector2(MainGlobals.clamp_popup_rect(top_left, popup.size, 4).position)
+	# BEHIND THE MENU THE BOARD IS BLURRED, all but the slot over the tapped tile, which stays sharp
+	# so the tile and the player show through it (menu_blur.gdshader on a layer just under the popup;
+	# freed with the popup).
+	# The blur is fitted to where the slots actually landed, a frame after layout (_fit_menu_blur):
+	# a panel sizes itself from its content, so the popup's computed size was off by a few pixels
+	# and the margins came out uneven. It belongs to THIS popup: when a new menu replaces an old one,
+	# the old one leaving the tree must not take the new menu's blur with it.
+	var menu_swatches: Array = []
+	var center_swatch: Array = [null]
 	popup.popup(Rect2i(Vector2i(top_left), popup.size))
 	MainGlobals.set_popup_open(true)
 	if not popup.popup_hide.is_connected(MainGlobals.set_popup_open.bind(false)):
@@ -2070,11 +2140,15 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 			swatch.set_meta("target_pos", _board_pos)
 			swatch.set_meta("action_id", action.id)
 			swatch.gui_input.connect(_on_action_pressed.bind(swatch))
+			menu_swatches.append(swatch)
 		else:
 			var swatch = panel.init(box_w, sep, Color.TRANSPARENT if slot == best else empty_color)
 			swatch.set_meta("target_pos", _board_pos)
 			swatch.set_meta("action_id", -1)
 			swatch.gui_input.connect(_on_action_pressed.bind(swatch))
+			menu_swatches.append(swatch)
+			if slot == best:
+				center_swatch[0] = swatch
 		origin.add_child(panel)
 		panel.anchor_left = 0
 		panel.anchor_top = 0
@@ -2084,6 +2158,7 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 		panel.size_flags_vertical = 0
 		# `origin` is the middle of the menu.
 		panel.position = (Vector2(slot) - Vector2(grid) * 0.5) * pitch
+	_fit_menu_blur(popup, menu_swatches, center_swatch[0], float(sep) * 3.0 + 2.0)
 
 func get_action_by_id(action_id:int, pop:bool):
 	for a_idx in range(available_actions.size()):

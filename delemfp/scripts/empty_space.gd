@@ -14,17 +14,18 @@ func _ready() -> void:
 #func _process(delta: float) -> void:
 	#pass
 
-func show_hide_walls(board):
-	var p = board_pos
-	if !DelemfpG.game.in_board(p):
-		return
+# The dark rim where this cell meets the road is DRAWN (scripts/road_corners.gd): it follows the
+# road's rounded inside corners, which cut into this cell; the square wall sprites could not.
+const RIM: Color = Color8(29, 45, 30)
+var _rim: Node2D = null
+var _board: Array = []
 
-	$Wall0.visible = p.x+1 < DelemfpG.game.board_size.x and board[p.y][p.x+1].ispipe
-	$Wall1.visible = p.y+1 < DelemfpG.game.board_size.y and board[p.y+1][p.x].ispipe
-	$Wall2.visible = p.x > 0 and board[p.y][p.x-1].ispipe
-	$Wall3.visible = p.y > 0 and board[p.y-1][p.x].ispipe
-	
-	$Wall4.visible = p.x+1 < DelemfpG.game.board_size.x and p.y+1 < DelemfpG.game.board_size.y and board[p.y+1][p.x+1].ispipe
-	$Wall5.visible = p.y+1 < DelemfpG.game.board_size.y and p.x > 0 and board[p.y+1][p.x-1].ispipe
-	$Wall6.visible = p.x > 0 and p.y > 0 and board[p.y-1][p.x-1].ispipe
-	$Wall7.visible = p.y > 0 and p.x+1 < DelemfpG.game.board_size.x and board[p.y-1][p.x+1].ispipe
+func show_hide_walls(board):
+	for k in 8:
+		get_node("Wall%d" % k).hide()
+	_board = board
+	if _rim == null:
+		_rim = Node2D.new()
+		_rim.draw.connect(func() -> void: RoadCorners.draw_empty_rim(_rim, _board, board_pos, 20.0, RIM, 4.0))
+		add_child(_rim)
+	_rim.queue_redraw()

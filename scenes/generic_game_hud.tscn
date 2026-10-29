@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://32j1xlmima7c" path="res://scripts/generic_game_hud.gd" id="1_g5uta"]
 [ext_resource type="Theme" uid="uid://jmyy33bjn73p" path="res://scenes/start_button.tres" id="2_8sq4i"]
-[ext_resource type="Texture2D" uid="uid://dd30vw63fidb2" path="res://art/head2-4x.png" id="3_7p438"]
+[ext_resource type="Texture2D" uid="uid://b8v5nxkqe3n67" path="res://art/player_head_icon.png" id="3_7p438"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_aqys0"]
 bg_color = Color(0, 0, 0, 0.501961)
@@ -224,7 +224,6 @@ vertical_alignment = 1
 
 [node name="LivesIcon" type="TextureRect" parent="LivesContainer" unique_id=2054094888]
 unique_name_in_owner = true
-modulate = Color(1, 1, 0, 1)
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -324,7 +323,6 @@ vertical_alignment = 1
 
 [node name="PacketsIcon" type="TextureRect" parent="PacketsContainer" unique_id=1707496957]
 unique_name_in_owner = true
-modulate = Color(1, 1, 0, 1)
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 size_flags_horizontal = 4

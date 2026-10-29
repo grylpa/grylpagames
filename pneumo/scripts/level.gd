@@ -363,6 +363,10 @@ func reset_sender_receiver(transaction_id):
 			t.reset_sender_receiver()
 
 func on_clicked_door(pos: Vector2i):
+	# never while an actor is in the door's cell (scripts/door_guard.gd)
+	for d0 in doors:
+		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents, float(game.tile_size)):
+			return
 	# Door turns per capsule is the look-ahead measure: it climbs when planning turns into
 	# firefighting, well before the delivery count itself suffers.
 	game.record_count("door_actions")

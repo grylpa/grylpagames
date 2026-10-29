@@ -8,7 +8,6 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 - **Breathe** — tap to breathe along a visual guide; tracks your rhythm on a graph
 - **Crack the Safe** — follow a breathing pattern (inhale / hold / exhale) to open a vault
 - **Mother** — draw a shape that matches a breathing-pace curve; a child shape mirrors you
-- **River** — guide a boat down a river by breathing in time with the current
 - **UDBR** — up / down / breathe / rest; four-quadrant guided breathing drill
 
 **Attention / Reflexes**
@@ -16,7 +15,6 @@ A collection of mini-games built with Godot 4.6, targeting Android, desktop, and
 - **Whack** — classic timing and reaction game
 - **Weris** — color-word Stroop variant; pick the ink color, not the word
 - **OOO** — one of these things is not like the others
-- **RL Madness** — left/right split-attention task
 - **Pop** — tap the right bubbles before they drift off screen
 
 **Memory / Matching**

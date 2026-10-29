@@ -278,6 +278,10 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 		MainGlobals.do_after(0.5, func(): game.play_sound("motor", false))
 			
 func on_clicked_door(pos: Vector2i):
+	# never while an actor is in the door's cell (scripts/door_guard.gd)
+	for d0 in doors:
+		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents, float(game.tile_size)):
+			return
 	#if board[pos.y][pos.x].has_agent:
 		#return
 	for i in doors.size():

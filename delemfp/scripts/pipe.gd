@@ -19,8 +19,19 @@ func set_rot(board):
 		var q: Vector2i = p + [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP][i] \
 			+ [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP][(i + 1) % 4]
 		_diag.append(q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size() and board[q.y][q.x].ispipe)
+	_fillets = RoadCorners.corners(board, p)
+	_trim = RoadCorners.trims(board, p)
+	_convex = RoadCorners.convex(board, p)
+	if _mat != null:
+		var rc: Vector4 = Vector4.ZERO
+		for i: int in _convex:
+			rc[i] = 1.0
+		_mat.set_shader_parameter("round_corners", rc)
+		_mat.set_shader_parameter("round_r", RoadCorners.R)
 	if _curb != null:
 		_curb.queue_redraw()
+	if _fill != null:
+		_fill.queue_redraw()
 	if d and u and r and l:
 		$PipeImageLR.hide()
 		$PipeImage4.show()
@@ -72,17 +83,33 @@ static var _asphalt: ShaderMaterial = null
 var _open: Array = [true, true, true, true]       # r, d, l, u: is there road that way
 var _diag: Array = [true, true, true, true]       # road at the corner between side i and side i+1
 var _curb: Node2D = null
+var _fill: Node2D = null
+var _mat: ShaderMaterial = null
+var _convex: Array = []                           # rounded OUTER corners (scripts/road_corners.gd)
+var _fillets: Array = []                          # rounded inside corners (scripts/road_corners.gd)
+var _trim: Array = [[false, false], [false, false], [false, false], [false, false]]
 
 func _dress_road() -> void:
 	if _asphalt == null:
 		_asphalt = ShaderMaterial.new()
 		_asphalt.shader = preload("res://delemfp/scripts/asphalt.gdshader")
+	# this tile's own copy: its outer corners are rounded by a uniform (RoadCorners.convex)
+	_mat = _asphalt.duplicate()
 	for sp: Sprite2D in [$PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
-		sp.material = _asphalt
+		sp.material = _mat
 	_curb = Node2D.new()
 	_curb.draw.connect(_draw_curb)
 	add_child(_curb)
 	move_child(_curb, $PipeImageRD.get_index() + 1)
+	# above every road surface: a curved curb's ends lie over the neighboring tiles, and a neighbor
+	# drawn later used to cover them (the breaks in the outline)
+	_curb.z_index = 1
+	# the asphalt a rounded inside corner adds (scripts/road_corners.gd), in the road's own material
+	_fill = Node2D.new()
+	_fill.material = _asphalt
+	_fill.draw.connect(_draw_fillets)
+	add_child(_fill)
+	move_child(_fill, _curb.get_index())
 
 # The curbs JOIN at every corner. Each closed side gets a strip (1.5 px) along its edge and a
 # shadow (3.0 px) falling onto the road. Where two closed sides meet on one tile (a bend) the strips are
@@ -93,6 +120,10 @@ func _dress_road() -> void:
 # tone: at 4-8 px with a bright stone and a lit line they read as thick walls and distracted from
 # play (user, 2026-10-25). Drawn first as plain full-length strips, they
 # overlapped on bends and left a square hole at every inside corner.
+func _draw_fillets() -> void:
+	for i: int in _fillets:
+		_fill.draw_colored_polygon(RoadCorners.polygon(i, 20.0), Color.WHITE)
+
 func _draw_curb() -> void:
 	var t: float = 20.0
 	var cw: float = 1.5
@@ -112,6 +143,16 @@ func _draw_curb() -> void:
 		var kb: float = 0.0 if _open[(i + 3) % 4] else 1.0
 		var a: Vector2 = n * t + side * t
 		var b: Vector2 = n * t - side * t
+		if _convex.has(i):
+			a -= side * RoadCorners.R
+			ka = 0.0
+		if _convex.has((i + 3) % 4):
+			b += side * RoadCorners.R
+			kb = 0.0
+		if _trim[i][0]:
+			a -= side * RoadCorners.R
+		if _trim[i][1]:
+			b += side * RoadCorners.R
 		var ai: Vector2 = a - n * cw - side * cw * ka
 		var bi: Vector2 = b - n * cw + side * cw * kb
 		var ao: Vector2 = a - n * (cw + sh) - side * (cw + sh) * ka
@@ -122,6 +163,9 @@ func _draw_curb() -> void:
 	for i in 4:
 		var j: int = (i + 1) % 4
 		if not _open[i] or not _open[j] or _diag[i]:
+			continue
+		if _fillets.has(i):
+			RoadCorners.draw_arc_curb(_curb, i, t, cw, sh, stone, lit, shade)
 			continue
 		var e1: Vector2 = dirs[i]
 		var e2: Vector2 = dirs[j]
@@ -135,3 +179,5 @@ func _draw_curb() -> void:
 		_curb.draw_colored_polygon(PackedVector2Array([c, p1, pin, p2]), stone)
 		_curb.draw_line(p1, pin, lit, 1.0)
 		_curb.draw_line(p2, pin, lit, 1.0)
+	for i: int in _convex:
+		RoadCorners.draw_convex(_curb, i, t, cw, sh, stone, lit, shade)

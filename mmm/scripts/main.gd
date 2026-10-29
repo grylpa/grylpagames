@@ -77,8 +77,10 @@ func start_tutorial() -> void:
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
-func _rect_or_null(r: Rect2):
-	return r if r.size.x > 0.0 and r.size.y > 0.0 else null
+func _rect_or_null(r: Rect2) -> Variant:
+	if r.size.x > 0.0 and r.size.y > 0.0:
+		return r
+	return null
 
 func _on_tutorial_done(_completed: bool) -> void:
 	_restore_tutorial_globals()
