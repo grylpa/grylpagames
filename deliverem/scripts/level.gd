@@ -271,6 +271,7 @@ func create_board() -> void:
 			if !board[row][col].ispipe:
 				add_empty(Vector2i(col,row))
 	show_hide_walls()
+	LawnScatter.scatter(self, board, game, 12)     # a few small things on the lawn
 				
 	for pipe in pipes:
 		pipe.set_rot(board)

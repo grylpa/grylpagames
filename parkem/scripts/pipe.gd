@@ -6,6 +6,9 @@ var blocked: bool = false
 # The floor is worn flagstone (flagstone.gdshader, one material shared by every floor sprite) with
 # a stone KERB wherever it meets the lawn (_draw_kerb, from the neighbors set_rot finds). It was a
 # flat gray square per tile straight onto the grass.
+# Which floor Detour is trying (flagstone.gdshader floor_style): 0 the old courtyard, 1 a forest floor
+# (rejected), 2 a dungeon floor.
+const FLOOR_STYLE: int = 2
 static var _stone: ShaderMaterial = null
 var _open: Array = [true, true, true, true]       # r, d, l, u: is there floor that way
 var _diag: Array = [true, true, true, true]       # floor at the corner between side i and side i+1
@@ -15,6 +18,7 @@ func _ready() -> void:
 	if _stone == null:
 		_stone = ShaderMaterial.new()
 		_stone.shader = preload("res://parkem/scripts/flagstone.gdshader")
+		_stone.set_shader_parameter("floor_style", FLOOR_STYLE)
 	for sp: Sprite2D in [$PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
 		sp.material = _stone
 	_kerb = Node2D.new()
@@ -35,8 +39,8 @@ func _draw_kerb() -> void:
 	var t: float = 20.0
 	var cw: float = 1.5
 	var sh: float = 3.0
-	var stone: Color = Color(0.40, 0.40, 0.38)
-	var lit: Color = Color(0.58, 0.57, 0.53, 0.5)
+	var stone: Color = Color(0.42, 0.40, 0.35) if FLOOR_STYLE == 0 else Color(0.14, 0.14, 0.17)
+	var lit: Color = Color(0.66, 0.63, 0.56, 0.5) if FLOOR_STYLE == 0 else Color(0.32, 0.32, 0.38, 0.5)
 	var shade: Color = Color(0, 0, 0, 0.32)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])

@@ -372,6 +372,8 @@ func create_board() -> void:
 					add_door_at(p, door_type)	
 										
 	start_dispatch = true
+	ParkemLitter.scatter(self, board, game, pipes)     # a few leaves and weeds on the paving
+	LawnScatter.scatter(self, board, game, 9, 2.0, 1.2, true)     # garden things on the open lawn beyond
 	if game.tutorial_mode:
 		_tutorial_setup()
 	game.create_fill_screen_camera(self)
