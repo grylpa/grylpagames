@@ -6,8 +6,7 @@ var blocked: bool = false
 # The floor is worn flagstone (flagstone.gdshader, one material shared by every floor sprite) with
 # a stone KERB wherever it meets the lawn (_draw_kerb, from the neighbors set_rot finds). It was a
 # flat gray square per tile straight onto the grass.
-# Which floor Detour is trying (flagstone.gdshader floor_style): 0 the old courtyard, 1 a forest floor
-# (rejected), 2 a dungeon floor.
+# Which floor Detour uses (flagstone.gdshader floor_style): 0 the old courtyard, 2 a dungeon floor.
 const FLOOR_STYLE: int = 2
 static var _stone: ShaderMaterial = null
 var _open: Array = [true, true, true, true]       # r, d, l, u: is there floor that way

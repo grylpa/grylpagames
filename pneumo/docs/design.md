@@ -216,7 +216,7 @@ crash; at zero, `sig_no_more_packets` reaches `main.gd::on_game_no_more_packets(
 play and calls `game.game_is_done(false, false)`.
 
 It used to count DELIVERIES still owed, with the level won at zero, and it wore
-`res://art/tube-1-4x.png` — a capsule, which said "deliveries" correctly for the old meaning and
+`res://art/tube-1-4x.png` (since deleted) — a capsule, which said "deliveries" correctly for the old meaning and
 says nothing about the new one. It now wears `res://art/bomb1.png`, a hazard, at scale 1.0 (the
 file is 32x32, which is exactly the size the shared HUD lays the icon out at).
 
@@ -414,14 +414,17 @@ A raw count is only comparable against the same task, which is exactly what a ba
 
 ## The chooser tile
 
-`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `pneumo()`), not grabbed. The old tile
-was a screen grab of the whole board -- a grid of roads, a ring of numbered stations, small colored tubes
--- a busy colored frame at chooser size. It is now three pneumatic-tube carriers, red, yellow and blue,
-large on plain slate: cylinders with the rounded, slightly pointed noses a real carrier has so it slides
-through its tube, a dark rubber wear ring where each nose meets the body, all shaded as one cylinder. On
-the way: the pipework was dropped (on the lawn it was irrelevant, and no layout of it read well), the
-station numbers too (unreadable at that size), and the carriers went through pills, flat-ended cans and
-cars before the shape was right.
+`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `pneumo()`), not grabbed: ONE glass
+tube on the game's riveted steel plate, coming in from the left and turning down on a wide radius (the
+rounded junctions `pipe.gd` draws) to a yellow beacon pad (a receiver: its chevrons point out), with
+two carriers riding in it -- red in the straight, yellow on its way down to the pad -- and the glass's
+sheen and highlight drawn over them. The carriers are the realistic ones (`_carrier`: a cylinder with
+rounded, slightly pointed noses and a dark rubber wear ring at each end, shaded as one cylinder).
+
+History: the old tile was a screen grab of the whole board (busy at chooser size). The drawn ones
+first had pipework that read wrong (on the lawn, zig-zagging, concentric bends) and then dropped it
+for three carriers alone on slate, which at chooser size read as crayons (2026-10-30). The game now
+draws glass tubes on steel, so the tile does too, with one tube, not a network.
 
 ## Look and sound (the 2026-10-25 pass)
 

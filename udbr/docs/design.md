@@ -141,8 +141,15 @@ Results panel shows **Again** (left) and **Done** (right) in an HBox. Panel has 
 
 ## Settings
 
-`UdbrG.save_settings([duration_min])`:
+`UdbrG.save_settings()` writes `[duration_min, selected_mode, has_user_session, learned_inhale_ms,
+learned_exhale_ms, learned_hold_top_ms, learned_hold_bottom_ms, ambient_sound_idx]`:
 - `duration_min` (int, default 1): session length 1–15 minutes.
+- `selected_mode`, `has_user_session` and the four learned phase lengths: see Modes.
+- `ambient_sound_idx` (int, default 0): the **Ambient** menu choice (`UdbrG.AMBIENT_SOUNDS`) -- "No
+  sound", "Harp", "Piano" or "Bells", one loop under the session at -6 dB. Slow, beatless music
+  (`devtools/make_ambient_sounds.py` `breath_*`, shared with Breathe) that replaced three ocean-wave
+  recordings (2026-10-30), a noise bed heard on a phone as hiss with gaps; a saved choice keeps its
+  slot.
 
 ## Tutorial
 

@@ -13,6 +13,9 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
 	GorillaG.load_settings()
 	main_menu = game.create_main_menu(self)
+	# a sunny park tune with birds while the board is up, under the footsteps (devtools/make_ambient_sounds.py); stopped at the menu
+	game.add_sound(self, "ambient", preload("res://art/sounds/gorilla_ambient.ogg"), true)
+	game.set_sound_volume("ambient", -6.0)
 	main_menu.sig_slider_changed.connect(_on_menu_slider_changed)
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.add_entry(1, "Level", 1, GorillaLevelConfig.LEVELS.size(), false)
@@ -102,11 +105,13 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 func show_main_menu():
+	game.stop_sound("ambient")
 	main_menu.show()
 	$Level.hide()
 	MainGlobals.update_bottom_bar(["help", "mute", "scores"])
 
 func _show_level():
+	game.play_sound("ambient", false)
 	get_viewport().gui_release_focus()
 	$Level.show()
 	main_menu.hide()

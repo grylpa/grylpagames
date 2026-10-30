@@ -191,6 +191,19 @@ func new_game() -> void:
 	_results_panel.hide()
 	_canvas.queue_redraw()
 
+# THE MUSIC DUCKS WHILE THE DIAL TURNS (2026-10-30): with the music box playing at its own level the
+# ratchet's soft low tock was lost. It dips fast as a turn starts and comes back slowly once the dial
+# rests, so the clicks are always heard and the music fills the holds.
+const AMBIENT_DB: float = -8.0
+const AMBIENT_DUCK_DB: float = -26.0
+var _ambient_db: float = AMBIENT_DB
+
+func _duck_ambient(delta: float) -> void:
+	var target: float = AMBIENT_DUCK_DB if _gesture != 0 else AMBIENT_DB
+	var rate: float = 90.0 if target < _ambient_db else 10.0
+	_ambient_db = move_toward(_ambient_db, target, rate * delta)
+	game.set_sound_volume("ambient", _ambient_db)
+
 func _process(delta: float) -> void:
 	if not game.level_is_ready or game.paused() or _session_complete:
 		return
@@ -239,6 +252,7 @@ func _process(delta: float) -> void:
 	if notch_now != _notch:
 		_notch = notch_now
 		game.play_sound("click")
+	_duck_ambient(delta)
 
 	if _gesture == 0 and _last_swipe_dir == 1:
 		_short_angle += SHORT_SPEED * delta
@@ -481,10 +495,20 @@ func _do_draw(canvas: CanvasItem) -> void:
 		canvas.draw_line(hc + Vector2(2.0, 3.0), tip + Vector2(2.0, 3.0), Color(0, 0, 0, 0.30), hr * 0.20, true)
 		canvas.draw_line(hc, tip, CHROME_MID, hr * 0.18, true)
 		canvas.draw_line(hc, tip, Color(1, 1, 1, 0.25), hr * 0.06, true)
-		canvas.draw_circle(tip, hr * 0.17, CHROME_HI, true, -1.0, true)
-		canvas.draw_circle(tip + Vector2(-1.5, -1.5), hr * 0.07, Color(1, 1, 1, 0.6), true, -1.0, true)
-	canvas.draw_circle(hc, hr * 0.36, CHROME_MID, true, -1.0, true)
-	canvas.draw_circle(hc + Vector2(-2.0, -2.0), hr * 0.22, CHROME_HI, true, -1.0, true)
+		canvas.draw_circle(tip + Vector2(1.5, 2.0), hr * 0.18, Color(0, 0, 0, 0.30), true, -1.0, true)
+		_shaded_disc(canvas, tip, hr * 0.17, CHROME_LO, CHROME_HI)
+	# the hub: a beveled boss shaded in one piece (it was a disc with a lighter one stacked off center
+	# on it, which read as a misplaced circle) -- the chamfer lit top-left and dark bottom-right, the
+	# face a nearly flat mid tone so its edge shows evenly all round -- and a hex bolt dead center
+	_shaded_disc(canvas, hc, hr * 0.38, CHROME_LO.darkened(0.3), CHROME_HI.lightened(0.3))
+	_shaded_disc(canvas, hc, hr * 0.30, CHROME_MID.darkened(0.08), CHROME_MID.lightened(0.10))
+	var bolt: PackedVector2Array = PackedVector2Array()
+	for k in 6:
+		bolt.append(hc + Vector2.from_angle(deg_to_rad(_short_angle) + TAU * float(k) / 6.0) * hr * 0.15)
+	canvas.draw_colored_polygon(bolt, CHROME_LO)
+	var bolt_ring: PackedVector2Array = bolt.duplicate()
+	bolt_ring.append(bolt[0])
+	canvas.draw_polyline(bolt_ring, Color(0.08, 0.09, 0.10, 0.7), 1.0, true)
 
 	# The lamp: red while locked, green while open -- the state at a glance, above the dial
 	var lamp: Vector2 = Vector2(cx, door_y + frame_inset * 1.6 + 18.0)
@@ -560,27 +584,8 @@ func _do_draw(canvas: CanvasItem) -> void:
 	# Back to dial-local for the knob
 	canvas.draw_set_transform(Vector2(dcx, dcy), dial_rot, Vector2.ONE)
 
-	# Knob — knurled chrome: gentle teeth round a domed cap
-	var knob_r: float = dial_r * 0.275
-	var knob_inner_r: float = dial_r * 0.258
-	var n_teeth: int = 35
-	var knob_pts: PackedVector2Array = PackedVector2Array()
-	for i in range(n_teeth * 2):
-		var a_k: float = deg_to_rad(float(i) * 360.0 / float(n_teeth * 2))
-		var r_k: float = knob_r if i % 2 == 0 else knob_inner_r
-		knob_pts.append(Vector2(cos(a_k) * r_k, sin(a_k) * r_k))
-	canvas.draw_colored_polygon(knob_pts, CHROME_LO)
-	var knob_close: PackedVector2Array = PackedVector2Array(knob_pts)
-	knob_close.append(knob_pts[0])
-	canvas.draw_polyline(knob_close, CHROME_MID, 1.5, true)
 	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# the dome is lit from the top left whatever the dial's turn, so it is drawn unrotated
-	for k in 5:
-		var f2: float = float(k) / 4.0
-		canvas.draw_circle(Vector2(dcx, dcy) + Vector2(-1.0, -1.2) * knob_inner_r * 0.25 * f2,
-			knob_inner_r * lerpf(0.78, 0.25, f2), CHROME_LO.lerp(CHROME_HI, f2), true, -1.0, true)
-	canvas.draw_circle(Vector2(dcx, dcy) + Vector2(-0.3, -0.35) * knob_inner_r, knob_inner_r * 0.12,
-		Color(1, 1, 1, 0.7), true, -1.0, true)
+	_draw_knob(canvas, Vector2(dcx, dcy), dial_r * 0.275, dial_rot)
 
 	var score_c: Color = Color(0.68, 0.92, 0.76) if op else Color(0.90, 0.92, 0.96)
 	# Score
@@ -1141,3 +1146,67 @@ func _on_again_pressed() -> void:
 
 func _on_done_pressed() -> void:
 	sig_show_main_menu.emit()
+
+
+# THE KNOB, a turned-metal grip seen from above (2026-10-30; it was a toothed rim with five offset
+# circles stacked on it for a dome, which did not read as 3-D): a soft shadow, a SKIRT of fine grip
+# ridges that turn with the dial and catch the light on its top-left side, a beveled edge, and a flat
+# machined cap shaded smoothly from the top left (the light is fixed on the screen), with a notch on
+# the cap that turns with the dial.
+func _draw_knob(canvas: CanvasItem, at: Vector2, knob_r: float, rot: float) -> void:
+	var light: Vector2 = Vector2(-0.6, -0.8)
+	for k in 6:
+		canvas.draw_circle(at + Vector2(2.5, 4.0), knob_r + 5.0 - float(k) * 1.2, Color(0, 0, 0, 0.07), true, -1.0, true)
+	# the skirt: base, then one ridge every 6 degrees, lit by how much it faces the light
+	canvas.draw_circle(at, knob_r, CHROME_LO.darkened(0.25), true, -1.0, true)
+	var cap_r: float = knob_r * 0.80
+	var n_ridges: int = 60
+	for i in n_ridges:
+		var a_r: float = rot + TAU * float(i) / float(n_ridges)
+		var dir_r: Vector2 = Vector2(cos(a_r), sin(a_r))
+		var lit_r: float = clampf(dir_r.dot(light) * 0.5 + 0.5, 0.0, 1.0)
+		canvas.draw_line(at + dir_r * (cap_r + 1.0), at + dir_r * (knob_r - 0.8),
+			CHROME_LO.lerp(CHROME_HI, lit_r * lit_r), 1.6, true)
+	canvas.draw_arc(at, knob_r - 0.4, 0.0, TAU, 64, Color(0, 0, 0, 0.55), 1.0, true)
+	# the bevel between skirt and cap: bright toward the light, dark away from it
+	var bevel: PackedVector2Array = PackedVector2Array()
+	var bevel_cols: PackedColorArray = PackedColorArray()
+	var n_b: int = 48
+	for i in n_b:
+		var a_b: float = TAU * float(i) / float(n_b)
+		var dir_b: Vector2 = Vector2(cos(a_b), sin(a_b))
+		bevel.append(at + dir_b * (cap_r + 1.6))
+		var lit_b: float = clampf(dir_b.dot(light) * 0.5 + 0.5, 0.0, 1.0)
+		bevel_cols.append(CHROME_LO.darkened(0.2).lerp(Color(0.97, 0.98, 1.0), pow(lit_b, 1.6)))
+	canvas.draw_polygon(bevel, bevel_cols)
+	# the cap: a smooth gradient across it, darker toward the bottom right
+	var cap: PackedVector2Array = PackedVector2Array()
+	var cap_cols: PackedColorArray = PackedColorArray()
+	for i in n_b:
+		var a_c: float = TAU * float(i) / float(n_b)
+		var dir_c: Vector2 = Vector2(cos(a_c), sin(a_c))
+		cap.append(at + dir_c * cap_r)
+		var lit_c: float = clampf(dir_c.dot(light) * 0.5 + 0.5, 0.0, 1.0)
+		cap_cols.append(CHROME_MID.darkened(0.15).lerp(CHROME_HI, lit_c))
+	canvas.draw_polygon(cap, cap_cols)
+	# faint machining rings, and a soft sheen toward the light
+	for k in 4:
+		canvas.draw_arc(at, cap_r * (0.30 + 0.17 * float(k)), 0.0, TAU, 48, Color(1, 1, 1, 0.06), 1.0, true)
+	canvas.draw_circle(at + light * cap_r * 0.38, cap_r * 0.30, Color(1, 1, 1, 0.10), true, -1.0, true)
+	# the notch, turning with the dial (it points at the dial's 0)
+	var up: Vector2 = Vector2(0, -1).rotated(rot)
+	canvas.draw_line(at + up * cap_r * 0.45, at + up * cap_r * 0.88, Color(0.12, 0.12, 0.14, 0.9), 3.0, true)
+	canvas.draw_line(at + up * cap_r * 0.45 + light * 0.8, at + up * cap_r * 0.88 + light * 0.8, Color(1, 1, 1, 0.25), 1.0, true)
+
+
+# A disc shaded in ONE piece from `dark` (bottom right) to `light` (top left) -- the light is fixed on
+# the screen. Swap the two for a ring that reads as a bevel.
+func _shaded_disc(canvas: CanvasItem, at: Vector2, r: float, dark: Color, light: Color) -> void:
+	var lit_dir: Vector2 = Vector2(-0.6, -0.8)
+	var pts: PackedVector2Array = PackedVector2Array()
+	var cols: PackedColorArray = PackedColorArray()
+	for i in 40:
+		var dir: Vector2 = Vector2.from_angle(TAU * float(i) / 40.0)
+		pts.append(at + dir * r)
+		cols.append(dark.lerp(light, clampf(dir.dot(lit_dir) * 0.5 + 0.5, 0.0, 1.0)))
+	canvas.draw_polygon(pts, cols)

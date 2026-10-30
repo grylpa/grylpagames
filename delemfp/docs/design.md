@@ -347,14 +347,17 @@ Response times are handed to the shared session record as a whole distribution, 
 `art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `headlights()`), not grabbed. The old tile was a screen grab of the zoomed-in view.
 
 It is now night, after the name: the truck's lights reach up the road ahead to the orange dock at
-its end and no further, and the other streets are faint shapes in the dark -- the map you have to
-remember. The beam is a cone from the head, blurred, fading with distance.
+its end and no further, and the other streets are moonlit outlines -- the map you have to remember.
+The beam is a cone from the headlamps, blurred, fading with distance, with a small pool of light
+round the truck; the headlamps themselves glow. (2026-10-30: the first night version was near-black
+with a dim beam and read as a muddy dark square at chooser size; the night is now a moonlit navy,
+the streets beyond the beam faintly visible in cool blue, the beam brighter and warmer.)
 
 The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door`, `_pad`, `_vehicle`): the vehicle as the game draws it (`_engine`, `_wagon`, `_van` -- copies of `scripts/cargo_train_art.gd`) in a vehicle color, joined by a drawbar in that color over a dark backing, the pale green door bar, and the docks as beacon pads (`_pad`, a copy of `scripts/dock_art.gd`), on `GrassField`'s lawn. No numbers: digits are text, and tiles carry none.
 
 ## Sounds
 
-The ambient, still `motor` in code, is a NIGHT DRIVE -- a pulsing bass, soft electric-piano chords over a soft bed, a guitar arpeggio, a vibraphone tune, crickets, a car sweeping past (it was a quiet road with long stretches of nearly nothing) (`delemfp_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB, mastered by its audible band). It replaced the stock `engine-pulling-something.mp3`. The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
+The ambient, still `motor` in code, is a NIGHT DRIVE -- a pulsing bass, soft electric-piano chords over a soft bed, a guitar arpeggio, a vibraphone tune, crickets, a car sweeping past (it was a quiet road with long stretches of nearly nothing) (`delemfp_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB, mastered by its audible band). It replaced the stock `engine-pulling-something.mp3` (deleted on 2026-10-30). The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `dispatch` a new delivery (a soft two-tone bell), `delivery` one delivered (a thud and a ding). The engine recording stays. They replaced a heavy bell and an arcade coin.
 

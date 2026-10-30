@@ -276,16 +276,21 @@ Colors: `tap_col = Color(0.5, 0.9, 1.0, 0.85)`, `BORDER_COLOR = Color(1.0, 0.898
 
 ---
 
-## Sound Effects
+## Sound
 
-None — the session is silent by design.
+No sound effects -- nothing marks a breath. The **Ambient** menu choice (`BreatheG.AMBIENT_SOUNDS`,
+saved as `ambient_sound_idx`) plays one loop under the session at -6 dB: "No sound" (the default),
+"Harp", "Piano" or "Bells" -- slow, beatless music made by `devtools/make_ambient_sounds.py`
+(`breath_harp`, `breath_piano`, `breath_bells`), so nothing in it pulls at the breath's own timing.
+They replaced three ocean-wave recordings (2026-10-30), a noise bed heard on a phone as hiss with
+gaps; a saved choice keeps its slot.
 
 ---
 
 ## Main Menu
 
-One slider entry:
 1. **Duration (min)** (1–15) — session length in minutes
+2. **Ambient** — No sound / Harp / Piano / Bells (see Sound)
 
 ---
 

@@ -233,13 +233,14 @@ Response times are handed to the shared session record as a whole distribution, 
 `art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `lightsout()`), not
 grabbed. The old tile was a screen grab of the lit board, every marker a few pixels.
 
-It is now the walk from memory: the player -- the game's blue head (0.1, 0.5, 0.99), big -- in the
-dark with its eyes shut (large arcs, and no shine on the head: at chooser size a highlight was only
-noise), and above it a thought bubble (two white dots stepping up to it) holding
-the maze as it was while lit: the streets on the lawn, a dark red bomb, the blue goal, the player at
-its start and a dotted route round the bomb to the goal. The dark around it carries the rest of the
-streets, faint. Earlier drafts (a split between lit and dark, a light switch, a remembered route on
-the dark board, a light bulb with the maze in its glass) were turned down.
+It is now ONE board with the lights going out across it (2026-10-30): a soft diagonal split from
+corner to corner, the lit half holding what you must remember -- the dark red bomb on the short way
+and your blue goal pad at the road's end (the road stops there, lawn beyond) -- and the half you
+stand in already dark, only the player (the game's blue creature, glowing) visible in it. The tile
+before this (the walker with its eyes shut and the maze in a thought bubble) read at chooser size as
+a dark board with a blob in the corner. Earlier drafts that were turned down: a split between lit
+and dark (a different, earlier draw of this idea), a light switch, a remembered route on the dark
+board, a light bulb with the maze in its glass.
 
 ## Sounds
 

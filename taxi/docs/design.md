@@ -45,11 +45,10 @@ board is cut by (10, 6) tiles. `game.max_board_size` grows with the level even w
 
 ## How it looks (the 2026-10-24 pass)
 
-- **The road is asphalt** (`asphalt.gdshader`, one material shared by every road sprite, set in
-  `pipe.gd`'s `_ready`): aggregate grain, faint broad wear and patching, a rare oil stain, all in
-  WORLD coordinates so it runs on across tiles whatever a tile's rotation. The tile art's yellow
-  center dot is kept as a small road stud. The art itself (flat gray squares) is unchanged. A first
-  version had stains everywhere and read as camouflage.
+- **The road is asphalt** (`asphalt.gdshader`, set in `pipe.gd`'s `_ready`), in WORLD coordinates so
+  it runs on across tiles whatever a tile's rotation; its current look is under "Look (2026-10)"
+  below. The tile art (flat gray squares with a yellow dot) is unchanged; the shader keeps only its
+  alpha. A first version had stains everywhere and read as camouflage.
 - **No curbs**: `pipe.gd` draws only a soft 3 px shadow on the asphalt along each side of a road tile
   that has no road beyond it (`_open`, filled in by `set_rot` from the neighbors it already checks).
   A pale concrete curb with a lit edge used to run round the lot; in a parking lot it served no
@@ -205,8 +204,9 @@ still read.
   and a wet neon asphalt were tried and dropped (blocks narrower than the cabs; a haze over the screen).
 - **Round it** (`taxi/scripts/city_surround.gd`, `STYLE`): "night" -- dark brick sidewalk with amber,
   magenta and cyan shop-light pools drawn UNDER the street, so they never wash over the board; the
-  curb is dark (`empty_space.gd RIM`). "paving" (warm terracotta) and `GOLDEN_HOUR` (building
-  shadows) are kept as options.
+  curb is dark (`empty_space.gd RIM`). "paving" (warm terracotta) is kept as an option. A golden-hour
+  light with building shadows was tried, read as smudges, and was removed, as were the rooftop
+  blocks' shader code and the road stud.
 - **The cab is drawn** (`MonsterArt._draw_taxi`, inside the head node so the selection marks stay on
   top): yellow body, windows, checkered roof sign, lights. As the tank empties a see-through red wash
   creeps over it from the back (read from `GasSprite.region_rect`). **Passengers** are a badge -- a disc

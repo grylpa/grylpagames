@@ -204,7 +204,7 @@ it — rebuilding only when that rect actually changed.
 anything on the background is competing with the thing being measured.
 So there is no vignette, no gradient with a direction to it, no pattern and no motion. The surface
 is a deep base (`StudyBackdrop.LINEUP`, a low-chroma teal-green), a radially symmetric lift toward
-the centre at 5% alpha, and a fine untiled dust of specks in two tones at 4-9% alpha — enough that
+the center at 5% alpha, and a fine untiled dust of specks in two tones at 4-9% alpha — enough that
 the screen reads as a matte surface rather than as a missing asset, and far too little to compete
 with a coloured shape.
 
@@ -241,3 +241,9 @@ and nothing in the background should pull it.
 
 - The plate under each shape (`box.png`) is drawn by `scripts/plate_art.gd`: a beveled slate tile,
   identical and neutral everywhere, so it favors no position.
+- **The chooser tile** (`art/game_screen_200.png`, `devtools/make_thumbs.py` `lineup()`) is a police
+  LINEUP, the world's own picture for "you saw one, now point at it among others": four figures
+  against a height chart on Lineup's green wall, three of them dim silhouettes of different builds and
+  heights (short hair, a cap), the chosen one in full color under a soft spotlight cone, a warm rim on
+  its edges and a pool of light at its feet. (2026-10-30: the first version was four flat, nearly
+  identical figures, the chosen one barely lighter.)

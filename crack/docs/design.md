@@ -87,8 +87,12 @@ fine horizontal grain fixed per row by a hash, `_draw_brushing`), bevelled (`_dr
 left, shaded bottom and right) with a recessed panel; steel hex bolts; and the handle a three-spoke
 chrome wheel that **turns with the holds** (`_short_angle`, which the game always tracked and never
 showed), as the dial turns with the slides. The dial: a chrome bezel in light and dark rings, a black
-face with silver ticks and numbers, and a knurled chrome knob whose domed cap is drawn unrotated so it
-stays lit from the top left. It was flat navy rectangles and a blue dial.
+face with silver ticks and numbers, and the KNOB (`_draw_knob`): a turned-metal grip seen from above --
+a soft shadow, a skirt of fine grip ridges that turn with the dial and catch the light on its top-left
+side, a beveled edge, a flat machined cap shaded smoothly from the top left (the light is fixed on the
+screen) and a notch on the cap that turns with the dial, pointing at its 0. (2026-10-30: it was a
+toothed rim with five offset circles stacked on it for a dome, which did not read as 3-D.) It was
+flat navy rectangles and a blue dial.
 
 **Open or locked**: a small lamp above the dial (red / green), and while open the WHOLE DIAL turns
 green -- the face (`DIAL_FACE_OPEN`), its ticks and numbers -- with a green ring in the bezel and a green
@@ -99,6 +103,11 @@ and a faint halo alone were tried and were not clear enough; the old design's gr
 each time the dial passes one of its 100 marks (about twelve a second while it turns, -18 dB): a soft, low, damped tock -- a bright 3.2 kHz tick was tried and was harsh;
 `unlock`, two bolts drawing back and the latch giving, when a cycle opens the safe; `lock`, one bolt
 sliding home, when a cycle closes it. Soft throughout: this is one of the calm games.
+**Ambient** (2026-10-30; it had none): `crack_ambient.ogg` (`devtools/make_ambient_sounds.py`
+`crack`), a slow music box in E, its notes from E5 up and mastered quiet, played at -8 dB while the
+dial is up (`main.gd` `show_level`), stopped at the menu -- kept ABOVE the ratchet's low tock. Even so
+the music at its own level hid the ratchet, so it DUCKS while the dial turns (`level.gd`
+`_duck_ambient`): down to -26 dB fast as a turn starts, back to -8 dB slowly once the dial rests.
 
 **HUD overlay** (drawn on door at all times):
 - Recent gesture durations (last 4, in seconds)

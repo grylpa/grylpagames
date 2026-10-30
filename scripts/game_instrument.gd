@@ -100,7 +100,7 @@ static func chart_metric_name(folder: String) -> String:
 const METRIC_LABELS: Dictionary = {
 	"creatures_stopped": "Creatures stopped", "creatures_parked": "Creatures that got through",
 	"door_actions": "Door changes", "deliveries": "Delivered", "collisions": "Collisions",
-	"jobs_assigned": "Jobs assigned", "jobs_canceled": "Jobs canceled",
+	"jobs_assigned": "Jobs assigned", "jobs_cancelled": "Jobs canceled",
 	"span": "Longest order held", "rounds_right": "Rounds correct", "rounds_wrong": "Rounds wrong",
 	"cycles": "Cycles completed", "no_answer": "Left unanswered",
 	# Both say what the number IS, not just what it is called. "Lapses" and "spread" are the terms
@@ -206,7 +206,8 @@ const SUMMARY_ROWS: Dictionary = {
 	# The games that keep counts rather than answers. Named for what the number IS, since a bare
 	# "Overflows" beside a sparkline says nothing about which way is good.
 	"span": "Longest order held",
-	"jobs_canceled": "Changes of plan (jobs assigned then canceled)",
+	# the KEY keeps the spelling saved sessions and StatsOverview use; only the wording is American
+	"jobs_cancelled": "Changes of plan (jobs assigned then canceled)",
 	"collisions": "Collisions",
 	"creatures_stopped": "Turned back (creatures you stopped)",
 	# Ants is an interdiction game: the colony is trying to carry food home and the player is

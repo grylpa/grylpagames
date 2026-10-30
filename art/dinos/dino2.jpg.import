@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/dino2.jpg-7c3ede9a14eb5d4c6297e2a3c6bcb697.ct
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
