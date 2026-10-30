@@ -426,3 +426,13 @@ furthest back is hazed toward the sky. They stand on the lawn every grass game n
 rooted above a tower's foot is behind it, one rooted below is in front. All the grass used to go on
 last, so every tower wore the same fringe at its foot however far away it stood. Checked at chooser
 size: it still reads as four colored towers.
+
+## Look (2026-10)
+
+- Monsters, bombs and the player are drawn by `scripts/monster_art.gd` (a menacing bug; a glossy black
+  bomb with a colored band, brass collar, curling fuse and spark, upright and centered; the player a
+  glossy round creature with feet, eyes that blink); turns and corners eased by
+  `scripts/head_anim.gd` + `scripts/path_smoother.gd`.
+- Bricks are drawn by `scripts/block_art.gd`: three types (deep red long bricks; pale pink narrow
+  bricks; red with sandy ones mixed in) in one mortar.
+- Doors are the shared drawn gate / nail stubs (`scripts/door_art.gd`).

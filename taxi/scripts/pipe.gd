@@ -114,7 +114,9 @@ func show_path(timeout_sec = 3):
 		$PipePathImage.hide()
 
 func show_lobby(_show: bool):
-	$LobbyImage.visible = _show
+	# the lobby is a street like any other in the drawn city (asphalt.gdshader): its gravel picture
+	# stays hidden
+	$LobbyImage.visible = false
 
 func set_rot(board):
 	var p = board_pos
@@ -137,6 +139,12 @@ func set_rot(board):
 	_fillets = RoadCorners.corners(board, p)
 	_trim = RoadCorners.trims(board, p)
 	_convex = RoadCorners.convex(board, p)
+	if _mat != null:
+		var ic: Vector4 = Vector4.ZERO
+		for i in 4:
+			if _open[i] and _open[(i + 1) % 4] and _diag[i]:
+				ic[i] = 1.0
+		_mat.set_shader_parameter("inner_corners", ic)
 	if _mat != null:
 		var rc: Vector4 = Vector4.ZERO
 		for i: int in _convex:

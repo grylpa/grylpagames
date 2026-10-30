@@ -378,3 +378,8 @@ one loop (`ddooo_ambient.ogg`, -6 dB: lo-fi electric piano in A minor, an uprigh
 arcade coin, a swoosh and three stock ocean-wave loops picked at random.
 The ambient is calm for the same reason the backdrop is featureless: this game measures attention,
 and nothing in the background should pull it.
+
+## Look (2026-10)
+
+- The plate under each shape (`box.png`) is drawn by `scripts/plate_art.gd`: a beveled slate tile,
+  identical and neutral everywhere, so it favors no position.

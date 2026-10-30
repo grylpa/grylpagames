@@ -136,7 +136,7 @@ instead of along it. Measured: 382 of 435 squash frames compressed the wrong wor
 whole train telescoped in towards the head. Measured with five packets: 170 px of train collapsing
 to about 21 px. An empty capsule looked fine, which is why it only showed up with packets.
 
-**The tubes use the same 24-frame rolling animation as the head** (`art/tube_anim_frames.png`, a 180x100 atlas of 24 30x25 frames),
+**The tubes' sprites keep the 24-frame rolling animation of the head** (`art/tube_anim_frames.png`, a 180x100 atlas of 24 30x25 frames) -- hidden under the drawn canisters (see Look) --
 staggered a third of a cycle apart with `((i+2) % 3) * 8`; a third of 24 frames is 8, which is what
 the old `(i+2)%3` did over 3.
 
@@ -452,3 +452,21 @@ cars before the shape was right.
 **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no tube across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.
 
 **The walls are thin**: a 1.5 px strip and a 4 px shadow. At 3 px with an 8 px shadow they were thick and distracting (user, 2026-10-25).
+
+## Look (2026-10)
+
+- **Capsules are drawn** (`pneumo/scripts/capsule_art.gd`): pneumatic-post canisters seen from
+  above -- a cylinder in the capsule's color shaded across its width, steel end caps cut from its own
+  outline with dark seal rings, a light band that rolls round it with the distance traveled; the lead
+  capsule has two small lamps in its front cap. A sibling that copies the carrier's transform, so the
+  bounce squash and the turn still apply.
+- **Ducts**: inside corners rounded outward by `FILLET_R` (6) into the empty cell (`fillet_corners`,
+  `fillet_polygon`; neighbors trim their walls `_trim`; the floor leaves the fillet plain), a soft
+  highlight stripe along each duct's axis so it reads as a tube. The empty cells' rim is drawn
+  (`empty_space.gd _draw_rim`) and follows the fillets.
+- **Lobbies were drawn twice** (added by `add_target` and again by the grid loop): `add_pipe` now
+  skips a cell that already has a duct.
+- **Open door**: the original bracket sprites (the user's pick after arcs, a hub and corner leaves).
+- **Docks** are beacon pads (`scripts/dock_art.gd`); live senders/receivers never get orange or
+  brown (`skip_color_idxs` + `DOCK_LOOKALIKE_COLOR_IDXS`), which looked like the idle docks.
+- **Board size**: `init_sizes_odd()` and `buttons_height = 0`.

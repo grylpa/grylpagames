@@ -324,7 +324,9 @@ func create_board(force_new_taxis_and_stations:bool) -> void:
 				add_empty(Vector2i(col,row))
 
 	show_hide_walls()
-	LawnScatter.scatter(self, board, game, 20)     # a few small things on the lawn
+	TaxiCitySurround.build(self, board, game)     # the warm paving round the square
+	TaxiCitySurround.build_light(self, game)      # golden-hour light and building shadows (off)
+	TaxiCitySurround.build_night(self, board, game)     # night: shop-light glows round the square
 				
 	for pipe in pipes:
 		pipe.set_rot(board)
