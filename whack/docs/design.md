@@ -676,3 +676,10 @@ falses mean different things, and this game never calls `record_no_answer()`.
 A FESTIVAL ambient (`whack_ambient.ogg`, `devtools/make_ambient_sounds.py`: a crowd talking, a calliope waltz from a stand nearby, now and then a cheer, the bell of a high striker, a balloon; it was a slow pad of drifting chords) plays while the board is up (`main.gd` `show_level`, -6 dB) and stops at the menu (`show_main_menu`). The game had no ambient before.
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `hit` a bonk, `miss` a whiff, `appear` a pop as a target comes up, `wrong` a soft low note for a target left to expire. They replaced a tap, a bump, a click and a swoosh.
+
+## Look (2026-10)
+
+- Targets are domed buttons rising out of a burrow (draw_area.gd): earth ring, shadow, the dome in its
+  color with a darker rim and a thin crescent of gloss -- never a pale round highlight, which looked
+  like the white center dot that marks the real target. The earth patches are warm molehills with
+  pebbles, still irregular (board_backdrop.gd `_earth`).

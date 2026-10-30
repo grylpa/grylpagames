@@ -253,3 +253,13 @@ The road is asphalt (`asphalt.gdshader`, one material on every road sprite, set 
 `_dress_road`): aggregate grain, faint wear, a rare stain, in world coordinates, with the tile art's
 yellow markings kept. Each side with no road beyond it gets a thin curb with a faint lit edge and a
 shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surface's own tone, a 3 px shadow, the lit edge faint): at 4 px with a bright stone and a lit line the walls were thick and distracting (user, 2026-10-25). **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.
+
+## Look (2026-10)
+
+- Docks are beacon pads (`scripts/dock_art.gd`); a dock showing a bomb or an icon has no chevrons, and
+  its content is centered on the pad. Live docks skip orange and brown.
+- Bombs, the player and the hazards are `scripts/monster_art.gd`'s; doors the shared drawn gate / nail
+  stubs, never turned with an actor in the cell (`DoorGuard`).
+- Roads: rounded corners, curbs above the surface, crown and tire tracks on straights and bends
+  (`scripts/road_corners.gd`, asphalt.gdshader); the lawn short, with a few small things on it
+  (`scripts/lawn_scatter.gd`). Board: `init_sizes_odd()`, `buttons_height = 0`.

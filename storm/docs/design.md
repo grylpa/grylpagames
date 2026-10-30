@@ -843,3 +843,19 @@ It is brighter near the flash.
 
 `devtools/install_thumbs.py` copies it in; the published thumbnail under `docs/src/thumbs/` is
 derived from it by the games-doc build and must not be written by hand.
+
+## Look (2026-10)
+
+- Monsters, bombs and the player are drawn by `scripts/monster_art.gd` (a menacing bug; a glossy black
+  bomb with a colored band, brass collar, curling fuse and spark, upright and centered; the player a
+  glossy round creature with feet, eyes that blink); turns and corners eased by
+  `scripts/head_anim.gd` + `scripts/path_smoother.gd`.
+- Bricks are drawn by `scripts/block_art.gd`: three types (deep red long bricks; pale pink narrow
+  bricks; red with sandy ones mixed in) in one mortar.
+- Floor: one-tone marble tiles in each room's color with soft veins that run across tiles
+  (`storm/scripts/room_art.gd draw_floor`); furniture drawn there too -- a vase of flowers, a
+  television on its stand, a fringed rug kept inside its tile -- dark and stained when ruined.
+- Tool menu: the original outlined swatches, and BEHIND the menu the board blurred
+  (`storm/scenes/menu_blur.gdshader`), fitted to where the slots actually land and owned by its popup;
+  the slot over the tapped tile stays sharp. The bucket's handle is light steel with a dark edge.
+- A one-room level glides into its room like the others (no countdown).

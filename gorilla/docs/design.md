@@ -748,3 +748,13 @@ Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; nam
 tile, faint), so the room reads as enclosed rather than a flat tile sheet on the lawn. The floor
 sprites are at z -1 (`pipe.gd` `_ready`) so the band lies over the floor and under the apples, bricks
 and fences. It loops over the board array, not `game.board_size`.
+
+## Look (2026-10)
+
+- Monsters, bombs and the player are drawn by `scripts/monster_art.gd` (a menacing bug; a glossy black
+  bomb with a colored band, brass collar, curling fuse and spark, upright and centered; the player a
+  glossy round creature with feet, eyes that blink); turns and corners eased by
+  `scripts/head_anim.gd` + `scripts/path_smoother.gd`.
+- Bricks are drawn by `scripts/block_art.gd`: three types (deep red long bricks; pale pink narrow
+  bricks; red with sandy ones mixed in) in one mortar.
+- The wormhole is a drawn violet vortex with spiral arms and motes (`gorilla/scripts/wormhole_art.gd`).

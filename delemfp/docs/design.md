@@ -350,7 +350,7 @@ It is now night, after the name: the truck's lights reach up the road ahead to t
 its end and no further, and the other streets are faint shapes in the dark -- the map you have to
 remember. The beam is a cone from the head, blurred, fading with distance.
 
-The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door`, `_dock`, `_vehicle`): the game's own head, cargo and axle sprites (`art/head2-4x.png`, `art/agent_body1.png`, `art/agent_tail1.png`) tinted to a vehicle color and joined by the dark line with its black backing, the pale green door bar, and the trapezoid docks (`art/target-no-arrow-4x.png`, `art/receiver_torquise-no-arrow-4x.png`), on `GrassField`'s lawn. No numbers: digits are text, and tiles carry none. At 200 px there is room for one junction, one or two docks and one or two vehicles, drawn big.
+The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door`, `_pad`, `_vehicle`): the vehicle as the game draws it (`_engine`, `_wagon`, `_van` -- copies of `scripts/cargo_train_art.gd`) in a vehicle color, joined by a drawbar in that color over a dark backing, the pale green door bar, and the docks as beacon pads (`_pad`, a copy of `scripts/dock_art.gd`), on `GrassField`'s lawn. No numbers: digits are text, and tiles carry none.
 
 ## Sounds
 
@@ -364,3 +364,23 @@ The road is asphalt (`asphalt.gdshader`, one material on every road sprite, set 
 `_dress_road`): aggregate grain, faint wear, a rare stain, in world coordinates, with the tile art's
 yellow markings kept. Each side with no road beyond it gets a thin curb with a faint lit edge and a
 shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surface's own tone, a 3 px shadow, the lit edge faint): at 4 px with a bright stone and a lit line the walls were thick and distracting (user, 2026-10-25). **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.
+
+## Look (2026-10)
+
+- **The vehicle is drawn** (`scripts/cargo_train_art.gd`): an engine at the head (body in the
+  vehicle's color, a lighter cab, windshield, lamps), a flatbed cart per packet with a parcel,
+  crate, drums or sack on it, and a van at the tail. NO white or cream anywhere -- light parts use
+  `accent()` (the color moved well away from itself) so a small train still reads as its color. The
+  drawbar is the train's color (`link_color`) over a dark backing. The head and tail sprites still
+  exist (they move and turn) and are hidden by the art that follows them.
+- **Smooth turns** (agent.gd `_pose_art`): every part is posed on a short average of the trail and
+  points along its chord, so a corner is taken on an arc; a reversal swings at most `ART_TURN_RATE`.
+  Drawing only -- `position`, the Tail node and `body_ids` are untouched.
+- **Docks** are beacon pads (`scripts/dock_art.gd`); the numbered dock shows its number dark on the
+  pad. The **depot's cell** carries meta `under_dock`: its road is hidden (`pipe.hide_surface()`) and
+  `RoadCorners` treats it as a dock, so the road runs square up under the depot like any dock.
+- **Roads**: rounded inside and outside corners (`scripts/road_corners.gd`), curbs above the road
+  surface (`_curb.z_index = 1`), straights and bends with a slight crown and two tire tracks, no
+  center dashes inside a junction (asphalt.gdshader `open_sides`).
+- **Lawn**: short dense blades plus a few small things lying about (`scripts/lawn_scatter.gd`).
+- **Board size**: `init_sizes_odd()` and `buttons_height = 0` (see CLAUDE.md, the drawn art layer).

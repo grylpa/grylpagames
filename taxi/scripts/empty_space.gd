@@ -14,7 +14,7 @@ func _ready() -> void:
 
 # The dark rim where this cell meets the road is DRAWN (scripts/road_corners.gd): it follows the
 # road's rounded inside corners, which cut into this cell; the square wall sprites could not.
-const RIM: Color = Color8(29, 45, 30)
+const RIM: Color = Color(0.05, 0.05, 0.07)     # the curb at night (warm stone: Color(0.46, 0.38, 0.31))
 var _rim: Node2D = null
 var _board: Array = []
 

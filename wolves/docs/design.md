@@ -398,3 +398,8 @@ a warm mid-gray for the same reason.
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `start` a shepherd's two-note whistle (was a click). The sheep, dog, wolf and bell recordings and the grass footsteps stay; `swoosh` is registered and never played. The bells (`ambient`) and the steps stop at the main menu too (`main.gd` `show_main_menu`): leaving a level part way used to leave the bells ringing over the menu.
 
 **The field is a mown pasture** (`pasture.gdshader` on each field tile's sprite, set in `pipe.gd`'s `_ready`): a lighter, yellower green than the lawn outside the fence, soft broad patches, blade grain and darker tufts (it had mowing stripes, which read as horizontal bands), in world coordinates. It replaced a gray stone tile that read as asphalt. Mid-light on purpose: the white sheep and the dark wolves must both stand out. The compound keeps its per-level color, and `FIELD_WASH` still applies over it.
+
+## Look (2026-10)
+
+- Bricks are drawn by `scripts/block_art.gd` (three types, one mortar). The animals stay
+  `beast_art.gd`'s; `MonsterArt` leaves a head another drawing already hid.

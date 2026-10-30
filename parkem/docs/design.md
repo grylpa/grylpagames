@@ -175,7 +175,7 @@ Three things were wrong before, and they compounded:
    on each stop, and the level was won at zero — while a creature that *parked* called
    `inc_packet()` and put the number UP. So the one event the player is trying to prevent made the
    counter look better.
-2. It wore `res://art/head2-4x.png`, the shared HUD's default icon — the same picture the LIVES
+2. It wore `res://art/head2-4x.png`, the shared HUD's old default icon — the same picture the LIVES
    counter uses. A number counting creatures read as a number counting lives.
 3. Nothing enforced the failure at all: a creature parking cost 5 points and 10 seconds, and that
    was the whole of it.
@@ -301,9 +301,8 @@ are used; a disc swept along a bezier has no joints at all. The arrowhead is the
 left, aimed along the curve's own tangent so it continues the stroke rather than sitting across
 it.
 
-**Everything in it is the game's own.** The creature is the one from the board; the receiver is
-`art/receiver-w-grad-4x.png` tinted to its colour exactly as `target.gd` tints it; the door is the
-pale green of `parkem/art/door_diag.png` (`114,179,120`). The ghost route is drawn *under* the door,
+**Everything in it is the game's own.** The creature is the monster head the board draws (`_monster_head`, a copy of `scripts/monster_art.gd`); the receiver is the game's beacon pad (`_pad`); the door is the
+pale green of `parkem/art/door_diag.png` (`114,179,120`); the floor is the dungeon slabs, one per cell. The ghost route is drawn *under* the door,
 so the block reads as an interruption rather than being implied.
 
 Four tiles were made for this game and the first three are worth knowing about:
@@ -325,3 +324,30 @@ Four tiles were made for this game and the first three are worth knowing about:
 derived from it by the games-doc build and must not be written by hand.
 
 **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no floor across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.
+
+## Look (2026-10)
+
+- **The creatures are drawn** (`scripts/monster_art.gd`): a menacing bug head (crown, swept horns,
+  glowing amber slit eyes, fangs that snap, three pairs of legs stepping with the distance traveled)
+  and armored body segments (side spines, bands, four jointed legs). Paths are rounded through
+  corners (`scripts/path_smoother.gd`) and turns eased (`scripts/head_anim.gd`).
+- **A creature emerges whole** (agent.gd `_seed_trail`): at spawn the trail is laid straight back into
+  the dispatcher, so every part has its place and heading from the first frame; a part still inside
+  waits hidden at the dispatcher's center and shows as it comes out.
+- **The sender waits and fades**: it stays until the creature's LAST part is clear of it
+  (`agent.is_clear_of_dock()`, level `_reset_sender_when_clear`), then fades out over 0.9 s
+  (`target.flash_and_reset`, staying transparent two frames after the reset so the drawn dock never
+  flashes); a new sender fades in over 0.4 s.
+- **Turning at a blocked junction** (level `tick`): an open junction (door_type 0) with the way ahead
+  blocked turns into a free side like a plain road does; and a creature never enters its own SENDER
+  (`can_go_to` and `calc_cost_to_move_to` accept a dock only as its own receiver) -- it used to go back
+  and forth between the sender and a brick in front of it.
+- **Floor**: `flagstone.gdshader` `floor_style` (pipe.gd `FLOOR_STYLE`) -- 2, the current one, is a
+  DUNGEON: ONE dark blue-gray slab per board cell (so the grid the creatures turn on is visible),
+  slightly irregular edges, deep joints, hairline cracks, warm torchlight pools. 0 is the old mossy
+  courtyard; 1 (a forest floor) was rejected. A few leaves, weed tufts and edge shrubs/ferns
+  (`parkem/scripts/litter.gd`) and the lawn scatter round the board.
+- **Shut door** is the shared drawn gate (`scripts/door_art.gd`, set up in door.gd); open stays the
+  stud. **Bricks** are `BlockArt`, the type picked per cell. **Board** 17x17 on desktop
+  (`buttons_height = 0`, `init_sizes_odd()`). The HUD counter wears `art/monster_head_icon.png`
+  (`make_thumbs.py monster_icon`).

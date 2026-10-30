@@ -191,13 +191,28 @@ A raw count is only comparable against the same task, which is exactly what a ba
 (`devtools/make_thumbs.py`, `taxi()`), not grabbed. The old tile was a screen grab of the lot: four
 cabs, two pumps, a customer and a door arrow, each a few pixels, on asphalt and gravel.
 
-It now keeps the three things the game is about, large: a cab on a road (the game's own
-`art/taxi-clean-1.png`, facing +x as the game draws it at rotation 0, speed lines behind it), a dotted
-route from its nose to a customer waiting at the kerb (a round green head with a face, the look of the
-game's customers, with a soft glow), and the game's own gas station sign (`art/gas_station.png`) on the
-lawn, since fuel is the other half of the job. The lawn is `GrassField`'s colors; the road is the
+It is now a CONCEPT tile, not a crop of the game: a yellow cab head-on at night, headlights glowing, with a small glowing green map pin above it -- a fare waiting to be picked up. The lawn is `GrassField`'s colors; the road is the
 lot's 65/65/65 asphalt between gravel kerbs, with its yellow dots moved into two faint rows so the
 route is the only line along the middle. Checked at chooser size: cab, route, customer and pump all
 still read.
 
 **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner.
+
+## Look (2026-10)
+
+- **The square**: rough-textured asphalt with a faint painted grid on the cell lines
+  (asphalt.gdshader) -- the grid the cabs move on, nothing under them. Rooftop blocks between streets
+  and a wet neon asphalt were tried and dropped (blocks narrower than the cabs; a haze over the screen).
+- **Round it** (`taxi/scripts/city_surround.gd`, `STYLE`): "night" -- dark brick sidewalk with amber,
+  magenta and cyan shop-light pools drawn UNDER the street, so they never wash over the board; the
+  curb is dark (`empty_space.gd RIM`). "paving" (warm terracotta) and `GOLDEN_HOUR` (building
+  shadows) are kept as options.
+- **The cab is drawn** (`MonsterArt._draw_taxi`, inside the head node so the selection marks stay on
+  top): yellow body, windows, checkered roof sign, lights. As the tank empties a see-through red wash
+  creeps over it from the back (read from `GasSprite.region_rect`). **Passengers** are a badge -- a disc
+  in their color with a white figure (dark on a light passenger) that bobs now and then.
+- **Gas station**: a drawn yellow sign with a black pump (`taxi/scripts/gas_station_art.gd`).
+  **Buy button**: `taxi/art/buy_taxi.png`, a shopping cart with a diagonal cab, at right angles to the
+  disabled slash; **lives icon** `art/taxi_icon.png` (both `make_thumbs.py taxi_icons`).
+- **Doors**: the shared drawn gate / nail stubs; never turned while a cab is in the cell (`DoorGuard`).
+  Live docks skip orange and brown. **Board**: `init_sizes_odd()`, `buttons_height = 0`.
