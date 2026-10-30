@@ -252,7 +252,7 @@ The three route games share one drawing kit in `make_thumbs.py` (`_road`, `_door
 
 ## Sounds
 
-The ambient, still `motor` in code, is a DAY-STREET groove -- electric piano, a round bass, light drums -- with a car going by and a horn far off now and then (it was the van idling: one held tone) (`deliverem_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB, mastered by its audible band). It replaced the stock `engine-pulling-something.mp3`. The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
+The ambient, still `motor` in code, is a DAY-STREET groove -- electric piano, a round bass, light drums -- with a car going by and a horn far off now and then (it was the van idling: one held tone) (`deliverem_ambient.ogg`, `devtools/make_ambient_sounds.py`, -6 dB, mastered by its audible band). It replaced the stock `engine-pulling-something.mp3` (deleted on 2026-10-30). The delayed start after a dispatch no longer restarts a loop that is already playing (`play_sound("motor", false)`).
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `dispatch` a new delivery (a soft two-tone bell), `delivery` one delivered (a thud and a ding), `door` a junction turned (a short clack). The engine recording stays. They replaced a heavy bell, an arcade coin and a door creak.
 

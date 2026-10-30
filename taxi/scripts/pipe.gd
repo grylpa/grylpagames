@@ -114,8 +114,7 @@ func show_path(timeout_sec = 3):
 		$PipePathImage.hide()
 
 func show_lobby(_show: bool):
-	# the lobby is a street like any other in the drawn city (asphalt.gdshader): its gravel picture
-	# stays hidden
+	# the lobby is a square of road like any other (asphalt.gdshader): its gravel picture stays hidden
 	$LobbyImage.visible = false
 
 func set_rot(board):

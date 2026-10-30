@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/Dmitri Volodin.jpg-2029013b7be60ee8e9b2e2c9fc
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

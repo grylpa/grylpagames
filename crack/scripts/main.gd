@@ -13,6 +13,9 @@ func _ready() -> void:
 	MainGlobals.digitized_swipe_mode = true
 	CrackG.load_settings()
 	main_menu = game.create_main_menu(self)
+	# a slow, high music box while the dial is up, kept quiet under the ratchet (devtools/make_ambient_sounds.py); stopped at the menu
+	game.add_sound(self, "ambient", preload("res://art/sounds/crack_ambient.ogg"), true)
+	game.set_sound_volume("ambient", $Level.AMBIENT_DB)       # and ducked while the dial turns (level.gd)
 
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.sig_slider_changed.connect(_on_menu_slider_changed)
@@ -67,6 +70,7 @@ func _ready() -> void:
 	$Level.sig_show_main_menu.connect(_on_level_show_main_menu)
 
 func show_main_menu() -> void:
+	game.stop_sound("ambient")
 	main_menu.show_continue_and_start_new(false)
 	main_menu.show()
 	$Level.hide()
@@ -74,6 +78,7 @@ func show_main_menu() -> void:
 	MainGlobals.add_action_button(null)
 
 func show_level() -> void:
+	game.play_sound("ambient", false)
 	get_viewport().gui_release_focus()
 	$Level.show()
 	main_menu.hide()

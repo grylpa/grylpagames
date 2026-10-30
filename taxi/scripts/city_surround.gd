@@ -48,64 +48,6 @@ static func _draw(pen: Node2D) -> void:
 		row += 1
 
 
-# GOLDEN HOUR (2026-10-30, an option over the paving): warm late-afternoon light over the whole
-# square, and the long soft SHADOWS of tall buildings that stand off-screen falling diagonally across
-# it -- the city is implied by its shadows, not drawn. Static and low in contrast, under the cabs
-# and the docks, so movement and attention are untouched. One Node2D in the level at z 5 (above the
-# street and sidewalk, below the cabs at 10 and the docks at 100).
-const GOLDEN_HOUR: bool = false     # an option tried 2026-10-30; read as smudges
-const SUN: Vector2 = Vector2(-0.62, 0.78)          # the direction shadows fall (down-left)
-const WARM: Color = Color(1.0, 0.76, 0.42, 0.13)
-const SHADE: Color = Color(0.10, 0.12, 0.30, 0.20)
-
-static func build_light(level: Node, game) -> void:
-	var old: Node = level.get_node_or_null("GoldenHour")
-	if old != null:
-		old.queue_free()
-	if not GOLDEN_HOUR:
-		return
-	var field: Control = level.find_child("GrassField", true, false) as Control
-	if field == null:
-		return
-	var pen: Node2D = Node2D.new()
-	pen.name = "GoldenHour"
-	pen.z_index = 5
-	level.add_child(pen)
-	var r: Rect2 = Rect2(field.position, field.size)
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 777 + int(game.board_size.x)
-	var shadows: Array = []
-	# tall buildings' shadows, entering evenly spaced along the top and the right edges, each its
-	# own width and length, so they cross the square in bands with sunlit strips between
-	var starts: Array = []
-	for i in 3:
-		starts.append(Vector2(r.position.x + r.size.x * (0.30 + 0.32 * float(i)) + rng.randf_range(-30, 30), r.position.y - 30.0))
-	for i in 2:
-		starts.append(Vector2(r.end.x + 30.0, r.position.y + r.size.y * (0.30 + 0.35 * float(i)) + rng.randf_range(-30, 30)))
-	for st: Vector2 in starts:
-		shadows.append([st, rng.randf_range(60.0, 120.0), rng.randf_range(r.size.y * 0.5, r.size.y * 1.1)])
-	pen.draw.connect(func() -> void: _draw_light(pen, r, shadows))
-	pen.queue_redraw()
-
-
-static func _draw_light(pen: Node2D, r: Rect2, shadows: Array) -> void:
-	pen.draw_rect(r, WARM)
-	var across: Vector2 = Vector2(-SUN.y, SUN.x)
-	for sh in shadows:
-		var a: Vector2 = sh[0]
-		var w: float = sh[1]
-		var l: float = sh[2]
-		# soft edges: the shape in a few layers, each a little smaller and denser
-		for k in 4:
-			var shrink: float = float(k) * 10.0
-			var p0: Vector2 = a + across * shrink
-			var p1: Vector2 = a + across * (w - shrink)
-			var p2: Vector2 = p1 + SUN * (l - shrink * 1.5)
-			var p3: Vector2 = p0 + SUN * (l - shrink * 1.5)
-			pen.draw_colored_polygon(PackedVector2Array([p0, p1, p2, p3]), Color(SHADE, SHADE.a * 0.28))
-
-
-
 # NIGHT: shop-light pools spilling onto the square from the sidewalk round it -- soft radial glows in
 # amber, magenta and cyan at irregular spots along the edge, ADDED to what is under them (so they
 # light the sidewalk rather than paint over it), drawn under the street. Static.

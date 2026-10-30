@@ -536,6 +536,19 @@ wraps seamlessly and turning a cell breaks the wrap.
 any board is built, covers the board and the canvas, retires the tiled ground only once it has
 something in it, and that no cell shows its own grass again.
 
+**Gorilla covers that lawn with a RAINFOREST FLOOR** (2026-10-30, `gorilla/scripts/forest_floor.gd`;
+the user asked for a background that suits gorillas and picked this direction). The GrassField stays
+exactly as above -- node, size, sowing, so the probe still holds -- but its blades are hidden and two
+children are laid over it:
+- `Forest`, a rect with `forest_floor.gdshader`: dark soil, soft patches of rich moss, a litter of small
+  fallen leaves, and dappled canopy light, continuous in the field's coordinates. Its noise is hashed
+  from coordinates kept small (`mod 289`): a plain fract-hash ran out of float precision at board
+  coordinates and came out in hard-edged squares. `ForestFloor.lay()` from `_fit_ground_to_board()`.
+- `Plants`, drawn once the board is built (`ForestFloor.plant()`, end of `create_board()`): a few ferns
+  and big fallen leaves at random spots on ground cells, never on the room's floor nor next to it,
+  and big tropical leaves overhanging from OUTSIDE the board's rect (a leaf that would reach into it
+  is not drawn). Under everything, so nothing the player watches is covered.
+
 ## No snake body
 
 This game's agents are a head and nothing else. `agent.gd` and `player.gd` used to carry the whole
@@ -743,6 +756,11 @@ is registered now as "Counting (how far out you were)", lower being better.
 Caught by a monster plays `oof` (a bonk and a comic falling "wah"); eating a monster while the power is on plays `gulp` (a chomp, a rising bloop, a sparkle -- it used to pass in silence). Both from `devtools/make_action_sounds.py`. The gorilla itself makes NO sound: the game is noticing it go by silently.
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `explosion` caught (a soft thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short whistle, `swoosh` the warp through a portal (a rising sweep). The grass footsteps stay -- it is outdoors.
+
+**Ambient** (2026-10-30; the footsteps were all it had): `gorilla_ambient.ogg`
+(`devtools/make_ambient_sounds.py` `gorilla`), a sunny park -- a kalimba and a marimba trading a
+bouncy figure in G, a frame drum, a flute tune now and then, birds -- at -6 dB under the footsteps
+while the board is up (`main.gd` `_show_level`), stopped at the menu.
 
 **The board's edge casts a soft shadow inward** (`level._add_wall_shade()`, `WALL_SHADE` 0.35 of a
 tile, faint), so the room reads as enclosed rather than a flat tile sheet on the lawn. The floor

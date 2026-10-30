@@ -269,3 +269,7 @@ Declares its own `score_columns`: its array is not the generic shape, and withou
   character (-10 dB, pitch varied 0.94-1.06 so a run is not a machine gun), `back` a lighter click for
   backspace, `miss` a soft low tock for a wrong key, `done` a gentle chime when the last character of
   the passage is typed.
+- **Ambient** (2026-10-30; it had none): `typit_ambient.ogg` (`devtools/make_ambient_sounds.py`
+  `typit`), a laid-back lo-fi beat at 78 bpm -- a soft kick and brushes, ticking hats, warm
+  electric-piano chords in A minor, a round bass -- at -6 dB while the board is up, stopped at the menu;
+  the key clicks sit on top of it.

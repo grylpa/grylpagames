@@ -131,8 +131,8 @@ filled its bounding square (a radius-3.2 circle reached 4.6 tiles on the diagona
 the shader; and working out a pixel's tile from `SCREEN_UV` and the layer's screen transform put the
 mask in the wrong place entirely (water on drains, none against walls) -- hence `local_px`.
 
-`art/rect_water.png` and `art/rect_water_white.png` fed the first per-tile version and are no longer
-used.
+`art/rect_water.png` and `art/rect_water_white.png` fed the first per-tile version; unused since, they
+were deleted on 2026-10-30.
 
 **The surface moves** (`water.gdshader`, uniform `t` = the game clock, set every frame by
 `flood_layer.gd`): two drifting noises make a ripple field, its normals catch the light from the top

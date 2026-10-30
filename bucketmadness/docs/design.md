@@ -104,10 +104,7 @@ Same 9 modalities as rlmadness/sorting robots: `digit`, `square`, `even_odd`, `v
 
 ## Bucket/Dumpster Visuals
 
-PNG images instantiated as `TextureRect` nodes by `_setup_bucket_images()` in `_ready()`, inserted at index 0 in each side VBoxContainer above the rule label. `expand_mode = EXPAND_IGNORE_SIZE`, `stretch_mode = STRETCH_KEEP_ASPECT_CENTERED`.
-
-- **Buckets** (left and right): `res://bucketmadness/art/bucket_open_2.png`, min height 125px
-- **Dumpster** (center): `res://bucketmadness/art/dumpster_half_open.png`, min height 160px (taller than buckets)
+DRAWN containers (`scripts/bucket_view.gd`, `BucketView`) created by `_setup_bucket_images()` in `_ready()`, inserted at index 0 in each side VBoxContainer above the rule label: two buckets (left and right) and the taller dumpster in the center. (They were the PNGs `bucket_open_2.png` and `dumpster_half_open.png`; those and the other bucket pictures were deleted on 2026-10-30, unused.)
 
 ## Fall Area Trapezoid
 
@@ -405,7 +402,7 @@ swing. Measured, 20 intermediate values across a 0.18 s open.
 `bucket_closed` / `bucket_open_1` / `bucket_open_2` were three frames of one bucket because of their
 names. They are not related images, so swapping between them looked like the bucket being *replaced*
 rather than opening. Filenames are not evidence about what a picture contains; the only ways to know
-are to look at it or to draw it yourself.
+are to look at it or to draw it yourself. (The pictures themselves were deleted on 2026-10-30.)
 
 `scripts/bucket_stage.gd` (`BucketStage`) still gives them a floor: one shelf spanning the row, a
 contact shadow under each, and a puff of dust when something lands. It draws under the containers

@@ -3,11 +3,13 @@ extends Node
 const LANE_TOP_FRAC: float = 0.28
 const LANE_BOT_FRAC: float = 0.76
 
+# Slow, beatless music (devtools/make_ambient_sounds.py breath_*); they replaced three ocean-wave
+# recordings, a noise bed heard on a phone as hiss with gaps. A saved index keeps its slot.
 const AMBIENT_SOUNDS: Array = [
 	["No sound", ""],
-	["Waves 1", "res://art/sounds/ocean-waves-3.mp3"],
-	["Waves 2", "res://art/sounds/ocean-waves-4.mp3"],
-	["Waves 3", "res://art/sounds/ocean-waves-2.mp3"],
+	["Harp", "res://art/sounds/breath_harp_ambient.ogg"],
+	["Piano", "res://art/sounds/breath_piano_ambient.ogg"],
+	["Bells", "res://art/sounds/breath_bells_ambient.ogg"],
 ]
 
 # Each row: [inhale_s, hold_top_s, exhale_s, hold_bottom_s]

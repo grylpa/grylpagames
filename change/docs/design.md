@@ -42,6 +42,10 @@ sheen rectangle on the velvet was tried and showed as a hard box.
 when a coin is picked up, `felt` (a soft tap, -6 dB) when it is set down outside the tray, `tray` (a
 clink and a smaller one as it settles, -4 dB) when it lands in the tray, `correct` (a run of coins and
 a register bell) and `wrong` (a soft low wooden knock). They replaced an arcade coin and a swoosh.
+**Ambient** (2026-10-30; it had none): `change_ambient.ogg` (`devtools/make_ambient_sounds.py`
+`change`), a corner cafe -- relaxed electric-piano comping in F, a plucked upright bass, a brushed
+shaker, a vibraphone tune now and then -- at -6 dB while the board is up (`main.gd` `show_level`),
+stopped at the menu. Nothing in it falls on the beat in a way that could pass for a coin.
 
 **The chooser tile** is drawn (`devtools/make_thumbs.py`, `change()`): the game's minted coins on
 the felt, one already in the corner of the wooden tray. The coins wear an embossed STAR instead of a

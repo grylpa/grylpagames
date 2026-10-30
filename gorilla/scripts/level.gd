@@ -96,6 +96,7 @@ var last_level_was_a_win: bool = false
 # Made for this game (devtools/make_action_sounds.py), names in code kept: `explosion` caught (a soft
 # thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short
 # whistle (was a click), `swoosh` through a portal (a rising warp). The grass footsteps stay.
+const ForestFloor = preload("res://gorilla/scripts/forest_floor.gd")
 var explosion_audio: AudioStream = preload("res://art/sounds/gorilla_oof.ogg")
 var feet_audio: AudioStream = preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
 var delivered_audio: AudioStream = preload("res://art/sounds/gorilla_crunch.ogg")
@@ -268,6 +269,7 @@ func create_board():
 	for pipe in pipes:			
 		pipe.set_rot(board)
 	_add_wall_shade()
+	ForestFloor.plant(get_node_or_null("BgLayer"), board, game, 13)
 
 	var player_pos = Vector2i(room_rect.position.x + room_size / 2, room_rect.position.y + room_size / 2)
 	_create_player(player_pos)
@@ -1396,8 +1398,11 @@ func create_camera():
 # only re-sows when that size actually changed.
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
+# (2026-10-30) The lawn's blades are then covered by a RAINFOREST FLOOR (forest_floor.gd): the field
+# itself stays, sized and sown as before.
 func _fit_ground_to_board() -> void:
 	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/BackgroundRect") as CanvasItem, game, 13)
+	ForestFloor.lay(get_node_or_null("BgLayer"), 13)
 
 # THE BOARD'S EDGE CASTS A SOFT SHADOW INWARD: a band along every side where floor meets anything that
 # is not floor, fading out over WALL_SHADE of a tile, so the room reads as enclosed rather than a flat

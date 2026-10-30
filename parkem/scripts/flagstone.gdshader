@@ -35,34 +35,9 @@ void vertex() {
 	cell_at = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xy;
 }
 
-// 0 = the old courtyard (stone paving with moss in the joints), 1 = a forest floor (rejected),
-// 2 = a dungeon floor (set by pipe.gd)
-uniform int floor_style = 1;
-
-vec3 forest_floor(vec2 w) {
-	// FOREST FLOOR: dark loam, broad patches of moss, a mat of old leaves, pebbles and the odd root
-	vec3 soil = mix(vec3(0.20, 0.15, 0.10), vec3(0.27, 0.20, 0.13), noise(w / 9.0));
-	soil *= 0.92 + 0.12 * hash(floor(w / 1.5));
-	float moss = smoothstep(0.64, 0.80, noise(w / 38.0 + 3.0) * 0.7 + noise(w / 9.0) * 0.3);
-	vec3 col = mix(soil, mix(vec3(0.14, 0.24, 0.10), vec3(0.20, 0.32, 0.13), noise(w / 3.0)), moss * 0.9);
-	// old leaves: small cells, each a leaf in an autumn brown, only where there is no moss
-	vec2 lc = floor(w / 7.0);
-	vec2 lp = fract(w / 7.0) - 0.5 - (hash2(lc) - 0.5) * 0.5;
-	float ang = hash(lc + 4.0) * 6.283;
-	vec2 rp = vec2(cos(ang) * lp.x + sin(ang) * lp.y, -sin(ang) * lp.x + cos(ang) * lp.y);
-	float leaf = 1.0 - smoothstep(0.85, 1.0, length(rp * vec2(2.4, 5.2)));
-	leaf *= step(0.55, hash(lc + 8.0)) * (1.0 - moss);
-	vec3 leaf_c = mix(vec3(0.42, 0.24, 0.10), vec3(0.52, 0.38, 0.14), hash(lc + 2.0));
-	col = mix(col, leaf_c * (0.85 + 0.25 * hash(lc)), leaf * 0.9);
-	// pebbles
-	vec2 pc = floor(w / 11.0);
-	float peb = 1.0 - smoothstep(0.9, 1.4, length((fract(w / 11.0) - hash2(pc)) * 11.0));
-	col = mix(col, vec3(0.50, 0.48, 0.44), peb * step(0.82, hash(pc + 1.7)));
-	// roots: thin wandering dark lines
-	float root = abs(noise(w / 30.0 + 11.0) - 0.5);
-	col = mix(col, vec3(0.13, 0.09, 0.06), (1.0 - smoothstep(0.004, 0.014, root)) * 0.8);
-	return col;
-}
+// 0 = the old courtyard (stone paving with moss in the joints), 2 = a dungeon floor (set by
+// pipe.gd). (1 was a forest floor, rejected and removed.)
+uniform int floor_style = 2;
 
 vec3 dungeon_floor(vec3 stone_base, float edge, float mortar, vec2 id, vec2 w) {
 	// DUNGEON: big dark blue-gray slabs, worn smooth in the middle, deep black joints, hairline
@@ -102,9 +77,7 @@ void fragment() {
 	float near_joint = 1.0 - smoothstep(0.02, 0.09 + 0.06 * noise(world / 6.0), edge);
 	float moss = near_joint * mossy * (0.6 + 0.4 * noise(world / 3.0));
 	col = mix(col, mix(vec3(0.20, 0.32, 0.14), vec3(0.32, 0.44, 0.18), noise(world / 4.0)), clamp(moss, 0.0, 0.85));
-	if (floor_style == 1) {
-		col = forest_floor(world);
-	} else if (floor_style == 2) {
+	if (floor_style == 2) {
 		col = dungeon_floor(col, edge, mortar, id, world);
 	}
 	COLOR = vec4(col, tex.a);

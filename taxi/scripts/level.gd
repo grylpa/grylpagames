@@ -83,8 +83,6 @@ func _honk() -> void:
 		return
 	_last_honk_ms = game.game_time
 	game.play_sound("honk")
-# var door_audio := preload("res://art/sounds/door-open-sound-1.mp3")
-# var explosion_audio := preload("res://art/sounds/car-crash-1.mp3")
 
 signal started_playing
 signal sig_level_is_done(didwin:bool)
@@ -324,8 +322,7 @@ func create_board(force_new_taxis_and_stations:bool) -> void:
 				add_empty(Vector2i(col,row))
 
 	show_hide_walls()
-	TaxiCitySurround.build(self, board, game)     # the warm paving round the square
-	TaxiCitySurround.build_light(self, game)      # golden-hour light and building shadows (off)
+	TaxiCitySurround.build(self, board, game)     # the sidewalk round the square
 	TaxiCitySurround.build_night(self, board, game)     # night: shop-light glows round the square
 				
 	for pipe in pipes:

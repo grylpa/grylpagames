@@ -345,7 +345,7 @@ derived from it by the games-doc build and must not be written by hand.
 - **Floor**: `flagstone.gdshader` `floor_style` (pipe.gd `FLOOR_STYLE`) -- 2, the current one, is a
   DUNGEON: ONE dark blue-gray slab per board cell (so the grid the creatures turn on is visible),
   slightly irregular edges, deep joints, hairline cracks, warm torchlight pools. 0 is the old mossy
-  courtyard; 1 (a forest floor) was rejected. A few leaves, weed tufts and edge shrubs/ferns
+  courtyard; a forest floor (1) was rejected and removed. A few leaves, weed tufts and edge shrubs/ferns
   (`parkem/scripts/litter.gd`) and the lawn scatter round the board.
 - **Shut door** is the shared drawn gate (`scripts/door_art.gd`, set up in door.gd); open stays the
   stud. **Bricks** are `BlockArt`, the type picked per cell. **Board** 17x17 on desktop

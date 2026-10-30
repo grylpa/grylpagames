@@ -278,6 +278,7 @@ func _start_ambient_sound() -> void:
 		return
 	var path: String = UdbrG.AMBIENT_SOUNDS[idx][1]
 	game.add_sound(self, "ambient", load(path), true)
+	game.set_sound_volume("ambient", -6.0)
 	game.play_sound("ambient")
 
 func _on_menu_option_changed(id: int, idx: int) -> void:
