@@ -83,10 +83,14 @@ Index 1: `selected_preset` (index into GUIDED_PRESETS)
 
 **The safe** (the 2026-10-24 look pass; same geometry as before, which the tutorial's spotlights
 recompute): a dark wall lit softly from in front; the door in BRUSHED STEEL (a top-left-lit gradient,
-fine horizontal grain fixed per row by a hash, `_draw_brushing`), bevelled (`_draw_bevel`: lit top and
+fine horizontal grain fixed per row by a hash, `_draw_brushing`), beveled (`_draw_bevel`: lit top and
 left, shaded bottom and right) with a recessed panel; steel hex bolts; and the handle a three-spoke
 chrome wheel that **turns with the holds** (`_short_angle`, which the game always tracked and never
-showed), as the dial turns with the slides. The dial: a chrome bezel in light and dark rings, a black
+showed), as the dial turns with the slides. Its ball ends and its hub are each shaded in ONE piece from
+the top left (`_shaded_disc`, per-vertex colors), the hub a beveled boss -- a chamfer lit top-left and
+dark bottom-right round a nearly flat face -- with a hex bolt dead center that turns with it.
+(2026-10-30: the hub and the balls each had a lighter disc stacked off center on them, which read as
+misplaced circles.) The dial: a chrome bezel in light and dark rings, a black
 face with silver ticks and numbers, and the KNOB (`_draw_knob`): a turned-metal grip seen from above --
 a soft shadow, a skirt of fine grip ridges that turn with the dial and catch the light on its top-left
 side, a beveled edge, a flat machined cap shaded smoothly from the top left (the light is fixed on the
@@ -448,5 +452,5 @@ reason the seeded demo data gives its player a dominant pair.
 
 `art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `crack_safe()`), not grabbed. The old
 tile was a screen grab of the session screen. It is now the game's steel dial close up (its closed-dial
-colors from `level.gd`), a gold pointer at the top, in a soft cyan glow of breath -- a plain circle; a
+colors from `level.gd`, and its knob ported from `_draw_knob` as `_crack_knob`), a gold pointer at the top, in a soft cyan glow of breath -- a plain circle; a
 wavy line round it read as a flower. The calm games' shared dusk look (Breathe, Buoy).
