@@ -193,6 +193,7 @@ func reset():
 	last_time_played_water_drop = 0.0
 	next_water_drop_duration_s = 5.0
 	last_major_tick_ms = -10000.0
+	_last_soak_ms = -1.0
 
 	round_items_lost = 0
 	_ruined_room = -1
@@ -1458,6 +1459,7 @@ func tick():
 	if now - last_major_tick_ms > game.major_tick_time_ms * game.time_scale:
 		last_major_tick_ms = now
 		_check_floods()
+	_soak_towels(now)
 
 	# if all_agents_done():
 	# 	level_is_done(true)
@@ -1776,6 +1778,48 @@ const _SAMPLES: Array = [Vector2(0.25, 0.25), Vector2(0.75, 0.25), Vector2(0.25,
 const FURNITURE_RUIN: float = 0.75
 # Water a leak must have put on the floor before it counts as "reached the floor" in the stats.
 const PUDDLE_SEEN: float = 0.02
+
+# A TOWEL SOAKS UP THE WATER IT IS LAID ON, not only what drips into it: each moment it takes up to
+# SOAK_RATE of a puddle covering its tile's center -- its own leak's first, then the nearest -- until
+# it is full. The water comes off that leak's floored_total, so the puddle visibly shrinks (and the
+# round card's "rain caught" rises with it). A towel laid at the edge of a big puddle eats it back
+# until the edge passes under it. A bucket, cup or saucer cannot do this: water on the floor does not
+# climb into a pail.
+# Tile-fulls a second: a whole towel's worth in a second, so it reads as soaking up the moment it lands.
+# At 0.25 the towel stayed dry-looking for the first seconds and seemed not to soak at all.
+const SOAK_RATE: float = 1.0
+var _last_soak_ms: float = -1.0
+
+func _soak_towels(now: float) -> void:
+	var dt_s: float = (now - _last_soak_ms) / 1000.0 if _last_soak_ms >= 0.0 and now >= _last_soak_ms else 0.0
+	_last_soak_ms = now
+	if dt_s <= 0.0:
+		return
+	for t in pipes:
+		if t == null or not is_instance_valid(t) or t.action != "rag" or t.overflow_level <= 1e-3:
+			continue
+		var room_left: float = t.overflow_level - t.action_level
+		if room_left <= 1e-6:
+			continue
+		var tile_c: Vector2 = Vector2(t.board_pos) + Vector2(0.5, 0.5)
+		var room: int = int(board[t.board_pos.y][t.board_pos.x].room_id)
+		var src = null
+		var best_d: float = INF
+		for p in pipes:
+			if p == null or not is_instance_valid(p) or not p.water_active or p.floored_total <= 1e-6:
+				continue
+			if int(board[p.board_pos.y][p.board_pos.x].room_id) != room:
+				continue
+			var c: Vector2 = Vector2(p.board_pos) + Vector2(0.5, 0.5) + p.drip_offset()
+			var dd: float = -1.0 if p == t else tile_c.distance_to(c)
+			if dd < sqrt(p.floored_total / PUDDLE_DEPTH / PI) and dd < best_d:
+				best_d = dd
+				src = p
+		if src == null:
+			continue
+		var take: float = minf(SOAK_RATE * dt_s, minf(room_left, src.floored_total))
+		src.floored_total -= take
+		t.action_level += take
 
 # Every puddle: {center (tiles), r (tiles), room, drip}. The one source for the drawing and the
 # rules alike, so what counts is exactly what is shown.

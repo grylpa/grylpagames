@@ -13,7 +13,9 @@ extends RefCounted
 #   plate   a saucer in three-quarter view. It is SHALLOW, so its water does not rise, it SPREADS:
 #           a pool in the middle of the well that widens until it reaches the rim.
 #   rag     a towel hanging over a rail. It soaks up rather than fills: the wet part darkens from
-#           the hem up, and a soaked one drips.
+#           the hem up to a blotchy damp edge, and a soaked one drips. That is the inventory's
+#           towel; on a tile it LIES on the floor (_towel_lying) and the wet spreads from the middle.
+#           Laid on a puddle it soaks the puddle up too (level._soak_towels).
 #   fix     masking tape laid in an X, the patch over the hole. No level: tape does not hold water.
 #
 # `fill` is always 0..1 of THIS tool's capacity (level / overflow_level), never the raw level:
@@ -43,7 +45,8 @@ const TOWEL: Color = Color(0.925, 0.525, 0.431)       # coral: a bath towel, and
 const TOWEL_BACK: Color = Color(0.745, 0.380, 0.310)
 const TOWEL_LIT: Color = Color(0.965, 0.690, 0.612)
 const TOWEL_STRIPE: Color = Color(0.980, 0.930, 0.840)
-const TOWEL_WET: Color = Color(0.557, 0.263, 0.212)
+const TOWEL_WET: Color = Color(0.430, 0.165, 0.180)  # soaked: deep and dull, unmistakably not dry
+const TOWEL_STRIPE_WET: Color = Color(0.650, 0.500, 0.470)
 
 const TAPE: Color = Color(0.918, 0.847, 0.667)
 const TAPE_EDGE: Color = Color(0.702, 0.620, 0.439)
@@ -54,8 +57,14 @@ static func draws(tool_name: String) -> bool:
 	return NAMES.has(tool_name)
 
 # The one entry point. `mid` is the center of a box `s` across.
-static func draw_tool(ci: CanvasItem, tool_name: String, mid: Vector2, s: float, fill: float) -> void:
+# `on_floor`: the tool as it stands on a tile, not as an icon in the inventory. Only the towel looks
+# different there -- it LIES on the floor instead of hanging over a rail.
+static func draw_tool(ci: CanvasItem, tool_name: String, mid: Vector2, s: float, fill: float,
+		on_floor: bool = false) -> void:
 	var f: float = clampf(fill, 0.0, 1.0)
+	if on_floor and tool_name == "rag":
+		_towel_lying(ci, mid, s, f)
+		return
 	match tool_name:
 		"bucket":
 			_bucket(ci, mid, s, f)
@@ -245,17 +254,26 @@ static func _towel(ci: CanvasItem, mid: Vector2, s: float, f: float) -> void:
 	for layer in [[back, TOWEL_BACK], [front, TOWEL]]:
 		var r: Rect2 = layer[0]
 		_round_rect(ci, r, corner, layer[1])
-		# Soaked from the hem up.
+		# Soaked from the hem up, with a blotchy damp edge, so how full it is reads at a glance.
+		var wet_top: float = r.end.y + 1.0
+		var wet: Color = TOWEL_WET if layer[1] == TOWEL else TOWEL_WET.darkened(0.25)
 		if f > 0.0:
 			var wet_h: float = (r.size.y - s * 0.04) * f
-			var wet: Color = TOWEL_WET if layer[1] == TOWEL else TOWEL_WET.darkened(0.2)
-			_round_rect(ci, Rect2(r.position.x, r.end.y - wet_h, r.size.x, wet_h), corner, wet)
-		# Two bands near the hem.
+			wet_top = r.end.y - wet_h
+			_round_rect(ci, Rect2(r.position.x, wet_top, r.size.x, wet_h), corner, wet)
+			if wet_top > r.position.y + s * 0.08:
+				var bumps: int = 4
+				var bw: float = r.size.x / float(bumps)
+				for b in bumps:
+					var bx: float = r.position.x + bw * (float(b) + 0.5)
+					var br: float = bw * (0.42 if b % 2 == 0 else 0.30)
+					ci.draw_circle(Vector2(bx, wet_top), br, wet)
+		# Two bands near the hem, soaked dark too where the wet has reached them.
 		for k in [0.20, 0.30]:
 			var y: float = r.end.y - (front.size.y * k)
 			if y > r.position.y + s * 0.06:
-				ci.draw_line(Vector2(r.position.x + lw, y), Vector2(r.end.x - lw, y), TOWEL_STRIPE,
-					maxf(1.2, s * 0.04), true)
+				ci.draw_line(Vector2(r.position.x + lw, y), Vector2(r.end.x - lw, y),
+					TOWEL_STRIPE_WET if y > wet_top else TOWEL_STRIPE, maxf(1.2, s * 0.04), true)
 		_round_rect_line(ci, r, corner, INK, lw)
 	# Where it folds over the rail: a rounded top.
 	ci.draw_line(Vector2(front.position.x + corner, front.position.y), Vector2(front.end.x - corner, front.position.y),
@@ -263,6 +281,107 @@ static func _towel(ci: CanvasItem, mid: Vector2, s: float, f: float) -> void:
 	if f >= 0.999:
 		for k2 in [0.3, 0.7]:
 			ci.draw_circle(Vector2(back.position.x + back.size.x * k2, back_end + s * 0.07), s * 0.04, WATER)
+
+# A TOWEL LYING ON THE FLOOR, where it has been put down on the water: the hanging towel read as a
+# towel on a wall even on the floor. Loose and a little askew, softly rumpled, the bottom-left corner
+# turned over (the hem bands carry on across its underside, as a towel's do), a crease -- the fold is
+# what says "cloth" here; the flat slab tried long ago read as a rug. A small dog-ear at the top right
+# was tried first and read as a document icon, and a jagged edge as torn paper. It soaks from BELOW, so the wet spreads
+# from the middle out, by area, to the edges at full; then water beads on top (it can take no more).
+const TOWEL_UNDER: Color = Color(0.975, 0.765, 0.690)   # the paler underside of the turned corner
+
+static func _towel_lying(ci: CanvasItem, mid: Vector2, s: float, f: float) -> void:
+	var lw: float = _line_w(s)
+	var hx: float = s * 0.42
+	var hy: float = s * 0.29
+	var cut: float = s * 0.27
+	var ang: float = -0.16
+	var to_tile: Callable = func(p: Vector2) -> Vector2: return mid + p.rotated(ang)
+	# The fold runs from fold_a to fold_b across the bottom-left corner; the corner is turned over it.
+	var fold_a: Vector2 = Vector2(-hx + cut, hy)
+	var fold_b: Vector2 = Vector2(-hx, hy - cut)
+	var mirror: Callable = func(p: Vector2) -> Vector2:
+		var d: Vector2 = (fold_b - fold_a).normalized()
+		var q: Vector2 = p - fold_a
+		return fold_a + d * (2.0 * q.dot(d)) - q
+	# The outline (the folded corner cut off), softly rumpled: a long gentle wave along the edges.
+	var corners: Array = [Vector2(-hx, -hy), Vector2(hx, -hy), Vector2(hx, hy), fold_a, fold_b]
+	var local: PackedVector2Array = PackedVector2Array()
+	var run: float = 0.0
+	for e in corners.size():
+		var a: Vector2 = corners[e]
+		var b: Vector2 = corners[(e + 1) % corners.size()]
+		var ln: float = a.distance_to(b)
+		var steps: int = maxi(1, int(round(ln / (s * 0.05))))
+		var nrm: Vector2 = (b - a).normalized().orthogonal()
+		for k in steps:
+			var t: float = float(k) / float(steps)
+			# Flat at the corners and along the fold, so neither wobbles apart.
+			var w: float = 0.0 if e == 3 else sin(PI * t) * sin((run + ln * t) / (s * 0.16) * TAU) * s * 0.014
+			local.append(a.lerp(b, t) + nrm * w)
+		run += ln
+	var body: PackedVector2Array = PackedVector2Array()
+	var shadow: PackedVector2Array = PackedVector2Array()
+	for p: Vector2 in local:
+		body.append(to_tile.call(p))
+		shadow.append(to_tile.call(p) + Vector2(s * 0.03, s * 0.04))
+	ci.draw_colored_polygon(shadow, Color(0.0, 0.0, 0.0, 0.28))
+	ci.draw_colored_polygon(body, TOWEL)
+	# The wet: the outline drawn in toward the middle, by area, with an uneven edge until it is full.
+	var wet_poly: PackedVector2Array = PackedVector2Array()
+	if f > 0.0:
+		var c: Vector2 = Vector2(s * 0.04, -s * 0.02)
+		var grow: float = sqrt(f)
+		for i2 in local.size():
+			var k2: float = grow * (1.0 - 0.18 * (1.0 - f) * (0.5 + 0.5 * sin(float(i2) * 0.9)))
+			wet_poly.append(to_tile.call(c + (local[i2] - c) * k2))
+		ci.draw_colored_polygon(wet_poly, TOWEL_WET)
+	# A soft crease, and the two bands near the left hem, each soaked dark where wet.
+	var crease: Array = [Vector2(s * 0.10, -hy + s * 0.05), Vector2(s * 0.16, 0.0), Vector2(s * 0.13, hy - s * 0.05)]
+	for seg in [[crease[0], crease[1]], [crease[1], crease[2]]]:
+		_soaked_line(ci, to_tile.call(seg[0]), to_tile.call(seg[1]), TOWEL_BACK, TOWEL_WET.darkened(0.35),
+			maxf(1.0, s * 0.035), wet_poly)
+	var band_u: Array = [-hx + s * 0.11, -hx + s * 0.19]
+	for u: float in band_u:
+		# Up to the fold: below it the band is on the corner that is turned over.
+		var end_v: float = hy - cut * (1.0 - (u + hx) / cut) if u + hx < cut else hy
+		_soaked_line(ci, to_tile.call(Vector2(u, -hy + lw)), to_tile.call(Vector2(u, end_v - lw * 0.5)), TOWEL_STRIPE,
+			TOWEL_STRIPE_WET, maxf(1.2, s * 0.045), wet_poly)
+	_outline(ci, body, INK, lw)
+	# The turned-over corner, its underside up; the bands go through the cloth, so they show on it too.
+	var tip: Vector2 = mirror.call(Vector2(-hx, hy))
+	var flap: PackedVector2Array = PackedVector2Array([to_tile.call(fold_a), to_tile.call(fold_b), to_tile.call(tip)])
+	var flap_wet: float = clampf((f - 0.6) / 0.4, 0.0, 1.0)
+	var flap_shadow: PackedVector2Array = PackedVector2Array()
+	for fp: Vector2 in flap:
+		flap_shadow.append(fp + Vector2(s * 0.025, s * 0.03))
+	ci.draw_colored_polygon(flap_shadow, Color(0.0, 0.0, 0.0, 0.22))
+	ci.draw_colored_polygon(flap, TOWEL_UNDER.lerp(TOWEL_WET.lightened(0.1), flap_wet))
+	for u2: float in band_u:
+		if u2 + hx < cut:
+			var p0: Vector2 = mirror.call(Vector2(u2, hy - cut * (1.0 - (u2 + hx) / cut)))
+			var p1: Vector2 = mirror.call(Vector2(u2, hy))
+			ci.draw_line(to_tile.call(p0), to_tile.call(p0.lerp(p1, 0.92)), TOWEL_STRIPE.lerp(TOWEL_STRIPE_WET, flap_wet),
+				maxf(1.2, s * 0.045), true)
+	_outline(ci, flap, INK, maxf(1.0, lw * 0.7))
+	# The fold itself is a soft rolled edge, lit along its top.
+	ci.draw_line(to_tile.call(fold_a.lerp(fold_b, 0.06)), to_tile.call(fold_a.lerp(fold_b, 0.94)),
+		TOWEL_LIT.lerp(TOWEL_WET.lightened(0.25), flap_wet), maxf(1.0, s * 0.03), true)
+	if f >= 0.999:
+		for bead in [Vector2(-s * 0.02, -s * 0.10), Vector2(s * 0.20, s * 0.06), Vector2(s * 0.06, s * 0.14)]:
+			var at: Vector2 = to_tile.call(bead)
+			ci.draw_circle(at, s * 0.045, WATER)
+			ci.draw_circle(at + Vector2(-s * 0.012, -s * 0.012), s * 0.016, WATER_TOP)
+
+# A line in `dry` color, in `wet_col` where it crosses the wet patch (checked in short steps).
+static func _soaked_line(ci: CanvasItem, a: Vector2, b: Vector2, dry: Color, wet_col: Color, w: float,
+		wet_poly: PackedVector2Array) -> void:
+	var steps: int = 8
+	for k in steps:
+		var p0: Vector2 = a.lerp(b, float(k) / float(steps))
+		var p1: Vector2 = a.lerp(b, float(k + 1) / float(steps))
+		var is_wet: bool = wet_poly.size() >= 3 and Geometry2D.is_point_in_polygon((p0 + p1) * 0.5, wet_poly)
+		ci.draw_line(p0, p1, wet_col if is_wet else dry, w, true)
 
 # Masking tape laid in an X over the leak. The first drawing was a roll, which says "you have tape"
 # and not what tape DOES here: the X is a patch over a hole, and stops the drip.
