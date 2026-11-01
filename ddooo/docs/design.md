@@ -172,9 +172,10 @@ Helper functions: `get_level(id)`, `level_names()`, `id_to_index(id)`, `level_he
 
 ## Sound Effects
 
-- Dispatch (model appears): `res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg`
-- Delivery (main or periph correct): `res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg`
-- Swoosh (wrong answer — main miss, periph wrong, model timed-out-as-correct): `res://art/sounds/swoosh.mp3`
+Made by `devtools/make_answer_sounds.py` (names in code kept):
+- Dispatch (model appears): `res://art/sounds/ddooo_show.ogg`
+- Delivery (main or periph correct): `res://art/sounds/ddooo_right.ogg`
+- Swoosh (wrong answer — main miss, periph wrong, model timed-out-as-correct): `res://art/sounds/ddooo_wrong.ogg`
 - Ambient: `res://art/sounds/ddooo_ambient.ogg` (looping music, see Sounds)
 
 ---

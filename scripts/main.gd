@@ -1,7 +1,10 @@
 extends Node2D
 
 # var login_scene = load("res://scenes/login.tscn").instantiate()
-var level_is_done_audio := preload("res://art/sounds/game-level-done.mp3")
+# A won level's accent (devtools/make_ui_sounds.py `success`; it was a stock game-level-done.mp3). Many
+# games end a level just as the card opens, so it sounds TOGETHER with the card's fanfare
+# (ui_level_done): short, in the same key, and under it rather than a second tune. A plain player.
+var level_is_done_audio: AudioStream = preload("res://art/sounds/ui_success.ogg")
 
 # What StatsMigration did at startup, so the one-time notice can be shown after the chooser is up
 # rather than in the middle of _ready(). See _show_stats_migration_notice.

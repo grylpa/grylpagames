@@ -149,9 +149,15 @@ There was no weather: a storm game on a sunny lawn. Three things, none of them t
   where drops land, all on the game clock. It lives in the LAWN's layer (`BgLayer`), after the grass,
   so the house -- in the level's layer, in front -- covers it: rain falls on the lawn and stops at the
   walls by construction, with no mask. Sized to the `GrassField` on every fit.
-- **Walls cast a soft shadow into each room** (`_add_wall_shade()`, `WALL_SHADE` 0.30 of a tile):
+- **Walls cast a soft shadow into each room** (`_add_wall_shade()`, `WALL_SHADE` 0.15 of a tile, was 0.30):
   a band along every edge where a room's floor meets anything that is not more of that room, except
   across a doorway. On the floor's z, added just before the water layer, so the water draws over it.
+  **The corners are ROUNDED** (`_draw_shade_corner()`; `_shade_wall()` tests each side): the straight
+  bands stop short of a corner, and a small patch fills it with its shade taken from a SMOOTH minimum
+  of the distances to the two walls, so the shade turns the corner without a crease. An inside corner
+  (beside a doorway's jamb) gets a quarter-circle patch. Two earlier versions failed: both bands
+  covering the corner added their shade up (dark corners), and bands mitered to meet on the diagonal
+  made the diagonal the lightest line there, which read as a hairline gap.
   It loops over the board ARRAY, not `game.board_size`: during a rebuild the size changes first, and
   `probe_storm_rebuild` caught it reading past the end.
 - **The blackout is a hard cut** (`main.gd`, `on_show_blackout`): thunder, then the house lights
@@ -164,8 +170,15 @@ There was no weather: a storm game on a sunny lawn. Three things, none of them t
 
 ## Sounds
 
-The rain loops (`rain_1..4.ogg`), the thunder (`thunder_1..4.mp3`) and the water pour are recordings
-and stay. The thunder has TWO players, `thunder` and `thunder2`, used in turn by `on_show_blackout`:
+The rain loops (`rain_1..4.ogg`), the thunder (`thunder_1..4.ogg`) and the water pour are recordings
+and stay. **The rain and thunder are LEVELED** (2026-11-01, `devtools/level_storm_recordings.py`, from
+the untouched originals in `devtools/recordings/storm/`): one rain loop is picked per session and they
+were 15 dB apart, so the rain was loud or nearly gone by chance; `rain_1` ended in a fade-out, so every
+loop dipped to silence (cut and crossfaded now); one thunder roll was 7 dB above the rest, two were
+clipped. Their bass is KEPT and a little lifted (a low shelf), with a touch of harmonics above it
+for a phone: a first pass boosted the highs instead, and leveling by loudness then took the bass
+down, so the thunder came out thin.
+All four rain loops now sit within about 2 dB, the thunder within 1.5. The thunder has TWO players, `thunder` and `thunder2`, used in turn by `on_show_blackout`:
 with one, a blackout that came while the last roll was still rumbling cut it off mid-sound.
 
 **The rain changes direction.** Its slant (`storm_rain.gdshader` `wind`, x per y) follows
@@ -177,8 +190,9 @@ fixed 0.28. Made for this game by `devtools/make_storm_sounds.py`: four **drips*
 "plink" of a drop into water, one every 2-8 s), a **new leak** (`storm_leak`, wet plaster creaking and a
 heavy first splat), **footsteps** on a wooden floor (`storm_steps`, a two-step loop while walking) and a
 tool **set down** (`storm_set`, a hollow thunk). They replaced retro arcade "blops", a swoosh, footsteps
-on grass indoors and a generic tap. A car crash that was registered and never played is gone; the coin
-and bump sounds are still registered for `answered()` and coins, neither of which happens in play.
+on grass indoors and a generic tap. A car crash that was registered and never played is gone, and so
+(2026-11-01) are the coin, the bell and the bump, registered for code that never ran (`answered()`, the
+coin pickup -- both removed), and the click at the start of a level, a leftover of the route games.
 
 ## Ruined furniture, ruined rooms -- how a round is lost
 
@@ -252,9 +266,6 @@ What they replaced, and why:
 - **A win bonus of 100 minus the percent of the WHOLE house under water,** tried and measured with the
   bot. It came to 64-85 a round, mostly a flat reward for winning (a room at 38%, one short of losing,
   still earned 81), and it outweighed every other part together.
-
-`answered()` and the coin pickup in `move_player_on_tick()` still add points, but nothing calls the one
-or places the other.
 
 ## Score Saving
 

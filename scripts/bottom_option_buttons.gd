@@ -15,7 +15,9 @@ signal sig_scores_pressed
 @onready var tex_mute = preload("res://art/mute64.png")
 @onready var tex_unmute = preload("res://art/unmute64_centered.png")
 
-var button_audio := preload("res://art/sounds/tap-1.mp3")
+# A soft wooden tick (devtools/make_ui_sounds.py `tap`; it was a stock tap-1.mp3). A plain player, not a
+# 2-D one: a positional player's loudness depends on where the camera is.
+var button_audio: AudioStream = preload("res://art/sounds/ui_tap.ogg")
 
 @export var text_color: Color = Color.WHITE:
 	set(value):

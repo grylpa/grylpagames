@@ -8,7 +8,6 @@ metadata and the matching upstream license file.
 | OpenSans-SemiBold.ttf | SIL OFL 1.1 (Open Sans Project Authors, 2020) | OpenSans-OFL.txt |
 | NotoSansSymbols-Regular.ttf | SIL OFL 1.1 (Noto Project / Google) | NotoSansSymbols-OFL.txt |
 | NotoSansSymbols2-Regular.ttf | SIL OFL 1.1 (Noto Project / Google) | NotoSansSymbols2-OFL.txt |
-| NotoSansMono.ttf | SIL OFL 1.1 (Noto Project / Google, 2022) | NotoSansMono-OFL.txt |
 | JetBrainsMono.ttf | SIL OFL 1.1 (JetBrains, 2020) | JetBrainsMono-OFL.txt |
 | Stormfaze.otf | CC0 1.0 (public domain, per embedded metadata) | Stormfaze-LICENSE.txt |
 | Exo2.ttf | SIL OFL 1.1 (The Exo 2 Project Authors, 2013) | Exo2-OFL.txt |
@@ -22,8 +21,7 @@ font) and it becomes the theme's default font. See `MainGlobals.GAME_FONTS`. The
 last four are variable fonts, used at weight 600 via a `FontVariation`.
 
 `JetBrainsMono.ttf` is the monospace font used by Typit (reference/typed text and
-the keys comparison) for its clear look-alike disambiguation. `NotoSansMono.ttf`
-is also bundled as an alternative.
+the keys comparison) for its clear look-alike disambiguation.
 
 Orbitron carries a Reserved Font Name, so a *modified* copy could not keep the
 name "Orbitron". We ship it unmodified, which the OFL allows.

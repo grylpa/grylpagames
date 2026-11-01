@@ -85,11 +85,11 @@ var in_answring_mode := false
 @export var player_scene: PackedScene = load("res://wolves/scenes/player.tscn")
 
 var ambient_audio := preload("res://wolves/art/audio/delon_boomkin-sheep-bells-ringing-457441.mp3")
-var feet_audio := preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
-# `start` is a shepherd's two-note whistle (devtools/make_action_sounds.py; it was a click). `swoosh` is
-# registered and never played.
+# the sheepdog trotting: paw pats in pairs and a collar tag (devtools/make_action_sounds.py; was a
+# Kenney grass footstep)
+var feet_audio: AudioStream = preload("res://art/sounds/wolves_steps.ogg")
+# `start` is a shepherd's two-note whistle (devtools/make_action_sounds.py; it was a click).
 var start_audio := preload("res://art/sounds/wolves_start.ogg")
-var swoosh_audio := preload("res://art/sounds/swoosh.mp3")
 
 var sheep_audios := [
 	preload("res://wolves/art/audio/freesound_community-sheep-2-106164.mp3"),
@@ -123,7 +123,6 @@ func _ready() -> void:
 	game.add_sound(self, "ambient", ambient_audio, true)
 	game.add_sound(self, "feet", feet_audio, true)
 	game.add_sound(self, "start", start_audio)
-	game.add_sound(self, "swoosh", swoosh_audio)
 
 	game.add_sound(self, "sheep", sheep_audios)
 	game.add_sound(self, "bark", dog_audios)

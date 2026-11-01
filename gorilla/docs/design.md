@@ -755,7 +755,7 @@ is registered now as "Counting (how far out you were)", lower being better.
 
 Caught by a monster plays `oof` (a bonk and a comic falling "wah"); eating a monster while the power is on plays `gulp` (a chomp, a rising bloop, a sparkle -- it used to pass in silence). Both from `devtools/make_action_sounds.py`. The gorilla itself makes NO sound: the game is noticing it go by silently.
 
-Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `explosion` caught (a soft thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short whistle, `swoosh` the warp through a portal (a rising sweep). The grass footsteps stay -- it is outdoors.
+Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `explosion` caught (a soft thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short whistle, `swoosh` the warp through a portal (a rising sweep), `feet` the gorilla knuckle-walking on leaf litter (`gorilla_steps.ogg`, a 1.4 s loop of foot, hand, foot, hand, each a dull thud and a dry crackle of leaves; it replaced a Kenney grass footstep on 2026-11-01, to suit the rainforest floor and drop the app's last third-party sound effect).
 
 **Ambient** (2026-10-30; the footsteps were all it had): `gorilla_ambient.ogg`
 (`devtools/make_ambient_sounds.py` `gorilla`), a sunny park -- a kalimba and a marimba trading a
