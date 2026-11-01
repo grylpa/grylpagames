@@ -277,7 +277,7 @@ wave loop.
 
 | name in code | file | when |
 |---|---|---|
-| `waves` | `lighthouse_sea.ogg`, 24 s seamless loop, -6 dB | from the first round on: swells, their wash, lapping, a little wind |
+| `waves` | `lighthouse_sea.ogg`, 24 s seamless loop, -6 dB | from the first round on: swells, their break, the wash, the foam's fizz, lapping, a little wind. **Carried above 300 Hz** (2026-11-01): it was mostly low rumble (19% of its energy above 300 Hz), which a phone plays as nothing; now 75%, its loudness set by `music.master` |
 | `crash` | `lighthouse_crash.ogg` | a collision: a thump, the wood's knock, a scrape, a splash |
 | `dock` | `lighthouse_dock.ogg`, -3 dB | reaching the pier: a knock on the planks and a small, bright ship's bell, with no low hum partial (its long low tail was heard as a horn) |
 | `motor` | `lighthouse_motor.wav`, 1 s loop | while the boat is under way (`_engine_sound`): -30 to -13 dB and pitch 0.80-1.15 with `_pace`; stopped at a standstill and whenever play stops (the top of `_process`), so it never runs under a card |

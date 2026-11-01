@@ -79,7 +79,7 @@ var num_rooms := 4
 var player = null
 var player_max_speed_scale = 1.5
 var next_player_dir = -1
-var play_start_sound_once := true
+var _start_player_once: bool = true
 var num_bricks_per_room := 2
 var MAX_POSSIBLE_ROOMS := 12
 var last_level_was_a_win := true
@@ -104,15 +104,15 @@ var action_scene: PackedScene = load("res://storm/scenes/action_panel.tscn")
 # SOUNDS. The rain, the thunder and the water pour are recordings and stay; the drips, a new leak,
 # the footsteps and a tool being set down are made for this game (devtools/make_storm_sounds.py).
 # They replaced retro arcade "blops" for the drips, a swoosh for a leak, footsteps on GRASS indoors
-# and a generic tap. A car crash that was registered and never played is gone.
-# var motor_audio := preload("res://art/sounds/car-ambient-driving.ogg")
+# and a generic tap. A car crash that was registered and never played is gone, and so (2026-11-01) are
+# a coin, a bell and a bump that were registered for code paths that never ran, and the click at the
+# start of a level, a leftover of the route games that marked nothing here.
+# THE RAIN AND THE THUNDER ARE LEVELED (devtools/level_storm_recordings.py): one of the four rain
+# loops is picked per session, and they were 15 dB apart, so the rain was loud one session and nearly
+# gone the next; one thunder was 7 dB above the rest.
 var feet_audio := preload("res://art/sounds/storm_steps.ogg")
-var delivered_audio := preload("res://art/sounds/FreeSFX/GameSFX/PickUp/Retro PickUp Coin 07.ogg")
-var start_audio := preload("res://art/sounds/click-2.mp3")
 var tap_audio := preload("res://art/sounds/storm_set.ogg")
 var swoosh_audio := preload("res://art/sounds/storm_leak.ogg")      # a new leak breaking through
-var dispatch_audio := preload("res://art/sounds/kenney/Audio/impactBell_heavy_003.ogg")
-var gaveup_audio := preload("res://art/sounds/bump-sound-7.mp3")
 var water_pour_audio := preload("res://art/sounds/water_pour_3.ogg")
 var water_drop_audio := [
 	preload("res://art/sounds/storm_drip_1.ogg"),
@@ -120,20 +120,16 @@ var water_drop_audio := [
 	preload("res://art/sounds/storm_drip_3.ogg"),
 	preload("res://art/sounds/storm_drip_4.ogg") ]
 var rain_audio := [
-	# preload("res://art/sounds/rain_1_louder.ogg"),
-	# preload("res://art/sounds/rain_2_louder.ogg"),
-	# preload("res://art/sounds/rain_3_louder.ogg"),
-	# preload("res://art/sounds/rain_4_louder.ogg"),
 	preload("res://art/sounds/rain_1.ogg"),
 	preload("res://art/sounds/rain_2.ogg"),
 	preload("res://art/sounds/rain_3.ogg"),
 	preload("res://art/sounds/rain_4.ogg"),
 ]
 var thunder_audio := [
-	preload("res://art/sounds/thunder_1.mp3"),
-	preload("res://art/sounds/thunder_2.mp3"),
-	preload("res://art/sounds/thunder_3.mp3"),
-	preload("res://art/sounds/thunder_4.mp3"),
+	preload("res://art/sounds/thunder_1.ogg"),
+	preload("res://art/sounds/thunder_2.ogg"),
+	preload("res://art/sounds/thunder_3.ogg"),
+	preload("res://art/sounds/thunder_4.ogg"),
 ]
 
 
@@ -163,13 +159,8 @@ func _ready() -> void:
 	round_in_level = 0
 	_apply_level()
 
-	# game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "feet", feet_audio, true)
-	game.add_sound(self, "delivery", delivered_audio)
-	game.add_sound(self, "start", start_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
-	game.add_sound(self, "dispatch", dispatch_audio)	
-	game.add_sound(self, "gaveup", gaveup_audio)	
 	game.add_sound(self, "water_drop", water_drop_audio)
 	game.add_sound(self, "rain", rain_audio, true)
 	# two thunder players, used in turn (main.gd on_show_blackout): with one, a blackout that came
@@ -206,7 +197,7 @@ func reset():
 	round_items_lost = 0
 	_ruined_room = -1
 	next_player_dir = -1
-	play_start_sound_once = true
+	_start_player_once = true
 	started_sounds = true
 
 	if player != null:
@@ -329,9 +320,8 @@ func move_dir(dir):
 
 func _start_playing():
 	time_started_level_ms = game.game_time
-	if play_start_sound_once:
-		play_start_sound_once = false
-		game.play_sound("start")
+	if _start_player_once:
+		_start_player_once = false
 		if player != null:
 			player.play()
 		game.set_time_left(0,0,storm_duration_s)
@@ -387,24 +377,6 @@ func add_pipe(p, room_id := -1):
 	# While rooms are still being placed there is no frame for them yet (_frame_build()).
 	pipe.visible = _build_framed
 
-# func _check_if_all_rooms_answered():
-# 	for rid in rooms.size():
-# 		if not answered_rooms.has(rid):
-# 			return false		
-# 	# game.play_sound("delivery")
-# 	MainGlobals.do_after(1, func(): level_is_done(true))
-# 	return true
-
-func answered(correct: bool):
-	if correct:
-		game.add_score_and_time(1,5)
-		game.add_correct_or_mistake(1,0)
-		game.play_sound("delivery")
-		# _check_if_all_rooms_answered()
-	else:
-		game.add_score_and_time(-1,-5)
-		game.add_correct_or_mistake(0,1)
-		game.play_sound("gaveup")
 
 func _on_pipe_pressed(_board_pos):	
 	# The board is built across several frames now (see _breathe), and taps are taken in between.
@@ -1418,12 +1390,6 @@ func move_player_on_tick():
 		return
 
 	var cell = bcell(player.board_pos)
-	if cell.pipe != null and cell.pipe.has_coin >= 0:
-		game.add_score_and_time(cell.pipe.has_coin, 0)
-		game.play_sound("delivery")
-		cell.pipe.has_coin = -1
-		cell.pipe.set_rot(board)
-
 	player.set_major_tick_now()
 
 	var p = player.board_pos
@@ -1700,7 +1666,14 @@ func _add_flood_layer() -> void:
 # WALL_SHADE of a tile -- except across a doorway, which is open. It makes a room an enclosed space
 # lit from inside rather than a flat colored box. On the floor's own z, added just before the water,
 # so the water draws over it.
-const WALL_SHADE: float = 0.30
+# THE CORNERS ARE ROUNDED (2026-11-01). Two bands overlapping in a corner added their shade up (a dark
+# corner); mitered to meet on the diagonal, the diagonal was the lightest line there and read as a
+# hairline gap. Now the straight bands stop short of a corner and a small patch fills it, its shade
+# from a SMOOTH minimum of the distances to the two walls, so the shade turns the corner without a
+# crease; an inside corner (an L-shaped room) gets a round patch, where it used to have a notch.
+const WALL_SHADE: float = 0.15
+const WALL_SHADE_ALPHA: float = 0.30
+const CORNER_STEPS: int = 5
 var _wall_shade: Node2D = null
 
 func _add_wall_shade() -> void:
@@ -1711,31 +1684,78 @@ func _add_wall_shade() -> void:
 	_wall_shade.draw.connect(_draw_wall_shade)
 	add_child(_wall_shade)
 
+func _shade_color(a: float) -> Color:
+	return Color(0.0, 0.0, 0.05, WALL_SHADE_ALPHA * clampf(a, 0.0, 1.0))
+
 func _draw_wall_shade() -> void:
 	var t: float = float(game.tile_size)
 	var d: float = t * WALL_SHADE
-	var dark: Color = Color(0.0, 0.0, 0.05, 0.30)
-	var clear: Color = Color(0.0, 0.0, 0.05, 0.0)
-	var cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
+	var cols: PackedColorArray = PackedColorArray([_shade_color(1.0), _shade_color(1.0), _shade_color(0.0),
+		_shade_color(0.0)])
 	# over the board array itself, not game.board_size: during a rebuild the size changes first
 	for y in board.size():
 		for x in board[y].size():
 			var cell: OneCell = board[y][x]
 			if cell == null or not cell.ispipe or cell.room_id < 0 or cell.door_type >= 0:
 				continue
-			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			var p: Vector2i = Vector2i(x, y)
+			var c: Vector2 = game.board_to_px(p)
 			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var q: Vector2i = Vector2i(x, y) + dv
-				var other: OneCell = null
-				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size():
-					other = board[q.y][q.x]
-				if other != null and (other.door_type >= 0 or (other.ispipe and other.room_id == cell.room_id)):
+				if not _shade_wall(cell, p + dv):
 					continue
 				var n: Vector2 = Vector2(dv)
 				var side: Vector2 = Vector2(-n.y, n.x)
+				# stop short of a corner where the next wall turns: the corner patch covers it
 				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
 				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
+				if _shade_wall(cell, p + Vector2i(side)):
+					e0 -= side * d
+				if _shade_wall(cell, p - Vector2i(side)):
+					e1 += side * d
 				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
+			for sx: int in [-1, 1]:
+				for sy: int in [-1, 1]:
+					var wx: bool = _shade_wall(cell, p + Vector2i(sx, 0))
+					var wy: bool = _shade_wall(cell, p + Vector2i(0, sy))
+					if wx and wy:
+						_draw_shade_corner(c + Vector2(sx, sy) * t * 0.5, Vector2(sx, sy), d, false)
+					elif not wx and not wy and _shade_wall(cell, p + Vector2i(sx, sy)):
+						_draw_shade_corner(c + Vector2(sx, sy) * t * 0.5, Vector2(sx, sy), d, true)
+
+# One corner patch, d x d, inward from the cell corner `at` (`dir` points out of the cell toward it), as
+# a small grid with a shade per vertex. u and v are the distances from the two walls' lines. Outside
+# corner: shaded by a smooth minimum of u and v (it rounds the inner edge of the shade, so the two bands
+# blend). Inside corner: by the distance from the wall's corner point, a quarter circle.
+func _draw_shade_corner(at: Vector2, dir: Vector2, d: float, inside: bool) -> void:
+	var k: float = d * 0.6
+	var pts: Array = []
+	var shades: Array = []
+	for j in CORNER_STEPS + 1:
+		for i in CORNER_STEPS + 1:
+			var u: float = d * float(i) / float(CORNER_STEPS)
+			var v: float = d * float(j) / float(CORNER_STEPS)
+			var dist: float = 0.0
+			if inside:
+				dist = sqrt(u * u + v * v)
+			else:
+				var h: float = maxf(k - absf(u - v), 0.0) / k
+				dist = minf(u, v) - h * h * k * 0.25
+			pts.append(at - Vector2(dir.x * u, dir.y * v))
+			shades.append(_shade_color(1.0 - dist / d))
+	var row: int = CORNER_STEPS + 1
+	for j in CORNER_STEPS:
+		for i in CORNER_STEPS:
+			var a: int = j * row + i
+			_wall_shade.draw_polygon(PackedVector2Array([pts[a], pts[a + 1], pts[a + row + 1], pts[a + row]]),
+				PackedColorArray([shades[a], shades[a + 1], shades[a + row + 1], shades[a + row]]))
+
+# Whether the floor of `cell` meets a wall toward `q`: anything that is not more of the same room
+# (the outside, a corridor, another room), except a doorway, which is open.
+func _shade_wall(cell: OneCell, q: Vector2i) -> bool:
+	var other: OneCell = null
+	if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size():
+		other = board[q.y][q.x]
+	return not (other != null and (other.door_type >= 0 or (other.ispipe and other.room_id == cell.room_id)))
 
 # EVERY LEAK MAKES ITS OWN PUDDLE: A CIRCLE THAT KEEPS GROWING. Its area is the water that leak has
 # poured onto the floor (pipe.floored_total -- everything it dripped with no tool under it, or with a

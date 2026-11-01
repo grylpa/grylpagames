@@ -95,10 +95,11 @@ var last_level_was_a_win: bool = false
 
 # Made for this game (devtools/make_action_sounds.py), names in code kept: `explosion` caught (a soft
 # thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short
-# whistle (was a click), `swoosh` through a portal (a rising warp). The grass footsteps stay.
+# whistle (was a click), `swoosh` through a portal (a rising warp), `feet` knuckle-walking on leaf litter (was a Kenney grass
+# footstep).
 const ForestFloor = preload("res://gorilla/scripts/forest_floor.gd")
 var explosion_audio: AudioStream = preload("res://art/sounds/gorilla_oof.ogg")
-var feet_audio: AudioStream = preload("res://art/sounds/kenney/Audio/footstep_grass_001.ogg")
+var feet_audio: AudioStream = preload("res://art/sounds/gorilla_steps.ogg")
 var delivered_audio: AudioStream = preload("res://art/sounds/gorilla_crunch.ogg")
 var start_audio: AudioStream = preload("res://art/sounds/gorilla_start.ogg")
 var swoosh_audio := preload("res://art/sounds/gorilla_warp.ogg")

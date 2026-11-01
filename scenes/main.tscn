@@ -23,7 +23,7 @@ visible = false
 layer = 128
 text_color = Color(1, 1, 0, 1)
 
-[node name="GlobalLevelIsDoneAudio" type="AudioStreamPlayer2D" parent="." unique_id=1337897698]
+[node name="GlobalLevelIsDoneAudio" type="AudioStreamPlayer" parent="." unique_id=1337897698]
 
 [node name="PathOverlay" type="CanvasLayer" parent="." unique_id=1067027195]
 layer = 50

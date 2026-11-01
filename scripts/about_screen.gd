@@ -135,8 +135,7 @@ func _build() -> void:
 	_body_nodes.append(_add_text(body, "No account is required to play. Nomizo runs entirely on your device. It sends nothing over the internet, and your scores and settings stay on your device.", Color(0.9, 0.9, 0.9, 1.0)))
 
 	_header_nodes.append(_add_header(body, "Credits"))
-	_body_nodes.append(_add_text(body, "Sound effects — Kenney (kenney.nl), CC0", Color(0.85, 0.85, 0.85, 1.0)))
-	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono, Exo 2, Orbitron, Space Grotesk (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
+	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono, Exo 2, Orbitron, Baloo 2, Space Grotesk (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
 	_body_nodes.append(_add_text(body, "Made with the Godot Engine.", Color(0.85, 0.85, 0.85, 1.0)))
 
 # Close About first: the two overlays share a layer, and About's tap-to-dismiss would
