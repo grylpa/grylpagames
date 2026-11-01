@@ -372,6 +372,17 @@ Tools are defined as `CAction` objects with a `name`, `id`, `level` (current fil
 bucket and towel 1.0, cup 0.55, saucer 0.225; tape 0, because tape does not hold water -- it stops the
 leak outright.
 
+**A towel also soaks up the floor** (`level._soak_towels`, every game tick): laid where a puddle covers
+its tile's center -- its own leak's puddle first, else the nearest one in the room -- it takes up to
+`SOAK_RATE` (1.0 tile-fulls a second: a whole towel's worth in a second) off that leak's `floored_total`
+until the towel is full. At 0.25 a second it stayed dry-looking for the first seconds and seemed not
+to soak at all. The
+puddle shrinks as it does (its radius comes from `floored_total`), and the round card's "rain caught"
+rises with it. A towel at the edge of a big puddle eats it back until the edge passes under it. The
+other tools catch only the drip: water on the floor does not climb into a pail. (Before 2026-11-01 a
+towel was just another bucket: laid on a puddle it absorbed nothing.) `pipe.disp_water` redraws a
+tool whenever its fill changes, not only under a leak, so a towel with no leak over it shows the soaking.
+
 Every tool keeps its OWN level, and a part-full one goes back to the inventory still part full. That is
 why the inventory shows each tool separately with its level drawn on it, and not a count per kind.
 
@@ -393,7 +404,15 @@ and neither is `drain.png` (see "Bricks and drains fill their tiles").
   onto its tile still looked as if it had room.
 - **Towel** -- a coral towel hanging over a rail, the way a hotel sign draws one: the rail showing on
   both sides, a shorter front layer, a longer back layer below it, two bands near the hem. It soaks up
-  rather than fills: the wet part darkens from the hem up, and a soaked one drips. Two flat versions
+  rather than fills: the wet part goes a deep, dull wine from the hem up to a blotchy damp edge, the
+  hem bands soaking dark with it, and a soaked one drips. (The first wet color was only a shade darker
+  than the coral and read as shading, so the towel seemed never to fill.) That is the INVENTORY's
+  towel. **On a tile it lies on the floor** (`_towel_lying`, `draw_tool(..., on_floor = true)` from
+  `pipe.gd`): loose and a little askew, softly rumpled, the bottom-left corner turned over with its
+  paler underside up and the hem bands carrying on across it, a crease. It soaks from below, so the
+  wet spreads from the middle out, by area, to the edges at full, and then water beads on top. The
+  hanging towel on the floor still read as a towel on a wall; a small dog-ear at the top right read
+  as a document icon, and a jagged edge as torn paper. Two flat versions
   (a striped slab with a fringe, then a folded towel from above) read as a rug and a book.
 - **Masking tape** -- two strips laid in an X with torn ends: the patch over the hole, which is what
   tape DOES here. A roll of tape was tried first and said only "you have tape". No level.

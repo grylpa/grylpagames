@@ -58,7 +58,7 @@ func _ready() -> void:
 		if action == "drain":
 			StormToolArt.draw_drain(_tool_draw, Vector2.ZERO, float(game.tile_size))
 		else:
-			StormToolArt.draw_tool(_tool_draw, action, Vector2.ZERO, 38.0, _tool_fill()))
+			StormToolArt.draw_tool(_tool_draw, action, Vector2.ZERO, 38.0, _tool_fill(), true))
 	add_child(_tool_draw)
 	# the floor tile and the furniture are drawn (room_art.gd); their sprites stay for visibility,
 	# placement and the room's tint, with their own pixels hidden
@@ -105,11 +105,13 @@ func is_dripping() -> bool:
 	return action.is_empty() or action_full
 
 func disp_water():
+	# Redrawn on ANY change of fill, not only under a leak: a towel soaks up a puddle with no leak of
+	# its own over it (level._soak_towels).
+	if _tool_draw != null and _tool_draw.visible and absf(_tool_fill() - _tool_fill_drawn) > 0.004:
+		_tool_fill_drawn = _tool_fill()
+		_tool_draw.queue_redraw()
 	if water_active:
 		var mat: ShaderMaterial = null
-		if _tool_draw != null and _tool_draw.visible and absf(_tool_fill() - _tool_fill_drawn) > 0.004:
-			_tool_fill_drawn = _tool_fill()
-			_tool_draw.queue_redraw()
 		if action_texture != null and action_texture.size() > 0 and %ActionTexture.visible:
 			mat = %ActionTexture.material as ShaderMaterial
 			mat.set_shader_parameter("fill_amount", clamp(action_level, 0.0, overflow_level))
