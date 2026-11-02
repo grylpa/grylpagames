@@ -41,8 +41,8 @@ func _ready() -> void:
 		"You are the gate agent at an alien spaceport.\n" +
 		"Each GATE boards only aliens on its BOARDING PASS.\n" +
 		"Aliens queue in the gate's outer ring by themselves.\n" +
-		"Drag a MATCH onto the boarding ramp in the center,\n" +
-		"and a NON-match back out to the hall.\n" +
+		"Flick a MATCH toward the boarding ramp in the center,\n" +
+		"and a NON-match out toward the hall.\n" +
 		"A full queue turns arrivals away, so keep it moving.\n" +
 		"The pass comes down later, so remember it!\n\n" +
 		"Later shifts get harder:\n" +

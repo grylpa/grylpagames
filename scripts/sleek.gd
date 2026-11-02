@@ -3,6 +3,11 @@ class_name Sleek
 
 # The shared look for the three sorting games (sortingrobots, bucketmadness, monkeyc).
 #
+# A WORKSHOP AT NIGHT (2026-11-02): dark warm wood and rubber, brass rails, orange robot arms, amber
+# lamps pooling on the belts and the rules as lit signs. It was cold blue-grey steel everywhere, so
+# nothing drew the eye and the screens read as flat and ugly. Only the CHROME is warm: the item
+# colors below are untouched (the rules compare them), and the tiles stay dark so they hold.
+#
 # All three drew their objects as FONT GLYPHS in a Label — "■" tinted Color.RED — which is why they
 # looked flat: a glyph is a single flat silhouette at whatever weight the font happens to have, on
 # a plain background, in the most saturated red a screen can produce. Nothing about it says
@@ -130,8 +135,17 @@ static func draw_shape(canvas: CanvasItem, glyph: String, box: Rect2, base: Colo
 	edge.append(pts[0])
 	canvas.draw_polyline(edge, base.darkened(0.34), maxf(box.size.y * 0.02, 1.0), true)
 	var c: Vector2 = box.get_center()
+	# The upper points as ONE run around the outline. Taken in outline order they jumped: a circle's
+	# points start at its right edge, so the run went right edge -> left edge straight across the
+	# disc (a line through every filled circle) before following the top.
 	var lit: PackedVector2Array = PackedVector2Array()
-	for p in pts:
+	var start: int = 0
+	for i in pts.size():
+		if pts[i].y > c.y:
+			start = i
+			break
+	for k in pts.size():
+		var p: Vector2 = pts[(start + k) % pts.size()]
 		if p.y <= c.y:
 			lit.append(p)
 	if lit.size() >= 2:
@@ -150,8 +164,8 @@ static func draw_shape(canvas: CanvasItem, glyph: String, box: Rect2, base: Colo
 # It goes on as a Label's "normal" stylebox, which draws BEHIND the text — a script's _draw() on a
 # Label paints over it, which is right for the shape and useless for a backing card.
 
-const TILE_FILL: Color = Color(0.161, 0.184, 0.243)
-const TILE_EDGE: Color = Color(0.322, 0.365, 0.463)
+const TILE_FILL: Color = Color(0.196, 0.157, 0.141)
+const TILE_EDGE: Color = Color(0.557, 0.427, 0.278)
 
 static func tile() -> StyleBoxFlat:
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
@@ -184,8 +198,8 @@ static func style_text(lbl: Label, color: Color = PALETTE["WHITE"]) -> void:
 # radius, no shadow — two 140x420 slabs of flat dark green over a grass photo. Restyling the
 # objects on them could never fix that, which is why the first two passes barely showed.
 
-const BELT_FILL: Color = Color(0.086, 0.106, 0.149, 0.88)
-const BELT_EDGE: Color = Color(0.365, 0.435, 0.545, 0.9)
+const BELT_FILL: Color = Color(0.098, 0.075, 0.063, 0.92)
+const BELT_EDGE: Color = Color(0.780, 0.584, 0.298, 0.95)
 
 # The machine a belt runs on: dark and slightly glassy, lifted off the background by a shadow, with
 # a lit top edge so it reads as a surface catching the light rather than a hole cut in the scene.
@@ -207,20 +221,22 @@ static func belt() -> StyleBoxFlat:
 	sb.content_margin_bottom = 6.0
 	return sb
 
-# The rule written above a belt. It was bare yellow text with a 1px shadow, floating on grass; on a
-# chip it belongs to the belt underneath it.
-const HEADER_FILL: Color = Color(0.129, 0.153, 0.208, 0.92)
-const HEADER_EDGE: Color = Color(0.914, 0.729, 0.212, 0.75)
+# THE RULE ON AN ENAMEL DEPOT SIGN (2026-11-02, with the parcel depot): deep blue enamel, a cream
+# rim, cream lettering, a real shadow under it. It was an amber-glowing "lit sign" in the night-workshop
+# look, and before that a dark chip with a gold edge.
+const HEADER_FILL: Color = Color(0.106, 0.239, 0.420, 0.98)
+const HEADER_EDGE: Color = Color(0.940, 0.910, 0.830)
 
 static func header(lbl: Label) -> void:
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
 	sb.bg_color = HEADER_FILL
 	sb.border_color = HEADER_EDGE
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(10)
-	sb.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
-	sb.shadow_size = 5
-	sb.shadow_offset = Vector2(0.0, 2.0)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(12)
+	sb.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+	sb.shadow_size = 6
+	sb.shadow_offset = Vector2(0.0, 3.0)
+	sb.anti_aliasing = true
 	sb.content_margin_left = 8.0
 	sb.content_margin_right = 8.0
 	sb.content_margin_top = 5.0
@@ -229,7 +245,7 @@ static func header(lbl: Label) -> void:
 	# Prose, so the no-fallback face: the symbol font's line box is 2.09x the font size and these
 	# rule labels wrap ("Shape is / blue or red?"), which made the gap between lines look broken.
 	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
-	lbl.add_theme_color_override("font_color", Color(0.98, 0.94, 0.78))
-	lbl.add_theme_color_override("font_outline_color", Color(0.04, 0.05, 0.07, 0.9))
+	lbl.add_theme_color_override("font_color", Color(0.97, 0.95, 0.90))
+	lbl.add_theme_color_override("font_outline_color", Color(0.04, 0.10, 0.20, 0.9))
 	lbl.add_theme_constant_override("outline_size", 4)
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

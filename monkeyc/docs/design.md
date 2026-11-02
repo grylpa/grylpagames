@@ -2,7 +2,7 @@
 
 ## Overview
 
-The player watches a robot sort items on one or two endless conveyor belts without seeing the rule. A yellow window slides in on an item; when the item reaches the h/2..3h/4 band the robot picks up (✓, item removed) or leaves it (✗); the ✓/✗ answer appears `robot_answer_time` earlier. After `min_examples` examples per active belt rule, a multiple-choice question asks the player to identify the hidden rule.
+The player watches a robot sort items on one or two endless conveyor belts without seeing the rule. The item in question is marked by amber lights along the belt's rails; when the item reaches the h/2..3h/4 band the robot picks up (✓, item removed) or leaves it (✗); the ✓/✗ seal is stamped on the parcel `robot_answer_time` earlier. After `min_examples` examples per active belt rule, a multiple-choice question asks the player to identify the hidden rule.
 
 ## File Structure
 
@@ -18,7 +18,7 @@ monkeyc/
     └── level.tscn
 ```
 
-Independent game: it has its own `monkeyc/art/` folder (just the chooser thumbnail) and uses only shared root assets from `res://art/` (e.g. `grass.png` background); the shape/digit/letter objects are drawn as **font glyphs** (Labels), not images. No files reference or depend on rlmadness. Sounds from `res://art/sounds/`.
+Independent game: it has its own `monkeyc/art/` folder (just the chooser thumbnail) and uses only shared root assets and scripts (`res://art/`, `scripts/parcel_art.gd` and the rest of the depot look -- see Visual style). No files reference or depend on rlmadness. Sounds from `res://art/sounds/`.
 
 ## Autoloads
 
@@ -29,7 +29,7 @@ Independent game: it has its own `monkeyc/art/` folder (just the chooser thumbna
 
 ### Demo phase (endless conveyor)
 
-Both belts (or just the left for 1-belt levels) scroll continuously. Items enter from the top. A yellow window slides in on an item and scrolls with it. The ✓/✗ answer shows at `_mark_top`, then the robot acts when the item reaches the take band (h/2..3h/4):
+Both belts (or just the left for 1-belt levels) scroll continuously. Items enter from the top. The rail lights come on beside one item and travel with it. The ✓/✗ answer shows at `_mark_top`, then the robot acts when the item reaches the take band (h/2..3h/4):
 - **Pick up** (item matches rule): window flashes green with ✓, item is removed from belt.
 - **Reject** (item does not match): window flashes red/orange with ✗, window disappears (item continues scrolling).
 
@@ -57,13 +57,13 @@ Uses the same scene structure as Sorting Robots:
 - Right side hidden for 1-belt levels
 - `%AvgTimeLabel` — always reads "Watch the robot..."; the mean option-selection time is deliberately NOT shown mid-level (it measures how fast the player names the rule, not anything about the belt). Still tracked in `times_to_answer` for the score row and level-end popup.
 - `%FeedbackLabel` — not used in demo; question feedback handled inline by button highlights
-- `%LeftRuleLabel`, `%RightRuleLabel` — always hidden (alpha=0); no rules shown to player
+- `%LeftRuleLabel`, `%RightRuleLabel` — hidden outright (`visible = false`); no rules shown to the player. They used to be kept at alpha 0, still reserving two lines above the belt; their height now goes to the belt (`_size_belts(f, belt_w, 0.0, ...)`), which with parcels was down to three items.
 
 ### Items
 
 Each belt item is a **pair** (two objects side by side), identical to sorting robots: `current_pair[0]` (left modality) and `current_pair[1]` (right modality), with display order randomised per item. `truth_l` = whether left-modality object matches left rule; `truth_r` = right-modality vs right rule. The robot acts on `truth_l` for the left belt and `truth_r` for the right belt — the player must figure out which modality the robot is using.
 
-`PAIR_FONT_SIZE = 32`, `ITEM_H = 72.0` — identical to sorting robots. Items scroll at `belt_spd` px/s with random spacing (80–130 px). The window `Panel` tracks its target item every frame (including during robot action animation) so it never freezes.
+Each pair is a PARCEL (`ParcelArt`, as in Sorting Robots): one 3-D cardboard box with the two items on two equal cards. `item_h = belt_w * ParcelArt.ASPECT`; items scroll at `belt_spd` px/s with spacing `item_h * 1.03-1.20`. The window `Panel` (now invisible: the parcel's rail lights mark the item in question) tracks its target item every frame so it never freezes. The robot's verdict is a seal stamped on the parcel (`ParcelArt.stamp`); a new item in question clears the last seal.
 
 ## Levels
 
@@ -73,7 +73,7 @@ Each level defines a **`rules` pool**, not a fixed left/right pair. Every **roun
 
 An **empty** `rules` list means "use every rule". Overlapping rules may safely share a pool — `_find_rule_pair` only ever returns a legal combination. The pair used last time is also avoided whenever the pool offers an alternative, so replaying a level (or wrapping around the progression order) doesn't serve up the same two rules again.
 
-**Stroop sizing.** The two objects of an item do **not** split the width 50/50 — a stroop word ("YELLOW") is many times wider than a glyph and used to spill over its half and collide with the other object. `_share_pair_widths` gives each object a share proportional to its natural text width (clamped to 18–82% so neither is starved), then `_fit_label_width` shrinks each font until its text fits the share it got. On a 220px belt the word keeps its full size; only narrower items shrink it.
+**Stroop sizing.** On a parcel each item is its own card (`ParcelArt._layout_cards`): equal heights, a card as wide as its content needs (at least square); if the two do not fit side by side on the lid they share the room in proportion and their text shrinks. (The old `_share_pair_widths` label layout is removed.)
 
 | ID | Rules pool | Belts | Belt spd | Robot answer time | Min ex | Rounds | Options | pass_pct |
 |----|-----------|-------|----------|-------------------|--------|--------|---------|----------|
@@ -217,143 +217,25 @@ Specific to this game:
 
 ---
 
-## Visual style
+## Visual style: the parcel depot (2026-11-02)
 
-The objects on the belt are **drawn**, not typeset. They used to be font glyphs in a Label — `"■"`
-tinted `Color.RED` — which is the whole reason this game looked flat: a glyph is one silhouette at
-whatever weight the font happens to have, in the most saturated red a screen can produce, with no
-shading anywhere.
+The same look as Sorting Robots -- see its `docs/design.md`, "Visual style", for the whole of it:
+parcels (`scripts/parcel_art.gd`, real 3-D boxes rendered once, cards drawn 2-D in the exact palette),
+the depot floor (`scripts/factory_floor.gd`: concrete, lane lines, litter, varied box piles -- here on
+both sides of the single belt, at irregular heights; four identical pallets in four corners read as
+staged), the roller belt under end housings (`belt_tread.gd`, `belt_hood.gd`), the rail lights for the
+item in question and the seal for the verdict. MonkeyC's own differences: one lamp over the single
+belt (`fb.lamps`), no rule signs, and the seal is the evidence the player collects -- it goes on the
+box's FRONT EDGE so it never covers what was judged.
 
-`scripts/sleek.gd` (`Sleek`) draws each shape with a contact shadow, a vertical gradient and a rim
-light along the top edge — the three things a real object does under a light — and
-`scripts/shape_label.gd` (`ShapeLabel`) wraps that as a **Label subclass**, so the pair-layout pass
-that measures both objects and shares the row width between them is untouched. The text is still
-set, because that is what the layout measures; it is just painted transparent.
-
-The palette moved there too. `Color.RED` is literally `(1, 0, 0)`: it vibrates against a dark
-background and has no headroom left to lighten into, so a gradient has nowhere to go.
-
-### Shapes were only part of it
-
-Measured across all ten rules, 40 items each: **only four rules produce shapes** (`square`,
-`filled`, `hollow`, `color_shape`) — 160 of 400 items. The other six produce **digits, letters and
-words**, and no amount of shape drawing touches those: a bare "7" on a flat belt looks exactly as
-unfinished as a flat square did.
-
-So every object, text or shape, now sits on the same **tile**: rounded, slightly raised, soft
-shadow (`Sleek.tile()`). That is what turns a character into an object, and it is the change that
-makes text and shapes look like they belong to the same game. Coverage is asserted rather than
-assumed: 400/400 items in each game are either a drawn shape or tiled text.
-
-The tile goes on as the Label's `"normal"` stylebox, which draws **behind** the text. A script's
-`_draw()` on a Label paints *over* it — right for the shape, useless for a backing card.
-
-**The one thing to be careful with:** item colors are compared for **equality** by the rule tests
-(`item["color"] == _color_values[word]` for stroop, `c == BLUE or c == RED` for colored shapes), so
-every color must come from `Sleek.PALETTE` and nowhere else. A raw `Color.BLUE` left behind
-anywhere silently stops matching and the rule quietly becomes unsatisfiable — there were three such
-sites per game, and they are now all lookups.
-
-### The chrome
-
-The belts were the largest thing on screen after the background and the flattest of all: a
-`PanelContainer` whose entire style was `bg_color = Color(0, 0.06, 0, 0.6)` — no border, no corner
-radius, no shadow. Two 140x420 slabs of flat dark green over a grass photo. Restyling the objects
-ON them could never fix that, which is why the first passes barely showed.
-
-`Sleek.belt()` gives them rounded corners, a lit top edge, a darker base and a real drop shadow, so
-the machine sits on the scene instead of being a hole cut in it. `Sleek.header()` puts each rule on
-a chip that belongs to the belt below it, rather than bare yellow text floating on grass.
-Bucketmadness has no belts — its chute (`_trap_poly`) takes the same `BELT_FILL`, so the three
-games read as one family.
-
-Applied from `_apply_sleek_chrome()` in `_ready()` rather than by editing the scene's sub-resources,
-so the styling lives with the rest of the look.
-
-### The scene
-
-The screen was a tiled grass texture over a grass-green clear color — a field, in a game about
-machines sorting objects on a conveyor. Being the largest single thing on screen, it is why
-restyling the widgets on top of it kept failing to change what the screen looked like.
-
-**This game is top-down.** The belts are conveyors seen from overhead, so the room is a FLOOR and
-nothing else: `scripts/factory_floor.gd` (`FactoryFloor`) draws steel plates in a grid, parallel
-seams both ways with a lit lip for thickness, bolts at every plate corner, painted hazard bands
-down each edge, circular overhead lamp pools, and a vignette.
-
-A top-down room has **no horizon and no vanishing point**. An earlier attempt drew a wall meeting a
-floor at a horizon — a side-on view — and against top-down belts it read as a conveyor standing
-upright against a wall. `FactoryFloor` has no `horizon` property at all, so that mistake cannot be
-repeated by configuration.
-
-Plate tint varies per plate from a hash of its grid position, not `randf()`: a tint chosen inside
-`_draw()` reshuffles every frame and the floor shimmers.
-
-`scripts/belt_tread.gd` (`BeltTread`) makes each belt an actual machine: an inset trough, slats
-scrolling down it at 34 px/s, a lit lip on each slat's leading edge so the motion reads, side rails
-and a roller at each end. Nothing on this screen moved before. It is added as child 0 of the belt's
-PanelContainer, which stretches every child to fill — without `move_child(tread, 0)` the tread
-paints over the objects instead of under them.
-
-`belt_edge.gd` takes `Sleek.BELT_FILL` for its fade strips; it had a hardcoded copy of the old flat
-green and went stale the moment the belt was restyled.
-
-The old TextureRect is hidden rather than deleted — the scene file still owns it.
-
+The belt starts EMPTY and parcels enter from the top only (they popped in at random places as their
+pictures rendered); the tutorial's "Pairs" step therefore waits, silently, for the first parcel to
+be fully on the belt (`tutorial_wait_for_item`, event `item_on_belt`).
 
 ### The robots
 
-Both games are named after them; neither had one on screen. The only "robot" that existed was a
-transient gripper (`claw.gd`) spawned for the half-second of a successful pick-up and thrown away.
-
-A first attempt stood arms in the gap beside each belt, and it was **worse than nothing**: pleasant
-to look at, unconnected to anything, crowding the board while a separate claw did the actual
-picking. An arm that is not doing the picking is scenery competing with the game.
-
-`scripts/robot_arm.gd` (`RobotBay`) now bolts each base to the **screen edge**, clear of the belts,
-and the arm **is** the claw:
-
-- `hold(bay, flyer)` from `_claw_pull` hands the robot the flying item. It tracks that node's real
-  position every frame, so the gripper is on the item and is dragged along as it is yanked off —
-  not an animation playing next to it. It retracts by itself once the flyer is freed.
-- The elbow comes from real **two-bone IK** (law of cosines), with the bend direction chosen per
-  side so both arms flex away from the belt instead of one folding across it.
-- Idle, the gripper tucks against the edge and drifts on a slow sine; it never crosses onto a belt.
-- Jaws open while reaching and close once it has the item; the base lamp is amber at rest, green
-  while working.
-
-`claw.gd` is deleted from both games — the robot's own arm replaced it.
-
-It is an overlay across the level rather than nodes in the layout, positioning itself from the
-belts' rects every frame, because the layout resizes with the window and belt height is computed at
-runtime by `_size_belts`.
-
-### Feedback
-
-The ✓/✗ the robot stamps on an item appeared at full size in one frame, which on a moving belt is
-easy to miss — and in this game the mark **is** the lesson: it is the evidence the player collects
-to work out the rule.
-
-`_pop_mark()` punches it in past its final size and settles it, and the item's own frame flinches
-(a 1.10 scale pulse and back), so the moment the robot decides is impossible to look past.
-
-### Items already ride in and out
-
-Worth recording, because it was asserted twice as a gap and is not one. `_scroll_belts()` spawns new
-items above the belt at negative y and frees them only once fully below it, with the containers set
-to `clip_contents`. Nothing pops into existence.
-
-### Thumbnail is stale
-
-`art/game_screen_200.png` — the tile the game chooser shows — predates the visual rework (factory
-scenery, running belts/chute, edge-mounted robots, drawn shapes, tiled text, animated feedback). It
-still shows the old flat green-on-grass screen, so the chooser advertises a game that no longer
-looks like this.
-
-Regenerating it needs a **real display**: `--headless` uses a dummy renderer and cannot capture a
-frame, so the game has to run windowed and save `get_viewport().get_texture().get_image()` scaled to
-the existing 200 px tile. Worth doing in one pass for all three sorting games, mid-round, so the
-belts have items on them.
+`scripts/robot_arm.gd` (`RobotBay`): bases bolted to the screen edge, the arm IS the claw (`hold()`
+from `_claw_pull`), two-bone IK. Orange-painted.
 
 ### Rule labels use the prose font
 
@@ -374,15 +256,10 @@ being told. The folder, the `MonkeyCG` / `MonkeyCLevelConfig` autoloads and the 
 ## Belt spacing scales with the item
 
 The pitch between consecutive items on a conveyor is `item_h * randf_range(PITCH_MIN, PITCH_MAX)`,
-never a pixel range. `item_h` is 72 on desktop and **100 on mobile**, and the pitch used to be a flat
-`randf_range(80, 130)` — so the gap between boxes was 8..58 on desktop and **-20..30 on mobile**, and
-the items overlapped each other vertically on every phone.
+never a pixel range (a flat 80-130 px once made items overlap on a phone). With parcels it is
+**1.03-1.20** (it was 1.111-1.806, which left too few items on the belt).
 
-Measured, before and after, on the 680x1200 canvas: smallest gap **-19.2** then **+13.5** units.
-Desktop is unchanged by construction — the fractions reproduce the old pixels exactly at
-`item_h = 72` (72 x 1.111 = 80, 72 x 1.806 = 130).
-
-Two code paths spawn items and BOTH need the pitch: `_init_belts()` fills the belt at level start and
+Two code paths spawn items and BOTH need the pitch: `_init_belts()` (above the belt only, now) and
 `_scroll_belts()` adds new ones above as old ones leave the bottom. The second belt's head start
 (`STAGGER_*`) is a fraction of `item_h` for the same reason.
 
@@ -393,8 +270,8 @@ Each belt box is aligned to the INNER edge of its half — `LeftBox` is `size_fl
 robots have the outside to stand in. They were both shrink-CENTER, which put the free space between
 them and pushed the robots almost entirely off a phone screen.
 
-That leaves no centre gap, which this game was already prepared for: its verdict has always been drawn on the judged item
-by `_mark_item()`, never in the centre.
+That leaves no center gap, which this game was already prepared for: its verdict has always been drawn on the judged item
+by `_mark_item()`, never in the center.
 
 ## Belt height comes from the room available
 
@@ -409,12 +286,12 @@ One knock-on: the tutorial's "this is the belt" step spotlights only the belt's 
 full-height belt leaves the caption nowhere to stand, and it ended up covering the very thing it
 points at.
 
-## One belt centres, two hug the inside
+## One belt centers, two hug the inside
 
 `_align_belts()` runs whenever the belt count is applied. With **two** belts each hugs the inner edge
 of its half (`SHRINK_END` / `SHRINK_BEGIN`) so the free space is on the OUTSIDE, where the robots
 stand — authored as shrink-center, the slack sat between them and pushed the robots almost entirely
-off a phone screen. With **one** belt it centres instead: there is no inner edge to hug when there is
+off a phone screen. With **one** belt it centers instead: there is no inner edge to hug when there is
 nothing to be inside of, and a lone belt jammed against the middle of the screen just looks broken.
 
 ## _size_belts measures the column, it does not list it
@@ -480,10 +357,18 @@ cannot ask to see more or answer early, so it says nothing about them.
 
 ## The chooser tile
 
-`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `apprentice()`), not grabbed. The old
-tile was a screen grab. It is now the question the game asks: a robot arm holding a purple block over two
-funnels, one blue-rimmed and one red, with a gold question mark between them -- which way does its rule
-send it? Colors from `Sleek.PALETTE`.
+`art/game_screen_200.png` is drawn in Godot by `devtools/probe_sort_tiles.gd` (it needs a display):
+the game as detective work -- a magnifying glass held over a big parcel (filling the tile) and its two cards, on a warm ground,
+no verdict seal. Two earlier tries (crops and scenes of the belt, ✓/✗ seals) did not convey the game.
+The published copies: the games-doc build (`--site`) and the site's front-page `thumbnails/`.
+
+## The colored-shape item's key is "shape"
+
+`_gen_colored_shape` returns `{"shape": ..., "color": ...}`, and everything that reads it
+(`_make_colored_shape`, MonkeyC's rule test) reads `"shape"`. A rename of a local `shape` -> `shp`
+(it shadows a base-class member) also caught the dictionary KEY in all three sorting games, so the
+"Shape is blue or red?" rule crashed building its first item ("Invalid access to property or key
+'shape'"); fixed 2026-11-02. Rename the variable, never the key.
 
 ## Sounds
 

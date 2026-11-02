@@ -49,6 +49,11 @@ static func steps(level: Node, _game) -> Array:
 			"spot_pad": 4.0,
 		},
 		{
+			# The belt starts empty: wait (silently) for the first item to be fully on it.
+			"setup": func(): level.tutorial_wait_for_item(),
+			"await": {"event": "item_on_belt", "timeout": 30.0},
+		},
+		{
 			"title": "Pairs",
 			"text": "Look closely: every item is a PAIR.\n\nThe rule only looks at one of the two, and you have to work out which.",
 			"spot": func():

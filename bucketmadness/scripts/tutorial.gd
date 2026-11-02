@@ -1,6 +1,6 @@
 extends RefCounted
 
-# Bucket Madness's coached tutorial. See docs/tutorials.md for the step schema.
+# Pockets' coached tutorial (the folder is still bucketmadness). See docs/tutorials.md for the step schema.
 #
 # The instruction text is six lines of rules with nothing demonstrated, and it leaves out the two
 # things that actually confuse a first-timer:
@@ -44,8 +44,8 @@ static func steps(level: Node, _game) -> Array:
 
 	return [
 		{
-			"title": "Bucket Madness",
-			"text": "Things fall from the top. There are two buckets with a dumpster between them, and you have about two seconds to choose.",
+			"title": "Pockets",
+			"text": "Things fall from the top. There are two corner pockets with a net between them, and you have about two seconds to choose.",
 			"keep_clear": all_clear,
 		},
 		{
@@ -63,18 +63,18 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"text": func():
-				return "The left bucket takes anything matching this rule:\n\n%s" % level.tutorial_rule_text(0),
+				return "The left pocket takes anything matching this rule:\n\n%s" % level.tutorial_rule_text(0),
 			"spot": func(): return level.tutorial_left_rule_label(),
 			"keep_clear": all_clear,
 		},
 		{
 			"text": func():
-				return "The right bucket takes this one:\n\n%s" % level.tutorial_rule_text(1),
+				return "The right pocket takes this one:\n\n%s" % level.tutorial_rule_text(1),
 			"spot": func(): return level.tutorial_right_rule_label(),
 			"keep_clear": all_clear,
 		},
 		{
-			"text": "Anything that matches neither rule goes in the dumpster, in the middle.",
+			"text": "Anything that matches neither rule goes in the net, in the middle.",
 			"spot": func(): return level.tutorial_dumpster(),
 			"keep_clear": all_clear,
 		},
@@ -82,7 +82,7 @@ static func steps(level: Node, _game) -> Array:
 			# Descriptive, not imperative: the board is frozen while a caption is up, so an
 			# instruction here cannot be obeyed and the attempt just dismisses the step. The ask
 			# comes next.
-			"text": "Each bucket has a direction. A left swipe or ← sends the item to the left bucket, a right swipe or → to the right one, and a downward swipe or ↓ to the dumpster.",
+			"text": "Each pocket has a direction. A left swipe or ← sends the balls to the left pocket, a right swipe or → to the right one, and a downward swipe or ↓ to the net.",
 			"keep_clear": all_clear,
 		},
 		{
@@ -95,7 +95,7 @@ static func steps(level: Node, _game) -> Array:
 				var rule: String = level.tutorial_matching_rule()
 				var where: String = level.tutorial_bucket_name(level.tutorial_correct_bucket())
 				if rule.is_empty():
-					return "This one matches neither rule.\n\nSend it to the dumpster."
+					return "This one matches neither rule.\n\nSend it to the net."
 				return "One of these two matches:\n\n%s\n\nSend it to the %s." % [rule, where],
 			"spot": item_spot,
 			"spot_pad": 8.0,
@@ -140,7 +140,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "Ready",
-			"text": "So far nothing has fallen on its own. From now on it will, and an item that lands without an answer counts as a dumpster answer.",
+			"text": "So far nothing has fallen on its own. From now on it will, and balls that reach the end without an answer go in the net.",
 			"keep_clear": all_clear,
 		},
 	]

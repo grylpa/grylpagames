@@ -271,10 +271,10 @@ static func _scenery(w: int, h: int, rng: RandomNumberGenerator, busy: bool = fa
 	# two ranges of hills, far and pale, near and darker
 	var far_col: Color = _hue(rng, rng.randf_range(0.55, 0.75), 0.30, 0.55 if not dusk else 0.40)
 	var near_col: Color = _hue(rng, rng.randf_range(0.22, 0.38), 0.55, 0.55 if not dusk else 0.35)
-	for layer in 2:
-		var col: Color = far_col if layer == 0 else near_col
-		var base_y: float = horizon + (0.0 if layer == 0 else h * 0.12)
-		var amp: float = h * (0.10 if layer == 0 else 0.07)
+	for ridge in 2:
+		var col: Color = far_col if ridge == 0 else near_col
+		var base_y: float = horizon + (0.0 if ridge == 0 else h * 0.12)
+		var amp: float = h * (0.10 if ridge == 0 else 0.07)
 		var f1: float = rng.randf_range(1.0, 2.5)
 		var f2: float = rng.randf_range(3.0, 6.0)
 		var p1: float = rng.randf() * TAU

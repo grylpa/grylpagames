@@ -324,7 +324,7 @@ func _draw_paper() -> void:
 			edge.append(outline[k])
 			fs.append((_outline_u[k] - u0) / (u1 - u0))
 	if edge.size() >= 3:
-		for layer: Array in [[1.15, _SINGE, 0.16], [0.95, _SINGE, 0.20], [0.75, _SINGE.darkened(0.25), 0.26],
+		for singe: Array in [[1.15, _SINGE, 0.16], [0.95, _SINGE, 0.20], [0.75, _SINGE.darkened(0.25), 0.26],
 				[0.55, _SINGE.darkened(0.5), 0.34], [0.38, _CHAR, 0.50], [0.22, _CHAR, 0.70]]:
 			var poly: PackedVector2Array = edge.duplicate()
 			for k in range(edge.size() - 1, -1, -1):
@@ -332,8 +332,8 @@ func _draw_paper() -> void:
 				# flat along most of its length, tapering only at its two ends, the rim ragged
 				var swell: float = smoothstep(0.0, 0.18, f) * smoothstep(1.0, 0.82, f)
 				var ragged: float = 0.72 + 0.18 * sin(f * 8.0 + ph) + 0.10 * sin(f * 19.0 + ph * 2.0)
-				poly.append(edge[k] + inn * maxf(0.3, margin * float(layer[0]) * swell * ragged))
-			c.draw_colored_polygon(poly, Color(layer[1] as Color, float(layer[2])))
+				poly.append(edge[k] + inn * maxf(0.3, margin * float(singe[0]) * swell * ragged))
+			c.draw_colored_polygon(poly, Color(singe[1] as Color, float(singe[2])))
 
 # The print itself, aged: faintly warmed, and darker toward its corners.
 static var _age_tex: GradientTexture2D = null

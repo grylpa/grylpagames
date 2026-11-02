@@ -1,8 +1,13 @@
-this  Bucket Madness — Design Doc
+# Pockets — Design Doc
+
+(Shown as **Pockets** since 2026-11-02; it was Bucket Madness. The folder, the autoloads and the
+save/upload key all keep `bucketmadness`, so saved scores and settings carry over. **In the code a
+"bucket" is a pocket and the "dumpster" is the middle pocket with the net** -- `correct_bucket`,
+`_bucket_images`, `tutorial_dumpster()` kept their names.)
 
 ## Overview
 
-A single item falls from the top center of the screen. Three buckets are at the bottom: left (matches left rule), center (dumpster — neither rule), right (matches right rule). The player must direct the item into the correct bucket before it reaches the bottom. Rules are shown as text labels at first, then hidden after `rounds_before_hide` rounds.
+Two balls roll down a pool table side by side, each carrying one object. Three pockets wait at the near end: the left corner pocket (matches the left rule), the middle pocket with its net (neither rule), the right corner pocket (matches the right rule). The player sends the balls into the right pocket before they reach the end. Rules are shown as text labels at first, then hidden after `rounds_before_hide` rounds.
 
 ## File Structure
 
@@ -18,11 +23,11 @@ bucketmadness/
     └── level.tscn
 ```
 
-Independent game: it has its own `bucketmadness/art/` folder (chooser thumbnail + its own `bucket_*.png` / `dumpster_*.png` graphics) and otherwise uses only shared root assets from `res://art/` (e.g. `grass.png` background); the shape/digit/letter objects are drawn as **font glyphs** (Labels), not images. No files reference or depend on rlmadness. Sounds from `res://art/sounds/`.
+Independent game: it has its own `bucketmadness/art/` folder (just the chooser tile) and otherwise uses shared assets and scripts: `scripts/ball_art.gd`, `chute_view.gd` (the felt), `bucket_stage.gd` (the near rail and pockets), `bucket_view.gd` (the target markers), `factory_backdrop.gd` (the room), `bottle_art.gd`, `bridge_art.gd`. No files reference or depend on rlmadness. Sounds from `res://art/sounds/`.
 
 ## Autoloads
 
-- `BucketMadnessG` — `globals.gd`; owns `GenericGameUtil.new("Bucket Madness", "bucketmadness", 0, 10, 0, 0)`; manages level queue, settings (`starting_level_id`, `use_uppercase`)
+- `BucketMadnessG` — `globals.gd`; owns `GenericGameUtil.new("Pockets", "bucketmadness", 0, 10, 0, 0)`; manages level queue, settings (`starting_level_id`, `use_uppercase`)
 - `BucketMadnessLevelConfig` — `level_config.gd`; provides `LEVELS`, `LEVEL_PROGRESSION_ORDER`, `get_level(id)`, `level_names()`, `id_to_index(id)`
 
 ## Gameplay Design
@@ -36,7 +41,7 @@ Cross-rule constraint: only one object can match one rule — the other is expli
 - Category 1 (right): `obj_a = right.gen(true)`, `obj_b = left.gen(false)`
 - Category 2 (dumpster): `obj_a = left.gen(false)`, `obj_b = right.gen(false)`
 
-Display order is randomised each round. Each sub-label is `ITEM_W/2 = 70` wide at `PAIR_FONT_SIZE = 36`. `ITEM_W = 140` (kept narrow so the two objects appear close together).
+Display order is randomized each round. The pair is TWO BALLS (`BallArt`, `item_w` 176 x `item_h` 86; 230 x 112 on a phone), one object on each ball's label.
 
 ### Item categories
 
@@ -53,7 +58,7 @@ At the start of each level, the rules are shown for `preview_time` seconds (leve
 
 Item starts at `y = -(ITEM_H + 10)` and tweens to `y = h - ITEM_H - 30` over `fall_duration` seconds. If the player doesn't respond, `_on_fall_reached_bottom()` calls `_evaluate_answer(1)` (dumpster default).
 
-After the player answers, the item slides diagonally to the chosen bucket's x position (fracs = [0.1, 0.5, 0.9] × width) and down off-screen over 0.35s.
+After the player answers, each ball rolls to the chosen pocket and drops in, the second a beat behind the first (`BallArt.sink_into`, `SINK_TIME` 0.6 s), and the pocket sparkles (`BucketStage.thump`).
 
 ### Input
 
@@ -102,17 +107,19 @@ If accuracy < 70%, level is replayed.
 
 Same 9 modalities as rlmadness/sorting robots: `digit`, `square`, `even_odd`, `vowel`, `prime`, `filled`, `hollow`, `stroop`, `color_shape`, `lines`. Item font size is 90 (larger than sorting robots' 65).
 
-## Bucket/Dumpster Visuals
+## The targets
 
-DRAWN containers (`scripts/bucket_view.gd`, `BucketView`) created by `_setup_bucket_images()` in `_ready()`, inserted at index 0 in each side VBoxContainer above the rule label: two buckets (left and right) and the taller dumpster in the center. (They were the PNGs `bucket_open_2.png` and `dumpster_half_open.png`; those and the other bucket pictures were deleted on 2026-10-30, unused.)
+The three targets (`scripts/bucket_view.gd`, `BucketView`) are INVISIBLE markers in the layout now,
+keeping their place (the rule plaques stand under them; `min_heights` 44/98/44 so each plaque sits
+right under its pocket) and the game's API (`open_amount`, `is_dumpster`, `mouth_global()`). The
+pockets themselves are drawn by the stage at the table's real corners (see Visual style), and the
+level feeds each marker its pocket's center (`mouth_at`) every frame in `_position_stage`.
 
-## Fall Area Trapezoid
+## The felt area
 
-`FallArea` is a plain Control (no PanelContainer wrapper). A `Polygon2D` (`_trap_poly`) added as index-0 child draws a dark-green trapezoid:
-- Top edge: `ITEM_W + 20` wide, centered (one `top_inset` from each side)
-- Bottom edge: full width of `FallArea`
-
-The geometry guarantees that items sliding to any bucket (fracs 0.1/0.5/0.9) never visually exit the trapezoid before reaching the bottom. `_clear_fall_area()` skips `_trap_poly` so it persists across rounds.
+`FallArea` keeps its trapezoid: `_trap_poly` (now `ChuteView.FELT_DARK`) is the base under the drawn
+felt, the table in perspective -- narrow far end at the top (`top_inset`), wide near end at the
+bottom.
 
 ## Scene Layout (`level.tscn`)
 
@@ -127,13 +134,13 @@ Level (CanvasLayer, script=level.gd)
 │       │   ├── FallArea (Control, unique, clip_contents=true, min-h=320)
 │       │   ├── BucketsRow (HBoxContainer, sep=8)
 │       │   │   ├── LeftBucketSide (VBoxContainer, expand)
-│       │   │   │   ├── (bucket TextureRect, inserted at index 0 at runtime)
+│       │   │   │   ├── (BucketView target marker, inserted at index 0 at runtime)
 │       │   │   │   └── LeftRuleLabel (Label, unique, min-h=52, font=18, autowrap)
 │       │   │   ├── CenterBucketSide (same structure)
-│       │   │   │   ├── (dumpster TextureRect, inserted at index 0 at runtime)
-│       │   │   │   └── DumpsterLabel (Label, unique, "♻ Dumpster")
+│       │   │   │   ├── (BucketView target marker, the middle pocket)
+│       │   │   │   └── DumpsterLabel (Label, unique; set to "NEITHER" at runtime)
 │       │   │   └── RightBucketSide (same structure)
-│       │   │       ├── (bucket TextureRect, inserted at index 0 at runtime)
+│       │   │       ├── (BucketView target marker, inserted at index 0 at runtime)
 │       │   │       └── RightRuleLabel (Label, unique, min-h=52, font=18, autowrap)
 │       └── BottomSpacer (expands)
 └── FeedbackLabel (Label, unique, fullscreen anchors, font=60, α=0 initially)
@@ -203,8 +210,9 @@ Specific to this game:
   round starts, with the item still a full item-height ABOVE the fall area where `clip_contents`
   hides it; a step opening on it framed empty space above the trapezoid. `item_ready` fires from
   `_process` when the item reaches the hold line, once per round.
-- **It is two buckets and a dumpster, not three buckets** — and the dumpster is in the middle of a
-  row, which is what "middle" is for.
+- **It is two corner pockets and a net, not three pockets** — the captions say "left pocket",
+  "right pocket", "the net"; the spotlights go on the stage's marker over each pocket
+  (`BucketStage.pocket_spot`), since the target controls are invisible.
 - **Captions read the live rule text** (`tutorial_rule_text`, `tutorial_matching_rule`,
   `tutorial_bucket_name`) rather than naming "digits" and "squares", since a pool is a pool.
 - Events: `item_dropped`, `item_ready`, `answered_right`, `answered_wrong`. Both asks wait on `answered_right`,
@@ -223,117 +231,37 @@ Specific to this game:
 
 ---
 
-## Visual style
+## Visual style: a billiard room (2026-11-02)
 
-The objects on the belt are **drawn**, not typeset. They used to be font glyphs in a Label — `"■"`
-tinted `Color.RED` — which is the whole reason this game looked flat: a glyph is one silhouette at
-whatever weight the font happens to have, in the most saturated red a screen can produce, with no
-shading anywhere.
+The items were tiles falling down a chute into buckets, in a factory and then a "workshop at night";
+the user found the tiles ugly and, once the items were billiard balls, the buckets and chute did not
+fit at all. Everything is now a pool table in a billiard room:
 
-`scripts/sleek.gd` (`Sleek`) draws each shape with a contact shadow, a vertical gradient and a rim
-light along the top edge — the three things a real object does under a light — and
-`scripts/shape_label.gd` (`ShapeLabel`) wraps that as a **Label subclass**, so the pair-layout pass
-that measures both objects and shares the row width between them is untouched. The text is still
-set, because that is what the layout measures; it is just painted transparent.
-
-The palette moved there too. `Color.RED` is literally `(1, 0, 0)`: it vibrates against a dark
-background and has no headroom left to lighten into, so a gradient has nowhere to go.
-
-### Shapes were only part of it
-
-Measured across all ten rules, 40 items each: **only four rules produce shapes** (`square`,
-`filled`, `hollow`, `color_shape`) — 160 of 400 items. The other six produce **digits, letters and
-words**, and no amount of shape drawing touches those: a bare "7" on a flat belt looks exactly as
-unfinished as a flat square did.
-
-So every object, text or shape, now sits on the same **tile**: rounded, slightly raised, soft
-shadow (`Sleek.tile()`). That is what turns a character into an object, and it is the change that
-makes text and shapes look like they belong to the same game. Coverage is asserted rather than
-assumed: 400/400 items in each game are either a drawn shape or tiled text.
-
-The tile goes on as the Label's `"normal"` stylebox, which draws **behind** the text. A script's
-`_draw()` on a Label paints *over* it — right for the shape, useless for a backing card.
-
-**The one thing to be careful with:** item colors are compared for **equality** by the rule tests
-(`item["color"] == _color_values[word]` for stroop, `c == BLUE or c == RED` for colored shapes), so
-every color must come from `Sleek.PALETTE` and nowhere else. A raw `Color.BLUE` left behind
-anywhere silently stops matching and the rule quietly becomes unsatisfiable — there were three such
-sites per game, and they are now all lookups.
-
-### The chrome
-
-The belts were the largest thing on screen after the background and the flattest of all: a
-`PanelContainer` whose entire style was `bg_color = Color(0, 0.06, 0, 0.6)` — no border, no corner
-radius, no shadow. Two 140x420 slabs of flat dark green over a grass photo. Restyling the objects
-ON them could never fix that, which is why the first passes barely showed.
-
-`Sleek.belt()` gives them rounded corners, a lit top edge, a darker base and a real drop shadow, so
-the machine sits on the scene instead of being a hole cut in it. `Sleek.header()` puts each rule on
-a chip that belongs to the belt below it, rather than bare yellow text floating on grass.
-Bucketmadness has no belts — its chute (`_trap_poly`) takes the same `BELT_FILL`, so the three
-games read as one family.
-
-Applied from `_apply_sleek_chrome()` in `_ready()` rather than by editing the scene's sub-resources,
-so the styling lives with the rest of the look.
-
-### The scene
-
-The whole screen was `res://art/grass.png` — a photographic grass texture, in a game about machines
-sorting things. It covered 100% of the pixels and had nothing to do with the subject, which is why
-restyling the widgets on top of it kept failing to change what the screen looked like.
-
-`scripts/sleek_scene.gd` (`SleekBackdrop`) draws an interior instead: a vertical gradient wall, a
-darker floor below a horizon line at 70% height, a pool of light over the play area, and a vignette
-closing the corners so the center reads as lit. Drawn rather than an image, so it scales to any
-screen with no second asset and the palette stays with the rest of the look. The old TextureRect is
-hidden, not deleted — the scene file still owns it.
-
-`scripts/belt_tread.gd` (`BeltTread`) makes a belt an actual machine: an inset trough, slats
-scrolling down it, a lit lip on each slat's leading edge, side rails and a roller at each end.
-**Nothing on these screens moved before** — that, as much as the flat color, is what made them read
-as a list of labels rather than something running. It is added as child 0 of the belt's
-PanelContainer, which stretches every child to fill: without `move_child(tread, 0)` the tread paints
-over the objects instead of under them.
-
-The tread runs at 34 px/s on purpose. Background motion that competes with the objects the player
-is trying to read is worse than none.
-
-`belt_edge.gd` now takes `Sleek.BELT_FILL` for its fade strips. It had a hardcoded copy of the old
-flat green and went stale the moment the belt was restyled.
-
-### The chute and the buckets
-
-The fall area was a single flat-colored trapezoid — one `Polygon2D`, covering the largest part of
-the play area, with no edges, no depth and nothing moving in it. The falling object was the only
-thing that ever changed.
-
-`scripts/chute_view.gd` (`ChuteView`) draws it as an actual chute: walls darkening toward the
-sides, rails down both slanted edges, a shadow under the mouth, a pool of light at the bottom where
-the item is heading, and chevrons drifting downward so the chute reads as flowing the way the item
-is about to. The chevrons are the belt-tread idea from the other two sorting games, so the three
-look like one family. The flat trapezoid stays underneath as a base fill so nothing shows through
-where the two disagree by a pixel.
-
-**`_clear_fall_area()` had to learn about it.** It frees every child of `%FallArea` except
-`_trap_poly`, so the chute was destroyed at the end of the first round and the game ran in an empty
-box from then on. Anything scenic added there needs the same exemption.
-
-The buckets now **react to catching an item** (`_bucket_react`): a squash-and-settle plus a brief
-brightening when the answer was right, a short shake when it was wrong. Nothing on this screen used
-to move on a drop except a tick appearing in a label — the buckets sat perfectly still either way,
-which is most of why the game felt inert.
-
-### Thumbnail is stale
-
-`art/game_screen_200.png` — the tile the game chooser shows — predates the visual rework (factory
-scenery, running belts/chute, edge-mounted robots, drawn shapes, tiled text, animated feedback). It
-still shows the old flat green-on-grass screen, so the chooser advertises a game that no longer
-looks like this.
-
-Regenerating it needs a **real display**: `--headless` uses a dummy renderer and cannot capture a
-frame, so the game has to run windowed and save `get_viewport().get_texture().get_image()` scaled to
-the existing 200 px tile. Worth doing in one pass for all three sorting games, mid-round, so the
-belts have items on them.
+- **The balls** (`scripts/ball_art.gd`, `BallArt`): glossy ivory, one object on a dark round label in
+  its EXACT palette color (the rules compare colors). The sphere is rendered in 3-D ONCE per pixel
+  size; label, roll and gloss are 2-D. A label is a cap on the sphere, projected correctly as it turns.
+  In play the balls only ROCK (always readable); they turn over as they drop into the pocket.
+- **The felt** (`scripts/chute_view.gd`, `ChuteView`): the trapezoid is the table in perspective --
+  matte green cloth (no shiny rings: felt is not reflective) with three soft pools of light, one under
+  each shade of the lamp; rubber cushions and polished rails with pearl diamonds; the far rail drawn
+  OVER the balls (`_mouth`) so they roll out from under it; beer bottles on the side rails (two far,
+  small, two nearer, bigger, all at different depths; real 3-D, four designs, none green:
+  `scripts/bottle_art.gd`); blue chalk cubes on the rails.
+- **The near rail and pockets** (`scripts/bucket_stage.gd`, `BucketStage`): one rail across the
+  table's end with a CORNER POCKET at each end (the two rules) and a SIDE POCKET in the middle (neither
+  rule) whose string NET hangs from a brass ring under the rail. A separate row of containers under the
+  table read as buckets; a net hanging free read as a basketball hoop. The pocket a ball is heading for
+  lights up; the table's two near legs (thick turned wood) go down to the floor.
+- **The room** (`scripts/factory_backdrop.gd`): green damask walls, a wainscot, a wooden floor; the
+  three-shade green billiard lamp; cues leaning on both walls; a triangle rack on a hook; a scoring
+  wire; the MECHANICAL BRIDGE standing against the wall (`scripts/bridge_art.gd`, 3-D: a pole with a
+  thick chrome-wire head, two legs and a dent for the cue, its dent toward the wall; earlier drawn
+  shapes -- a hook-hung rake, a cross, a solid plate -- were wrong); a small gilt-framed picture of the
+  APP'S icon (`art/icon_big.png`, the Android launcher icon); in front of the table a patterned carpet
+  (filled borders, a lattice, a medallion -- lines on a flat color read as a basketball court) whose far
+  edge is hidden under the table and whose size and perspective follow the TABLE (the level feeds
+  `table_rect`, `table_inset`, `table_bottom`), so it is right on a phone too; a leather bar stool.
+- **Labels**: the rules on BRASS PLAQUES (`_brass_plaque`); the middle one reads "NEITHER".
 
 ### Driving a tween from `_process`
 
@@ -384,140 +312,13 @@ The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus
 
 Thresholds ramp with difficulty rather than sitting flat.
 
-### The containers are drawn
+### History
 
-The three containers were illustrated PNGs sitting among a screen that is otherwise entirely drawn —
-the factory wall, the chute, the object tiles, the shapes. They read as pasted in from a different
-game, and being fixed images they could not react to anything either.
-
-`scripts/bucket_view.gd` (`BucketView`) draws them in the same palette: a tapered body with a lit
-side and a shaded edge, a dark mouth so the container reads as hollow, a rim, and two hoops. The
-dumpster is the same object drawn wider, squarer and with a hazard band, so it stays visibly the odd
-one out without belonging to another art style.
-
-Because the lid is drawn, `open_amount` (0..1) is a real angle: it is **tweened**, so the flaps
-swing. Measured, 20 intermediate values across a 0.18 s open.
-
-**A mistake worth recording.** An earlier attempt animated the shipped sprites instead, assuming
-`bucket_closed` / `bucket_open_1` / `bucket_open_2` were three frames of one bucket because of their
-names. They are not related images, so swapping between them looked like the bucket being *replaced*
-rather than opening. Filenames are not evidence about what a picture contains; the only ways to know
-are to look at it or to draw it yourself. (The pictures themselves were deleted on 2026-10-30.)
-
-`scripts/bucket_stage.gd` (`BucketStage`) still gives them a floor: one shelf spanning the row, a
-contact shadow under each, and a puff of dust when something lands. It draws under the containers
-and reads their live rects each frame, since the row is laid out by a container.
-
-### The item goes IN
-
-It used to tween to `h + 20` inside `%FallArea`, which is `clip_contents` — so it was cut off at the
-bottom of the chute and **vanished in mid-air above the buckets**. It never reached one, which made
-the whole point of the game invisible.
-
-It is now reparented to the `BucketStage` for the last leg. That fixes both halves at once: the
-stage is not clipped, and it sits UNDER the containers in the tree, so the item is **occluded by the
-bucket's front wall** as it drops in rather than sliding across it. It shrinks to 0.45 on the way
-down, which reads as going into the container rather than onto it, and the dust puff fires on
-arrival rather than at the moment of judgement. Measured: the item finishes 5 px from the mouth,
-from 490 px away at release.
-
-**Z-order matters as much as the reparent.** The stage sits below `MainLayout` in the tree, so on
-its own that hid the item behind the chute for the entire journey — it only reappeared as it entered
-the container, which looked like it had teleported. The item takes `z_index = 4` and the containers
-`z_index = 8`, so the order is chute (0) < item (4) < containers (8): visible the whole way down,
-and still occluded by the bucket's front wall at the end.
-
-### Bucket vs dumpster
-
-They differed only in width, which is not a difference a player can name, and the dumpster wore a
-straight yellow band that meant nothing and fought the rounded shading around it.
-
-They are now different **objects**: the bucket is a cylinder, the dumpster a box.
-
-Two geometry mistakes worth recording, because both made the shapes read as wrong rather than as
-plain:
-
-- **A cylinder's base is an ellipse, not a line.** The mouth is drawn as an ellipse because we look
-  slightly down into it, so a flat bottom edge contradicts it — the whole thing reads as a flat
-  trapezoid wearing a round lid. The silhouette now runs down the left wall, around the FRONT of
-  the base ellipse, up the right wall and back across the front of the mouth, as one closed shape.
-  Its hoops follow the same curve instead of cutting straight across.
-
-  The first attempt at that outline walked the base arc **right to left** while the previous point
-  was the bottom-LEFT corner, so the loop folded back over itself: `Invalid polygon data,
-  triangulation failed` — 618 times in a single run, and nothing drawn. `bucket_silhouette()` is a
-  method so a probe can test the real outline for self-intersection; the probe that missed this
-  rebuilt the same maths itself and confirmed its own bug.
-- **Nothing may be drawn below the dumpster's far top edge.** The top face recedes UP the screen
-  (it is the opening); an earlier version also drew a "far wall" polygon below that edge, which put
-  a solid surface inside the hole and made the box look inside-out. The faces are now drawn side,
-  then opening, then front — back to front — and the lid hinges along the far edge and folds back
-  over the top.
-
-### Buckets have no lids
-
-The buckets briefly grew two hinged flaps that swung out of the rim as an item approached. Buckets
-are open-topped containers; the flaps existed only because an open/close animation was wanted, and
-on screen they read as two diagonal lines appearing from nowhere.
-
-They are gone. "Ready to receive" is now a lift in the rim color and a little light down the inside
-wall — what an open container catching the light would actually do. `open_amount` still drives it,
-so the timing is unchanged.
-
-**The dumpster lid folds, it does not swing.** Its hinge is a horizontal axis in the scene, so the
-lid must foreshorten as it lifts: the projected depth shrinks by `cos(angle)` while it rises by
-`sin(angle)`. It was being rotated as a 2D vector (`span.rotated()`), which swung it sideways across
-the screen — which is exactly why the shut lid looked right and the open one did not. Shut, the two
-methods agree; they only diverge as it opens. Measured: horizontal reach from the hinge falls 21 px
-to 3 px while the tip rises, and the panel stays rigid.
-
-### Only the chosen container reacts
-
-All three used to open the moment an item was released. That says nothing — no choice has been made
-yet, so three containers gaping at once is just movement. They now stay shut while the item falls,
-and `_open_one()` opens **only the one the item is going into**, at the moment the answer is given.
-
-### Going in, not behind
-
-The item was at `z_index = 4`, under the containers (z 8), so the container's body covered it as
-soon as they overlapped: it read as sliding out of sight BEHIND the bucket rather than dropping into
-it. Being occluded is the wrong tool here — the mouth is drawn as part of the same node, so there is
-no "inside" to be occluded by.
-
-It now draws **above** the containers (z 12) and sells going in the way a falling object does:
-shrinking to 0.12 as it descends, and fading out only over the **last third** of the trip, so it
-stays solid all the way to the rim and disappears as it passes below it. Measured: solid while more
-than 40 px from the mouth, faded within it.
-
-### The dumpster label, and a tofu trap
-
-The label read "♻ Dumpster". After the prose/symbol font split it renders as a **blank box**: the
-no-fallback face has no U+267B, verified with `Font.has_char()`. The glyph was also wrong in meaning
-— a recycling symbol on the bin for things that match *neither* rule implies sorting for reuse,
-which is the opposite. It now reads "Dumpster", and the drawn container carries the meaning.
-
-**The general trap:** splitting prose from symbols means any label that mixes them silently loses
-its glyph. A runtime scan over every Label and Button in six games checked 14 non-ASCII glyphs
-against the font each one is actually using and found 0 missing — worth re-running after any font
-change, since nothing about a tofu box shows up as an error.
-
-### The dumpster reacts too
-
-Its opening brightens and its front lip catches the light as it receives, the same cue the bucket
-mouths use. It was the only container that gave nothing back when something went into it.
-
-### The chute is hardware
-
-It was a dark trapezoid with chevrons and two hairline rails. It now has: rails as tapering bands
-with rivets and a lit inner edge, a bolted lip across the mouth so it reads as fixed to something
-above rather than being a hole, a shadow under that lip so the throat recedes, and a flared bottom
-edge that catches the light — so the chute visibly DELIVERS into the row of containers instead of
-merely stopping above them.
-
-The lip and its shadow are drawn OVER the falling item: they live on their own child of the chute
-(`ChuteView._mouth`, `z_index` 20), so an item slides out from under the top edge into the light. They
-were part of the chute's own drawing, under everything, and a sliding item covered them. (%FallArea
-clips at the mouth, so above the lip the item is hidden.)
+The containers were drawn buckets and a dumpster (2026-10), each opening and reacting to a landing; the
+item was a tile pair that fell down a drawn chute. All of it was replaced by the pool table on
+2026-11-02 (see Visual style); the "♻ Dumpster" label had already become plain text when the
+recycling glyph turned out to be missing from the prose font -- worth knowing for any label that mixes
+prose and symbols.
 
 ## "complete!" only when it was
 
@@ -614,9 +415,20 @@ game does not keep; both halves need `MIN_PER_BUCKET` rounds or the comparison i
 
 ## The chooser tile
 
-`art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `bucket_madness()`), not grabbed. The
-old tile was a screen grab. It is now the game in one picture: a blue star falling down the chute toward
-three pails (red, blue, green, from `Sleek.PALETTE`), the blue one lit.
+`art/game_screen_200.png` is drawn in Godot by `devtools/probe_sort_tiles.gd` (it needs a display):
+two of the game's balls (`BallArt`, a blue star and a red disc), big and laid along the diagonal
+(`BallArt.make(..., diag = true)`; the game keeps them side by side), on green felt framed by
+snooker-mahogany rails with pearl diamonds and a big pocket in each corner -- clean, as the user asked. Two earlier
+tries (crops and scenes of the table) did not convey the game.
+The published copies: the games-doc build (`--site`) and the site's front-page `thumbnails/`.
+
+## The colored-shape item's key is "shape"
+
+`_gen_colored_shape` returns `{"shape": ..., "color": ...}`, and everything that reads it
+(`_make_colored_shape`, MonkeyC's rule test) reads `"shape"`. A rename of a local `shape` -> `shp`
+(it shadows a base-class member) also caught the dictionary KEY in all three sorting games, so the
+"Shape is blue or red?" rule crashed building its first item ("Invalid access to property or key
+'shape'"); fixed 2026-11-02. Rename the variable, never the key.
 
 ## Sounds
 

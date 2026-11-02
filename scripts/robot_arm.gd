@@ -14,12 +14,12 @@ class_name RobotBay
 #
 # Drawn top-down, like the belts and the floor.
 
-const BASE: Color = Color(0.263, 0.294, 0.361)
-const BASE_RIM: Color = Color(0.400, 0.443, 0.529)
-const ARM: Color = Color(0.325, 0.361, 0.435)
-const ARM_LIP: Color = Color(0.478, 0.522, 0.608)
-const JOINT: Color = Color(0.157, 0.176, 0.222)
-const JAW: Color = Color(0.588, 0.627, 0.706)
+const BASE: Color = Color(0.247, 0.216, 0.204)
+const BASE_RIM: Color = Color(0.424, 0.361, 0.318)
+const ARM: Color = Color(0.890, 0.471, 0.161)
+const ARM_LIP: Color = Color(1.0, 0.682, 0.361)
+const JOINT: Color = Color(0.161, 0.122, 0.098)
+const JAW: Color = Color(0.702, 0.659, 0.600)
 const SHADOW: Color = Color(0.0, 0.0, 0.0, 0.28)
 const LAMP_IDLE: Color = Color(0.478, 0.361, 0.161)
 const LAMP_BUSY: Color = Color(0.353, 0.847, 0.475)

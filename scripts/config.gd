@@ -7,8 +7,8 @@ const CATEGORY_ORDER: Array = ["Brain twisters", "Attention & Speed", "Serenity"
 var games = [
 	["aliens",        "Aliens",         "Work the spaceport gates",                               "Brain twisters"],
 	["sortingrobots", "Sorting Robots", "Sort items by hidden rules",                             "Brain twisters"],
-	["bucketmadness", "Bucket Madness", "Direct falling items into the right bucket",             "Brain twisters"],
-	["monkeyc",       "Apprentice",     "Watch the robot, then name its rule",                    "Brain twisters"],
+	["bucketmadness", "Pockets",        "Send rolling balls into the right pocket",               "Brain twisters"],
+	["monkeyc",       "Apprentice",     "Guess the rules",                                        "Brain twisters"],
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 
 	["gorilla",       "Gorilla",        "Eat apples while counting gorillas",                     "Attention & Speed"],

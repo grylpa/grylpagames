@@ -172,11 +172,11 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": lock_match,
 			"tick": relock,
-			"text": func(): return "This one matches %s.\n\nDrag it into the inner circle." % pass_text.call(),
+			"text": func(): return "This one matches %s.\n\nFlick it toward the inner circle." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "promoted", "timeout": 60.0},
 			"hint_after": 8.0,
-			"hint": "Press the alien and drag it to the center of the gate.",
+			"hint": "Press the alien and flick it toward the center of the gate.",
 		},
 		{
 			"setup": func() -> void:
@@ -189,11 +189,11 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": lock_mismatch,
 			"tick": relock,
-			"text": func(): return "This one doesn't match %s.\n\nDrag it out to the open field." % pass_text.call(),
+			"text": func(): return "This one doesn't match %s.\n\nFlick it out, away from the gate." % pass_text.call(),
 			"spot": locked_spot,
 			"await": {"event": "evicted", "timeout": 60.0},
 			"hint_after": 8.0,
-			"hint": "Drag it clear of the rings, onto the open ground.",
+			"hint": "Press it and flick it outward, away from the rings.",
 		},
 		{
 			"setup": release_hold,

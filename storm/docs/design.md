@@ -888,4 +888,7 @@ derived from it by the games-doc build and must not be written by hand.
 - Tool menu: the original outlined swatches, and BEHIND the menu the board blurred
   (`storm/scenes/menu_blur.gdshader`), fitted to where the slots actually land and owned by its popup;
   the slot over the tapped tile stays sharp. The bucket's handle is light steel with a dark edge.
+  The popup's two "free the blur" handlers hold the blur layer through a WeakRef: `popup_hide` frees it
+  and `tree_exiting` comes after, and a lambda that captured the layer itself errored with "Lambda
+  capture at index 0 was freed" (2026-11-02).
 - A one-room level glides into its room like the others (no countdown).

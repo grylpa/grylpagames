@@ -2013,9 +2013,11 @@ func _fit_menu_blur(popup_node: Window, swatches: Array, center: Control, pad: f
 	if center != null and is_instance_valid(center):
 		var hr: Rect2 = center.get_global_rect()
 		hole = Rect2(hr.position + win_ofs - rect.position, hr.size)
-	var blur_layer: CanvasLayer = _show_menu_blur(rect, hole)
-	popup_node.tree_exiting.connect(func() -> void: _free_menu_blur(blur_layer))
-	popup_node.popup_hide.connect(func() -> void: _free_menu_blur(blur_layer))
+	# Held WEAKLY: popup_hide frees the layer and tree_exiting comes after it, and a lambda that
+	# captured the layer itself then errored with "Lambda capture at index 0 was freed".
+	var blur_ref: WeakRef = weakref(_show_menu_blur(rect, hole))
+	popup_node.tree_exiting.connect(func() -> void: _free_menu_blur(blur_ref.get_ref() as CanvasLayer))
+	popup_node.popup_hide.connect(func() -> void: _free_menu_blur(blur_ref.get_ref() as CanvasLayer))
 
 func _show_menu_blur(rect: Rect2, hole: Rect2) -> CanvasLayer:
 	_free_menu_blur(_menu_blur_layer)
@@ -2152,15 +2154,15 @@ func create_actions_popup(_board_pos: Vector2i) -> void:
 	var view: Vector2 = get_viewport().get_visible_rect().size
 	var best: Vector2i = Vector2i((grid.x - 1) / 2, (grid.y - 1) / 2)
 	var best_d: float = INF
-	for tr in grid.y:
+	for slot_r in grid.y:
 		for tc in grid.x:
-			var tl: Vector2 = screen_pos - (Vector2(tc, tr) + Vector2(0.5, 0.5)) * pitch - Vector2.ONE * float(border_w)
+			var tl: Vector2 = screen_pos - (Vector2(tc, slot_r) + Vector2(0.5, 0.5)) * pitch - Vector2.ONE * float(border_w)
 			var fits: bool = tl.x >= MENU_EDGE and tl.y >= MENU_EDGE \
 				and tl.x + popup.size.x <= view.x - MENU_EDGE and tl.y + popup.size.y <= view.y - MENU_EDGE
-			var d: float = Vector2(tc - (grid.x - 1) * 0.5, tr - (grid.y - 1) * 0.5).length()
+			var d: float = Vector2(tc - (grid.x - 1) * 0.5, slot_r - (grid.y - 1) * 0.5).length()
 			if fits and d < best_d:
 				best_d = d
-				best = Vector2i(tc, tr)
+				best = Vector2i(tc, slot_r)
 	var top_left: Vector2 = screen_pos - (Vector2(best) + Vector2(0.5, 0.5)) * pitch - Vector2.ONE * float(border_w)
 	if best_d == INF:
 		# Larger than the screen: the middle slot, kept on screen as best it can be.

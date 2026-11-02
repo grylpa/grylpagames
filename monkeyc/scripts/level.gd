@@ -38,8 +38,9 @@ var item_h: float = 72.0
 #
 # The fractions reproduce the old desktop pixels exactly at item_h = 72 (72 x 1.111 = 80,
 # 72 x 1.806 = 130), so the rhythm is unchanged there and merely scales with the item.
-const PITCH_MIN: float = 1.111       # x item_h
-const PITCH_MAX: float = 1.806
+const PITCH_MIN: float = 1.03        # x item_h (parcels, 2026-11-02: they are taller than the tiles were,
+                                     # so the old 1.111-1.806 left too few items on the belt)
+const PITCH_MAX: float = 1.20
 const STAGGER_MIN: float = 0.556     # x item_h, the second belt's head start
 const STAGGER_MAX: float = 1.042
 
@@ -146,10 +147,15 @@ signal started_playing
 #
 # The old TextureRect is hidden rather than deleted: the scene file still owns it, and hiding is
 # reversible in a way that editing three .tscn files is not.
+# The depot floor; told where the belts are (_position_robots) for its lane lines and pallets.
+var _floor: FactoryFloor = null
+
 func _add_backdrop_depth() -> void:
 	var bg = get_node_or_null("Background")
 	var fb: FactoryFloor = FactoryFloor.new()
+	_floor = fb
 	fb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fb.lamps = [Vector2(0.5, 0.5)]     # one belt, in the middle: one lamp over it
 	add_child(fb)
 	move_child(fb, 0)
 	if bg != null:
@@ -179,6 +185,13 @@ func _position_robots() -> void:
 		var r: Rect2 = Rect2(b.global_position - _robots.global_position, b.size)
 		bays.append({"rect": r, "side": -1 if i == 0 else 1})
 	_robots.bays = bays
+	if _floor != null and is_instance_valid(_floor):
+		var rects: Array = []
+		for i2 in range(boxes.size()):
+			var b2 = boxes[i2]
+			if b2 != null and is_instance_valid(b2) and (b2 as Control).is_visible_in_tree():
+				rects.append(Rect2((b2 as Control).global_position - _floor.global_position, (b2 as Control).size))
+		_floor.belts = rects
 
 func _apply_sleek_chrome() -> void:
 	_add_backdrop_depth()
@@ -191,6 +204,9 @@ func _apply_sleek_chrome() -> void:
 			var tread: BeltTread = BeltTread.new()
 			box.add_child(tread)
 			box.move_child(tread, 0)
+			# ...and the housings over both ends, ABOVE the items: parcels come out from under the top
+			# one and go back under the bottom one (scripts/belt_hood.gd). Same belt in both games.
+			box.add_child(BeltHood.new())
 	_robots = RobotBay.new()
 	_robots.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_robots)
@@ -219,11 +235,10 @@ func _ready() -> void:
 	var bottom_reserve: float = maxf(20.0, bar_h - MainGlobals.footer_height + 10.0)
 	layout.offset_top = MainGlobals.header_height + 12.0
 	layout.offset_bottom = -(MainGlobals.footer_height + bottom_reserve)
-	var belt_w: float = 140.0
+	var belt_w: float = 225.0     # a turned parcel, its side showing, with cards that read (was 140, for tiles)
 	if MainGlobals.is_mobile():
 		pair_font_size = 48
-		item_h = 100.0
-		belt_w = 220.0
+		belt_w = 310.0
 		%LeftRuleLabel.add_theme_font_size_override("font_size", 32)
 		%RightRuleLabel.add_theme_font_size_override("font_size", 32)
 		%AvgTimeLabel.add_theme_font_size_override("font_size", 36)
@@ -240,11 +255,14 @@ func _ready() -> void:
 	%RightRuleLabel.add_theme_font_override("font", ft)
 	# Reserve a 2-line height on both rule labels so a 1-line and a 2-line rule occupy the
 	# same space, keeping the two belts vertically aligned (see sortingrobots).
-	var rule_fs: int = 32 if MainGlobals.is_mobile() else 22
-	var two_line_h: float = f.get_height(rule_fs) * 2.0 + 12.0
-	%LeftRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
-	%RightRuleLabel.custom_minimum_size = Vector2(0, two_line_h)
-	_size_belts(f, belt_w, two_line_h, layout)
+	# The rule labels are never shown here (the rule is what the player has to work out), and they
+	# used to be kept at alpha 0 still reserving two lines above the belt. Hidden outright, that
+	# height goes to the belt: with parcels (taller than the old tiles) it was down to three items.
+	%LeftRuleLabel.visible = false
+	%RightRuleLabel.visible = false
+	_size_belts(f, belt_w, 0.0, layout)
+	# An item is a parcel framed at ParcelArt.ASPECT (height / width); the belt's own width sets it.
+	item_h = ceilf(belt_w * ParcelArt.ASPECT)
 	# 0, not -8: that was compensating for the symbol font's 2.09x line box, and these labels now
 	# use the prose face, where it would squeeze the wrapped lines together instead.
 	%LeftRuleLabel.add_theme_constant_override("line_spacing", 0)
@@ -448,11 +466,11 @@ func _gen_colored_shape(is_correct: bool) -> Dictionary:
 	var shapes: Array = ["■", "●", "▲", "★"]
 	var shp: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
-		return {"shp": shp, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
+		return {"shape": shp, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
 	# Anything that is NOT the blue/red the rule accepts. Named, then looked up, so these stay the
 	# same objects the equality test compares against.
 	var others: Array = ["GREEN", "YELLOW", "PURPLE", "WHITE", "ORANGE"]
-	return {"shp": shp, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
+	return {"shape": shp, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
 
 func _make_text(item: Variant) -> Label:
 	# Shapes go through here too, not only through _make_colored_shape: the "square", "filled" and
@@ -485,64 +503,24 @@ func _make_stroop(item: Dictionary) -> Label:
 func _make_colored_shape(item: Dictionary) -> Label:
 	return ShapeLabel.make(item["shape"], item["color"], pair_font_size)
 
+# THE PAIR IS A PARCEL (scripts/parcel_art.gd): one cardboard box, the two items on two equal cards on
+# its lid. The modality builders still make the Labels they always made; only what each one SAYS --
+# its text or shape, and its color -- is handed to the parcel, so the rules and generators are
+# untouched.
 func _make_pair_control(item_l: Variant, mod_l: Dictionary, item_r: Variant, mod_r: Dictionary, bw: float) -> Control:
-	var c: Control = Control.new()
 	var lbl_l: Label = mod_l["make"].call(item_l)
 	var lbl_r: Label = mod_r["make"].call(item_r)
-	var shares: Array = _share_pair_widths(lbl_l, lbl_r, bw, pair_font_size)
-	lbl_l.size = Vector2(shares[0], item_h)
-	lbl_l.position = Vector2(0.0, 0.0)
-	lbl_r.size = Vector2(shares[1], item_h)
-	lbl_r.position = Vector2(shares[0] + _PAIR_GAP, 0.0)
-	c.add_child(lbl_l)
-	c.add_child(lbl_r)
+	var c: ParcelArt = ParcelArt.make(self, Vector2(bw, item_h), _item_desc(lbl_l), _item_desc(lbl_r), rng.randi())
+	lbl_l.free()
+	lbl_r.free()
 	return c
 
-# --- Pair layout ---
-# Objects are sized to FIT. A stroop word ("YELLOW") is many times wider than a glyph, so splitting
-# the item width 50/50 made the word spill over its half and collide with the other object. Instead
-# the two objects share the width in proportion to how wide they actually are, and each font is
-# shrunk until its text fits the share it got.
+func _item_desc(lbl: Label) -> Dictionary:
+	if lbl is ShapeLabel:
+		return {"shape": lbl.text, "color": (lbl as ShapeLabel).base_color}
+	return {"text": lbl.text, "color": lbl.get_theme_color("font_color"), "font": lbl.get_theme_font("font")}
 
-const _PAIR_GAP: float = 8.0
-const _MIN_PAIR_FONT: int = 12
-
-func _text_width(lbl: Label, font_size: int) -> float:
-	var f: Font = lbl.get_theme_font("font")
-	if f == null:
-		f = MainGlobals.get_system_sans_font()
-	return f.get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-
-# Shrink the label's font until its text fits max_w. Returns the size actually used.
-func _fit_label_width(lbl: Label, max_w: float, start_size: int) -> int:
-	var fs: int = start_size
-	while fs > _MIN_PAIR_FONT and _text_width(lbl, fs) > max_w:
-		fs -= 1
-	lbl.add_theme_font_size_override("font_size", fs)
-	return fs
-
-# Give each label a share of `total_w` proportional to its natural width, then fit its font to that
-# share. Returns [width_l, width_r] — laid out with _PAIR_GAP between them.
-func _share_pair_widths(lbl_l: Label, lbl_r: Label, total_w: float, base_size: int) -> Array:
-	var avail: float = maxf(total_w - _PAIR_GAP, 20.0)
-	var wl: float = _text_width(lbl_l, base_size)
-	var wr: float = _text_width(lbl_r, base_size)
-	var alloc_l: float = avail * 0.5
-	var alloc_r: float = avail * 0.5
-	if wl + wr > 0.0:
-		# proportional share, but never starve one side below a readable sliver
-		alloc_l = clampf(avail * (wl / (wl + wr)), avail * 0.18, avail * 0.82)
-		alloc_r = avail - alloc_l
-	_fit_label_width(lbl_l, alloc_l, base_size)
-	_fit_label_width(lbl_r, alloc_r, base_size)
-	return [alloc_l, alloc_r]
-
-# --- Belt helpers ---
-
-# Give the belts exactly the height left after the status line and the rule labels, rather than a
-# fixed number that cannot know the screen. Copied from sortingrobots rather than shared: games here
-# do not reach into each other's scripts.
-func _size_belts(f: Font, belt_w: float, rule_h: float, layout: MarginContainer) -> void:
+func _size_belts(_f: Font, belt_w: float, rule_h: float, layout: MarginContainer) -> void:
 	# offset_bottom is negative, so adding it subtracts the reserved bottom space
 	var layout_h: float = float(MainGlobals.full_screen_size.y) - layout.offset_top + layout.offset_bottom
 	var content: VBoxContainer = $MainLayout/VBox/ContentVBox
@@ -603,12 +581,27 @@ func _init_belts() -> void:
 			return
 		var y_offset: float = 0.0 if si == 0 else item_h * rng.randf_range(STAGGER_MIN, STAGGER_MAX)
 		var y: float = -item_h - y_offset
-		while y < h + item_h:
+		# ONLY ABOVE THE BELT: the parcels enter from the top. Filling the whole belt at the start made
+		# them pop in one by one at random places as their pictures finished rendering (ParcelArt).
+		while y < 0.0:
 			belt_items[si].append(_spawn_belt_item(si, y, bw))
 			y += item_h * rng.randf_range(PITCH_MIN, PITCH_MAX)
 	belt_initialized = true
 
+# The tutorial's "Pairs" step points at an item on the belt; the belt now starts empty (items enter
+# from the top), so the step waits for one to be fully on it.
+var _want_item_note: bool = false
+
+func tutorial_wait_for_item() -> void:
+	if tutorial_an_item_rect().size.x > 0.0:
+		game.tutorial_notify("item_on_belt")
+	else:
+		_want_item_note = true
+
 func _scroll_belts(delta: float) -> void:
+	if _want_item_note and tutorial_an_item_rect().size.x > 0.0:
+		_want_item_note = false
+		game.tutorial_notify("item_on_belt")
 	for si in num_belts:
 		var container: Control = _containers()[si]
 		var h: float = container.size.y
@@ -747,15 +740,27 @@ func _open_demo_window() -> void:
 	var panel: Panel = Panel.new()
 	panel.z_index = 2
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
-	sb.bg_color = Color(1.0, 0.85, 0.0, 0.18)
-	sb.set_border_width_all(3)
-	sb.border_color = Color(1.0, 0.9, 0.0, 1.0)
+	# INVISIBLE: the item in question is shown by the parcel itself (ParcelArt.set_spotlight -- lifted
+	# into a lamp's light), which belongs to the 3-D box; a flat yellow frame round it looked pasted
+	# on. The panel stays for what holds on to it: the tutorial's spotlight and the claw's grip.
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.set_border_width_all(0)
+	sb.border_color = Color(0, 0, 0, 0)
 	sb.set_corner_radius_all(4)
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.size = Vector2(bw, item_h + pad * 2.0)
 	panel.position = Vector2(0.0, window_target_item.position.y - pad)
 	container.add_child(panel)
 	window_panel = panel
+	# ONE ACTIVE ITEM AT A TIME: the seal on the last one goes as this one is flagged, so a verdict
+	# and a new question are never on screen together.
+	for belt in belt_items:
+		for entry in belt:
+			var other: Variant = entry["ctrl"]
+			if other != window_target_item and is_instance_valid(other) and other is ParcelArt:
+				(other as ParcelArt).clear_stamp()
+	if window_target_item is ParcelArt:
+		(window_target_item as ParcelArt).set_spotlight(true)
 	window_open = true
 	_tutorial_window_entered = false
 	game.tutorial_notify("window_opened")   # no-op outside tutorial mode
@@ -780,7 +785,10 @@ func _mark_item() -> void:
 	_demo_log[window_belt].append(
 		{"item_l": _window_item_l, "item_r": _window_item_r, "verdict": picks_up})
 	# (gating: the question waits until every belt has shown >=3 picked-up and >=2 left demos)
-	if window_panel != null and is_instance_valid(window_panel):
+	# A parcel takes the robot's verdict as a rubber stamp on its lid (ParcelArt.stamp).
+	if window_target_item != null and is_instance_valid(window_target_item) and window_target_item is ParcelArt:
+		(window_target_item as ParcelArt).stamp(picks_up)
+	elif window_panel != null and is_instance_valid(window_panel):
 		var sb: StyleBoxFlat = window_panel.get_theme_stylebox("panel") as StyleBoxFlat
 		var indicator: Label = Label.new()
 		indicator.add_theme_font_override("font", MainGlobals.get_system_sans_font())
@@ -868,6 +876,8 @@ func _discard_window() -> void:
 	if window_panel != null and is_instance_valid(window_panel):
 		window_panel.queue_free()
 		window_panel = null
+	if window_target_item != null and is_instance_valid(window_target_item) and window_target_item is ParcelArt:
+		(window_target_item as ParcelArt).set_spotlight(false)
 	window_belt = -1
 	window_target_item = null
 
