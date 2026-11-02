@@ -251,12 +251,12 @@ static func _towel(ci: CanvasItem, mid: Vector2, s: float, f: float) -> void:
 	# The back layer, longer, offset a little so it shows as a second layer.
 	var back: Rect2 = Rect2(mid.x - half + s * 0.05, rail_y, half * 2.0, back_end - rail_y)
 	var front: Rect2 = Rect2(mid.x - half, rail_y - s * 0.04, half * 2.0, front_end - rail_y + s * 0.04)
-	for layer in [[back, TOWEL_BACK], [front, TOWEL]]:
-		var r: Rect2 = layer[0]
-		_round_rect(ci, r, corner, layer[1])
+	for ply in [[back, TOWEL_BACK], [front, TOWEL]]:
+		var r: Rect2 = ply[0]
+		_round_rect(ci, r, corner, ply[1])
 		# Soaked from the hem up, with a blotchy damp edge, so how full it is reads at a glance.
 		var wet_top: float = r.end.y + 1.0
-		var wet: Color = TOWEL_WET if layer[1] == TOWEL else TOWEL_WET.darkened(0.25)
+		var wet: Color = TOWEL_WET if ply[1] == TOWEL else TOWEL_WET.darkened(0.25)
 		if f > 0.0:
 			var wet_h: float = (r.size.y - s * 0.04) * f
 			wet_top = r.end.y - wet_h

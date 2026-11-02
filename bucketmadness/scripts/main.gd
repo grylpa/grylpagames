@@ -39,12 +39,12 @@ func _ready() -> void:
 	$Help.set_texts({"N": "New game", "M": "Main menu"})
 	$Help.close_help.connect(_on_help_close_help)
 
-	game.set_instructions("Bucket Madness",
-		"Items fall from the top.\n" +
-		"Two rules: left bucket and right bucket.\n" +
-		"Center bucket = dumpster (no rule match).\n" +
-		"Left/A = left bucket. Right/D = right bucket.\n" +
-		"Down/S/Space = dumpster. Swipe works too.\n" +
+	game.set_instructions("Pockets",
+		"Two balls roll down the table.\n" +
+		"Two rules: left pocket and right pocket.\n" +
+		"The net in the middle = neither rule.\n" +
+		"Left/A = left pocket. Right/D = right pocket.\n" +
+		"Down/S/Space = the net. Swipe works too.\n" +
 		"Rules disappear after a few rounds.", 26)
 	if not game.shown_instructions:
 		game.show_instructions(self)

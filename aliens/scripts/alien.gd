@@ -43,6 +43,10 @@ var snap_to: Vector2 = Vector2.ZERO
 var snap_t0: float = 0.0
 var snap_end_state: int = 0
 var fade_t0: float = 0.0
+# A FLICKED boarding glides on into the ramp while it fades (level._update_fades).
+var fade_glide: bool = false
+var fade_from: Vector2 = Vector2.ZERO
+var fade_to: Vector2 = Vector2.ZERO
 var fade_in_t0: float = 0.0      # >0 while fading in after a respawn
 var hint_until_ms: float = 0.0   # 0 = no timed hint
 var seek_start_ms: float = 0.0   # when it committed to walking in (stall watchdog)

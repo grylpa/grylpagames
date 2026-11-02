@@ -86,8 +86,8 @@ var _color_values: Dictionary = Sleek.PALETTE
 
 var item_font_size: int = 52
 var pair_font_size: int = 36
-var item_w: float = 140.0
-var item_h: float = 88.0
+var item_w: float = 176.0          # two balls side by side (was 140 x 88, a tile pair)
+var item_h: float = 86.0
 
 # Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
 var correct_audio = preload("res://art/sounds/bucketmadness_right.ogg")
@@ -107,10 +107,14 @@ signal started_playing
 #
 # The old TextureRect is hidden rather than deleted: the scene file still owns it, and hiding is
 # reversible in a way that editing three .tscn files is not.
+var _backdrop: FactoryBackdrop = null
+
 func _add_backdrop_depth() -> void:
 	var bg = get_node_or_null("Background")
 	var fb: FactoryBackdrop = FactoryBackdrop.new()
+	_backdrop = fb
 	fb.horizon = 0.74
+	fb.picture = load("res://art/icon_big.png")     # the app's own icon (the Android launcher icon), framed on the wall
 	fb.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(fb)
 	move_child(fb, 0)
@@ -133,6 +137,28 @@ func _apply_sleek_chrome() -> void:
 			lbl = get_node_or_null("MainLayout/VBox/ContentVBox/BucketsRow/CenterBucketSide/" + n)
 		if lbl is Label:
 			Sleek.header(lbl as Label)
+			_brass_plaque(lbl as Label)
+
+# The rule under each pocket on a BRASS PLAQUE, as on a billiard table (the parcel games use enamel
+# depot signs, Sleek.header): polished brass, dark engraved lettering, a screw at each end.
+func _brass_plaque(lbl: Label) -> void:
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = Color(0.760, 0.590, 0.280)
+	sb.border_color = Color(0.420, 0.300, 0.110)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 4
+	sb.shadow_offset = Vector2(0, 2)
+	sb.anti_aliasing = true
+	sb.content_margin_left = 12.0
+	sb.content_margin_right = 12.0
+	sb.content_margin_top = 4.0
+	sb.content_margin_bottom = 4.0
+	lbl.add_theme_stylebox_override("normal", sb)
+	lbl.add_theme_color_override("font_color", Color(0.150, 0.090, 0.030))
+	lbl.add_theme_color_override("font_outline_color", Color(0.95, 0.82, 0.55, 0.6))
+	lbl.add_theme_constant_override("outline_size", 1)
 
 func _ready() -> void:
 	_apply_sleek_chrome()
@@ -146,8 +172,8 @@ func _ready() -> void:
 	if MainGlobals.is_mobile():
 		item_font_size = 68
 		pair_font_size = 48
-		item_w = 180.0
-		item_h = 110.0
+		item_w = 230.0
+		item_h = 112.0
 		%LeftRuleLabel.add_theme_font_size_override("font_size", 26)
 		%RightRuleLabel.add_theme_font_size_override("font_size", 26)
 		%DumpsterLabel.add_theme_font_size_override("font_size", 26)
@@ -162,6 +188,8 @@ func _ready() -> void:
 	%LeftRuleLabel.add_theme_font_override("font", ft)
 	%RightRuleLabel.add_theme_font_override("font", ft)
 	%DumpsterLabel.add_theme_font_override("font", ft)
+	# The middle pocket is a net now (scripts/bucket_stage.gd); its plaque says what it takes.
+	%DumpsterLabel.text = "NEITHER"
 	%AvgTimeLabel.add_theme_font_override("font", ft)
 	%FeedbackLabel.add_theme_font_override("font", f)
 	%FallArea.clip_contents = true
@@ -171,7 +199,7 @@ func _ready() -> void:
 	_trap_poly = Polygon2D.new()
 	# The flat trapezoid is kept as the base fill under the drawn chute, so nothing shows through
 	# at the edges where the two disagree by a pixel.
-	_trap_poly.color = Sleek.BELT_FILL
+	_trap_poly.color = ChuteView.FELT_DARK
 	%FallArea.add_child(_trap_poly)
 	%FallArea.move_child(_trap_poly, 0)
 	%FallArea.resized.connect(_update_trapezoid)
@@ -255,11 +283,25 @@ func _shut_buckets_after() -> void:
 func _position_stage() -> void:
 	if _stage == null or not is_instance_valid(_stage):
 		return
-	var rs: Array = []
-	for img in _bucket_images:
-		if img != null and is_instance_valid(img):
-			rs.append(Rect2(img.global_position - _stage.global_position, img.size))
-	_stage.rects = rs
+	# The end of the table and its pockets are drawn by the stage at the felt's own corners; each
+	# target marker learns where its pocket is, and the stage lights the one a ball is heading for.
+	var fa: Control = %FallArea
+	_stage.table = Rect2(fa.global_position - _stage.global_position, fa.size)
+	if _backdrop != null and is_instance_valid(_backdrop):
+		# the near rail ends RAIL_H below the felt; the carpet runs back under the table to there
+		_backdrop.table_bottom = fa.global_position.y - _backdrop.global_position.y + fa.size.y + BucketStage.RAIL_H
+		_backdrop.table_rect = Rect2(fa.global_position - _backdrop.global_position, fa.size)
+		if _chute != null and is_instance_valid(_chute):
+			_backdrop.table_inset = _chute.top_inset
+	var op: Array = []
+	for i in _bucket_images.size():
+		var img = _bucket_images[i]
+		if img is BucketView and is_instance_valid(img):
+			op.append((img as BucketView).open_amount)
+			(img as BucketView).mouth_at = _stage.global_position + _stage.pocket_center(i)
+		else:
+			op.append(0.0)
+	_stage.opens = op
 
 func _bucket_react(bucket: int, is_right: bool) -> void:
 	if bucket < 0 or bucket >= _bucket_images.size():
@@ -309,7 +351,9 @@ func _setup_bucket_images() -> void:
 		$MainLayout/VBox/ContentVBox/BucketsRow/CenterBucketSide,
 		$MainLayout/VBox/ContentVBox/BucketsRow/RightBucketSide
 	]
-	var min_heights: Array = [125, 160, 125]
+	# Just the depth of what hangs there -- a corner pocket, or the net in the middle -- so each rule
+	# plaque sits right under its pocket (they stood under 125-160 tall buckets).
+	var min_heights: Array = [44, 98, 44]
 	for i in 3:
 		var v: BucketView = BucketView.new()
 		v.is_dumpster = (i == 1)
@@ -408,11 +452,11 @@ func _gen_colored_shape(is_correct: bool) -> Dictionary:
 	var shapes: Array = ["■", "●", "▲", "★"]
 	var shp: String = shapes[rng.randi_range(0, shapes.size() - 1)]
 	if is_correct:
-		return {"shp": shp, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
+		return {"shape": shp, "color": [_color_values["BLUE"], _color_values["RED"]][rng.randi_range(0, 1)]}
 	# Anything that is NOT the blue/red the rule accepts. Named, then looked up, so these stay the
 	# same objects the equality test compares against.
 	var others: Array = ["GREEN", "YELLOW", "PURPLE", "WHITE", "ORANGE"]
-	return {"shp": shp, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
+	return {"shape": shp, "color": _color_values[others[rng.randi_range(0, others.size() - 1)]]}
 
 func _make_text(item: Variant) -> Label:
 	# Shapes go through here too, not only through _make_colored_shape: the "square", "filled" and
@@ -445,59 +489,22 @@ func _make_stroop(item: Dictionary) -> Label:
 func _make_colored_shape(item: Dictionary) -> Label:
 	return ShapeLabel.make(item["shape"], item["color"], item_font_size)
 
+# THE PAIR IS TWO BILLIARD BALLS (scripts/ball_art.gd), rolling down the pool table into a pocket.
+# The modality builders still make the Labels they always made; only what each one SAYS -- its text
+# or shape, and its color -- is handed to the balls, so the rules and generators are untouched.
 func _make_pair_control(item_a: Variant, mod_a: Dictionary, item_b: Variant, mod_b: Dictionary) -> Control:
-	var c: Control = Control.new()
 	var lbl_a: Label = mod_a["make"].call(item_a)
 	var lbl_b: Label = mod_b["make"].call(item_b)
-	var shares: Array = _share_pair_widths(lbl_a, lbl_b, item_w, pair_font_size)
-	lbl_a.size = Vector2(shares[0], item_h)
-	lbl_a.position = Vector2(0.0, 0.0)
-	lbl_b.size = Vector2(shares[1], item_h)
-	lbl_b.position = Vector2(shares[0] + _PAIR_GAP, 0.0)
-	c.add_child(lbl_a)
-	c.add_child(lbl_b)
+	var c: BallArt = BallArt.make(self, Vector2(item_w, item_h), _item_desc(lbl_a), _item_desc(lbl_b), rng.randi())
+	lbl_a.free()
+	lbl_b.free()
 	return c
 
-# --- Pair layout ---
-# Objects are sized to FIT. A stroop word ("YELLOW") is many times wider than a glyph, so splitting
-# the item width 50/50 made the word spill over its half and collide with the other object. Instead
-# the two objects share the width in proportion to how wide they actually are, and each font is
-# shrunk until its text fits the share it got.
+func _item_desc(lbl: Label) -> Dictionary:
+	if lbl is ShapeLabel:
+		return {"shape": lbl.text, "color": (lbl as ShapeLabel).base_color}
+	return {"text": lbl.text, "color": lbl.get_theme_color("font_color"), "font": lbl.get_theme_font("font")}
 
-const _PAIR_GAP: float = 8.0
-const _MIN_PAIR_FONT: int = 12
-
-func _text_width(lbl: Label, font_size: int) -> float:
-	var f: Font = lbl.get_theme_font("font")
-	if f == null:
-		f = MainGlobals.get_system_sans_font()
-	return f.get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-
-# Shrink the label's font until its text fits max_w. Returns the size actually used.
-func _fit_label_width(lbl: Label, max_w: float, start_size: int) -> int:
-	var fs: int = start_size
-	while fs > _MIN_PAIR_FONT and _text_width(lbl, fs) > max_w:
-		fs -= 1
-	lbl.add_theme_font_size_override("font_size", fs)
-	return fs
-
-# Give each label a share of `total_w` proportional to its natural width, then fit its font to that
-# share. Returns [width_l, width_r] — laid out with _PAIR_GAP between them.
-func _share_pair_widths(lbl_l: Label, lbl_r: Label, total_w: float, base_size: int) -> Array:
-	var avail: float = maxf(total_w - _PAIR_GAP, 20.0)
-	var wl: float = _text_width(lbl_l, base_size)
-	var wr: float = _text_width(lbl_r, base_size)
-	var alloc_l: float = avail * 0.5
-	var alloc_r: float = avail * 0.5
-	if wl + wr > 0.0:
-		# proportional share, but never starve one side below a readable sliver
-		alloc_l = clampf(avail * (wl / (wl + wr)), avail * 0.18, avail * 0.82)
-		alloc_r = avail - alloc_l
-	_fit_label_width(lbl_l, alloc_l, base_size)
-	_fit_label_width(lbl_r, alloc_r, base_size)
-	return [alloc_l, alloc_r]
-
-# --- Game flow ---
 
 func new_game(from_scratch: bool = true) -> void:
 	game.level_is_done = false
@@ -802,23 +809,37 @@ func _evaluate_answer(bucket: int) -> void:
 		# than dropping into it. Going in is sold by the item shrinking and fading away into the
 		# dark mouth instead — which is what something falling into a container actually does.
 		item.z_index = 12
-		landing -= item.size * 0.5
-		_slide_tween = create_tween().set_parallel(true)
-		_forget_when_done(_slide_tween, "slide")
-		_slide_tween.tween_property(item, "position", landing, 0.34) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		# Shrinking as it drops in reads as going down into the container rather than onto it.
-		item.pivot_offset = item.size * 0.5
-		_slide_tween.tween_property(item, "scale", Vector2(0.12, 0.12), 0.34) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		# Fading only over the LAST third: it stays solid all the way to the rim, then goes as it
-		# passes below it.
-		_slide_tween.tween_property(item, "modulate:a", 0.0, 0.12).set_delay(0.22)
-		_slide_tween.chain().tween_callback(func():
-			if _stage != null and is_instance_valid(_stage):
-				_stage.thump(bucket)
-			if is_instance_valid(item):
-				item.queue_free())
+		if item is BallArt:
+			# Each ball rolls to the pocket and drops in, one just behind the other (BallArt.sink_into);
+			# the stage sparkles as they go in.
+			var balls: BallArt = item as BallArt
+			balls.sink_into(landing - item.position, _stage.pocket_radius())
+			_slide_tween = create_tween()
+			_forget_when_done(_slide_tween, "slide")
+			_slide_tween.tween_interval(BallArt.SINK_TIME)
+			_slide_tween.tween_callback(func():
+				if _stage != null and is_instance_valid(_stage):
+					_stage.thump(bucket)
+				if is_instance_valid(balls):
+					balls.queue_free())
+		else:
+			landing -= item.size * 0.5
+			_slide_tween = create_tween().set_parallel(true)
+			_forget_when_done(_slide_tween, "slide")
+			_slide_tween.tween_property(item, "position", landing, 0.34) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			# Shrinking as it drops in reads as going down into the container rather than onto it.
+			item.pivot_offset = item.size * 0.5
+			_slide_tween.tween_property(item, "scale", Vector2(0.12, 0.12), 0.34) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			# Fading only over the LAST third: it stays solid all the way to the rim, then goes as it
+			# passes below it.
+			_slide_tween.tween_property(item, "modulate:a", 0.0, 0.12).set_delay(0.22)
+			_slide_tween.chain().tween_callback(func():
+				if _stage != null and is_instance_valid(_stage):
+					_stage.thump(bucket)
+				if is_instance_valid(item):
+					item.queue_free())
 
 	await _wait_ms(700.0)
 	%FeedbackLabel.modulate.a = 0.0
@@ -992,14 +1013,16 @@ func _bucket_image(idx: int) -> Control:
 		return null
 	return _bucket_images[idx]
 
+# The pockets are drawn by the stage at the table's corners and in the middle of its near rail, so a
+# spotlight goes on the stage's marker over each pocket, not on the (invisible) target control.
 func tutorial_left_bucket() -> Control:
-	return _bucket_image(0)
+	return _stage.pocket_spot(0) if _stage != null else _bucket_image(0)
 
 func tutorial_dumpster() -> Control:
-	return _bucket_image(1)
+	return _stage.pocket_spot(1) if _stage != null else _bucket_image(1)
 
 func tutorial_right_bucket() -> Control:
-	return _bucket_image(2)
+	return _stage.pocket_spot(2) if _stage != null else _bucket_image(2)
 
 func tutorial_left_rule_label() -> Control:
 	return %LeftRuleLabel
@@ -1015,8 +1038,8 @@ func tutorial_rules_row() -> Rect2:
 	return l.merge(%RightRuleLabel.get_global_rect())
 
 func tutorial_buckets_row() -> Rect2:
-	var l: Control = _bucket_image(0)
-	var r: Control = _bucket_image(2)
+	var l: Control = tutorial_left_bucket()
+	var r: Control = tutorial_right_bucket()
 	if l == null or r == null:
 		return Rect2()
 	return l.get_global_rect().merge(r.get_global_rect())
@@ -1027,10 +1050,10 @@ func tutorial_correct_bucket() -> int:
 
 func tutorial_bucket_name(bucket: int) -> String:
 	if bucket == 0:
-		return "left bucket"
+		return "left pocket"
 	if bucket == 2:
-		return "right bucket"
-	return "dumpster"
+		return "right pocket"
+	return "net"
 
 # The rule the current item matches, in the game's own words, or "" when it matches neither and
 # belongs in the dumpster. Read live so a caption can never claim the wrong rule.

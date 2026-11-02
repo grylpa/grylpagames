@@ -15,8 +15,9 @@ a **pass** — a rule about alien traits ("3 EYES", "BLUE"), optionally negated 
 compound ("1 EYE AND NOT BLUE"). There is deliberately no "TALL" rule; see Trait model.
 
 Aliens walk into an area's **outer ring by themselves** and park there. They can never enter an
-inner ring on their own. The player drags each arrival either **into the inner ring** (if it
-matches that area's rule) or **back out to the field** (if it doesn't). While an outer ring is
+inner ring on their own. The player sends each arrival either **into the inner ring** (if it
+matches that area's rule) or **back out to the field** (if it doesn't) -- by dragging it there, or
+just by flicking it that way (see "The flick"). While an outer ring is
 full, aliens that walk up to it are turned away and each one costs a miss.
 
 Successor to `rlmadness` (same rapid rule-switching under interference, arcade presentation).
@@ -563,7 +564,9 @@ Resolved from the alien's **center** at release (`_region_at`), so there is no s
 | PARKED_OUTER(H) | INNER(H), mismatch | **mistake**, but it still goes in |
 | PARKED_OUTER(H) | FIELD, mismatch | **correct** → release to ROAM |
 | PARKED_OUTER(H) | FIELD, match | **mistake**, but it is still released |
-| PARKED_OUTER(H) | OUTER(H) | silent no-op → snap to slot |
+| PARKED_OUTER(H) | OUTER(H), flicked toward the center | as INNER(H) (see "The flick") |
+| PARKED_OUTER(H) | OUTER(H), flicked away from the center | as FIELD |
+| PARKED_OUTER(H) | OUTER(H), otherwise | silent no-op → snap to slot |
 | PARKED_OUTER(H) | any region of area J≠H | **illegal**, no score → snap back |
 | ROAM | FIELD | reposition, no score |
 | ROAM | INNER or OUTER (any) | **illegal**, no score → snap back |
@@ -578,6 +581,26 @@ commit to.
 Snap-back is **manual, not a Tween**, so separation (which treats SNAPPING as immovable) can
 never fight the animation. The drag hint shows only whether the drop would be *accepted* — it
 never leaks whether the alien matches the rule.
+
+## The flick
+
+The game is a judgment, not a test of the hand (2026-11-02, the user's call), so an alien taken
+from its outer ring need not be carried all the way. Let go of it while it is **still in its own
+outer ring** after moving it at least `FLICK_MIN` (0.6) alien radii, and its direction from where it
+was grabbed (`drag_origin`) decides (`_flick_intent`):
+
+- within 60° (`FLICK_COS` 0.5) of straight at the gate's center -- **boarded**, exactly as if dropped
+  in the inner ring: same scoring, same tutorial events. A correct one glides on into the ramp as it
+  fades (`fade_glide`, `FLICK_GLIDE_MS`); a mistake glides onto its inner slot as a drop does;
+- within 60° of straight away -- **turned out**, as a drop in the field, and it glides to just past
+  the outer ring (`_start_snap` to ROAM) instead of being pushed out by the keep-out;
+- sideways, or moved less than that -- nothing, as a drop in the outer ring always was. **A tap
+  stays a no-op**: it could mean either answer, and every answer commits.
+
+A full drag works exactly as before. While dragging, a flick already aimed in lights the inner ring
+(`_update_drag_hint` asks `_flick_intent` too), so the player sees what letting go will do. Response
+time is unchanged: it is measured to the GRAB, never to the release. The instructions and the two
+tutorial steps say "flick" now.
 
 ## Layout
 

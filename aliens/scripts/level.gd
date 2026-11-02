@@ -110,6 +110,14 @@ const STEER_RESPONSE: float = 9.0
 const ARRIVE_RADIUS_MUL: float = 1.8   # start slowing this many radii out
 const BOB_RATE: float = 0.085
 const SNAP_MS: float = 190.0
+# A FLICK: the player need not drag an alien all the way in or out -- the game is a judgment, not a
+# test of the hand. Let go of an alien still in its outer ring after moving it at least FLICK_MIN
+# alien radii, and its direction from where it was grabbed decides: within FLICK_COS of straight at
+# the ramp's center boards it, within FLICK_COS of straight away turns it out, sideways does
+# nothing (as a drop in the outer ring always has). A tap stays a no-op: it could mean either.
+const FLICK_MIN: float = 0.6
+const FLICK_COS: float = 0.5        # cos 60 degrees
+const FLICK_GLIDE_MS: float = 260.0
 const INNER_HOLD_MS: float = 1100.0
 const FADE_MS: float = 480.0
 const HINT_FLASH_MS: float = 650.0
@@ -1691,6 +1699,23 @@ func _region_at(p: Vector2) -> Array:
 			return [Region.OUTER, i]
 	return [Region.FIELD, -1]
 
+# What letting go of a dragged alien here would mean as a FLICK (see FLICK_MIN): Region.INNER to
+# board, Region.FIELD to turn away, Region.OUTER for neither (too short, sideways, or not an alien
+# taken from its outer ring).
+func _flick_intent(al) -> int:
+	if al.drag_from_state != AState.PARKED_OUTER or al.area_idx < 0 or al.area_idx >= _areas.size():
+		return Region.OUTER
+	var moved: Vector2 = al.sim_pos - al.drag_origin
+	if moved.length() < al.radius * FLICK_MIN:
+		return Region.OUTER
+	var to_center: Vector2 = (Vector2(_areas[al.area_idx]["center"]) - al.drag_origin).normalized()
+	var c: float = moved.normalized().dot(to_center)
+	if c >= FLICK_COS:
+		return Region.INNER
+	if c <= -FLICK_COS:
+		return Region.FIELD
+	return Region.OUTER
+
 # The hint says whether the drop would be ACCEPTED, never whether the alien matches the rule.
 func _update_drag_hint() -> void:
 	var al = _drag_alien
@@ -1700,6 +1725,13 @@ func _update_drag_hint() -> void:
 	var kind: int = int(res[0])
 	var idx: int = int(res[1])
 	var legal: bool = false
+	# A flick already aimed in or out shows what letting go would do, before the finger lifts.
+	var flick: int = _flick_intent(al) if (kind == Region.OUTER and idx == al.area_idx) else Region.OUTER
+	if flick == Region.INNER:
+		kind = Region.INNER
+	elif flick == Region.FIELD:
+		kind = Region.FIELD
+		idx = -1
 	if al.drag_from_state == AState.PARKED_OUTER:
 		legal = kind == Region.FIELD or (kind == Region.INNER and idx == al.area_idx) \
 			or (kind == Region.OUTER and idx == al.area_idx)
@@ -1728,6 +1760,29 @@ func _drop_dragged(now: float) -> void:
 			_reject(al, now)
 			return
 		var matched: bool = _gate_wants(al, home)
+		var flick: int = _flick_intent(al) if (kind == Region.OUTER and idx == home) else Region.OUTER
+		if flick == Region.INNER:
+			game.record_answer(true, matched)
+			_accept_into_inner(al, now, not matched)
+			if not matched:
+				return                       # a mistake already glides onto its inner slot
+			var ar_in: Dictionary = _areas[home]
+			var c_in: Vector2 = Vector2(ar_in["center"])
+			al.fade_glide = true
+			al.fade_from = al.sim_pos
+			al.fade_to = c_in + (al.sim_pos - c_in).normalized() * float(ar_in["r_in"]) * 0.45
+			return
+		if flick == Region.FIELD:
+			game.record_answer(false, matched)
+			_send_to_field(al, now, matched)
+			var ar_out: Dictionary = _areas[home]
+			var c_out: Vector2 = Vector2(ar_out["center"])
+			var away: Vector2 = (al.sim_pos - c_out).normalized()
+			var lo: Vector2 = _field.position + Vector2(al.radius, al.radius)
+			var hi: Vector2 = _field.position + _field.size - Vector2(al.radius, al.radius)
+			var out_pt: Vector2 = (c_out + away * (float(ar_out["r_out"]) + al.radius * 1.6)).clamp(lo, hi)
+			_start_snap(al, out_pt, AState.ROAM, now)
+			return
 		# Both judgments COMMIT. A wrong call is scored against the player, not undone.
 		if kind == Region.INNER and idx == home:
 			# Boarding is the "yes"; _gate_wants is whether the gate really wanted this alien.
@@ -1930,6 +1985,10 @@ func _update_fades(now: float) -> void:
 		elif al.state == AState.FADING:
 			var t: float = clampf((now - al.fade_t0) / FADE_MS, 0.0, 1.0)
 			al.self_modulate.a = 1.0 - t
+			if al.fade_glide:
+				var g: float = clampf((now - al.fade_t0) / FLICK_GLIDE_MS, 0.0, 1.0)
+				al.sim_pos = al.fade_from.lerp(al.fade_to, 1.0 - pow(1.0 - g, 3.0))
+				al.position = al.sim_pos
 			if t >= 1.0:
 				_recycle(al)
 		elif al.fade_in_t0 > 0.0:
@@ -2118,6 +2177,7 @@ func _dist_to_nearest_area(p: Vector2) -> float:
 	return best
 
 func _recycle(al) -> void:
+	al.fade_glide = false
 	# fill whatever the pool is short of — either an explicit request or the current gap
 	var need: Array = al.respawn_need
 	al.respawn_need = []

@@ -86,7 +86,7 @@ gdscript/warnings/integer_division=0
 
 window/size/viewport_width=680
 window/size/viewport_height=788
-window/size/mode=2
+window/size/initial_position_type=0
 window/stretch/mode="canvas_items"
 window/handheld/orientation=6
 
