@@ -230,12 +230,16 @@ box's FRONT EDGE so it never covers what was judged.
 
 The belt starts EMPTY and parcels enter from the top only (they popped in at random places as their
 pictures rendered); the tutorial's "Pairs" step therefore waits, silently, for the first parcel to
-be fully on the belt (`tutorial_wait_for_item`, event `item_on_belt`).
+be fully on the belt (`tutorial_wait_for_item`, event `item_on_belt`) -- and, if the robot's window
+has already opened meanwhile, for THE item it is judging, which "Pairs" then points at
+(`_item_ready_for_pairs`, `tutorial_an_item_rect`); pointing at a different one failed the probe now
+and then. The "It picked one" caption speaks of the lights along the belt (the yellow frame is gone).
 
 ### The robots
 
 `scripts/robot_arm.gd` (`RobotBay`): bases bolted to the screen edge, the arm IS the claw (`hold()`
-from `_claw_pull`), two-bone IK. Orange-painted.
+from `_claw_pull`), two-bone IK. Orange-painted. It visibly reaches for the item (`REACH_TIME`, 0.3 s)
+before the lift and pull, and the question waits that much longer after the last pick-up.
 
 ### Rule labels use the prose font
 

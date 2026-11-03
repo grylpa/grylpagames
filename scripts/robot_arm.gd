@@ -27,6 +27,12 @@ const LAMP_BUSY: Color = Color(0.353, 0.847, 0.475)
 # Bays: [{"rect": belt rect in this control's space, "side": -1 left / +1 right}, ...]
 var bays: Array = []
 
+# THE REACH (2026-11-03): handed an item, the gripper travels out to it over REACH_TIME, jaws open,
+# closing as it arrives; once the item is gone it retracts from where it let go. It used to jump
+# straight onto the item, so only the pull was animated. The games wait REACH_TIME before the pick-up.
+const REACH_TIME: float = 0.30
+var _last_tip: Array = []
+
 var _t: float = 0.0
 # Per bay: the flying item this robot is holding, or null.
 var _held: Array = []
@@ -41,12 +47,13 @@ func _ensure(n: int) -> void:
 		_held.append(null)
 	while _reach.size() < n:
 		_reach.append(0.0)
+	while _last_tip.size() < n:
+		_last_tip.append(Vector2.ZERO)
 
 # The robot on `bay` takes `item` off the belt and keeps hold of it until it is freed.
 func hold(bay: int, item: Node2D) -> void:
 	_ensure(bay + 1)
 	_held[bay] = item
-	_reach[bay] = maxf(float(_reach[bay]), 0.35)
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -56,18 +63,21 @@ func _process(delta: float) -> void:
 		if not busy:
 			_held[i] = null
 		var target: float = 1.0 if busy else 0.0
-		_reach[i] = move_toward(float(_reach[i]), target, delta * (6.0 if busy else 2.6))
+		_reach[i] = move_toward(float(_reach[i]), target, delta * (1.0 / REACH_TIME if busy else 2.6))
 	queue_redraw()
 
 # Where the gripper should be for this bay, in local space.
 func _tip_for(i: int, base: Vector2, side: int) -> Vector2:
-	var held = _held[i] if i < _held.size() else null
-	if held != null and is_instance_valid(held):
-		return (held as Node2D).global_position - global_position
 	# Idle: tucked against the edge, just off the base, drifting gently. Never over the belt.
 	var d: float = float(side)
 	var sway: float = sin(_t * 1.5 + float(i) * 2.1) * 7.0
-	return base + Vector2(-d * 26.0, 42.0 + sway)
+	var rest: Vector2 = base + Vector2(-d * 26.0, 42.0 + sway)
+	var held = _held[i] if i < _held.size() else null
+	if held != null and is_instance_valid(held):
+		_last_tip[i] = (held as Node2D).global_position - global_position
+	var k: float = float(_reach[i]) if i < _reach.size() else 0.0
+	# out to the item (or back from where it let go), eased
+	return rest.lerp(_last_tip[i], k * k * (3.0 - 2.0 * k))
 
 func _draw() -> void:
 	_ensure(bays.size())

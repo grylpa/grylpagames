@@ -593,13 +593,23 @@ func _init_belts() -> void:
 var _want_item_note: bool = false
 
 func tutorial_wait_for_item() -> void:
-	if tutorial_an_item_rect().size.x > 0.0:
+	if _item_ready_for_pairs():
 		game.tutorial_notify("item_on_belt")
 	else:
 		_want_item_note = true
 
+# Ready when an item is fully on the belt -- and, if the robot's window is already open, when THE item
+# it is judging is (otherwise "Pairs" would point at a different one).
+func _item_ready_for_pairs() -> bool:
+	if window_open:
+		var c: Control = _containers()[maxi(0, window_belt)]
+		return window_target_item != null and is_instance_valid(window_target_item) \
+			and window_target_item.get_parent() == c and window_target_item.position.y >= 0.0 \
+			and window_target_item.position.y + item_h <= c.size.y
+	return tutorial_an_item_rect().size.x > 0.0
+
 func _scroll_belts(delta: float) -> void:
-	if _want_item_note and tutorial_an_item_rect().size.x > 0.0:
+	if _want_item_note and _item_ready_for_pairs():
 		_want_item_note = false
 		game.tutorial_notify("item_on_belt")
 	for si in num_belts:
@@ -866,7 +876,7 @@ func _take_item() -> void:
 	if all_done:
 		_demo_phase = false
 		_question_phase = true
-		await get_tree().create_timer(_GRAB_TIME + _PULL_TIME).timeout
+		await get_tree().create_timer(RobotBay.REACH_TIME + _GRAB_TIME + _PULL_TIME).timeout
 		await _ask_all_rules()
 	else:
 		next_window_timer = rng.randf_range(0.8, 1.5)
@@ -921,6 +931,8 @@ func _claw_pull(to_right: bool) -> void:
 	var sw: float = float(MainGlobals.screen_size.x)
 	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
 	var tw: Tween = flyer.create_tween()
+	# 0) the arm reaches out to it first (RobotBay.REACH_TIME); the item waits for the gripper
+	tw.tween_interval(RobotBay.REACH_TIME)
 	# 1) grip and lift — a quick pop, slightly overshooting, so it reads as being picked up
 	tw.tween_property(flyer, "scale", Vector2(_GRAB_SCALE, _GRAB_SCALE), _GRAB_TIME) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -1352,6 +1364,13 @@ func tutorial_an_item_rect() -> Rect2:
 	var container: Control = _containers()[0]
 	if container == null or not is_instance_valid(container):
 		return Rect2()
+	# The item the robot is judging, if its window is already open: the belt starts empty and the
+	# window can open while the tutorial waits for the first item, and pointing at a DIFFERENT one
+	# then read as the wrong item.
+	if window_open and window_target_item != null and is_instance_valid(window_target_item) \
+			and window_target_item.get_parent() == container and window_target_item.position.y >= 0.0 \
+			and window_target_item.position.y + item_h <= container.size.y:
+		return window_target_item.get_global_rect()
 	var mid: float = container.size.y * 0.5
 	var best: Control = null
 	var best_d: float = INF

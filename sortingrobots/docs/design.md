@@ -149,7 +149,10 @@ filling it at once made them pop in one by one at random places as their picture
 
 `scripts/robot_arm.gd` (`RobotBay`) bolts each base to the screen edge and the arm IS the claw:
 `hold(bay, flyer)` from `_claw_pull` hands it the flying item, real two-bone IK, jaws open while
-reaching. Orange-painted since the warm look.
+reaching. Orange-painted since the warm look. **It visibly reaches** (2026-11-03): the gripper travels
+from its resting spot to the item over `RobotBay.REACH_TIME` (0.3 s), closing as it arrives, and
+`_claw_pull` waits that long before the lift and the pull; after the item is gone it retracts from
+where it let go. It used to jump straight onto the item, so only the pull was animated.
 
 ### Rule labels use the prose font
 
