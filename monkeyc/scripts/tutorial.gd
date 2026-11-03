@@ -72,7 +72,7 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"title": "It picked one",
-			"text": "The yellow frame means the robot is about to judge this item.\n\nWatch what it decides.",
+			"text": "The lights along the belt mean the robot is about to judge this item.\n\nWatch what it decides.",
 			"spot": window_spot,
 			"spot_pad": 4.0,
 		},

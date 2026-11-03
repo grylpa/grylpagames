@@ -933,6 +933,8 @@ func _claw_pull(to_right: bool) -> void:
 	var sw: float = float(MainGlobals.screen_size.x)
 	var dx: float = (sw + item_size.x + 80.0 - item_gpos.x) if to_right else (-(item_gpos.x + item_size.x + 560.0))
 	var tw: Tween = flyer.create_tween()
+	# 0) the arm reaches out to it first (RobotBay.REACH_TIME); the item waits for the gripper
+	tw.tween_interval(RobotBay.REACH_TIME)
 	# 1) grip and lift — a quick pop, slightly overshooting, so it reads as being picked up
 	tw.tween_property(flyer, "scale", Vector2(_GRAB_SCALE, _GRAB_SCALE), _GRAB_TIME) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
