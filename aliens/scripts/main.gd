@@ -22,6 +22,8 @@ func _ready() -> void:
 	main_menu.sig_start_game.connect(_on_main_menu_start_game)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	main_menu.add_option_entry(1, "Starting level", AliensLevelConfig.level_names())
+	if not MainGlobals.is_mobile():
+		main_menu.add_switch_entry(2, "Left / right click")
 	refresh_menu()
 	show_main_menu()
 
@@ -152,6 +154,9 @@ func _on_menu_option_changed(id: int, idx: int) -> void:
 	if id == 1:
 		AliensG.starting_level_id = AliensLevelConfig.LEVELS[idx]["id"]
 		AliensG.save_settings()
+	elif id == 2:
+		AliensG.click_mode = idx == 1
+		AliensG.save_settings()
 
 func _on_level_show_main_menu() -> void:
 	game.playing = false
@@ -211,3 +216,4 @@ func _input(event: InputEvent) -> void:
 
 func refresh_menu() -> void:
 	main_menu.update_option(1, AliensLevelConfig.id_to_index(AliensG.starting_level_id))
+	main_menu.update_option(2, 1 if AliensG.click_mode else 0)

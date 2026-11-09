@@ -23,7 +23,9 @@ class_name GameInstrument
 const CHART_GAMES: Dictionary = {
 	"dino": "Recall",
 	"weris": "Search",
-	"gorilla": "Counting",
+	# (gorilla's "Counting" chart went with its count question, 2026-11-09: its rounds now log each
+	# lost baby -- how far away it appeared, whether it was rescued, how long it took -- as trials,
+	# for a chart of rescue time against distance once there are sessions to draw it from)
 	"monkeyc": "Rules",
 	# The three games that flash something off to one side. Their panel is a 3x3 laid out like
 	# the screen, because "which corner do I keep missing" is a question about a place.
@@ -171,6 +173,8 @@ static func chart_for(folder: String) -> Control:
 const EVEN_ROUNDS: Array = [
 	# one quick judgment per item, repeated
 	"aliens", "sortingrobots", "bucketmadness", "whack", "ptbits",
+	# one shuffle, one theft, two answers
+	"pickpocket",
 	# one flash, one answer
 	"didi", "ddooo", "pop", "ooo", "polkadots",
 	# one card, one answer

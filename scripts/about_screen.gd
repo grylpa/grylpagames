@@ -136,6 +136,7 @@ func _build() -> void:
 
 	_header_nodes.append(_add_header(body, "Credits"))
 	_body_nodes.append(_add_text(body, "Fonts — Open Sans, Noto Sans Symbols, JetBrains Mono, Exo 2, Orbitron, Baloo 2, Space Grotesk (SIL OFL 1.1); Stormfaze (CC0)", Color(0.85, 0.85, 0.85, 1.0)))
+	_body_nodes.append(_add_text(body, "The pinching hand in Pickpocket's icon is from Noto Emoji by Google (Apache License 2.0).", Color(0.85, 0.85, 0.85, 1.0)))
 	_body_nodes.append(_add_text(body, "Made with the Godot Engine.", Color(0.85, 0.85, 0.85, 1.0)))
 
 # Close About first: the two overlays share a layer, and About's tap-to-dismiss would

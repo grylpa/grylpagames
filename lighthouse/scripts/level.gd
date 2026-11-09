@@ -203,7 +203,11 @@ const CRASH_SEC: float = 0.5
 # car crash, an arcade coin and a stock wave loop, none of which belonged at sea.
 var crash_audio = preload("res://art/sounds/lighthouse_crash.ogg")
 var dock_audio = preload("res://art/sounds/lighthouse_dock.ogg")
-var waves_audio = preload("res://art/sounds/lighthouse_sea.ogg")
+var waves_audio = preload("res://art/sounds/lighthouse_ambient.ogg")
+# SOFT WAVES under the music (the user's call, 2026-11-09): the old sea loop, kept well below the tune
+# so it is a texture and not the noise bed it was on its own.
+var sea_audio = preload("res://art/sounds/lighthouse_sea.ogg")
+const SEA_DB: float = -18.0
 var motor_audio = preload("res://art/sounds/lighthouse_motor.wav")
 var horn_audio = preload("res://art/sounds/lighthouse_foghorn.ogg")
 const HORN_EVERY: Vector2 = Vector2(35.0, 70.0)    # seconds of sailing between foghorns, at random
@@ -224,6 +228,8 @@ func _ready() -> void:
 	game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "horn", horn_audio)
 	game.set_sound_volume("waves", -6.0)
+	game.add_sound(self, "sea", sea_audio, true)
+	game.set_sound_volume("sea", SEA_DB)
 	game.set_sound_volume("dock", -3.0)
 	game.set_sound_volume("horn", -13.0)
 	_rng.randomize()
@@ -550,6 +556,7 @@ func stop_level() -> void:
 	route.clear()
 	_route_line.points = PackedVector2Array()
 	game.stop_sound("waves")
+	game.stop_sound("sea")
 	game.stop_sound("motor")
 
 func _load_level(id: int) -> void:
@@ -1547,6 +1554,7 @@ func _start_round() -> void:
 	_caption.text = "Round %d of %d" % [round_index, max_rounds]
 	_enter(Phase.PLAY)
 	game.play_sound("waves", false)
+	game.play_sound("sea", false)
 	if _next_horn_ms <= 0.0 or _next_horn_ms > game.game_time + HORN_EVERY.y * 1000.0:
 		_next_horn_ms = game.game_time + _rng.randf_range(12.0, 20.0) * 1000.0
 
@@ -1871,6 +1879,7 @@ func _level_done(didwin: bool) -> void:
 		return
 	_enter(Phase.DONE)
 	game.stop_sound("waves")
+	game.stop_sound("sea")
 	game.stop_sound("motor")
 	if game.tutorial_mode:
 		return

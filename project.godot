@@ -11,12 +11,16 @@ config_version=5
 [application]
 
 config/name="Nomizo"
-config/version="1.1.130"
+config/version="1.1.133"
 run/main_scene="uid://bfak8jlbdwloh"
 config/features=PackedStringArray("4.7", "Forward Plus")
 boot_splash/bg_color=Color(0.075, 0.09, 0.14, 1)
 boot_splash/image="uid://fkq2103wjxps"
 config/icon="res://art/icon_big.png"
+
+[audio]
+
+driver/output_latency=60
 
 [autoload]
 
@@ -69,6 +73,8 @@ MotherG="*res://mother/scripts/globals.gd"
 TypitG="*res://typit/scripts/globals.gd"
 ChangeG="*res://change/scripts/globals.gd"
 ChangeLevelConfig="*res://change/scripts/level_config.gd"
+PickpocketG="*res://pickpocket/scripts/globals.gd"
+PickpocketLevelConfig="*res://pickpocket/scripts/level_config.gd"
 MonkeyCLevelConfig="*res://monkeyc/scripts/level_config.gd"
 AliensG="*res://aliens/scripts/globals.gd"
 AliensLevelConfig="*res://aliens/scripts/level_config.gd"
@@ -86,7 +92,7 @@ gdscript/warnings/integer_division=0
 
 window/size/viewport_width=680
 window/size/viewport_height=788
-window/size/initial_position_type=0
+window/size/mode=2
 window/stretch/mode="canvas_items"
 window/handheld/orientation=6
 

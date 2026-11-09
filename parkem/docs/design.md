@@ -119,8 +119,8 @@ assumes they are doing it wrong.
   "where are the walls? it's very strange to see the monsters turn with no reason" (user,
   2026-10-25). The floor never had inner walls -- bricks and doors are the only obstacles, and a
   creature also turns where its shortest route turns.
-- **Sounds** (`devtools/make_parkem_sounds.py`; names in code kept): `motor` = an evening garden
-  (breeze, crickets; its breeze swells only gently -- a deeper swell read as gaps), `dispatch` = a creature appearing, `swoosh` = a creature setting off (a patter of
+- **Sounds** (`devtools/make_parkem_sounds.py`; names in code kept): `motor` = MUSIC since 2026-11-09
+  (`parkem_ambient.ogg`, `make_ambient_sounds.py` `detour`: a playful monster march -- pizzicato bass, celesta with a chromatic sting, a bassoon-like tune, a frame drum; -6 dB; the evening garden before it, a breeze and crickets, was heard as noise), `dispatch` = a creature appearing, `swoosh` = a creature setting off (a patter of
   little feet), `door` = a door turned (a short soft clack, -3 dB -- it is the player's every move),
   `parked` = a creature reaching its goal (a smug "nom"), `delivery` = a creature kept away until it
   gave up (a light chime), `explosion` = a creature hitting a hazard or another (a cartoon bonk with a quick downward boing and a twinkle of stars; it was an 80 ms pop so soft that a collision seemed to make no sound). It plays from the start on every collision: a guard against replaying while it rang silenced a collision soon after another. The old

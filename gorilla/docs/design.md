@@ -2,27 +2,40 @@
 
 ## Concept
 
-A dual-attention game. The player is in a single room eating food while monsters chase them. Around the room's periphery, gorillas walk past in straight lines. When all the food is eaten (or time runs out), the player is asked: **how many gorillas did you see?**
+A dual-attention game (redesigned 2026-11-09). The player eats apples in a maze that fills the
+screen while monsters chase them. While they do, things happen in OTHER parts of the maze that they
+have to notice and go and deal with:
 
-**The floor holds FOOD, not coins** — see "The floor holds FOOD" below for why, and note that the *code* still says `coin` everywhere (`has_coin`, `_fill_coins()`, `coins[]`, `PipeCoin1`). Every mention of a coin below is either that identifier or the super-food's texture; nothing the player sees is a coin.
+- **A lost baby gorilla** appears quietly somewhere far away and wanders. A few seconds later the
+  nearest monster starts hunting it. Get there first and it is rescued; let the monster reach it and
+  it is lost. The level is judged on the share of babies rescued.
+- **The baby's mother**: each rescue brings a grown gorilla out somewhere ELSE, holding a sword, for
+  a few seconds (`gift_ms`). Taking it is exactly eating the old super-food (which no longer
+  exists): the same timer ring and colors, the monsters run and can be eaten until it runs out.
+- **A bunch of bananas** lies somewhere for a few seconds: a bonus, gone if nobody gets there.
 
-Trains peripheral awareness while maintaining a central task under pressure.
+There is no question at the end. Noticing is measured by what the player DOES: whether they get to
+the baby, and how soon.
+
+The previous design (gorillas walking past OUTSIDE a small room, and "how many did you count?" at the
+end) was dropped: nothing made the player look at the room rather than the edges, the walking
+gorillas were slow enough to be watched directly, and one number a minute was a weak, late check.
+
+**The floor holds FOOD, not coins** -- the *code* still says `coin` everywhere (`has_coin`,
+`_fill_coins()`, `coins[]`, `PipeCoin1`).
 
 ## Game Flow
 
-1. Level starts: player is placed at center of a room
-2. All non-brick room tiles are filled with food at the start
-3. Inside monsters roam the room (kill on contact → lose a life)
-4. Gorillas walk across the screen edges (above/below/left/right of the room)
-5. When all the food is eaten **or** the timer hits 0: the answer popup appears
-6. Player picks how many gorillas they counted
-7. Exactly right → +20 bonus and the round counts as correct; anything else counts as wrong
-8. A new round begins on the same level (score carries over, timer resets) — a round is one
-   BUILDING, and the level's difficulty does not change between them
-9. After `rounds_per_level` rounds the level is judged: at or above `pass_pct` the next level
-   follows, below it the same level is played again (see "Passing a level")
+1. A round starts: the player in the center of a full-screen maze, `apples` apples scattered over it
+2. Monsters roam the maze (contact = a life lost, and the round with it)
+3. From about 5 s in, lost babies appear one at a time (`babies` per round), each far from the player
+   (`baby_far` of the farthest walking distance); after `hunt_ms` the nearest monster hunts it
+4. Banana bunches turn up now and then (`bananas` per round), each for `banana_ms`
+5. The round ends when every apple is eaten AND every baby has appeared and been dealt with, or when
+   the clock (`round_sec`) runs out -- a baby still out then counts as lost
+6. After `rounds` rounds the level is judged on babies rescued (see "Passing a level")
 
-If all lives are lost before the food is gone: game over.
+If all lives are lost: game over.
 
 ## Controls
 
@@ -33,82 +46,95 @@ If all lives are lost before the food is gone: game over.
 
 ## Scoring
 
-- **+1** per food eaten
-- **+20** for correct gorilla count answer at end of round (error = 0 only)
+- **+1** per apple
+- **+15** per baby rescued; a lost baby scores nothing
+- **+5** per banana bunch
+- **+10** per monster eaten while the sword's power is on
+- **-15** per life lost
 
-## Gorilla Count Accuracy (Avg Error)
+## The lost baby (level.gd "the events")
 
-After each round the player guesses how many gorillas crossed. The **error** is
-`|chosen - true_count|`. `Level._error_sum` and `Level._rounds_answered` accumulate it, and
-`Level.mean_error()` is what `main.gd::get_game_score()` writes into the score row. The **"Error"
-tab** (`progress_tab_name = "Error"`, `progress_time_pos = 7`) plots that per-session average, with
-no level grouping (`progress_level_pos = -1`) — which is why those two counters are cleared only on
-a fresh game, not at a level boundary.
+- `_spawn_baby()` picks an empty floor cell at least `baby_far` x the farthest walking distance from
+  the player (`_bfs_from`, through the walls), at least 3 cells from any monster, not a portal.
+- It **arrives silently**: no sound, a 0.6 s fade-in (`baby_gorilla.gd`). The game is about noticing
+  it out of the corner of the eye; a sound would tell the player when to look.
+- It toddles to a neighboring cell every `BABY_STEP_MS` (sometimes not), never into a monster, and
+  once hunted never toward the hunter.
+- After `hunt_ms` the nearest monster by walking distance becomes `hunter`; on each of its steps it
+  takes the shortest way to the baby with probability `hunt_chance` (`_step_toward`), otherwise it
+  moves as usual. The baby trembles once hunted (`scared`).
+- **Rescued** when the player comes within 0.6 of a tile: +15, `rescue` sound, "Rescued! +15" rises
+  from the spot, `game.add_correct_or_mistake(1, 0)`, and the time since it appeared goes into
+  `rescue_times`. **Lost** when any monster comes within half a tile: `lost` sound, "Lost!",
+  `add_correct_or_mistake(0, 1)`. A baby still out when the round ends (clock, or a life lost) is
+  lost too, silently.
+- Each baby is logged as a trial `{dist, rescued, ms}` (walking distance when it appeared).
+- The next baby comes 4-8 s after the last is resolved. The round cannot end on the last apple while
+  a baby is out or still to come, so a baby is never lost to the round simply ending under it.
 
-Feedback shown to the player after each answer:
+**The figure** (`baby_gorilla.gd`) is DRAWN AS A BABY: a big round head with a pale face, large
+dark eyes with a highlight, small ears, a round belly, short legs, little arms; trembling and
+wide-eyed once hunted. The first version reused the adult figure (silverback and all) at a smaller
+size and was taken for a grown gorilla. It still extends `peripheral_gorilla.gd` for the views
+(side / front / rear, from the way it walks) and the walk cycle, at `BABY_TILES` (0.80) of a tile,
+moving cell to cell on the level's say-so (`head_to`). A rescue needs the player to touch it
+(within 0.75 of a tile) or reach its cell.
 
-- Error 0: "Correct! +20 bonus"
-- Error 1: "Off by 1 — There were N gorillas"
-- Error 2+: "Off by N — There were N gorillas"
+## The mother and her sword
 
-**The error stat used to ride on the shared counters.** `game.add_correct_or_mistake(error, 1)`
-banked the SIZE of the error as `game.corrects` and a mistake on every round, right or wrong — so
-`corrects` held the error sum and `mistakes` held the question count, and the average was read back
-out as `corrects / mistakes`. It worked as a stat and was impossible as anything else: a perfect
-answer recorded zero correct and one wrong, an answer off by three recorded three correct, and any
-accuracy the level gate might read was noise. The counters now mean what their names say — one
-round, one verdict, `add_correct_or_mistake(1, 0)` or `(0, 1)` — and the error stat has its own two
-fields.
+`mother_gorilla.gd`: the adult figure (`peripheral_gorilla.gd`, front view, silverback) standing and
+breathing, a sword held up beside her with a glint running up the blade; she fades in, starts to
+fade in her last second, and fades out when the sword is taken or her time is up. `_spawn_mother()`
+puts her at least 0.40 of the farthest walking distance from the player (`_far_free_cell`), 0.7 s
+after a rescue; `MOTHER_TILES` 1.25, so she is plainly bigger than a baby. Reaching her (within 0.8
+of a tile, or her cell) calls `player.ate_power()` -- the super-food's own power, ring and colors --
+and plays `gift` (a metallic ring). Counted as `gifts_taken` / `gifts_missed`; not judged. There are
+no super-food apples any more (`powers_in_level` is forced to 0).
 
-**Only an exact count is right.** That was already the rule the +20 bonus followed, and "nearly" is
-not a thing a player can be asked to count.
+## Bananas
+
+`banana_art.gd`: three bananas hanging from a stem, drawn in code, fading in, blinking in their last
+second. `_spawn_banana()` puts a bunch at least a third of the farthest walking distance away, on an
+empty cell without an apple. Walking onto it: +5 and the apple crunch. Counted as `bananas_taken` /
+`bananas_missed`; not judged.
 
 ## Passing a level
 
-A round is one run at the room. A **level is `rounds_per_level` rounds** (`rounds` in
-`GorillaLevelConfig`), and it is passed on the share of them counted exactly right:
+A round is one board. A **level is `rounds_per_level` rounds** (`rounds` in `GorillaLevelConfig`),
+and it is passed on the share of its BABIES rescued (`game.corrects` / `game.mistakes` count babies):
 
 ```
 passed = game.session_pct_correct() >= GorillaLevelConfig.pass_pct_for(level)
 ```
 
 Below the bar the SAME level is played again; at or above it, the next one. `_finish_level()` runs
-when `round_in_level` reaches `rounds_per_level`, and `_advance_if_needed()` — called from
-`new_game()` — acts on its verdict.
+when `round_in_level` reaches `rounds_per_level`, and `_advance_if_needed()` -- called from
+`new_game()` -- acts on its verdict.
 
-Before this, **a level could not be failed, only postponed.** `round_in_level` advanced only when
-`need_to_increase_level` had been set, and that happened on an exact count — so a wrong answer did
-not count toward the level at all. A player could be off by five every time and simply keep being
-handed the same level with no summary and nothing said.
+**The percentages have to land on a rung.** Levels 1-3 have 3 rounds of 2 babies (6 in all), so
+66 = 4 of 6; levels 4-8 have 4 rounds of 2 (8), so 75 = 6 of 8. A round cut short by a lost life
+has fewer babies, which only moves the rungs between whole babies. Recheck whenever `rounds` or
+`babies` changes.
 
-**The percentages have to land on a rung.** A level is a fixed number of rounds, so out of 3 the
-only scores that exist are 0, 33, 66 and 100; out of 4, 0, 25, 50, 75 and 100. `pass_pct` is chosen
-to sit exactly on one: 60 means 2 of 3, 70 means 3 of 4. Recheck them whenever `rounds` changes.
-
-| levels | rounds | pass_pct | really |
-|--------|--------|----------|--------|
-| 1-5 | 3 | 60 | 2 of 3 |
-| 6-10 | 4 | 70 | 3 of 4 |
-
-The last level (10) is judged the same way but never promotes: `is_last` keeps
+The last level (8) is judged the same way but never promotes: `is_last` keeps
 `need_to_increase_level` false and the card says so.
 
 ## "complete!" only when it was
 
 The end of a level now shows the shared level card (`show_level_done_popup`) with the gate result
 as its `passed` argument, so it reads "Level N complete!" with a check badge or **"Level N not
-passed"** with none. Under it: the last round's own verdict ("Off by 1 / There were 5 gorillas"),
-then `Counted right: 2 of 3`, `Accuracy: 66%`, and a line saying what happens next —
+passed"** with none. Under it: the last round's own verdict ("Babies rescued: 1 of 2"), then
+`Babies rescued: 4 of 6`, `Average time to a rescue: 6.3 s`, and a line saying what happens next --
 
-- passed -> `Level passed — on to level N.`
-- failed -> `You need at least 60% of the rounds counted right to pass to the next level.`
+- passed -> `Level passed. On to level N.`
+- failed -> `You need to rescue at least 66% of the babies to pass to the next level.`
 
-Mid-level rounds keep the small `show_game_popup` "Time's up!" panel they always had.
+Mid-level rounds end on a small `show_game_popup` "Round over" panel with the round's babies.
 `MainGlobals.global_level_is_done()` takes the gate result, so the fanfare does not play over a
 level that was not passed.
 
-**The tutorial is exempt.** Its session is one room, not a level: `_on_answer_selected` returns
-after the round popup when `game.tutorial_mode` is set, so the coach's rounds never add up to a
+**The tutorial is exempt.** Its session is one board, not a level: `on_time_over` returns after
+the round popup when `game.tutorial_mode` is set, so the coach's rounds never add up to a
 level end and no card lands on a caption.
 
 ## A replay starts clean
@@ -119,7 +145,7 @@ the next `new_game()` that it is starting a LEVEL: only then does it reset `roun
 `game.corrects` and `game.mistakes`. Otherwise a retry would inherit the misses that failed the
 level and could not pass it even played perfectly.
 
-`_error_sum` / `_rounds_answered` deliberately survive, because the Error stat is per session.
+`rescue_times` is cleared at a level boundary too: the score row's rescue time is the level's.
 
 ## A failed level earns nothing
 
@@ -135,86 +161,14 @@ swap the kept value in for.
 
 ## Lives
 
-- 3 lives (set in `globals.gd` via `GenericGameUtil` constructor)
-- Lose a life when touching an inside monster
-- No lives remaining → game over
+- 3 lives (set in `globals.gd` via the `GenericGameUtil` constructor)
+- A life goes when a monster catches you or you starve (see "Hunger"); nothing gives one back
 
-## Peripheral Gorillas
+## The old peripheral gorillas
 
-- Appear from one edge, move in a straight line, exit the opposite edge
-- All spawned gorillas count (including those still on screen when time ends)
-- Move in pixel space (not on the board grid)
-- Speed and spawn rate increase with difficulty
-
-### Appearance
-
-The gorilla is **drawn in code** by `peripheral_gorilla.gd` `_draw()` — there is no sprite. It used
-to reuse the shared `art/enemy_head1-3.png` monster head tinted brown, which read as "some
-creature", not as a gorilla.
-
-The whole design constraint is that this figure is **never looked at directly**: the player is
-eating in the room while it crosses the edge of the screen. So the silhouette has to
-carry the entire read at about one tile tall, out of the corner of the eye:
-
-- heavy hunched mass, shoulders clearly **higher** than the hips (a rump ellipse, a barrel ellipse
-  tilted along hip→shoulder, and a separate shoulder-hump ellipse — the hump is what arches the back)
-- small head sunk into the shoulders with **no neck**, plus a sagittal crest, a heavy dark brow and
-  a lighter muzzle
-- long arms reaching the ground ending in fists, short bent legs — the knuckle-walk stance
-- a **silverback saddle**: the most recognizable gorilla marking, and the contrast that keeps a
-  near-black animal visible against the dark grass
-
-Walk cycle: arms and legs swing on `sin(_phase)`, opposite sides in antiphase. `_phase` advances
-with actual travel speed, so a faster gorilla steps faster. The body bobs on every second step
-while the ground contacts stay put — that is what makes it feel heavy.
-
-#### Three views
-
-A side-on figure translating up or down the screen reads as **sliding**, not walking, so the
-vertical lanes get their own drawing rather than a rotation. `_ready()` picks the view from the
-velocity:
-
-| travel | view | notes |
-|--------|------|-------|
-| horizontal | side | mirrored via `draw_set_transform` to face the way it is going; far-side limbs drawn first in a darker fur for depth |
-| downward | front | walking toward the player — brow, two eyes, muzzle, mouth |
-| upward | rear | walking away — no face, and the silverback saddle fills the whole back |
-
-Both upright views lean side to side (`sway`), because a front-on walk has no forward motion to
-show; the lean plus the alternating raised fist is the entire cue. Head height, shoulder width and
-ground line are matched to the side view so a gorilla does not appear to change size depending on
-which lane it happens to cross.
-
-Two rules that are easy to break by accident:
-
-- **Never `modulate` the node.** It draws its own fur, saddle, brow and muzzle; any tint flattens
-  the silverback back into the body color and costs the figure its main contrast.
-- **The figure never rotates.** Rotating it ±90° to "face" up or down — which the old sprite did —
-  reads as a gorilla lying on its side. That is what the front/rear views are for.
-
-### Lane placement (clearance from the board)
-
-Every dimension is a fraction of `body_height`, which `level.gd` sets to
-`tile_size * GORILLA_TILES` (1.05 — a touch over one tile).
-
-The gorilla's **outline** must clear the room floor by `GORILLA_BOARD_GAP_TILES` (1.0) on every
-side, so it never walks over the board or its wall ring. `_spawn_peripheral_gorilla()` therefore
-does not pick a tile row any more: it builds, for each of the four sides, the band its **center**
-may occupy — bounded by the room plus the gap on the inner edge and by the playfield on the outer —
-and picks a random float position inside it. A side whose band is empty is simply not offered, and
-if no side has room, nothing spawns. The half-extents come from `HALF_ACROSS_SIDE` / `HALF_ACROSS_FRONT`
-in `peripheral_gorilla.gd`, so the placement math and the drawing cannot drift apart.
-
-**This is an exact fit, not a comfortable one.** On a 680×748 playfield with `tile_size` 40 the
-board is 15×15; an 11×11 room (level 4+) leaves only ~2.5 tiles between the room floor and the
-screen edge, which is one tile of gap plus the gorilla and nothing more. Measured worst-case
-clearance is 40.06 px against a 40 px tile. Consequences:
-
-- Enlarging the gorilla, enlarging the gap, or growing the room past 11×11 will start emptying
-  bands, and levels will quietly spawn **no gorillas at all** — which silently breaks the game's
-  only question. Re-measure if any of those three change.
-- The gap is measured from the **room floor**, not from the wall ring. Requiring a full tile beyond
-  the ring is geometrically impossible at 11×11.
+Removed with the 2026-11-09 redesign, along with the lanes round the room, `_playfield_world_rect()`
+and the count question (`AnswerOverlay` stays in the scene, unused). `peripheral_gorilla.gd` stays:
+the baby gorilla is drawn by it.
 
 ## Inside Monsters
 
@@ -225,23 +179,30 @@ clearance is 40.06 px against a 40 px tile. Consequences:
 - Higher difficulty: directed toward player
 - Player color (blue) is excluded from possible monster colors
 
-## Room Visuals
+## Maze Visuals
 
-- Room floor tiles colored with a random color (from `AGENT_COLOR_INDICES`, same palette as mmm)
-- Player color: `Color(0.1, 0.5, 0.99)` — same blue as mmm player
-- Bricks: one at each wall's center (±1 random shift along wall axis) + `num_bricks` random interior ones; neither player nor monsters can enter brick cells; `_ensure_room_connected()` flood-fills from player start after placement and removes blocking bricks until the room is fully reachable
-- All non-brick room tiles start with food; `_fill_coins()` places it after bricks are laid
-- Outside walls rendered on the 1-cell ring around the room (using `empty_space.tscn`, same as mmm)
-- `game.zoomed_in = true` always set (single room, always fully visible)
+- **The maze is the whole board** (`room_rect` = the board), and the board fills the screen: `cols`
+  across and as many rows as the screen's shape gives (`_apply_level`; desktop keeps a 34 px strip
+  for the level label). There is no ring of empty cells round it any more.
+- Floor colored with a random color (from `AGENT_COLOR_INDICES`); player `Color(0.1, 0.5, 0.99)`
+- The maze is carved by a randomized DFS from the center, then `extra_passages` extra walls removed
+  (never opening a 2x2 block). Bricks are not used (`_add_bricks` is not called).
+- `_fill_coins()` puts apples on `apples` random empty cells (plus the super-foods and two portals),
+  not on every cell: a full-screen board could not be eaten in a round.
+- `game.zoomed_in = true` always set (the whole maze always visible)
 
 ## Speed
 
-- **Player**: `speed_scale = 1.3` (fixed); moves 30% faster than the base tick rate
-- **Level timer**: 1 minute per round (or ends early when all the food is eaten)
-- **Monster speed tiers**: each monster gets a speed spread evenly from `agent_speed_min` to `agent_speed_max` by spawn index. At level 1 with 3 monsters: 0.7×, 1.05×, 1.4× player speed. The max grows by 0.2 per level (capped at 2.5×); min stays at 0.7×.
-
+- **Player**: `speed_scale = 1.5` (fixed)
+- **Round timer**: `round_sec` (75-95 s), or the round ends early (see Game Flow)
+- **Monster speed tiers**: each monster gets a speed spread evenly from `agent_speed_min` to
+  `agent_speed_max` by spawn index, capped below the player's speed.
 
 ## The super-food
+
+**There are no super-food apples since 2026-11-09**: their power now comes from the mother's sword
+(see above), which calls the same `player.ate_power()`. What follows is about that power -- its ring,
+its timer, its colors -- which is unchanged.
 
 `powers: 3` per level (`level_config.gd`) places three super-foods, the one collectible that keeps
 a texture rather than being drawn: `res://art/coin-orange-w-power.png`. Eating one calls
@@ -312,20 +273,18 @@ restores `orig_head_scale` / `orig_head_color` exactly.
 
 ## Difficulty Scaling
 
-| Level | Room  | Monsters | Monster AI         | Monster speed tiers | Gorillas (random) | Gorilla speed |
-|-------|-------|----------|--------------------|---------------------|-------------------|---------------|
-| 1     | 9×9   | 3        | random             | 0.7×–1.4×           | 3–6               | 205 px/s      |
-| 2     | 9×9   | 3        | random             | 0.7×–1.6×           | 4–7               | 230 px/s      |
-| 3     | 9×9   | 4        | random             | 0.7×–1.8×           | 5–8               | 255 px/s      |
-| 4     | 11×11 | 4        | 50% directed       | 0.7×–2.0×           | 6–9               | 280 px/s      |
-| 5     | 11×11 | 4        | 65% directed       | 0.7×–2.2×           | 7–10              | 305 px/s      |
-| 6+    | 11×11 | 5        | directed           | 0.7×–2.4×+          | increasing        | increasing    |
+| Level | Cols | Apples | Monsters | Directed | Baby far | Hunt after | Hunt chance | Bananas (ms) |
+|-------|------|--------|----------|----------|----------|------------|-------------|--------------|
+| 1 | 11 | 34 | 3 | 30% | 0.45 | 7.0 s | 55% | 2 (7000) |
+| 2 | 11 | 38 | 3 | 35% | 0.50 | 6.0 s | 65% | 2 (6500) |
+| 3 | 13 | 44 | 4 | 40% | 0.55 | 5.5 s | 70% | 3 (6000) |
+| 4 | 13 | 48 | 4 | 50% | 0.60 | 5.0 s | 75% | 3 (5500) |
+| 5 | 13 | 50 | 5 | 60% | 0.65 | 4.5 s | 80% | 3 (5000) |
+| 6 | 15 | 56 | 5 | 70% | 0.70 | 4.2 s | 85% | 4 (4500) |
+| 7 | 15 | 60 | 6 | 80% | 0.75 | 3.8 s | 90% | 4 (4000) |
+| 8 | 15 | 64 | 6 | 90% | 0.80 | 3.5 s | 95% | 4 (3500) |
 
-- Room size: 9×9 for levels ≤3, 11×11 for level 4+
-- Monster count: 3 (levels ≤2), 4 (level 3–5), 5 (level 6+)
-- Gorilla count pre-planned at level start: `randi_range(2+level, 5+level)` gorillas with irregular spawn times distributed over `[3s, level_duration − max_travel_time]`; only spawned if time remains to cross the screen
-- `game.game_over_on_time_out = false` — time-over triggers answer popup, not auto game-over
-- `rounds` / `pass_pct` per level: see "Passing a level"
+Two babies per round throughout. `game.game_over_on_time_out = false`: time-over ends the round.
 
 ## Settings
 
@@ -341,13 +300,9 @@ Uses standard `GenericGameUtil` file system with prefix `gorilla`:
 ## Camera, Zoom and the Background
 
 `create_camera()` fits the board to the screen:
-`zoom = min(tiles_in_screen_w / board_size.x, tiles_in_screen_h / board_size.y)`. `board_size` is
-`room_size + 6` (desktop), so the zoom **changes with the level**:
-
-| level | room | board | zoom |
-|-------|------|-------|------|
-| 1–3 | 9×9 | 15×15 | 1.0667 (magnified) |
-| 4+ | 11×11 | 17×17 | 0.9412 (shrunk) |
+`zoom = min(tiles_in_screen_w / board_size.x, tiles_in_screen_h / board_size.y)`. The board is
+`cols` wide (11, 13 or 15) and as tall as the screen's shape allows, so the zoom **changes with the
+level** (it used to with the room size).
 
 Two consequences that have each caused a bug:
 
@@ -364,9 +319,8 @@ Two consequences that have each caused a bug:
 
 **World pixels are not screen pixels here.** Anything positioned from `MainGlobals.screen_size` but
 placed in world coordinates is wrong by the zoom factor — off-screen at zoom > 1, short of the edge
-at zoom < 1. `_playfield_world_rect()` converts the visible band between the header and the bottom
-bar into world coordinates; peripheral gorilla lanes and travel distances are both measured through
-it. Use it for anything new that has to reach the screen edge.
+at zoom < 1. (`_playfield_world_rect()`, which converted the visible band into world coordinates for
+the old peripheral gorilla lanes, went with them.)
 
 ## Maze Wall Corners
 
@@ -432,12 +386,12 @@ gorilla/
 │   └── design.md
 ├── scenes/
 │   ├── main.tscn               (root scene)
-│   ├── level.tscn              (CanvasLayer with room + overlay)
+│   ├── level.tscn              (CanvasLayer with the maze; its AnswerOverlay is unused since 2026-11-09)
 │   ├── agent.tscn              (inside monster)
 │   ├── player.tscn             (player character)
 │   ├── pipe.tscn               (room floor tile)
-│   ├── empty_space.tscn        (wall tile ring outside room)
-│   └── peripheral_gorilla.tscn (edge-crossing gorilla — bare Node2D, no sprite)
+│   ├── empty_space.tscn        (wall tile ring outside the maze; none since the maze is the board)
+│   └── peripheral_gorilla.tscn (the old edge-crossing gorilla; no longer spawned)
 └── scripts/
     ├── globals.gd              (GorillaG autoload)
     ├── main.gd                 (orchestrator)
@@ -446,57 +400,31 @@ gorilla/
     ├── player.gd               (player movement)
     ├── pipe.gd                 (room tile logic)
     ├── empty_space.gd          (wall visibility logic)
-    └── peripheral_gorilla.gd   (pixel-space gorilla mover + the drawn gorilla itself)
+    ├── peripheral_gorilla.gd   (the drawn gorilla figure; the baby is drawn by it)
+    ├── baby_gorilla.gd         (the lost baby: the figure, small, walking cell to cell)
+    └── banana_art.gd           (a bunch of bananas, drawn)
 ```
 
 ## Tutorial
 
 Coached tutorial in `gorilla/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+Rewritten for the 2026-11-09 redesign:
 
-- **Entry**: as for the other games; `GorillaG.starting_level` is saved/restored by hand.
-- **Hooks in `level.gd`** (no-ops outside tutorial mode): eating emits `coin_taken` (the signal
-  kept the old name); a
-  peripheral spawn emits `gorilla_appeared`; `on_time_over` emits `answer_time`; `_on_answer_selected`
-  emits `answered`.
-- **`peripheral_gorilla.gd` now takes a `game` reference and returns early from `_process` when
-  `game.paused()`.** It ran on its own `_process` and ignored the pause entirely, so it kept
-  walking during any pause, popup or tutorial caption — walking clean off the edge, where
-  `exited_screen` deletes it. That made the tutorial point at a gorilla that was no longer there.
-  This was a real bug outside the tutorial too: the pause screen never stopped these figures.
-- The spawn step has **no `await`**. It used to be two steps — one that spawned and waited for
-  `gorilla_appeared`, one that talked about it — but the spawn fires that event synchronously, so
-  the waiting step advanced from inside its own `_enter_step` and was displayed for zero frames.
-  That is what made the tutorial's stage numbers skip. Spawning and holding now happen in the
-  setup of the step that talks about the gorilla.
-- Gorillas are spawned **on demand** by the tutorial (`tutorial_spawn_gorilla`), not on the level's
-  timed schedule: on the schedule one ran past while the coach was still talking about food, and a
-  different one was held up later, which read as a gorilla appearing from nowhere. It prefers a
-  horizontal lane (the only kind phones get, and a vertical one held mid-lane sits oddly in the
-  center of the screen edge) but falls back to any available side — insisting on horizontal on a
-  screen where the top/bottom bands do not fit produced no gorilla at all.
-- The **`player_steered`** hook exists because `GorillaG.always_moving` starts the player walking by
-  itself: an "eat something" step is satisfied by the game wandering into food, so the coach
-  congratulated the player for doing nothing. The movement step waits on a real steer, which is
-  only ever reachable from `_input`.
-- **`tutorial_show_a_monster()`** spawns one monster, far from the player, on the last teaching
-  step. Monsters are off for the whole tutorial (`num_inside_monsters = 0`) so nobody is killed
-  mid-lesson — but a player who is never shown one meets their first at full speed with no
-  warning, so the tutorial names and points at one while the game is frozen, then ends.
-- **`tutorial_hold_gorilla_midscreen()`** slides the live gorilla to the center of its own lane.
-  A gorilla spawns fully off screen and crosses in a few seconds, so a player reading a caption
-  misses it entirely and never learns what to look for. The tutorial holds one still, frozen, and
-  spotlights it. This was the single biggest gap in the first version.
-- **`_tutorial_setup()`** forces `gorilla_spawn_times = [2.5, 9.0]`, and `new_game` sets
-  `num_inside_monsters = 0` in tutorial mode. The real schedule can leave the first gorilla until
-  well into the level, and being killed by a monster halfway through a lesson teaches nothing.
-- **Movement wording**: this game does NOT have the drawn-path movement wolves and storm use
-  (`MainGlobals.draw_path_mode` is never set here). A flick is converted to a single direction and
-  the player then keeps walking that way, so the tutorial says "flick in a direction", not
-  "draw a path". "Flick" on its own means nothing to most people either, so the caption says
-  "swipe quickly in the direction you want to go" and adds that you keep walking until you turn.
-- The step that waits for `gorilla_appeared` deliberately carries **no** spotlight — at the moment
-  it opens the gorilla does not exist yet, so it would point at bare ground. The spotlight is on
-  the following step, and the freeze holds the gorilla in place while the coach talks about it.
+1. the maze and the apples; 2. this is you; 3. swipe to turn (waits for a real steer,
+   `player_steered`, because the player walks by itself);
+4. **a lost baby**: its setup places one (`tutorial_spawn_baby`) and the step spotlights it with the
+   game frozen; 5. **rescue it**: waits for `baby_rescued`;
+6. **its mother** (`tutorial_spawn_mother`, who waits as long as it takes in the lesson), spotlit;
+7. **the sword**: waits for `gift_taken`; 8. keep eating (the hunger ring); 9. monsters
+   (`tutorial_show_a_monster` puts one far away, named and pointed at); 10. bananas and the gate.
+
+`_tutorial_setup()` switches off the automatic babies and bananas and sets one baby per round, so
+the coach's board can end once the baby it placed is saved. `new_game` sets
+`num_inside_monsters = 0` in tutorial mode: being killed halfway through a lesson teaches nothing,
+and with no monsters the placed baby is never hunted.
+
+**Movement wording**: this game does NOT have the drawn-path movement wolves and storm use. A swipe
+sets a direction and the player keeps walking that way until they turn.
 
 ### Tutorial: the last step
 
@@ -606,8 +534,8 @@ whatsoever. `superfood_spot` scans `level.board` for the first pipe with `has_co
 points at its sprite.
 
 Because the failure is invisible, `probe_gorilla` now asserts that **every** step carrying a
-`spot` resolves to a Rect2, and spawns a gorilla first (`tutorial_spawn_gorilla`) so the
-peripheral spot has something real to measure instead of passing vacuously. Checking "at least
+`spot` resolves to a Rect2, and places a baby first (`tutorial_spawn_baby`) so the baby's spot
+has something real to measure instead of passing vacuously. Checking "at least
 two resolved" is what let two broken frames ship.
 
 Sixteen games' tutorials still use authored `spot_radius` values, and eleven of them also zoom or
@@ -689,7 +617,7 @@ They are never called coins to the player, in either of them. They are FOOD: eat
 the hunger clock through the same branch as any apple, so the word has to match the rule.
 "Super-food" because it is a term people already know; "pill" was avoided on purpose, since this
 app keeps clear of medical framing everywhere else and there is nothing to gain by inviting it
-here. PLURAL throughout: `level_config` gives every level `"powers": 3`, so a player never meets
+here. PLURAL throughout: `level_config` gives every level `"powers": 2`, so a player never meets
 just one. A player who took it for scenery cleared every
 ordinary piece, stood about waiting for the count question, and starved, which is the likeliest
 explanation for the one starving report the wormhole fix does not cover.
@@ -718,42 +646,33 @@ through, urgency that is just more of the same gets tuned out.
 
 ## Lives are the currency of a round
 
-Being caught used to call `_level_done(false)` directly — one touch wiped a whole level — while
-the three lives in the constructor were never spent by anything, so the HUD showed hearts that
-could not go down beside a rule that ignored them.
+- A life goes on being caught or on starving, through `_lose_life()`. That round ends, a baby out at
+  the time is lost, and `LIFE_PENALTY` comes off the score. The run ends only when the last life
+  goes, through `sig_lives_depleted`.
+- Nothing hands a life back any more (it used to be an exact count).
 
-- A life goes on being caught or on starving, through `_lose_life()`. That round is failed,
-  scored as a miss, and `LIFE_PENALTY` comes off the score. The run ends only when the last life
-  goes, through the `sig_lives_depleted` path that was already there.
-- **An exact count hands one back**, capped at `game.max_lives()` so lives cannot be stockpiled
-  into a buffer that makes the hunger clock meaningless. Noticing the edge of the screen is what
-  keeps you alive, which is the loop this game wanted all along.
-- A failed round still counts and as a miss. Skipping it would make starving the
-  cheapest way to duck a count you were not sure of.
-
-`devtools/probe_gorilla.gd` drives the real scene: it checks the allowance is sized from the
-board, that starving spends a life and ends the round, and that a correct count hands one
-back and stops at the starting number.
+`devtools/probe_gorilla.gd` drives the real scene: the tutorial's spotlights (the baby's included),
+the hunger allowance, that starving spends a life and ends the round, and the cap on lives.
 
 ## What this game measures
 
-Session records are the v6 named-dictionary format (see `scripts/generic_game_util.gd`
-and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
-
-Each answer logs the true count and the signed error, so the Counting panel can show whether accuracy falls away as the load grows.
-
-The full dual-task cost is NOT implemented: it needs occasional rounds with no counting to subtract against, which changes how the game plays and is left as its own decision.
-
-The Counting tab is always present. It needs 3 sessions and answers at two or more gorilla counts, 4+ each.
-
-**`count_error` is its only Summary row**, and for a while it had none: this game stores neither
-an answer time nor a percentage, and `StatsOverview.METRICS` knew only the metrics other games
-keep — so Gorilla contributed nothing at all to Attention & Speed in "Your progress". The metric
-is registered now as "Counting (how far out you were)", lower being better.
+- **The score row**: `[didwin, aborted, level, count_error, rescue_ms, rescue_pct]`. `count_error`
+  is -1 in every row since 2026-11-09 (the column belonged to the count question; older rows keep
+  their values). `rescue_ms` is the level's mean time from a baby appearing to its rescue (9999 when
+  none was rescued); `rescue_pct` the share rescued. The scores screen's "Rescue" tab plots
+  `rescue_ms` (`progress_time_pos` 8, older rows are skipped as too short) with `rescue_pct` beside it.
+- **Trials**: one per baby, `{dist, rescued, ms}`. Rescue time against distance is the natural chart
+  for the instrument panel once there are sessions to draw it from. The old "Counting" chart was
+  dropped from `game_instrument.gd` `CHART_GAMES`; the "Counting" Summary row (`count_error`) stays
+  registered for the older sessions.
+- `game.record_times(rescue_times, "rt")` and `record_count("rounds_lost")` as before.
 
 ## Sounds
 
-Caught by a monster plays `oof` (a bonk and a comic falling "wah"); eating a monster while the power is on plays `gulp` (a chomp, a rising bloop, a sparkle -- it used to pass in silence). Both from `devtools/make_action_sounds.py`. The gorilla itself makes NO sound: the game is noticing it go by silently.
+Taking the mother's sword plays `gift` (a short swish and a bright metallic ring). A baby rescued plays `rescue` (a bright rising marimba figure), a baby lost plays `lost` (two soft
+falling notes): `devtools/make_gorilla_baby_sounds.py`. A baby's ARRIVAL has no sound, on purpose.
+
+Caught by a monster plays `oof` (a bonk and a comic falling "wah"); eating a monster while the power is on plays `gulp` (a chomp, a rising bloop, a sparkle -- it used to pass in silence). Both from `devtools/make_action_sounds.py`. 
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `explosion` caught (a soft thump; was a car crash), `delivery` an apple eaten (a crunch; was an arcade coin), `start` a short whistle, `swoosh` the warp through a portal (a rising sweep), `feet` the gorilla knuckle-walking on leaf litter (`gorilla_steps.ogg`, a 1.4 s loop of foot, hand, foot, hand, each a dull thud and a dry crackle of leaves; it replaced a Kenney grass footstep on 2026-11-01, to suit the rainforest floor and drop the app's last third-party sound effect).
 

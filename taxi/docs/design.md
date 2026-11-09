@@ -64,7 +64,7 @@ are the old ones:
 
 | name in code | file | when |
 |---|---|---|
-| `motor` | `taxi_city.ogg`, 30 s loop, -8 dB | while a game runs: a city a few streets away (rumble, cars passing, a far horn) |
+| `motor` | `taxi_ambient.ogg`, 44 s loop, -6 dB | while a game runs: MUSIC, a city cab groove (`devtools/make_ambient_sounds.py` `taxi_groove`: syncopated bass, electric-piano stabs, soft kick and rim, a sax-like tune, a far horn). It replaced `taxi_city.ogg` (traffic rumble and wind) (2026-11-09: players heard the old loop as noise) |
 | `dispatch` | `taxi_call.ogg`, -9 dB | a new customer: the dispatch radio's two-tone chirp |
 | `swoosh` | `taxi_door.ogg` | a pickup: a car door shutting |
 | `delivery` | `taxi_fare.ogg`, -3 dB | a fare paid: a cash register |

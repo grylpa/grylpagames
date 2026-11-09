@@ -11,7 +11,8 @@ var games = [
 	["monkeyc",       "Apprentice",     "Guess the rules",                                        "Brain twisters"],
 	["change",        "Change",         "Pay the exact amount",                                   "Brain twisters"],
 
-	["gorilla",       "Gorilla",        "Eat apples while counting gorillas",                     "Attention & Speed"],
+	["gorilla",       "Gorilla",        "Eat apples and rescue the lost baby gorillas",           "Attention & Speed"],
+	["pickpocket",    "Pickpocket",     "Follow the ball and catch the pickpocket",               "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
 	["didi",          "Pinpoint",       "Match the shape to where the dot flashed",                                    "Attention & Speed"],
 	["ddooo",         "Witness",        "Remember what flashed, and where",                         "Attention & Speed"],
@@ -59,7 +60,7 @@ var games = [
 # two buttons that offer a tutorial (the game's main menu and its instructions screen) instead test
 # whether the game's main.gd defines start_tutorial(). Add a folder here as each tutorial is
 # written — see docs/tutorials.md for the recipe.
-var tutorials: Array = ["ants", "aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lighthouse", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
+var tutorials: Array = ["ants", "aliens", "breathe", "bucketmadness", "change", "couples", "crack", "ddooo", "delemfp", "deliverem", "didi", "dino", "dinoback", "gorilla", "guidem", "lighthouse", "lightsout", "mmm", "monkeyc", "mother", "ooo", "parkem", "pickpocket", "pneumo", "pop", "ptbits", "sortingrobots", "storm", "taxi", "udbr", "whack", "wolves"]
 
 func has_tutorial(folder: String) -> bool:
 	return folder in tutorials

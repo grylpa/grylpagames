@@ -445,8 +445,8 @@ draws glass tubes on steel, so the tile does too, with one tube, not a network.
   stone walls; the sprites painted flat gray with thin walls ("just blocks of gray"); shaded opaque
   tubes with couplings and junction boxes ("way too distracting -- we need to remember the game",
   user 2026-10-25). Keep it quiet: the capsules, the doors and the ports are the game.
-- **Sounds** (`devtools/make_pneumo_sounds.py`; names in code kept): `motor` = the system running (a
-  compressor hum, air in the pipes), `dispatch` = a capsule loaded (a hatch and a pressure hiss),
+- **Sounds** (`devtools/make_pneumo_sounds.py`; names in code kept): `motor` = MUSIC since 2026-11-09
+  (`pneumo_ambient.ogg`, `make_ambient_sounds.py` `pneumo`: the tube post office as clockwork -- pizzicato, a ticking woodblock, a capsule's thunk, a marimba tune; -6 dB; it was a compressor hum and air, heard as noise), `dispatch` = a capsule loaded (a hatch and a pressure hiss),
   `swoosh` = a capsule launched (a pneumatic "pfft"), `door` = a junction valve turned (a short clack,
   the player's every move), `delivery` = a capsule arriving (whoosh, thud, ding), `explosion` = two
   capsules colliding (a hollow metal clang). The old set was a car engine, a car crash, a door creak,

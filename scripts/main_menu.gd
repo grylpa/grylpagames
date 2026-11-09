@@ -420,12 +420,50 @@ func add_option_entry(_id: int, _name: String, _options: Array) -> void:
 	# menu had two different rhythms in it and the option half sat much further apart. The spacing
 	# between rows belongs to the container, once, not to every other row individually.
 	_option_rows_vbox.add_child(hbox)
+	_option_labels.append(lbl)
+	_align_option_labels()
 	_apply_row_rhythm()
+
+# Every option row's label gets the widest one's width, so the dropdowns start on one line rather
+# than each wherever its own label happens to end.
+var _option_labels: Array = []
+
+func _align_option_labels() -> void:
+	var max_w: float = 0.0
+	for l: Control in _option_labels:
+		l.custom_minimum_size.x = 0.0
+		max_w = maxf(max_w, l.get_combined_minimum_size().x)
+	for l: Control in _option_labels:
+		l.custom_minimum_size.x = max_w
+
+# An ON/OFF row: the label and a switch (scripts/menu_switch.gd) at the row's right end, in line with
+# the dropdowns. It reports through sig_option_changed like a dropdown does -- index 0 off, 1 on --
+# and update_option / get_option work on it the same way, so a game handles both alike.
+func add_switch_entry(_id: int, _name: String) -> void:
+	var lbl = entry_label_scene.instantiate()
+	lbl.text = _name
+	var sw: MenuSwitch = MenuSwitch.new()
+	sw.toggled.connect(func(v: bool): sig_option_changed.emit(_id, 1 if v else 0))
+	_switches.append({"id": _id, "sw": sw})
+	var hbox: HBoxContainer = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 30)
+	hbox.add_child(lbl)
+	hbox.add_child(sw)
+	_option_rows_vbox.add_child(hbox)
+	_option_labels.append(lbl)
+	_align_option_labels()
+	_apply_row_rhythm()
+
+var _switches: Array = []
 
 func update_option(_id: int, _idx: int) -> void:
 	for entry in _option_buttons:
 		if entry["id"] == _id:
 			entry["btn"].select(_idx)
+			break
+	for entry in _switches:
+		if entry["id"] == _id:
+			(entry["sw"] as MenuSwitch).set_on(_idx != 0)
 			break
 
 # The index an option list is SHOWING, or -1 if there is no such list. A game that starts from the
@@ -434,6 +472,9 @@ func get_option(_id: int) -> int:
 	for entry in _option_buttons:
 		if entry["id"] == _id:
 			return int(entry["btn"].selected)
+	for entry in _switches:
+		if entry["id"] == _id:
+			return 1 if (entry["sw"] as MenuSwitch).on else 0
 	return -1
 
 func set_option_items(_id: int, _options: Array) -> void:
