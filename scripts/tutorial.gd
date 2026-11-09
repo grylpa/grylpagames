@@ -1227,6 +1227,16 @@ func _layout_panel() -> void:
 			maxf(screen.x - 2.0 * PANEL_MARGIN, 1.0))
 	else:
 		avail_w = maxf(screen.x - 2.0 * PANEL_MARGIN, 1.0)
+	# A SHORT caption hugs its text, centered, instead of stretching a band across the whole screen
+	# (2026-11-09: a one-word "Watch." covered a full-width strip of the board). Only a docked
+	# caption whose every line fits well inside the width is narrowed; longer ones keep the width.
+	var panel_x: float = PANEL_MARGIN
+	if not is_side:
+		var natural: float = _natural_text_width() + 2.0 * PAD_X + 8.0
+		if natural < avail_w * 0.8:
+			var narrow: float = maxf(natural, minf(avail_w, 240.0))
+			panel_x = (screen.x - narrow) * 0.5
+			avail_w = narrow
 	var inner_w: float = maxf(avail_w - 2.0 * PAD_X, 1.0)
 	# Wrapping happens at inner_w, so pin the labels there before measuring at the same width.
 	for lbl: Label in [_title_label, _text_label, _foot_label]:
@@ -1246,7 +1256,9 @@ func _layout_panel() -> void:
 	# the right-hand column. The default top_y is header (60) + margin (12) = 72 against a button
 	# at 66..97, so every top-placed caption in the app overlapped it: eight tutorials, sixteen
 	# steps.
-	if _skip_btn != null and (not is_side or side == "right"):
+	# (A narrowed caption that stays clear of the button's columns may sit beside it.)
+	var spans_skip: bool = _skip_btn != null and panel_x + avail_w > _skip_btn.position.x - 8.0
+	if _skip_btn != null and (spans_skip or is_side) and (not is_side or side == "right"):
 		top_y = maxf(top_y, _skip_btn.position.y + _skip_btn.size.y + 8.0)
 	if is_side:
 		panel_h = minf(panel_h, maxf(low_limit - top_y, 1.0))
@@ -1271,9 +1283,22 @@ func _layout_panel() -> void:
 		_panel.size = Vector2(avail_w, panel_h)
 		return
 
-	var y: float = _best_y(_obstacles(), top_y, low_limit, panel_h, bottom_y, avail_w)
-	_panel.position = Vector2(PANEL_MARGIN, y)
+	var y: float = _best_y(_obstacles(), top_y, low_limit, panel_h, bottom_y, avail_w, panel_x)
+	_panel.position = Vector2(panel_x, y)
 	_panel.size = Vector2(avail_w, panel_h)
+
+# The widest single line of the caption's title, text and footer, unwrapped.
+func _natural_text_width() -> float:
+	var widest: float = 0.0
+	for lbl: Label in [_title_label, _text_label, _foot_label]:
+		if lbl == null or not lbl.visible or lbl.text.is_empty():
+			continue
+		var font: Font = lbl.get_theme_font("font")
+		var fs: int = lbl.get_theme_font_size("font_size")
+		var txt: String = lbl.text.to_upper() if lbl.uppercase else lbl.text
+		for line in txt.split("\n"):
+			widest = maxf(widest, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	return widest
 
 # Everything the caption should stay off: the spotlight always (pointing at something and then
 # covering it is the one thing a coach must never do), plus `keep_clear` while the player is
@@ -1319,7 +1344,7 @@ func _obstacles() -> Array:
 # "clear of the spotlight AND clear of the tray", which is what change needs on the step that says
 # to put coins in the tray, and it sat on the tray 94%% of the time.
 func _best_y(obstacles: Array, top_y: float, low_limit: float, panel_h: float,
-		bottom_y: float, panel_w: float) -> float:
+		bottom_y: float, panel_w: float, panel_x: float = PANEL_MARGIN) -> float:
 	if obstacles.is_empty():
 		return bottom_y
 	var lowest: float = maxf(low_limit - panel_h, top_y)
@@ -1332,7 +1357,7 @@ func _best_y(obstacles: Array, top_y: float, low_limit: float, panel_h: float,
 	var best_cost: float = INF
 	for c in cands:
 		var cy: float = c
-		var here: Rect2 = Rect2(PANEL_MARGIN, cy, maxf(panel_w, 1.0), panel_h)
+		var here: Rect2 = Rect2(panel_x, cy, maxf(panel_w, 1.0), panel_h)
 		var cost: float = 0.0
 		for r2 in obstacles:
 			var ov: Rect2 = here.intersection(r2["rect"])

@@ -63,7 +63,7 @@ var max_speed_scale = 1.0
 var dispatch_audio = preload("res://art/sounds/pneumo_load.ogg")
 var delivery_audio = preload("res://art/sounds/pneumo_arrive.ogg")
 var door_audio = preload("res://art/sounds/pneumo_valve.ogg")
-var motor_audio = preload("res://art/sounds/pneumo_air.ogg")
+var motor_audio = preload("res://art/sounds/pneumo_ambient.ogg")
 var explosion_audio = preload("res://art/sounds/pneumo_clang.ogg")
 var swoosh_audio = preload("res://art/sounds/pneumo_launch.ogg")
 
@@ -87,7 +87,7 @@ func _ready() -> void:
 	game.add_sound(self, "delivery", delivery_audio, false)
 	game.add_sound(self, "explosion", explosion_audio, false)
 	game.add_sound(self, "swoosh", swoosh_audio, false)
-	for vol: Array in [["motor", -9.0], ["dispatch", -5.0], ["swoosh", -6.0], ["door", -4.0], ["delivery", -3.0]]:
+	for vol: Array in [["motor", -6.0], ["dispatch", -5.0], ["swoosh", -6.0], ["door", -4.0], ["delivery", -3.0]]:
 		game.set_sound_volume(vol[0], vol[1])
 	_fit_ground_to_board()
 

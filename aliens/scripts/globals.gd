@@ -4,6 +4,9 @@ extends Node
 # target areas' rings). Self-contained; the aliens are drawn (see alien.gd), not images.
 
 var starting_level_id: int = 1
+# Desktop only, off by default: LEFT click boards a waiting alien, RIGHT click turns it away
+# (level.gd _clicks_judge). Saved as the settings' second entry.
+var click_mode: bool = false
 var game: GenericGameUtil = GenericGameUtil.new("Aliens", "aliens", 0, 2, 0)
 
 # Ordered list of level IDs to play next. Popped one at a time; refilled from
@@ -88,9 +91,11 @@ func peek_next_level_id() -> int:
 	return int(level_queue[0]) if not level_queue.is_empty() else -1
 
 func save_settings() -> void:
-	game.save_settings([starting_level_id])
+	game.save_settings([starting_level_id, 1 if click_mode else 0])
 
 func load_settings() -> void:
 	var settings: Array = game.read_settings()
 	if settings.size() > 0:
 		starting_level_id = int(settings[0])
+	if settings.size() > 1:
+		click_mode = int(settings[1]) != 0

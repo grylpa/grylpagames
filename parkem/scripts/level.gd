@@ -72,7 +72,7 @@ var dispatch_audio = preload("res://art/sounds/parkem_spawn.ogg")
 var parked_audio = preload("res://art/sounds/parkem_reached.ogg")
 var delivery_audio = preload("res://art/sounds/parkem_stopped.ogg")
 var door_audio = preload("res://art/sounds/parkem_door.ogg")
-var motor_audio = preload("res://art/sounds/parkem_evening.ogg")
+var motor_audio = preload("res://art/sounds/parkem_ambient.ogg")
 var explosion_audio = preload("res://art/sounds/parkem_pop.ogg")
 var swoosh_audio = preload("res://art/sounds/parkem_scurry.ogg")
 
@@ -96,7 +96,7 @@ func _ready() -> void:
 	game.add_sound(self, "parked", parked_audio, false)
 	game.add_sound(self, "explosion", explosion_audio, false)
 	game.add_sound(self, "swoosh", swoosh_audio, false)
-	for vol: Array in [["motor", -8.0], ["dispatch", -4.0], ["swoosh", -6.0], ["door", -3.0], ["parked", -3.0]]:
+	for vol: Array in [["motor", -6.0], ["dispatch", -4.0], ["swoosh", -6.0], ["door", -3.0], ["parked", -3.0]]:
 		game.set_sound_volume(vol[0], vol[1])
 	_fit_ground_to_board()
 

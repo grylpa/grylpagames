@@ -225,7 +225,7 @@ var correct_audio = preload("res://art/sounds/aliens_correct.ogg")
 var wrong_audio = preload("res://art/sounds/aliens_wrong.ogg")
 var gatechange_audio = preload("res://art/sounds/aliens_gate.ogg")
 var call_audio = preload("res://art/sounds/aliens_call.ogg")
-var hall_audio = preload("res://art/sounds/aliens_hall.ogg")
+var hall_audio = preload("res://art/sounds/aliens_ambient.ogg")
 var pickup_audio = preload("res://art/sounds/aliens_pickup.ogg")
 
 signal sig_level_is_done(didwin: bool)
@@ -240,7 +240,7 @@ func _ready() -> void:
 	game.add_sound(self, "call", call_audio)
 	game.add_sound(self, "hall", hall_audio, true)
 	game.add_sound(self, "pickup", pickup_audio)
-	for vol: Array in [["hall", -12.0], ["correct", -4.0], ["wrong", -4.0], ["gatechange", -3.0],
+	for vol: Array in [["hall", -6.0], ["correct", -4.0], ["wrong", -4.0], ["gatechange", -3.0],
 			["call", -3.0], ["pickup", -6.0]]:
 		game.set_sound_volume(vol[0], vol[1])
 	_build_ui()
@@ -1631,6 +1631,13 @@ func _on_catcher_gui_input(event: InputEvent) -> void:
 	# tap/drag fires both a mouse and a touch event; mouse alone covers finger and pointer.
 	if not _can_play():
 		return
+	if _clicks_judge() and event is InputEventMouseButton and event.pressed and _drag_alien == null \
+			and (event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT):
+		var hit = _topmost_alien_at(event.position)
+		if hit != null and hit.state == AState.PARKED_OUTER and hit.area_idx >= 0 and hit.area_idx < _areas.size():
+			_click_judge(hit, event.button_index == MOUSE_BUTTON_LEFT)
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			var al = _topmost_alien_at(event.position)
@@ -1646,6 +1653,10 @@ func _on_catcher_gui_input(event: InputEvent) -> void:
 			_drag_alien.sim_pos = (event.position + _drag_offset).clamp(lo, hi)
 			_drag_alien.position = _drag_alien.sim_pos
 			_update_drag_hint()
+
+# Click mode is desktop-only: on a phone there is no right click, and the setting is ignored.
+func _clicks_judge() -> bool:
+	return AliensG.click_mode and not MainGlobals.is_mobile()
 
 func _topmost_alien_at(p: Vector2):
 	var best = null
@@ -1698,6 +1709,39 @@ func _region_at(p: Vector2) -> Array:
 		if dist <= float(ar["r_out"]):
 			return [Region.OUTER, i]
 	return [Region.FIELD, -1]
+
+# A flick's (or a click's) verdict, committed: board the alien (`board`) or turn it out to the hall.
+# The alien is still in its outer ring; it glides the rest of the way.
+func _commit_flick(al, board: bool, now: float) -> void:
+	var home: int = al.area_idx
+	var matched: bool = _gate_wants(al, home)
+	var ar: Dictionary = _areas[home]
+	var c: Vector2 = Vector2(ar["center"])
+	if board:
+		game.record_answer(true, matched)
+		_accept_into_inner(al, now, not matched)
+		if not matched:
+			return                       # a mistake already glides onto its inner slot
+		al.fade_glide = true
+		al.fade_from = al.sim_pos
+		al.fade_to = c + (al.sim_pos - c).normalized() * float(ar["r_in"]) * 0.45
+		return
+	game.record_answer(false, matched)
+	_send_to_field(al, now, matched)
+	var away: Vector2 = (al.sim_pos - c).normalized()
+	var lo: Vector2 = _field.position + Vector2(al.radius, al.radius)
+	var hi: Vector2 = _field.position + _field.size - Vector2(al.radius, al.radius)
+	var out_pt: Vector2 = (c + away * (float(ar["r_out"]) + al.radius * 1.6)).clamp(lo, hi)
+	_start_snap(al, out_pt, AState.ROAM, now)
+
+# CLICK MODE (a desktop option, AliensG.click_mode): a LEFT click on an alien waiting in an outer
+# ring boards it, a RIGHT click turns it away -- no drag at all. Anything else (a roaming alien, a
+# press that hits no waiting alien) falls through to the ordinary drag, so nothing is lost.
+func _click_judge(al, board: bool) -> void:
+	_begin_drag(al, al.sim_pos)          # same bookkeeping as a grab: response time, sound
+	_drag_alien = null
+	al.set_hint(0)
+	_commit_flick(al, board, game.game_time)
 
 # What letting go of a dragged alien here would mean as a FLICK (see FLICK_MIN): Region.INNER to
 # board, Region.FIELD to turn away, Region.OUTER for neither (too short, sideways, or not an alien
@@ -1761,27 +1805,8 @@ func _drop_dragged(now: float) -> void:
 			return
 		var matched: bool = _gate_wants(al, home)
 		var flick: int = _flick_intent(al) if (kind == Region.OUTER and idx == home) else Region.OUTER
-		if flick == Region.INNER:
-			game.record_answer(true, matched)
-			_accept_into_inner(al, now, not matched)
-			if not matched:
-				return                       # a mistake already glides onto its inner slot
-			var ar_in: Dictionary = _areas[home]
-			var c_in: Vector2 = Vector2(ar_in["center"])
-			al.fade_glide = true
-			al.fade_from = al.sim_pos
-			al.fade_to = c_in + (al.sim_pos - c_in).normalized() * float(ar_in["r_in"]) * 0.45
-			return
-		if flick == Region.FIELD:
-			game.record_answer(false, matched)
-			_send_to_field(al, now, matched)
-			var ar_out: Dictionary = _areas[home]
-			var c_out: Vector2 = Vector2(ar_out["center"])
-			var away: Vector2 = (al.sim_pos - c_out).normalized()
-			var lo: Vector2 = _field.position + Vector2(al.radius, al.radius)
-			var hi: Vector2 = _field.position + _field.size - Vector2(al.radius, al.radius)
-			var out_pt: Vector2 = (c_out + away * (float(ar_out["r_out"]) + al.radius * 1.6)).clamp(lo, hi)
-			_start_snap(al, out_pt, AState.ROAM, now)
+		if flick != Region.OUTER:
+			_commit_flick(al, flick == Region.INNER, now)
 			return
 		# Both judgments COMMIT. A wrong call is scored against the player, not undone.
 		if kind == Region.INNER and idx == home:

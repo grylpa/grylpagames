@@ -50,7 +50,8 @@ Aliens are **drawn**, not images — no per-game art beyond the chooser thumbnai
 
 - `AliensG` — `globals.gd`; owns `GenericGameUtil.new("Aliens", "aliens", 0, 2, 0)`; level queue
   (`reset_queue_from` / `pop_next_level_id` / `record_level_result`) with the trailing `-1`
-  `REPEAT_LAST` sentinel; settings (`starting_level_id`).
+  `REPEAT_LAST` sentinel; settings `[starting_level_id, click_mode]` (an older save with only the
+  first entry loads with click mode off).
 - `AliensLevelConfig` — `level_config.gd`; `LEVELS`, `LEVEL_PROGRESSION_ORDER`, `get_level(id)`,
   `level_names()`, `id_to_index(id)`, `max_level()`.
 
@@ -279,7 +280,7 @@ All made for this game by `devtools/make_aliens_sounds.py` (synthesized, seeded)
 
 | name in code | file | when |
 |---|---|---|
-| `hall` | `aliens_hall.ogg`, 28 s loop, -12 dB | while a level plays: a low hum, air, a slow soft chord, a far beep now and then. Stopped at the top of `_process` whenever play stops |
+| `hall` | `aliens_ambient.ogg`, 48 s loop, -6 dB | while a level plays: MUSIC, a retro space-age lounge (`devtools/make_ambient_sounds.py` `aliens`: round bass, vibraphone chords, celesta, a theremin-like tune, soft kick and rim clicks, the gate chime as a flourish). It replaced `aliens_hall.ogg` (a 55 Hz hum, a vent-noise bed, a swelling chord) (2026-11-09: players heard the old loop as noise). Stopped at the top of `_process` whenever play stops |
 | `correct` | `aliens_correct.ogg`, -4 dB | a right call: a two-note chime, rising |
 | `wrong` | `aliens_wrong.ogg`, -4 dB | a mistake, and an alien turned away at a full gate: a short soft buzz, falling |
 | `gatechange` | `aliens_gate.ogg`, -3 dB | a gate changes its pass: the three-note announcement chime |
@@ -601,6 +602,25 @@ A full drag works exactly as before. While dragging, a flick already aimed in li
 (`_update_drag_hint` asks `_flick_intent` too), so the player sees what letting go will do. Response
 time is unchanged: it is measured to the GRAB, never to the release. The instructions and the two
 tutorial steps say "flick" now.
+
+## Click mode (desktop only)
+
+A main-menu switch, **"Left / right click"** (id 2, **off by default**), saved as
+`AliensG.click_mode`. It is added to the menu only when `MainGlobals.is_mobile()` is false, and the
+level ignores it on a phone too (`_clicks_judge`), since a touchscreen has no right click.
+
+When on, a press on an alien **waiting in its outer ring** answers at once (`_click_judge`): LEFT
+boards it, RIGHT turns it away. It goes through `_begin_drag` (so response time is still measured
+to the press, and the pickup squeak plays) and then `_commit_flick` -- the same commit a flick makes,
+so scoring, tutorial events and the glides are identical. A press on anything else (a roaming alien,
+empty field) falls through to the ordinary left-button drag, and dragging and flicking still work
+with the option on.
+
+The row is an on/off SWITCH (`main_menu.gd` `add_switch_entry`, drawn by `scripts/menu_switch.gd`:
+a pill that is the dropdowns' dark when off and the menu's gold when on, its knob sliding across). It
+reports through `sig_option_changed` as index 0 / 1, and `update_option` / `get_option` work on it,
+so the game handles it like a dropdown. Every option row's label gets the widest one's width
+(`_align_option_labels`), so the switch and the dropdown end on one line.
 
 ## Layout
 

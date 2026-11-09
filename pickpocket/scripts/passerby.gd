@@ -1,0 +1,560 @@
+extends Node2D
+
+# ONE PASSER-BY on Pickpocket's street, drawn in code at its FEET (position = where it stands).
+# Seen from the side, walking left or right.
+#
+# DRAWN AS A PERSON, NOT A TOY: adult proportions (the head about an eighth of the height), limbs
+# as tapered shapes that bend at the knee and the elbow, clothes and skin SHADED -- lit from above
+# and from the side the street light comes from (`light_dir`, set by the level from the nearest
+# lamp), dimmer between lamps, with a warm rim on the lit edge. The first version was circles and
+# straight lines in flat colors, which read as a children's book.
+#
+# Every person must be told apart from the others at a glance, out of the corner of the eye and
+# then again once the street freezes, so the look is built from several independent traits: the
+# coat's color and cut, a hat or a hairstyle, a bag, the skin, the height. The level keeps coat
+# colors unique among the people on the street at once.
+#
+# A person never carries a visible wallet. One drawn on everyone would let a player find the
+# victim afterwards by scanning for the one without it, without having seen anything happen.
+
+const COATS: Array = [
+	Color(0.66, 0.17, 0.16),   # red
+	Color(0.17, 0.26, 0.50),   # navy blue
+	Color(0.78, 0.59, 0.19),   # mustard
+	Color(0.21, 0.45, 0.28),   # green
+	Color(0.44, 0.26, 0.52),   # plum
+	Color(0.68, 0.53, 0.36),   # camel
+	Color(0.16, 0.52, 0.56),   # teal
+	Color(0.48, 0.49, 0.51),   # gray
+	Color(0.82, 0.42, 0.17),   # rust orange
+	Color(0.80, 0.49, 0.59),   # dusty pink
+	Color(0.88, 0.85, 0.78),   # stone
+	Color(0.30, 0.21, 0.16),   # brown
+]
+const PANTS: Array = [Color(0.13, 0.14, 0.18), Color(0.19, 0.25, 0.40), Color(0.32, 0.27, 0.22),
+	Color(0.27, 0.28, 0.30), Color(0.10, 0.10, 0.11), Color(0.42, 0.38, 0.32)]
+const SKINS: Array = [Color(0.93, 0.77, 0.64), Color(0.85, 0.65, 0.50), Color(0.69, 0.49, 0.34),
+	Color(0.52, 0.36, 0.24), Color(0.36, 0.24, 0.17)]
+const HAIRS: Array = [Color(0.09, 0.07, 0.06), Color(0.30, 0.19, 0.11), Color(0.70, 0.54, 0.30),
+	Color(0.55, 0.25, 0.12), Color(0.70, 0.70, 0.70)]
+const HAT_COLORS: Array = [Color(0.12, 0.12, 0.14), Color(0.45, 0.12, 0.13), Color(0.20, 0.30, 0.22),
+	Color(0.70, 0.66, 0.58), Color(0.26, 0.34, 0.55)]
+const BAG_COLORS: Array = [Color(0.38, 0.22, 0.12), Color(0.12, 0.12, 0.13), Color(0.55, 0.12, 0.17),
+	Color(0.72, 0.58, 0.36)]
+
+enum Hat { NONE, CAP, BEANIE, FEDORA, BOWLER }
+enum Hair { SHORT, LONG, BUN, BALD, CURLY }
+enum Bag { NONE, SHOULDER, BACKPACK }
+enum Mark { NONE, HOVER, VICTIM, THIEF, PICKED_RIGHT, PICKED_WRONG }
+
+const WARM: Color = Color(1.0, 0.82, 0.55)   # the street light's color, for the rim
+
+# --- look ---
+var h: float = 110.0          # height in px, feet to crown
+var coat_idx: int = 0
+var long_coat: bool = false
+var pants: Color = PANTS[0]
+var skin: Color = SKINS[0]
+var hair_col: Color = HAIRS[0]
+var hair: int = Hair.SHORT
+var hat: int = Hat.NONE
+var hat_col: Color = HAT_COLORS[0]
+var bag: int = Bag.NONE
+var bag_col: Color = BAG_COLORS[0]
+var scarf: bool = false
+var scarf_col: Color = Color.WHITE
+var build: float = 1.0        # 0.9 slight .. 1.12 broad
+
+# --- motion (the level moves it; these are only what the drawing needs) ---
+var dir: int = 1              # +1 faces right, -1 faces left
+var phase: float = 0.0        # walk cycle, advanced by distance
+var walking: bool = true
+var reach: float = 0.0        # 0..1: the front arm reaching forward (the lift)
+var reach_at: Vector2 = Vector2.INF   # where the reaching hand goes (local); INF = straight ahead
+var jolt: float = 0.0         # 0..1: a startled start (the easy levels' cue)
+var mark: int = Mark.NONE
+var tag: String = ""
+var tag_raise: float = 0.0    # lifts the tag a line, so two neighbors' tags do not overlap
+var light_dir: float = 0.0    # -1 lit from the left .. +1 from the right
+var light_amt: float = 0.5    # 0 in the dark between lamps .. 1 right under one
+var idle: float = 0.0         # a slow clock for someone standing: breath and a shift of weight
+
+# SOMEONE STANDING IS NEVER STILL (tick_idle): they breathe, shift their weight from foot to foot,
+# lean, glance away and back, and every few seconds change what their hands are doing -- a hand to
+# the chin, a hand on the hip, arms hanging. Each of these eases in and out. `excite` (0..1, set
+# by the level for the onlookers during the shuffle) leans them in toward the table.
+var excite: float = 0.0
+var _w_chin: float = 0.0
+var _w_hip: float = 0.0
+var _w_far_hip: float = 0.0
+var _lean: float = 0.0
+var _glance: float = 0.0      # 0 looking the way they face .. 1 head turned the other way
+var _want: Dictionary = {"chin": 0.0, "hip": 0.0, "far_hip": 0.0, "lean": 0.0, "glance": 0.0}
+var _next_change: float = 0.0
+var _clock: float = 0.0
+
+func tick_idle(dt: float, rng: RandomNumberGenerator) -> void:
+	_clock += dt
+	idle += dt * 1.6
+	if _clock >= _next_change:
+		_next_change = _clock + rng.randf_range(1.8, 4.5)
+		var r: float = rng.randf()
+		_want["chin"] = 1.0 if r < 0.22 else 0.0
+		_want["hip"] = 1.0 if r >= 0.22 and r < 0.42 else 0.0
+		_want["far_hip"] = 1.0 if rng.randf() < 0.25 else 0.0
+		_want["lean"] = rng.randf_range(-0.025, 0.035)
+		_want["glance"] = 1.0 if rng.randf() < 0.18 else 0.0
+	var k: float = 1.0 - exp(-3.5 * dt)
+	var ex: float = clampf(excite, 0.0, 1.0)
+	_w_chin = lerpf(_w_chin, float(_want["chin"]) * (1.0 - ex), k)
+	_w_hip = lerpf(_w_hip, float(_want["hip"]) * (1.0 - ex * 0.5), k)
+	_w_far_hip = lerpf(_w_far_hip, float(_want["far_hip"]), k)
+	_lean = lerpf(_lean, float(_want["lean"]) + ex * 0.07, k)
+	_glance = lerpf(_glance, float(_want["glance"]) * (1.0 - ex), k * 1.6)
+	queue_redraw()
+
+# --- the level's bookkeeping, kept on the node ---
+var lane: int = 0
+var speed: float = 60.0       # px per second while walking
+var stand_until: float = -1.0 # game ms; >= 0 while standing
+var stand_at_x: float = -1.0  # walk to here, then stand (a window shopper); < 0 = never
+var stand_ms: float = 0.0
+var role: int = 0             # 0 none, 1 victim, 2 thief (this round)
+var plan: Dictionary = {}     # the thief's script
+
+static var _shadow_tex: GradientTexture2D = null
+# Every shape drawn this frame (local, before the lean): the person's exact body, for taps.
+var _hits: Array = []
+var _hit_rot: float = 0.0
+
+func randomize_look(rng: RandomNumberGenerator, _coat_idx: int) -> void:
+	coat_idx = _coat_idx
+	long_coat = rng.randf() < 0.45
+	pants = PANTS[rng.randi() % PANTS.size()]
+	skin = SKINS[rng.randi() % SKINS.size()]
+	hair_col = HAIRS[rng.randi() % HAIRS.size()]
+	hair = rng.randi() % 5
+	hat = Hat.NONE if rng.randf() < 0.45 else 1 + rng.randi() % 4
+	hat_col = HAT_COLORS[rng.randi() % HAT_COLORS.size()]
+	if hat == Hat.NONE and hair == Hair.BALD and rng.randf() < 0.5:
+		hair = Hair.SHORT
+	var b: float = rng.randf()
+	bag = Bag.NONE if b < 0.5 else (Bag.SHOULDER if b < 0.78 else Bag.BACKPACK)
+	bag_col = BAG_COLORS[rng.randi() % BAG_COLORS.size()]
+	scarf = rng.randf() < 0.3
+	scarf_col = Color.from_hsv(rng.randf(), 0.45, 0.75)
+	build = rng.randf_range(0.92, 1.12)
+
+func coat() -> Color:
+	return COATS[coat_idx]
+
+# Where a hand would take a wallet from: the back pocket, at the rear hip.
+func pocket_point() -> Vector2:
+	return position + Vector2(-float(dir) * 0.085 * h * build, -0.50 * h)
+
+# The thief's reaching hand, in street coordinates.
+func hand_point() -> Vector2:
+	return position + (_arm_points(true)[2] as Vector2)
+
+# THE TOP CENTER OF THE HEAD, in street coordinates -- of the hat when there is one -- exactly as
+# drawn: following the bob, the glance and the lean. The answer tag's pointer ends here, touching
+# the crown (it used to stop at a fixed height, floating above some people and inside others).
+func head_top() -> Vector2:
+	var hd: float = float(dir) if _glance < 0.5 else -float(dir)
+	var hc: Vector2 = Vector2(0.010 * h * hd, -0.925 * h + _bob())
+	var crown: float = 0.066
+	match hat:
+		Hat.CAP:
+			crown = 0.078
+		Hat.BEANIE:
+			crown = 0.090
+		Hat.FEDORA:
+			crown = 0.099
+		Hat.BOWLER:
+			crown = 0.096
+	if hat == Hat.NONE and (hair == Hair.SHORT or hair == Hair.LONG or hair == Hair.BUN):
+		crown = 0.073
+	elif hat == Hat.NONE and hair == Hair.CURLY:
+		crown = 0.075
+	var top: Vector2 = hc + Vector2(0.0, -crown * h)
+	if not walking and absf(_lean) > 0.0005:
+		top = top.rotated(_lean * float(dir))
+	return position + top
+
+# Is a point (street coordinates) on this person's body, exactly as drawn?
+func hit(pt: Vector2) -> bool:
+	var local: Vector2 = (pt - position).rotated(-_hit_rot)
+	for poly in _hits:
+		if Geometry2D.is_point_in_polygon(local, poly):
+			return true
+	return false
+
+# A rough box round the whole figure (a fallback for a tap that lands just off every body).
+func body_rect() -> Rect2:
+	return Rect2(position + Vector2(-0.20 * h, -1.02 * h), Vector2(0.40 * h, 1.04 * h))
+
+func advance(dist: float) -> void:
+	phase += dist / (0.62 * h) * PI
+	queue_redraw()
+
+func set_mark(m: int, text: String = "") -> void:
+	mark = m
+	tag = text
+	queue_redraw()
+
+# --- light -------------------------------------------------------------------
+
+# A color as the street lights it at a point of the figure: brighter higher up (the lamps are
+# above), brighter on the side the light comes from, dimmer in the dark between lamps, and pulled
+# toward amber where the lamps reach.
+func _lit(c: Color, p: Vector2) -> Color:
+	var up: float = clampf(-p.y / h, 0.0, 1.0)
+	var side: float = clampf(p.x / (0.13 * h * build), -1.0, 1.0) * light_dir
+	var k: float = 0.66 + 0.22 * up + 0.16 * side + 0.20 * light_amt
+	var out: Color = Color(c.r * k, c.g * k, c.b * k, c.a)
+	var warm: float = clampf(0.25 + 0.45 * side, 0.0, 1.0) * light_amt
+	return out.lerp(Color(minf(1.0, out.r * 1.10), out.g * 0.98, out.b * 0.84, c.a), warm)
+
+func _poly(pts: PackedVector2Array, c: Color) -> void:
+	_hits.append(pts)
+	var cols: PackedColorArray = PackedColorArray()
+	for p in pts:
+		cols.append(_lit(c, p))
+	if Geometry2D.triangulate_polygon(pts).is_empty():
+		var hull: PackedVector2Array = Geometry2D.convex_hull(pts)
+		if hull.size() >= 4:
+			hull.remove_at(hull.size() - 1)
+			draw_colored_polygon(hull, cols[0])
+		return
+	draw_polygon(pts, cols)
+
+# A limb segment: a tapered shape from a (radius ra) to b (radius rb), round at both ends.
+func _limb(a: Vector2, b: Vector2, ra: float, rb: float, c: Color) -> void:
+	var d: Vector2 = b - a
+	if d.length() < 0.01:
+		return
+	var u: Vector2 = d.normalized()
+	var n: Vector2 = u.orthogonal()
+	var pts: PackedVector2Array = PackedVector2Array()
+	var segs: int = 5
+	for k in segs + 1:
+		var ang: float = PI * float(k) / float(segs)
+		pts.append(b + (n * cos(ang) + u * sin(ang)) * rb)
+	for k in segs + 1:
+		var ang2: float = PI * float(k) / float(segs)
+		pts.append(a + (-n * cos(ang2) - u * sin(ang2)) * ra)
+	_poly(pts, c)
+
+func _ellipse_pts(c: Vector2, rx: float, ry: float, n: int = 18) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array()
+	for k in n:
+		var a: float = TAU * float(k) / float(n)
+		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+	return pts
+
+# --- the pose ----------------------------------------------------------------
+
+func _bob() -> float:
+	var b: float = -absf(cos(phase)) * 0.014 * h if walking else sin(idle) * 0.004 * h
+	return b - sin(jolt * PI) * 0.05 * h
+
+# Hip, knee, ankle of one leg.
+func _leg_points(front: bool) -> Array:
+	var y0: float = _bob()
+	var d: float = float(dir)
+	var hip: Vector2 = Vector2(0.0, -0.50 * h + y0)
+	var ph: float = phase + (0.0 if front else PI)
+	var shift: float = sin(idle * 0.35) * 0.06
+	var s: float = sin(ph) if walking else ((0.10 + shift) if front else (-0.06 + shift))
+	var thigh_a: float = s * 0.40                      # radians off vertical, + = forward
+	# the knee bends as the leg swings through
+	var bend: float = (maxf(0.0, cos(ph)) * 0.80 + 0.06) if walking else (0.04 + maxf(0.0, (shift if front else -shift)) * 2.0)
+	var knee: Vector2 = hip + Vector2(sin(thigh_a) * d, cos(thigh_a)) * 0.25 * h
+	var shin_a: float = thigh_a - bend
+	var ankle: Vector2 = knee + Vector2(sin(shin_a) * d, cos(shin_a)) * 0.24 * h
+	if ankle.y > -0.028 * h:
+		ankle.y = -0.028 * h
+	return [hip, knee, ankle]
+
+# Shoulder, elbow, hand.
+func _arm_points(front: bool) -> Array:
+	var y0: float = _bob()
+	var d: float = float(dir)
+	var sh: Vector2 = Vector2(-0.005 * h * d, -0.79 * h + y0)
+	var ph: float = phase + (PI if front else 0.0)
+	var s: float = sin(ph) * 0.36 if walking else 0.03
+	var elbow: Vector2 = sh + Vector2(sin(s) * d, cos(s)) * 0.165 * h
+	var fa: float = s + 0.22 + maxf(0.0, s) * 0.55
+	var hand: Vector2 = elbow + Vector2(sin(fa) * d, cos(fa)) * 0.15 * h
+	if not walking:
+		var y1: float = y0
+		if front:
+			var chin_h: Vector2 = Vector2(0.055 * h * d, -0.865 * h + y1)
+			var chin_e: Vector2 = Vector2(0.06 * h * d, -0.64 * h + y1)
+			var hip_h: Vector2 = Vector2(0.075 * h * d, -0.53 * h + y1)
+			var hip_e: Vector2 = Vector2(0.14 * h * d, -0.65 * h + y1)
+			elbow = elbow.lerp(chin_e, _w_chin).lerp(hip_e, _w_hip)
+			hand = hand.lerp(chin_h, _w_chin).lerp(hip_h, _w_hip)
+		else:
+			var fh_h: Vector2 = Vector2(-0.075 * h * d, -0.53 * h + y1)
+			var fh_e: Vector2 = Vector2(-0.14 * h * d, -0.65 * h + y1)
+			elbow = elbow.lerp(fh_e, _w_far_hip)
+			hand = hand.lerp(fh_h, _w_far_hip)
+	if front and reach > 0.0:
+		var out_e: Vector2 = sh + Vector2(0.09 * h * d, 0.14 * h)
+		var out_h: Vector2 = Vector2(0.26 * h * d, -0.52 * h + y0)
+		if reach_at != Vector2.INF:
+			out_h = reach_at
+			out_e = (sh + out_h) * 0.5 + Vector2(-0.03 * h * d, 0.06 * h)
+		elbow = elbow.lerp(out_e, reach)
+		hand = hand.lerp(out_h, reach)
+	return [sh, elbow, hand]
+
+# --- drawing -----------------------------------------------------------------
+
+func _draw() -> void:
+	var y0: float = _bob()
+	var d: float = float(dir)
+	var c: Color = coat()
+	var bw: float = build
+
+	_draw_ground_marks()
+	_hits.clear()
+	_hit_rot = 0.0
+	# the whole figure leans from the feet
+	if not walking and absf(_lean) > 0.0005:
+		_hit_rot = _lean * float(dir)
+		draw_set_transform(Vector2.ZERO, _hit_rot, Vector2.ONE)
+
+	# the far leg and arm first, in shade
+	_draw_leg(_leg_points(false), pants.darkened(0.28))
+	_draw_arm(_arm_points(false), c.darkened(0.32), false)
+	if bag == Bag.BACKPACK:
+		var bx: float = -d * 0.15 * h * bw
+		_poly(_round_box(Vector2(bx, -0.66 * h + y0), Vector2(0.07 * h, 0.12 * h), 0.03 * h), bag_col)
+		_poly(_round_box(Vector2(bx - d * 0.02 * h, -0.60 * h + y0), Vector2(0.05 * h, 0.04 * h), 0.015 * h), bag_col.darkened(0.2))
+	_draw_leg(_leg_points(true), pants)
+
+	# the coat: neck, sloping shoulders, waist, a hem that flares; lit by _lit
+	var hem: float = (-0.30 if long_coat else -0.47) * h + y0
+	var top: float = -0.83 * h + y0
+	var waist: float = -0.58 * h + y0
+	var sw: float = 0.110 * h * bw
+	var ww: float = 0.082 * h * bw
+	var hw: float = (0.120 if long_coat else 0.095) * h * bw
+	var body: PackedVector2Array = PackedVector2Array([
+		Vector2(-0.034 * h, top - 0.012 * h), Vector2(0.034 * h, top - 0.012 * h),
+		Vector2(sw * 0.82, top + 0.010 * h), Vector2(sw, top + 0.040 * h),
+		Vector2(sw * 0.94, top + 0.150 * h), Vector2(ww, waist),
+		Vector2(hw * 0.95, (hem + waist) * 0.5), Vector2(hw, hem),
+		Vector2(-hw, hem), Vector2(-hw * 0.95, (hem + waist) * 0.5),
+		Vector2(-ww, waist), Vector2(-sw * 0.94, top + 0.150 * h),
+		Vector2(-sw, top + 0.040 * h), Vector2(-sw * 0.82, top + 0.010 * h)])
+	_poly(body, c)
+	# the front edge of the coat and a fold, a shade darker; a belt on a long coat
+	var fx: float = d * 0.042 * h * bw
+	draw_line(Vector2(fx, top + 0.03 * h), Vector2(fx * 1.25, hem), Color(0, 0, 0, 0.24), maxf(1.0, 0.008 * h))
+	draw_line(Vector2(-d * 0.03 * h, waist + 0.02 * h), Vector2(-d * 0.05 * h, hem), Color(0, 0, 0, 0.14), maxf(1.0, 0.006 * h))
+	if long_coat:
+		draw_line(Vector2(-ww, waist + 0.01 * h), Vector2(ww, waist + 0.01 * h), Color(0, 0, 0, 0.30), maxf(1.5, 0.014 * h))
+	# a warm rim along the lit edge
+	var lit_side: float = 1.0 if light_dir >= 0.0 else -1.0
+	draw_line(Vector2(sw * 0.96 * lit_side, top + 0.05 * h), Vector2(ww * 1.02 * lit_side, waist), Color(WARM, 0.22 * light_amt), maxf(1.0, 0.012 * h))
+	if scarf:
+		_poly(PackedVector2Array([Vector2(-0.048 * h, top - 0.022 * h), Vector2(0.048 * h, top - 0.022 * h),
+			Vector2(0.054 * h, top + 0.028 * h), Vector2(-0.054 * h, top + 0.028 * h)]), scarf_col)
+		_poly(PackedVector2Array([Vector2(d * 0.018 * h, top + 0.02 * h), Vector2(d * 0.052 * h, top + 0.02 * h),
+			Vector2(d * 0.060 * h, top + 0.17 * h), Vector2(d * 0.028 * h, top + 0.17 * h)]), scarf_col.darkened(0.12))
+
+	if bag == Bag.SHOULDER:
+		draw_line(Vector2(-d * 0.07 * h, top + 0.01 * h), Vector2(d * 0.08 * h, -0.52 * h + y0),
+			_lit(bag_col.darkened(0.35), Vector2(0, -0.7 * h)), maxf(1.5, 0.013 * h))
+		_poly(_round_box(Vector2(d * 0.09 * h, -0.49 * h + y0), Vector2(0.062 * h, 0.048 * h), 0.014 * h), bag_col)
+		draw_line(Vector2(d * 0.032 * h, -0.512 * h + y0), Vector2(d * 0.148 * h, -0.512 * h + y0), Color(0, 0, 0, 0.25), maxf(1.0, 0.006 * h))
+
+	# the near arm, then the head
+	_draw_arm(_arm_points(true), c.darkened(0.05), true)
+	var hd: float = d if _glance < 0.5 else -d
+	_draw_head(Vector2(0.010 * h * hd, -0.925 * h + y0), hd, top)
+
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _draw_ground_marks() -> void:
+	match mark:
+		Mark.HOVER:
+			_ring(Color(1, 1, 1, 0.55))
+		Mark.VICTIM, Mark.PICKED_RIGHT:
+			_ring(Color(0.40, 0.95, 0.50, 0.9))
+		Mark.THIEF:
+			_ring(Color(1.0, 0.75, 0.25, 0.9))
+		Mark.PICKED_WRONG:
+			_ring(Color(1.0, 0.35, 0.30, 0.9))
+	# a soft contact shadow
+	if _shadow_tex == null:
+		_shadow_tex = GradientTexture2D.new()
+		_shadow_tex.fill = GradientTexture2D.FILL_RADIAL
+		_shadow_tex.fill_from = Vector2(0.5, 0.5)
+		_shadow_tex.fill_to = Vector2(1.0, 0.5)
+		var g: Gradient = Gradient.new()
+		g.set_color(0, Color(0, 0, 0, 0.60))
+		g.set_color(1, Color(0, 0, 0, 0.0))
+		_shadow_tex.gradient = g
+		_shadow_tex.width = 64
+		_shadow_tex.height = 64
+	draw_texture_rect(_shadow_tex, Rect2(-0.24 * h, -0.05 * h, 0.48 * h, 0.10 * h), false)
+
+func _ring(col: Color) -> void:
+	var pts: PackedVector2Array = _ellipse_pts(Vector2(0, -0.005 * h), 0.27 * h, 0.065 * h, 28)
+	draw_colored_polygon(pts, Color(col, 0.18))
+	pts.append(pts[0])
+	draw_polyline(pts, col, maxf(2.5, 0.022 * h), true)
+
+func _draw_leg(p: Array, col: Color) -> void:
+	var hip: Vector2 = p[0]
+	var knee: Vector2 = p[1]
+	var ankle: Vector2 = p[2]
+	_limb(hip, knee, 0.048 * h * build, 0.035 * h, col)
+	_limb(knee, ankle, 0.035 * h, 0.025 * h, col)
+	# the shoe: a low wedge, toe forward, a sheen on top
+	var d: float = float(dir)
+	var shoe: PackedVector2Array = PackedVector2Array([
+		ankle + Vector2(-d * 0.030 * h, -0.012 * h), ankle + Vector2(d * 0.030 * h, -0.010 * h),
+		ankle + Vector2(d * 0.074 * h, 0.012 * h), ankle + Vector2(d * 0.071 * h, 0.026 * h),
+		ankle + Vector2(-d * 0.034 * h, 0.026 * h)])
+	_poly(shoe, Color(0.10, 0.08, 0.07))
+	draw_line(ankle + Vector2(-d * 0.01 * h, -0.004 * h), ankle + Vector2(d * 0.05 * h, 0.010 * h), Color(1, 0.9, 0.75, 0.20), maxf(1.0, 0.006 * h))
+
+func _draw_arm(p: Array, col: Color, front: bool) -> void:
+	var sh: Vector2 = p[0]
+	var el: Vector2 = p[1]
+	var hd: Vector2 = p[2]
+	_limb(sh, el, 0.035 * h * build, 0.028 * h, col)
+	_limb(el, hd + (el - hd).normalized() * 0.02 * h, 0.028 * h, 0.023 * h, col)
+	_poly(_ellipse_pts(hd, 0.021 * h, 0.025 * h, 10), skin if front else skin.darkened(0.22))
+
+func _draw_head(hc: Vector2, d: float, neck_y: float) -> void:
+	_limb(Vector2(0.004 * h * d, neck_y + 0.01 * h), hc + Vector2(-0.004 * h * d, 0.04 * h), 0.023 * h, 0.021 * h, skin.darkened(0.14))
+	_hair_back(hc, d)
+	# a skull a little longer than wide, the jaw coming forward and down
+	var head: PackedVector2Array = PackedVector2Array()
+	for k in 20:
+		var a: float = TAU * float(k) / 20.0
+		var p: Vector2 = Vector2(cos(a) * 0.055 * h, sin(a) * 0.065 * h)
+		if sin(a) > 0.0:
+			p.x += d * 0.011 * h * sin(a)
+		head.append(hc + p)
+	_poly(head, skin)
+	# nose, eye, brow and ear: small, the way a face reads from across a street
+	_poly(PackedVector2Array([hc + Vector2(d * 0.050 * h, -0.010 * h), hc + Vector2(d * 0.071 * h, 0.012 * h),
+		hc + Vector2(d * 0.052 * h, 0.016 * h)]), skin.darkened(0.06))
+	draw_circle(hc + Vector2(d * 0.033 * h, -0.006 * h), maxf(0.8, 0.0062 * h), Color(0.10, 0.07, 0.06, 0.85))
+	draw_line(hc + Vector2(d * 0.020 * h, -0.020 * h), hc + Vector2(d * 0.047 * h, -0.020 * h), Color(0, 0, 0, 0.30), maxf(1.0, 0.006 * h))
+	_poly(_ellipse_pts(hc + Vector2(-d * 0.008 * h, 0.002 * h), 0.011 * h, 0.017 * h, 8), skin.darkened(0.14))
+	draw_line(hc + Vector2(-d * 0.03 * h, 0.058 * h), hc + Vector2(d * 0.04 * h, 0.056 * h), Color(0, 0, 0, 0.16), maxf(1.0, 0.012 * h))
+	_hair_front(hc, d)
+	_hat(hc, d)
+
+func _hair_back(hc: Vector2, d: float) -> void:
+	if hat != Hat.NONE and hair != Hair.LONG:
+		return
+	match hair:
+		Hair.LONG:
+			_poly(PackedVector2Array([
+				hc + Vector2(-d * 0.058 * h, -0.030 * h), hc + Vector2(d * 0.020 * h, -0.050 * h),
+				hc + Vector2(-d * 0.010 * h, 0.060 * h), hc + Vector2(-d * 0.028 * h, 0.150 * h),
+				hc + Vector2(-d * 0.082 * h, 0.140 * h), hc + Vector2(-d * 0.072 * h, 0.030 * h)]), hair_col)
+		Hair.BUN:
+			_poly(_ellipse_pts(hc + Vector2(-d * 0.058 * h, -0.045 * h), 0.025 * h, 0.023 * h, 12), hair_col)
+
+func _hair_front(hc: Vector2, d: float) -> void:
+	if hat != Hat.NONE:
+		return
+	match hair:
+		Hair.SHORT, Hair.LONG, Hair.BUN:
+			_poly(PackedVector2Array([
+				hc + Vector2(d * 0.045 * h, -0.032 * h), hc + Vector2(d * 0.040 * h, -0.057 * h),
+				hc + Vector2(0.0, -0.073 * h), hc + Vector2(-d * 0.044 * h, -0.061 * h),
+				hc + Vector2(-d * 0.061 * h, -0.020 * h), hc + Vector2(-d * 0.057 * h, 0.022 * h),
+				hc + Vector2(-d * 0.030 * h, 0.010 * h), hc + Vector2(-d * 0.010 * h, -0.030 * h)]), hair_col)
+		Hair.CURLY:
+			for k in 7:
+				var a: float = PI * 0.95 + PI * 1.05 * float(k) / 6.0
+				var pc: Vector2 = hc + Vector2(-cos(a) * 0.054 * h * d, sin(a) * 0.061 * h)
+				_poly(_ellipse_pts(pc + Vector2(-d * 0.010 * h, 0.0), 0.021 * h, 0.020 * h, 10), hair_col)
+		Hair.BALD:
+			# a thin fringe round the back of the head, above the ear
+			var fringe: PackedVector2Array = PackedVector2Array()
+			for k in 9:
+				var ang: float = PI * (0.80 + 0.45 * float(k) / 8.0)
+				fringe.append(hc + Vector2(cos(ang) * 0.054 * h * d, sin(ang) * -0.040 * h + 0.012 * h))
+			draw_polyline(fringe, _lit(hair_col, Vector2(0, -0.9 * h)), maxf(1.5, 0.011 * h), true)
+
+func _hat(hc: Vector2, d: float) -> void:
+	match hat:
+		Hat.CAP:
+			_poly(PackedVector2Array([hc + Vector2(-d * 0.060 * h, -0.020 * h), hc + Vector2(-d * 0.050 * h, -0.060 * h),
+				hc + Vector2(0.0, -0.078 * h), hc + Vector2(d * 0.050 * h, -0.060 * h), hc + Vector2(d * 0.058 * h, -0.028 * h)]), hat_col)
+			_poly(PackedVector2Array([hc + Vector2(d * 0.040 * h, -0.032 * h), hc + Vector2(d * 0.104 * h, -0.024 * h),
+				hc + Vector2(d * 0.100 * h, -0.016 * h), hc + Vector2(d * 0.040 * h, -0.020 * h)]), hat_col.darkened(0.3))
+		Hat.BEANIE:
+			_poly(PackedVector2Array([hc + Vector2(-d * 0.061 * h, -0.010 * h), hc + Vector2(-d * 0.055 * h, -0.065 * h),
+				hc + Vector2(-d * 0.010 * h, -0.090 * h), hc + Vector2(d * 0.040 * h, -0.075 * h), hc + Vector2(d * 0.057 * h, -0.020 * h)]), hat_col)
+			draw_line(hc + Vector2(-d * 0.061 * h, -0.016 * h), hc + Vector2(d * 0.057 * h, -0.024 * h), _lit(hat_col.darkened(0.3), Vector2(0, -0.9 * h)), maxf(1.5, 0.018 * h))
+		Hat.FEDORA:
+			_poly(PackedVector2Array([hc + Vector2(-0.102 * h, -0.040 * h), hc + Vector2(0.102 * h, -0.040 * h),
+				hc + Vector2(0.088 * h, -0.030 * h), hc + Vector2(-0.088 * h, -0.030 * h)]), hat_col.darkened(0.15))
+			_poly(PackedVector2Array([hc + Vector2(-0.057 * h, -0.040 * h), hc + Vector2(-0.051 * h, -0.097 * h),
+				hc + Vector2(0.0, -0.089 * h), hc + Vector2(0.051 * h, -0.099 * h), hc + Vector2(0.057 * h, -0.040 * h)]), hat_col)
+			draw_line(hc + Vector2(-0.056 * h, -0.050 * h), hc + Vector2(0.056 * h, -0.050 * h), Color(0.08, 0.06, 0.05, 0.8), maxf(1.5, 0.012 * h))
+		Hat.BOWLER:
+			_poly(PackedVector2Array([hc + Vector2(-0.084 * h, -0.036 * h), hc + Vector2(0.084 * h, -0.036 * h),
+				hc + Vector2(0.069 * h, -0.028 * h), hc + Vector2(-0.069 * h, -0.028 * h)]), hat_col.darkened(0.15))
+			var dome: PackedVector2Array = PackedVector2Array()
+			for k in 13:
+				var a: float = PI + PI * float(k) / 12.0
+				dome.append(hc + Vector2(cos(a) * 0.057 * h, -0.036 * h + sin(a) * 0.059 * h))
+			_poly(dome, hat_col)
+
+func _round_box(c: Vector2, half: Vector2, r: float) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array()
+	var corners: Array = [Vector2(half.x - r, -half.y + r), Vector2(half.x - r, half.y - r),
+		Vector2(-half.x + r, half.y - r), Vector2(-half.x + r, -half.y + r)]
+	var starts: Array = [-PI * 0.5, 0.0, PI * 0.5, PI]
+	for i in 4:
+		for k in 4:
+			var a: float = float(starts[i]) + PI * 0.5 * float(k) / 3.0
+			pts.append(c + (corners[i] as Vector2) + Vector2(cos(a), sin(a)) * r)
+	return pts
+
+# The answer's tag ("Robbed", "Pickpocket", "Your pick") is drawn by the LEVEL on a layer above
+# everything (draw_tag_to), never in the person's own layer: there an onlooker or the hustler could
+# cover the person and leave the tag pointing at no one. The pill is kept on screen; its pointer
+# still ends on the person's head.
+func draw_tag_to(ci: CanvasItem, screen_w: float) -> void:
+	if tag == "":
+		return
+	var font: Font = MainGlobals.get_text_font()
+	var fs: int = int(clampf(0.16 * h, 16.0, float(MainGlobals.ui_font_size(20))))
+	var tw: float = font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var pad: float = fs * 0.45
+	var head: Vector2 = head_top()
+	# the box sits a short pointer's length above the crown
+	var box_bottom: float = head.y - maxf(10.0, 0.10 * h) - tag_raise * fs * 1.5
+	var y: float = box_bottom - fs * 1.2
+	var col: Color = Color(0.40, 0.95, 0.50)
+	match mark:
+		Mark.THIEF:
+			col = Color(1.0, 0.75, 0.25)
+		Mark.PICKED_WRONG:
+			col = Color(1.0, 0.40, 0.35)
+	var bw: float = tw + pad * 2.0
+	var bx: float = clampf(position.x - bw * 0.5, 6.0, screen_w - bw - 6.0)
+	var box: Rect2 = Rect2(Vector2(bx, y - fs * 0.15), Vector2(bw, fs * 1.35))
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.06, 0.10, 0.90)
+	sb.set_corner_radius_all(int(fs * 0.45))
+	sb.border_color = Color(col, 0.7)
+	sb.set_border_width_all(2)
+	ci.draw_line(Vector2(clampf(head.x, box.position.x + 8.0, box.end.x - 8.0), box.end.y), head, Color(col, 0.85), 2.0)
+	ci.draw_style_box(sb, box)
+	ci.draw_string(font, Vector2(bx + pad, y + fs * 0.92), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

@@ -70,7 +70,7 @@ var dict_tran_id_to_target = {}
 # of fuel. They replaced a heavy bell, an arcade coin, a swoosh, a long honk, a bump and a clash.
 var dispatch_audio := preload("res://art/sounds/taxi_call.ogg")
 var delivery_audio := preload("res://art/sounds/taxi_fare.ogg")
-var motor_audio := preload("res://art/sounds/taxi_city.ogg")
+var motor_audio := preload("res://art/sounds/taxi_ambient.ogg")
 var swoosh_audio := preload("res://art/sounds/taxi_door.ogg")
 var honk_audio := preload("res://art/sounds/taxi_horn.ogg")
 var gaveup_audio := preload("res://art/sounds/taxi_gaveup.ogg")
@@ -101,7 +101,7 @@ func _ready() -> void:
 	game.add_sound(self, "motor", motor_audio, true)
 	game.add_sound(self, "customer_gaveup",gaveup_audio)
 	game.add_sound(self, "breakdown",breakdown_audio)
-	for vol: Array in [["motor", -8.0], ["dispatch", -9.0], ["honk", -6.0], ["delivery", -3.0], ["swoosh", 0.0]]:
+	for vol: Array in [["motor", -6.0], ["dispatch", -9.0], ["honk", -6.0], ["delivery", -3.0], ["swoosh", 0.0]]:
 		game.set_sound_volume(vol[0], vol[1])
 	_fit_ground_to_board()
 

@@ -37,18 +37,15 @@ func _ready() -> void:
 	game.sig_add_life.connect(_on_add_life)
 
 	game.set_instructions("Gorilla",
-		"Eat all the apples while monsters chase you!\n" +
-		"The super-foods count too. The room isn't\n" +
-		"clear until you've eaten them as well.\n\n" +
-		"Keep eating. Go too long without an apple\n" +
-		"and you starve. The ring around you\n" +
-		"shows how long you have.\n\n" +
-		"All along, gorillas walk past outside your room.\n\n" +
-		"Once they are gone (or time runs out),\n" +
-		"you will be asked:\n" +
-		"How many gorillas did you count?\n\n" +
-		"An exact count wins a life back.\n" +
-		"Being caught or starving costs one."
+		"Eat the apples in the maze while monsters chase you. " +
+		"Keep eating: go too long without an apple and you starve. The ring around you shows how long you have.\n\n" +
+		"Now and then a baby gorilla gets lost somewhere in the maze, far from you. " +
+		"Get to it before a monster does and you rescue it. Soon after it appears, a monster starts hunting it.\n\n" +
+		"Each rescue brings the baby's mother out somewhere else, holding a sword for a few seconds. " +
+		"Take it, and for a while the monsters run from you and you can eat them.\n\n" +
+		"Bananas turn up too, for a few seconds only. A bunch fills your ring right up, " +
+		"so you can go far from the apples.\n\n" +
+		"Rescue enough babies to pass the level. Being caught or starving costs a life."
 	)
 	if not game.shown_instructions:
 		game.show_instructions(self)
@@ -57,11 +54,14 @@ func _ready() -> void:
 	game.show_scores_level = true
 	# This game's save array is not the generic shape, so its columns are named here;
 	# otherwise the defaults would file each value under the wrong name.
-	game.score_columns = ["didwin", "aborted", "level", "count_error"]
-	game.progress_time_pos = 7
-	game.progress_time_label = "Avg Error"
-	game.progress_time_format = "%d"
-	game.progress_tab_name = "Error"
+	# count_error is from the old counting question (rows before 2026-11-09); new rows write -1 there
+	# and add the time to a rescue and the share of babies rescued after it.
+	game.score_columns = ["didwin", "aborted", "level", "count_error", "rescue_ms", "rescue_pct"]
+	game.progress_time_pos = 8
+	game.progress_time_label = "Time to a rescue"
+	game.progress_time_format = "%d ms"
+	game.progress_tab_name = "Rescue"
+	game.progress_pct_pos = 9
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
@@ -186,10 +186,9 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	game.save_score(get_game_score(_didwin, false))
 
 func get_game_score(_didwin, _wasaborted):
-	# The Error column comes from the level's own tally now. It used to be read off
-	# game.corrects / game.mistakes, which were carrying (error sum, question count) rather than
-	# correct and wrong rounds — the same overloading that left the level gate nothing to read.
-	return [_didwin, _wasaborted, $Level.level, $Level.mean_error()]
+	# The time to a rescue and the share of babies rescued, from the level's own tally.
+	game.record_times($Level.rescue_times, "rt")
+	return [_didwin, _wasaborted, $Level.level, -1, $Level.mean_rescue_ms(), $Level.rescue_pct()]
 
 func _on_game_is_done(_didwin: bool, _wasaborted: bool):
 	game.save_score(get_game_score(_didwin, _wasaborted))

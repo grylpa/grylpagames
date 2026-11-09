@@ -84,7 +84,7 @@ var in_answring_mode := false
 @export var agent_scene: PackedScene = load("res://wolves/scenes/agent.tscn")
 @export var player_scene: PackedScene = load("res://wolves/scenes/player.tscn")
 
-var ambient_audio := preload("res://wolves/art/audio/delon_boomkin-sheep-bells-ringing-457441.mp3")
+var ambient_audio := preload("res://art/sounds/wolves_ambient.ogg")
 # the sheepdog trotting: paw pats in pairs and a collar tag (devtools/make_action_sounds.py; was a
 # Kenney grass footstep)
 var feet_audio: AudioStream = preload("res://art/sounds/wolves_steps.ogg")
@@ -121,6 +121,7 @@ func _ready() -> void:
 	_apply_level()
 
 	game.add_sound(self, "ambient", ambient_audio, true)
+	game.set_sound_volume("ambient", -6.0)
 	game.add_sound(self, "feet", feet_audio, true)
 	game.add_sound(self, "start", start_audio)
 

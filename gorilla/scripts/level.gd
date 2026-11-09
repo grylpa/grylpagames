@@ -33,22 +33,51 @@ var play_start_sound: bool = true
 # Room
 var room_rect: Rect2i = Rect2i()
 
-# Peripheral gorillas
-var peripheral_gorillas: Array = []
 var empty_spaces: Array = []
-var num_gorillas_spawned: int = 0
-var gorilla_spawn_times: Array[float] = []  # pre-planned spawn times in seconds from level start
-var gorilla_spawn_index: int = 0
-var level_start_ms: int = 0
 
-const GorillaFigure = preload("res://gorilla/scripts/peripheral_gorilla.gd")   # for its half-extents
-# Gorilla body height, in tiles. Kept near one tile: bigger than this and the clearance rule below
-# has no band left to place it in once the room grows to 11x11.
-const GORILLA_TILES: float = 1.05
-# The gorilla's OUTLINE must clear the room floor by this much on every side, so it never walks
-# over the board or its wall ring. On an 11x11 room this is an exact fit rather than a comfortable
-# one — there are only ~2.5 tiles between the room and the screen edge. See docs/design.md.
-const GORILLA_BOARD_GAP_TILES: float = 1.0
+# THE EVENTS (2026-11-09). The maze fills the screen, and while the player eats in one part of it
+# things happen in another, which they have to notice and go and deal with:
+#   * a LOST BABY GORILLA appears far away, quietly, and wanders. After `hunt_ms` the nearest
+#     monster starts hunting it. Reach it first and it is rescued; let a monster reach it and it is
+#     lost. This is what the level is judged on.
+#   * a BUNCH OF BANANAS lies somewhere for `banana_ms`: a bonus, gone if nobody gets there.
+# There is no question at the end any more: noticing is measured by what the player DOES -- how
+# soon they get to the baby (rescue_times) and how many they save.
+const BabyScript = preload("res://gorilla/scripts/baby_gorilla.gd")
+const BananaScript = preload("res://gorilla/scripts/banana_art.gd")
+const MotherScript = preload("res://gorilla/scripts/mother_gorilla.gd")
+# THE MOTHER'S SWORD (2026-11-09). Each rescue brings a grown gorilla out somewhere else in the maze,
+# holding out a sword, for `gift_ms`. Reach her and take it: it works exactly as the super-food did
+# (player.ate_power -- the same timer ring and colors, the monsters run from you and can be eaten
+# until it runs out). It REPLACED the super-food, so the power is now earned by noticing, twice:
+# the baby, then its mother somewhere else.
+const MOTHER_TILES: float = 1.25
+var mother = null
+var mother_cell: Vector2i = Vector2i(-1, -1)
+var _mother_born_ms: float = 0.0
+var _next_mother_ms: float = -1.0
+var gift_ms: float = 8000.0
+var gifts_taken: int = 0
+var gifts_missed: int = 0
+const BABY_TILES: float = 0.80         # the baby's size, in tiles (its drawing is mostly head)
+const BABY_STEP_MS: float = 1100.0     # how often a wandering baby moves to the next cell
+const FIRST_EVENT_MS: float = 5000.0   # nothing happens in the first seconds of a round
+var baby = null
+var baby_cell: Vector2i = Vector2i(-1, -1)
+var baby_born_ms: float = 0.0
+var _baby_dist: int = 0                # walking distance from the player when it appeared
+var _baby_next_step_ms: float = 0.0
+var hunter = null
+var _babies_spawned: int = 0
+var _next_baby_ms: float = 0.0
+var rescue_times: Array = []           # ms from a baby's appearance to its rescue, this level
+var _rescued_in_round: int = 0
+var _lost_in_round: int = 0
+var _bananas: Array = []               # [{node, cell, born}]
+var _bananas_spawned: int = 0
+var _next_banana_ms: float = 0.0
+var bananas_taken: int = 0
+var bananas_missed: int = 0
 
 const PLAYER_COLOR: Color = Color(0.1, 0.5, 0.99)
 # Indices into game.colors that agents may use — excludes blue(3) and white(12)
@@ -59,31 +88,32 @@ var rounds_per_level: int = 2
 var level: int = 0
 var round_in_level: int = 0
 
-# The counting error is a STAT and lives here. It used to ride on game.corrects / game.mistakes —
-# add_correct_or_mistake(error, 1) banked the SIZE of the error as "corrects" and a mistake on
-# every round, right or wrong — so those two counters said nothing about whether the player got a
-# round right, and an accuracy gate had nothing honest to read. They now mean what their names
-# say; the error stat is these two.
-var _error_sum: int = 0
-var _rounds_answered: int = 0
-
+# game.corrects / game.mistakes count BABIES: rescued, lost. The level gate reads them.
+# (The counting error that used to live here went with the count question.)
 # Set when the level's last round has been answered, so the next new_game() knows it is starting a
 # LEVEL and not just the next round.
 var _level_is_over: bool = false
 # What the score was when this level began; a level that misses the gate goes back to it.
 var _score_at_level_start: int = 0
 var _rollback_score_on_next_level: bool = false
-var room_size: int = 7
+var cols: int = 11
+var apples_in_round: int = 34
+var round_sec: int = 75
+var babies_per_round: int = 2
+var baby_far: float = 0.5
+var hunt_ms: float = 6000.0
+var hunt_chance: float = 0.6
+var bananas_per_round: int = 2
+var banana_ms: float = 6000.0
 var num_inside_monsters: int = 1
 var num_bricks: int = 4
 var extra_passages: int = 5
 var directed_chance: float = 0.0
-var gorilla_speed_px: float = 180.0
 var agent_speed_min: float = 0.5
 var agent_speed_max: float = 1.2
 var powers_in_level: int = 3
 
-# Answering
+# Set once the round is over (time up, or every apple eaten and every baby dealt with)
 var in_answering_mode: bool = false
 var last_level_was_a_win: bool = false
 
@@ -105,6 +135,12 @@ var start_audio: AudioStream = preload("res://art/sounds/gorilla_start.ogg")
 var swoosh_audio := preload("res://art/sounds/gorilla_warp.ogg")
 # a monster eaten while the power is on (a chomp and a sparkle); it used to pass in silence
 var gulp_audio: AudioStream = preload("res://art/sounds/gorilla_gulp.ogg")
+# a baby rescued (a bright little rising figure) and a baby lost (two falling notes):
+# devtools/make_gorilla_baby_sounds.py
+var rescue_audio: AudioStream = preload("res://art/sounds/gorilla_rescue.ogg")
+var lost_audio: AudioStream = preload("res://art/sounds/gorilla_lost.ogg")
+# the sword taken: a bright metallic ring (devtools/make_gorilla_baby_sounds.py)
+var gift_audio: AudioStream = preload("res://art/sounds/gorilla_gift.ogg")
 func _ready() -> void:
 	game = GorillaG.game
 	game.zoomed_in = true
@@ -120,6 +156,9 @@ func _ready() -> void:
 	game.add_sound(self, "start", start_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
 	game.add_sound(self, "gulp", gulp_audio)
+	game.add_sound(self, "rescue", rescue_audio)
+	game.add_sound(self, "lost", lost_audio)
+	game.add_sound(self, "gift", gift_audio)
 
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
@@ -141,10 +180,7 @@ func reset():
 		c.queue_free()
 	agents.clear()
 
-	for g in peripheral_gorillas:
-		if is_instance_valid(g):
-			g.queue_free()
-	peripheral_gorillas.clear()
+	_clear_events()
 
 	for e in empty_spaces:
 		e.queue_free()
@@ -156,9 +192,10 @@ func reset():
 
 	board.clear()
 	coins.clear()
-	num_gorillas_spawned = 0
-	gorilla_spawn_times.clear()
-	gorilla_spawn_index = 0
+	_babies_spawned = 0
+	_bananas_spawned = 0
+	_rescued_in_round = 0
+	_lost_in_round = 0
 
 func new_game(from_scratch: bool = true):
 	reset()
@@ -170,10 +207,10 @@ func new_game(from_scratch: bool = true):
 	var level_starts: bool = from_scratch or _level_is_over
 	if from_scratch:
 		level = GorillaG.starting_level
-		# The Error stat is per SESSION (the scores screen plots it with no level grouping), so it
-		# survives a level boundary and only a fresh game clears it.
-		_error_sum = 0
-		_rounds_answered = 0
+		bananas_taken = 0
+		bananas_missed = 0
+		gifts_taken = 0
+		gifts_missed = 0
 	if _level_is_over and _rollback_score_on_next_level:
 		# The failed level's points go back HERE, on Continue, so the summary card was still read
 		# against the score the player had while playing it.
@@ -187,6 +224,7 @@ func new_game(from_scratch: bool = true):
 		game.corrects = 0
 		game.mistakes = 0
 		_score_at_level_start = game.score
+		rescue_times.clear()
 	_advance_if_needed()
 	game.need_to_increase_level = false
 	in_answering_mode = false
@@ -194,7 +232,7 @@ func new_game(from_scratch: bool = true):
 	if game.tutorial_mode:
 		num_inside_monsters = 0      # nothing may kill the player mid-lesson
 	create_board()
-	_plan_gorilla_spawns()
+	_plan_events()
 	if game.tutorial_mode:
 		_tutorial_setup()
 	started_playing.emit()
@@ -209,34 +247,30 @@ func tutorial_show_a_monster() -> bool:
 		return true
 	return _spawn_agent(0, true)
 
-# Slide the live gorilla to the center of its own lane. A gorilla spawns fully OFF screen and the
-# coach's freeze stops it wherever it happens to be — which, at the moment it is first reported, is
-# still outside the visible area. Without this the tutorial talks about a gorilla the player never
-# actually sees, then unfreezes and lets it run off while they are still reading.
-func tutorial_hold_gorilla_midscreen() -> void:
-	for g in peripheral_gorillas:
-		if not is_instance_valid(g):
-			continue
-		var sr: Rect2 = g.screen_rect
-		if absf(g.velocity.x) >= absf(g.velocity.y):
-			g.position.x = sr.position.x + sr.size.x * 0.5
-		else:
-			g.position.y = sr.position.y + sr.size.y * 0.5
-		return
-
-# No automatic gorillas during a tutorial. On the timed schedule one ran past while the coach was
-# still talking about coins — wasted, and confusing when the lesson about them arrived later and a
-# DIFFERENT gorilla was suddenly held up. The tutorial asks for one exactly when it wants it.
+# No automatic events during a tutorial: the coach asks for a baby when it wants one.
 func _tutorial_setup() -> void:
-	gorilla_spawn_times = []
-	gorilla_spawn_index = 0
-	level_start_ms = MainGlobals.timems()
+	_next_baby_ms = 1.0e12
+	_next_banana_ms = 1.0e12
+	# the one baby the coach places is the round's only one, so the round can end once it is saved
+	babies_per_round = 1
+	bananas_per_round = 0
 
-# Called by the tutorial step that is about to talk about gorillas.
-func tutorial_spawn_gorilla() -> void:
-	if not peripheral_gorillas.is_empty():
-		return
-	_spawn_peripheral_gorilla(true)
+# Called by the tutorial step that talks about bananas; in the lesson the bunch waits.
+func tutorial_spawn_banana() -> void:
+	if _bananas.is_empty():
+		banana_ms = 1.0e9
+		_spawn_banana(game.game_time)
+
+# Called by the tutorial step that talks about the mother and her sword; in the lesson she waits.
+func tutorial_spawn_mother() -> void:
+	if mother == null:
+		gift_ms = 1.0e9
+		_spawn_mother(game.game_time)
+
+# Called by the tutorial step that is about to talk about the lost baby.
+func tutorial_spawn_baby() -> void:
+	if baby == null:
+		_spawn_baby(game.game_time)
 
 func create_board():
 	_fit_ground_to_board()
@@ -247,10 +281,8 @@ func create_board():
 			row.append(OneCell.new())
 		board.append(row)
 
-	var center = game.board_size / 2
-	var half = room_size / 2
-	var room_pos = Vector2i(center.x - half, center.y - half)
-	room_rect = Rect2i(room_pos, Vector2i(room_size, room_size))
+	# THE MAZE IS THE WHOLE BOARD, and the board fills the screen (_apply_level)
+	room_rect = Rect2i(Vector2i.ZERO, game.board_size)
 
 	var room_color_idx: int = AGENT_COLOR_INDICES[rng.randi_range(0, AGENT_COLOR_INDICES.size() - 1)]
 
@@ -272,7 +304,7 @@ func create_board():
 	_add_wall_shade()
 	ForestFloor.plant(get_node_or_null("BgLayer"), board, game, 13)
 
-	var player_pos = Vector2i(room_rect.position.x + room_size / 2, room_rect.position.y + room_size / 2)
+	var player_pos: Vector2i = _room_center()
 	_create_player(player_pos)
 	_reapply_level_after_player_created()
 
@@ -367,7 +399,7 @@ func _create_maze():
 
 	# Carve a spanning tree with randomized DFS from the player start position,
 	# guaranteeing every cell is reachable (player can reach all coins, monsters have no dead pocket).
-	var player_start: Vector2i = room_rect.position + Vector2i(room_size / 2, room_size / 2)
+	var player_start: Vector2i = _room_center()
 	var visited: Dictionary = {}
 	var stack: Array[Vector2i] = [player_start]
 	visited[player_start] = true
@@ -449,7 +481,7 @@ func _add_bricks():
 
 	# One brick per wall at the wall's center with a random ±1 shift along the wall axis.
 	# Prevents monsters from just marching along walls without turning.
-	var half: int = room_size / 2
+	var half: int = room_rect.size.x / 2
 	var wall_positions: Array[Vector2i] = [
 		Vector2i(room_rect.position.x + half + rng.randi_range(-1, 1), room_rect.position.y),    # top
 		Vector2i(room_rect.position.x + half + rng.randi_range(-1, 1), room_rect.end.y - 1),     # bottom
@@ -516,13 +548,13 @@ func _lose_life(why: String) -> void:
 		game.mark_lives_depleted()          # -> on_lives_depleted -> the run is over
 		return
 	MainGlobals.global_update_hud()
-	# The round counts, and it counts as missed. Skipping it would make starving the cheapest
-	# way to duck a count you were not sure of.
-	game.add_correct_or_mistake(0, 1)
 	# A round you never finished is a fact about the session, not just a lost life: it is the
 	# main task failing, which is the other half of what this game is for.
 	game.record_count("rounds_lost")
-	_rounds_answered += 1
+	# a baby out at the time is lost with the round
+	if baby != null:
+		_baby_lost(game.game_time, false)
+	_clear_events()
 	game.level_is_done = true
 	last_level_was_a_win = false
 	round_in_level += 1
@@ -537,7 +569,7 @@ var next_agent_id: int = 1
 func _spawn_agent(idx:int,_far:bool = false) -> bool:
 	var p:Vector2i
 	if _far:
-		var player_pos: Vector2i = Vector2i(room_rect.position.x + room_size / 2, room_rect.position.y + room_size / 2) if player == null else player.board_pos
+		var player_pos: Vector2i = _room_center() if player == null else player.board_pos
 		# Rank the 4 walls by perpendicular distance from the player and pick the 2 farthest.
 		# Wall ids: 0=top, 1=bottom, 2=left, 3=right
 		var wall_dists: Array = [
@@ -610,6 +642,10 @@ func _spawn_agent(idx:int,_far:bool = false) -> bool:
 	var t: float = min(1,float(idx) / max(1, num_inside_monsters - 1))
 	agent.speed_scale = lerp(agent_speed_min, agent_speed_max, t)	# this is already capped below player speed scale in _apply_level
 	agent.set_type(1)
+	# An eaten monster shrinks and then asks to be removed (agent.mark_hit -> remove_agent). Nothing
+	# listened, so it stayed on the board for the rest of the round at a tenth of its size -- a tiny
+	# dark thing that walking over did nothing to -- still holding its cell against other monsters.
+	agent.remove_agent.connect(_on_remove_agent.bind(agent))
 	add_child(agent)
 	agent.set_id(next_agent_id)
 	next_agent_id += 1
@@ -620,17 +656,32 @@ func _spawn_agent(idx:int,_far:bool = false) -> bool:
 	agent.set_pos(game.board_to_px(p), agent.direction)
 	return true
 
+# APPLES ARE SCATTERED, `apples_in_round` of them, not one on every cell: the maze fills the
+# screen now, and a full board could not be eaten in a round.
+func _on_remove_agent(_id, _arrived, agent) -> void:
+	if not is_instance_valid(agent):
+		return
+	if game.in_board(agent.board_pos):
+		board[agent.board_pos.y][agent.board_pos.x].has_agent = false
+	agents.erase(agent)
+	if hunter == agent:
+		hunter = null
+	agent.queue_free()
+
 func _fill_coins():
-	var pipe_coins = []
+	var cells: Array = []
 	for ry in range(room_rect.position.y, room_rect.end.y):
 		for rx in range(room_rect.position.x, room_rect.end.x):
-			var p: Vector2i = Vector2i(rx, ry)
-			var c: OneCell = bcell(p)
+			var c: OneCell = bcell(Vector2i(rx, ry))
 			if c.is_fillable():
-				c.pipe.has_coin = 1
-				c.pipe.set_rot(board)
-				coins[p] = true
-				pipe_coins.append(c.pipe)
+				cells.append(c)
+	cells.shuffle()
+	var pipe_coins = []
+	for c in cells.slice(0, mini(cells.size(), apples_in_round + powers_in_level + 2)):
+		c.pipe.has_coin = 1
+		c.pipe.set_rot(board)
+		coins[c.pipe.board_pos] = true
+		pipe_coins.append(c.pipe)
 
 	var pc
 	pipe_coins.shuffle()
@@ -660,141 +711,310 @@ func _fill_coins():
 	wh2.warp_to_pos = wh1.board_pos
 	
 
-# The slice of the WORLD that is visible between the header and the bottom bar. The camera zoom is
-# not 1 — it scales the board to fit the screen — so world pixels and screen pixels are different
-# units. Placing a lane straight from MainGlobals.screen_size pushes it off-screen at zoom > 1 and
-# leaves a gap at zoom < 1, which is why everything peripheral is measured through here.
-func _playfield_world_rect() -> Rect2:
-	var vp: Vector2 = Vector2(MainGlobals.screen_size)
-	var z: float = 1.0
-	var c: Vector2 = vp * 0.5
-	if game_cam != null and is_instance_valid(game_cam):
-		z = game_cam.zoom.x
-		c = game_cam.position
-	var tl: Vector2 = c + (Vector2(0.0, float(game.header_height)) - vp * 0.5) / z
-	var br: Vector2 = c + (Vector2(vp.x, vp.y - float(game.buttons_height)) - vp * 0.5) / z
-	return Rect2(tl, br - tl)
+# --- the events -----------------------------------------------------------------
 
-func _plan_gorilla_spawns():
-	var play: Rect2 = _playfield_world_rect()
-	# Worst-case travel distance: the longer of a horizontal / vertical crossing. Must match the
-	# off-screen margin `_spawn_peripheral_gorilla()` starts and ends at, or the slots under-estimate.
-	var edge: float = 2.0 * game.tile_size * GORILLA_TILES * GorillaFigure.HALF_ALONG
-	var max_dist: float = max(play.size.x + edge, play.size.y + edge)
-	var travel_time: float = max_dist / gorilla_speed_px
-	# Each slot is 2×travel_time wide. A gorilla spawns near the slot center,
-	# so it always finishes before the next slot's gorilla could start — even for adjacent slots.
-	var slot_duration: float = travel_time * 2.0
-	var earliest: float = 3.0
-	var n_slots: int = int((float(game.time_left_sec) - earliest) / slot_duration)
-	if n_slots <= 0:
+func _plan_events() -> void:
+	var now: float = game.game_time
+	_next_baby_ms = now + FIRST_EVENT_MS + rng.randf_range(0.0, 3000.0)
+	# bananas are spread over the round, starting a little after the first baby could
+	_next_banana_ms = now + FIRST_EVENT_MS + rng.randf_range(4000.0, 9000.0)
+
+func _clear_events() -> void:
+	if mother != null and is_instance_valid(mother):
+		mother.queue_free()
+	mother = null
+	_next_mother_ms = -1.0
+	if baby != null and is_instance_valid(baby):
+		baby.queue_free()
+	baby = null
+	hunter = null
+	for b in _bananas:
+		if is_instance_valid(b["node"]):
+			(b["node"] as Node).queue_free()
+	_bananas.clear()
+
+func _tick_events(now: float) -> void:
+	if in_answering_mode or game.level_is_done:
 		return
-	var count: int = rng.randi_range(2 + level, 5 + level)
-	count = min(count, n_slots)
-	# Pick `count` distinct slot indices from [0..n_slots-1].
-	var pool = range(n_slots)
-	pool.shuffle()
-	var chosen = pool.slice(0, count)
-	chosen.sort()
-	for slot in chosen:
-		var center: float = earliest + (slot + 0.5) * slot_duration
-		gorilla_spawn_times.append(center + rng.randf_range(-travel_time * 0.4, travel_time * 0.4))
-	level_start_ms = MainGlobals.timems()
+	if baby == null and _babies_spawned < babies_per_round and now >= _next_baby_ms:
+		_spawn_baby(now)
+	if baby != null:
+		# after hunt_ms the nearest monster sets off after it
+		if hunter == null and now - baby_born_ms >= hunt_ms:
+			hunter = _nearest_agent(baby_cell)
+			baby.scared = hunter != null
+		if now >= _baby_next_step_ms:
+			_baby_next_step_ms = now + BABY_STEP_MS
+			_baby_wander()
+	if _next_mother_ms >= 0.0 and now >= _next_mother_ms:
+		_next_mother_ms = -1.0
+		_spawn_mother(now)
+	if mother != null and now - _mother_born_ms >= gift_ms:
+		gifts_missed += 1
+		mother.leave()
+		mother = null
+	if _bananas_spawned < bananas_per_round and now >= _next_banana_ms:
+		_spawn_banana(now)
+		_next_banana_ms = now + rng.randf_range(9000.0, 16000.0)
+	for b in _bananas.duplicate():
+		var node: Node2D = b["node"]
+		node.set("now_ms", now)
+		node.queue_redraw()
+		if now - float(b["born"]) >= banana_ms:
+			bananas_missed += 1
+			node.queue_free()
+			_bananas.erase(b)
 
-# force_horizontal: the tutorial always wants a left/right runner. A vertical one held mid-lane
-# sits in the center of the screen edge and reads oddly, and phones only ever get horizontal lanes
-# anyway, so the tutorial should teach the case everyone actually sees.
-func _spawn_peripheral_gorilla(force_horizontal: bool = false):
-	var play: Rect2 = _playfield_world_rect()
-	var ts: float = float(game.tile_size)
-	var bh: float = ts * GORILLA_TILES
-	var gap: float = ts * GORILLA_BOARD_GAP_TILES
+# Walking distance from `from` to every cell, through the maze's walls (monsters do not block).
+func _bfs_from(from: Vector2i) -> Dictionary:
+	var dist: Dictionary = {from: 0}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var p: Vector2i = queue.pop_front()
+		for d in DirArray:
+			var q: Vector2i = p + d
+			if not dist.has(q) and can_go_to(p, q):
+				dist[q] = int(dist[p]) + 1
+				queue.append(q)
+	return dist
 
-	# "The board" the gorilla must stay off is the room floor, in pixels.
-	var half_tile: Vector2 = Vector2(ts, ts) * 0.5
-	var room_tl: Vector2 = game.board_to_px(room_rect.position) - half_tile
-	var room_br: Vector2 = game.board_to_px(room_rect.end - Vector2i.ONE) + half_tile
+# The direction of the first step on the shortest way from p to `to`, or -1.
+func _step_toward(p: Vector2i, to: Vector2i) -> int:
+	var dist: Dictionary = _bfs_from(to)
+	var best: int = -1
+	var best_d: int = 1 << 30
+	for k in 4:
+		var q: Vector2i = p + DirArray[k]
+		if dist.has(q) and can_go_to(p, q) and int(dist[q]) < best_d:
+			best_d = int(dist[q])
+			best = k
+	return best
 
-	# Half-extent of the figure ACROSS its direction of travel: a horizontal lane is placed by the
-	# side view's height, a vertical lane by the front view's width. Measured from the drawing, so
-	# the clearance below is the FIGURE's clearance, not its center point's.
-	var half_h: float = bh * GorillaFigure.HALF_ACROSS_SIDE
-	var half_w: float = bh * GorillaFigure.HALF_ACROSS_FRONT
-
-	# Per side, the band the gorilla's center may sit in: clear of the room by `gap` on the inner
-	# edge, inside the playfield on the outer one. An empty band means that side has no room.
-	var lo: Array[float] = [
-		play.position.y + half_h,
-		room_br.y + gap + half_h,
-		play.position.x + half_w,
-		room_br.x + gap + half_w,
-	]
-	var hi: Array[float] = [
-		room_tl.y - gap - half_h,
-		play.end.y - half_h,
-		room_tl.x - gap - half_w,
-		play.end.x - half_w,
-	]
-
-	var sides: Array[int] = []
-	for s in 4:
-		# Left/right lanes stay desktop-only, as before: a phone has no columns to spare.
-		if s >= 2 and MainGlobals.is_mobile():
+func _nearest_agent(cell: Vector2i):
+	var dist: Dictionary = _bfs_from(cell)
+	var best = null
+	var best_d: int = 1 << 30
+	for a in agents:
+		if a.was_hit or not dist.has(a.board_pos):
 			continue
-		if lo[s] <= hi[s]:
-			sides.append(s)
-	if force_horizontal:
-		# Prefer a left/right runner, but do NOT insist: on a screen where the top and bottom
-		# bands do not fit, insisting produced no gorilla at all — and the tutorial then sat
-		# waiting out its timeout for one that was never coming.
-		var horiz: Array[int] = []
-		for s2 in sides:
-			if s2 <= 1:
-				horiz.append(s2)
-		if not horiz.is_empty():
-			sides = horiz
-	if sides.is_empty():
+		if int(dist[a.board_pos]) < best_d:
+			best_d = int(dist[a.board_pos])
+			best = a
+	return best
+
+# A LOST BABY appears FAR from the player (`baby_far` of the farthest walking distance), on an empty
+# floor cell not next to a monster, and arrives silently.
+func _spawn_baby(now: float) -> void:
+	if player == null:
 		return
-
-	var side: int = sides[rng.randi_range(0, sides.size() - 1)]
-	var lane: float = rng.randf_range(lo[side], hi[side])
-	var go_positive: bool = rng.randi() % 2 == 0
-	var off: float = bh * GorillaFigure.HALF_ALONG   # far enough out for the whole figure to be hidden
-
-	var start_pos: Vector2
-	var vel: Vector2
-	var sr: Rect2
-	if side <= 1:
-		var x0: float = play.position.x - off
-		var x1: float = play.end.x + off
-		start_pos = Vector2(x0, lane) if go_positive else Vector2(x1, lane)
-		vel = Vector2(gorilla_speed_px if go_positive else -gorilla_speed_px, 0.0)
-		sr = Rect2(x0, lane - half_h, x1 - x0, 2.0 * half_h)
-	else:
-		var y0: float = play.position.y - off
-		var y1: float = play.end.y + off
-		start_pos = Vector2(lane, y0) if go_positive else Vector2(lane, y1)
-		vel = Vector2(0.0, gorilla_speed_px if go_positive else -gorilla_speed_px)
-		sr = Rect2(lane - half_w, y0, 2.0 * half_w, y1 - y0)
-
-	# Skip if the gorilla can't cross the full screen before time runs out
-	var travel_dist: float = sr.size.x if side <= 1 else sr.size.y
-	if game.time_left_sec * gorilla_speed_px < travel_dist:
+	var dist: Dictionary = _bfs_from(player.board_pos)
+	var maxd: int = 0
+	for v in dist.values():
+		maxd = maxi(maxd, int(v))
+	var cands: Array = []
+	for c in dist.keys():
+		var cell: Vector2i = c
+		if int(dist[cell]) < int(float(maxd) * baby_far):
+			continue
+		var oc: OneCell = bcell(cell)
+		if oc == null or not oc.is_fillable() or oc.pipe.is_wormhole():
+			continue
+		if _dist_from_agents(cell) < 3.0:
+			continue
+		cands.append(cell)
+	if cands.is_empty():
+		_next_baby_ms = now + 1500.0
 		return
+	baby_cell = cands[rng.randi_range(0, cands.size() - 1)]
+	_baby_dist = int(dist[baby_cell])
+	baby = BabyScript.new()
+	baby.game = game
+	baby.body_height = float(game.tile_size) * BABY_TILES
+	baby.step_speed = float(game.tile_size) / (BABY_STEP_MS / 1000.0) * 0.9
+	baby.position = game.board_to_px(baby_cell)
+	baby.z_index = 3
+	add_child(baby)
+	baby_born_ms = now
+	_baby_next_step_ms = now + BABY_STEP_MS
+	hunter = null
+	_babies_spawned += 1
+	game.tutorial_notify("baby_appeared")
 
-	var g = peripheral_gorilla_scene.instantiate()
-	g.game = game            # so it stops when the game does (pause, popup, tutorial caption)
-	g.velocity = vel
-	g.screen_rect = sr
-	g.position = start_pos
-	g.body_height = bh
-	# No modulate: the gorilla draws its own fur, saddle and face, and a tint would flatten the
-	# silverback back into the body color and cost the figure its main contrast.
-	g.exited_screen.connect(func(): peripheral_gorillas.erase(g))
-	add_child(g)
-	peripheral_gorillas.append(g)
-	num_gorillas_spawned += 1
-	game.tutorial_notify("gorilla_appeared")   # no-op outside tutorial mode
+# The baby toddles to a neighboring cell now and then, never into a monster, and once it is being
+# hunted it shies away from the hunter.
+func _baby_wander() -> void:
+	var opts: Array = []
+	for k in 4:
+		var q: Vector2i = baby_cell + DirArray[k]
+		if not can_go_to(baby_cell, q):
+			continue
+		var oc: OneCell = bcell(q)
+		if oc.has_agent:
+			continue
+		if hunter != null and float((q - hunter.board_pos).length()) < float((baby_cell - hunter.board_pos).length()):
+			continue
+		opts.append(q)
+	if opts.is_empty() or rng.randf() < 0.35:
+		return
+	baby_cell = opts[rng.randi_range(0, opts.size() - 1)]
+	baby.head_to(game.board_to_px(baby_cell))
+
+func _check_mother_contact() -> void:
+	if mother == null or not is_instance_valid(mother) or player == null or player.was_hit:
+		return
+	if player.position.distance_to(mother.position) < float(game.tile_size) * 0.8 or player.board_pos == mother_cell:
+		gifts_taken += 1
+		mother.leave()
+		mother = null
+		if not player.has_power:
+			player.ate_power()
+		game.play_sound("gift")
+		game.tutorial_notify("gift_taken")
+
+# The mother appears far from the player, like a baby, on an empty cell away from the monsters.
+func _spawn_mother(now: float) -> void:
+	var cell: Vector2i = _far_free_cell(0.40)
+	if cell.x < 0:
+		return
+	mother_cell = cell
+	mother = MotherScript.new()
+	mother.game = game
+	mother.body_height = float(game.tile_size) * MOTHER_TILES
+	mother.life_ms = gift_ms
+	mother.position = game.board_to_px(cell)
+	mother.z_index = 3
+	add_child(mother)
+	_mother_born_ms = now
+	game.tutorial_notify("mother_appeared")
+
+# A free floor cell at least `far` of the farthest walking distance from the player, not a portal,
+# not next to a monster, not where the baby is; (-1,-1) if there is none.
+func _far_free_cell(far: float) -> Vector2i:
+	if player == null:
+		return Vector2i(-1, -1)
+	var dist: Dictionary = _bfs_from(player.board_pos)
+	var maxd: int = 0
+	for v in dist.values():
+		maxd = maxi(maxd, int(v))
+	var cands: Array = []
+	for c in dist.keys():
+		var cell: Vector2i = c
+		if int(dist[cell]) < int(float(maxd) * far) or cell == baby_cell:
+			continue
+		var oc: OneCell = bcell(cell)
+		if oc == null or not oc.is_fillable() or oc.pipe.is_wormhole() or _dist_from_agents(cell) < 3.0:
+			continue
+		cands.append(cell)
+	if cands.is_empty():
+		return Vector2i(-1, -1)
+	return cands[rng.randi_range(0, cands.size() - 1)]
+
+func _check_baby_contact(now: float) -> void:
+	if baby == null or not is_instance_valid(baby):
+		return
+	# a generous reach: touching the baby at all, or arriving in its cell, rescues it
+	var reach: float = float(game.tile_size) * 0.75
+	if player != null and not player.was_hit and (player.position.distance_to(baby.position) < reach or player.board_pos == baby_cell):
+		_baby_rescued(now)
+		return
+	for a in agents:
+		if not a.was_hit and a.position.distance_to(baby.position) < float(game.tile_size) * 0.5:
+			_baby_lost(now, true)
+			return
+
+func _baby_rescued(now: float) -> void:
+	var t: float = now - baby_born_ms
+	rescue_times.append(t)
+	game.record_trial({"dist": _baby_dist, "rescued": true, "ms": int(t)})
+	_rescued_in_round += 1
+	game.add_correct_or_mistake(1, 0)
+	game.add_score_and_time(15, 0)
+	game.play_sound("rescue")
+	_float_text(baby.position, "Rescued! +15", Color(0.55, 1.0, 0.55))
+	game.tutorial_notify("baby_rescued")
+	# its mother comes out somewhere else, holding out a sword
+	if mother == null and not game.tutorial_mode:
+		_next_mother_ms = now + 700.0
+	_end_baby(now)
+
+func _baby_lost(now: float, taken: bool) -> void:
+	_lost_in_round += 1
+	game.record_trial({"dist": _baby_dist, "rescued": false, "ms": int(now - baby_born_ms)})
+	game.add_correct_or_mistake(0, 1)
+	if taken:
+		game.play_sound("lost")
+		_float_text(baby.position, "Lost!", Color(1.0, 0.5, 0.45))
+	_end_baby(now)
+
+func _end_baby(now: float) -> void:
+	MainGlobals.global_update_hud()
+	if baby != null and is_instance_valid(baby):
+		baby.queue_free()
+	baby = null
+	hunter = null
+	_next_baby_ms = now + rng.randf_range(4000.0, 8000.0)
+
+func _spawn_banana(now: float) -> void:
+	if player == null:
+		return
+	var dist: Dictionary = _bfs_from(player.board_pos)
+	var maxd: int = 0
+	for v in dist.values():
+		maxd = maxi(maxd, int(v))
+	var cands: Array = []
+	for c in dist.keys():
+		var cell: Vector2i = c
+		if int(dist[cell]) < maxd / 3:
+			continue
+		var oc: OneCell = bcell(cell)
+		if oc == null or not oc.is_fillable() or oc.pipe.has_coin >= 0 or cell == baby_cell:
+			continue
+		cands.append(cell)
+	if cands.is_empty():
+		return
+	var cell2: Vector2i = cands[rng.randi_range(0, cands.size() - 1)]
+	var node = BananaScript.new()
+	node.size = float(game.tile_size) * 0.8
+	node.life_ms = banana_ms
+	node.born_ms = now
+	node.now_ms = now
+	node.position = game.board_to_px(cell2)
+	node.z_index = 2
+	add_child(node)
+	_bananas.append({"node": node, "cell": cell2, "born": now})
+	_bananas_spawned += 1
+
+func _check_banana_contact() -> void:
+	if player == null:
+		return
+	for b in _bananas.duplicate():
+		var node: Node2D = b["node"]
+		if player.position.distance_to(node.position) < float(game.tile_size) * 0.5:
+			bananas_taken += 1
+			game.add_score_and_time(5, 0)
+			game.play_sound("delivery")
+			_float_text(node.position, "Full!", Color(1.0, 0.92, 0.4))
+			_restart_hunger(true)
+			game.tutorial_notify("banana_taken")
+			node.queue_free()
+			_bananas.erase(b)
+
+# A word that rises and fades where something happened.
+func _float_text(at: Vector2, text: String, col: Color) -> void:
+	var lbl: Label = Label.new()
+	lbl.text = text
+	lbl.add_theme_color_override("font_color", col)
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	lbl.add_theme_constant_override("outline_size", 6)
+	lbl.add_theme_font_size_override("font_size", int(float(game.tile_size) * 0.55))
+	lbl.z_index = 50
+	add_child(lbl)
+	lbl.reset_size()
+	lbl.position = at - Vector2(lbl.size.x * 0.5, float(game.tile_size) * 0.9)
+	var tw: Tween = create_tween()
+	tw.tween_property(lbl, "position:y", lbl.position.y - float(game.tile_size) * 0.8, 1.1)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 1.1).set_delay(0.4)
+	tw.tween_callback(lbl.queue_free)
 
 func _dist_from_agents_and_player(p: Vector2i) -> float:
 	var d: float = _dist_from_agents(p)
@@ -828,7 +1048,7 @@ func _flood_fill(start: Vector2i) -> Dictionary:
 func _ensure_room_connected():
 	# Player always starts at room center — all non-brick room cells must be reachable from there.
 	# Remove border bricks one at a time until the room is fully connected.
-	var player_start: Vector2i = room_rect.position + Vector2i(room_size / 2, room_size / 2)
+	var player_start: Vector2i = _room_center()
 	for _attempt in 20:
 		var reachable: Dictionary = _flood_fill(player_start)
 		# Collect non-brick room cells that are NOT reachable
@@ -862,6 +1082,9 @@ func _ensure_room_connected():
 					break
 			if removed:
 				break
+
+func _room_center() -> Vector2i:
+	return room_rect.position + room_rect.size / 2
 
 func bcell(p:Vector2i):
 	if game.in_board(p):
@@ -939,6 +1162,10 @@ func _process(_delta: float) -> void:
 		if time_to_spawn_agent != 0 and MainGlobals.timems() > time_to_spawn_agent:
 			time_to_spawn_agent = 0
 			_spawn_agent(num_inside_monsters-1)
+		if game.level_is_ready and not game.level_is_done and not in_answering_mode and not game.paused():
+			_check_baby_contact(game.game_time)
+			_check_mother_contact()
+			_check_banana_contact()
 
 # HUNGER: the player must keep eating, so the main task cannot be abandoned.
 #
@@ -960,6 +1187,10 @@ func _process(_delta: float) -> void:
 # is a dozen steps. Five seconds plus three times the walking time means anyone heading for food
 # will reach it; standing still for six seconds will not.
 const HUNGER_BASE_MS: int = 5000
+# A BANANA fills the ring right up and buys at least this long, so the player can afford a trip far
+# from the apples -- to a lost baby, or to its mother and her sword. (2026-11-09: the bananas were a
+# five-point bonus with no purpose of their own.)
+const BANANA_FULL_MS: int = 16000
 # Manhattan distance under-counts a path that has to go round a wall, so the walking time is
 # multiplied out. Generous on purpose: this is meant to keep the player moving, not to catch
 # them out.
@@ -983,7 +1214,8 @@ func _steps_to_nearest_coin() -> int:
 		best = mini(best, absi(p.x - player.board_pos.x) + absi(p.y - player.board_pos.y))
 	return 0 if best == (1 << 30) else best
 
-func _restart_hunger() -> void:
+# `full`: a banana -- the allowance is at least BANANA_FULL_MS, whatever the nearest apple.
+func _restart_hunger(full: bool = false) -> void:
 	_hunger_paused_ms = 0
 	_hunger_pause_began_ms = 0
 	if coins.is_empty():
@@ -991,6 +1223,8 @@ func _restart_hunger() -> void:
 		return
 	_hunger_window_ms = HUNGER_BASE_MS \
 		+ int(float(_steps_to_nearest_coin()) * _step_ms() * HUNGER_SLACK)
+	if full:
+		_hunger_window_ms = maxi(_hunger_window_ms, BANANA_FULL_MS)
 	_hunger_started_ms = int(game.game_time)
 
 # THE CLOCK ONLY RUNS WHILE THE PLAYER CAN ACTUALLY EAT.
@@ -1068,15 +1302,12 @@ func tick(force: bool = false):
 	_move_player_on_tick(force)
 	_move_agents_on_tick()
 
-	if coins.is_empty() and not in_answering_mode:
+	_tick_events(game.game_time)
+	# The round is over when every apple is eaten AND every baby has been dealt with: a baby must
+	# never be lost to the round simply ending under it. (The clock running out ends it regardless.)
+	if coins.is_empty() and baby == null and _babies_spawned >= babies_per_round and not in_answering_mode:
 		on_time_over()
 		return
-
-	if gorilla_spawn_index < gorilla_spawn_times.size() and peripheral_gorillas.is_empty():
-		var elapsed_sec: float = float(MainGlobals.timems() - level_start_ms) / 1000.0
-		if elapsed_sec >= gorilla_spawn_times[gorilla_spawn_index]:
-			_spawn_peripheral_gorilla()
-			gorilla_spawn_index += 1
 
 func _move_player_on_tick(force: bool):
 	if player == null or not player.is_moving:
@@ -1164,7 +1395,12 @@ func _move_agents_on_tick():
 		var p: Vector2i = agent.board_pos
 		var dir: int = -1
 
-		if rng.randf() < directed_chance and player != null:
+		# the hunter goes for the baby, by the shortest way, most of the time
+		if agent == hunter and baby != null and rng.randf() < hunt_chance:
+			dir = _step_toward(p, baby_cell)
+			if dir >= 0 and not _can_agent_go_to(p, p + DirArray[dir]):
+				dir = -1
+		elif rng.randf() < directed_chance and player != null:
 			var dp: Vector2i = player.board_pos - p
 			if abs(dp.x) >= abs(dp.y):
 				dir = 0 if dp.x > 0 else 2
@@ -1209,79 +1445,30 @@ func on_time_over():
 	for a in agents:
 		a.is_moving = false
 	game.stop_sound("feet")
+	# a baby still out when the clock stops was not saved
+	if baby != null:
+		_baby_lost(game.game_time, false)
+	_clear_events()
 
-	_show_answer_popup()
-
-func _show_answer_popup():
-	var true_count: int = num_gorillas_spawned
-	var raw_choices: Array[int] = []
-	for i in range(-2, 3):
-		var v: int = max(0, true_count + i)
-		if not v in raw_choices:
-			raw_choices.append(v)
-	raw_choices.shuffle()
-
-	var buttons: Array = $UILayer/AnswerOverlay/Panel/VBox/ButtonsBox.get_children()
-	for i in buttons.size():
-		if i < raw_choices.size():
-			buttons[i].text = str(raw_choices[i])
-			buttons[i].show()
-			var choice_val: int = raw_choices[i]
-			# Disconnect previous connections first
-			if buttons[i].pressed.is_connected(_on_answer_selected.bind(0, 0)):
-				pass  # handled by CONNECT_ONE_SHOT below
-			buttons[i].pressed.connect(func(): _on_answer_selected(choice_val, true_count), CONNECT_ONE_SHOT)
-		else:
-			buttons[i].hide()
-
-	$UILayer/AnswerOverlay.show()
-
-func _on_answer_selected(chosen: int, true_count: int):
-	game.tutorial_notify("answered")
-	$UILayer/AnswerOverlay.hide()
-	var error: int = abs(chosen - true_count)
-	var correct: bool = error == 0
-	# Count error against how many actually went past. If accuracy falls away as the number grows,
-	# that is a load effect the mean error alone cannot show. Signed, so a habit of undercounting
-	# reads differently from one of overcounting.
-	#
-	# NOT the full dual-task cost: that needs occasional rounds with no counting to subtract
-	# against, which is a change to how the game plays and is left as its own decision.
-	game.record_trial({"true_count": true_count, "chose": chosen, "signed_err": chosen - true_count})
-	_error_sum += error
-	_rounds_answered += 1
-	# One round, one verdict. Only an exact count is right — that is already the rule the +20
-	# bonus follows, and "nearly" is not a thing you can be asked to count.
-	game.add_correct_or_mistake(1 if correct else 0, 0 if correct else 1)
-	if correct:
-		game.add_score_and_time(20, 0)
-		# A life back for an exact count — capped at what you started with, so lives can be
-		# recovered but not stockpiled into a buffer that makes the hunger clock meaningless.
-		if game.lives_left < game.max_lives():
-			game.add_life()
-
+	var popup_text: String = _round_text()
 	last_level_was_a_win = true
 	game.level_is_done = true
-
-	var popup_text: String
-	if correct:
-		popup_text = "Correct!\n+20 bonus"
-	elif error == 1:
-		popup_text = "Off by 1\nThere were %d gorillas" % true_count
-	else:
-		popup_text = "Off by %d\nThere were %d gorillas" % [error, true_count]
-
-	# The coach's session is one round, not a level: its rounds must not add up to a level end,
-	# and a level card landing on a caption is the failure mmm taught us to guard against.
 	if game.tutorial_mode:
-		game.show_game_popup(self, "Time's up!", popup_text)
+		game.show_game_popup(self, "Round over", popup_text)
 		return
-
 	round_in_level += 1
 	if round_in_level >= rounds_per_level:
 		_finish_level(popup_text)
 	else:
-		game.show_game_popup(self, "Time's up!", popup_text)
+		game.show_game_popup(self, "Round over", popup_text)
+
+func _round_text() -> String:
+	var n: int = _rescued_in_round + _lost_in_round
+	if n == 0:
+		return "No baby got lost this round"
+	if _lost_in_round == 0:
+		return "You rescued every baby!\n%d of %d" % [_rescued_in_round, n]
+	return "Babies rescued: %d of %d" % [_rescued_in_round, n]
 
 # A level is `rounds_per_level` rounds, and it is PASSED on the share of them counted exactly
 # right. Below the bar the same level comes round again.
@@ -1304,8 +1491,10 @@ func _finish_level(round_text: String) -> void:
 		MainGlobals.sig_level_done_popup_closed.connect(_on_level_done_popup_closed)
 	# The last round's verdict still gets said — it is the answer the player just gave — and then
 	# the level's own tally underneath it.
-	var textadd: String = "\n\n%s\n\nCounted right: %d of %d\nAccuracy: %d%%\n\n%s" % [
-		round_text, game.corrects, rounds_per_level, pct, _progress_line(passed, need, is_last)]
+	var textadd: String = "\n\n%s\n\nBabies rescued: %d of %d\nAverage time to a rescue: %s\n\n%s" % [
+		round_text, game.corrects, game.corrects + game.mistakes,
+		("%.1f s" % (float(mean_rescue_ms()) / 1000.0)) if not rescue_times.is_empty() else "-",
+		_progress_line(passed, need, is_last)]
 	game.show_level_done_popup(self, "", "", level, textadd, passed)
 
 func _on_level_done_popup_closed() -> void:
@@ -1315,16 +1504,23 @@ func _on_level_done_popup_closed() -> void:
 # moving on, which is the only thing they want to know at that moment.
 func _progress_line(passed: bool, need: int, is_last: bool) -> String:
 	if not passed:
-		return "You need at least %d%% of the rounds counted right to pass to the next level." % need
+		return "You need to rescue at least %d%% of the babies to pass to the next level." % need
 	if is_last:
 		return "Level passed. This is the last level, so you'll play it again."
 	return "Level passed. On to level %d." % (level + 1)
 
-# Average counting error over the session — the number the scores screen's "Error" tab plots.
-func mean_error() -> int:
-	if _rounds_answered <= 0:
-		return -1
-	return int(round(float(_error_sum) / float(_rounds_answered)))
+# Mean time from a baby's appearance to its rescue, this level (ms); 9999 when none was rescued.
+func mean_rescue_ms() -> int:
+	if rescue_times.is_empty():
+		return 9999
+	var t: float = 0.0
+	for v in rescue_times:
+		t += float(v)
+	return roundi(t / float(rescue_times.size()))
+
+func rescue_pct() -> int:
+	var n: int = game.corrects + game.mistakes
+	return 0 if n == 0 else roundi(100.0 * float(game.corrects) / float(n))
 
 func on_lives_depleted():
 	_level_done(false)
@@ -1349,23 +1545,33 @@ func _reapply_level_after_player_created() -> void:
 func _apply_level() -> void:
 	var n_levels: int = GorillaLevelConfig.LEVELS.size()
 	var cfg: Dictionary = GorillaLevelConfig.LEVELS[min(level, n_levels) - 1]
-	room_size = cfg["room_size"]
+	cols = int(cfg["cols"])
+	apples_in_round = int(cfg["apples"])
+	round_sec = int(cfg["round_sec"])
+	babies_per_round = int(cfg["babies"])
+	baby_far = float(cfg["baby_far"])
+	hunt_ms = float(cfg["hunt_ms"])
+	hunt_chance = float(cfg["hunt_chance"])
+	bananas_per_round = int(cfg["bananas"])
+	banana_ms = float(cfg["banana_ms"])
 	num_inside_monsters = cfg["num_inside_monsters"]
-	num_bricks = cfg["num_bricks"]
 	extra_passages = cfg["extra_passages"]
 	agent_speed_min = cfg["agent_speed_min"]
 	agent_speed_max = cfg["agent_speed_max"] if player == null else min(cfg["agent_speed_max"], player.speed_scale - 0.2)
-	gorilla_speed_px = cfg["gorilla_speed_px"]
 	directed_chance = cfg["directed_chance"]
 	rounds_per_level = cfg["rounds"]
-	powers_in_level = cfg["powers"]	
-	var mx = 3
-	var my = 3
-	if MainGlobals.is_mobile():
-		mx = 0
-		my = 3
-	game.forced_board_size = Vector2i(room_size+2*mx, room_size + 2*my)
+	# the super-food apples were replaced by the mother's sword (2026-11-09)
+	powers_in_level = 0
+	gift_ms = float(cfg.get("gift_ms", 8000))	
+	# THE MAZE FILLS THE SCREEN: `cols` across, and as many rows as the screen's shape gives at the
+	# same cell size (desktop keeps a strip at the top for the level label).
+	var vis_w: float = float(MainGlobals.screen_size.x)
+	var vis_h: float = float(MainGlobals.screen_size.y - game.header_height - game.buttons_height) - (0.0 if MainGlobals.is_mobile() else 34.0)
+	var rows: int = maxi(cols, int(floor(float(cols) * vis_h / vis_w)))
+	game.forced_board_size = Vector2i(cols, rows)
 	game.init_sizes()
+	game.set_reset_time_left(round_sec)
+	game.set_time_left(0, 0, round_sec)
 
 var game_cam = null
 func create_camera():

@@ -2,25 +2,17 @@ extends RefCounted
 
 # Gorilla's coached tutorial. See docs/tutorials.md for the step schema.
 #
-# What a first-time Gorilla player actually gets wrong, in order of damage:
-#   1. They treat it as a coin-collecting game and simply do not notice the gorillas, because
-#      nothing on screen ever asks them to look. Then the count question at the end arrives out
-#      of nowhere.
-#   2. A gorilla runs the whole way across in a few seconds. A player who is reading a caption
-#      misses it entirely and has no idea what they were meant to be looking at — so the tutorial
-#      does NOT rely on catching one in flight. It holds one still in the center of its lane
-#      (level.tutorial_hold_gorilla_midscreen) and points at it while the game is frozen.
+# What a first-time Gorilla player has to be shown (2026-11-09: the maze fills the screen and the
+# second job is rescuing lost baby gorillas, not counting gorillas outside a room):
+#   1. Movement, which is announced nowhere: a quick swipe sets a direction and you keep walking
+#      that way until you turn. (This game has no drawn-path movement.)
+#   2. The lost baby. It appears quietly, far away, and the whole game is noticing it while you
+#      eat somewhere else -- so the tutorial puts one on the board, points at it while the game is
+#      frozen, and then waits for the player to actually go and rescue it.
 #   3. Monsters. They are switched off for the whole tutorial (num_inside_monsters = 0) so nobody
-#      is killed halfway through a lesson — but a player who is never shown one meets their first
-#      at full speed with no warning, which is the very complaint tutorials exist to fix. So one
-#      is spawned on the last teaching step, named, and pointed at, with the game frozen.
-#   4. Movement, which is announced nowhere. This game does NOT have the drawn-path movement
-#      wolves and storm use (MainGlobals.draw_path_mode is never set here): a quick swipe sets a
-#      direction and you keep walking that way until you turn or stop. Saying "draw a path" here
-#      would be plainly wrong, and "flick" on its own means nothing to most people.
-#
-# Monsters are switched off (num_inside_monsters = 0) and two gorillas are scheduled early — see
-# level.gd's _tutorial_setup. Being killed halfway through a lesson teaches nothing.
+#      is killed halfway through a lesson, and one is spawned on the last teaching step, named and
+#      pointed at with the game frozen.
+# No automatic babies or bananas during the tutorial (level._tutorial_setup).
 
 const LEVEL_ID: int = 1
 
@@ -95,20 +87,16 @@ static func _sprite_half(n: Node) -> Vector2:
 static func steps(level: Node, _game) -> Array:
 	var player_spot: Callable = _tight(func():
 		return level.player if level.player != null and is_instance_valid(level.player) else null)
-	var gorilla_spot: Callable = _tight(func():
-		for g in level.peripheral_gorillas:
-			if is_instance_valid(g):
-				return g
-		return null)
-	# A REAL super-food on the board, pointed at through its own sprite. The step used to have no
-	# spot at all, so the one thing the player has to be told about got no frame.
-	var superfood_spot: Callable = _tight(func():
-		for row in level.board:
-			for cell in row:
-				if cell != null and cell.pipe != null and is_instance_valid(cell.pipe) \
-						and cell.pipe.has_coin == 1000:
-					return cell.pipe.get_node_or_null("PipeCoin1")
-		return null, 8.0)
+	var baby_spot: Callable = _tight(func():
+		return level.baby if level.baby != null and is_instance_valid(level.baby) else null, 10.0)
+	var banana_spot: Callable = _tight(func():
+		for b in level._bananas:
+			if is_instance_valid(b["node"]):
+				return b["node"]
+		return null, 10.0)
+	# The mother, who brings the sword (it replaced the super-food), pointed at through her own extent.
+	var mother_spot: Callable = _tight(func():
+		return level.mother if level.mother != null and is_instance_valid(level.mother) else null, 10.0)
 
 	var monster_spot: Callable = _tight(func():
 		for a in level.agents:
@@ -119,7 +107,7 @@ static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Gorilla",
-			"text": "You're in a walled room with apples all over the floor.\n\nEat every one of them.",
+			"text": "You're in a maze with apples scattered around it.\n\nEat them.",
 		},
 		{
 			"text": "This is you. You walk by yourself, and keep going the same way until you turn.",
@@ -132,35 +120,56 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "A quick swipe up, down, left or right.",
 		},
 		{
-			"setup": func():
-				level.tutorial_spawn_gorilla()
-				level.tutorial_hold_gorilla_midscreen(),
-			"title": "The second job",
-			"text": "Gorillas walk past outside the wall, like this one.\n\nCount them. They only pass along the edges, one at a time.",
-			"spot": gorilla_spot,
+			"setup": func(): level.tutorial_spawn_baby(),
+			"title": "A lost baby",
+			"text": "Now and then a baby gorilla gets lost somewhere in the maze, like this one.\n\nIt appears quietly, far from you, so keep an eye on the whole maze.",
+			"spot": baby_spot,
 		},
 		{
-			"spot": superfood_spot,
-			"title": "Super-foods",
-			"text": "A super-food makes the monsters run from you for a few seconds.\n\nThere are a few of them, and you have to eat them too. The room isn't clear while any are left.",
+			"title": "Rescue it",
+			"text": "Go and get it: walk into it to rescue it.\n\nIn the real game a monster starts hunting it soon after it appears, so be quick.",
+			"await": {"event": "baby_rescued", "timeout": 90.0},
+			"hint_after": 20.0,
+			"hint": "Swipe your way toward the baby gorilla.",
+		},
+		{
+			"setup": func(): level.tutorial_spawn_mother(),
+			"title": "Its mother",
+			"text": "Each time you rescue a baby, its mother comes out somewhere else in the maze, holding a sword, for a few seconds.",
+			"spot": mother_spot,
+		},
+		{
+			"title": "The sword",
+			"text": "Take the sword. For a few seconds the monsters run from you, and you can eat them.",
+			"await": {"event": "gift_taken", "timeout": 90.0},
+			"hint_after": 20.0,
+			"hint": "Swipe your way to the mother gorilla.",
 		},
 		{
 			"title": "Keep eating",
-			"text": "You can't just stand still and watch. Go too long without an apple and you starve.\n\nThe ring around you shows how long you have left. It fills up again with every apple you eat.",
+			"text": "You can't just stand still. Go too long without an apple and you starve.\n\nThe ring around you shows how long you have left. It fills up again with every apple you eat.",
 			"spot": player_spot,
 		},
 		{
-			"title": "Eat and count",
-			"text": "Eat the apples and keep count at the same time.\n\nThe apples keep your eyes on the center of the room, and the gorillas only walk around the outside.",
+			"setup": func(): level.tutorial_spawn_banana(),
+			"title": "Bananas",
+			"text": "Bananas turn up now and then, for a few seconds only.\n\nA bunch fills your ring right up, so you can go far from the apples, to a baby or its mother.",
+			"spot": banana_spot,
+		},
+		{
+			"text": "Go and eat it.",
+			"await": {"event": "banana_taken", "timeout": 90.0},
+			"hint_after": 20.0,
+			"hint": "Swipe your way to the bananas.",
 		},
 		{
 			"setup": func(): level.tutorial_show_a_monster(),
 			"title": "Monsters",
-			"text": "Monsters share the room and chase you. Being caught costs a life, and so does starving.\n\nAn exact gorilla count wins one back.",
+			"text": "Monsters share the maze and chase you. Being caught costs a life, and so does starving.",
 			"spot": monster_spot,
 		},
 		{
 			"title": "Ready",
-			"text": "When the room is clear or the time is up, you're asked how many gorillas went past.\n\nGet it right for a bonus and a life back.",
+			"text": "Rescue enough babies to pass the level.\n\nWatch the whole maze while you eat: babies, mothers and bananas all turn up far from you.",
 		},
 	]
