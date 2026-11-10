@@ -1,9 +1,11 @@
 // The game chooser's background (2026-11-10): a lit table. The untidy, swaying tiles read as cards
 // scattered on a table, so the ground is one, under a soft pool of warm light from above the center,
-// falling off to darker edges. Static (no TIME): nothing here moves.
+// falling off to darker edges.
 //
-// `style` (set per view by game_chooser.gd): 0 plain navy cloth (the list), 1 the woven art-deco
-// fans (the grid). Tried and turned down: a gold inlay round the cloth, and dark walnut planks
+// `style` (set per view by game_chooser.gd): 0 the LIST -- plain cloth under a LIVING light (the pool
+// drifts and breathes, and specks of dust float through it); 1 the GRID -- the woven art-deco fans,
+// static. (The fans were tried under the list too, faint and large: they fought the rows and the
+// hover patch. And the first living light was too slow and small to be seen at all.) Tried and turned down: a gold inlay round the cloth, and dark walnut planks
 // ("doesn't speak with the game"). `strong_light` is the stronger pool of light from the inlay trial,
 // the one part of it the user liked.
 shader_type canvas_item;
@@ -31,8 +33,7 @@ float noise(vec2 p) {
 // The card-table pattern (2026-11-10): art-deco fans in rows, each overlapping the row above -- a
 // woven-in figure a shade darker than the cloth, its rim a faint gold thread. Returns
 // (dark lines 0..1, gold rim 0..1).
-vec2 fan_pattern(vec2 p) {
-	float w = fan_px;
+vec2 fan_pattern(vec2 p, float w) {
 	float h = w * 0.5;
 	float r0 = w * 0.5;
 	vec2 best = vec2(0.0);
@@ -61,12 +62,75 @@ vec2 fan_pattern(vec2 p) {
 	return best;
 }
 
-void fragment() {
-	vec2 p = UV * px_size;
+// (style 2, slow aurora ribbons in gold and teal over a night sky, was tried for the list on
+// 2026-11-10 and turned down.)
+
+// TRIAL (2026-11-10) style 3, for the list: a deep night sky -- stars at three depths drifting slowly
+// at different speeds, so they pass each other, a soft glow from above, and now and then a shooting
+// star.
+float star_layer(vec2 p, float cell, float dens, float rmax) {
+	vec2 cid = floor(p / cell);
+	float s = 0.0;
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			vec2 id = cid + vec2(float(i), float(j));
+			float hs = hash(id);
+			if (hs > dens) {
+				continue;
+			}
+			vec2 sp = (id + vec2(hash(id + 1.3), hash(id + 4.1))) * cell;
+			float r = 0.6 + rmax * hash(id + 8.2);
+			float tw = 0.65 + 0.35 * sin(TIME * (1.0 + hs * 3.0) + hs * 50.0);
+			float d = length(p - sp);
+			s += exp(-d * d / (r * r)) * tw * (0.5 + 0.5 * hash(id + 2.6));
+		}
+	}
+	return s;
+}
+
+vec3 starfield(vec2 uv, vec2 p) {
+	vec3 top = vec3(0.030, 0.040, 0.110);
+	vec3 bottom = vec3(0.012, 0.016, 0.050);
+	vec3 col = mix(top, bottom, smoothstep(0.0, 1.0, uv.y));
+	// the glow from above, a little off center
+	vec2 g = (p - vec2(0.62, -0.05) * px_size) / px_size.x;
+	col += vec3(0.10, 0.12, 0.22) * exp(-dot(g, g) * 3.0) + warm * 0.035 * exp(-dot(g, g) * 9.0);
+	// a faint band of haze across the sky, like a far galaxy
+	float band = exp(-pow((uv.y - 0.35 - 0.3 * (uv.x - 0.5)) * 4.0, 2.0));
+	col += vec3(0.06, 0.07, 0.12) * band * (0.5 + 0.8 * noise(p / 60.0));
+	vec2 dir = normalize(vec2(1.0, -0.35));
+	float far = star_layer(p + dir * TIME * 3.0, 34.0, 0.55, 0.6);
+	float mid = star_layer(p + dir * TIME * 8.0 + 500.0, 70.0, 0.45, 1.0);
+	float near = star_layer(p + dir * TIME * 16.0 + 900.0, 130.0, 0.40, 1.6);
+	col += vec3(0.70, 0.75, 0.95) * far * 0.45 + vec3(0.85, 0.88, 1.0) * mid * 0.75 + mix(vec3(1.0), warm, 0.35) * near;
+	// a shooting star: one per 7-second slot, in some slots only, for under a second
+	float slot = floor(TIME / 7.0);
+	float ts = fract(TIME / 7.0) * 7.0;
+	if (hash(vec2(slot, 3.0)) < 0.7 && ts < 0.9) {
+		vec2 a = vec2(0.1 + 0.6 * hash(vec2(slot, 1.0)), 0.05 + 0.35 * hash(vec2(slot, 2.0))) * px_size;
+		vec2 v = normalize(vec2(1.0, 0.45)) * px_size.x * 0.55;
+		vec2 head = a + v * ts;
+		vec2 rel = p - head;
+		vec2 vd = normalize(v);
+		float along = dot(rel, vd);
+		float across = length(rel - vd * along);
+		float tail = smoothstep(-140.0, 0.0, along) * step(along, 1.5);
+		float life = smoothstep(0.0, 0.15, ts) * smoothstep(0.9, 0.6, ts);
+		col += vec3(1.0, 0.95, 0.85) * tail * exp(-across * across / 1.6) * life * 0.9;
+	}
+	return col;
+}
+
+// the lit table (styles 0 and 1)
+vec3 table(vec2 uv, vec2 p) {
 	// the light: an ellipse centered above the middle, wider than tall
-	vec2 c = vec2(0.5, 0.18) * px_size;
+	// the list's light LIVES: its pool wanders a little and breathes, each on its own slow beat
+	float live = style == 0 ? 1.0 : 0.0;
+	vec2 drift = live * vec2(0.16 * sin(TIME * 0.31) + 0.05 * sin(TIME * 0.73 + 2.0),
+	                         0.08 * sin(TIME * 0.23 + 1.3));
+	vec2 c = (vec2(0.5, 0.18) + drift) * px_size;
 	vec2 d = (p - c) / vec2(px_size.x * 0.85, px_size.y * 0.75);
-	float light = exp(-dot(d, d) * 1.3);
+	float light = exp(-dot(d, d) * 1.3) * (1.0 + live * 0.20 * sin(TIME * 0.55));
 	// the weave: threads over and under, each thread a little uneven
 	vec2 t = p / weave_px;
 	float warp = 0.5 + 0.5 * sin(t.x * 3.14159) * sign(sin(t.y * 1.5708));
@@ -81,7 +145,7 @@ void fragment() {
 	col += warm * light * light * 0.10;
 	if (style == 1) {
 		// the woven figure: brought out by the light, fading toward the edges
-		vec2 fan = fan_pattern(p);
+		vec2 fan = fan_pattern(p, fan_px);
 		float show = 0.35 + 0.65 * light;
 		col *= 1.0 - 0.26 * fan.x * show;
 		col = mix(col, warm * 0.6, fan.y * 0.30 * show);
@@ -90,8 +154,48 @@ void fragment() {
 		col += base * light * 0.35 + warm * light * light * 0.06;
 	}
 	col *= cloth_tex * mottle;
+	if (style == 0) {
+		// DUST in the lamp's light: one speck per cell at most, each drifting slowly up and sideways
+		// with a wobble, fading in and out at its cell's edges and as it twinkles; seen only where
+		// the light falls
+		float cell = 52.0;
+		vec2 cid = floor(p / cell);
+		float speck = 0.0;
+		for (int j = -1; j <= 1; j++) {
+			for (int i = -1; i <= 1; i++) {
+				vec2 id = cid + vec2(float(i), float(j));
+				float hseed = hash(id);
+				if (hseed > 0.60) {
+					continue;
+				}
+				vec2 vel = vec2(hash(id + 3.1) - 0.5, -0.35 - hash(id + 7.7) * 0.4) * 0.12;
+				vec2 at = fract(vec2(hash(id + 1.7), hash(id + 5.3)) + vel * TIME);
+				at += 0.04 * vec2(sin(TIME * 0.7 + hseed * 30.0), cos(TIME * 0.5 + hseed * 17.0));
+				vec2 sp = (id + at) * cell;
+				float edge = smoothstep(0.0, 0.18, at.x) * smoothstep(1.0, 0.82, at.x)
+					* smoothstep(0.0, 0.18, at.y) * smoothstep(1.0, 0.82, at.y);
+				float tw = 0.55 + 0.45 * sin(TIME * (0.8 + hseed * 2.0) + hseed * 40.0);
+				float r = 1.4 + 1.8 * hash(id + 9.9);
+				speck += smoothstep(r, r * 0.25, length(p - sp)) * edge * tw;
+			}
+		}
+		col += warm * speck * 0.60 * smoothstep(0.08, 0.5, light);
+	}
 	// darker toward the edges
-	vec2 e = UV - 0.5;
+	vec2 e = uv - 0.5;
 	col *= 1.0 - 0.45 * smoothstep(0.25, 0.75, length(e * vec2(1.1, 0.9)));
+	return col;
+}
+
+void fragment() {
+	vec2 p = UV * px_size;
+	vec3 col;
+	if (style == 3) {
+		col = starfield(UV, p);
+		vec2 se = UV - 0.5;
+		col *= 1.0 - 0.35 * smoothstep(0.30, 0.80, length(se * vec2(1.1, 0.9)));
+	} else {
+		col = table(UV, p);
+	}
 	COLOR = vec4(col, 1.0);
 }

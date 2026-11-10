@@ -116,9 +116,12 @@ func _dress_screen() -> void:
 # The table differs by view (chosen 2026-11-10): the GRID's cloth carries the woven art-deco fans, the
 # list by category the plain cloth -- both under the strong pool of light.
 var _table_mat: ShaderMaterial = null
+# TRIAL (2026-11-10): the list's background -- 0 the living light (the kept checkpoint), 3 a night
+# sky of stars (2, aurora ribbons, was turned down).
+const _LIST_STYLE: int = 3
 func _table_for_view(list_mode: bool) -> void:
 	if _table_mat != null:
-		_table_mat.set_shader_parameter("style", 0 if list_mode else 1)
+		_table_mat.set_shader_parameter("style", _LIST_STYLE if list_mode else 1)
 
 # 2. A ROW LIES ON THE TABLE (2026-11-10): no card -- no panel, no frame -- just the picture and its
 #    words on the cloth; a faint light patch under the row while it is pointed at (the picture also
