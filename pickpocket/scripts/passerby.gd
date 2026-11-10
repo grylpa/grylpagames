@@ -210,10 +210,14 @@ func set_mark(m: int, text: String = "") -> void:
 func _lit(c: Color, p: Vector2) -> Color:
 	var up: float = clampf(-p.y / h, 0.0, 1.0)
 	var side: float = clampf(p.x / (0.13 * h * build), -1.0, 1.0) * light_dir
-	var k: float = 0.66 + 0.22 * up + 0.16 * side + 0.20 * light_amt
+	# (2026-11-10 facelift: a wider range from the lit side to the far one, and the far side falls
+	# toward the evening's blue instead of merely darker -- warm light, cool shadow)
+	var k: float = 0.58 + 0.20 * up + 0.26 * side + 0.26 * light_amt
 	var out: Color = Color(c.r * k, c.g * k, c.b * k, c.a)
-	var warm: float = clampf(0.25 + 0.45 * side, 0.0, 1.0) * light_amt
-	return out.lerp(Color(minf(1.0, out.r * 1.10), out.g * 0.98, out.b * 0.84, c.a), warm)
+	var warm: float = clampf(0.25 + 0.55 * side, 0.0, 1.0) * light_amt
+	out = out.lerp(Color(minf(1.0, out.r * 1.14), out.g * 1.00, out.b * 0.80, c.a), warm)
+	var cool: float = clampf(-side, 0.0, 1.0) * 0.55
+	return out.lerp(Color(out.r * 0.78, out.g * 0.86, minf(1.0, out.b * 1.14), c.a), cool)
 
 func _poly(pts: PackedVector2Array, c: Color) -> void:
 	_hits.append(pts)
@@ -357,9 +361,36 @@ func _draw() -> void:
 	draw_line(Vector2(-d * 0.03 * h, waist + 0.02 * h), Vector2(-d * 0.05 * h, hem), Color(0, 0, 0, 0.14), maxf(1.0, 0.006 * h))
 	if long_coat:
 		draw_line(Vector2(-ww, waist + 0.01 * h), Vector2(ww, waist + 0.01 * h), Color(0, 0, 0, 0.30), maxf(1.5, 0.014 * h))
-	# a warm rim along the lit edge
 	var lit_side: float = 1.0 if light_dir >= 0.0 else -1.0
-	draw_line(Vector2(sw * 0.96 * lit_side, top + 0.05 * h), Vector2(ww * 1.02 * lit_side, waist), Color(WARM, 0.22 * light_amt), maxf(1.0, 0.012 * h))
+	# How ONE-SIDED the light is: 1 from the side, 0 from straight above (under a lamp, or evenly
+	# between two). Every effect that belongs to a side -- the form shadow, the rim, the sleeve's
+	# highlight -- is scaled by it, so the side changes by fading out and in, never by a flip.
+	var sided: float = clampf(absf(light_dir), 0.0, 1.0)
+	# the body is ROUND: its far side turns away from the lamp into shadow, across a soft edge
+	draw_polygon(PackedVector2Array([Vector2(-sw * lit_side, top + 0.04 * h), Vector2(-sw * 0.25 * lit_side, top + 0.04 * h),
+		Vector2(-hw * 0.25 * lit_side, hem), Vector2(-hw * lit_side, hem)]),
+		PackedColorArray([Color(0.02, 0.03, 0.10, 0.30 * sided), Color(0.02, 0.03, 0.10, 0.0), Color(0.02, 0.03, 0.10, 0.0), Color(0.02, 0.03, 0.10, 0.34 * sided)]))
+	# the collar and lapels: a V at the neck, the near lapel catching the light
+	var lap_c: Color = _lit(c.lightened(0.10), Vector2(fx, top))
+	draw_colored_polygon(PackedVector2Array([Vector2(d * 0.004 * h, top - 0.008 * h), Vector2(d * 0.060 * h * bw, top + 0.022 * h),
+		Vector2(d * 0.034 * h * bw, top + 0.105 * h)]), lap_c)
+	draw_colored_polygon(PackedVector2Array([Vector2(-d * 0.004 * h, top - 0.008 * h), Vector2(-d * 0.050 * h * bw, top + 0.020 * h),
+		Vector2(d * 0.020 * h * bw, top + 0.100 * h)]), _lit(c.darkened(0.16), Vector2(-fx, top)))
+	draw_line(Vector2(d * 0.060 * h * bw, top + 0.022 * h), Vector2(d * 0.034 * h * bw, top + 0.105 * h), Color(0, 0, 0, 0.22), maxf(1.0, 0.005 * h))
+	# buttons down the front, a pocket flap at the near hip, a shadow under the hem
+	for bk in (4 if long_coat else 3):
+		var by: float = lerpf(top + 0.14 * h, hem - 0.07 * h, float(bk) / (3.0 if long_coat else 2.0))
+		draw_circle(Vector2(fx * (1.0 + 0.12 * float(bk)), by), maxf(1.0, 0.0075 * h), Color(0.08, 0.06, 0.05, 0.55))
+		draw_circle(Vector2(fx * (1.0 + 0.12 * float(bk)) - 0.002 * h, by - 0.002 * h), maxf(0.6, 0.003 * h), Color(1, 1, 1, 0.22))
+	draw_line(Vector2(d * 0.060 * h * bw, waist + 0.055 * h), Vector2(d * 0.100 * h * bw, waist + 0.062 * h), Color(0, 0, 0, 0.26), maxf(1.0, 0.008 * h))
+	draw_line(Vector2(-hw * 0.96, hem - 0.004 * h), Vector2(hw * 0.96, hem - 0.004 * h), Color(0, 0, 0, 0.22), maxf(1.0, 0.010 * h))
+	# the lamp's warm RIM along the lit edge: shoulder, side and hem
+	var rim_a: float = 0.50 * light_amt * sided
+	draw_polyline(PackedVector2Array([Vector2(sw * 0.80 * lit_side, top + 0.012 * h), Vector2(sw * 0.99 * lit_side, top + 0.042 * h),
+		Vector2(sw * 0.93 * lit_side, top + 0.150 * h), Vector2(ww * 1.0 * lit_side, waist),
+		Vector2(hw * 0.95 * lit_side, (hem + waist) * 0.5), Vector2(hw * 0.99 * lit_side, hem)]), Color(WARM, rim_a), maxf(1.2, 0.012 * h), true)
+	# and light from above lying along both shoulders
+	draw_line(Vector2(-sw * 0.78, top + 0.012 * h), Vector2(sw * 0.78, top + 0.012 * h), Color(WARM, 0.16 + 0.20 * light_amt), maxf(1.0, 0.009 * h))
 	if scarf:
 		_poly(PackedVector2Array([Vector2(-0.048 * h, top - 0.022 * h), Vector2(0.048 * h, top - 0.022 * h),
 			Vector2(0.054 * h, top + 0.028 * h), Vector2(-0.054 * h, top + 0.028 * h)]), scarf_col)
@@ -402,6 +433,12 @@ func _draw_ground_marks() -> void:
 		_shadow_tex.width = 64
 		_shadow_tex.height = 64
 	draw_texture_rect(_shadow_tex, Rect2(-0.24 * h, -0.05 * h, 0.48 * h, 0.10 * h), false)
+	# and the long shadow the nearest lamp throws, away from it, longer the more it lights them
+	var reach: float = 0.55 * h * clampf(light_amt, 0.0, 1.0) * absf(light_dir)
+	if reach > 0.02 * h:
+		var x0: float = -0.20 * h - (reach if light_dir > 0.0 else 0.0)
+		var x1: float = 0.20 * h + (reach if light_dir < 0.0 else 0.0)
+		draw_texture_rect(_shadow_tex, Rect2(x0, -0.04 * h, x1 - x0, 0.08 * h), false, Color(1, 1, 1, 0.55))
 
 func _ring(col: Color) -> void:
 	var pts: PackedVector2Array = _ellipse_pts(Vector2(0, -0.005 * h), 0.27 * h, 0.065 * h, 28)
@@ -422,6 +459,10 @@ func _draw_leg(p: Array, col: Color) -> void:
 		ankle + Vector2(d * 0.074 * h, 0.012 * h), ankle + Vector2(d * 0.071 * h, 0.026 * h),
 		ankle + Vector2(-d * 0.034 * h, 0.026 * h)])
 	_poly(shoe, Color(0.10, 0.08, 0.07))
+	# the trouser's crease catching light, a cuff over the shoe, and the sole
+	draw_line(hip.lerp(knee, 0.15) + Vector2(d * 0.012 * h, 0.0), ankle + Vector2(d * 0.010 * h, -0.02 * h), Color(1, 1, 1, 0.07), maxf(1.0, 0.006 * h))
+	draw_line(ankle + Vector2(-d * 0.028 * h, -0.016 * h), ankle + Vector2(d * 0.030 * h, -0.014 * h), Color(0, 0, 0, 0.30), maxf(1.0, 0.008 * h))
+	draw_line(ankle + Vector2(-d * 0.034 * h, 0.026 * h), ankle + Vector2(d * 0.071 * h, 0.026 * h), Color(0.30, 0.24, 0.20, 0.9), maxf(1.0, 0.007 * h))
 	draw_line(ankle + Vector2(-d * 0.01 * h, -0.004 * h), ankle + Vector2(d * 0.05 * h, 0.010 * h), Color(1, 0.9, 0.75, 0.20), maxf(1.0, 0.006 * h))
 
 func _draw_arm(p: Array, col: Color, front: bool) -> void:
@@ -430,7 +471,24 @@ func _draw_arm(p: Array, col: Color, front: bool) -> void:
 	var hd: Vector2 = p[2]
 	_limb(sh, el, 0.035 * h * build, 0.028 * h, col)
 	_limb(el, hd + (el - hd).normalized() * 0.02 * h, 0.028 * h, 0.023 * h, col)
-	_poly(_ellipse_pts(hd, 0.021 * h, 0.025 * h, 10), skin if front else skin.darkened(0.22))
+	# A HAND, not a blob (2026-11-10): a palm running on from the forearm, the fingers together as one
+	# tapering shape, and a thumb on its forward side.
+	var hcol: Color = skin if front else skin.darkened(0.22)
+	var hdir: Vector2 = (hd - el).normalized()
+	_limb(hd - hdir * 0.010 * h, hd + hdir * 0.018 * h, 0.019 * h, 0.021 * h, hcol)
+	_limb(hd + hdir * 0.018 * h, hd + hdir * 0.046 * h, 0.019 * h, 0.011 * h, hcol.darkened(0.05))
+	var fwd: Vector2 = Vector2(float(dir), 0.0) - hdir * hdir.dot(Vector2(float(dir), 0.0))
+	if fwd.length() > 0.05:
+		fwd = fwd.normalized()
+		_limb(hd + fwd * 0.012 * h, hd + fwd * 0.026 * h + hdir * 0.020 * h, 0.0085 * h, 0.0065 * h, hcol.darkened(0.08))
+	# the cuff: a darker band where the sleeve ends
+	var wrist: Vector2 = hd + (el - hd).normalized() * 0.026 * h
+	var across: Vector2 = (el - hd).normalized().orthogonal() * 0.024 * h
+	draw_line(wrist - across, wrist + across, Color(0, 0, 0, 0.30), maxf(1.0, 0.010 * h))
+	if front:
+		# a soft highlight down the sleeve's lit side
+		var ls: float = 1.0 if light_dir >= 0.0 else -1.0
+		draw_line(sh + Vector2(ls * 0.026 * h, 0.01 * h), el + Vector2(ls * 0.022 * h, 0.0), Color(WARM, 0.22 * light_amt * clampf(absf(light_dir), 0.0, 1.0)), maxf(1.0, 0.008 * h))
 
 func _draw_head(hc: Vector2, d: float, neck_y: float) -> void:
 	_limb(Vector2(0.004 * h * d, neck_y + 0.01 * h), hc + Vector2(-0.004 * h * d, 0.04 * h), 0.023 * h, 0.021 * h, skin.darkened(0.14))
@@ -447,11 +505,39 @@ func _draw_head(hc: Vector2, d: float, neck_y: float) -> void:
 	# nose, eye, brow and ear: small, the way a face reads from across a street
 	_poly(PackedVector2Array([hc + Vector2(d * 0.050 * h, -0.010 * h), hc + Vector2(d * 0.071 * h, 0.012 * h),
 		hc + Vector2(d * 0.052 * h, 0.016 * h)]), skin.darkened(0.06))
-	draw_circle(hc + Vector2(d * 0.033 * h, -0.006 * h), maxf(0.8, 0.0062 * h), Color(0.10, 0.07, 0.06, 0.85))
-	draw_line(hc + Vector2(d * 0.020 * h, -0.020 * h), hc + Vector2(d * 0.047 * h, -0.020 * h), Color(0, 0, 0, 0.30), maxf(1.0, 0.006 * h))
+	# A FACE, not a dot and a dash (2026-11-10): the head is round -- its back falls into shadow, its
+	# cheek catches the lamp -- with an eye that has a white and a lid, a brow in the hair's color, a
+	# nostril, lips, an ear with its fold, and the jaw's shadow on the neck. Every size is a share of
+	# h, so the far lane's faces stay a few clean pixels and the onlookers' read as people.
+	var lit_s: float = 1.0 if light_dir >= 0.0 else -1.0
+	draw_polygon(PackedVector2Array([hc + Vector2(-d * 0.056 * h, -0.045 * h), hc + Vector2(-d * 0.012 * h, -0.060 * h),
+		hc + Vector2(-d * 0.012 * h, 0.060 * h), hc + Vector2(-d * 0.050 * h, 0.045 * h)]),
+		PackedColorArray([Color(0.05, 0.04, 0.10, 0.26), Color(0.05, 0.04, 0.10, 0.0), Color(0.05, 0.04, 0.10, 0.0), Color(0.05, 0.04, 0.10, 0.26)]))
+	draw_colored_polygon(_ellipse_pts(hc + Vector2(d * 0.022 * h, 0.018 * h), 0.017 * h, 0.012 * h, 10), Color(0.95, 0.45, 0.35, 0.10 + 0.08 * light_amt))
+	# the eye
+	var eye: Vector2 = hc + Vector2(d * 0.033 * h, -0.006 * h)
+	draw_colored_polygon(_ellipse_pts(eye, maxf(1.2, 0.0105 * h), maxf(0.9, 0.0066 * h), 10), Color(0.96, 0.94, 0.90, 0.92))
+	draw_circle(eye + Vector2(d * 0.0030 * h, 0.0), maxf(0.8, 0.0054 * h), Color(0.12, 0.08, 0.06))
+	draw_circle(eye + Vector2(d * 0.0045 * h, -0.0016 * h), maxf(0.3, 0.0016 * h), Color(1, 1, 1, 0.8))
+	draw_line(eye + Vector2(-d * 0.011 * h, -0.006 * h), eye + Vector2(d * 0.011 * h, -0.0065 * h), Color(0.10, 0.07, 0.06, 0.75), maxf(1.0, 0.0045 * h))
+	draw_line(hc + Vector2(d * 0.018 * h, -0.023 * h), hc + Vector2(d * 0.048 * h, -0.021 * h), Color(hair_col.darkened(0.25), 0.85), maxf(1.0, 0.0075 * h))
+	# a nostril, and lips a shade redder than the skin
+	draw_circle(hc + Vector2(d * 0.058 * h, 0.0125 * h), maxf(0.5, 0.0028 * h), Color(0, 0, 0, 0.35))
+	draw_line(hc + Vector2(d * 0.030 * h, 0.0315 * h), hc + Vector2(d * 0.054 * h, 0.029 * h),
+		Color(skin.r * 0.70, skin.g * 0.42, skin.b * 0.40, 0.85), maxf(1.0, 0.0065 * h))
+	draw_line(hc + Vector2(d * 0.034 * h, 0.038 * h), hc + Vector2(d * 0.050 * h, 0.036 * h), Color(0, 0, 0, 0.12), maxf(1.0, 0.004 * h))
+	# the ear, with the fold inside it
 	_poly(_ellipse_pts(hc + Vector2(-d * 0.008 * h, 0.002 * h), 0.011 * h, 0.017 * h, 8), skin.darkened(0.14))
-	draw_line(hc + Vector2(-d * 0.03 * h, 0.058 * h), hc + Vector2(d * 0.04 * h, 0.056 * h), Color(0, 0, 0, 0.16), maxf(1.0, 0.012 * h))
+	draw_arc(hc + Vector2(-d * 0.008 * h, 0.002 * h), 0.006 * h, 0.0, TAU * 0.7, 8, Color(0, 0, 0, 0.22), maxf(1.0, 0.003 * h))
+	# the jaw's shadow on the neck
+	draw_line(hc + Vector2(-d * 0.03 * h, 0.058 * h), hc + Vector2(d * 0.04 * h, 0.056 * h), Color(0, 0, 0, 0.22), maxf(1.0, 0.014 * h))
+	# the lamp's rim on the lit side of the head
+	draw_arc(hc, 0.058 * h, (-PI * 0.42 if lit_s > 0.0 else PI * 0.58), (PI * 0.42 if lit_s > 0.0 else PI * 1.42), 12,
+		Color(WARM, 0.42 * light_amt * clampf(absf(light_dir), 0.0, 1.0)), maxf(1.0, 0.010 * h))
 	_hair_front(hc, d)
+	if hat == Hat.NONE and hair != Hair.BALD:
+		# a sheen across the top of the hair
+		draw_arc(hc + Vector2(-d * 0.006 * h, 0.004 * h), 0.060 * h, -PI * 0.80, -PI * 0.42, 8, Color(1, 1, 1, 0.14 + 0.10 * light_amt), maxf(1.0, 0.010 * h))
 	_hat(hc, d)
 
 func _hair_back(hc: Vector2, d: float) -> void:
@@ -530,6 +616,18 @@ func _round_box(c: Vector2, half: Vector2, r: float) -> PackedVector2Array:
 # everything (draw_tag_to), never in the person's own layer: there an onlooker or the hustler could
 # cover the person and leave the tag pointing at no one. The pill is kept on screen; its pointer
 # still ends on the person's head.
+# Where this person's tag box is drawn (screen coordinates), for keeping tags apart.
+func tag_box(screen_w: float) -> Rect2:
+	var font: Font = MainGlobals.get_text_font()
+	var fs: int = int(clampf(0.16 * h, 16.0, float(MainGlobals.ui_font_size(20))))
+	var tw: float = font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var pad: float = fs * 0.45
+	var box_bottom: float = head_top().y - maxf(10.0, 0.10 * h) - tag_raise * fs * 1.5
+	var y: float = box_bottom - fs * 1.2
+	var bw: float = tw + pad * 2.0
+	var bx: float = clampf(position.x - bw * 0.5, 6.0, screen_w - bw - 6.0)
+	return Rect2(Vector2(bx, y - fs * 0.15), Vector2(bw, fs * 1.35))
+
 func draw_tag_to(ci: CanvasItem, screen_w: float) -> void:
 	if tag == "":
 		return

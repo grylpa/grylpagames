@@ -12,8 +12,9 @@ extends Node2D
 # `setup(w, top, shop_floor, road_top, road_bottom, bottom)` takes the rows the level lays out:
 # `shop_floor` is where the far lane stands, `road_bottom` the near curb.
 
-const SKY_TOP: Color = Color(0.13, 0.14, 0.28)
-const SKY_LOW: Color = Color(0.46, 0.30, 0.42)
+const SKY_TOP: Color = Color(0.07, 0.09, 0.24)
+const SKY_MID: Color = Color(0.30, 0.20, 0.42)
+const SKY_LOW: Color = Color(0.86, 0.46, 0.36)
 const WINDOW_LIT: Color = Color(1.00, 0.80, 0.48)
 const WINDOW_DIM: Color = Color(0.22, 0.24, 0.34)
 const PAVEMENT: Color = Color(0.34, 0.33, 0.36)
@@ -33,6 +34,10 @@ var _road_top: float = 340.0
 var _road_bottom: float = 400.0
 var _bottom: float = 744.0
 var _seed: int = 7
+# The lit display windows and doors, gathered while the facades are drawn: [center x, width, color].
+# Their light lies on the far sidewalk and reaches a little way onto the road.
+var _spills: Array = []
+var _window_glows: Array = []   # Rect2 of each lit pane, for the level's additive glow
 
 func setup(w: float, top: float, shop_floor: float, road_top: float, road_bottom: float, bottom: float) -> void:
 	_w = w
@@ -46,9 +51,45 @@ func setup(w: float, top: float, shop_floor: float, road_top: float, road_bottom
 func _draw() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = _seed
-	# the dusk sky: one smooth gradient
-	var sky_bottom: float = _top + (_floor - _top) * 0.45
-	_vgrad(Rect2(0.0, _top - 80.0, _w, sky_bottom - _top + 80.0), SKY_TOP, SKY_LOW)
+	_spills = []
+	_window_glows = []
+	# THE DUSK SKY (2026-11-10 facelift): deep blue overhead, through violet, to the last orange of the
+	# sunset behind the roofs; a few stars, a moon with a halo, and a far row of rooftops with their
+	# own small lit windows, so the street has a town behind it.
+	# the sunset has to show ABOVE the roofs (they start 11-24% down), so the colors are spent there
+	var sky_bottom: float = _top + (_floor - _top) * 0.30
+	var sky_mid: float = _top + (sky_bottom - _top) * 0.42
+	_vgrad(Rect2(0.0, _top - 80.0, _w, sky_mid - _top + 80.0), SKY_TOP, SKY_MID)
+	_vgrad(Rect2(0.0, sky_mid, _w, sky_bottom - sky_mid), SKY_MID, SKY_LOW)
+	var sky: RandomNumberGenerator = RandomNumberGenerator.new()
+	sky.seed = 41
+	for k in 46:
+		var sp: Vector2 = Vector2(sky.randf() * _w, _top + sky.randf() * (sky_mid - _top) * 0.95)
+		var sa: float = sky.randf_range(0.25, 0.9) * (1.0 - (sp.y - _top) / maxf(1.0, sky_mid - _top) * 0.7)
+		draw_circle(sp, sky.randf_range(0.6, 1.3), Color(1.0, 0.97, 0.88, sa))
+	# over the lowest roof (the bakery's), where there is the most sky
+	var moon: Vector2 = Vector2(_w * 0.13, _top + (_floor - _top) * 0.085)
+	var mr: float = maxf(7.0, (_floor - _top) * 0.045)
+	for k in 6:
+		draw_circle(moon, mr * (1.0 + 0.55 * float(6 - k)), Color(1.0, 0.95, 0.80, 0.022))
+	draw_circle(moon, mr, Color(0.99, 0.96, 0.86))
+	draw_circle(moon + Vector2(mr * 0.28, -mr * 0.18), mr * 0.82, Color(0.93, 0.90, 0.80))
+	# the far rooftops: a dark, uneven line against the glow, a window lit here and there
+	var far_c: Color = Color(0.13, 0.10, 0.22)
+	var fx: float = -10.0
+	while fx < _w:
+		var fw: float = sky.randf_range(_w * 0.05, _w * 0.11)
+		var fh: float = sky.randf_range(0.10, 0.34) * (sky_bottom - _top)
+		var fy: float = sky_bottom - fh
+		draw_rect(Rect2(fx, fy, fw, fh + 2.0), far_c)
+		if sky.randf() < 0.5:    # a pitched roof
+			draw_colored_polygon(PackedVector2Array([Vector2(fx, fy), Vector2(fx + fw * 0.5, fy - fw * 0.28), Vector2(fx + fw, fy)]), far_c)
+		if sky.randf() < 0.6:    # a chimney
+			draw_rect(Rect2(fx + fw * sky.randf_range(0.15, 0.7), fy - fw * 0.30, fw * 0.12, fw * 0.32), far_c)
+		for k in 3:
+			if sky.randf() < 0.45:
+				draw_rect(Rect2(fx + fw * (0.18 + 0.27 * float(k)), fy + fh * 0.30, fw * 0.10, fh * 0.16), Color(1.0, 0.78, 0.42, 0.75))
+		fx += fw + sky.randf_range(-2.0, 3.0)
 
 	# the facades: four shops, each a building of its own height
 	var n: int = SHOPS.size()
@@ -57,7 +98,15 @@ func _draw() -> void:
 	for i in n:
 		var shop: Dictionary = SHOPS[i]
 		var x0: float = bw * float(i)
-		var roof: float = _top + face_h * (0.02 + 0.10 * float((i * 7 + 3) % 4) / 3.0)
+		var roof: float = _top + face_h * (0.11 + 0.13 * float((i * 7 + 3) % 4) / 3.0)
+		# a chimney or two on the roof, against the sky
+		for k in 1 + (i % 2):
+			var cx: float = x0 + bw * (0.18 + 0.52 * float(k) + 0.06 * float(i % 3))
+			var ch_h: float = face_h * (0.07 + 0.02 * float((i + k) % 2))
+			var ch_c: Color = (shop["wall"] as Color).darkened(0.50)
+			draw_rect(Rect2(cx, roof - ch_h, bw * 0.09, ch_h + 2.0), ch_c)
+			draw_rect(Rect2(cx - 2.0, roof - ch_h, bw * 0.09 + 4.0, 3.0), ch_c.lightened(0.18))
+			draw_rect(Rect2(cx + bw * 0.02, roof - ch_h - 4.0, bw * 0.02, 4.0), ch_c.darkened(0.2))
 		var wall: Color = (shop["wall"] as Color).darkened(0.18)
 		# the wall: dark at the roofline, lit warm from the shopfronts and the lamps below
 		_vgrad(Rect2(x0, roof, bw + 1.0, _floor - roof), wall.darkened(0.45), Color(minf(1.0, wall.r * 1.08), wall.g, wall.b * 0.92))
@@ -123,6 +172,8 @@ func _draw() -> void:
 		var wr: Rect2 = Rect2(win_x, front_top + 7.0, dw, _floor - front_top - 20.0)
 		_vgrad(wr, Color(1.0, 0.90, 0.66), Color(0.86, 0.58, 0.30))
 		_display(i, wr, rng)
+		_spills.append([wr.get_center().x, wr.size.x, Color(1.0, 0.80, 0.50)])
+		_window_glows.append(wr)
 		# reflections across the glass, and a mullion
 		for k in 2:
 			var rx: float = wr.position.x + wr.size.x * (0.25 + 0.45 * float(k))
@@ -135,12 +186,21 @@ func _draw() -> void:
 		draw_rect(door, trim.darkened(0.45))
 		draw_rect(Rect2(door.position + Vector2(door_w * 0.18, door.size.y * 0.10), Vector2(door_w * 0.64, door.size.y * 0.42)), WINDOW_LIT.darkened(0.15))
 		draw_circle(Vector2(door_x + (door_w * 0.82 if door_left else door_w * 0.18), door.position.y + door.size.y * 0.62), 2.5, Color(0.95, 0.80, 0.40))
+		_spills.append([door.get_center().x, door_w * 0.64, Color(1.0, 0.76, 0.46)])
 		# the joint between two buildings
 		draw_line(Vector2(x0, roof), Vector2(x0, _floor), Color(0, 0, 0, 0.35), 2.0)
 
 	# the far sidewalk along the shops, with the windows' warm spill on it
 	_vgrad(Rect2(0.0, _floor, _w, _road_top - _floor), Color(0.50, 0.42, 0.36), PAVEMENT.darkened(0.1))
 	draw_rect(Rect2(0.0, _floor, _w, 3.0), Color(0, 0, 0, 0.25))
+	# each lit window's and door's light lying on the sidewalk: widening, fading toward the curb
+	for sp_v in _spills:
+		var scx: float = float(sp_v[0])
+		var sw2: float = float(sp_v[1])
+		var sc: Color = sp_v[2]
+		draw_polygon(PackedVector2Array([Vector2(scx - sw2 * 0.50, _floor + 2.0), Vector2(scx + sw2 * 0.50, _floor + 2.0),
+			Vector2(scx + sw2 * 0.72, _road_top - 5.0), Vector2(scx - sw2 * 0.72, _road_top - 5.0)]),
+			PackedColorArray([Color(sc, 0.34), Color(sc, 0.34), Color(sc, 0.06), Color(sc, 0.06)]))
 	# THE ROAD. It was a flat dark band with bright even dashes and curbs drawn as two stripes, and
 	# read as pasted on. Now: the far curb's lit top and its shadowed face; asphalt with a fine
 	# grain, a little lighter toward us; a gutter's shadow along each curb; worn, uneven dashes; a
@@ -168,6 +228,16 @@ func _draw() -> void:
 				var t: float = TAU * float(q) / 24.0
 				pts.append(Vector2(float(lx) + cos(t) * _w * 0.13 * f, rb - rh * 0.25 + sin(t) * rh * 0.45 * f))
 			draw_colored_polygon(pts, Color(1.0, 0.78, 0.45, 0.022))
+	# A DRY road (a wet one, with every window standing in it as a reflection, was tried and read as
+	# odd: nothing else here says rain). The shops' light only reaches a little way onto the asphalt
+	# from the far curb, soft and wide.
+	for sp_v2 in _spills:
+		var rcx: float = float(sp_v2[0])
+		var rw: float = float(sp_v2[1]) * 1.5
+		var rc: Color = sp_v2[2]
+		draw_polygon(PackedVector2Array([Vector2(rcx - rw * 0.5, rt), Vector2(rcx + rw * 0.5, rt),
+			Vector2(rcx + rw * 0.62, rt + rh * 0.42), Vector2(rcx - rw * 0.62, rt + rh * 0.42)]),
+			PackedColorArray([Color(rc, 0.07), Color(rc, 0.07), Color(rc, 0.0), Color(rc, 0.0)]))
 	# the center line: worn, each dash a little different
 	var x: float = 6.0
 	var mid: float = rt + rh * 0.5
@@ -191,20 +261,40 @@ func _draw() -> void:
 	# the near sidewalk, the one the table stands on: slabs in perspective
 	var top_s: float = _road_bottom + 9.0
 	_vgrad(Rect2(0.0, top_s, _w, _bottom - top_s + 60.0), PAVEMENT.darkened(0.15), PAVEMENT.lightened(0.05))
+	# FLAGSTONES in perspective, each a tone of its own (it was one flat gray with a faint grid), the
+	# joints dark. Dry, like the road: puddles were tried with the wet road and went with it.
 	var rows: int = 8
+	var cols: int = 14
+	var vp: Vector2 = Vector2(_w * 0.5, top_s - (_bottom - top_s) * 1.2)
+	var slab: RandomNumberGenerator = RandomNumberGenerator.new()
+	slab.seed = 23
+	var row_y: Array = []
 	for k in rows + 1:
 		var t2: float = float(k) / float(rows)
-		var yy: float = top_s + (_bottom - top_s) * (t2 * t2 * 0.7 + t2 * 0.3)
-		draw_line(Vector2(0.0, yy), Vector2(_w, yy), Color(0, 0, 0, 0.10 + 0.06 * t2), 1.0 + t2)
-	var vp: Vector2 = Vector2(_w * 0.5, top_s - (_bottom - top_s) * 1.2)
-	for k in 15:
-		var xb: float = _w * (-0.9 + 2.8 * float(k) / 14.0)
-		var a: Vector2 = vp.lerp(Vector2(xb, _bottom), (top_s - vp.y) / (_bottom - vp.y))
-		draw_line(a, Vector2(xb, _bottom), Color(0, 0, 0, 0.08), 1.0)
-
+		row_y.append(top_s + (_bottom - top_s) * (t2 * t2 * 0.7 + t2 * 0.3))
+	for r in rows:
+		var ya: float = float(row_y[r])
+		var yb: float = float(row_y[r + 1])
+		var shift: float = 0.5 if r % 2 == 1 else 0.0     # staggered courses
+		for c in cols + 1:
+			var xa: float = _w * (-0.9 + 2.8 * (float(c) - shift) / float(cols))
+			var xb2: float = _w * (-0.9 + 2.8 * (float(c) + 1.0 - shift) / float(cols))
+			var fa: float = (ya - vp.y) / (_bottom - vp.y)
+			var fb: float = (yb - vp.y) / (_bottom - vp.y)
+			var quad: PackedVector2Array = PackedVector2Array([
+				Vector2(vp.x + (xa - vp.x) * fa, ya), Vector2(vp.x + (xb2 - vp.x) * fa, ya),
+				Vector2(vp.x + (xb2 - vp.x) * fb, yb), Vector2(vp.x + (xa - vp.x) * fb, yb)])
+			var tone2: float = slab.randf_range(-0.07, 0.07)
+			draw_colored_polygon(quad, Color(1, 1, 1, tone2) if tone2 > 0.0 else Color(0, 0, 0, -tone2 * 1.4))
+			draw_line(quad[0], quad[3], Color(0, 0, 0, 0.16), 1.0)
+		draw_line(Vector2(0.0, ya), Vector2(_w, ya), Color(0, 0, 0, 0.14 + 0.06 * float(r) / float(rows)), 1.0 + float(r) / float(rows))
 	# two street lamps on the near sidewalk's far edge
 	for lx in lamp_xs():
 		_lamp(Vector2(float(lx), top_s + 4.0), lamp_height())
+
+# The lit display panes, for the level's additive glow over them.
+func window_glows() -> Array:
+	return _window_glows
 
 # At the joints between buildings, so a post never stands across a shop's sign.
 func lamp_xs() -> Array:

@@ -29,8 +29,12 @@ const CLOTH: Color = Color(0.40, 0.08, 0.11)
 const FRINGE: Color = Color(0.86, 0.68, 0.30)
 const SKIN: Color = Color(0.95, 0.78, 0.65)
 const SHIRT: Color = Color(0.86, 0.83, 0.76)
-const VEST: Color = Color(0.17, 0.16, 0.19)
-const CAP: Color = Color(0.30, 0.27, 0.24)
+const VEST: Color = Color(0.20, 0.13, 0.16)       # a deep plum-brown wool (it was near-black, a flat hole)
+const CAP: Color = Color(0.36, 0.31, 0.26)
+const KERCHIEF: Color = Color(0.72, 0.13, 0.14)   # the red neckerchief: the one loud thing he wears
+const BRASS: Color = Color(0.92, 0.74, 0.34)
+const WOOD: Color = Color(0.36, 0.21, 0.11)
+const COOL: Color = Color(0.03, 0.04, 0.12)       # the evening's shadow, laid over a far side
 const LAMP: Color = Color(1.0, 0.78, 0.45)
 
 const HAND_RATE: float = 26.0      # 1/s: how fast a hand closes on where it is going
@@ -144,6 +148,7 @@ func update(now: float) -> void:
 			_lifted[int(_anim["cup"])] = cup_h * LIFT
 			_anim = {}
 	_move_hands(dt)
+	_ease_lean(dt)
 	queue_redraw()
 
 # --- the hands ---------------------------------------------------------------
@@ -319,28 +324,46 @@ func _draw() -> void:
 # Where the shoulders and the head are, given the hands: each shoulder moves a share of the way
 # its hand has moved from rest (in, and up or down with it), a long reach pulls it further, the
 # head follows the torso, and the whole body breathes.
+# How far the torso wants to lean for where the hands are: the reaches beyond an arm's length, summed.
+func _lean_target() -> float:
+	if _hand.size() != 2:
+		return 0.0
+	var u: float = hs
+	var cx: float = table_rect.get_center().x
+	var sh_y: float = hustler_top + u * 1.30
+	var pull: float = 0.0
+	for pair in [[Vector2(cx - u * 0.84, sh_y), _hand[0]], [Vector2(cx + u * 0.84, sh_y), _hand[1]]]:
+		var v: Vector2 = (pair[1] as Vector2) - (pair[0] as Vector2)
+		var over: float = v.length() - u * 1.80
+		if over > 0.0:
+			pull += v.x / v.length() * over
+	return clampf(pull, -u * 0.80, u * 0.80)
+
+const LEAN_RATE: float = 5.0     # 1/s: a torso is heavier than a hand (HAND_RATE is 26)
+var _lean_now: float = 0.0
+
+func _ease_lean(dt: float) -> void:
+	_lean_now = lerpf(_lean_now, _lean_target(), 1.0 - exp(-dt * LEAN_RATE))
+
 func _body_pose() -> Dictionary:
 	var u: float = hs
 	var cx: float = table_rect.get_center().x
 	var breath: float = sin(_now * 0.0021) * u * 0.025
 	var sh_y: float = hustler_top + u * 1.30 + breath
-	var base_l: Vector2 = Vector2(cx - u * 0.70, sh_y)
-	var base_r: Vector2 = Vector2(cx + u * 0.70, sh_y)
-	var hl: Vector2 = _hand[0]
-	var hr: Vector2 = _hand[1]
-	var rl: Vector2 = _rest(0)
-	var rr: Vector2 = _rest(1)
-	var sl: Vector2 = base_l + Vector2((hl.x - rl.x) * 0.14, clampf((hl.y - rl.y) * 0.15, -u * 0.18, u * 0.18))
-	var sr: Vector2 = base_r + Vector2((hr.x - rr.x) * 0.14, clampf((hr.y - rr.y) * 0.15, -u * 0.18, u * 0.18))
-	var reach_l: float = sl.distance_to(hl) - u * 1.85
-	if reach_l > 0.0:
-		sl += (hl - sl).normalized() * reach_l * 0.8
-	var reach_r: float = sr.distance_to(hr) - u * 1.85
-	if reach_r > 0.0:
-		sr += (hr - sr).normalized() * reach_r * 0.8
-	# within what a body can do: the shoulders never cross toward each other
-	sl = Vector2(clampf(sl.x, base_l.x - u * 0.35, base_l.x + u * 0.35), clampf(sl.y, sh_y - u * 0.30, sh_y + u * 0.35))
-	sr = Vector2(clampf(sr.x, base_r.x - u * 0.35, base_r.x + u * 0.35), clampf(sr.y, sh_y - u * 0.30, sh_y + u * 0.35))
+	# a man's shoulders: about three heads across (0.70 was narrow for arms spread over a table)
+	var base_l: Vector2 = Vector2(cx - u * 0.84, sh_y)
+	var base_r: Vector2 = Vector2(cx + u * 0.84, sh_y)
+	# THE SHOULDERS KEEP THEIR WIDTH; THE TORSO LEANS. Each shoulder used to be dragged toward its own
+	# hand, so with a hand across the body (or both to one side) the torso collapsed into a narrow
+	# tube and the waistcoat's shapes folded over each other. A person reaching far LEANS: both
+	# shoulders move together, by however much the longer reach is short of an arm's length, and the
+	# shoulder on the reaching side dips a little.
+	# The lean is EASED (update -> _ease_lean): the hands snap back to rest in a few frames, and a lean
+	# that followed them exactly threw his whole torso back to the center in a jump.
+	var lean: float = _lean_now
+	var dip: float = absf(lean) * 0.12
+	var sl: Vector2 = base_l + Vector2(lean, dip if lean < 0.0 else -dip * 0.5)
+	var sr: Vector2 = base_r + Vector2(lean, dip if lean > 0.0 else -dip * 0.5)
 	var mid: Vector2 = (sl + sr) * 0.5
 	var tilt: float = clampf((sr.y - sl.y) / u, -0.6, 0.6)
 	var head: Vector2 = Vector2(mid.x + (mid.x - cx) * 0.25, hustler_top + u * 0.70 + breath * 1.2 + (mid.y - sh_y) * 0.7)
@@ -364,16 +387,25 @@ func _glow_tex() -> GradientTexture2D:
 		_glow.height = 128
 	return _glow
 
+# The lantern's flame in the level's coordinates, for its additive glow over the scene.
+func lantern_world() -> Vector2:
+	return position + _lantern_pos() + Vector2(0, -cup_h * 0.45)
+
 func _lantern_pos() -> Vector2:
 	return Vector2(table_rect.position.x + table_rect.size.x * 0.10, table_rect.position.y + cup_h * 0.15)
 
 # A polygon lit by the lantern: brighter and warmer the nearer each corner is to it.
-func _shade_poly(pts: PackedVector2Array, c: Color, light_at: Vector2, reach: float, ambient: float = 0.55) -> void:
+# `fade`: indices of corners drawn fully transparent, so the shape melts into what is under it there.
+func _shade_poly(pts: PackedVector2Array, c: Color, light_at: Vector2, reach: float, ambient: float = 0.55, fade: Array = []) -> void:
 	var cols: PackedColorArray = PackedColorArray()
-	for p in pts:
+	for i in pts.size():
+		var p: Vector2 = pts[i]
 		var k: float = ambient + (1.0 - ambient) * clampf(1.0 - p.distance_to(light_at) / reach, 0.0, 1.0)
 		var cc: Color = Color(c.r * k, c.g * k, c.b * k, c.a)
-		cols.append(cc.lerp(Color(minf(1.0, cc.r * 1.08), cc.g, cc.b * 0.85, c.a), k * 0.5))
+		cc = cc.lerp(Color(minf(1.0, cc.r * 1.08), cc.g, cc.b * 0.85, c.a), k * 0.5)
+		if fade.has(i):
+			cc.a = 0.0
+		cols.append(cc)
 	if Geometry2D.triangulate_polygon(pts).is_empty():
 		# a shape folded over itself by an extreme pose: draw its hull rather than nothing
 		var hull: PackedVector2Array = Geometry2D.convex_hull(pts)
@@ -403,72 +435,174 @@ func _draw_hustler(pose: Dictionary) -> void:
 	# then down the side to the waist (behind the table). The shoulders used to be the flat corners
 	# of a box, with the arms stuck on as tubes.
 	var shirt: PackedVector2Array = PackedVector2Array([
-		neck + Vector2(-u * 0.17, -u * 0.06), sl + Vector2(u * 0.10, -u * 0.17), sl + Vector2(-u * 0.04, -u * 0.15),
-		sl + Vector2(-u * 0.14, -u * 0.06), sl + Vector2(-u * 0.17, u * 0.10), sl + Vector2(-u * 0.13, u * 0.40),
+		neck + Vector2(-u * 0.17, -u * 0.06), sl + Vector2(u * 0.10, -u * 0.12), sl + Vector2(-u * 0.04, -u * 0.09),
+		sl + Vector2(-u * 0.14, -u * 0.01), sl + Vector2(-u * 0.17, u * 0.12), sl + Vector2(-u * 0.13, u * 0.40),
 		Vector2(cx - u * 0.60, waist_y), Vector2(cx + u * 0.60, waist_y),
-		sr + Vector2(u * 0.13, u * 0.40), sr + Vector2(u * 0.17, u * 0.10), sr + Vector2(u * 0.14, -u * 0.06),
-		sr + Vector2(u * 0.04, -u * 0.15), sr + Vector2(-u * 0.10, -u * 0.17), neck + Vector2(u * 0.17, -u * 0.06)])
+		sr + Vector2(u * 0.13, u * 0.40), sr + Vector2(u * 0.17, u * 0.12), sr + Vector2(u * 0.14, -u * 0.01),
+		sr + Vector2(u * 0.04, -u * 0.09), sr + Vector2(-u * 0.10, -u * 0.12), neck + Vector2(u * 0.17, -u * 0.06)])
 	_shade_poly(shirt, SHIRT, light, reach, 0.45)
 	# the waistcoat over it, open at the front, its armholes leaving the shirt's shoulders showing
 	_shade_poly(PackedVector2Array([
-		neck + Vector2(-u * 0.15, -u * 0.02), sl + Vector2(u * 0.12, -u * 0.12), sl + Vector2(u * 0.04, u * 0.05),
+		neck + Vector2(-u * 0.185, -u * 0.075), sl + Vector2(u * 0.10, -u * 0.135), sl + Vector2(u * 0.04, u * 0.05),
 		sl + Vector2(-u * 0.02, u * 0.42), Vector2(cx - u * 0.58, waist_y), Vector2(cx - u * 0.04, waist_y),
 		neck + Vector2(-u * 0.04, u * 0.55)]), VEST, light, reach, 0.6)
 	_shade_poly(PackedVector2Array([
-		neck + Vector2(u * 0.15, -u * 0.02), sr + Vector2(-u * 0.12, -u * 0.12), sr + Vector2(-u * 0.04, u * 0.05),
+		neck + Vector2(u * 0.185, -u * 0.075), sr + Vector2(-u * 0.10, -u * 0.135), sr + Vector2(-u * 0.04, u * 0.05),
 		sr + Vector2(u * 0.02, u * 0.42), Vector2(cx + u * 0.58, waist_y), Vector2(cx + u * 0.04, waist_y),
 		neck + Vector2(u * 0.04, u * 0.55)]), VEST.darkened(0.15), light, reach, 0.6)
-	for k in 3:
-		draw_circle(neck + Vector2(-u * 0.07, u * (0.70 + 0.16 * float(k))), u * 0.025, Color(0.75, 0.62, 0.35, 0.8))
-	# the neck and the open collar
+	# THE FACELIFT (2026-11-10). He was a pale shirt, a black shape and a dot-eyed oval. Now: lapels
+	# on the waistcoat with a lit edge, brass buttons, a watch chain swinging to its pocket, a red
+	# neckerchief knotted at the throat, and the lantern (at his right hand, screen-left) lighting one
+	# side of him warm while the other falls into the evening's blue.
+	var lap_l: PackedVector2Array = PackedVector2Array([neck + Vector2(-u * 0.15, -u * 0.02), neck + Vector2(-u * 0.04, u * 0.55),
+		neck + Vector2(-u * 0.20, u * 0.34), neck + Vector2(-u * 0.27, u * 0.06)])
+	var lap_r: PackedVector2Array = PackedVector2Array([neck + Vector2(u * 0.15, -u * 0.02), neck + Vector2(u * 0.04, u * 0.55),
+		neck + Vector2(u * 0.20, u * 0.34), neck + Vector2(u * 0.27, u * 0.06)])
+	_shade_poly(lap_l, VEST.lightened(0.10), light, reach, 0.62)
+	_shade_poly(lap_r, VEST.lightened(0.02), light, reach, 0.62)
+	draw_polyline(PackedVector2Array([lap_l[3], lap_l[2], lap_l[1]]), Color(1.0, 0.85, 0.60, 0.22), maxf(2.0, u * 0.030), true)
+	draw_polyline(PackedVector2Array([lap_r[3], lap_r[2], lap_r[1]]), Color(0, 0, 0, 0.30), maxf(2.0, u * 0.030), true)
+	# the front edge, four brass buttons, each with a glint
+	draw_line(neck + Vector2(-u * 0.04, u * 0.55), Vector2(cx - u * 0.04, waist_y), Color(0, 0, 0, 0.45), maxf(1.0, u * 0.022))
+	for k in 4:
+		var bp: Vector2 = neck + Vector2(-u * 0.085, u * (0.66 + 0.15 * float(k)))
+		if bp.y > waist_y - u * 0.04:
+			break
+		draw_circle(bp, u * 0.030, BRASS.darkened(0.25))
+		draw_circle(bp + Vector2(-u * 0.008, -u * 0.008), u * 0.014, BRASS.lightened(0.35))
+	# a watch chain from a buttonhole down and across to the pocket, and the pocket's welt
+	var ch_a: Vector2 = neck + Vector2(-u * 0.085, u * 0.81)
+	var ch_b: Vector2 = Vector2(cx + u * 0.34, minf(waist_y - u * 0.06, neck.y + u * 1.02))
+	var chain: PackedVector2Array = PackedVector2Array()
+	for k in 11:
+		var f: float = float(k) / 10.0
+		chain.append(ch_a.lerp(ch_b, f) + Vector2(0, sin(f * PI) * u * 0.10))
+	if ch_b.y > ch_a.y - u * 0.3:
+		# ONE smoothed line, at least two units wide: a chain a pixel wide with a thinner glint over
+		# it shimmered as his breathing carried it across the pixel grid
+		draw_polyline(chain, BRASS.darkened(0.05), maxf(2.2, u * 0.036), true)
+		draw_line(ch_b + Vector2(-u * 0.10, 0), ch_b + Vector2(u * 0.12, -u * 0.01), Color(0, 0, 0, 0.45), maxf(1.0, u * 0.022))
+	# the neck, with the jaw's shadow across it
 	_shade_poly(PackedVector2Array([neck + Vector2(-u * 0.14, -u * 0.30), neck + Vector2(u * 0.14, -u * 0.30),
 		neck + Vector2(u * 0.16, u * 0.05), neck + Vector2(0, u * 0.22), neck + Vector2(-u * 0.16, u * 0.05)]),
-		SKIN.darkened(0.15), light, reach, 0.75)
-	draw_line(neck + Vector2(-u * 0.20, -u * 0.02), neck + Vector2(-u * 0.02, u * 0.22), SHIRT.darkened(0.25), u * 0.05)
-	draw_line(neck + Vector2(u * 0.20, -u * 0.02), neck + Vector2(u * 0.02, u * 0.22), SHIRT.darkened(0.25), u * 0.05)
+		SKIN.darkened(0.18), light, reach, 0.75)
+	draw_polygon(PackedVector2Array([neck + Vector2(-u * 0.14, -u * 0.30), neck + Vector2(u * 0.14, -u * 0.30),
+		neck + Vector2(u * 0.15, -u * 0.12), neck + Vector2(-u * 0.15, -u * 0.12)]),
+		PackedColorArray([Color(COOL, 0.42), Color(COOL, 0.42), Color(COOL, 0.0), Color(COOL, 0.0)]))
+	# the shirt's collar points
+	_shade_poly(PackedVector2Array([neck + Vector2(-u * 0.20, -u * 0.06), neck + Vector2(-u * 0.05, u * 0.02), neck + Vector2(-u * 0.13, u * 0.20)]), SHIRT, light, reach, 0.6)
+	_shade_poly(PackedVector2Array([neck + Vector2(u * 0.20, -u * 0.06), neck + Vector2(u * 0.05, u * 0.02), neck + Vector2(u * 0.13, u * 0.20)]), SHIRT.darkened(0.10), light, reach, 0.6)
+	# the neckerchief: a band round the throat, a knot, and two short tails
+	_shade_poly(PackedVector2Array([neck + Vector2(-u * 0.17, -u * 0.04), neck + Vector2(u * 0.17, -u * 0.04),
+		neck + Vector2(u * 0.12, u * 0.10), neck + Vector2(0, u * 0.16), neck + Vector2(-u * 0.12, u * 0.10)]), KERCHIEF, light, reach, 0.6)
+	_shade_poly(PackedVector2Array([neck + Vector2(-u * 0.02, u * 0.14), neck + Vector2(-u * 0.13, u * 0.40), neck + Vector2(-u * 0.03, u * 0.36)]), KERCHIEF.darkened(0.12), light, reach, 0.6)
+	_shade_poly(PackedVector2Array([neck + Vector2(u * 0.02, u * 0.14), neck + Vector2(u * 0.10, u * 0.36), neck + Vector2(u * 0.01, u * 0.33)]), KERCHIEF.darkened(0.25), light, reach, 0.6)
+	_shade_poly(_oval(neck + Vector2(0, u * 0.13), u * 0.055, u * 0.045, 10), KERCHIEF.lightened(0.08), light, reach, 0.7)
+	# (a "far side in shadow" overlay across his body was here; its hard diagonal edge showed as a
+	# strange line on the screen's right, and the darker right half of the waistcoat already says it)
+	# and the lantern's warm rim down his near side
+	draw_polyline(PackedVector2Array([sl + Vector2(-u * 0.15, u * 0.28),
+		sl + Vector2(-u * 0.13, u * 0.40), Vector2(cx - u * 0.60, waist_y)]), Color(1.0, 0.82, 0.52, 0.42), maxf(1.2, u * 0.028), true)
 	_draw_head(pose["head"], pose["tilt"], light, reach)
 
 func _draw_head(hc: Vector2, tilt: float, light: Vector2, reach: float) -> void:
+	# A FACE WITH A CHARACTER (2026-11-10): a showman who has done this a thousand times. A head with
+	# a jaw and a chin, cheekbones, ears set back, sideburns under a newsboy cap; heavy-lidded eyes on
+	# the player, one brow up; a nose with a bridge and wings; a mustache waxed to two curls over a
+	# one-sided smirk. The lantern lights his right cheek (screen-left); the other side goes cool.
 	var u: float = hs
 	var rx: float = u * 0.33
 	var ry: float = u * 0.42
 	var rot: float = tilt * 0.12
+	var at = func(x: float, y: float) -> Vector2: return hc + Vector2(x * rx, y * ry).rotated(rot)
+	# ears, then the skull: wide at the cheekbones, narrowing to a squared chin
+	_shade_poly(_oval(at.call(-1.0, 0.04), u * 0.065, u * 0.11), SKIN.darkened(0.10), light, reach, 0.75)
+	_shade_poly(_oval(at.call(1.0, 0.04), u * 0.065, u * 0.11), SKIN.darkened(0.30), light, reach, 0.75)
+	draw_arc(at.call(-1.0, 0.04), u * 0.04, PI * 0.6, PI * 1.6, 8, Color(0, 0, 0, 0.25), maxf(1.0, u * 0.014))
+	var outline: Array = [[0.0, -1.0], [0.45, -0.94], [0.80, -0.70], [0.96, -0.30], [0.98, 0.10], [0.90, 0.42],
+		[0.72, 0.70], [0.44, 0.92], [0.20, 1.0], [-0.20, 1.0], [-0.44, 0.92], [-0.72, 0.70], [-0.90, 0.42],
+		[-0.98, 0.10], [-0.96, -0.30], [-0.80, -0.70], [-0.45, -0.94]]
 	var face: PackedVector2Array = PackedVector2Array()
-	for k in 24:
-		var a: float = TAU * float(k) / 24.0
-		var p: Vector2 = Vector2(cos(a) * rx * (0.88 if sin(a) > 0.3 else 1.0), sin(a) * ry)
-		face.append(hc + p.rotated(rot))
-	_shade_poly(_oval(hc + Vector2(-rx * 0.98, u * 0.02).rotated(rot), u * 0.07, u * 0.11), SKIN.darkened(0.12), light, reach, 0.75)
-	_shade_poly(_oval(hc + Vector2(rx * 0.98, u * 0.02).rotated(rot), u * 0.07, u * 0.11), SKIN.darkened(0.12), light, reach, 0.75)
-	_shade_poly(face, SKIN, light, reach * 0.9, 0.78)
-	# the cap's shadow over the brow
-	draw_colored_polygon(PackedVector2Array([hc + Vector2(-rx, -ry * 0.42).rotated(rot), hc + Vector2(rx, -ry * 0.42).rotated(rot),
-		hc + Vector2(rx * 0.95, -ry * 0.18).rotated(rot), hc + Vector2(-rx * 0.95, -ry * 0.18).rotated(rot)]), Color(0, 0, 0, 0.25))
-	# eyes: dark, narrow, on the player
+	for q in outline:
+		face.append(at.call(float(q[0]), float(q[1])))
+	_shade_poly(face, SKIN, light, reach * 0.9, 0.80)
+	# the far side of the face in cool shadow; the near cheekbone catching the lantern
+	draw_polygon(PackedVector2Array([at.call(0.15, -0.9), at.call(0.96, -0.5), at.call(0.90, 0.45), at.call(0.40, 0.95), at.call(0.15, 0.95)]),
+		PackedColorArray([Color(COOL, 0.0), Color(COOL, 0.30), Color(COOL, 0.34), Color(COOL, 0.26), Color(COOL, 0.0)]))
+	draw_colored_polygon(_oval(at.call(-0.58, 0.16), u * 0.085, u * 0.055, 10), Color(1.0, 0.86, 0.62, 0.16))
+	draw_colored_polygon(_oval(at.call(-0.50, 0.34), u * 0.07, u * 0.05, 10), Color(0.90, 0.40, 0.30, 0.10))
+	# the hollow under each cheekbone
+	draw_line(at.call(-0.80, 0.30), at.call(-0.50, 0.62), Color(0, 0, 0, 0.10), u * 0.05)
+	draw_line(at.call(0.80, 0.30), at.call(0.50, 0.62), Color(0, 0, 0, 0.14), u * 0.05)
+	# sideburns down from under the cap
+	var hair: Color = Color(0.20, 0.13, 0.09)
 	for s in [-1.0, 1.0]:
-		var e: Vector2 = hc + Vector2(s * rx * 0.40, -ry * 0.12).rotated(rot)
-		draw_colored_polygon(_oval(e, u * 0.055, u * 0.022), Color(0.93, 0.90, 0.86, 0.85))
-		draw_circle(e + Vector2(0, u * 0.002), u * 0.022, Color(0.16, 0.11, 0.08))
-		draw_line(e + Vector2(-u * 0.07, -u * 0.05), e + Vector2(u * 0.07, -u * 0.06), Color(0.22, 0.15, 0.11), u * 0.035)
-	# the nose: a shadow down one side and a lit tip
-	draw_line(hc + Vector2(rx * 0.05, -ry * 0.05).rotated(rot), hc + Vector2(rx * 0.10, ry * 0.22).rotated(rot), Color(0, 0, 0, 0.15), u * 0.045)
-	draw_circle(hc + Vector2(-rx * 0.02, ry * 0.24).rotated(rot), u * 0.035, SKIN.lightened(0.08))
-	# stubble along the jaw, the mustache, the mouth
-	draw_colored_polygon(PackedVector2Array([hc + Vector2(-rx * 0.85, ry * 0.25).rotated(rot), hc + Vector2(rx * 0.85, ry * 0.25).rotated(rot),
-		hc + Vector2(rx * 0.45, ry * 0.92).rotated(rot), hc + Vector2(-rx * 0.45, ry * 0.92).rotated(rot)]), Color(0.25, 0.18, 0.14, 0.18))
-	draw_colored_polygon(PackedVector2Array([hc + Vector2(-rx * 0.48, ry * 0.46).rotated(rot), hc + Vector2(-rx * 0.08, ry * 0.33).rotated(rot),
-		hc + Vector2(rx * 0.08, ry * 0.33).rotated(rot), hc + Vector2(rx * 0.48, ry * 0.46).rotated(rot),
-		hc + Vector2(rx * 0.10, ry * 0.43).rotated(rot), hc + Vector2(-rx * 0.10, ry * 0.43).rotated(rot)]), Color(0.20, 0.13, 0.09))
-	draw_line(hc + Vector2(-rx * 0.20, ry * 0.58).rotated(rot), hc + Vector2(rx * 0.22, ry * 0.56).rotated(rot), Color(0.35, 0.15, 0.13, 0.8), u * 0.025)
-	# the flat cap, its peak forward
-	var cap: PackedVector2Array = PackedVector2Array()
-	for k in 15:
-		var a2: float = PI * 1.02 + PI * 0.96 * float(k) / 14.0
-		cap.append(hc + Vector2(cos(a2) * rx * 1.12, sin(a2) * ry * 0.72 - ry * 0.32).rotated(rot))
-	_shade_poly(cap, CAP, light, reach, 0.5)
-	_shade_poly(PackedVector2Array([hc + Vector2(-rx * 1.05, -ry * 0.36).rotated(rot), hc + Vector2(rx * 1.05, -ry * 0.36).rotated(rot),
-		hc + Vector2(rx * 0.95, -ry * 0.24).rotated(rot), hc + Vector2(-rx * 0.95, -ry * 0.24).rotated(rot)]), CAP.darkened(0.35), light, reach)
-	draw_line(hc + Vector2(-rx * 0.2, -ry * 1.02).rotated(rot), hc + Vector2(rx * 0.1, -ry * 0.40).rotated(rot), Color(0, 0, 0, 0.18), u * 0.02)
+		draw_colored_polygon(PackedVector2Array([at.call(s * 0.97, -0.34), at.call(s * 0.80, -0.34), at.call(s * 0.82, 0.10), at.call(s * 0.95, 0.20)]),
+			hair if s < 0.0 else hair.darkened(0.3))
+	# the cap's shadow over the brow
+	draw_polygon(PackedVector2Array([at.call(-0.97, -0.44), at.call(0.97, -0.44), at.call(0.95, -0.10), at.call(-0.95, -0.10)]),
+		PackedColorArray([Color(0, 0, 0, 0.26), Color(0, 0, 0, 0.26), Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.0)]))
+	# the eyes: a lidded almond, the iris half under the lid, a glint; the left brow raised
+	for s in [-1.0, 1.0]:
+		var e: Vector2 = at.call(s * 0.42, -0.12)
+		var almond: PackedVector2Array = PackedVector2Array()
+		for k in 12:
+			var a2: float = TAU * float(k) / 12.0
+			almond.append(e + Vector2(cos(a2) * u * 0.070, sin(a2) * u * (0.022 if sin(a2) < 0.0 else 0.030)).rotated(rot))
+		draw_colored_polygon(almond, Color(0.95, 0.92, 0.88))
+		draw_circle(e + Vector2(0, u * 0.004).rotated(rot), u * 0.027, Color(0.30, 0.20, 0.12))
+		draw_circle(e + Vector2(0, u * 0.004).rotated(rot), u * 0.013, Color(0.05, 0.04, 0.04))
+		draw_circle(e + Vector2(-u * 0.010, -u * 0.006).rotated(rot), u * 0.007, Color(1, 1, 1, 0.9))
+		# the heavy upper lid, and a line under the eye
+		draw_line(e + Vector2(-u * 0.078, -u * 0.012).rotated(rot), e + Vector2(u * 0.078, -u * 0.016).rotated(rot), Color(0.16, 0.10, 0.08), u * 0.022)
+		draw_line(e + Vector2(-u * 0.055, u * 0.040).rotated(rot), e + Vector2(u * 0.055, u * 0.038).rotated(rot), Color(0, 0, 0, 0.12), u * 0.012)
+		# the brow: thick at the nose, tapering out; the one on the lantern's side cocked up
+		var lift: float = -u * 0.035 if s < 0.0 else 0.0
+		draw_colored_polygon(PackedVector2Array([e + Vector2(-s * u * 0.075, -u * 0.058).rotated(rot), e + Vector2(s * u * 0.010, -u * 0.088 + lift).rotated(rot),
+			e + Vector2(s * u * 0.105, -u * 0.058 + lift * 0.6).rotated(rot), e + Vector2(s * u * 0.010, -u * 0.062 + lift).rotated(rot)]), hair)
+	# the nose: a lit bridge, a shadow down its far side, the tip and two wings
+	draw_line(at.call(-0.03, -0.14), at.call(-0.05, 0.20), Color(1.0, 0.92, 0.80, 0.22), u * 0.03)
+	draw_line(at.call(0.10, -0.10), at.call(0.13, 0.22), Color(0, 0, 0, 0.20), u * 0.04)
+	_shade_poly(_oval(at.call(0.0, 0.26), u * 0.060, u * 0.045, 10), SKIN.lightened(0.04), light, reach, 0.85)
+	draw_circle(at.call(-0.13, 0.30), u * 0.016, Color(0, 0, 0, 0.35))
+	draw_circle(at.call(0.13, 0.30), u * 0.016, Color(0, 0, 0, 0.40))
+	# stubble along the jaw
+	draw_colored_polygon(PackedVector2Array([at.call(-0.90, 0.36), at.call(0.90, 0.36), at.call(0.44, 0.94), at.call(-0.44, 0.94)]), Color(0.22, 0.16, 0.13, 0.16))
+	# the mustache: full under the nose, waxed out to a curl at each end
+	for s in [-1.0, 1.0]:
+		var m: PackedVector2Array = PackedVector2Array([at.call(0.0, 0.37), at.call(s * 0.22, 0.34), at.call(s * 0.50, 0.42),
+			at.call(s * 0.66, 0.36), at.call(s * 0.62, 0.48), at.call(s * 0.40, 0.52), at.call(s * 0.14, 0.47), at.call(0.0, 0.46)])
+		draw_colored_polygon(m, hair if s < 0.0 else hair.darkened(0.25))
+		draw_arc(at.call(s * 0.66, 0.40), u * 0.028, (PI * 0.2 if s > 0.0 else PI * 0.8), (PI * 1.6 if s > 0.0 else -PI * 0.6), 8, hair, maxf(1.0, u * 0.016))
+	draw_line(at.call(-0.30, 0.40), at.call(-0.10, 0.40), Color(1, 1, 1, 0.10), u * 0.012)
+	# the smirk: up at one corner, the lower lip's light under it, a crease beside it
+	draw_polyline(PackedVector2Array([at.call(-0.26, 0.60), at.call(0.0, 0.62), at.call(0.24, 0.58), at.call(0.34, 0.53)]), Color(0.40, 0.16, 0.14, 0.9), maxf(1.0, u * 0.024), true)
+	draw_line(at.call(-0.14, 0.68), at.call(0.14, 0.67), Color(1.0, 0.80, 0.70, 0.16), u * 0.02)
+	draw_arc(at.call(0.40, 0.52), u * 0.05, -PI * 0.35, PI * 0.35, 6, Color(0, 0, 0, 0.18), maxf(1.0, u * 0.012))
+	draw_line(at.call(-0.08, 0.86), at.call(0.08, 0.86), Color(0, 0, 0, 0.12), u * 0.014)
+	# THE NEWSBOY CAP: a full soft crown in panels meeting at a button, drooping over a short peak
+	var crown: PackedVector2Array = PackedVector2Array()
+	for k in 17:
+		var a3: float = PI * 1.0 + PI * 1.0 * float(k) / 16.0
+		crown.append(at.call(cos(a3) * 1.22, sin(a3) * 0.80 - 0.40))
+	crown.append(at.call(1.12, -0.30))
+	crown.append(at.call(-1.12, -0.30))
+	_shade_poly(crown, CAP, light, reach, 0.55)
+	for k in 5:
+		var px: float = -0.8 + 0.4 * float(k)
+		draw_line(at.call(0.0, -1.18), at.call(px, -0.34), Color(0, 0, 0, 0.16), maxf(1.0, u * 0.012))
+	draw_polygon(PackedVector2Array([at.call(0.1, -1.18), at.call(1.20, -0.55), at.call(1.12, -0.30), at.call(0.1, -0.30)]),
+		PackedColorArray([Color(COOL, 0.0), Color(COOL, 0.36), Color(COOL, 0.36), Color(COOL, 0.0)]))
+	draw_circle(at.call(0.0, -1.18), u * 0.035, CAP.lightened(0.15))
+	# the peak: a curved brim, its top catching light, its underside dark
+	# (its lower edge is a real ARC: three nearly collinear points along it sometimes failed to
+	# triangulate as he breathed, and the peak flickered between its shading and a flat fallback)
+	var peak: PackedVector2Array = PackedVector2Array([at.call(-1.02, -0.34), at.call(1.02, -0.34)])
+	for k in 9:
+		var pa: float = PI * float(k) / 8.0
+		peak.append(at.call(cos(pa) * 1.00, -0.26 + sin(pa) * 0.17))
+	_shade_poly(peak, CAP.darkened(0.30), light, reach, 0.6)
+	draw_line(at.call(-1.00, -0.33), at.call(1.00, -0.33), Color(1.0, 0.90, 0.70, 0.20), maxf(2.0, u * 0.03), true)
 
 # Two bones from the shoulder to the hand, the elbow bending outward. A rolled shirt sleeve to the
 # elbow, a bare forearm, and the hand cupped over the cup's top.
@@ -478,7 +612,14 @@ func _draw_arm(sh: Vector2, hand: Vector2, side: float) -> void:
 	# length, the elbows had to stick out like wings to make up the distance
 	var l1: float = u * 1.00
 	var l2: float = u * 0.92
-	var d: float = clampf(sh.distance_to(hand), 0.01, l1 + l2 - 0.5)
+	# a reach longer than the arm (across the table, even after the lean) is drawn a little longer:
+	# from the front, an arm coming toward the viewer and across shows more of its length
+	var want: float = sh.distance_to(hand)
+	if want > l1 + l2 - 0.5:
+		var grow: float = minf(1.45, (want + 0.5) / (l1 + l2))
+		l1 *= grow
+		l2 *= grow
+	var d: float = clampf(want, 0.01, l1 + l2 - 0.5)
 	var dirv: Vector2 = (hand - sh).normalized()
 	var a: float = acos(clampf((l1 * l1 + d * d - l2 * l2) / (2.0 * l1 * d), -1.0, 1.0))
 	# Of the two ways the arm can bend, always the one with the elbow OUT to the side (then down).
@@ -490,14 +631,65 @@ func _draw_arm(sh: Vector2, hand: Vector2, side: float) -> void:
 	var elbow: Vector2 = sh + dirv.rotated(a * -side) * l1
 	var light: Vector2 = _lantern_pos() + Vector2(0, -u * 0.6)
 	# a slim sleeve from inside the shoulder's cap, rolled at the elbow, then the bare forearm
-	_limb(sh, elbow, u * 0.15, u * 0.115, SHIRT.darkened(0.06), light)
-	draw_circle(elbow, u * 0.105, SHIRT.darkened(0.28))
-	var wrist: Vector2 = hand + (elbow - hand).normalized() * u * 0.16
-	_limb(elbow, wrist, u * 0.095, u * 0.07, SKIN.darkened(0.05), light, 0.75)
-	_shade_poly(_oval(hand + Vector2(0, -u * 0.02), u * 0.19, u * 0.12), SKIN, light, u * 4.0, 0.78)
+	# (the shoulder line SLOPES DOWN from the neck to the arm: the joint sits below the neck's base)
+	# THE SHOULDER CAP TURNS WITH THE ARM. The sleeve's round end at the joint, drawn bare, was a pale
+	# ball on the dark waistcoat; a strap fixed in place over it cut off an arm crossing his chest (or,
+	# drawn under such an arm, let the ball show again -- and switching between the two made the layers
+	# swap mid-move). So the waistcoat covers the HALF of the joint that faces AWAY from the arm,
+	# whichever way the arm points: its inner top for an arm hanging out to the side (the strap), its
+	# outer top for one reaching across (his shoulder). It rotates continuously; nothing swaps.
+	var joint: Vector2 = sh + Vector2(0, u * 0.07)
+	_limb(joint, elbow, u * 0.165, u * 0.125, SHIRT.darkened(0.04), light)
+	var adir: Vector2 = (elbow - joint).normalized()
+	var th: float = adir.angle()
+	var cap: PackedVector2Array = PackedVector2Array()
+	for k in 13:
+		var ca: float = th + PI * 0.5 + PI * float(k) / 12.0
+		cap.append(joint + adir * u * 0.035 + Vector2(cos(ca), sin(ca)) * u * 0.178)
+	_shade_poly(cap, VEST if side < 0.0 else VEST.darkened(0.15), light, hs * 4.2, 0.6)
+	# the armhole's seam across the sleeve, in shadow
+	draw_line(cap[0], cap[12], Color(0, 0, 0, 0.38), maxf(1.0, u * 0.022), true)
+	# the sleeve is ROLLED to the elbow (a thick fold with a lit top), and held by a garter above it
+	var along: Vector2 = (elbow - sh).normalized()
+	var acr: Vector2 = along.orthogonal()
+	_shade_poly(_oval(elbow, u * 0.135, u * 0.125, 12), SHIRT.darkened(0.16), light, cup_h * 4.0, 0.55)
+	draw_arc(elbow, u * 0.112, 0.0, TAU, 12, Color(0, 0, 0, 0.22), maxf(1.0, u * 0.016))
+	var gp: Vector2 = sh.lerp(elbow, 0.58)
+	draw_line(gp - acr * u * 0.15, gp + acr * u * 0.15, KERCHIEF.darkened(0.25), maxf(1.5, u * 0.045))
+	draw_line(gp - acr * u * 0.15 - along * u * 0.012, gp + acr * u * 0.15 - along * u * 0.012, Color(1, 1, 1, 0.16), maxf(1.0, u * 0.010))
+	# the forearm, tapering to the wrist
+	var fdir: Vector2 = (hand - elbow).normalized()
+	var wrist: Vector2 = hand - fdir * u * 0.17
+	_limb(elbow, wrist, u * 0.105, u * 0.070, SKIN.darkened(0.05), light, 0.75)
+	# THE HAND, resting on the cup: the back of the hand widening from the wrist to the knuckles,
+	# four fingers draped over the cup's near edge (each its own length, a knuckle on each), and the
+	# thumb down its inner side. It was an oval with four sticks.
+	# fn points to the hand's OUTER side: a quarter turn from the forearm, the same way round always
+	# (choosing by its sign flipped the whole hand over whenever the forearm came level)
+	var fn: Vector2 = fdir.rotated(-side * PI * 0.5)
+	var back: PackedVector2Array = PackedVector2Array([
+		wrist - fn * u * 0.070, wrist + fn * u * 0.070,
+		hand + fn * u * 0.135 - fdir * u * 0.02, hand + fn * u * 0.150 + fdir * u * 0.05,
+		hand + fn * u * 0.05 + fdir * u * 0.085, hand - fn * u * 0.07 + fdir * u * 0.080,
+		hand - fn * u * 0.150 + fdir * u * 0.04, hand - fn * u * 0.130 - fdir * u * 0.03])
+	_shade_poly(back, SKIN, light, u * 4.0, 0.78)
+	var down: Vector2 = (fdir * 0.35 + Vector2(0, 1.0)).normalized()
+	var lens: Array = [0.150, 0.180, 0.170, 0.135]
 	for f in 4:
-		var fx: float = hand.x - u * 0.13 + u * 0.085 * float(f)
-		_limb(Vector2(fx, hand.y), Vector2(fx + side * u * 0.01, hand.y + u * 0.11), u * 0.035, u * 0.030, SKIN.darkened(0.08), light, 0.75)
+		var kx: float = -0.118 + 0.079 * float(f)
+		var k0: Vector2 = hand + fn * u * kx + fdir * u * 0.065
+		var fd: Vector2 = down.rotated((float(f) - 1.5) * 0.10 * side)
+		var mid: Vector2 = k0 + fd * u * float(lens[f]) * 0.55
+		var tip: Vector2 = mid + (fd * 0.75 + Vector2(0, 0.45)).normalized() * u * float(lens[f]) * 0.45
+		_limb(k0, mid, u * 0.040, u * 0.036, SKIN.darkened(0.03), light, 0.78)
+		_limb(mid, tip, u * 0.036, u * 0.030, SKIN.darkened(0.09), light, 0.75)
+		draw_arc(k0, u * 0.030, PI * 1.1, PI * 1.9, 5, Color(0, 0, 0, 0.14), maxf(1.0, u * 0.010))
+	# the thumb, from the heel of the hand down the inner side
+	var t0: Vector2 = wrist - fn * u * 0.075 + fdir * u * 0.05
+	var t1: Vector2 = t0 - fn * u * 0.085 + down * u * 0.09
+	var t2: Vector2 = t1 + down * u * 0.085
+	_limb(t0, t1, u * 0.050, u * 0.040, SKIN.darkened(0.06), light, 0.78)
+	_limb(t1, t2, u * 0.040, u * 0.030, SKIN.darkened(0.10), light, 0.75)
 
 func _limb(a: Vector2, b: Vector2, ra: float, rb: float, c: Color, light: Vector2, ambient: float = 0.5) -> void:
 	var dv: Vector2 = b - a
@@ -529,9 +721,46 @@ func _draw_table() -> void:
 	# a soft pool of light where the cups stand
 	var pc: Vector2 = Vector2(r.get_center().x, base_y - cup_h * 0.05)
 	draw_texture_rect(_glow_tex(), Rect2(pc - Vector2(r.size.x * 0.42, r.size.y * 0.55), Vector2(r.size.x * 0.84, r.size.y * 1.1)), false, Color(0.95, 0.85, 0.55, 0.16))
-	draw_line(Vector2(r.position.x, r.end.y), Vector2(r.end.x, r.end.y), Color(0.55, 0.75, 0.55, 0.5), 2.0)
+	# THE TABLE (2026-11-10 facelift): a shadow on the pavement under it; worn rings in the baize
+	# where the cups always stand; a wooden rail along its front edge with a lit top and brass
+	# corners; the stakes -- a short stack of coins and a folded note -- at its far end.
+	draw_colored_polygon(_oval(Vector2(r.get_center().x, r.end.y + skirt_h + 6.0), r.size.x * 0.56, maxf(8.0, skirt_h * 0.16), 22), Color(0, 0, 0, 0.42))
+	for sx in slot_x:
+		var ring: PackedVector2Array = _oval(Vector2(float(sx), base_y), cup_w * 0.62, cup_w * 0.62 * VIEW_TILT, 22)
+		ring.append(ring[0])
+		draw_polyline(ring, Color(1, 1, 1, 0.07), maxf(1.0, cup_w * 0.05), true)
+	var speck: RandomNumberGenerator = RandomNumberGenerator.new()
+	speck.seed = 77
+	for k in 70:
+		var fy: float = speck.randf()
+		var fx2: float = speck.randf()
+		var sp: Vector2 = Vector2(lerpf(r.position.x + inset * (1.0 - fy), r.end.x - inset * (1.0 - fy), fx2), lerpf(r.position.y, r.end.y, fy))
+		draw_rect(Rect2(sp, Vector2(1.5, 1.0)), Color(1, 1, 1, 0.05) if speck.randf() < 0.5 else Color(0, 0, 0, 0.10))
+	# the stakes
+	var st: Vector2 = Vector2(r.end.x - r.size.x * 0.085, r.position.y + r.size.y * 0.52)
+	var note: PackedVector2Array = PackedVector2Array([st + Vector2(-cup_w * 0.52, -cup_w * 0.10), st + Vector2(cup_w * 0.10, -cup_w * 0.16),
+		st + Vector2(cup_w * 0.16, cup_w * 0.02), st + Vector2(-cup_w * 0.46, cup_w * 0.08)])
+	draw_colored_polygon(note, Color(0.55, 0.66, 0.50))
+	draw_polyline(PackedVector2Array([note[0], note[1], note[2], note[3], note[0]]), Color(0.25, 0.35, 0.25, 0.8), 1.0, true)
+	draw_line(note[0].lerp(note[3], 0.5), note[1].lerp(note[2], 0.5), Color(0.25, 0.35, 0.25, 0.5), 1.0)
+	for k in 4:
+		var cc: Vector2 = st + Vector2(cup_w * 0.16, cup_w * 0.02 - float(k) * cup_w * 0.045)
+		draw_colored_polygon(_oval(cc, cup_w * 0.17, cup_w * 0.17 * VIEW_TILT, 14), BRASS.darkened(0.30 - 0.06 * float(k)))
+		draw_colored_polygon(_oval(cc + Vector2(0, -cup_w * 0.018), cup_w * 0.17, cup_w * 0.17 * VIEW_TILT, 14), BRASS.darkened(0.08 - 0.02 * float(k)))
+	draw_colored_polygon(_oval(st + Vector2(cup_w * 0.14, cup_w * 0.02 - 3.0 * cup_w * 0.045 - cup_w * 0.03), cup_w * 0.07, cup_w * 0.07 * VIEW_TILT, 10), Color(1.0, 0.96, 0.78, 0.55))
+	draw_colored_polygon(_oval(st + Vector2(-cup_w * 0.22, cup_w * 0.16), cup_w * 0.14, cup_w * 0.14 * VIEW_TILT, 14), Color(0.78, 0.78, 0.80))
+	# the front rail
+	var rail_h: float = maxf(5.0, cup_h * 0.13)
+	var rail: Rect2 = Rect2(r.position.x - 3.0, r.end.y - 1.0, r.size.x + 6.0, rail_h)
+	var wl: float = 0.60 + 0.40 * clampf(1.0 - absf(rail.position.x - light.x) / (r.size.x * 0.9), 0.0, 1.0)
+	draw_polygon(PackedVector2Array([rail.position, Vector2(rail.end.x, rail.position.y), rail.end, Vector2(rail.position.x, rail.end.y)]),
+		PackedColorArray([WOOD.lightened(0.12) * wl, WOOD.darkened(0.25), WOOD.darkened(0.50), WOOD.darkened(0.15) * wl]))
+	draw_line(rail.position, Vector2(rail.end.x, rail.position.y), Color(1.0, 0.86, 0.60, 0.40), 1.5)
+	for cxp in [rail.position.x + rail_h * 0.7, rail.end.x - rail_h * 0.7]:
+		draw_circle(Vector2(cxp, rail.position.y + rail_h * 0.5), rail_h * 0.28, BRASS.darkened(0.2))
+		draw_circle(Vector2(cxp - 0.6, rail.position.y + rail_h * 0.5 - 0.6), rail_h * 0.12, BRASS.lightened(0.3))
 	# the cloth down the front: soft folds, shaded from the lantern, a gold fringe
-	var sk: Rect2 = Rect2(r.position.x, r.end.y, r.size.x, skirt_h)
+	var sk: Rect2 = Rect2(r.position.x, r.end.y + maxf(5.0, cup_h * 0.13) - 1.0, r.size.x, skirt_h)
 	var folds: int = 14
 	for k in folds:
 		var x0: float = sk.position.x + sk.size.x * float(k) / float(folds)
@@ -551,6 +780,21 @@ func _draw_table() -> void:
 		x += 4.0
 	draw_rect(Rect2(sk.position.x, fringe_y - 8.0, sk.size.x, 4.0), FRINGE.darkened(0.2))
 	draw_rect(Rect2(sk.position.x, fringe_y - 8.0, sk.size.x, 1.5), FRINGE.lightened(0.2))
+	# a gold braid above the fringe: two lines and a run of small scallops between them
+	var braid_y: float = fringe_y - 8.0 - maxf(9.0, skirt_h * 0.16)
+	draw_line(Vector2(sk.position.x, braid_y), Vector2(sk.end.x, braid_y), FRINGE.darkened(0.15), 1.5)
+	draw_line(Vector2(sk.position.x, braid_y + maxf(6.0, skirt_h * 0.10)), Vector2(sk.end.x, braid_y + maxf(6.0, skirt_h * 0.10)), FRINGE.darkened(0.15), 1.5)
+	var sc_w: float = maxf(8.0, skirt_h * 0.14)
+	var sxp: float = sk.position.x + sc_w * 0.5
+	while sxp < sk.end.x:
+		draw_arc(Vector2(sxp, braid_y + 1.0), sc_w * 0.42, 0.0, PI, 8, FRINGE.darkened(0.05), 1.3)
+		sxp += sc_w
+	# a tassel at each front corner
+	for tx in [sk.position.x + 4.0, sk.end.x - 4.0]:
+		draw_line(Vector2(tx, sk.position.y + 2.0), Vector2(tx, sk.position.y + skirt_h * 0.34), FRINGE.darkened(0.1), 2.0)
+		draw_circle(Vector2(tx, sk.position.y + skirt_h * 0.36), maxf(3.0, skirt_h * 0.045), FRINGE)
+		draw_colored_polygon(PackedVector2Array([Vector2(tx - skirt_h * 0.035, sk.position.y + skirt_h * 0.38), Vector2(tx + skirt_h * 0.035, sk.position.y + skirt_h * 0.38),
+			Vector2(tx + skirt_h * 0.06, sk.position.y + skirt_h * 0.56), Vector2(tx - skirt_h * 0.06, sk.position.y + skirt_h * 0.56)]), FRINGE.darkened(0.18))
 
 func _draw_lantern() -> void:
 	var u: float = cup_h
