@@ -32,6 +32,7 @@ func _ready() -> void:
 	hud.set_game(game)
 	hud.show()
 	hud.show_corrects_mistakes()
+	_dress_top_bar()
 	hud.update_all()
 	game.sig_game_is_done.connect(on_game_is_done)
 	$Level.sig_level_is_done.connect(_on_level_sig_level_is_done)
@@ -44,7 +45,8 @@ func _ready() -> void:
 		"A street hustler hides a ball under one of the cups and shuffles them. " +
 		"Follow it, and tap the cup it is under.\n\n" +
 		"Meanwhile, somewhere on the street around you, a pickpocket lifts a wallet. " +
-		"When the cups stop, everyone freezes: tap the person who was robbed.\n\n" +
+		"When the cups stop, everyone freezes: tap the person who was robbed, " +
+		"or No one if you are sure nothing was taken.\n\n" +
 		"A round counts only when you get both right.", 26)
 	if not game.shown_instructions:
 		game.show_instructions(self)
@@ -206,3 +208,17 @@ func _input(event: InputEvent) -> void:
 
 func refresh_menu() -> void:
 	main_menu.update_option(1, PickpocketLevelConfig.id_to_index(PickpocketG.starting_level_id))
+
+# The top bar belongs to the night: the shared HUD's gray strip, recolored for this game alone to the
+# sky's deep navy with a thin gold line under it (every other game keeps the gray).
+func _dress_top_bar() -> void:
+	var bar: Label = hud.get_node_or_null("BkLabel") as Label
+	if bar == null:
+		return
+	var sb: StyleBoxFlat = bar.get_theme_stylebox("normal") as StyleBoxFlat
+	if sb == null:
+		return
+	var night: StyleBoxFlat = sb.duplicate() as StyleBoxFlat
+	night.bg_color = Color(0.045, 0.055, 0.14)
+	night.border_color = Color(0.976, 0.792, 0.353, 0.55)
+	bar.add_theme_stylebox_override("normal", night)

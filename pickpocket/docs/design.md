@@ -47,9 +47,58 @@ the whole scene read wrong. The onlookers answer "who is he playing for?". They 
 edges (`_place_crowd`) because the outermost cup must never be behind one of them.
 
 Light: two street lamps (`street.lamp_xs`) and the hustler's hurricane lantern. Each person is lit by
-the nearest lamp, from its side and more strongly nearer to it (`_light_people` sets `light_dir` /
-`light_amt`). Lamp glows and the pools they throw are an additive layer (`_glow`), and an evening
+BOTH lamps, each weighted by how strongly it reaches them, and the side the light comes from is their
+blend (`_light_people` sets `light_dir` / `light_amt` every frame). Every one-sided effect on a person
+-- the form shadow down the far side, the warm rim, the sleeve's and head's highlights -- is scaled by
+how one-sided the light is (`|light_dir|`), so under a lamp they fade out and back in on the other
+side. Lit by the single nearest lamp, a walker's lit side flipped in one step halfway between two
+lamps and swung across in a few steps under each, so their coat's shading jumped as they passed a
+post. Lamp glows and the pools they throw are an additive layer (`_glow`), and an evening
 shade darkens the screen's edges and the bottom (`_shade`).
+
+## The look (the 2026-11-10 facelift)
+
+- **Dusk, lit by its lamps and windows.** A deep-blue sky with stars and a moon over a skyline of
+  different heights with chimneys; every lit shop window and door lays its light on the far sidewalk
+  and a little way onto the road, and glows into the street (`street.window_glows`, drawn additively
+  by the level); each lamp has a visible cone down to a pool; the whole scene is tinted a shade
+  cooler and darker (`_draw_shade`), so the warm lights are what light it.
+- **The street is DRY.** A wet road (every window a reflection in the asphalt) and puddles were tried
+  and removed: nothing else in the scene says rain, and the shiny tar read as odd.
+- **The scene runs to the very bottom of the screen**, behind the app's bottom bar
+  (`full_screen_size`); it used to stop at the play area's edge, leaving a gray band.
+- **The near sidewalk is flagstones**, staggered, each a tone of its own.
+- **People** (`passerby.gd`): warm light and COOL shadow (`_lit`), a soft form shadow down the far
+  side of the body and the back of the head, a warm rim on the lamp's side (shoulder, side, hem,
+  head, sleeve), lapels, buttons, a pocket flap, cuffs, a trouser crease and a sole; a face with an
+  eye (white, iris, lid), a brow in the hair's color, a nostril, lips, an ear's fold and a sheen on
+  the hair. All sizes are shares of `h`, so the far lane stays a few clean pixels. Each casts a long
+  shadow away from its lamp. The ONLOOKERS are lit by the hustler's lantern, from the table's side
+  (`_light_people`, lane 2) -- under the street lamps alone they were murky at the screen's edges.
+
+- **The hustler** (`shell_table.gd` `_draw_hustler` / `_draw_head`): a showman with a face -- a jaw
+  and cheekbones, heavy-lidded eyes on the player with one brow cocked, a nose with a bridge and
+  wings, a mustache waxed to two curls over a one-sided smirk, sideburns under a paneled newsboy cap
+  with its button. A plum waistcoat with lapels, brass buttons and a watch chain, a red neckerchief,
+  sleeves rolled to the elbow under red garters. The lantern lights his near side warm (a rim down
+  it); his far side and the far side of his face go to the evening's blue (`COOL`).
+- **His shoulders and hands**: shoulders about three heads across (`_body_pose`, 0.84 `hs` each
+  side), sloping DOWN from the neck, each under a cap of waistcoat that turns with the arm (below).
+  (A "far side in shadow" overlay across his body was removed: its hard edge showed as a stray
+  line.) A HAND on each
+  cup -- the back of the hand widening to the knuckles, four fingers of their own lengths draped over
+  the cup's near edge, the thumb down the inner side (it was an oval with four sticks). The cap's
+  peak has an arc for its lower edge: three nearly collinear points there sometimes failed to
+  triangulate as he breathed, and the peak flickered.
+- **Everyone's hands** (`passerby._draw_arm`): a palm running on from the forearm, the fingers as one
+  tapering shape, a thumb on the forward side (they were small ovals).
+- **The table**: a shadow on the pavement, worn rings in the baize where the cups stand, a wooden
+  front rail with brass corners, the stakes (a note and a short stack of coins) at its far end, and
+  on the velvet skirt a gold braid of scallops above the fringe with a tassel at each corner.
+- **The lantern lights its corner**: `shell_table.lantern_world()` gives the level the flame, and
+  `_draw_glow` lays a wide warm bloom over the table, the hustler and the onlookers.
+- **The top bar is the night's**: `main.gd` `_dress_top_bar` recolors the shared HUD's gray strip
+  (`BkLabel`) to the sky's navy with a thin gold line, for this game only.
 
 ## A round
 
@@ -60,18 +109,22 @@ shade darkens the screen's edges and the bottom (`_shade`).
    cups along opposite arcs, one in front of the other. A feint (`fake_p`) meets in the middle and
    goes back.
 3. **FREEZE**: the whistle. Everyone stops mid-stride; nothing moves until the round ends.
-4. **ASK_CUP**: "Where is the ball?" (Both QUESTIONS are set apart from the feedback lines: bigger
-   type, a gold-edged pill with a shadow, and a pop as they appear -- `_say(..., question = true)`.
-   Plain, they read like captions and were missed.) Tapping a cup lifts it (`ball` / `empty`). After a wrong cup,
+4. **ASK_CUP**: "Where is the ball?" (EVERY line the game says is framed and popped in -- a dark
+   pill with a shadow and an edge, `_say`: the two questions at 36 with a gold edge, the result lines
+   at 30 with the edge in their own color. Plain, they read like captions and were missed.) Tapping a cup lifts it (`ball` / `empty`). After a wrong cup,
    the right one comes up too.
 5. **ASK_PERSON**: "Who was robbed?" (or "Who was the pickpocket?", `thief_q`). Tap a person, or
-   "No one" on levels with empty rounds. On desktop the person under the pointer is ringed. A tap
+   "No one" -- offered on EVERY level, also where no round is ever empty: a button that appeared
+   only where it could be the answer would say something. On desktop the person under the pointer is ringed. A tap
    is tested against each person's EXACT drawn shapes (`passerby.hit`, the polygons of the last
    draw), frontmost first; only a tap on no body at all falls back to the nearest figure's box. The
    answer tags are drawn on a layer over everything, their pointer ending on the crown
    (`head_top`), and the prompt sits on the table's cloth, where no tag can fall under it.
 6. **FEEDBACK**: tags over the victim ("Robbed") and the pickpocket ("Pickpocket"), and over a
-   wrong pick ("Your pick"), plus one line: "Both right! +20", "Found the ball, missed the theft",
+   wrong pick ("Your pick"). No two tags ever overlap (`_stack_tags`): the person nearer the viewer
+   keeps theirs, the one behind lifts theirs a line at a time until it is clear (`passerby.tag_box`),
+   over EVERYONE tagged (`_all_people()`: the onlookers are not among the street's `_people`, and
+   stacking only those left a pickpocket and victim both at the table overlapping), plus one line: "Both right! +20", "Found the ball, missed the theft",
    "Caught the theft, lost the ball", "Missed both".
 
 ## The theft is choreographed
@@ -86,7 +139,12 @@ pickpocket to get away. It happens in one of two places.
   they walk on, or double back half the time, and stop at a window once they are clear of the
   victim. If nobody suitable is on the street, someone stops to look in a window and is tried again.
 - **In the crowd at the table** (`_plan_crowd_theft`, about a third of thefts when there is a pair):
-  the outer onlooker lifts the inner one's wallet without taking a step (`reach_at` = the pocket).
+  one onlooker of a pair robs the other without taking a step, EITHER WAY ROUND at random -- the
+  edge one from the inner one's back pocket (which faces the edge), or the inner one from the edge
+  one's side pocket at the front of the coat (`_steal_point`; the edge one's back pocket faces off
+  the screen). It was always the edge one robbing, so an edge onlooker was never the victim.
+  An onlooker pickpocket always gets the "Pickpocket" tag, even at the screen's very edge
+  (`_thief_on_screen`; a test of a fifth of their height in from the side left them untagged).
   A shell game has always been the pickpocket's cover.
 
 Nothing marks the pickpocket. They come from the same pool of looks, at a walking speed inside the
@@ -103,8 +161,27 @@ afterwards by scanning for the one without it.
   cups they are about to move while the cups wait, then ride them. The next swap is chosen one swap
   ahead (`_pending` / `set_next`), so the hands set off during the gap. At rest the hands lie on
   two of the cups. Resting them beyond the outer cups laid both arms across the row.
-- **The body follows the hands**: the shoulders shift a share of the way the hands move, a long
-  reach pulls the shoulder in, the head follows the torso, and he breathes.
+- **The body follows the hands by LEANING**: the shoulders keep their width and move together, by
+  however much the longer reach is short of an arm's length (`_body_pose`, up to 0.8 `hs`), the
+  reaching side's shoulder dips, the head follows the torso, and he breathes. Each shoulder used to
+  be dragged toward its own hand: with a hand across the body the torso collapsed into a narrow
+  tube and the waistcoat's shapes folded over each other.
+- **Nothing on him is thinner than two units.** He breathes (a fraction of a pixel up and down), and
+  a feature a pixel thin shimmers as it crosses the pixel grid: the watch chain (now one smoothed
+  line 2.2+ wide, no separate glint), the lapels' edges, and a 1-2 px sliver of shirt that showed
+  above the waistcoat's top edge along the shoulders and neckline (the waistcoat now covers it).
+- **The lean is eased** (`_ease_lean`, `LEAN_RATE` 5/s against the hands' 26): the hands snap back
+  to rest in a few frames, and a lean that followed them exactly threw his torso back in a jump.
+- **A reach longer than the arm is drawn longer** (up to 1.45x, `_draw_arm`). The hand's outer side
+  is a quarter turn from the forearm, the same way round always: choosing it by sign flipped the
+  hand over whenever the forearm came level.
+- **THE SHOULDER CAP TURNS WITH THE ARM** (`_draw_arm`): the waistcoat covers the half of the joint
+  that faces AWAY from the arm -- its inner top for an arm out to the side (the strap), its outer
+  top for one reaching across (his shoulder). Everything else was tried and failed: the sleeve's
+  bare round end is a pale ball on the dark waistcoat; a strap fixed over it cuts off a crossing arm
+  and sits on his chest as a wedge; drawing the strap under a crossing arm shows the ball again, and
+  switching between the two orders makes the layers swap mid-move. The cap rotates continuously, so
+  nothing swaps.
 - **Arms are two-bone limbs, foreshortened**, because a forearm reaching forward looks short from the
   front. Each arm always bends the same way (elbow on its outer side). Choosing per frame flipped
   the elbow across in one frame.
@@ -130,16 +207,20 @@ afterwards by scanning for the one without it.
 
 ## Levels (PickpocketLevelConfig)
 
-| id | cups | swaps | swap_ms | crowd | lift_ms | cue | thief_q | empty_p | fake_p | rounds | pass |
-|----|------|-------|---------|-------|---------|-----|---------|---------|--------|--------|------|
-| 1 | 3 | 4 | 760 | 4 | 1100 | yes | 0 | 0 | 0 | 6 | 66 |
-| 2 | 3 | 5 | 660 | 5 | 900 | yes | 0 | 0 | 0 | 6 | 66 |
-| 3 | 3 | 6 | 570 | 6 | 760 | no | 0 | 0 | 0 | 6 | 66 |
-| 4 | 3 | 7 | 510 | 6 | 660 | no | 0.3 | 0 | 0 | 8 | 75 |
-| 5 | 4 | 7 | 490 | 7 | 570 | no | 0.3 | 0 | 0.15 | 8 | 75 |
-| 6 | 4 | 8 | 450 | 7 | 500 | no | 0.35 | 0.15 | 0.2 | 8 | 75 |
-| 7 | 4 | 9 | 410 | 8 | 430 | no | 0.4 | 0.2 | 0.25 | 8 | 75 |
-| 8 | 5 | 10 | 380 | 9 | 370 | no | 0.4 | 0.2 | 0.3 | 8 | 75 |
+| id | cups | swaps | swap_ms | crowd | lift_ms | cue | thief_q | empty_p | fake_p | far | rounds | pass |
+|----|------|-------|---------|-------|---------|-----|---------|---------|--------|-----|--------|------|
+| 1 | 3 | 4 | 760 | 4 | 1100 | yes | 0 | 0 | 0 | no | 6 | 66 |
+| 2 | 3 | 5 | 660 | 5 | 900 | yes | 0 | 0 | 0 | no | 6 | 66 |
+| 3 | 3 | 6 | 570 | 6 | 760 | no | 0 | 0 | 0 | yes | 6 | 66 |
+| 4 | 3 | 7 | 510 | 6 | 660 | no | 0.3 | 0 | 0 | yes | 8 | 75 |
+| 5 | 4 | 7 | 490 | 7 | 570 | no | 0.3 | 0 | 0.15 | yes | 8 | 75 |
+| 6 | 4 | 8 | 450 | 7 | 500 | no | 0.35 | 0.15 | 0.2 | yes | 8 | 75 |
+| 7 | 4 | 9 | 410 | 8 | 430 | no | 0.4 | 0.2 | 0.25 | yes | 8 | 75 |
+| 8 | 5 | 10 | 380 | 9 | 370 | no | 0.4 | 0.2 | 0.3 | yes | 8 | 75 |
+
+`far` (`far_thefts`): whether a theft may happen among the FAR people, on the sidewalk across the
+road by the shops. They are small and far off, much harder to notice, so levels 1-2 keep every theft
+on the near side of the road or at the table (also the fallback window-shopper, `_start_round`).
 
 `crowd` is the street's walkers. The onlookers are on top of that. `pass_pct` sits on a rung of
 the round count: 66 = 4 of 6, 75 = 6 of 8.
@@ -181,8 +262,11 @@ that a round needs both; 8. what changes later, and "No one".
 
 Guarantees the lesson depends on:
 
-- **There is always a theft.** If no near-lane walker can be reached in time, a window-shopper is
-  placed mid-street to be robbed (`_start_round`).
+- **There is always a theft**, in the lesson and in play alike, unless the round is MEANT to be
+  empty (`empty_p`). If nobody can be reached in time (or the table has no pair for a crowd theft),
+  a window-shopper is placed mid-street to be robbed, on the near sidewalk or failing that the far
+  one (`_start_round`). This was the lesson's rule only: in play such a round quietly became an
+  empty one, on level 1 too, where there was then no "No one" to tap.
 - **The pickpocket stays in view.** In the lesson they stop soon after the theft, wherever they are on
   screen (`lesson_stop`), so step 7 has someone to point at.
 - **Tags are drawn before the coach freezes the game.** `person_picked` is notified LAST in

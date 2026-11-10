@@ -34,6 +34,7 @@ var lift_ms: float = 900.0
 var cue: bool = true
 var thief_q: float = 0.0
 var empty_p: float = 0.0
+var far_thefts: bool = true   # may a theft happen across the road, by the shops (level config)
 var fake_p: float = 0.0
 var rounds_per_level: int = 6
 
@@ -83,6 +84,7 @@ var _prompt: Label = null
 var _prompt_plain: StyleBoxFlat = null
 var _prompt_question: StyleBoxFlat = null
 var _prompt_tween: Tween = null
+var _prompt_is_question: bool = false
 var _noone_btn: Button = null
 var _people: Array = []
 
@@ -230,13 +232,15 @@ func _layout() -> void:
 	# height they were as tall as his head and read as buckets)
 	var cup_h: float = clampf(0.064 * a, 34.0, 70.0)
 	_table.layout(sw, table_y, cup_h, 0.075 * a, n_cups)
-	_street.setup(sw, _top, float(_lane_y[0]), _top + 0.315 * a, _top + 0.41 * a, sh)
+	# the street runs to the very bottom of the screen, behind the app's bottom bar (it stopped at
+	# the play area's edge and left a plain gray band under the scene)
+	_street.setup(sw, _top, float(_lane_y[0]), _top + 0.315 * a, _top + 0.41 * a, float(MainGlobals.full_screen_size.y))
 	# on the table's front cloth, just under the cups: where the player is already looking, and
 	# where no one stands, so no answer tag can ever be under it (at the top it hid the far lane's)
 	_prompt_y = table_y + cup_h * 0.65 + 6.0
 	_catcher.position = Vector2.ZERO
 	_catcher.size = Vector2(sw, sh)
-	MainGlobals.set_font_size(_prompt, 36 if _prompt.get_theme_stylebox("normal") == _prompt_question else 28)
+	MainGlobals.set_font_size(_prompt, 36 if _prompt_is_question else 30)
 	MainGlobals.set_font_size(_noone_btn, 26)
 	_place_prompt()
 	var bw: float = 220.0 if not mob else 300.0
@@ -273,15 +277,22 @@ func _place_prompt() -> void:
 func _say(text: String, col: Color = Color(1.0, 0.92, 0.62), question: bool = false) -> void:
 	_prompt.text = text
 	_prompt.add_theme_color_override("font_color", col)
-	_prompt.add_theme_stylebox_override("normal", _prompt_question if question else _prompt_plain)
-	MainGlobals.set_font_size(_prompt, 36 if question else 28)
+	# EVERY line is framed and popped now, not only the questions ("You missed..." read like a
+	# caption too): a result wears the same pill a step smaller, its edge in the line's own color.
+	var frame: StyleBoxFlat = _prompt_question
+	if not question:
+		frame = _prompt_question.duplicate() as StyleBoxFlat
+		frame.border_color = Color(col, 0.95)
+	_prompt.add_theme_stylebox_override("normal", frame)
+	_prompt_is_question = question
+	MainGlobals.set_font_size(_prompt, 36 if question else 30)
 	_prompt.show()
 	_place_prompt()
 	if _prompt_tween != null and _prompt_tween.is_valid():
 		_prompt_tween.kill()
 	_prompt.scale = Vector2.ONE
 	_prompt.modulate.a = 1.0
-	if question:
+	if true:
 		_prompt.pivot_offset = _prompt.size * 0.5
 		_prompt.scale = Vector2(0.78, 0.78)
 		_prompt.modulate.a = 0.0
@@ -413,8 +424,37 @@ func _load_level(id: int) -> void:
 	thief_q = float(def.get("thief_q", 0.0))
 	empty_p = float(def.get("empty_p", 0.0))
 	fake_p = float(def.get("fake_p", 0.0))
+	far_thefts = bool(def.get("far_thefts", true))
 	rounds_per_level = int(def.get("rounds", 6))
 	game.level_label_changed("Level " + str(def.get("name", id)))
+
+# NO TWO TAGS OVERLAP. The person NEARER the viewer (the larger) keeps theirs where it is; the one
+# behind lifts theirs a line at a time until it is clear of every tag already placed. (Only the
+# pickpocket's was ever lifted, and only when standing close to the victim: a tag over someone in
+# the other lane, or a wrong pick's, could still land on another.)
+func _stack_tags() -> void:
+	var tagged: Array = []
+	# EVERYONE the tag layer draws: the onlookers at the table are not among the street's walkers
+	# (_people), and stacking only those left a pickpocket and victim both at the table overlapping
+	for p in _all_people():
+		if p.tag != "":
+			p.tag_raise = 0.0
+			tagged.append(p)
+	tagged.sort_custom(func(a, b) -> bool: return a.h > b.h)
+	var placed: Array = []
+	for p in tagged:
+		for k in 8:
+			var box: Rect2 = p.tag_box(_w).grow(4.0)
+			var clear: bool = true
+			for q in placed:
+				if box.intersects(q):
+					clear = false
+					break
+			if clear:
+				break
+			p.tag_raise += 1.0
+		placed.append(p.tag_box(_w))
+	_tags.queue_redraw()
 
 func _can_play() -> bool:
 	return game.playing and not game.paused() and not game.level_is_done and game.level_is_ready
@@ -592,15 +632,28 @@ func _animate_idle(dt_ms: float) -> void:
 			p.tick_idle(dt_ms / 1000.0, rng)
 
 func _light_people() -> void:
+	# EVERY lamp lights a person, each by how strongly it reaches them, and the side the light comes
+	# from is their blend. Lit by the single NEAREST lamp, a walker's lit side flipped in one step
+	# halfway between two lamps (the nearest changed) and swung from one side to the other in a few
+	# steps under each lamp: their coat's shading jumped as they passed a post.
+	var reach: float = _w * 0.24
 	for p in _people:
-		var best: float = 1.0e9
+		var total: float = 0.0
+		var side: float = 0.0
 		for x in _lamp_xs():
-			if absf(float(x) - p.position.x) < absf(best):
-				best = float(x) - p.position.x
-		var reach: float = _w * 0.24
-		var amt: float = exp(-pow(best / reach, 2.0)) * 0.85 + (0.25 if p.lane == 0 else 0.10)
-		var ld: float = clampf(best / (_w * 0.12), -1.0, 1.0)
-		if absf(amt - p.light_amt) > 0.02 or absf(ld - p.light_dir) > 0.05:
+			var dx: float = float(x) - p.position.x
+			var wgt: float = exp(-pow(dx / reach, 2.0))
+			total += wgt
+			side += wgt * clampf(dx / (_w * 0.16), -1.0, 1.0)
+		var amt: float = minf(1.0, total) * 0.85 + (0.25 if p.lane == 0 else 0.10)
+		var ld: float = clampf(side / maxf(total, 0.35), -1.0, 1.0)
+		if p.lane == 2:
+			# the onlookers stand at the table: it is the hustler's LANTERN that lights them, from the
+			# table's side, and well (under the street lamps alone they were murky at the screen's edges)
+			ld = 1.0 if p.position.x < _w * 0.5 else -1.0
+			amt = 0.85
+		# (the thresholds are small: stepped updates were part of the jump)
+		if absf(amt - p.light_amt) > 0.004 or absf(ld - p.light_dir) > 0.004:
 			p.light_amt = clampf(amt, 0.0, 1.0)
 			p.light_dir = ld
 			p.queue_redraw()
@@ -624,8 +677,28 @@ func _radial_tex() -> GradientTexture2D:
 
 func _draw_glow() -> void:
 	var tex: GradientTexture2D = _radial_tex()
+	# every lit shop window breathes a warm haze into the street
+	for wr_v in _street.window_glows():
+		var wr: Rect2 = wr_v
+		_glow.draw_texture_rect(tex, wr.grow_individual(wr.size.x * 0.35, wr.size.y * 0.5, wr.size.x * 0.35, wr.size.y * 0.9), false, Color(0.34, 0.22, 0.09, 0.55))
+	# THE HUSTLER'S LANTERN lights his corner of the street: a wide warm bloom over the table, him and
+	# the onlookers, and a hot core at the flame
+	var lan: Vector2 = _table.lantern_world()
+	var lr: float = _w * 0.50
+	_glow.draw_texture_rect(tex, Rect2(lan - Vector2(lr, lr * 0.62), Vector2(lr * 2.0, lr * 1.24)), false, Color(0.40, 0.26, 0.10, 0.50))
+	_glow.draw_texture_rect(tex, Rect2(lan - Vector2(lr * 0.30, lr * 0.26), Vector2(lr * 0.60, lr * 0.52)), false, Color(0.55, 0.38, 0.16, 0.55))
 	for x in _lamp_xs():
 		var head: Vector2 = _street.lamp_head(float(x))
+		# the lamp's CONE: light you can see in the evening air, from the glass down to its pool
+		var pool_c: Vector2 = Vector2(float(x), float(_lane_y[1]) - 4.0)
+		var half: float = _w * 0.20
+		_glow.draw_polygon(PackedVector2Array([head + Vector2(-7.0, 6.0), head + Vector2(7.0, 6.0),
+			pool_c + Vector2(half, 0.0), pool_c + Vector2(-half, 0.0)]),
+			PackedColorArray([Color(0.50, 0.38, 0.18, 0.20), Color(0.50, 0.38, 0.18, 0.20), Color(0.30, 0.22, 0.10, 0.0), Color(0.30, 0.22, 0.10, 0.0)]))
+		# and a narrower, brighter core, so the cone has no hard edge
+		_glow.draw_polygon(PackedVector2Array([head + Vector2(-5.0, 6.0), head + Vector2(5.0, 6.0),
+			pool_c + Vector2(half * 0.5, 0.0), pool_c + Vector2(-half * 0.5, 0.0)]),
+			PackedColorArray([Color(0.50, 0.38, 0.18, 0.20), Color(0.50, 0.38, 0.18, 0.20), Color(0.30, 0.22, 0.10, 0.0), Color(0.30, 0.22, 0.10, 0.0)]))
 		_glow.draw_texture_rect(tex, Rect2(head - Vector2(80, 80), Vector2(160, 160)), false, Color(0.55, 0.40, 0.20, 0.55))
 		_glow.draw_texture_rect(tex, Rect2(head - Vector2(20, 20), Vector2(40, 40)), false, Color(1.0, 0.85, 0.55, 0.8))
 		# a soft pool right at its foot, where the post stands in its own light
@@ -633,15 +706,17 @@ func _draw_glow() -> void:
 		_glow.draw_texture_rect(tex, Rect2(foot - Vector2(_w * 0.10, 18.0), Vector2(_w * 0.20, 36.0)), false, Color(0.45, 0.33, 0.16, 0.6))
 		# the pool it throws on the near sidewalk, and a fainter one across the road
 		var pool_y: float = float(_lane_y[1])
-		_glow.draw_texture_rect(tex, Rect2(Vector2(float(x) - _w * 0.24, pool_y - 70.0), Vector2(_w * 0.48, 130.0)), false, Color(0.30, 0.22, 0.10, 0.55))
+		_glow.draw_texture_rect(tex, Rect2(Vector2(float(x) - _w * 0.27, pool_y - 80.0), Vector2(_w * 0.54, 150.0)), false, Color(0.42, 0.30, 0.13, 0.62))
 		var far_y: float = float(_lane_y[0])
 		_glow.draw_texture_rect(tex, Rect2(Vector2(float(x) - _w * 0.16, far_y - 30.0), Vector2(_w * 0.32, 60.0)), false, Color(0.20, 0.15, 0.07, 0.4))
 
 func _draw_shade() -> void:
 	# the evening: the screen's sides and its bottom fall away into dusk (smooth gradients)
-	var sh: float = float(MainGlobals.screen_size.y)
-	var dusk: Color = Color(0.02, 0.02, 0.07, 0.38)
+	var sh: float = float(MainGlobals.full_screen_size.y)
+	var dusk: Color = Color(0.02, 0.02, 0.07, 0.46)
 	var clear: Color = Color(0.02, 0.02, 0.07, 0.0)
+	# the whole evening a shade cooler and darker, so the lamps and windows are what light it
+	_shade.draw_rect(Rect2(0.0, _top, _w, sh - _top), Color(0.05, 0.07, 0.22, 0.20))
 	var side: float = _w * 0.20
 	_shade.draw_polygon(PackedVector2Array([Vector2(0, _top), Vector2(side, _top), Vector2(side, sh), Vector2(0, sh)]),
 		PackedColorArray([dusk, clear, clear, dusk]))
@@ -679,14 +754,30 @@ func _plan_crowd_theft(t0: float, tf: float) -> bool:
 		return false
 	var lo: float = t0 + (tf - t0) * 0.12
 	var hi: float = maxf(lo, tf - lift_ms - 600.0)
-	_victim = inner
-	_thief = outer
-	inner.role = 1
-	outer.role = 2
-	outer.plan = {"step": "approach", "tt": rng.randf_range(lo, hi), "victim": inner, "static": true}
+	# EITHER WAY ROUND: the edge onlooker robs the inner one (from the back pocket, which faces the
+	# edge), or the inner one robs the edge one (from the side pocket of the coat, which faces them --
+	# the edge one's back pocket faces off the screen). It was always the edge one robbing, so an
+	# onlooker at the edge was never the victim.
+	var th = outer
+	var vi = inner
+	if rng.randf() < 0.5:
+		th = inner
+		vi = outer
+	_victim = vi
+	_thief = th
+	vi.role = 1
+	th.role = 2
+	th.plan = {"step": "approach", "tt": rng.randf_range(lo, hi), "victim": vi, "static": true, "front_pocket": th == inner}
 	# drawn in front of the victim, so the hand at the pocket shows
-	_crowd_node.move_child(outer, -1)
+	_crowd_node.move_child(th, -1)
 	return true
+
+# Where the thief's hand goes in: the back pocket, or (an inner onlooker robbing the one at the edge)
+# the side pocket at the front of the coat.
+func _steal_point(p, v) -> Vector2:
+	if bool(p.plan.get("front_pocket", false)):
+		return v.position + Vector2(float(v.dir) * 0.085 * v.h * v.build, -0.50 * v.h)
+	return v.pocket_point()
 
 func _plan_theft(now: float, t0: float, tf: float) -> bool:
 	var rng: RandomNumberGenerator = game.rng
@@ -699,8 +790,9 @@ func _plan_theft(now: float, t0: float, tf: float) -> bool:
 	for v in _people:
 		if v.role != 0 or v.position.x < 0.0 or v.position.x > _w:
 			continue
-		# the tutorial's theft is in the near lane, the easiest to see
-		if _tutorial and v.lane != 1:
+		# the tutorial's theft is in the near lane, the easiest to see; so is every theft on a level
+		# without far_thefts (the far people, by the shops, are much harder to notice)
+		if (_tutorial or not far_thefts) and v.lane != 1:
 			continue
 		var standing: bool = v.stand_until >= 0.0
 		var vv: float = 0.0 if standing else v.speed
@@ -767,7 +859,7 @@ func _update_thief(p, now: float, dt: float) -> void:
 			var u: float = (now - float(p.plan["t1"])) / lift_ms
 			var fixed: bool = bool(p.plan.get("static", false))
 			if fixed and v != null and is_instance_valid(v):
-				p.reach_at = v.pocket_point() - p.position
+				p.reach_at = _steal_point(p, v) - p.position
 				p.reach = clampf(u / 0.30, 0.0, 1.0) if u < 0.70 else clampf((1.0 - u) / 0.30, 0.0, 1.0)
 				_lift_wallet(p, v, u)
 				if u >= 1.0:
@@ -846,7 +938,7 @@ func _lift_wallet(p, v, u: float) -> void:
 	if u >= 0.25 and u < 0.92:
 		_wallet_show = true
 		var k: float = clampf((u - 0.25) / 0.30, 0.0, 1.0)
-		_wallet_pos = v.pocket_point().lerp(p.hand_point(), k)
+		_wallet_pos = _steal_point(p, v).lerp(p.hand_point(), k)
 		if u > 0.70:
 			_wallet_pos = p.position + Vector2(float(p.dir) * 0.06 * p.h, -0.55 * p.h)
 	else:
@@ -861,6 +953,10 @@ func _lift_wallet(p, v, u: float) -> void:
 func _thief_on_screen() -> bool:
 	if _thief == null or not is_instance_valid(_thief):
 		return false
+	# an onlooker at the table is always in view, even standing at the screen's very edge (the test
+	# below, a fifth of their height in from the side, left the edge onlookers without a tag)
+	if _thief in _crowd:
+		return true
 	return _thief.position.x > _thief.h * 0.2 and _thief.position.x < _w - _thief.h * 0.2
 
 func _thief_visible() -> bool:
@@ -904,9 +1000,9 @@ func _start_round(now: float) -> void:
 	_thief = null
 	# a third of the thefts happen in the crowd at the table, when there is a pair to do it
 	var at_table: bool = not _empty_round and _crowd.size() >= 4 and rng.randf() < 0.34 and not _tutorial
-	if at_table:
-		_plan_crowd_theft(t0, tf)
-	elif not _empty_round:
+	if at_table and not _plan_crowd_theft(t0, tf):
+		at_table = false                    # no pair at the table after all: on the street, then
+	if not at_table and not _empty_round:
 		if not _plan_theft(now, t0, tf):
 			# nobody suitable on the street right now: someone stops to look in a window
 			for p in _people:
@@ -917,15 +1013,22 @@ func _start_round(now: float) -> void:
 					if _plan_theft(now, t0, tf):
 						break
 					p.stand_until = now + rng.randf_range(500.0, 2000.0)
-			if _victim == null and _tutorial:
-				# the lesson MUST have a theft: a window-shopper on the near sidewalk, mid-street
-				var x: float = _w * (0.38 if rng.randf() < 0.5 else 0.62)
-				var shopper = _spawn(1, x, 1 if rng.randf() < 0.5 else -1, false)
-				shopper.stand_until = now + 1.0e9
-				shopper.walking = false
-				_plan_theft(now, t0, tf)
 			if _victim == null:
-				_empty_round = true
+				# A ROUND THAT IS NOT MEANT TO BE EMPTY MUST HAVE A THEFT (it was only the lesson's
+				# rule): a window-shopper is placed mid-street to be robbed -- on the near sidewalk,
+				# or failing that on the far one. Without this a round with nobody suitable in reach
+				# quietly became an empty one, on level 1 too, where no round is empty and (then)
+				# there was no "No one" to tap: the question could not be answered right.
+				for try_lane in ([1, 0] if far_thefts and not _tutorial else [1]):
+					var x: float = _w * (0.38 if rng.randf() < 0.5 else 0.62)
+					var shopper = _spawn(try_lane, x, 1 if rng.randf() < 0.5 else -1, false)
+					shopper.stand_until = now + 1.0e9
+					shopper.walking = false
+					if _plan_theft(now, t0, tf):
+						break
+					shopper.stand_until = now + rng.randf_range(500.0, 2000.0)
+			if _victim == null:
+				_empty_round = true     # still nobody: an honest empty round, and "No one" is there
 	_ask_thief = false
 	phase = Phase.PEEK
 	_phase_t0 = now
@@ -972,7 +1075,10 @@ func _ask_person(now: float) -> void:
 	phase = Phase.ASK_PERSON
 	_ask_t0 = now
 	_say("Who was the pickpocket?" if _ask_thief else "Who was robbed?", Color(1.0, 0.92, 0.62), true)
-	_noone_btn.visible = empty_p > 0.0
+	# "No one" is offered on EVERY level, also where no round is ever empty: a button that appeared
+	# only where it could be the answer would say something, and a round that came out empty by
+	# accident must still be answerable.
+	_noone_btn.visible = true
 
 func _on_cup_picked(c: int, now: float) -> void:
 	_picked_cup = c
@@ -1019,13 +1125,12 @@ func _resolve(person_right: bool, picked, now: float) -> void:
 		_victim.set_mark(PASSERBY.Mark.VICTIM, "Robbed")
 	if _thief_on_screen():
 		_thief.set_mark(PASSERBY.Mark.THIEF, "Pickpocket")
-		if _victim != null and is_instance_valid(_victim) and absf(_thief.position.x - _victim.position.x) < _thief.h * 0.9:
-			_thief.tag_raise = 1.0
 	if picked != null and not person_right:
 		if picked == _victim:
 			picked.set_mark(PASSERBY.Mark.PICKED_WRONG, "Robbed (your pick)")
 		else:
 			picked.set_mark(PASSERBY.Mark.PICKED_WRONG, "Your pick")
+	_stack_tags()
 	var text: String
 	var col: Color
 	if both:
