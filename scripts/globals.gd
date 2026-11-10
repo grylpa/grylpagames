@@ -930,7 +930,7 @@ func _bulk_upload_unsynced_scores() -> void:
 	for entry in MainCfg.games:
 		var folder: String = entry[0]
 		var gu: GenericGameUtil = GenericGameUtil.new(folder, folder, 0, 5, 0)
-		var all_scores: Array = gu.read_sessions()
+		var all_scores: Array = gu.read_sessions(true)
 		var uploaded: Dictionary = gu.read_uploaded_scores()
 		var to_upload: Array = all_scores.filter(
 			func(rec): return rec is Dictionary and rec.has("ts") and not uploaded.has(int(rec["ts"])))
@@ -970,7 +970,7 @@ func _on_game_scores_downloaded(server_scores: Array, game_name: String) -> void
 	save_settings()
 
 func _merge_scores_locally(gu: GenericGameUtil, server_scores: Array) -> void:
-	var local_scores: Array = gu.read_sessions()
+	var local_scores: Array = gu.read_sessions(true)
 	var local_ts_set: Dictionary = {}
 	for rec in local_scores:
 		if rec is Dictionary and rec.has("ts"):

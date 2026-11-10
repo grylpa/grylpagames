@@ -34,8 +34,6 @@ const METRICS: Dictionary = {
 	# reaction time had NO rows at all and its category could never say anything about it.
 	"react_cv": false,
 	"react_mean": false,
-	# Gorilla's only measurement: how far out the gorilla count was. Lower is better.
-	"count_error": false,
 	# The main task failing: caught by a monster, or stood still too long to eat.
 	"rounds_lost": false,
 	# THE COUNTING GAMES. Five games -- the whole Planning category bar one, plus Moving Cards --

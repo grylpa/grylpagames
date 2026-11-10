@@ -23,9 +23,9 @@ class_name GameInstrument
 const CHART_GAMES: Dictionary = {
 	"dino": "Recall",
 	"weris": "Search",
-	# (gorilla's "Counting" chart went with its count question, 2026-11-09: its rounds now log each
-	# lost baby -- how far away it appeared, whether it was rescued, how long it took -- as trials,
-	# for a chart of rescue time against distance once there are sessions to draw it from)
+	# Gorilla's rounds log each lost baby -- how far away it appeared, whether it was rescued, how long
+	# it took. (Its "Counting" chart went with its count question, 2026-11-09.)
+	"gorilla": "Rescue",
 	"monkeyc": "Rules",
 	# The three games that flash something off to one side. Their panel is a 3x3 laid out like
 	# the screen, because "which corner do I keep missing" is a question about a place.
@@ -59,7 +59,8 @@ const MIN_BUCKETS: int = 2         # points needed to have a shape at all
 # A game's OWN VIEW: the one picture it is uniquely placed to draw. It occupies a single extra
 # metric slot in the Charts tab, whether it happens to be a curve or a table.
 #
-#   dino / weris / gorilla   a curve      (accuracy against lag, time against crowd, error vs load)
+#   dino / weris / gorilla   a curve      (accuracy against lag, time against crowd, rescue time
+#                                         against how far away the baby appeared)
 #   polkadots                two bars     (accuracy with the choices up, against from memory)
 #   the other yes/no games   a 2x2        (said yes / said no against was yes / was no)
 #
@@ -203,9 +204,6 @@ const SUMMARY_ROWS: Dictionary = {
 	"speed_cpm": "Typing speed",
 	"mistake_rate": "Mistakes",
 	"cycles_opened": "Safe turns",
-	# Gorilla stores neither an answer time nor a percentage — its whole measurement is how far
-	# out the count was. Without this it had NO rows and contributed nothing to its category.
-	"count_error": "Counting error (how far out you were)",
 	"rounds_lost": "Rounds lost (caught, or starved)",
 	# The games that keep counts rather than answers. Named for what the number IS, since a bare
 	# "Overflows" beside a sparkline says nothing about which way is good.
@@ -452,7 +450,7 @@ static func _slope_sentence(folder: String, body: Control) -> String:
 		"dino":
 			return "Recognition falls off by about %d%% for each step further back." % int(round(absf(m)))
 		"gorilla":
-			return "Your miscount grows by about %.1f for each extra gorilla." % absf(m)
+			return "Each extra step to the baby adds about %d ms to a rescue." % int(round(absf(m)))
 	return ""
 
 static func _verdict_color(state: int) -> Color:
@@ -497,7 +495,7 @@ static func _body_for(folder: String) -> Control:
 		"polkadots":
 			panel = _visibility_split(trials)
 		"gorilla":
-			panel = _count_load(trials)
+			panel = _rescue_distance(trials)
 		"monkeyc":
 			panel = _rule_breakdown(trials)
 		"didi", "ddooo", "pop":
@@ -526,8 +524,8 @@ static func _variety_needed_text(folder: String) -> String:
 			return ("This compares how you do with the options on screen against from memory,\n"
 				+ "so it needs a few more rounds of each.")
 		"gorilla":
-			return ("This compares your count against how many actually went past, so it needs\n"
-				+ "rounds with different numbers of gorillas.")
+			return ("This compares how long a rescue takes against how far away the baby appeared,\n"
+				+ "so it needs more rescues, near and far. Babies appear farther away at higher levels.")
 	return "Not enough yet."
 
 static func _waiting(text: String) -> Control:
@@ -908,23 +906,27 @@ static func _rule_breakdown(trials: Array, caption: String = "") -> Control:
 			+ "from the options appearing to your answer.")
 	return _captioned(box, cap)
 
-# GORILLA — count error against how many actually went past, which shows whether accuracy falls
-# away as the load grows.
-static func _count_load(trials: Array) -> Control:
+# GORILLA — the time to a rescue against how far away the baby appeared (walking steps through the
+# maze, in bands of 4). Only rescues: a lost baby has no rescue time. The slope is what reaching a
+# far event costs while the apples still need eating.
+const RESCUE_BAND: int = 4
+static func _rescue_distance(trials: Array) -> Control:
 	var buckets: Dictionary = {}
 	for t in trials:
-		if not (t is Dictionary):
+		if not (t is Dictionary) or not bool(t.get("rescued", false)):
 			continue
-		var tc: int = int(t.get("true_count", -1))
-		if tc < 0:
+		var dist: int = int(t.get("dist", -1))
+		var ms: int = int(t.get("ms", 0))
+		if dist < 0 or ms <= 0:
 			continue
-		if not buckets.has(tc):
-			buckets[tc] = []
-		buckets[tc].append(absf(float(t.get("signed_err", 0))))
+		var band: int = maxi(1, int(round(float(dist) / float(RESCUE_BAND)))) * RESCUE_BAND
+		if not buckets.has(band):
+			buckets[band] = []
+		buckets[band].append(float(ms))
 	var use: Dictionary = _usable(buckets)
 	if use.size() < MIN_BUCKETS:
 		return null
-	return _bucket_chart(use, "gorillas that went past", "miscount", false)
+	return _bucket_chart(use, "steps to the baby", "time to a rescue (ms)", false)
 
 
 # THE FOUR CELLS, for the six games that ask a yes/no question. Drawn as a 2x2 so the shape of a
