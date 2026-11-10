@@ -60,7 +60,9 @@ shade darkens the screen's edges and the bottom (`_shade`).
    cups along opposite arcs, one in front of the other. A feint (`fake_p`) meets in the middle and
    goes back.
 3. **FREEZE**: the whistle. Everyone stops mid-stride; nothing moves until the round ends.
-4. **ASK_CUP**: "Where is the ball?" Tapping a cup lifts it (`ball` / `empty`). After a wrong cup,
+4. **ASK_CUP**: "Where is the ball?" (Both QUESTIONS are set apart from the feedback lines: bigger
+   type, a gold-edged pill with a shadow, and a pop as they appear -- `_say(..., question = true)`.
+   Plain, they read like captions and were missed.) Tapping a cup lifts it (`ball` / `empty`). After a wrong cup,
    the right one comes up too.
 5. **ASK_PERSON**: "Who was robbed?" (or "Who was the pickpocket?", `thief_q`). Tap a person, or
    "No one" on levels with empty rounds. On desktop the person under the pointer is ringed. A tap
@@ -157,9 +159,13 @@ the round count: 66 = 4 of 6, 75 = 6 of 8.
 
 - **Effects:** `devtools/make_pickpocket_sounds.py`: slide (-10 dB), tock (-6), whistle (-8), ball,
   empty, right, wrong.
-- **Ambient:** `make_ambient_sounds.py` `pickpocket`, a sly street-corner caper (pizzicato bass,
-  finger snaps, a vibraphone creeping up in half steps, a low clarinet-like tune), played at -6 dB
-  while the table is up.
+- **Ambient:** `make_ambient_sounds.py` `pickpocket`: a STREET with music in it (2026-11-10; the music
+  alone did not sound like a street). The tune (`_caper`: pizzicato bass, finger snaps, a vibraphone
+  creeping up in half steps, a low clarinet-like tune) as from a player down the way, under light
+  distant chatter (`mu.babble`, low-passed, speech-like and never words), passers-by's footsteps
+  (`passer_by`: leather heels and sneakers, coming up and going, often two at once), and now and then
+  a laugh, a car, a bicycle bell, a far horn. Played at -6 dB while the table is up. The theft itself
+  still makes no sound.
 
 ## Tutorial
 

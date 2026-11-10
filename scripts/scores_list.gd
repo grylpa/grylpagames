@@ -34,6 +34,9 @@ var initial_chart_mode: bool = false
 # The Summary tab, which is present for every game — it holds the verdict, and every game has one.
 var initial_inst_mode: bool = false
 var game_key := ""
+# The game's display name, set by GenericGameUtil.open_scores_screen: the title says WHOSE stats
+# these are ("Gorilla Stats"), since every game's window looks alike.
+var game_title: String = ""
 var _raw_scores := []
 var _progress_level_pos := -1
 var _progress_time_pos := -1
@@ -120,7 +123,7 @@ func _ready():
 	$ScoresWindow.position = Vector2.ZERO
 	$ScoresWindow.unresizable = true
 	$ScoresWindow.borderless = true
-	%Title.text = "Scores"
+	_set_title("Scores")
 	%TabSpacer.visible = false
 	%TabMargin.visible = false
 	MainGlobals.set_visible("scores",true)
@@ -277,6 +280,20 @@ func _ready():
 # The ground was `res://art/grass_light.png` — one GAME's art tiled behind an app-level
 # screen — under a gold-on-dark tab bar that matched nothing else in the app, including the menu
 # this screen is opened from.
+# "Gorilla Stats": the game's name before the word, shrunk to fit between the icons at either end
+# (a long name -- "Crack the Safe" -- would otherwise run under them).
+func _set_title(word: String) -> void:
+	var title: Label = %Title
+	title.text = word if game_title.is_empty() else "%s %s" % [game_title, word]
+	if not title.has_meta("base_fs"):
+		title.set_meta("base_fs", title.get_theme_font_size("font_size"))
+	var fs: int = int(title.get_meta("base_fs"))
+	var font: Font = title.get_theme_font("font")
+	var room: float = MainGlobals.full_screen_size.x * 0.66
+	while fs > 18 and font.get_string_size(title.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room:
+		fs -= 2
+	title.add_theme_font_size_override("font_size", fs)
+
 func _apply_look() -> void:
 	var ground: TextureRect = $ScoresWindow/ColorRect
 	ground.texture = null
@@ -434,7 +451,7 @@ func set_progress_data(raw_scores: Array, level_pos: int, time_pos: int, pct_pos
 	if _metric_buttons.size() > 1:
 		# A per-level score: its button is named like its tab ("Levels"), beside the plain Score.
 		_metric_buttons[1].text = _progress_tab_name if progress_is_score else _progress_time_label
-	%Title.text = "Stats"
+	_set_title("Stats")
 	%TabSpacer.visible = true
 	%TabMargin.visible = true
 	%SpeedTabButton.visible = time_pos >= 0
@@ -1124,7 +1141,7 @@ func _add_centered_message(grid: Control, text: String) -> void:
 	grid.add_child(spacer)
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.add_theme_color_override("font_color", Color.YELLOW)
+	lbl.add_theme_color_override("font_color", GOLD)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.size_flags_horizontal = Control.SIZE_FILL
 	grid.add_child(lbl)

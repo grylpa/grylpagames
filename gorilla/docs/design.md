@@ -659,16 +659,23 @@ the hunger allowance, that starving spends a life and ends the round, and the ca
 
 ## What this game measures
 
-- **The score row**: `[didwin, aborted, level, count_error, rescue_ms, rescue_pct]`. `count_error`
-  is -1 in every row since 2026-11-09 (the column belonged to the count question; older rows keep
-  their values). `rescue_ms` is the level's mean time from a baby appearing to its rescue (9999 when
-  none was rescued); `rescue_pct` the share rescued. The scores screen's "Rescue" tab plots
-  `rescue_ms` (`progress_time_pos` 8, older rows are skipped as too short) with `rescue_pct` beside it.
-- **Trials**: one per baby, `{dist, rescued, ms}`. Rescue time against distance is the natural chart
-  for the instrument panel once there are sessions to draw it from. The old "Counting" chart was
-  dropped from `game_instrument.gd` `CHART_GAMES`; the "Counting" Summary row (`count_error`) stays
-  registered for the older sessions.
-- `game.record_times(rescue_times, "rt")` and `record_count("rounds_lost")` as before.
+- **The score row**: `[didwin, aborted, level, rescue_ms, pct_correct]` (since 2026-11-10).
+  `rescue_ms` is the level's mean time from a baby appearing to its rescue (9999 when none was
+  rescued; deliberately NOT named `rt_mean`, so such a round is never read as an answer time).
+  `pct_correct` is the share of babies rescued, so every stats screen reads it as this game's
+  accuracy. The scores screen's "Rescue" tab plots `rescue_ms` (`progress_time_pos` 7) with
+  "% Rescued" beside it (`progress_pct_pos` 8), split by level (`progress_level_pos` 6 -- it was
+  never set, so every session was pooled into one) with a level picker.
+- **Answer-time metrics** (`rt_mean`, `rt_cv`, ...) come from `game.record_times(rescue_times, "rt")`,
+  and only when there were rescues. `record_count("rounds_lost")` as before.
+- **Trials**: one per baby, `{dist, rescued, ms}` (`dist` = walking steps from the gorilla). The
+  instrument panel's own chart, "Rescue" (`game_instrument.gd` `_rescue_distance`): the time to a
+  rescue against the distance, in bands of 4 steps, with the cost of each extra step as its slope.
+- **Old data is hidden, not deleted.** The counting game's sessions and trials (count_error,
+  true_count) measured something else, so `GenericGameUtil.DATA_FORMATS["gorilla"] = 2`: every record
+  saved since carries `fmt: 2`, and `read_sessions()` / `read_trial_blocks()` skip anything older. An
+  updated install shows Gorilla's statistics empty. The files keep the old records, and the cloud
+  sync reads them with `read_sessions(true)`, so it syncs them as before and never drops them.
 
 ## Sounds
 

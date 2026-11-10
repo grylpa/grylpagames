@@ -52,16 +52,23 @@ func _ready() -> void:
 		GorillaG.save_settings()
 
 	game.show_scores_level = true
-	# This game's save array is not the generic shape, so its columns are named here;
-	# otherwise the defaults would file each value under the wrong name.
-	# count_error is from the old counting question (rows before 2026-11-09); new rows write -1 there
-	# and add the time to a rescue and the share of babies rescued after it.
-	game.score_columns = ["didwin", "aborted", "level", "count_error", "rescue_ms", "rescue_pct"]
-	game.progress_time_pos = 8
+	game.scores_callback = Callable(self, "add_score_line_vals")
+	# The row: the mean time to a rescue, then the share of babies rescued -- filed as `pct_correct`,
+	# so every stats screen reads it as this game's accuracy. The answer-time metrics (rt_mean, rt_cv,
+	# ...) come from record_times over the rescue times, and only when there were rescues; the
+	# column keeps its own name so a round with none (9999) is never read as an answer time.
+	# The counting game's rows (count_error, before 2026-11-09) are hidden from every screen by
+	# GenericGameUtil.DATA_FORMATS.
+	game.score_columns = ["didwin", "aborted", "level", "rescue_ms", "pct_correct"]
+	# the level, so the tables and charts are split by level like every other game's (it was never
+	# set here, and all of Gorilla's sessions were pooled into one)
+	game.progress_level_pos = 6
+	game.progress_time_pos = 7
 	game.progress_time_label = "Time to a rescue"
 	game.progress_time_format = "%d ms"
 	game.progress_tab_name = "Rescue"
-	game.progress_pct_pos = 9
+	game.progress_pct_pos = 8
+	game.progress_pct_label = "% Rescued"
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
@@ -92,7 +99,6 @@ func _on_tutorial_done(_completed: bool) -> void:
 	game.level_is_ready = false
 	_refresh_menu()
 	show_main_menu()
-	game.scores_callback = Callable(self, "add_score_line_vals")
 
 # Also called from _exit_tree: leaving the game mid-tutorial frees the scene, and the runner's
 # own _exit_tree does not invoke this callback — so without it the tutorial's stashed values
@@ -188,7 +194,7 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 func get_game_score(_didwin, _wasaborted):
 	# The time to a rescue and the share of babies rescued, from the level's own tally.
 	game.record_times($Level.rescue_times, "rt")
-	return [_didwin, _wasaborted, $Level.level, -1, $Level.mean_rescue_ms(), $Level.rescue_pct()]
+	return [_didwin, _wasaborted, $Level.level, $Level.mean_rescue_ms(), $Level.rescue_pct()]
 
 func _on_game_is_done(_didwin: bool, _wasaborted: bool):
 	game.save_score(get_game_score(_didwin, _wasaborted))

@@ -80,6 +80,9 @@ var _shade: Node2D = null    # the evening: darker toward the edges of the scree
 var _tags: Node2D = null     # the answer's tags, over everything (passerby.draw_tag_to)
 var _catcher: Control = null
 var _prompt: Label = null
+var _prompt_plain: StyleBoxFlat = null
+var _prompt_question: StyleBoxFlat = null
+var _prompt_tween: Tween = null
 var _noone_btn: Button = null
 var _people: Array = []
 
@@ -170,6 +173,21 @@ func _build() -> void:
 	sb.content_margin_top = 6
 	sb.content_margin_bottom = 8
 	_prompt.add_theme_stylebox_override("normal", sb)
+	_prompt_plain = sb
+	# A QUESTION wears more than a feedback line: a gold edge and a shadow on its pill, bigger type
+	# and a pop as it appears (_say). Plain, the two questions read like captions and were missed.
+	var qsb: StyleBoxFlat = sb.duplicate() as StyleBoxFlat
+	qsb.bg_color = Color(0.05, 0.06, 0.11, 0.94)
+	qsb.set_border_width_all(3)
+	qsb.border_color = Color(0.976, 0.792, 0.353, 0.95)
+	qsb.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+	qsb.shadow_size = 10
+	qsb.shadow_offset = Vector2(0, 4)
+	qsb.content_margin_top = 8
+	qsb.content_margin_bottom = 10
+	qsb.content_margin_left = 26
+	qsb.content_margin_right = 26
+	_prompt_question = qsb
 	_prompt.hide()
 	add_child(_prompt)
 
@@ -218,7 +236,7 @@ func _layout() -> void:
 	_prompt_y = table_y + cup_h * 0.65 + 6.0
 	_catcher.position = Vector2.ZERO
 	_catcher.size = Vector2(sw, sh)
-	MainGlobals.set_font_size(_prompt, 28)
+	MainGlobals.set_font_size(_prompt, 36 if _prompt.get_theme_stylebox("normal") == _prompt_question else 28)
 	MainGlobals.set_font_size(_noone_btn, 26)
 	_place_prompt()
 	var bw: float = 220.0 if not mob else 300.0
@@ -251,11 +269,26 @@ func _place_prompt() -> void:
 	_prompt.size = box
 	_prompt.position = Vector2((_w - box.x) * 0.5, _prompt_y)
 
-func _say(text: String, col: Color = Color(1.0, 0.92, 0.62)) -> void:
+# `question`: one of the two questions the player must answer -- bigger, framed in gold, popped in.
+func _say(text: String, col: Color = Color(1.0, 0.92, 0.62), question: bool = false) -> void:
 	_prompt.text = text
 	_prompt.add_theme_color_override("font_color", col)
+	_prompt.add_theme_stylebox_override("normal", _prompt_question if question else _prompt_plain)
+	MainGlobals.set_font_size(_prompt, 36 if question else 28)
 	_prompt.show()
 	_place_prompt()
+	if _prompt_tween != null and _prompt_tween.is_valid():
+		_prompt_tween.kill()
+	_prompt.scale = Vector2.ONE
+	_prompt.modulate.a = 1.0
+	if question:
+		_prompt.pivot_offset = _prompt.size * 0.5
+		_prompt.scale = Vector2(0.78, 0.78)
+		_prompt.modulate.a = 0.0
+		_prompt_tween = create_tween()
+		_prompt_tween.set_parallel(true)
+		_prompt_tween.tween_property(_prompt, "modulate:a", 1.0, 0.16)
+		_prompt_tween.tween_property(_prompt, "scale", Vector2.ONE, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 # --- level flow --------------------------------------------------------------
 
@@ -933,12 +966,12 @@ func _freeze(now: float) -> void:
 
 func _ask_cup() -> void:
 	phase = Phase.ASK_CUP
-	_say("Where is the ball?")
+	_say("Where is the ball?", Color(1.0, 0.92, 0.62), true)
 
 func _ask_person(now: float) -> void:
 	phase = Phase.ASK_PERSON
 	_ask_t0 = now
-	_say("Who was the pickpocket?" if _ask_thief else "Who was robbed?")
+	_say("Who was the pickpocket?" if _ask_thief else "Who was robbed?", Color(1.0, 0.92, 0.62), true)
 	_noone_btn.visible = empty_p > 0.0
 
 func _on_cup_picked(c: int, now: float) -> void:

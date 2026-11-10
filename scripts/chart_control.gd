@@ -271,8 +271,17 @@ func _draw() -> void:
 	# Behind the data lines: they pass over the key rather than stopping at it. So this cannot
 	# return early any more — the series are still to be drawn below.
 	if entries.size() >= 2:
+		# What the key must keep clear of is everything DRAWN, not only the dots: the lines between
+		# them, and the dashed fit. Counting dots alone let a chart with few points put its key in
+		# the top-right with the rising line running straight through it (Gorilla's Rescue chart).
+		var drawn: Array = []
+		for sp_line: PackedVector2Array in screen_series:
+			drawn.append(_sampled(sp_line))
+		if fit_line and not _series.is_empty() and (_series[0].get("points", []) as Array).size() >= 2:
+			drawn.append(_sampled(_fit_ends(px_left, px_right, px_bottom, plot_h, x_min, x_max,
+					y_min, y_range)))
 		_draw_legend(entries, font, font_size,
-				Rect2(px_left, px_top, plot_w, plot_h), screen_series)
+				Rect2(px_left, px_top, plot_w, plot_h), drawn)
 
 	# Series: sorted polylines and dots
 	for si: int in range(_series.size()):
@@ -291,25 +300,15 @@ func _draw() -> void:
 	if fit_line and not _series.is_empty():
 		var fpts: Array = _series[0].get("points", [])
 		if fpts.size() >= 2:
-			var m: float = fit_slope()
-			var fmx: float = 0.0
-			var fmy: float = 0.0
-			for p3: Vector2 in fpts:
-				fmx += p3.x
-				fmy += p3.y
-			fmx /= float(fpts.size())
-			fmy /= float(fpts.size())
-			var ax: float = px_left
-			var bx: float = px_right
-			var ay: float = px_bottom - ((fmy + m * (x_min - fmx)) - y_min) / y_range * plot_h
-			var by: float = px_bottom - ((fmy + m * (x_max - fmx)) - y_min) / y_range * plot_h
+			var ends: PackedVector2Array = _fit_ends(px_left, px_right, px_bottom, plot_h, x_min,
+					x_max, y_min, y_range)
 			# DASHED, and labelled at its end.
 			#
 			# Solid, it read as a second measured series and the chart looked like it was showing
 			# two things without saying what either was. A dash pattern is the usual way to say
 			# "derived, not measured", and the word at the end says which one it is — cheaper than
 			# a legend box, which for a single series is just the y-axis title repeated.
-			_draw_dashed(Vector2(ax, ay), Vector2(bx, by), fit_color, 2.0)
+			_draw_dashed(ends[0], ends[1], fit_color, 2.0)
 
 	# Axis titles.
 	var title_color: Color = Color(0.86, 0.88, 0.92, 1.0)
@@ -326,6 +325,36 @@ func _draw() -> void:
 		# and read as part of the plot rather than as a heading for it.
 		draw_string(font, Vector2(4.0, float(MARGIN_TOP) + title_h - 12.0), y_title,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, title_color)
+
+# The fitted line's two ends on screen, across the whole plot.
+func _fit_ends(px_left: float, px_right: float, px_bottom: float, plot_h: float, x_min: float,
+		x_max: float, y_min: float, y_range: float) -> PackedVector2Array:
+	var fpts: Array = _series[0].get("points", [])
+	var m: float = fit_slope()
+	var fmx: float = 0.0
+	var fmy: float = 0.0
+	for p3: Vector2 in fpts:
+		fmx += p3.x
+		fmy += p3.y
+	fmx /= float(fpts.size())
+	fmy /= float(fpts.size())
+	var ay: float = px_bottom - ((fmy + m * (x_min - fmx)) - y_min) / y_range * plot_h
+	var by: float = px_bottom - ((fmy + m * (x_max - fmx)) - y_min) / y_range * plot_h
+	return PackedVector2Array([Vector2(px_left, ay), Vector2(px_right, by)])
+
+# A drawn line as points every few pixels, so "does the key cover it" sees the stretches between
+# the dots as well as the dots.
+func _sampled(line: PackedVector2Array, step: float = 4.0) -> PackedVector2Array:
+	var out: PackedVector2Array = []
+	if line.size() == 1:
+		out.append(line[0])
+	for i: int in range(line.size() - 1):
+		var a: Vector2 = line[i]
+		var b: Vector2 = line[i + 1]
+		var n: int = maxi(1, int(a.distance_to(b) / step))
+		for k: int in range(n + 1):
+			out.append(a.lerp(b, float(k) / float(n)))
+	return out
 
 func _fmt_y(val: float) -> String:
 	if val >= 10000.0:

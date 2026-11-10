@@ -982,6 +982,24 @@ func record_list(key: String, value) -> void:
 # few recent sessions, because it exists to draw a shape and not to be a permanent archive.
 
 const TRIALS_VER: int = 1
+
+# THE DATA FORMAT of a game whose meaning changed under the same name (2026-11-10). When a game is
+# rebuilt so that its old sessions measure something else -- Gorilla's count question became a rescue
+# -- its number here goes up. Every session and trial block saved since carries it ("fmt"), and the
+# readers the screens use skip anything older, so an updated install shows that game's statistics
+# EMPTY instead of mixing two different games. Nothing is deleted: the old records stay in the files
+# (the cloud sync still reads and keeps them, read_sessions(true)), they are only no longer shown.
+# Keyed by the save prefix (file_names_prefix), because the stats screens build their own
+# GenericGameUtil per folder and never see the game's instance.
+const DATA_FORMATS: Dictionary = {
+	"gorilla": 2,   # 2026-11-10: lost babies, rescue time and share; no more count question
+}
+
+func _data_format() -> int:
+	return int(DATA_FORMATS.get(file_names_prefix, 0))
+
+func _current_format(rec: Dictionary) -> bool:
+	return int(rec.get("fmt", 0)) >= _data_format()
 const MAX_TRIALS_PER_SESSION: int = 600
 # Kept PER TASK, not per game. A player who moves up a level used to lose the per-round detail
 # for the level below within five sessions, so its panel went blank while its grid stayed — and
@@ -1026,13 +1044,16 @@ func _trim_trial_blocks(blocks: Array) -> Array:
 func save_trials() -> void:
 	if tutorial_mode or _trials.is_empty():
 		return
-	var blocks: Array = read_trial_blocks()
-	blocks.append({
+	var blocks: Array = read_trial_blocks(true)
+	var block: Dictionary = {
 		"ts": int(Time.get_unix_time_from_system()),
 		"task_key": SessionStats.task_key(
 			task_signature if not task_signature.is_empty() else _effective_task),
 		"trials": _trials.duplicate(),
-	})
+	}
+	if _data_format() > 0:
+		block["fmt"] = _data_format()
+	blocks.append(block)
 	blocks = _trim_trial_blocks(blocks)
 	var f: FileAccess = FileAccess.open(get_trials_fname(), FileAccess.WRITE)
 	if f != null:
@@ -1041,7 +1062,8 @@ func save_trials() -> void:
 		f.close()
 	_trials = []
 
-func read_trial_blocks() -> Array:
+# `include_old`: also blocks from before this game's current DATA_FORMATS -- only for rewriting the file.
+func read_trial_blocks(include_old: bool = false) -> Array:
 	var out: Array = []
 	var path: String = get_trials_fname()
 	if not FileAccess.file_exists(path):
@@ -1051,7 +1073,7 @@ func read_trial_blocks() -> Array:
 		return out
 	while f.get_position() < f.get_length():
 		var b = f.get_var()
-		if b is Dictionary and b.has("trials"):
+		if b is Dictionary and b.has("trials") and (include_old or _current_format(b)):
 			out.append(b)
 	f.close()
 	return out
@@ -1082,6 +1104,8 @@ func _build_session_record(score_array: Array) -> Dictionary:
 		else:
 			rec["col%d" % i] = score_array[i]
 	rec.merge(session_metrics, true)
+	if _data_format() > 0:
+		rec["fmt"] = _data_format()
 	_effective_task = _task_for(rec)
 	if not _effective_task.is_empty():
 		rec["task"] = _effective_task.duplicate()
@@ -1104,7 +1128,9 @@ func _task_for(rec: Dictionary) -> Dictionary:
 	return {}
 
 # All saved sessions as dictionaries, newest last. This is the API the new stats screens use.
-func read_sessions() -> Array:
+# `include_old`: also sessions from before this game's current DATA_FORMATS -- for the cloud sync,
+# which must neither re-upload nor drop them, never for anything shown.
+func read_sessions(include_old: bool = false) -> Array:
 	var out: Array = []
 	var path: String = get_scores_fname()
 	if not FileAccess.file_exists(path):
@@ -1114,7 +1140,7 @@ func read_sessions() -> Array:
 		return out
 	while file.get_position() < file.get_length():
 		var rec = file.get_var()
-		if rec is Dictionary and not rec.is_empty():
+		if rec is Dictionary and not rec.is_empty() and (include_old or _current_format(rec)):
 			out.append(rec)
 	file.close()
 	return out
@@ -1173,6 +1199,7 @@ func open_scores_screen(parent: Node) -> Node:
 	_scores_scene.progress_is_score = progress_is_score
 	_scores_scene.show_summary_tab = show_summary_tab
 	_scores_scene.game_key = file_names_prefix
+	_scores_scene.game_title = name
 	var tab_pref = MainGlobals.progress_tab_by_game.get(file_names_prefix, TAB_SCORES) \
 		if file_names_prefix != "" else TAB_SCORES
 	apply_tab_pref(_scores_scene, tab_pref, progress_level_pos >= 0)
