@@ -267,8 +267,11 @@ Guarantees the lesson depends on:
   a window-shopper is placed mid-street to be robbed, on the near sidewalk or failing that the far
   one (`_start_round`). This was the lesson's rule only: in play such a round quietly became an
   empty one, on level 1 too, where there was then no "No one" to tap.
-- **The pickpocket stays in view.** In the lesson they stop soon after the theft, wherever they are on
-  screen (`lesson_stop`), so step 7 has someone to point at.
+- **The pickpocket stays in view.** In the lesson they stop as soon as the theft is done, if they are
+  within the middle 76% of the screen; one already heading out past that band turns round and walks
+  back into it, then stops (`_update_thief`, "away"). Step 7 always has someone to point at. (They
+  used to stop only after the getaway delay and only if still inside the band, so one walking
+  outward sometimes left the screen before the question.)
 - **Tags are drawn before the coach freezes the game.** `person_picked` is notified LAST in
   `_resolve` (and `cup_picked` last in `_on_cup_picked`): notified first, the runner froze the game
   before the tags were set, and the coach pointed at a victim with no "Robbed" over them.

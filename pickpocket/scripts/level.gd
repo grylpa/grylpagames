@@ -916,9 +916,22 @@ func _update_thief(p, now: float, dt: float) -> void:
 			p.advance(step2)
 			var apart: bool = v == null or not is_instance_valid(v) or absf(p.position.x - v.position.x) > p.h * 0.9
 			var mid: bool = p.position.x > _w * 0.22 and p.position.x < _w * 0.78
-			# in the lesson the pickpocket stops soon, still on screen, so the coach can point them out
-			var lesson_stop: bool = _tutorial and p.position.x > _w * 0.12 and p.position.x < _w * 0.88
-			if now >= float(p.plan["t2"]) and ((apart and mid) or lesson_stop):
+			# IN THE LESSON the pickpocket must still be on screen when the coach points them out. They
+			# stop as soon as the theft is done if they are well inside the screen, and one already
+			# heading out past that band turns round and walks back into it first. (Stopping only after
+			# the getaway delay, and only if still inside the band, let one walking outward leave.)
+			if _tutorial:
+				var inside: bool = p.position.x > _w * 0.12 and p.position.x < _w * 0.88
+				if inside:
+					p.plan["step"] = "loiter"
+					p.walking = false
+					p.queue_redraw()
+					return
+				if (p.position.x < _w * 0.5) == (p.dir < 0):
+					p.dir = -p.dir
+					p.queue_redraw()
+				return
+			if now >= float(p.plan["t2"]) and apart and mid:
 				# blend in: stop at a window like anyone else
 				p.plan["step"] = "loiter"
 				p.walking = false
