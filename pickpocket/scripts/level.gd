@@ -790,7 +790,10 @@ func _update_thief(p, now: float, dt: float) -> void:
 			p.position.x += float(p.dir) * step2
 			p.advance(step2)
 			var apart: bool = v == null or not is_instance_valid(v) or absf(p.position.x - v.position.x) > p.h * 0.9
-			if now >= float(p.plan["t2"]) and apart and p.position.x > _w * 0.22 and p.position.x < _w * 0.78:
+			var mid: bool = p.position.x > _w * 0.22 and p.position.x < _w * 0.78
+			# in the lesson the pickpocket stops soon, still on screen, so the coach can point them out
+			var lesson_stop: bool = _tutorial and p.position.x > _w * 0.12 and p.position.x < _w * 0.88
+			if now >= float(p.plan["t2"]) and ((apart and mid) or lesson_stop):
 				# blend in: stop at a window like anyone else
 				p.plan["step"] = "loiter"
 				p.walking = false
@@ -819,6 +822,13 @@ func _lift_wallet(p, v, u: float) -> void:
 		v.jolt = clampf((u - 0.55) / 0.30, 0.0, 1.0)
 		v.queue_redraw()
 	_wallet.queue_redraw()
+
+# For showing the answer: anywhere on screen. (_thief_visible is stricter: whether the pickpocket
+# may be ASKED for, which needs them clear of the onlookers at the edges.)
+func _thief_on_screen() -> bool:
+	if _thief == null or not is_instance_valid(_thief):
+		return false
+	return _thief.position.x > _thief.h * 0.2 and _thief.position.x < _w - _thief.h * 0.2
 
 func _thief_visible() -> bool:
 	if _thief == null or not is_instance_valid(_thief):
@@ -874,6 +884,13 @@ func _start_round(now: float) -> void:
 					if _plan_theft(now, t0, tf):
 						break
 					p.stand_until = now + rng.randf_range(500.0, 2000.0)
+			if _victim == null and _tutorial:
+				# the lesson MUST have a theft: a window-shopper on the near sidewalk, mid-street
+				var x: float = _w * (0.38 if rng.randf() < 0.5 else 0.62)
+				var shopper = _spawn(1, x, 1 if rng.randf() < 0.5 else -1, false)
+				shopper.stand_until = now + 1.0e9
+				shopper.walking = false
+				_plan_theft(now, t0, tf)
 			if _victim == null:
 				_empty_round = true
 	_ask_thief = false
@@ -925,13 +942,13 @@ func _ask_person(now: float) -> void:
 	_noone_btn.visible = empty_p > 0.0
 
 func _on_cup_picked(c: int, now: float) -> void:
-	game.tutorial_notify("cup_picked")
 	_picked_cup = c
 	_cup_right = c == _table.ball_cup
 	_table.start_reveal(c, now, REVEAL_MS)
 	phase = Phase.CUP_SHOWN
 	_phase_t0 = now
 	_prompt.hide()
+	game.tutorial_notify("cup_picked")
 
 func _on_person_picked(p, now: float) -> void:
 	var answer = _thief if _ask_thief else _victim
@@ -943,7 +960,6 @@ func _on_noone_pressed() -> void:
 	_resolve(_empty_round, null, game.game_time)
 
 func _resolve(person_right: bool, picked, now: float) -> void:
-	game.tutorial_notify("person_picked")
 	_noone_btn.hide()
 	times_to_answer.append(maxf(0.0, now - _ask_t0))
 	while times_to_answer.size() > 30:
@@ -968,7 +984,7 @@ func _resolve(person_right: bool, picked, now: float) -> void:
 	# show what happened on the street
 	if _victim != null and is_instance_valid(_victim):
 		_victim.set_mark(PASSERBY.Mark.VICTIM, "Robbed")
-	if _thief_visible():
+	if _thief_on_screen():
 		_thief.set_mark(PASSERBY.Mark.THIEF, "Pickpocket")
 		if _victim != null and is_instance_valid(_victim) and absf(_thief.position.x - _victim.position.x) < _thief.h * 0.9:
 			_thief.tag_raise = 1.0
@@ -998,6 +1014,10 @@ func _resolve(person_right: bool, picked, now: float) -> void:
 	_say(text, col)
 	phase = Phase.FEEDBACK
 	_phase_t0 = now
+	_tags.queue_redraw()
+	# LAST: the tutorial freezes the game the moment it hears this, so the tags have to be on
+	# already (notified first, the coach pointed at the victim with no "Robbed" over them)
+	game.tutorial_notify("person_picked")
 
 func _end_round(now: float) -> void:
 	for p in _crowd:

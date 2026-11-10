@@ -313,6 +313,7 @@ player's own saved state back into the level so Continue still resumes their gam
 | `change` | drag into a container | no running total is shown; coins hide under each other |
 | `aliens` | drag within a simulation | outer ring vs inner ring; evicting is a correct call too |
 | `gorilla` | flick to set a direction | you eat AND watch the whole maze; a lost baby appears far away and must be rescued before a monster gets it |
+| `pickpocket` | tap a cup, then tap a person | two jobs at once: the cups up close and the street out of the corner of the eye; the questions come in order, the cup then the person |
 | `wolves` | **drawn path** | you can draw a route; you startle sheep, never push them |
 | `storm` | drawn path + tap-tile | you must be standing NEXT to a leak; what each belonging is worth; the "Worst" room and its line |
 | `guidem` | tap junction doors | the walkers never stop, so you set the road up ahead of them |
