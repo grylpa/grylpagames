@@ -26,6 +26,7 @@ var _progress_btn: Button = null
 var _about_screen: CanvasLayer = null
 var _settings_screen: CanvasLayer = null
 
+const _TABLE_SHADER: Shader = preload("res://scripts/chooser_table.gdshader")
 var _icon_grid: Texture2D = preload("res://art/grid-48.png")
 var _icon_cat: Texture2D = preload("res://art/category_list_48.png")
 
@@ -37,21 +38,22 @@ const _ICON_COLOR: Color = Color(1.0, 0.8980392, 0.007843138, 1.0)
 # dashed road lines of the background tile -- so nothing stood out from anything else. The bright
 # yellow is kept where it MEANS something: the game names, and the account icon of a full login.
 const _GOLD: Color = ScreenBackdrop.ACCENT
-const _HAIRLINE: Color = ScreenBackdrop.PANEL_FRAME
 const _NAVY: Color = ResultCard.CARD_BG
 const _BG_TOP: Color = Color(0.10, 0.12, 0.19)
 const _BG_BOTTOM: Color = Color(0.045, 0.055, 0.09)
-const _ROW_BG: Color = Color(0.13, 0.155, 0.225, 0.92)
-const _ROW_BG_HOT: Color = Color(0.17, 0.20, 0.285, 0.96)
 # Category headers: the gold, softened, so they sit a step below the app's name in the top bar.
 const _HEADER_GOLD: Color = Color(0.85, 0.72, 0.46, 0.9)
 # Every highlight's "switch off", so a scroll can clear them all (see _hover_highlight).
 var _hot_resets: Array[Callable] = []
 var _headers_added: int = 0
 var _bottom_bar: Panel = null
+# The tiles' slow turn and untidiness (scripts/tile_life.gd), drawn over the steady controls.
+var _tile_life: TileLife = null
 
 func _ready() -> void:
 	%TitleLabel.text = _titled(%TitleLabel.text)
+	_tile_life = TileLife.new()
+	add_child(_tile_life)
 	MainGlobals.load_settings()
 	_dress_screen()
 	_update_view_mode_button()
@@ -81,6 +83,18 @@ func _dress_screen() -> void:
 	var bg: TextureRect = $TextureRect
 	bg.texture = tex
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
+	# 5. A LIT TABLE (2026-11-10): the tiles sway and sit untidily (scripts/tile_life.gd), like cards
+	#    on a table, which showed more of the plain gradient than it could carry. The shader draws the
+	#    whole ground -- navy cloth, a fine weave, a warm pool of light, darker edges -- over the
+	#    gradient, which stays as the fallback.
+	var table: ShaderMaterial = ShaderMaterial.new()
+	table.shader = _TABLE_SHADER
+	bg.material = table
+	_table_mat = table
+	var fit_table: Callable = func() -> void:
+		table.set_shader_parameter("px_size", bg.size)
+	bg.resized.connect(fit_table)
+	fit_table.call()
 	# The list's own panel was 50% black over the old tile; over a dark gradient it only muddies it.
 	var sc_style: StyleBoxFlat = (%ScrollContainer.get_theme_stylebox("panel") as StyleBoxFlat).duplicate()
 	sc_style.bg_color = Color(0, 0, 0, 0)
@@ -96,35 +110,38 @@ func _dress_screen() -> void:
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	title.add_theme_constant_override("shadow_offset_x", 0)
 	title.add_theme_constant_override("shadow_offset_y", 2)
-	# The strip behind the bar's contents. A MarginContainer stacks its children, each filling it, so a
-	# panel added FIRST is drawn under the rest and covers the whole bar (the bar has no margins).
-	var bar_margin: MarginContainer = %TitleLabel.get_parent()
-	var strip: Panel = Panel.new()
-	strip.name = "TopBar"
-	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb: StyleBoxFlat = StyleBoxFlat.new()
-	sb.bg_color = _NAVY
-	strip.add_theme_stylebox_override("panel", sb)
-	bar_margin.add_child(strip)
-	bar_margin.move_child(strip, 0)
+	# No strip behind the title any more (2026-11-10): the caption area is NOT set apart from the rest
+	# of the screen -- the table runs under it, so whatever the background is spans the whole view.
 
-# 2. A ROW IS A CARD: navy, a step lighter than the background, with a faint gold hairline that turns
-#    solid gold while it is pointed at or pressed. Every row had a 3-unit bright yellow border.
+# The table differs by view (chosen 2026-11-10): the GRID's cloth carries the woven art-deco fans, the
+# list by category the plain cloth -- both under the strong pool of light.
+var _table_mat: ShaderMaterial = null
+func _table_for_view(list_mode: bool) -> void:
+	if _table_mat != null:
+		_table_mat.set_shader_parameter("style", 0 if list_mode else 1)
+
+# 2. A ROW LIES ON THE TABLE (2026-11-10): no card -- no panel, no frame -- just the picture and its
+#    words on the cloth; a faint light patch under the row while it is pointed at (the picture also
+#    turns to face the player, scripts/tile_life.gd). It was a navy card with a gold hairline, gold
+#    when hot, and before that a 3-unit bright yellow border.
 func _row_style(hot: bool) -> StyleBoxFlat:
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
-	sb.bg_color = _ROW_BG_HOT if hot else _ROW_BG
-	sb.set_border_width_all(2)
-	sb.border_color = _GOLD if hot else _HAIRLINE
+	sb.bg_color = Color(1.0, 1.0, 1.0, 0.06) if hot else Color(0, 0, 0, 0)
 	sb.set_corner_radius_all(10)
-	for side: int in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		sb.set_content_margin(side, 8.0)
+	# with no card to sit inside, the rows close up: a little room above and below, the old 8 at the sides
+	sb.set_content_margin(SIDE_LEFT, 8.0)
+	sb.set_content_margin(SIDE_RIGHT, 8.0)
+	sb.set_content_margin(SIDE_TOP, 3.0)
+	sb.set_content_margin(SIDE_BOTTOM, 3.0)
 	return sb
 
-# A grid tile's frame: gold, not the bright yellow, and bright while pointed at.
-func _tile_frame(base: StyleBoxFlat, hot: bool) -> StyleBoxFlat:
+# A grid tile's frame: the gold at 3 units, the same pointed at or not (2026-11-10). It used to turn
+# bright yellow and thicker under the pointer, which was too much ("neon") once the tile also turns
+# to face the player (scripts/tile_life.gd, which draws this frame in its shader).
+func _tile_frame(base: StyleBoxFlat, _hot: bool) -> StyleBoxFlat:
 	var sb: StyleBoxFlat = base.duplicate() as StyleBoxFlat
-	sb.set_border_width_all(3 if hot else 2)
-	sb.border_color = _ICON_COLOR if hot else _GOLD
+	sb.set_border_width_all(3)
+	sb.border_color = _GOLD
 	return sb
 
 # Hot while the POINTER is over any of `parts` (a row is two buttons side by side, and moving from one
@@ -420,6 +437,7 @@ func create_grid():
 	var viewport_w = %ScrollContainer.get_viewport_rect().size.x
 	var usable_w = viewport_w - pad_l - pad_r - scrollbar_w - pad_l
 
+	_table_for_view(list_mode)
 	game_buttons = []
 	_hot_resets.clear()
 	for child in %GamesGrid.get_children():
@@ -435,7 +453,7 @@ func create_grid():
 		%GamesGrid.add_theme_constant_override("v_separation", %GamesGrid.get_theme_constant("h_separation"))
 		if list_mode:
 			n_columns = 1
-			%GamesGrid.add_theme_constant_override("v_separation", 4)
+			%GamesGrid.add_theme_constant_override("v_separation", 0)
 			if MainGlobals.is_mobile():
 				btn_w = 120
 				_list_title_size = 40
@@ -550,6 +568,8 @@ func add_game(game_path, game_name, game_desc, needs_login, list_mode):
 		# btn.custom_minimum_size = Vector2(btn_w, btn_h)
 	if ls and btn_font_size > 0:
 		ls.font_size = btn_font_size
+	if not MainCfg.single_game and _tile_life != null:
+		_tile_life.add(btn, game_path, list_mode, [desc] if list_mode else [])
 
 	# btn._update_shader_size()
 
@@ -771,8 +791,8 @@ func _cat_recent_index(cat: String, lpo: Array) -> int:
 func _add_category_header(cat_name: String) -> void:
 	var container: MarginContainer = MarginContainer.new()
 	container.size_flags_horizontal = Control.SIZE_FILL
-	container.add_theme_constant_override("margin_top", 4 if _headers_added == 0 else 18)
-	container.add_theme_constant_override("margin_bottom", 2)
+	container.add_theme_constant_override("margin_top", 4 if _headers_added == 0 else 26)
+	container.add_theme_constant_override("margin_bottom", 6)
 	container.add_theme_constant_override("margin_left", 6)
 	container.add_theme_constant_override("margin_right", 0)
 	_headers_added += 1
@@ -786,5 +806,22 @@ func _add_category_header(cat_name: String) -> void:
 	lbl.add_theme_constant_override("shadow_offset_y", 1)
 	lbl.text = cat_name.to_upper()
 	row.add_child(lbl)
+	# A gold rule after the name that fades out to the right: each category opens like a chapter.
+	var rule: TextureRect = TextureRect.new()
+	var grad: Gradient = Gradient.new()
+	grad.set_color(0, Color(_HEADER_GOLD.r, _HEADER_GOLD.g, _HEADER_GOLD.b, 0.55))
+	grad.set_color(1, Color(_HEADER_GOLD.r, _HEADER_GOLD.g, _HEADER_GOLD.b, 0.0))
+	var gtex: GradientTexture2D = GradientTexture2D.new()
+	gtex.gradient = grad
+	gtex.width = 256
+	gtex.height = 2
+	rule.texture = gtex
+	rule.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rule.stretch_mode = TextureRect.STRETCH_SCALE
+	rule.custom_minimum_size = Vector2(0.0, 2.0)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(rule)
 	container.add_child(row)
 	%GamesGrid.add_child(container)
