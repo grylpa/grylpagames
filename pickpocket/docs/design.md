@@ -161,7 +161,37 @@ the round count: 66 = 4 of 6, 75 = 6 of 8.
   finger snaps, a vibraphone creeping up in half steps, a low clarinet-like tune), played at -6 dB
   while the table is up.
 
-## Not yet
+## Tutorial
 
-There is no coached tutorial (it is not in `MainCfg.tutorials`). There is no entry in
-`docs/the-nomizo-games.md` either; adding one means a `--site` rebuild of the published copy.
+`pickpocket/scripts/tutorial.gd` (in `MainCfg.tutorials`; first run and "How to play"). One real
+round, slowed down (`level._tutorial_setup`: 3 cups, 4 swaps of 950 ms, a 1.5 s theft with the
+bright wallet and the victim's start, always in the NEAR lane, never a pickpocket question or an
+empty round; rounds never end the level):
+
+1. the hustler and his cups (spotlit); 2. two jobs at once; 3. **watch** (`watch_only`, waits for
+`street_frozen`); 4. tap the cup (`cup_picked`); 5. tap who was robbed (`person_picked`);
+6. "this is who was robbed" (spotlit, with its tag); 7. "and this is the pickpocket" and the rule
+that a round needs both; 8. what changes later, and "No one".
+
+Guarantees the lesson depends on:
+
+- **There is always a theft.** If no near-lane walker can be reached in time, a window-shopper is
+  placed mid-street to be robbed (`_start_round`).
+- **The pickpocket stays in view.** In the lesson they stop soon after the theft, wherever they are on
+  screen (`lesson_stop`), so step 7 has someone to point at.
+- **Tags are drawn before the coach freezes the game.** `person_picked` is notified LAST in
+  `_resolve` (and `cup_picked` last in `_on_cup_picked`): notified first, the runner froze the game
+  before the tags were set, and the coach pointed at a victim with no "Robbed" over them.
+- **No caption covers what its step is about.** Every step lists its zones (`keep_clear`): the
+  table, both lanes head to foot, the onlookers, the victim and the pickpocket with their tags; the
+  short captions fit in the strip over the shops. The runner now narrows a short caption to its
+  text (`scripts/tutorial.gd` `_layout_panel`), for every game.
+
+## The shop signs
+
+Each shop has its own sign, in the manner of its trade (`street.gd` `_shop_sign`): the bakery a cream
+board with rounded ends, red lettering (Exo 2) and a loaf painted at each end; the bookshop a deep
+green board with gilt capitals spaced wide (Space Grotesk), a double gold rule and an open book at
+each end; the florist a white oval with pink lettering (Open Sans) and blooms; the cafe a dark board
+with its name in warm neon (Orbitron) beside a steaming cup. They were four identical black boards.
+The two street lamps stand at the joints between buildings (`lamp_xs`), never across a sign.

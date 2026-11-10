@@ -108,9 +108,7 @@ func _draw() -> void:
 		var trim: Color = shop["trim"]
 		var sign_h: float = face_h * 0.085
 		var sign_y: float = shop_top
-		draw_rect(Rect2(x0 + bw * 0.06, sign_y, bw * 0.88, sign_h), Color(0.10, 0.09, 0.10))
-		draw_rect(Rect2(x0 + bw * 0.06, sign_y, bw * 0.88, sign_h), trim, false, 2.0)
-		_sign_text(shop["name"], Vector2(x0 + bw * 0.5, sign_y + sign_h * 0.5), sign_h * 0.62, trim)
+		_shop_sign(i, Rect2(x0 + bw * 0.05, sign_y - sign_h * 0.12, bw * 0.90, sign_h * 1.24))
 		var aw_y: float = sign_y + sign_h + 2.0
 		var aw_h: float = face_h * 0.075
 		_awning(Rect2(x0 + bw * 0.03, aw_y, bw * 0.94, aw_h), shop["awning"])
@@ -208,8 +206,9 @@ func _draw() -> void:
 	for lx in lamp_xs():
 		_lamp(Vector2(float(lx), top_s + 4.0), lamp_height())
 
+# At the joints between buildings, so a post never stands across a shop's sign.
 func lamp_xs() -> Array:
-	return [_w * 0.16, _w * 0.84]
+	return [_w * 0.25, _w * 0.75]
 
 func lamp_height() -> float:
 	return (_road_bottom - _top) * 0.78
@@ -262,13 +261,114 @@ func _display(i: int, wr: Rect2, rng: RandomNumberGenerator) -> void:
 				draw_rect(Rect2(cx - 7.0, base - 14.0, 14.0, 14.0), Color(0.95, 0.93, 0.88))
 				draw_arc(Vector2(cx + 8.0, base - 8.0), 4.0, -PI * 0.5, PI * 0.5, 8, Color(0.95, 0.93, 0.88), 2.0)
 
-func _sign_text(text: String, c: Vector2, fs: float, col: Color) -> void:
-	var font: Font = MainGlobals.get_text_font()
-	var size_px: int = int(fs)
-	if size_px < 1:
-		return
-	var tw: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px).x
-	draw_string(font, Vector2(c.x - tw * 0.5, c.y + fs * 0.36), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, col)
+# EACH SHOP HAS ITS OWN SIGN, in the manner of its trade (2026-11-09: four identical black boards
+# with the name in the trim color did not read as shop signs at all):
+#   bakery   a cream board with rounded ends, warm red lettering, a loaf painted at each end
+#   books    a deep green board, gilt capitals spaced wide, a double gold rule, an open book each end
+#   flowers  a white oval with pink lettering and blooms painted at both ends
+#   cafe     a dark board with the name in warm neon, glowing, beside a steaming cup
+static var _fonts: Dictionary = {}
+
+func _font(path: String) -> Font:
+	if not _fonts.has(path):
+		var f: Font = load(path) as Font
+		_fonts[path] = f if f != null else MainGlobals.get_text_font()
+	return _fonts[path]
+
+func _shop_sign(i: int, r: Rect2) -> void:
+	var c: Vector2 = r.get_center()
+	var h: float = r.size.y
+	match i:
+		0:
+			var cream: Color = Color(0.95, 0.88, 0.72)
+			_rounded_board(r, h * 0.5, cream, Color(0.55, 0.32, 0.18))
+			_text_fit("Bakery", c, r.size.x * 0.62, h * 0.70, Color(0.70, 0.18, 0.14), _font("res://art/fonts/Exo2.ttf"))
+			for sx in [-1.0, 1.0]:
+				_loaf(c + Vector2(sx * r.size.x * 0.40, 0.0), h * 0.30)
+		1:
+			var green: Color = Color(0.10, 0.27, 0.19)
+			draw_rect(r, green)
+			var gold: Color = Color(0.86, 0.70, 0.36)
+			draw_rect(r.grow(-2.0), gold, false, 1.5)
+			draw_rect(r.grow(-5.0), Color(gold, 0.6), false, 1.0)
+			_text_fit("B O O K S", c, r.size.x * 0.60, h * 0.62, gold, _font("res://art/fonts/SpaceGrotesk.ttf"))
+			for sx in [-1.0, 1.0]:
+				_open_book(c + Vector2(sx * r.size.x * 0.40, 0.0), h * 0.30, gold)
+		2:
+			var white: Color = Color(0.97, 0.95, 0.93)
+			var oval: PackedVector2Array = PackedVector2Array()
+			for k in 32:
+				var t: float = TAU * float(k) / 32.0
+				oval.append(c + Vector2(cos(t) * r.size.x * 0.5, sin(t) * h * 0.55))
+			draw_colored_polygon(oval, white)
+			oval.append(oval[0])
+			draw_polyline(oval, Color(0.30, 0.55, 0.32), 2.0, true)
+			_text_fit("Flowers", c, r.size.x * 0.56, h * 0.66, Color(0.82, 0.28, 0.48), _font("res://art/fonts/OpenSans-SemiBold.ttf"))
+			for sx in [-1.0, 1.0]:
+				_bloom(c + Vector2(sx * r.size.x * 0.36, 0.0), h * 0.20, sx)
+		3:
+			_rounded_board(r, 4.0, Color(0.08, 0.07, 0.09), Color(0.25, 0.20, 0.18))
+			var neon: Color = Color(1.0, 0.62, 0.30)
+			var tc: Vector2 = c + Vector2(r.size.x * 0.06, 0.0)
+			for k in 4:
+				_text_fit("Cafe", tc, r.size.x * 0.58, h * 0.70, Color(neon, 0.20), _font("res://art/fonts/Orbitron.ttf"), Vector2(float(k % 2) * 2.0 - 1.0, float(k / 2) * 2.0 - 1.0) * 2.0)
+			_text_fit("Cafe", tc, r.size.x * 0.58, h * 0.70, Color(1.0, 0.86, 0.66), _font("res://art/fonts/Orbitron.ttf"))
+			_cup(c + Vector2(-r.size.x * 0.34, h * 0.12), h * 0.30, neon)
+
+func _rounded_board(r: Rect2, rad: float, fill: Color, edge: Color) -> void:
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.set_corner_radius_all(int(rad))
+	sb.border_color = edge
+	sb.set_border_width_all(2)
+	sb.anti_aliasing = true
+	draw_style_box(sb, r)
+
+# A word centered on c, as large as fits max_w x max_h.
+func _text_fit(text: String, c: Vector2, max_w: float, max_h: float, col: Color, font: Font, off: Vector2 = Vector2.ZERO) -> void:
+	var fs: int = maxi(1, int(max_h))
+	var tw: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	if tw > max_w:
+		fs = maxi(1, int(float(fs) * max_w / tw))
+		tw = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var asc: float = font.get_ascent(fs)
+	var desc: float = font.get_descent(fs)
+	draw_string(font, Vector2(c.x - tw * 0.5, c.y + (asc - desc) * 0.5) + off, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+func _loaf(c: Vector2, s: float) -> void:
+	var pts: PackedVector2Array = PackedVector2Array()
+	for k in 16:
+		var t: float = PI + PI * float(k) / 15.0
+		pts.append(c + Vector2(cos(t) * s * 1.1, sin(t) * s * 0.8 + s * 0.3))
+	draw_colored_polygon(pts, Color(0.78, 0.50, 0.22))
+	for k in 3:
+		var x: float = -s * 0.5 + s * 0.5 * float(k)
+		draw_line(c + Vector2(x - s * 0.15, -s * 0.25), c + Vector2(x + s * 0.15, 0.0), Color(0.95, 0.80, 0.55), 1.2)
+
+func _open_book(c: Vector2, s: float, col: Color) -> void:
+	for sx in [-1.0, 1.0]:
+		var page: PackedVector2Array = PackedVector2Array([c, c + Vector2(sx * s, -s * 0.30), c + Vector2(sx * s, s * 0.55), c + Vector2(0, s * 0.75)])
+		draw_colored_polygon(page, Color(0.95, 0.92, 0.82))
+		page.append(page[0])
+		draw_polyline(page, col, 1.2)
+	draw_line(c, c + Vector2(0, s * 0.75), col, 1.2)
+
+func _bloom(c: Vector2, s: float, sx: float) -> void:
+	draw_line(c + Vector2(0, s * 0.4), c + Vector2(sx * s * 0.6, s * 1.3), Color(0.30, 0.55, 0.30), 1.5)
+	for k in 5:
+		var t: float = TAU * float(k) / 5.0
+		draw_circle(c + Vector2(cos(t), sin(t)) * s * 0.55, s * 0.42, Color(0.92, 0.42, 0.58))
+	draw_circle(c, s * 0.32, Color(0.98, 0.84, 0.30))
+
+func _cup(c: Vector2, s: float, neon: Color) -> void:
+	var body: PackedVector2Array = PackedVector2Array([c + Vector2(-s * 0.6, -s * 0.4), c + Vector2(s * 0.6, -s * 0.4),
+		c + Vector2(s * 0.45, s * 0.5), c + Vector2(-s * 0.45, s * 0.5)])
+	body.append(body[0])
+	draw_polyline(body, neon, 2.0, true)
+	draw_arc(c + Vector2(s * 0.62, 0.0), s * 0.25, -PI * 0.5, PI * 0.5, 8, neon, 2.0)
+	for k in 2:
+		var x: float = -s * 0.2 + s * 0.4 * float(k)
+		draw_arc(c + Vector2(x, -s * 0.85), s * 0.18, PI * 0.5, PI * 1.5, 6, Color(neon, 0.7), 1.5)
 
 # A cast-iron street lamp: a tapering post lit down one side by its own lantern, a fluted base, a
 # collar, and a glass lantern in a cage with a cap. Its light on the ground is the level's glow

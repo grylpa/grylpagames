@@ -95,8 +95,10 @@ no super-food apples any more (`powers_in_level` is forced to 0).
 
 `banana_art.gd`: three bananas hanging from a stem, drawn in code, fading in, blinking in their last
 second. `_spawn_banana()` puts a bunch at least a third of the farthest walking distance away, on an
-empty cell without an apple. Walking onto it: +5 and the apple crunch. Counted as `bananas_taken` /
-`bananas_missed`; not judged.
+empty cell without an apple. Walking onto it **fills the hunger ring right up**: the allowance is at
+least `BANANA_FULL_MS` (16 s) whatever the nearest apple (`_restart_hunger(true)`), which pays for a
+trip far from the apples -- to a lost baby, or to its mother and her sword. Plus 5 points, the apple
+crunch and "Full!". Counted as `bananas_taken` / `bananas_missed`; not judged.
 
 ## Passing a level
 
@@ -415,8 +417,9 @@ Rewritten for the 2026-11-09 redesign:
 4. **a lost baby**: its setup places one (`tutorial_spawn_baby`) and the step spotlights it with the
    game frozen; 5. **rescue it**: waits for `baby_rescued`;
 6. **its mother** (`tutorial_spawn_mother`, who waits as long as it takes in the lesson), spotlit;
-7. **the sword**: waits for `gift_taken`; 8. keep eating (the hunger ring); 9. monsters
-   (`tutorial_show_a_monster` puts one far away, named and pointed at); 10. bananas and the gate.
+7. **the sword**: waits for `gift_taken`; 8. keep eating (the hunger ring); 9. **bananas**
+   (`tutorial_spawn_banana`, which waits in the lesson), spotlit; 10. eat it (`banana_taken`);
+11. monsters (`tutorial_show_a_monster` puts one far away, named and pointed at); 12. the gate.
 
 `_tutorial_setup()` switches off the automatic babies and bananas and sets one baby per round, so
 the coach's board can end once the baby it placed is saved. `new_game` sets
