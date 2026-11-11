@@ -258,13 +258,16 @@ func _layout() -> void:
 
 	# full-screen drag catcher, and the felt under everything
 	_place(_catcher, 0.0, 0.0, sw, sh)
-	_place(_felt, 0.0, 0.0, sw, sh)
-	_felt_mat.set_shader_parameter("size", Vector2(sw, sh))
+	# the felt runs to the screen's very foot, behind the app's button bar (sized to screen_size, which
+	# leaves out the footer, it stopped 40 units short and the clear color showed there)
+	var full_h: float = float(MainGlobals.full_screen_size.y)
+	_place(_felt, 0.0, 0.0, sw, full_h)
+	_felt_mat.set_shader_parameter("size", Vector2(sw, full_h))
 
 	# timeout bar just under the header (level label is moved down below it in main.gd)
 	_bar_h = 22.0 if mob else 14.0
 	var bar_x: float = 22.0
-	var bar_y: float = hh + 8.0
+	var bar_y: float = hh + 4.0     # 4 up since the strip lost its 4-unit black line (2026-11-11)
 	_bar_full_w = sw - bar_x * 2.0
 	_place(_bar_track, bar_x, bar_y, _bar_full_w, _bar_h)
 	_bar_fill.position = Vector2(bar_x, bar_y)

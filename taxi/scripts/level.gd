@@ -332,18 +332,46 @@ func create_board(force_new_taxis_and_stations:bool) -> void:
 		var p = t.lobby_pos
 		board[p.y][p.x].pipe.show_lobby(true)
 
-	if saved_taxis != null and saved_taxis.size() > 0:
-		game._reset_lives_val = saved_taxis.size()		
-		var n_alive := 0
+	# A saved taxi goes back only onto a free ROAD cell of THIS board. A save made on another board --
+	# the desktop's board is larger than a phone's, and a level's size can change -- put a taxi off
+	# the board: add_taxi_at failed on the index and the fuel call then hit nothing (2026-11-11).
+	# One that does not fit starts afresh at a free starting spot, keeping its fuel, so the player
+	# keeps every taxi they had.
+	var restorable: Array = []
+	var homeless: Array = []        # the fuel of each saved taxi that did not fit
+	if saved_taxis != null:
 		for t in saved_taxis:
 			var fuel = t.get("fuel", -1)
-			var p = SaveManager.d_v2i(t.get("board_pos", {}))
-			var dir = t.get("dir",-1)
-			if fuel >= 0 and p != Vector2i.ZERO and dir >= 0:
-				var taxi = add_taxi_at(p, dir)
-				taxi.set_fuel_level(fuel)
-				if fuel > 0:
-					n_alive += 1
+			var p: Vector2i = SaveManager.d_v2i(t.get("board_pos", {}))
+			var dir = t.get("dir", -1)
+			if fuel < 0 or p == Vector2i.ZERO or dir < 0:
+				continue
+			if p.x < 0 or p.y < 0 or p.x >= game.board_size.x or p.y >= game.board_size.y \
+					or not board[p.y][p.x].ispipe:
+				homeless.append(fuel)
+				continue
+			restorable.append([p, dir, fuel])
+	if restorable.size() + homeless.size() > 0:
+		var n_alive := 0
+		var n_placed := 0
+		for r in restorable:
+			if board[r[0].y][r[0].x].agent != null:
+				homeless.append(r[2])
+				continue
+			var taxi = add_taxi_at(r[0], r[1])
+			taxi.set_fuel_level(r[2])
+			n_placed += 1
+			if r[2] > 0:
+				n_alive += 1
+		for fuel in homeless:
+			var taxi = _add_taxi_at_free_start()
+			if taxi == null:
+				break
+			taxi.set_fuel_level(fuel)
+			n_placed += 1
+			if fuel > 0:
+				n_alive += 1
+		game._reset_lives_val = n_placed
 		game.lives_left = n_alive
 	else:
 		game._reset_lives_val = num_of_taxis
@@ -406,6 +434,24 @@ func find_closest_non_allocated_target(p):
 				d = this_d
 				target = t
 	return target
+
+# A taxi on a free starting spot (not a gas station's lobby or drop-off), or null if none is free.
+func _add_taxi_at_free_start():
+	var order: Array = range(0, agent_start_positions.size())
+	order.shuffle()
+	for idx in order:
+		var dir = agent_start_directions[idx]
+		var p: Vector2i = game.next_board_pos(agent_start_positions[idx], dir)
+		if board[p.y][p.x].agent != null:
+			continue
+		var can_use_this: bool = true
+		for t in targets:
+			if t.is_gas_station and (t.lobby_pos == p or t.dropoff_pos == p):
+				can_use_this = false
+				break
+		if can_use_this:
+			return add_taxi_at(p, (dir + 1) % 4)
+	return null
 
 var next_agent_id := 1
 func add_taxi_at(p: Vector2i, direction: int):

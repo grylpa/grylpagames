@@ -209,16 +209,8 @@ func _input(event: InputEvent) -> void:
 func refresh_menu() -> void:
 	main_menu.update_option(1, PickpocketLevelConfig.id_to_index(PickpocketG.starting_level_id))
 
-# The top bar belongs to the night: the shared HUD's gray strip, recolored for this game alone to the
-# sky's deep navy with a thin gold line under it (every other game keeps the gray).
+# The shared HUD has no top bar any more (generic_game_hud.gd _clear_top_bar), and the night sky runs
+# on up behind the counters (street.gd, level.gd _draw_shade). The level's name goes up into the
+# strip's free left end (no clock here): under it, over the roofs, it crowded the street.
 func _dress_top_bar() -> void:
-	var bar: Label = hud.get_node_or_null("BkLabel") as Label
-	if bar == null:
-		return
-	var sb: StyleBoxFlat = bar.get_theme_stylebox("normal") as StyleBoxFlat
-	if sb == null:
-		return
-	var night: StyleBoxFlat = sb.duplicate() as StyleBoxFlat
-	night.bg_color = Color(0.045, 0.055, 0.14)
-	night.border_color = Color(0.976, 0.792, 0.353, 0.55)
-	bar.add_theme_stylebox_override("normal", night)
+	hud.move_level_label_to_strip()

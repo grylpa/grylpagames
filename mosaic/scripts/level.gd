@@ -156,13 +156,13 @@ func _layout() -> void:
 	MainGlobals.set_font_size(_feedback, 48)
 	_bar_h = 22.0 if mob else 14.0
 	var bar_x: float = 22.0
-	var bar_y: float = hh + 8.0
+	var bar_y: float = hh + 4.0     # 4 up since the strip lost its 4-unit black line (2026-11-11)
 	_bar_full_w = sw - bar_x * 2.0
 	_place(_bar_track, bar_x, bar_y, _bar_full_w, _bar_h)
 	_bar_fill.position = Vector2(bar_x, bar_y)
 	# two lines on a rotation level ("Put it back together" / "Tap a piece to turn it")
 	var cap_h: float = (48.0 if mob else 36.0) * (2.0 if rotation_on else 1.0)
-	# below the level number, which main.gd moves to y 92-132
+	# below the level number, which main.gd moves to y 88-128
 	var cap_top: float = 136.0
 	_place(_caption, 0.0, cap_top, sw, cap_h)
 	# The board: everything between the caption and the app's bottom button bar.

@@ -216,3 +216,11 @@ still read.
   disabled slash; **lives icon** `art/taxi_icon.png` (both `make_thumbs.py taxi_icons`).
 - **Doors**: the shared drawn gate / nail stubs; never turned while a cab is in the cell (`DoorGuard`).
   Live docks skip orange and brown. **Board**: `init_sizes_odd()`, `buttons_height = 0`.
+
+## Restoring saved taxis (2026-11-11)
+
+A saved taxi is put back only onto a ROAD cell of the board as it is now (`create_board`). A save
+made on a different board -- a desktop's is larger than a phone's, and a level's size can change --
+put taxis off the board: `add_taxi_at` failed on the index and `set_fuel_level` then hit nothing.
+One that does not fit, or whose cell is taken, starts at a free starting spot instead
+(`_add_taxi_at_free_start`) with its own fuel, so the player keeps every taxi they had.

@@ -775,9 +775,10 @@ func zoom_camera(zoom_in: bool):
 			game_cam.enabled = true
 			# if player_cam != null:
 			# 	player_cam.enabled = false
-			return
 		else:
 			create_game_camera(game_camscale, game_center)
+		# the lawn has to reach as far as the zoomed-out camera sees, down behind the button bar
+		_fit_ground_to_board()
 	
 
 func create_game_camera(game_camscale, game_center):
@@ -1592,4 +1593,4 @@ func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 21)
+	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 21, game_cam)

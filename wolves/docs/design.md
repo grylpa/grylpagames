@@ -387,3 +387,9 @@ Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; nam
 
 - Bricks are drawn by `scripts/block_art.gd` (three types, one mortar). The animals stay
   `beast_art.gd`'s; `MonsterArt` leaves a head another drawing already hid.
+
+## To the screen's foot (2026-11-11)
+
+The lawn reaches as far as the zoomed-out game camera sees: `_fit_ground_to_board` passes
+`game_cam` to `GrassField.fit`, and `zoom_camera` refits after setting it. On a phone the camera
+shows more than one screen of world and the lawn stopped short of the foot (2026-11-11).

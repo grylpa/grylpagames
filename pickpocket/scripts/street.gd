@@ -59,13 +59,14 @@ func _draw() -> void:
 	# the sunset has to show ABOVE the roofs (they start 11-24% down), so the colors are spent there
 	var sky_bottom: float = _top + (_floor - _top) * 0.30
 	var sky_mid: float = _top + (sky_bottom - _top) * 0.42
-	_vgrad(Rect2(0.0, _top - 80.0, _w, sky_mid - _top + 80.0), SKY_TOP, SKY_MID)
+	# the sky runs on up to the very top of the screen, behind the HUD (main.gd _dress_top_bar)
+	_vgrad(Rect2(0.0, -20.0, _w, sky_mid + 20.0), SKY_TOP, SKY_MID)
 	_vgrad(Rect2(0.0, sky_mid, _w, sky_bottom - sky_mid), SKY_MID, SKY_LOW)
 	var sky: RandomNumberGenerator = RandomNumberGenerator.new()
 	sky.seed = 41
 	for k in 46:
-		var sp: Vector2 = Vector2(sky.randf() * _w, _top + sky.randf() * (sky_mid - _top) * 0.95)
-		var sa: float = sky.randf_range(0.25, 0.9) * (1.0 - (sp.y - _top) / maxf(1.0, sky_mid - _top) * 0.7)
+		var sp: Vector2 = Vector2(sky.randf() * _w, sky.randf() * sky_mid * 0.95)
+		var sa: float = sky.randf_range(0.25, 0.9) * (1.0 - sp.y / maxf(1.0, sky_mid) * 0.7)
 		draw_circle(sp, sky.randf_range(0.6, 1.3), Color(1.0, 0.97, 0.88, sa))
 	# over the lowest roof (the bakery's), where there is the most sky
 	var moon: Vector2 = Vector2(_w * 0.13, _top + (_floor - _top) * 0.085)

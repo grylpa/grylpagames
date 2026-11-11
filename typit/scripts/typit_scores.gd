@@ -4,7 +4,7 @@ extends "res://scripts/scores_list.gd"
 # Because it IS a scores_list, closing (X button) works exactly like every other game.
 
 const ORANGE: Color = Color(0.85, 0.65, 0.0, 1.0)   # selected tab background
-const HDR_YELLOW: Color = Color(1.0, 1.0, 0.0, 1.0)  # standard table header color
+const HDR_YELLOW: Color = Color(0.85, 0.72, 0.46, 1.0)  # the stats tables' header gold (scenes/grid_header_label.tscn); it was neon yellow
 const DIST_Y_MAX: float = 150.0                      # distance chart capped at 150%
 
 var _typit_font: Font = null

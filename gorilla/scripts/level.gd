@@ -109,6 +109,7 @@ var num_inside_monsters: int = 1
 var num_bricks: int = 4
 var extra_passages: int = 5
 var directed_chance: float = 0.0
+var smart_chase: float = 0.0     # the shortest way to the player (level_config.gd)
 var agent_speed_min: float = 0.5
 var agent_speed_max: float = 1.2
 var powers_in_level: int = 3
@@ -778,6 +779,21 @@ func _bfs_from(from: Vector2i) -> Dictionary:
 				queue.append(q)
 	return dist
 
+# The step from p to the open neighbor nearest to (or, `away`, farthest from) whatever `dist` was
+# measured from, or -1. A monster only; it must be a cell it may enter.
+func _step_by_distance(p: Vector2i, dist: Dictionary, away: bool) -> int:
+	var best: int = -1
+	var best_d: int = -1 if away else (1 << 30)
+	for k in 4:
+		var q: Vector2i = p + DirArray[k]
+		if not dist.has(q) or not _can_agent_go_to(p, q):
+			continue
+		var d: int = int(dist[q])
+		if (away and d > best_d) or (not away and d < best_d):
+			best_d = d
+			best = k
+	return best
+
 # The direction of the first step on the shortest way from p to `to`, or -1.
 func _step_toward(p: Vector2i, to: Vector2i) -> int:
 	var dist: Dictionary = _bfs_from(to)
@@ -1385,6 +1401,9 @@ func _move_player_on_tick(force: bool):
 			player.set_board_pos(q, board)
 
 func _move_agents_on_tick():
+	# walking distances from the player, worked out once per tick and only if a monster needs them
+	var from_player: Dictionary = {}
+	var have_from_player: bool = false
 	for agent in agents:
 		if not agent.need_to_major_tick():
 			continue
@@ -1400,6 +1419,18 @@ func _move_agents_on_tick():
 			dir = _step_toward(p, baby_cell)
 			if dir >= 0 and not _can_agent_go_to(p, p + DirArray[dir]):
 				dir = -1
+		elif player != null and rng.randf() < smart_chase:
+			# A REAL CHASE (2026-11-11): the shortest way to the player through the maze, as the hunter
+			# goes for a baby. Before this every monster's "chase" was the loose lean below, which a
+			# wall stopped dead -- no level ever pursued the player. WHILE THE SWORD'S POWER IS ON it is
+			# the other way round: the farthest step away (they never fled at all, and a real chase
+			# would have walked them onto the sword).
+			if not have_from_player:
+				from_player = _bfs_from(player.board_pos)
+				have_from_player = true
+			dir = _step_by_distance(p, from_player, player.has_power)
+		elif player != null and player.has_power:
+			pass        # no loose lean toward a player who can eat you: wander
 		elif rng.randf() < directed_chance and player != null:
 			var dp: Vector2i = player.board_pos - p
 			if abs(dp.x) >= abs(dp.y):
@@ -1559,6 +1590,7 @@ func _apply_level() -> void:
 	agent_speed_min = cfg["agent_speed_min"]
 	agent_speed_max = cfg["agent_speed_max"] if player == null else min(cfg["agent_speed_max"], player.speed_scale - 0.2)
 	directed_chance = cfg["directed_chance"]
+	smart_chase = float(cfg.get("smart_chase", 0.0))
 	rounds_per_level = cfg["rounds"]
 	# the super-food apples were replaced by the mother's sword (2026-11-09)
 	powers_in_level = 0
@@ -1625,6 +1657,44 @@ func _add_wall_shade() -> void:
 	_wall_shade.z_index = -1
 	_wall_shade.draw.connect(_draw_wall_shade)
 	add_child(_wall_shade)
+	if _rim != null and is_instance_valid(_rim):
+		_rim.queue_free()
+	_rim = Node2D.new()
+	_rim.draw.connect(_draw_rim)
+	add_child(_rim)
+
+# THE BOARD'S RIM (2026-11-11): the same white bar as the maze's inner walls (pipe.gd, the 2-of-40
+# strip of art/fence_inner_wall.png), along every edge where floor meets anything that is not floor,
+# so the room is closed by its own wall rather than ending in a shadow on the lawn. Like an inner
+# wall it lies INSIDE the cell, along the edge; full-length strips overlap at the corners.
+const RIM_W: float = 2.0 / 40.0       # the wall bar's share of a tile
+const RIM_COLOR: Color = Color(1, 1, 1, 1)
+var _rim: Node2D = null
+
+func _draw_rim() -> void:
+	var t: float = float(game.tile_size)
+	var w: float = maxf(1.0, t * RIM_W)
+	for y in board.size():
+		for x in board[y].size():
+			var cell: OneCell = board[y][x]
+			if cell == null or not cell.ispipe:
+				continue
+			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(x, y) + dv
+				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size() and board[q.y][q.x] != null and board[q.y][q.x].ispipe:
+					continue
+				var r: Rect2
+				match dv:
+					Vector2i(1, 0):
+						r = Rect2(c.x + t * 0.5 - w, c.y - t * 0.5, w, t)
+					Vector2i(-1, 0):
+						r = Rect2(c.x - t * 0.5, c.y - t * 0.5, w, t)
+					Vector2i(0, 1):
+						r = Rect2(c.x - t * 0.5, c.y + t * 0.5 - w, t, w)
+					_:
+						r = Rect2(c.x - t * 0.5, c.y - t * 0.5, t, w)
+				_rim.draw_rect(r, RIM_COLOR)
 
 func _draw_wall_shade() -> void:
 	var t: float = float(game.tile_size)

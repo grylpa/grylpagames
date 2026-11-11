@@ -97,8 +97,13 @@ shade darkens the screen's edges and the bottom (`_shade`).
   on the velvet skirt a gold braid of scallops above the fringe with a tassel at each corner.
 - **The lantern lights its corner**: `shell_table.lantern_world()` gives the level the flame, and
   `_draw_glow` lays a wide warm bloom over the table, the hustler and the onlookers.
-- **The top bar is the night's**: `main.gd` `_dress_top_bar` recolors the shared HUD's gray strip
-  (`BkLabel`) to the sky's navy with a thin gold line, for this game only.
+- **No top bar**: the shared HUD has none any more (`generic_game_hud.gd` `_clear_top_bar`, all games),
+  and the night sky, its stars and the evening shading run on up to the very top of the screen behind
+  the counters (`street.gd`, `_draw_shade`). `main.gd` `_dress_top_bar` moves the level label up into
+  the strip's free left end (`hud.move_level_label_to_strip()`): below the strip, over the roofs, it
+  crowded the street.
+- **The prompt is set in the app's reading face** (`MainGlobals.get_text_font()`, as the HUD's level
+  label), not the theme's display face, whose capitals read badly as a sentence.
 
 ## A round
 
@@ -119,7 +124,11 @@ shade darkens the screen's edges and the bottom (`_shade`).
    is tested against each person's EXACT drawn shapes (`passerby.hit`, the polygons of the last
    draw), frontmost first; only a tap on no body at all falls back to the nearest figure's box. The
    answer tags are drawn on a layer over everything, their pointer ending on the crown
-   (`head_top`), and the prompt sits on the table's cloth, where no tag can fall under it.
+   (`head_top`), and the prompt sits on the table's cloth, where no tag can fall under it. The
+   prompt is sized by `_place_prompt`: one line if it fits, else wrapped inside the screen. Its
+   word-wrap is ALWAYS on and its size set twice (now, and deferred): switched on only for long
+   lines, a long result after a short one kept the short state's unwrapped minimum width and ran
+   off a phone's screen.
 6. **FEEDBACK**: tags over the victim ("Robbed") and the pickpocket ("Pickpocket"), and over a
    wrong pick ("Your pick"). No two tags ever overlap (`_stack_tags`): the person nearer the viewer
    keeps theirs, the one behind lifts theirs a line at a time until it is clear (`passerby.tag_box`),
@@ -146,6 +155,24 @@ pickpocket to get away. It happens in one of two places.
   An onlooker pickpocket always gets the "Pickpocket" tag, even at the screen's very edge
   (`_thief_on_screen`; a test of a fifth of their height in from the side left them untagged).
   A shell game has always been the pickpocket's cover.
+- **How many onlookers** (`_crowd_per_side`): two a side wherever the inner one stands clear of the
+  outer cup -- every level on a desktop, five cups included. ONE a side only where a pair would hide
+  a cup: five cups on a phone, where the people are far larger beside the cups.
+- **At a corner with ONE onlooker** (`_plan_corner_theft`, the same third of thefts): there is no
+  pair, and without this the onlookers -- the nearest, largest figures -- were never robbed there. The theft comes FROM THE SIDE: an ARM in a coat reaches in from beyond the
+  screen's edge, behind the onlooker, to the back pocket (which faces that edge), takes the wallet
+  and withdraws (`_hand_theft`, drawn by `_draw_hand_theft` on `_hand_node`, over the crowd and under
+  the wallet; `_hand_reach` eases it in, holds, and out over `lift_ms * HAND_MS_K`). Nobody's whole
+  figure is seen, so `_thief` is null and the round never asks "who was the pickpocket?". (A walker
+  STEPPING DOWN from the near sidewalk to the onlooker was tried first and turned down: anyone coming
+  forward to the table is far too easy to notice.)
+- **A lone onlooker stands IN from the edge** (`_place_crowd`; pushed in on a desktop with no one
+  added, the space was wasted, so a desktop keeps its pairs instead): as far in as the outer cup allows --
+  `ONLOOKER_FRONT` of their height clear of it, plus `ONLOOKER_GAP` -- so their back pocket and the
+  arm reaching for it are on screen, and never a cup hidden. On a phone the onlookers are much larger
+  beside the cups and there was no room, so `_layout` holds the row in (`ShellTable.max_row_half`) and
+  shrinks the cups a little when the row would crowd (`cup_k`; the hustler and the table keep their
+  size). Desktop needs neither.
 
 Nothing marks the pickpocket. They come from the same pool of looks, at a walking speed inside the
 ordinary range, and blend back in. **The theft makes no sound**, because a sound would tell the

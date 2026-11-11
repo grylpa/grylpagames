@@ -73,7 +73,7 @@ mouse_filter = 2
 [node name="Title" type="Label" parent="ScoresWindow/ColorRect/VBoxContainer/TitleMargin" unique_id=563134548]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 0, 1)
+theme_override_colors/font_color = Color(0.976, 0.792, 0.353, 1)
 theme_override_font_sizes/font_size = 46
 text = "Stats"
 horizontal_alignment = 1
@@ -81,7 +81,7 @@ vertical_alignment = 1
 
 [node name="MonotonicCheckButton" type="CheckButton" parent="ScoresWindow/ColorRect/VBoxContainer/TitleMargin" unique_id=526601503]
 unique_name_in_owner = true
-modulate = Color(1, 1, 0, 1)
+modulate = Color(0.976, 0.792, 0.353, 1)
 layout_mode = 2
 size_flags_horizontal = 0
 theme_override_styles/normal = SubResource("StyleBoxEmpty_w6c2s")
@@ -168,9 +168,9 @@ anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 grow_horizontal = 0
-icon_color = Color(1, 1, 0, 1)
+icon_color = Color(0.976, 0.792, 0.353, 1)
 disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
-text_color = Color(1, 1, 0.0196078, 1)
+text_color = Color(0.976, 0.792, 0.353, 1)
 font_size = 40
 
 [node name="OverlayMessage" parent="ScoresWindow" unique_id=1176046877 instance=ExtResource("4_tssfn")]

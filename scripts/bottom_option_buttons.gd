@@ -254,7 +254,7 @@ func _on_zoom_button_pressed() -> void:
 	sig_zoom_pressed.emit()
 	MainGlobals.sim_action("zoom")
 
-func set_buttons(buttons_str_or_arr, _text_color: Color = Color.YELLOW, reversed: bool = false):
+func set_buttons(buttons_str_or_arr, _text_color: Color = ScreenBackdrop.ACCENT, reversed: bool = false):
 	reversed_theme = reversed
 	if buttons_str_or_arr is String:
 		var buttons = buttons_str_or_arr

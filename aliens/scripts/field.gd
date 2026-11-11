@@ -45,7 +45,7 @@ var _nebula: ImageTexture = null
 var _sky_size: Vector2 = Vector2(680, 748)
 
 func _ready() -> void:
-	_sky_size = Vector2(MainGlobals.screen_size)
+	_sky_size = Vector2(MainGlobals.full_screen_size)   # to the screen's foot, behind the button bar
 	_build_stars()
 	set_process(true)
 

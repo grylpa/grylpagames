@@ -107,8 +107,10 @@ func _apply_look() -> void:
 # green to amber to red on the way, so "nearly out" reads at a glance without reading a number.
 var _bar: Control = null
 
-# Bottom of the HUD's LevelLabel (scenes/generic_game_hud.tscn: offset_top 60, offset_bottom 104).
-const LEVEL_LABEL_BOTTOM: float = 104.0
+# Bottom of the HUD's LevelLabel (scenes/generic_game_hud.tscn: offset_top 48, offset_bottom 92 --
+# 12 up since 2026-11-11: the strip lost its 4-unit black line, and the label's letters now start 4
+# units under the strip's 56, the box's top being 12 above the tops of its letters at 36).
+const LEVEL_LABEL_BOTTOM: float = 92.0
 
 func _make_timeout_bar() -> void:
 	if _bar != null and is_instance_valid(_bar):

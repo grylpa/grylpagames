@@ -2,9 +2,10 @@
 // scattered on a table, so the ground is one, under a soft pool of warm light from above the center,
 // falling off to darker edges.
 //
-// `style` (set per view by game_chooser.gd): 0 the LIST -- plain cloth under a LIVING light (the pool
-// drifts and breathes, and specks of dust float through it); 1 the GRID -- the woven art-deco fans,
-// static. (The fans were tried under the list too, faint and large: they fought the rows and the
+// `style` (set per view by game_chooser.gd): 3 the LIST (since 2026-11-11) -- a night sky, see
+// starfield(); 0 the list's earlier look, kept as its fallback -- plain cloth under a LIVING light (the
+// pool drifts and breathes, and specks of dust float through it); 1 the GRID -- the woven art-deco
+// fans, static. (The fans were tried under the list too, faint and large: they fought the rows and the
 // hover patch. And the first living light was too slow and small to be seen at all.) Tried and turned down: a gold inlay round the cloth, and dark walnut planks
 // ("doesn't speak with the game"). `strong_light` is the stronger pool of light from the inlay trial,
 // the one part of it the user liked.
@@ -65,7 +66,7 @@ vec2 fan_pattern(vec2 p, float w) {
 // (style 2, slow aurora ribbons in gold and teal over a night sky, was tried for the list on
 // 2026-11-10 and turned down.)
 
-// TRIAL (2026-11-10) style 3, for the list: a deep night sky -- stars at three depths drifting slowly
+// Style 3, the LIST's background (chosen 2026-11-11): a deep night sky -- stars at three depths drifting slowly
 // at different speeds, so they pass each other, a soft glow from above, and now and then a shooting
 // star.
 float star_layer(vec2 p, float cell, float dens, float rmax) {

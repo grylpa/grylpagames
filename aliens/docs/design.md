@@ -903,3 +903,8 @@ eye layouts and curved antennae, in `ALIEN_COLORS`): a fat green one with three 
 with one, and a round blue one with two, all with antennae, on a glowing gate ring at a night spaceport.
 Since the 2026-10-24 look pass they are GLOSSY as the game's are (the stepped rings toward the light,
 the rim, the shine) and the ring is neutral silver like the game's gates.
+
+## To the screen's foot (2026-11-11)
+
+The space sky runs to the very foot of the screen (`full_screen_size`), behind the app's button bar;
+sized to `screen_size` it stopped there and left a band of the clear color (2026-11-11).
