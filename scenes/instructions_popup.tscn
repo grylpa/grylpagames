@@ -106,9 +106,9 @@ autowrap_mode = 3
 [node name="XCloseScene" parent="BackgroundPanel" unique_id=1831503332 instance=ExtResource("4_d3yh6")]
 layout_mode = 2
 size_flags_horizontal = 8
-icon_color = Color(1, 1, 0, 1)
+icon_color = Color(0.976, 0.792, 0.353, 1)
 disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
-text_color = Color(0.835294, 0.862745, 0, 1)
+text_color = Color(0.976, 0.792, 0.353, 1)
 font_size = 40
 
 [connection signal="gui_input" from="BackgroundPanel" to="." method="_on_background_panel_gui_input"]

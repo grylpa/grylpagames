@@ -87,7 +87,7 @@ if any folder is `dinos`, else grass.
 - **Timeout bar**: a per-image bar (`_bar_track`/`_bar_fill`) sits just under the header,
   above the level number, and depletes (green→red) over `card_time` during SHOW; hidden in
   FEEDBACK/GAP/IDLE. The HUD level-number label is moved down (main.gd sets its offsets to
-  y≈92-132) so the bar fits between the header and it.
+  y≈88-128; 4 up since the strip lost its line, 2026-11-11) so the bar fits between the header and it.
 
 ## Main menu
 

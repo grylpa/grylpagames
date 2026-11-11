@@ -427,7 +427,9 @@ func _layout() -> void:
 
 	_field_node.areas = _areas
 	_field_node.field_rect = _field
-	_field_node.set_sky_size(Vector2(sw, sh))
+	# the sky runs to the very bottom of the screen, behind the app's button bar (it stopped at the
+	# play area's foot and left the clear color showing there)
+	_field_node.set_sky_size(Vector2(sw, float(MainGlobals.full_screen_size.y)))
 	_field_node.alien_radius = _alien_radius
 	_field_node.queue_redraw()
 

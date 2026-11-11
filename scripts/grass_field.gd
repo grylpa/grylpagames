@@ -54,7 +54,7 @@ const BLADE_LEN: float = 1.4
 # hides the tiled ground it replaces, attaches the field, sizes it to the board with a margin, and
 # sows it — but only when the board's extent has actually changed, because sowing a quarter of a
 # million blades is not something to redo between rounds.
-static func fit(parent: Node, tiled_ground: CanvasItem, game, seed_i: int = 1) -> Control:
+static func fit(parent: Node, tiled_ground: CanvasItem, game, seed_i: int = 1, cam: Camera2D = null) -> Control:
 	if game == null or parent == null:
 		return null
 	var f: Control = attach(parent)
@@ -68,6 +68,10 @@ static func fit(parent: Node, tiled_ground: CanvasItem, game, seed_i: int = 1) -
 	# leaves bare bands above and below the grass. full_screen_size, not screen_size: the latter has
 	# the 40-unit footer taken off it, and the footer is exactly where a missing strip would show.
 	r = r.merge(Rect2(Vector2.ZERO, Vector2(MainGlobals.full_screen_size)))
+	# AND everything a camera shows: a game whose camera zooms OUT to fit its board (Wolves) sees more
+	# world than one screen's worth, and a bare band showed along the foot of the screen, under the
+	# button bar (2026-11-11). The game refits after setting its camera.
+	r = r.merge(_camera_view(parent, cam))
 	var tl: Vector2 = r.position
 	var want: Vector2 = r.size
 	# Called from _ready as well, where a game may not have sized its board yet. There is nothing to
@@ -146,3 +150,21 @@ static func _blade_mesh() -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+# The world rect a camera shows, in `parent`'s local space; empty without one. The game passes its
+# camera: one created this frame is not yet the viewport's current camera.
+static func _camera_view(parent: Node, cam: Camera2D) -> Rect2:
+	if not parent.is_inside_tree() or not (parent is CanvasItem or parent is CanvasLayer):
+		return Rect2()
+	if cam == null:
+		cam = parent.get_viewport().get_camera_2d()
+	if cam == null or not cam.enabled or cam.zoom.x <= 0.0 or cam.zoom.y <= 0.0:
+		return Rect2()
+	cam.force_update_scroll()
+	var half: Vector2 = Vector2(MainGlobals.full_screen_size) * 0.5 / cam.zoom
+	var world: Rect2 = Rect2(cam.get_screen_center_position() - half, half * 2.0)
+	# a CanvasLayer that follows the viewport (Wolves' Level) holds world coordinates through its own
+	# transform; a CanvasItem through its global one
+	if parent is CanvasLayer:
+		return (parent as CanvasLayer).transform.affine_inverse() * world
+	return (parent as CanvasItem).get_global_transform().affine_inverse() * world

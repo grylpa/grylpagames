@@ -38,6 +38,136 @@ func _ready() -> void:
 	$GameOverAudio.stream = gameover_audio
 	MainGlobals.sig_global_update_hud.connect(_on_update_hud)
 	MainGlobals.sig_global_start_countdown.connect(_on_sig_global_start_countdown)
+	_clear_top_bar()
+	_align_strip()
+
+# NO TOP BAR (2026-11-11): the gray strip with its black line under it is gone from every game -- the
+# scene runs on up behind the counters (every game's scene already drew there; the five breathing
+# and typing games have no strip at all). The strip's numbers carry a dark outline instead, so they
+# hold up over whatever is under them (the dino art, whack's awning, a lawn).
+const STRIP_OUTLINE: Color = Color(0.0, 0.0, 0.0, 0.85)
+
+func _clear_top_bar() -> void:
+	$BkLabel.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	for path: String in _STRIP_LABELS:
+		var lbl: Label = get_node_or_null(path) as Label
+		if lbl != null:
+			lbl.add_theme_color_override("font_outline_color", STRIP_OUTLINE)
+			lbl.add_theme_constant_override("outline_size", 7)
+
+# THE LEVEL LABEL UP IN THE STRIP, for a game whose label otherwise lies on its play area (Pickpocket).
+# ONLY in a game WITHOUT a clock: the strip's left end is the clock's, and a level name beside a
+# running countdown crowded it (tried in Ants, Nudge, Wolves and Whack, and taken back, 2026-11-11).
+# At a fixed 28, centered by its digits like every number there.
+var _level_in_strip: bool = false
+
+# THE LEVEL LABEL FADES AWAY, in EVERY game (2026-11-11; first only where it lay on the play area):
+# shown in full as a level starts, held for LEVEL_HOLD_S, then slowly gone over LEVEL_FADE_S. Not
+# when a game has moved it up into the strip (move_level_label_to_strip), where it stays.
+const LEVEL_HOLD_S: float = 4.5      # was 2.5; the user found it went too soon (2026-11-11)
+const LEVEL_FADE_S: float = 2.5
+var _level_fades: bool = true
+# A game may hold its label longer or shorter: hud.set_level_label_hold(seconds) (playing time).
+var level_hold_s: float = LEVEL_HOLD_S
+
+func set_level_label_hold(seconds: float) -> void:
+	level_hold_s = maxf(0.0, seconds)
+var _level_fade_tween: Tween = null
+
+# The hold counts only WHILE THE GAME IS PLAYED -- not paused, no card up. Counted from the moment the
+# name was set, it ran out behind the level card ("Level 1"), and the player never saw the label.
+var _level_hold_left: float = -1.0
+
+func _start_level_fade() -> void:
+	if _level_fade_tween != null and _level_fade_tween.is_valid():
+		_level_fade_tween.kill()
+	%LevelLabel.modulate.a = 1.0
+	_level_hold_left = level_hold_s
+	set_process(true)
+
+func _tick_level_fade(delta: float) -> void:
+	if _level_hold_left < 0.0:
+		return
+	if game == null or not game.playing or game.paused():
+		return
+	_level_hold_left -= delta
+	if _level_hold_left <= 0.0:
+		_level_hold_left = -1.0
+		_level_fade_tween = create_tween()
+		_level_fade_tween.tween_property(%LevelLabel, "modulate:a", 0.0, LEVEL_FADE_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+func move_level_label_to_strip() -> void:
+	_level_in_strip = true
+	_place_level_in_strip()
+	if _level_in_strip:
+		# up in the strip it stays, as the rest of the strip does
+		_level_fades = false
+		if _level_fade_tween != null and _level_fade_tween.is_valid():
+			_level_fade_tween.kill()
+		_level_hold_left = -1.0
+		%LevelLabel.modulate.a = 1.0
+
+func _place_level_in_strip() -> void:
+	var lvl: Label = %LevelLabel
+	if $TimeLeftLabel.visible:
+		push_warning("move_level_label_to_strip: this game has a clock in the strip; the label stays put")
+		_level_in_strip = false
+		return
+	var x0: float = 16.0
+	lvl.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	lvl.offset_left = x0
+	lvl.offset_top = 0.0
+	lvl.offset_right = x0 + 200.0
+	lvl.offset_bottom = STRIP_H
+	lvl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lvl.add_theme_font_override("font", MainGlobals.get_text_font())
+	lvl.add_theme_font_size_override("font_size", 28)
+	center_digits_in_strip(lvl)
+
+# THE TOP STRIP'S NUMBERS ARE CENTERED BY THEIR INK, not by their boxes (2026-11-11). Every box on
+# the strip was centered on it, but a Label centers its LINE (ascent + descent), and a digit sits
+# above the baseline, so each size and face put its digits at a different height: the score (40)
+# rode 0.6-0.9 units above the counters (36), the clock (26) with it -- measured. Each label is now
+# top-aligned, a full strip tall, with a top margin that puts the middle of a "0" exactly on the
+# strip's middle, from the face's own metrics (the line's ascent, the glyph's offset and size).
+const STRIP_H: float = 56.0
+const _STRIP_LABELS: Array = ["Score", "TimeLeftLabel", "LivesContainer/LivesLabel",
+	"PacketsContainer/PacketsLabel", "CorrectsMistakesContainer/CorrectsLabel",
+	"CorrectsMistakesContainer/SeparatorLabel", "CorrectsMistakesContainer/MistakesLabel"]
+
+func _align_strip() -> void:
+	for path: String in _STRIP_LABELS:
+		var lbl: Label = get_node_or_null(path) as Label
+		if lbl != null:
+			center_digits_in_strip(lbl)
+
+# Also for a label a game moves INTO the strip (Pickpocket's level label). `top` is the label's top
+# edge relative to the strip's; its box must then run to the strip's bottom (the min size is set).
+static func center_digits_in_strip(lbl: Label, top: float = 0.0) -> void:
+	var font: Font = lbl.get_theme_font("font")
+	var fs: int = lbl.get_theme_font_size("font_size")
+	var rids: Array = font.get_rids()
+	if rids.is_empty():
+		return
+	var ts: TextServer = TextServerManager.get_primary_interface()
+	var rid: RID = rids[0]
+	var g: int = ts.font_get_glyph_index(rid, fs, 48, 0)        # "0"
+	var gsz: Vector2 = ts.font_get_glyph_size(rid, Vector2i(fs, 0), g)
+	var goff: Vector2 = ts.font_get_glyph_offset(rid, Vector2i(fs, 0), g)
+	if gsz.y <= 0.0:
+		return
+	# the ascent the Label itself lays the line out with
+	var probe: TextLine = TextLine.new()
+	probe.add_string("0", font, fs)
+	var asc: float = probe.get_line_ascent()
+	var m: float = STRIP_H * 0.5 - top - asc - (goff.y + gsz.y * 0.5)
+	var sb: StyleBox = lbl.get_theme_stylebox("normal")
+	var nsb: StyleBox = sb.duplicate() if sb != null else StyleBoxEmpty.new()
+	nsb.content_margin_top = m
+	nsb.content_margin_bottom = 0.0
+	lbl.add_theme_stylebox_override("normal", nsb)
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lbl.custom_minimum_size.y = maxf(lbl.custom_minimum_size.y, STRIP_H - top)
 
 func set_message_transparent_bg(value: bool) -> void:
 	message_transparent_bg = value
@@ -316,6 +446,7 @@ func _style_banner(didwin: bool) -> void:
 	set_process(true)
 
 func _process(delta: float) -> void:
+	_tick_level_fade(delta)
 	if _banner_fx != null and is_instance_valid(_banner_fx) and _banner_fx.is_visible_in_tree():
 		_fx_t += delta
 		_banner_fx.queue_redraw()
@@ -607,7 +738,7 @@ func hide_dispatch() -> void:
 # the tally blink out and back on every single round. A line 60px lower is the cheaper cost.
 #
 # A game that does not show counters is untouched: the offsets stay exactly as the scene set them.
-# THE GREY STRIP IS 56 PX, NOT 60. BkLabel is 60 tall but its bottom 4 are a black border
+# THE STRIP IS 56 PX, NOT 60. BkLabel is 60 tall but its bottom 4 were a black border
 # (border_width_bottom, blended), so the grey a player sees runs 0-56 and its middle is y=28. Score,
 # the clock and the three counter containers are sized 0-56 in the scene to centre on THAT --
 # sized to the full 60 they centred on the border's middle as well and every game's HUD sat two
@@ -689,16 +820,16 @@ func set_lives_icon(_texture, _scale:Vector2 = Vector2(1,1), _modulate = null):
 	%LivesIcon.set_size(new_sz)
 	%LivesIcon.custom_minimum_size = new_sz
 	# %LivesIcon.texture.scale = Vector2(_scale,_scale)
-	# a game's own icon is tinted the HUD's yellow unless it says otherwise (the default icon,
+	# a game's own icon is tinted the HUD's gold unless it says otherwise (the default icon,
 	# art/player_head_icon.png, is drawn in its colors and is not tinted)
-	%LivesIcon.modulate = _modulate if _modulate else Color(1, 1, 0, 1)
+	%LivesIcon.modulate = _modulate if _modulate else ScreenBackdrop.ACCENT
 
 
-# `_modulate` exists because the icon carries a yellow tint from the scene, to match the yellow
+# `_modulate` exists because the icon carries a gold tint from the scene, to match the gold
 # number beside it. That is right for a one-color pictogram and wrong for an icon made of a game's
 # own sprite art, which comes out muddy under it — pneumo's crash icon passes white.
 # The two counters on the top strip. Same shape of setter as the lives and packets icons above, and
-# the same reason for `_modulate`: the icons carry a yellow tint from the scene to match the yellow
+# the same reason for `_modulate`: the icons carry a gold tint from the scene to match the gold
 # number beside them, which is right for a one-color pictogram and wrong for one that brings its own
 # colors -- pass Color.WHITE to keep them.
 func set_counter_icons(_correct_tex, _mistake_tex, _modulate = null) -> void:
@@ -718,7 +849,7 @@ func set_packets_icon(_texture, _scale := 1.0, _modulate = null):
 	%PacketsIcon.texture = _texture
 	var tex_size = %PacketsIcon.texture.get_size()
 	%PacketsIcon.custom_minimum_size = tex_size * _scale
-	%PacketsIcon.modulate = _modulate if _modulate != null else Color(1, 1, 0, 1)
+	%PacketsIcon.modulate = _modulate if _modulate != null else ScreenBackdrop.ACCENT
 
 func update_corrects_mistakes():
 	if game == null:
@@ -738,4 +869,8 @@ func show_level_label(level_name: String):
 	%LevelLabel.add_theme_color_override("font_color", ScreenBackdrop.ACCENT)
 	%LevelLabel.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
 	%LevelLabel.add_theme_constant_override("outline_size", 8)
+	if _level_in_strip:
+		_place_level_in_strip()
 	%LevelLabel.show()
+	if _level_fades:
+		_start_level_fade()

@@ -128,7 +128,7 @@ func _layout() -> void:
 	# timeout bar just under the header (level label is moved down below it in main.gd)
 	_bar_h = 22.0 if mob else 14.0
 	var bar_x: float = 22.0
-	var bar_y: float = hh + 8.0
+	var bar_y: float = hh + 4.0     # 4 up since the strip lost its 4-unit black line (2026-11-11)
 	_bar_full_w = sw - bar_x * 2.0
 	_place(_bar_track, bar_x, bar_y, _bar_full_w, _bar_h)
 	_bar_fill.position = Vector2(bar_x, bar_y)

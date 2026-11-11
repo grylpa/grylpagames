@@ -534,7 +534,9 @@ func find_id_in_option_button(lst: OptionButton, id: int) -> int:
 			return i
 	return -1
 
-func update_bottom_bar(buttons_str_or_arr, _text_color: Color = Color.YELLOW, reversed: bool = false):
+# The default is the app's gold (ScreenBackdrop.ACCENT), as the HUD's numbers; it was pure neon
+# yellow (2026-11-11).
+func update_bottom_bar(buttons_str_or_arr, _text_color: Color = ScreenBackdrop.ACCENT, reversed: bool = false):
 	# reversed = draw a dark backing strip behind the bar so the light icons stay visible
 	# on light/busy game backgrounds (e.g. dino). Passed explicitly on every call, so it
 	# auto-resets to normal whenever another game/menu configures the bar.

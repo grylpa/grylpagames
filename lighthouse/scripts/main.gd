@@ -38,11 +38,11 @@ func _ready() -> void:
 	hud.set_lives_icon(LighthouseG.buoy_icon(), Vector2.ONE * (float(HUD_ICON_PX) / float(LighthouseG.ICON_PX)), Color.WHITE)
 	hud.show_lives()
 	hud.update_all()
-	# The level number goes below the level's time bar (it defaults to y 60-104, on top of it).
+	# The level number goes below the level's time bar (it defaults to y 48-92, on top of it).
 	var level_label = hud.get_node_or_null("LevelLabel")
 	if level_label != null:
-		level_label.offset_top = 92.0
-		level_label.offset_bottom = 132.0
+		level_label.offset_top = 88.0     # with the timeout bar, 4 up (no strip line any more)
+		level_label.offset_bottom = 128.0
 		level_label.modulate.a = 1.0
 
 	game.sig_game_is_done.connect(on_game_is_done)

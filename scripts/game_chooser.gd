@@ -116,8 +116,8 @@ func _dress_screen() -> void:
 # The table differs by view (chosen 2026-11-10): the GRID's cloth carries the woven art-deco fans, the
 # list by category the plain cloth -- both under the strong pool of light.
 var _table_mat: ShaderMaterial = null
-# TRIAL (2026-11-10): the list's background -- 0 the living light (the kept checkpoint), 3 a night
-# sky of stars (2, aurora ribbons, was turned down).
+# The list's background (2026-11-11): 3, the night sky of stars. 0, the living light, is the earlier
+# look kept as a fallback (its checkpoint is in tmp/checkpoints); 2, aurora ribbons, was turned down.
 const _LIST_STYLE: int = 3
 func _table_for_view(list_mode: bool) -> void:
 	if _table_mat != null:
@@ -648,6 +648,13 @@ func abort_active_game():
 	create_grid()
 	show()
 	MainGlobals.add_action_button(null)
+	# BACK AT THE TOP (2026-11-11): the rebuilt list puts the game just played, and its category, first
+	# (most recent first), so the old scroll offset pointed at games that had moved -- the list "kept its
+	# place" over different games. Deferred: the rows are only laid out on the next frame.
+	_scroll_to_top.call_deferred()
+
+func _scroll_to_top() -> void:
+	%ScrollContainer.scroll_vertical = 0
 	
 func _record_played(game_folder: String):
 	MainGlobals.last_played_order.erase(game_folder)

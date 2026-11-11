@@ -308,9 +308,9 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 8
-icon_color = Color(1, 1, 0, 1)
+icon_color = Color(0.976, 0.792, 0.353, 1)
 disabled_icon_color = Color(0.745098, 0.745098, 0.745098, 1)
-text_color = Color(0.835294, 0.862745, 0, 1)
+text_color = Color(0.976, 0.792, 0.353, 1)
 font_size = 40
 
 [node name="LoginMessageTimer" type="Timer" parent="." unique_id=711056928]

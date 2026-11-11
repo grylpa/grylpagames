@@ -212,3 +212,8 @@ Session records are the v6 named-dictionary format (see `scripts/generic_game_ut
 and `scripts/session_stats.gd`). Metrics reset centrally in `reset(from_scratch)`.
 
 Response times are handed to the shared session record as a whole distribution, not just a mean: `game.record_times()` in `main.gd::get_game_score()` stores spread, median, within-session slope and lapse count beside the mean. The spread is the point — it moves before the mean does.
+
+## To the screen's foot (2026-11-11)
+
+The felt is sized to `full_screen_size`, not `screen_size`: it runs on down behind the app's button
+bar (it stopped 40 units short, at the footer, and the clear color showed there).

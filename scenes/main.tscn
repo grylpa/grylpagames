@@ -21,7 +21,7 @@ visible = false
 
 [node name="BottomOptionButtons" parent="." unique_id=1115989848 instance=ExtResource("5_lquwl")]
 layer = 128
-text_color = Color(1, 1, 0, 1)
+text_color = Color(0.976, 0.792, 0.353, 1)
 
 [node name="GlobalLevelIsDoneAudio" type="AudioStreamPlayer" parent="." unique_id=1337897698]
 

@@ -114,7 +114,8 @@ when `round_in_level` reaches `rounds_per_level`, and `_advance_if_needed()` -- 
 `new_game()` -- acts on its verdict.
 
 **The percentages have to land on a rung.** Levels 1-3 have 3 rounds of 2 babies (6 in all), so
-66 = 4 of 6; levels 4-8 have 4 rounds of 2 (8), so 75 = 6 of 8. A round cut short by a lost life
+66 = 4 of 6; levels 4-5 have 4 rounds of 2 (8): 62 = 5 of 8 at level 4, 75 = 6 of 8 at 5; levels 6-8
+have 4 rounds of 3 (12), so 75 = 9 of 12. A round cut short by a lost life
 has fewer babies, which only moves the rungs between whole babies. Recheck whenever `rounds` or
 `babies` changes.
 
@@ -177,8 +178,17 @@ the baby gorilla is drawn by it.
 - Move on the board grid within the room
 - Cannot overlap each other (one monster per cell at all times)
 - Cannot enter brick cells
-- Low difficulty: random walk (only changes direction when blocked)
-- Higher difficulty: directed toward player
+- Each step, in this order (`_move_agents_on_tick`, 2026-11-11):
+  1. **the hunter** (the monster after the current baby) takes the shortest way to it, `hunt_chance`
+  2. **a real chase**: the shortest way through the maze to the player, `smart_chase` (0 at levels
+     1-2, up to 0.50 at 8). Before 2026-11-11 no level had one -- every "chase" was the loose lean.
+  3. **the loose lean**: a step along the longer axis toward the player, `directed_chance`; a wall
+     stops it, so it reads as drifting your way rather than hunting you
+  4. otherwise straight on, or a random open way when blocked
+- **While the sword's power is on they FLEE**: the chase step becomes the farthest step away
+  (`_step_by_distance(..., away = true)`), and there is no lean toward the player. The doc always
+  said they ran; the code never did, and a real chase would have walked them onto the sword.
+- The player's walking distances are worked out once per tick (`_bfs_from`), only when needed.
 - Player color (blue) is excluded from possible monster colors
 
 ## Maze Visuals
@@ -197,7 +207,9 @@ the baby gorilla is drawn by it.
 
 - **Player**: `speed_scale = 1.5` (fixed)
 - **Round timer**: `round_sec` (75-95 s), or the round ends early (see Game Flow)
-- **Monster speed tiers**: each monster gets a speed spread evenly from `agent_speed_min` to
+- **Monster speed tiers** (every level's `agent_speed_max` is under the cap of the player's 1.5 less
+  0.2; 1.4 and 1.5 used to be silently capped, so levels 6-8 had one speed): each monster gets a
+  speed spread evenly from `agent_speed_min` to
   `agent_speed_max` by spawn index, capped below the player's speed.
 
 ## The super-food
@@ -275,18 +287,29 @@ restores `orig_head_scale` / `orig_head_color` exactly.
 
 ## Difficulty Scaling
 
-| Level | Cols | Apples | Monsters | Directed | Baby far | Hunt after | Hunt chance | Bananas (ms) |
-|-------|------|--------|----------|----------|----------|------------|-------------|--------------|
-| 1 | 11 | 34 | 3 | 30% | 0.45 | 7.0 s | 55% | 2 (7000) |
-| 2 | 11 | 38 | 3 | 35% | 0.50 | 6.0 s | 65% | 2 (6500) |
-| 3 | 13 | 44 | 4 | 40% | 0.55 | 5.5 s | 70% | 3 (6000) |
-| 4 | 13 | 48 | 4 | 50% | 0.60 | 5.0 s | 75% | 3 (5500) |
-| 5 | 13 | 50 | 5 | 60% | 0.65 | 4.5 s | 80% | 3 (5000) |
-| 6 | 15 | 56 | 5 | 70% | 0.70 | 4.2 s | 85% | 4 (4500) |
-| 7 | 15 | 60 | 6 | 80% | 0.75 | 3.8 s | 90% | 4 (4000) |
-| 8 | 15 | 64 | 6 | 90% | 0.80 | 3.5 s | 95% | 4 (3500) |
+Retuned 2026-11-11 (`level_config.gd`):
 
-Two babies per round throughout. `game.game_over_on_time_out = false`: time-over ends the round.
+| Level | Rounds | Pass | Cols | Apples | Sec | Monsters | Speed | Smart chase | Loose lean | Babies | Baby far | Hunt after | Hunt chance | Sword | Bananas (ms) |
+|-------|--------|------|------|--------|-----|----------|-------|-------------|------------|--------|----------|------------|-------------|-------|--------------|
+| 1 | 3 | 66 | 11 | 34 | 75 | 3 | 0.30-0.70 | 0 | 30% | 2 | 0.45 | 7.0 s | 55% | 9.0 s | 2 (7000) |
+| 2 | 3 | 66 | 11 | 38 | 75 | 3 | 0.40-0.85 | 0 | 35% | 2 | 0.50 | 6.0 s | 65% | 8.5 s | 2 (6500) |
+| 3 | 3 | 66 | 13 | 44 | 80 | 4 | 0.50-0.95 | 10% | 40% | 2 | 0.55 | 5.5 s | 70% | 8.0 s | 3 (6000) |
+| 4 | 4 | 62 | 13 | 48 | 80 | 4 | 0.55-1.05 | 15% | 45% | 2 | 0.60 | 5.0 s | 75% | 7.5 s | 3 (5500) |
+| 5 | 4 | 75 | 13 | 50 | 85 | 5 | 0.60-1.15 | 25% | 50% | 2 | 0.65 | 4.5 s | 80% | 7.0 s | 3 (5000) |
+| 6 | 4 | 75 | 15 | 56 | 95 | 5 | 0.65-1.20 | 30% | 50% | 3 | 0.65 | 4.5 s | 80% | 6.5 s | 4 (4500) |
+| 7 | 4 | 75 | 15 | 60 | 95 | 6 | 0.70-1.25 | 40% | 55% | 3 | 0.70 | 4.0 s | 85% | 6.0 s | 4 (4000) |
+| 8 | 4 | 75 | 15 | 64 | 100 | 7 | 0.70-1.30 | 50% | 55% | 3 | 0.75 | 3.5 s | 90% | 5.5 s | 4 (3500) |
+
+- **The pass marks step evenly**: the fourth round arrives at level 4 with 62 (5 of 8), not with 75
+  (6 of 8) at once -- that was the curve's one double jump.
+- **Three babies a round from level 6** (75 = 9 of 12): the top levels ask for more NOTICING, not
+  only faster monsters. Level 6 eases the baby's distance and the hunt to pay for the third baby, and
+  the rounds there are longer (95-100 s).
+- **Level 8 is no longer level 7 again**: a seventh monster, the most chasing, the shortest windows.
+- The loose lean only applies to the steps the smart chase did not take, so the share of steps that
+  move toward the player still rises level by level.
+
+`game.game_over_on_time_out = false`: time-over ends the round.
 
 ## Settings
 
@@ -705,3 +728,10 @@ and fences. It loops over the board array, not `game.board_size`.
 - Bricks are drawn by `scripts/block_art.gd`: three types (deep red long bricks; pale pink narrow
   bricks; red with sandy ones mixed in) in one mortar.
 - The wormhole is a drawn violet vortex with spiral arms and motes (`gorilla/scripts/wormhole_art.gd`).
+
+## The board's rim (2026-11-11)
+
+The room is closed by the same white bar as the maze's inner walls (2/40 of a tile, the strip of
+`art/fence_inner_wall.png`), drawn by `level.gd` `_draw_rim` along every edge where floor meets
+anything that is not floor, inside the cell like an inner wall. The soft inward shadow
+(`_draw_wall_shade`) stays under it.

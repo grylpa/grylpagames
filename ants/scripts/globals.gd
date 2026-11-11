@@ -27,8 +27,9 @@ var game: GenericGameUtil = GenericGameUtil.new("Ants", "ants", 0, 5, 0)
 # Drawn rather than imported, like everything else in this game: a dark ant standing on an opaque
 # light disc.
 #
-# The disc is not decoration. The counters sit inside the HUD's BkLabel, a band of flat dark grey,
-# where the ant's own body color measures 1.9:1 against the background -- invisible. The first two
+# The disc is not decoration. The counters sat inside the HUD's BkLabel, a band of flat dark grey,
+# where the ant's own body color measured 1.9:1 against the background -- invisible. (Since
+# 2026-11-11 there is no band: the strip is over the soil itself, and the plate matters even more.) The first two
 # attempts gave the ant a light HALO instead, and both were wrong for the same reason: the legs are
 # 0.030 wide, so an outline thick enough to read at 32 px was thicker than the thing it outlined,
 # and the glow between the legs merged into a blob. A solid plate is one shape rather than seven
@@ -40,7 +41,7 @@ var game: GenericGameUtil = GenericGameUtil.new("Ants", "ants", 0, 5, 0)
 # It goes to the HUD with Color.WHITE so the strip's yellow tint does not repaint the ant with it.
 const ICON_PX: int = 64
 const ICON_BODY: Color = AntsArt.ANT_BODY                  # the ant, in the game's own color
-const ICON_DISC: Color = Color(1.0, 1.0, 0.0, 1.0)         # the plate it stands on
+const ICON_DISC: Color = Color(0.976, 0.792, 0.353, 1.0)   # the plate it stands on (the strip's gold)
 const ICON_R: float = 0.455                                # disc radius, in icon-box units
 const ICON_MARGIN: float = 0.085                           # clear ground between ant and rim
 var _ant_icon: Texture2D = null

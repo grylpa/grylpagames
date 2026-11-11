@@ -61,14 +61,18 @@ var _last: float = -1.0
 var _hand: Array = []         # current hand positions [left, right]
 var _next: Array = []         # slots the hands should drift to before the next swap
 
-func layout(w: float, table_top_y: float, cup_height: float, skirt: float, slots: int) -> void:
-	cup_h = cup_height
-	cup_w = cup_h * 0.92
-	base_y = table_top_y + cup_h * 0.30
+# The level may hold the row of cups within `max_row_half` of the center (to the outer cup's outer
+# edge), and scale the cups by `cup_k` for it -- the hustler keeps his size (see level.gd _layout).
+var max_row_half: float = INF
+
+func layout(w: float, table_top_y: float, cup_height: float, skirt: float, slots: int, cup_k: float = 1.0) -> void:
 	# the hustler is drawn in his own unit (hs); the table is sized for him as much as for the cups
-	hs = cup_h * 1.25
+	hs = cup_height * 1.25
+	cup_h = cup_height * cup_k
+	cup_w = cup_h * 0.92
+	base_y = table_top_y + cup_height * 0.30
 	var tw: float = minf(w * 0.88, maxf(cup_w * 1.95 * float(slots) + cup_w * 2.6, hs * 5.2))
-	table_rect = Rect2(w * 0.5 - tw * 0.5, table_top_y - cup_h * 0.30, tw, cup_h * 0.95)
+	table_rect = Rect2(w * 0.5 - tw * 0.5, table_top_y - cup_height * 0.30, tw, cup_height * 0.95)
 	skirt_h = skirt
 	# a man of ordinary build standing at a waist-high table, no wider than the middle of it
 	# he STANDS at a waist-high table: his shoulders well above the cups, so his arms reach DOWN to
@@ -83,6 +87,8 @@ func set_cups(n: int) -> void:
 	cup_slot.clear()
 	var cx: float = table_rect.get_center().x
 	var pitch: float = minf(cup_w * 1.85, (table_rect.size.x - cup_w * 2.4) / float(maxi(1, n - 1)))
+	if max_row_half < INF and n > 1:
+		pitch = minf(pitch, (max_row_half - cup_w * 0.5) / (float(n - 1) * 0.5))
 	for i in n:
 		slot_x.append(cx + (float(i) - float(n - 1) * 0.5) * pitch)
 		cup_slot.append(i)

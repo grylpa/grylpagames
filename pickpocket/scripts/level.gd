@@ -139,6 +139,9 @@ func _build() -> void:
 	add_child(_table)
 	_crowd_node = Node2D.new()
 	add_child(_crowd_node)
+	_hand_node = Node2D.new()
+	_hand_node.draw.connect(_draw_hand_theft)
+	add_child(_hand_node)
 	_glow = Node2D.new()
 	var mat: CanvasItemMaterial = CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -167,6 +170,9 @@ func _build() -> void:
 	_prompt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_prompt.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
+	# the app's reading face, as the HUD's level label -- the theme's display face (capitals) was
+	# harder to read in a sentence
+	_prompt.add_theme_font_override("font", MainGlobals.get_text_font())
 	var sb: StyleBoxFlat = StyleBoxFlat.new()
 	sb.bg_color = Color(0.06, 0.07, 0.12, 0.86)
 	sb.set_corner_radius_all(16)
@@ -231,7 +237,19 @@ func _layout() -> void:
 	# cups the size of real ones next to the hustler, about two thirds of his head (at 0.10 of the
 	# height they were as tall as his head and read as buckets)
 	var cup_h: float = clampf(0.064 * a, 34.0, 70.0)
-	_table.layout(sw, table_y, cup_h, 0.075 * a, n_cups)
+	# ONE onlooker a side (five cups) stands in from the screen's edge, so that the arm reaching in
+	# from beyond it for their back pocket (_plan_corner_theft) is seen -- and still clear of every
+	# cup. On a phone the onlookers are far larger next to the cups and there was no such room: the
+	# row is held in to leave it, and the cups shrink a little if they would crowd (the hustler keeps
+	# his size). The numbers are _place_crowd's.
+	var row_half: float = INF
+	var cup_k: float = 1.0
+	if n_cups >= 5:
+		var oh: float = float(_lane_h[2]) * 1.03
+		row_half = sw * 0.5 - (ONLOOKER_MIN_IN + ONLOOKER_FRONT) * oh - ONLOOKER_GAP
+		cup_k = minf(1.0, row_half / ((float(n_cups - 1) * 0.5 * 1.3 + 0.5) * cup_h * 0.92))
+	_table.max_row_half = row_half
+	_table.layout(sw, table_y, cup_h, 0.075 * a, n_cups, cup_k)
 	# the street runs to the very bottom of the screen, behind the app's bottom bar (it stopped at
 	# the play area's edge and left a plain gray band under the scene)
 	_street.setup(sw, _top, float(_lane_y[0]), _top + 0.315 * a, _top + 0.41 * a, float(MainGlobals.full_screen_size.y))
@@ -265,12 +283,21 @@ func _place_prompt() -> void:
 	var max_text: float = _w - 32.0 - mx
 	var one: Vector2 = font.get_multiline_string_size(_prompt.text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
 	var text_w: float = minf(one.x, max_text)
-	var text_h: float = font.get_multiline_string_size(_prompt.text, HORIZONTAL_ALIGNMENT_CENTER, text_w + 1.0, fs, -1,
-		TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND).y
-	_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if one.x > max_text else TextServer.AUTOWRAP_OFF
+	# a text that fits keeps its own height (measured AT its width it could break a line in the sum and
+	# come out a line too tall)
+	var text_h: float = one.y if one.x <= max_text else font.get_multiline_string_size(_prompt.text,
+		HORIZONTAL_ALIGNMENT_CENTER, text_w + 1.0, fs, -1, TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND).y
+	# Wrapping is ALWAYS on, and the width is what decides: a line switched from unwrapped to wrapped
+	# here kept the unwrapped line's minimum width when its size was set, so a long result line after
+	# a short one ran off a phone's screen ("Found the ball, missed t").
+	_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var box: Vector2 = Vector2(text_w + mx + 2.0, text_h + my)
 	_prompt.custom_minimum_size = Vector2.ZERO
+	_prompt.reset_size()
 	_prompt.size = box
+	# and again once the label has recomputed its minimum for the new text (until then it holds the
+	# last text's, and a size below that is not taken)
+	_prompt.set_deferred("size", box)
 	_prompt.position = Vector2((_w - box.x) * 0.5, _prompt_y)
 
 # `question`: one of the two questions the player must answer -- bigger, framed in gold, popped in.
@@ -469,6 +496,7 @@ func _clear_street() -> void:
 	_crowd.clear()
 	_victim = null
 	_thief = null
+	_hand_theft = {}
 	_wallet_show = false
 
 func _base_speed(lane: int) -> float:
@@ -524,9 +552,19 @@ func _lane_count(lane: int) -> int:
 # and facing the cups -- two a side, or one a side when five cups leave no room. They are nearest
 # of all, so they are the largest figures. A shell game has always been the pickpocket's cover,
 # so the theft may happen right here: the outer onlooker of a pair lifts the inner one's wallet.
+# Two a side wherever the inner one stands clear of the outer cup -- with five cups too, on a desktop.
+# Only where they would hide a cup (five cups on a phone, where the people are far larger beside the
+# cups) is it ONE a side, and that one stands in from the edge (_place_crowd). Needs the table laid out.
+func _crowd_per_side() -> int:
+	if n_cups <= 4 or _table.slot_x.is_empty():
+		return 2
+	var oh: float = float(_lane_h[2]) * 1.03
+	var x_in: float = float(_table.slot_x[0]) - _table.cup_w * 0.5 - ONLOOKER_GAP - ONLOOKER_FRONT * oh
+	return 2 if x_in >= _w * 0.152 else 1
+
 func _build_crowd() -> void:
 	var rng: RandomNumberGenerator = game.rng
-	var per_side: int = 2 if n_cups <= 4 else 1
+	var per_side: int = _crowd_per_side()
 	for side in [-1, 1]:
 		for k in per_side:
 			var p = PASSERBY.new()
@@ -545,8 +583,12 @@ func _build_crowd() -> void:
 			_crowd.append(p)
 	_place_crowd()
 
+const ONLOOKER_FRONT: float = 0.16     # how far an onlooker reaches toward the table, leaning in, in h
+const ONLOOKER_MIN_IN: float = 0.14    # in from the edge at least, in h, so their back pocket shows
+const ONLOOKER_GAP: float = 12.0       # between an onlooker and the outer cup
+
 func _place_crowd() -> void:
-	var per_side: int = 2 if n_cups <= 4 else 1
+	var per_side: int = 2 if _crowd.size() >= 4 else 1
 	for p in _crowd:
 		_fit_person(p)
 		var k: int = int(p.get_meta("slot", 0))
@@ -555,6 +597,11 @@ func _place_crowd() -> void:
 		# a pair stands far enough apart that each can be told apart and tapped
 		var from_edge: float = (0.042 if k == 0 else 0.152) if per_side == 2 else 0.06
 		p.position.x = _w * 0.5 + float(side) * _w * (0.5 - from_edge)
+		if per_side == 1 and _table.slot_x.size() > 0:
+			# alone at a corner: as far IN as the outer cup allows (see _layout), never further out
+			var outer: float = float(_table.slot_x[0]) if side < 0 else float(_table.slot_x[_table.slot_x.size() - 1])
+			var x_in: float = outer + float(side) * (_table.cup_w * 0.5 + ONLOOKER_GAP + ONLOOKER_FRONT * p.h)
+			p.position.x = maxf(x_in, p.position.x) if side < 0 else minf(x_in, p.position.x)
 
 # Fill the street at the start of a level: people already spread along both lanes, some standing.
 func _populate() -> void:
@@ -716,17 +763,18 @@ func _draw_shade() -> void:
 	var dusk: Color = Color(0.02, 0.02, 0.07, 0.46)
 	var clear: Color = Color(0.02, 0.02, 0.07, 0.0)
 	# the whole evening a shade cooler and darker, so the lamps and windows are what light it
-	_shade.draw_rect(Rect2(0.0, _top, _w, sh - _top), Color(0.05, 0.07, 0.22, 0.20))
+	# (all from the very top: the scene runs on up behind the HUD)
+	_shade.draw_rect(Rect2(0.0, 0.0, _w, sh), Color(0.05, 0.07, 0.22, 0.20))
 	var side: float = _w * 0.20
-	_shade.draw_polygon(PackedVector2Array([Vector2(0, _top), Vector2(side, _top), Vector2(side, sh), Vector2(0, sh)]),
+	_shade.draw_polygon(PackedVector2Array([Vector2(0, 0.0), Vector2(side, 0.0), Vector2(side, sh), Vector2(0, sh)]),
 		PackedColorArray([dusk, clear, clear, dusk]))
-	_shade.draw_polygon(PackedVector2Array([Vector2(_w - side, _top), Vector2(_w, _top), Vector2(_w, sh), Vector2(_w - side, sh)]),
+	_shade.draw_polygon(PackedVector2Array([Vector2(_w - side, 0.0), Vector2(_w, 0.0), Vector2(_w, sh), Vector2(_w - side, sh)]),
 		PackedColorArray([clear, dusk, dusk, clear]))
 	var road: float = _top + 0.86 * (_bottom - _top)
 	_shade.draw_polygon(PackedVector2Array([Vector2(0, road), Vector2(_w, road), Vector2(_w, sh), Vector2(0, sh)]),
 		PackedColorArray([Color(dusk, 0.05), Color(dusk, 0.05), Color(dusk, 0.45), Color(dusk, 0.45)]))
 	var roofs: float = _top + (float(_lane_y[0]) - _top) * 0.45
-	_shade.draw_polygon(PackedVector2Array([Vector2(0, _top), Vector2(_w, _top), Vector2(_w, roofs), Vector2(0, roofs)]),
+	_shade.draw_polygon(PackedVector2Array([Vector2(0, 0.0), Vector2(_w, 0.0), Vector2(_w, roofs), Vector2(0, roofs)]),
 		PackedColorArray([Color(dusk, 0.30), Color(dusk, 0.30), clear, clear]))
 
 # --- the theft ---------------------------------------------------------------
@@ -771,6 +819,107 @@ func _plan_crowd_theft(t0: float, tf: float) -> bool:
 	# drawn in front of the victim, so the hand at the pocket shows
 	_crowd_node.move_child(th, -1)
 	return true
+
+# A theft at a corner with ONE onlooker (five cups leave no room for a pair, so _plan_crowd_theft has
+# nobody to work with -- and the onlookers, the nearest and largest figures, were never robbed). It
+# comes FROM THE SIDE: an arm reaches in from beyond the screen's edge, behind the onlooker, to the
+# back pocket (which faces that edge), takes the wallet and is gone. Whose arm it is, nobody sees, so
+# the round is never "who was the pickpocket?". (A walker stepping down from the near sidewalk to the
+# onlooker was tried first and turned down: someone coming forward to the table is far too easy to
+# notice.) _place_crowd keeps the pocket on screen.
+const HAND_MS_K: float = 1.5     # the arm's whole visit, in lift_ms
+var _hand_theft: Dictionary = {}
+var _hand_node: Node2D = null
+
+func _plan_corner_theft(t0: float, tf: float) -> bool:
+	var rng: RandomNumberGenerator = game.rng
+	var side: int = -1 if rng.randf() < 0.5 else 1
+	var v = null
+	for p in _crowd:
+		if int(p.get_meta("side", 0)) == side:
+			v = p
+	if v == null:
+		return false
+	var dur: float = lift_ms * HAND_MS_K
+	var lo: float = t0 + (tf - t0) * 0.12
+	var hi: float = maxf(lo, tf - dur - 600.0)
+	_victim = v
+	_thief = null
+	v.role = 1
+	_hand_theft = {"v": v, "side": side, "t1": rng.randf_range(lo, hi), "dur": dur,
+		"coat": PASSERBY.COATS[(v.coat_idx + 1 + rng.randi() % (PASSERBY.COATS.size() - 1)) % PASSERBY.COATS.size()],
+		"skin": PASSERBY.SKINS[rng.randi() % PASSERBY.SKINS.size()]}
+	return true
+
+# 0 -> 1 -> 0: in, at the pocket, out.
+func _hand_reach(u: float) -> float:
+	if u < 0.35:
+		var a: float = u / 0.35
+		return a * a * (3.0 - 2.0 * a)
+	if u < 0.62:
+		return 1.0
+	var b: float = clampf((1.0 - u) / 0.38, 0.0, 1.0)
+	return b * b * (3.0 - 2.0 * b)
+
+# The arm's points: the shoulder well past the screen's edge, elbow, hand at the pocket.
+func _hand_points() -> Array:
+	var v = _hand_theft["v"]
+	var side: int = int(_hand_theft["side"])
+	var k: float = float(_hand_theft.get("k", 0.0))
+	var pocket: Vector2 = v.pocket_point()
+	var edge_x: float = 0.0 if side < 0 else _w
+	var sh: Vector2 = Vector2(edge_x + float(side) * 0.10 * v.h, pocket.y - 0.20 * v.h)
+	var hand: Vector2 = sh.lerp(pocket, k)
+	var elbow: Vector2 = (sh + hand) * 0.5 + Vector2(0.0, 0.07 * v.h * (1.0 - 0.5 * k))
+	return [sh, elbow, hand]
+
+func _update_hand_theft(now: float) -> void:
+	if _hand_theft.is_empty():
+		return
+	var v = _hand_theft["v"]
+	if v == null or not is_instance_valid(v):
+		_hand_theft = {}
+		return
+	var u: float = (now - float(_hand_theft["t1"])) / float(_hand_theft["dur"])
+	if u < 0.0:
+		return
+	_hand_theft["k"] = _hand_reach(clampf(u, 0.0, 1.0))
+	# the wallet: from the pocket into the hand once it is there, then out with it
+	if u >= 0.32 and u < 1.0:
+		_wallet_show = true
+		_wallet_pos = v.pocket_point() if u < 0.45 else (_hand_points()[2] as Vector2)
+	else:
+		_wallet_show = false
+	if cue and u >= 0.40 and u < 1.0:
+		v.jolt = clampf((u - 0.40) / 0.30, 0.0, 1.0)
+	elif v.jolt > 0.0:
+		v.jolt = 0.0
+	v.queue_redraw()
+	_wallet.queue_redraw()
+	_hand_node.queue_redraw()
+	if u >= 1.0:
+		_hand_theft = {}
+
+func _draw_hand_theft() -> void:
+	if _hand_theft.is_empty() or float(_hand_theft.get("k", 0.0)) <= 0.0:
+		return
+	var v = _hand_theft["v"]
+	var pts: Array = _hand_points()
+	var coat: Color = _hand_theft["coat"]
+	var skin: Color = _hand_theft["skin"]
+	var wd: float = 0.055 * v.h
+	var shade: Color = coat.darkened(0.35)
+	_hand_node.draw_line(pts[0], pts[1], shade, wd + 3.0)
+	_hand_node.draw_line(pts[1], pts[2], shade, wd * 0.9 + 3.0)
+	_hand_node.draw_line(pts[0], pts[1], coat, wd)
+	_hand_node.draw_line(pts[1], pts[2], coat, wd * 0.9)
+	_hand_node.draw_circle(pts[1], wd * 0.5, coat)
+	# the cuff, then the hand
+	var dirv: Vector2 = ((pts[2] as Vector2) - (pts[1] as Vector2)).normalized()
+	var cuff: Vector2 = (pts[2] as Vector2) - dirv * wd * 0.55
+	_hand_node.draw_circle(cuff, wd * 0.50, shade)
+	_hand_node.draw_circle(pts[2], wd * 0.40, skin)
+	_hand_node.draw_circle((pts[2] as Vector2) + dirv * wd * 0.28, wd * 0.30, skin)
 
 # Where the thief's hand goes in: the back pocket, or (an inner onlooker robbing the one at the edge)
 # the side pocket at the front of the coat.
@@ -1011,9 +1160,13 @@ func _start_round(now: float) -> void:
 	_empty_round = rng.randf() < empty_p
 	_victim = null
 	_thief = null
+	_hand_theft = {}
 	# a third of the thefts happen in the crowd at the table, when there is a pair to do it
-	var at_table: bool = not _empty_round and _crowd.size() >= 4 and rng.randf() < 0.34 and not _tutorial
-	if at_table and not _plan_crowd_theft(t0, tf):
+	# (with ONE onlooker a side -- five cups -- an arm reaches in to them from beyond the screen's edge)
+	var at_table: bool = not _empty_round and _crowd.size() >= 2 and rng.randf() < 0.34 and not _tutorial
+	if at_table and _crowd.size() >= 4 and not _plan_crowd_theft(t0, tf):
+		at_table = false
+	elif at_table and _crowd.size() < 4 and not _plan_corner_theft(t0, tf):
 		at_table = false                    # no pair at the table after all: on the street, then
 	if not at_table and not _empty_round:
 		if not _plan_theft(now, t0, tf):
@@ -1191,6 +1344,8 @@ func _end_round(now: float) -> void:
 			p.speed = _base_speed(p.lane) * 0.95
 	_victim = null
 	_thief = null
+	_hand_theft = {}
+	_hand_node.queue_redraw()
 	_table.lower_all()
 	_prompt.hide()
 	if total_rounds >= rounds_per_level:
@@ -1214,6 +1369,7 @@ func _process(_delta: float) -> void:
 		for p in _crowd:
 			if p.role == 2:
 				_update_thief(p, now, dt)
+		_update_hand_theft(now)
 		_animate_idle(dt)
 	_table.update(now)
 	if _slide_at >= 0.0 and now >= _slide_at:
