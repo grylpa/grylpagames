@@ -610,10 +610,10 @@ func on_player_is_really_moving(is_moving: bool):
 		game.stop_sound("feet")
 
 func on_clicked_door(pos: Vector2i):
-	# never while an actor is in the door's cell (scripts/door_guard.gd)
-	for d0 in doors:
-		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents + [player], float(game.tile_size)):
-			return
+	# A DOOR TURNS WHENEVER IT IS TAPPED (2026-11-12, as in the other door games). It used to refuse
+	# while the player or anything else was in its cell (scripts/door_guard.gd). Here nothing that
+	# moves reads a door -- the bombs stand still and the player is steered -- so there is nothing to
+	# commit to.
 	for i in doors.size():
 		var door = doors[i]
 		if door.board_pos == pos:
@@ -648,7 +648,7 @@ func check_player_on_target(q):
 				time_to_hide = 0
 				turn_lights_on()
 				game.play_sound("delivered")
-				player.mark_arrived()
+				player.drive_into_dock(game.board_to_px(q), game.board_to_px(p))
 				_record_answer_time()
 				game.tutorial_notify("delivered")
 				delivered_one.emit()

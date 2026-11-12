@@ -80,7 +80,23 @@ So a door is a four-second obstacle, not a permanent wall. `on_door_type_changed
 every creature's path when one reopens, and `on_clicked_door` does not — the creature discovers
 the new door by walking into it.
 
+**A door turns whenever it is tapped** (2026-11-12, as in Valet). It used to refuse while anything was
+in or entering its cell (`scripts/door_guard.gd`), and a steady stream could keep the one door that
+mattered locked, leaving a round unsolvable. Now a creature COMMITS to the door as it enters the cell -- its
+`door_at` / `door_type` metas, set in `tick()` -- and leaves by that same setting, so a door turned under
+it no longer re-routes it mid-cell; only those that enter afterwards take the new way. Only the head
+reads a door (the body follows its trail).
+
+**Every part turns, none flips** (2026-11-12): when the creature turns back, each body part turns round at
+the head's `TURN_SPEED` like the head. They were set straight to their angles in `set_rots`, so only the head turned and every part behind flipped round in one frame. Measured on a turn-back: no body part turns more than about 12 degrees in a frame.
+
 ## Creatures
+
+**Arriving drives INTO the dock** (`agent.drive_into_dock`, 2026-11-12, as in Valet): the creature whose head
+reaches the cell before its dock goes on at `DOCK_SPEED_K` (2x) to that cell's center and straight
+into the dock; every part follows the trail and fades and shrinks only as it crosses the dock's mouth
+(`_fade_into_dock`; the joining line is cut at the dock's center), and it is removed once its last segment is in.
+It used to stop dead and shrink and fade where it stood. An arrived creature is never in a crash. Its give-up timer does not run while it goes in.
 
 `add_agent_at()` dispatches a creature with a `transaction_id` matching one parking spot.
 `find_agent_path()` gives it a route (`calc_cost_to_move_to` is the cost function), and `tick()`
@@ -90,7 +106,7 @@ Three ways a creature leaves the board, and only the first is bad for the player
 
 | what happens | `remove_agent(id, arrived)` | effect |
 |---|---|---|
-| reaches its spot (`mark_arrived`) | `true` | nothing — the player lost that one |
+| reaches its spot (`drive_into_dock`) | `true` | nothing — the player lost that one |
 | crashes: onto a hazard cell, or into another creature (`mark_hit`) | `false` | counts for the player |
 | gives up after 10s (`mark_timeout`) | `false` | counts for the player |
 
@@ -338,6 +354,11 @@ derived from it by the games-doc build and must not be written by hand.
   (`agent.is_clear_of_dock()`, level `_reset_sender_when_clear`), then fades out over 0.9 s
   (`target.flash_and_reset`, staying transparent two frames after the reset so the drawn dock never
   flashes); a new sender fades in over 0.4 s.
+- **A part behind the dispatcher waits at its center -- only until the whole creature has come out**
+  (`_out_of_dock`, `_place_bodies`, 2026-11-12). "Behind" is measured across the dispatcher's whole
+  edge line, so a creature going INTO a receiver on the same edge (arrivals drive in now) had every
+  part counted as back in the dispatcher: snapped to its center, the joining line stretched from the
+  tail across the board to where it started. `is_clear_of_dock()` stays true once it has been.
 - **Turning at a blocked junction** (level `tick`): an open junction (door_type 0) with the way ahead
   blocked turns into a free side like a plain road does; and a creature never enters its own SENDER
   (`can_go_to` and `calc_cost_to_move_to` accept a dock only as its own receiver) -- it used to go back

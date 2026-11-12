@@ -138,7 +138,10 @@ func _process(_delta: float) -> void:
 				# the trail from the front and made the followers lurch.
 				if time_back_positions.size() > 1:
 					back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
-			while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
+			# drop the oldest stretch only while enough trail remains for the whole train (the long
+			# seeded stretch back into the dock must not go in one piece while parts still need it)
+			while time_back_positions.size() > 2 and back_total_len \
+					- (time_back_positions[1] - time_back_positions[0]).length() > tail_dist_back * 1.5:
 				back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
 				time_back_positions.pop_front()
 			var trail_pos
@@ -175,6 +178,10 @@ func _process(_delta: float) -> void:
 		# it can only ever move forward, and by less than one frame of travel.
 		elif not was_hit:
 			position = target_position
+			if not _dock_legs.is_empty():
+				_next_dock_leg()
+	if not _dock_in.is_empty():
+		_fade_into_dock()
 
 # Returns the point exactly `dist` back along the recorded trail, interpolating inside the segment
 # it lands in, or null when the trail is not yet that long.
@@ -260,13 +267,59 @@ func _pose_art() -> void:
 		_tail_art.rotation))
 	if npts > bodies.size() + 1:
 		$Skeleton.set_point_position(bodies.size() + 1, _tail_art.position)
+	_hide_in_dock()
 	_posed = true
+
+# THE WHOLE TRAIN EXISTS FROM THE START, coiled back inside its dock (2026-11-12, after Detour): the
+# trail is laid straight back from the engine through the dock at spawn (seed_in_dock), so every cart
+# and the van have their places and headings from the first move and slide out of the dock in turn; a
+# part still behind the dock's center waits there, hidden. Before, a cart only appeared once the engine
+# had driven far enough to lay a trail for it -- a gap, then the cart popping in with its link.
+# The waiting stops for good once the whole train has come out (_out_of_dock): "behind" is measured
+# across the dock's whole edge line, and a train going into a dock on the same edge would otherwise be
+# counted as back inside (Detour's bug).
+var _dock_center: Vector2 = Vector2.INF
+var _out_dir: Vector2 = Vector2.ZERO
+var _out_of_dock: bool = false
+
+func seed_in_dock(dock_px: Vector2, out_dir: Vector2) -> void:
+	_dock_center = dock_px
+	_out_dir = out_dir
+	var back: float = float(tail_dist_back) * 1.5 + float(GuidemG.game.tile_size)
+	time_back_positions = [position - out_dir * back, position]
+	back_total_len = back
+
+func _behind_dock(local_p: Vector2) -> bool:
+	return (position + local_p - _dock_center).dot(_out_dir) < 0.0
+
+func _hide_in_dock() -> void:
+	if _out_of_dock or _dock_center == Vector2.INF:
+		return
+	# out for good once the van is a tile clear of the dock's center
+	if (position + _tail_art.position - _dock_center).dot(_out_dir) > float(GuidemG.game.tile_size) * 0.9:
+		_out_of_dock = true
+		return
+	var parked: Vector2 = _dock_center - position
+	for i in bodies.size():
+		var inside: bool = _behind_dock(bodies[i].position)
+		bodies[i].visible = not inside
+		if inside:
+			bodies[i].position = parked
+			if i + 1 < $Skeleton.get_point_count():
+				$Skeleton.set_point_position(i + 1, parked)
+	var tail_in: bool = _behind_dock(_tail_art.position)
+	%Tail.visible = not tail_in        # the van's drawing follows its sprite's visibility
+	if tail_in:
+		_tail_art.position = parked
+		if bodies.size() + 1 < $Skeleton.get_point_count():
+			$Skeleton.set_point_position(bodies.size() + 1, parked)
 
 func set_rots():
 	$Head.rotation = angles[0]
 	%Tail.rotation = angles[-1]
-	for i in nbody_parts:
-		bodies[i].rotation = angles[i+1]
+	# (the carts are NOT snapped to their angles here: _pose_art turns them at ART_TURN_RATE, and setting
+	# them first left it nothing to turn -- when the train turned back, only the engine and the van turned
+	# and every cart between flipped round in one frame; 2026-11-12)
 	_pose_art()
 
 func add_body(_id):
@@ -344,15 +397,59 @@ func final_remove_body(id):
 # func _on_tail_area_area_entered(area:Area2D) -> void:
 # 	check_who_hit_me(area)
 
-func mark_arrived():
+# INTO THE DOCK, NOT FADED IN PLACE (2026-11-12): on arriving -- its engine in the cell before its
+# dock -- the train drives on, twice its speed, to the center of the cell it is in and then straight
+# into the dock and on; every part follows the trail as always, and each fades (and shrinks a little)
+# only as it crosses the dock's mouth, the drawbar cut off there too. It is removed once the van is in.
+# It used to stop dead and shrink and fade where it stood, its carts still out on the road. An arrived
+# train is never counted in a crash (level.gd check_agent_collisions), and at twice the speed its van
+# pulls away from anyone following it in.
+const DOCK_SPEED_K: float = 2.0
+var _dock_in: Dictionary = {}     # {mouth: Vector2, dir: Vector2, depth: float} (parent coords)
+var _dock_legs: Array = []        # the points still to drive to
+
+func drive_into_dock(cell_px: Vector2, dock_px: Vector2) -> void:
 	arrived = true
-	var tween_color = MainGlobals.make_tween()
-	tween_color.tween_property(self, "modulate", Color(1.0,1.0,1.0,0.2), 0.7)
-	var tween_scale = MainGlobals.make_tween()
-	var oldscale = scale
-	tween_scale.tween_property(self, "scale", oldscale * 0.5, 0.4)
-	tween_scale.tween_property(self, "scale", oldscale * 0.1, 0.5)
-	tween_scale.tween_callback(func(): remove_agent.emit(agent_id))
+	var tile: float = float(GuidemG.game.tile_size)
+	var dirv: Vector2 = (dock_px - cell_px).normalized()
+	_dock_in = {"mouth": dock_px - dirv * tile * 0.5, "dir": dirv, "depth": tile * 0.5}
+	_dock_legs = []
+	if position.distance_to(cell_px) > 1.0:
+		_dock_legs.append(cell_px)
+	# far enough past the mouth that the van is in too
+	_dock_legs.append(dock_px + dirv * (tail_dist_back + tile * 0.5))
+	_next_dock_leg()
+
+func _next_dock_leg() -> void:
+	var to: Vector2 = _dock_legs.pop_front()
+	var tile: float = float(GuidemG.game.tile_size)
+	set_target_pos(to)
+	# set_target_pos times a leg as one tile; this one is as long as it is, at DOCK_SPEED_K
+	time_from_start_to_target_ms = maxi(1, int(float(GuidemG.game.major_tick_time_ms) * position.distance_to(to) / tile / DOCK_SPEED_K))
+
+# Each drawn part's share of the way through the dock's mouth (0 outside .. 1 at the dock's center).
+func _dock_depth(local_p: Vector2) -> float:
+	var gp: Vector2 = position + local_p
+	return clampf((gp - (_dock_in["mouth"] as Vector2)).dot(_dock_in["dir"]) / float(_dock_in["depth"]), 0.0, 1.0)
+
+func _fade_into_dock() -> void:
+	var parts: Array = [_head_art] + bodies + [_tail_art]
+	for part in parts:
+		if part == null:
+			continue
+		var k: float = _dock_depth((part as Node2D).position)
+		(part as Node2D).modulate.a = 1.0 - k
+		(part as Node2D).scale = Vector2.ONE * (1.0 - 0.35 * k)
+	# the drawbar ends at the dock's center: no line runs on past the parts that have gone
+	var dirv: Vector2 = _dock_in["dir"]
+	for i in $Skeleton.get_point_count():
+		var lp: Vector2 = $Skeleton.get_point_position(i)
+		var over: float = (position + lp - (_dock_in["mouth"] as Vector2)).dot(dirv) - float(_dock_in["depth"])
+		if over > 0.0:
+			$Skeleton.set_point_position(i, lp - dirv * over)
+	if _tail_art != null and _dock_depth(_tail_art.position) >= 1.0 and _dock_legs.is_empty():
+		_dock_in = {}
+		remove_agent.emit(agent_id)
 
 func mark_hit():
 	# set_color(Color(0,0,0))

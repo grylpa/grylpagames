@@ -54,7 +54,9 @@ other side.
 - the **receiver** whose `transaction_id` matches the player's → delivered, lights on, round won
 - a **bomb** → `collision`, explosion, `player.mark_hit()`
 
-Both end the run. `mark_hit()` and `mark_arrived()` start an animation whose callback calls
+Both end the run. `mark_hit()` and `drive_into_dock()` (2026-11-12: the player walks on into the
+receiver at twice its pace, fading as it crosses the mouth, instead of shrinking where it stood) end
+in a callback that calls
 `on_player_remove_player()`, which **frees the player** and then calls `level_is_done()`. That
 delay matters — see the tutorial notes.
 
@@ -260,7 +262,9 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
 - Docks are beacon pads (`scripts/dock_art.gd`); a dock showing a bomb or an icon has no chevrons, and
   its content is centered on the pad. Live docks skip orange and brown.
 - Bombs, the player and the hazards are `scripts/monster_art.gd`'s; doors the shared drawn gate / nail
-  stubs, never turned with an actor in the cell (`DoorGuard`).
+  stubs. A door turns whenever it is tapped (2026-11-12; it used to refuse with an actor in the cell,
+  `DoorGuard`). Nothing that moves reads a door here: the bombs (the "agents") stand still and the
+  player is steered.
 - Roads: rounded corners, curbs above the surface, crown and tire tracks on straights and bends
   (`scripts/road_corners.gd`, asphalt.gdshader); the lawn short, with a few small things on it
   (`scripts/lawn_scatter.gd`). Board: `init_sizes_odd()`, `buttons_height = 0`.

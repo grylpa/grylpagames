@@ -214,7 +214,8 @@ still read.
 - **Gas station**: a drawn yellow sign with a black pump (`taxi/scripts/gas_station_art.gd`).
   **Buy button**: `taxi/art/buy_taxi.png`, a shopping cart with a diagonal cab, at right angles to the
   disabled slash; **lives icon** `art/taxi_icon.png` (both `make_thumbs.py taxi_icons`).
-- **Doors**: the shared drawn gate / nail stubs; never turned while a cab is in the cell (`DoorGuard`).
+- **Doors**: none in play. `add_door_at`, `on_clicked_door` and the door cost in path-finding are kept from
+  the game it was built from, but nothing places a door (checked 2026-11-12).
   Live docks skip orange and brown. **Board**: `init_sizes_odd()`, `buttons_height = 0`.
 
 ## Restoring saved taxis (2026-11-11)

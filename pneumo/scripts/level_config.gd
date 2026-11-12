@@ -17,24 +17,28 @@ class_name PneumoLevelConfig
 # level_time                 : seconds the level lasts. Surviving to zero IS passing the level —
 #                              deliveries are what you score, not a quota to finish.
 
+# FOR TRYING THINGS OUT: true sends a new capsule only once the board is empty, so one chain at a time
+# can be watched (level.gd, _on_agent_dispatch_timer_timeout). Leave false for the real game.
+const ONE_CAPSULE_AT_A_TIME: bool = false
+
 const LEVELS: Array = [
 	{"level": 1, "min_deliveries": 3, "time_between_dispatches_ms": 5000, "num_more_packets": 0, "max_speed_scale": 1.0,
 	 "allowed_collisions": 5, "level_time": 90},
-	{"level": 2, "min_deliveries": 4, "time_between_dispatches_ms": 2500, "num_more_packets": 0, "max_speed_scale": 1.5,
+	{"level": 2, "min_deliveries": 4, "time_between_dispatches_ms": 2500, "num_more_packets": 0, "max_speed_scale": 1.2,
 	 "allowed_collisions": 5, "level_time": 100},
-	{"level": 3, "min_deliveries": 5, "time_between_dispatches_ms": 3500, "num_more_packets": 1, "max_speed_scale": 2.0,
+	{"level": 3, "min_deliveries": 5, "time_between_dispatches_ms": 3500, "num_more_packets": 1, "max_speed_scale": 1.4,
 	 "allowed_collisions": 4, "level_time": 110},
-	{"level": 4, "min_deliveries": 6, "time_between_dispatches_ms": 2500, "num_more_packets": 1, "max_speed_scale": 2.0,
+	{"level": 4, "min_deliveries": 6, "time_between_dispatches_ms": 2500, "num_more_packets": 1, "max_speed_scale": 1.5,
 	 "allowed_collisions": 4, "level_time": 120},
-	{"level": 5, "min_deliveries": 7, "time_between_dispatches_ms": 3000, "num_more_packets": 2, "max_speed_scale": 2.0,
+	{"level": 5, "min_deliveries": 7, "time_between_dispatches_ms": 3000, "num_more_packets": 2, "max_speed_scale": 1.6,
 	 "allowed_collisions": 3, "level_time": 130},
-	{"level": 6, "min_deliveries": 8, "time_between_dispatches_ms": 3000, "num_more_packets": 3, "max_speed_scale": 3.0,
+	{"level": 6, "min_deliveries": 8, "time_between_dispatches_ms": 3000, "num_more_packets": 3, "max_speed_scale": 1.8,
 	 "allowed_collisions": 3, "level_time": 140},
-	{"level": 7, "min_deliveries": 9, "time_between_dispatches_ms": 3000, "num_more_packets": 4, "max_speed_scale": 3.0,
+	{"level": 7, "min_deliveries": 9, "time_between_dispatches_ms": 3000, "num_more_packets": 4, "max_speed_scale": 1.9,
 	 "allowed_collisions": 3, "level_time": 150},
-	{"level": 8, "min_deliveries": 10, "time_between_dispatches_ms": 2000, "num_more_packets": 5, "max_speed_scale": 3.0,
+	{"level": 8, "min_deliveries": 10, "time_between_dispatches_ms": 2000, "num_more_packets": 5, "max_speed_scale": 2.0,
 	 "allowed_collisions": 2, "level_time": 160},
-	{"level": 9, "min_deliveries": 11, "time_between_dispatches_ms": 2000, "num_more_packets": 6, "max_speed_scale": 4.0,
+	{"level": 9, "min_deliveries": 11, "time_between_dispatches_ms": 2000, "num_more_packets": 6, "max_speed_scale": 2.2,
 	 "allowed_collisions": 2, "level_time": 170},
 ]
 
