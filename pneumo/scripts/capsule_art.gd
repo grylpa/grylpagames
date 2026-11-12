@@ -26,7 +26,11 @@ const SHADOW_OFS: Vector2 = Vector2(1.6, 2.4)
 const STEEL: Color = Color(0.70, 0.73, 0.78)
 const SEAL: Color = Color(0.10, 0.10, 0.12)
 const LAMP: Color = Color(1.0, 0.95, 0.75)
-const ROLL_PER_PX: float = 0.035     # label band turns per unit traveled
+# THE ROLL DOES NOT SPEED UP WITH THE CAPSULE (2026-11-12): the band turned 0.035 per unit traveled, so a
+# level-9 capsule at 4x spun nine turns a second and strobed. It now turns at ROLL_PER_S whenever the
+# capsule is moving, at any speed, and at IDLE_ROLL_PER_S while it waits to be thrown.
+const ROLL_PER_S: float = 1.6
+const IDLE_ROLL_PER_S: float = 0.6
 
 var carrier: Node2D = null
 var sprite: CanvasItem = null       # the carrier's own picture, hidden
@@ -55,11 +59,13 @@ func _follow() -> void:
 	position = carrier.position
 	rotation = carrier.rotation
 	scale = carrier.scale
+	# and its fade (a capsule going into its receiver fades part by part; _hue() keeps the color opaque)
+	modulate.a = carrier.modulate.a
 	z_index = carrier.z_index
 	z_as_relative = carrier.z_as_relative
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not is_instance_valid(carrier):
 		queue_free()
 		return
@@ -67,9 +73,14 @@ func _process(_delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	var gp: Vector2 = global_position
-	if _last_pos != Vector2.INF:
-		_roll = fposmod(_roll + gp.distance_to(_last_pos) * ROLL_PER_PX, 1.0)
+	if _last_pos != Vector2.INF and gp.distance_to(_last_pos) > 0.05:
+		_roll = fposmod(_roll + delta * ROLL_PER_S, 1.0)
 	_last_pos = gp
+	# WAITING TO BE THROWN, IT TURNS IN PLACE (2026-11-12): the band only turned with travel, so a capsule
+	# waiting in its dispatcher's mouth for the start sat dead still. Not while the game is paused.
+	var agent: Node = carrier.get_parent()
+	if agent != null and agent.get("is_moving") == false and not PneumoG.game.paused():
+		_roll = fposmod(_roll + delta * IDLE_ROLL_PER_S, 1.0)
 	queue_redraw()
 
 

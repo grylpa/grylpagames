@@ -467,10 +467,11 @@ func on_door_type_changed(pos: Vector2i):
 		agent.path = find_agent_path(agent)
 
 func on_clicked_door(pos: Vector2i):
-	# never while an actor is in the door's cell (scripts/door_guard.gd)
-	for d0 in doors:
-		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents, float(game.tile_size)):
-			return
+	# A DOOR TURNS WHENEVER IT IS TAPPED (2026-11-12, as in Valet). It used to refuse while anything
+	# was in or entering its cell (scripts/door_guard.gd), and a steady stream could keep the one door
+	# that mattered locked, leaving a round unsolvable. Now an actor COMMITS to the door's setting as it
+	# enters the cell (the "door_at" / "door_type" metas, set in tick()) and leaves by it, so turning
+	# the door under it no longer re-routes it mid-cell: only those that enter afterwards take the new way.
 	game.record_count("door_actions")
 	for i in doors.size():
 		var door = doors[i]
@@ -546,7 +547,7 @@ func tick():
 				game.add_score_and_time(-5,-10)
 				MainGlobals.sig_global_update_hud.emit()
 				delivered_transaction(agent.transaction_id)
-				agent.mark_arrived()
+				agent.drive_into_dock(game.board_to_px(p), game.board_to_px(_target_pos_of(adj_tar_id)))
 				if !game.is_sound_playing("parked"):
 					game.play_sound("parked")
 				continue
@@ -555,6 +556,9 @@ func tick():
 				var origdir = dir
 				var vdir = game.DirArray[dir]
 				var door_type = board[p.y][p.x].door_type
+				# the setting this creature entered the cell by, not the door's setting now
+				if door_type >= 0 and agent.has_meta("door_at") and agent.get_meta("door_at") == p:
+					door_type = int(agent.get_meta("door_type"))
 				var q = p + vdir
 				var path_idx = find_agent_path_index(agent)
 				var need_to_refind_path: bool = false
@@ -622,6 +626,9 @@ func tick():
 					elif dir == 2 or dir == 3:
 						new_agent_pos += Vector2(d,d)
 				agent.set_target_pos(new_agent_pos)
+				# entering a door's cell, the creature is held to the setting it sees now (on_clicked_door)
+				agent.set_meta("door_at", q)
+				agent.set_meta("door_type", cell.door_type)
 				agent.board_pos = q
 				board[q.y][q.x].has_agent = true
 				board[p.y][p.x].has_agent = false			
@@ -641,6 +648,13 @@ func delivered_transaction(transaction_id):
 			if t.is_sender:
 				t.set_sender(false, Color.WHITE, transaction_id)
 				
+# The board cell of the target with this id (the dock an arriving creature goes into).
+func _target_pos_of(target_id: int) -> Vector2i:
+	for i in targets.size():
+		if targets[i].id == target_id:
+			return target_positions[i]
+	return Vector2i.ZERO
+
 func get_adjacent_target_id(q, agent):
 	for i in target_positions.size():
 		var target = targets[i]

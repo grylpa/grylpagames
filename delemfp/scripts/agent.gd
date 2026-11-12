@@ -164,7 +164,10 @@ func _process(delta: float) -> void:
 				# the trail from the front and made the followers lurch.
 				if time_back_positions.size() > 1:
 					back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
-			while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
+			# drop the oldest stretch only while enough trail remains for the whole truck (the long
+			# seeded stretch back into the depot must not go in one piece while parts still need it)
+			while time_back_positions.size() > 2 and back_total_len \
+					- (time_back_positions[1] - time_back_positions[0]).length() > (tail_dist_back + _gap_left) * 1.5:
 				back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
 				time_back_positions.pop_front()
 			# var idx = find_closest_dist(tail_dist_back)
@@ -292,39 +295,110 @@ func _pose_art() -> void:
 		return
 	_turn_toward(_head_art, _chord_angle(0.0, HEAD_CHORD, _head_art.rotation))
 	var npts: int = $Skeleton.get_point_count()
+	# the gap a delivered cart left closes over GAP_CLOSE_S, not in one frame (final_remove_body)
+	_gap_left = maxf(0.0, _gap_left - float(body_dist) / GAP_CLOSE_S * get_process_delta_time())
+	var prev_pt: Vector2 = Vector2.ZERO
 	for i in bodies.size():
-		var d: float = i * body_dist + head_dist
-		bodies[i].position = _smoothed_at(d) - position
-		_turn_toward(bodies[i], _chord_angle(d - POSE_HALF, d + POSE_HALF, bodies[i].rotation))
+		var d: float = i * body_dist + head_dist + _gap_left
+		var on_trail: Vector2 = _smoothed_at(d) - position
+		var pt: Vector2 = on_trail
+		if _flying.has(bodies[i]):
+			# a delivered cart gliding into its dock (remove_body): the drawbar skips it
+			pt = prev_pt
+		else:
+			bodies[i].position = on_trail
+			_turn_toward(bodies[i], _chord_angle(d - POSE_HALF, d + POSE_HALF, bodies[i].rotation))
 		if i + 1 < npts:
-			$Skeleton.set_point_position(i + 1, bodies[i].position)
-	_tail_art.position = _smoothed_at(tail_dist_back) - position
-	_turn_toward(_tail_art, _chord_angle(tail_dist_back - POSE_HALF, tail_dist_back + POSE_HALF,
-		_tail_art.rotation))
+			$Skeleton.set_point_position(i + 1, pt)
+		prev_pt = pt
+	var td: float = tail_dist_back + _gap_left
+	_tail_art.position = _smoothed_at(td) - position
+	_turn_toward(_tail_art, _chord_angle(td - POSE_HALF, td + POSE_HALF, _tail_art.rotation))
 	if npts > bodies.size() + 1:
 		$Skeleton.set_point_position(bodies.size() + 1, _tail_art.position)
+	_hide_in_dock()
 	_posed = true
+
+# THE WHOLE TRUCK EXISTS FROM THE START, coiled back inside its depot (2026-11-12, after Detour): the
+# trail is laid straight back from the engine through the depot at spawn (seed_in_dock), so every cart
+# and the van have their places and headings from the first move and slide out of the depot in turn; a
+# part still behind the depot's center waits there, hidden. Before, a cart only appeared once the
+# engine had driven far enough to lay a trail for it -- a gap, then the cart popping in with its link.
+# The waiting stops for good once the whole truck has come out (_out_of_dock), so a truck later passing
+# the depot's edge line is never counted as back inside (Detour's bug).
+var _dock_center: Vector2 = Vector2.INF
+var _out_dir: Vector2 = Vector2.ZERO
+var _out_of_dock: bool = false
+
+func seed_in_dock(dock_px: Vector2, out_dir: Vector2) -> void:
+	_dock_center = dock_px
+	_out_dir = out_dir
+	var back: float = float(tail_dist_back) * 1.5 + float(DelemfpG.game.tile_size)
+	time_back_positions = [position - out_dir * back, position]
+	back_total_len = back
+
+func _behind_dock(local_p: Vector2) -> bool:
+	return (position + local_p - _dock_center).dot(_out_dir) < 0.0
+
+func _hide_in_dock() -> void:
+	if _out_of_dock or _dock_center == Vector2.INF:
+		return
+	# out for good once the van is a tile clear of the depot's center
+	if (position + _tail_art.position - _dock_center).dot(_out_dir) > float(DelemfpG.game.tile_size) * 0.9:
+		_out_of_dock = true
+		return
+	var parked: Vector2 = _dock_center - position
+	for i in bodies.size():
+		var inside: bool = _behind_dock(bodies[i].position)
+		bodies[i].visible = not inside
+		if inside:
+			bodies[i].position = parked
+			if i + 1 < $Skeleton.get_point_count():
+				$Skeleton.set_point_position(i + 1, parked)
+	var tail_in: bool = _behind_dock(_tail_art.position)
+	$Tail.visible = not tail_in        # the van's drawing follows its sprite's visibility
+	if tail_in:
+		_tail_art.position = parked
+		if bodies.size() + 1 < $Skeleton.get_point_count():
+			$Skeleton.set_point_position(bodies.size() + 1, parked)
 
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]
 	$Tail.rotation = angles[-1]
-	for i in nbody_parts:
-		bodies[i].rotation = angles[i+1]
+	# (the carts are NOT snapped to their angles here: _pose_art turns them at ART_TURN_RATE, and setting
+	# them first left it nothing to turn -- when the train turned back, only the engine and the van turned
+	# and every cart between flipped round in one frame; 2026-11-12)
 	_pose_art()
 
 func add_body(_id):
 	pass
 	
-func remove_body_if_first(id):
+func remove_body_if_first(id, dock_px = null, lobby_px = null):
 	var idx = body_ids.find(id)
-	return remove_body(id) if idx == 0 else false
+	return remove_body(id, dock_px, lobby_px) if idx == 0 else false
 		
 var _pending_remove_ids: Dictionary = {}
-func remove_body(id):
+# A DELIVERED CART GOES INTO ITS DOCK (2026-11-12). The moment the delivery counts -- the ENGINE alongside
+# the dock -- the cart leaves the train and CURVES in: on along the road toward the lobby cell (passing
+# under the engine; carts are drawn below it) and round into the dock's center, fading and shrinking as it
+# goes in, while the truck drives on or stands (_pose_art leaves a flying cart alone). Two versions before
+# it: sent straight at the dock from where it was, it cut diagonally across from a cell short of it; held
+# aboard until it was itself level with the dock, it waited for the truck -- one turning back at a dead
+# end, or a steered truck that stopped at the receiver -- and then appeared to jump in, long after.
+# `dock_px` is the dock's center in the truck's parent's coords; `lobby_px` the cell the engine is in.
+const CART_FLY_S: float = 0.40
+const GAP_CLOSE_S: float = 0.35
+var _flying: Dictionary = {}     # cart -> true while it glides into a dock
+var _gap_left: float = 0.0       # trail distance the carts behind a delivered one still have to close
+
+func remove_body(id, dock_px = null, lobby_px = null):
 	if id in _pending_remove_ids:
 		return
 	_pending_remove_ids[id] = true
 	var idx = body_ids.find(id)
+	if idx >= 0 and dock_px is Vector2 and lobby_px is Vector2:
+		_send_cart_in(bodies[idx], id, dock_px, lobby_px)
+		return true
 	if idx >= 0:
 		var body = bodies[idx]
 		var tween_color = MainGlobals.make_tween()
@@ -336,21 +410,44 @@ func remove_body(id):
 		tween_scale.tween_callback(func(): final_remove_body(id))
 		return true
 	return false
-		
+
+func _send_cart_in(cart: Node2D, id, dock_px: Vector2, lobby_px: Vector2) -> void:
+	_flying[cart] = true
+	var from_p: Vector2 = position + cart.position
+	var base: Vector2 = cart.scale
+	var fly: Tween = MainGlobals.make_tween()
+	var rot0: float = cart.rotation
+	fly.tween_method(func(t: float) -> void:
+		var e: float = t * t * (3.0 - 2.0 * t)
+		# a curve through the lobby: along the road first, then round into the dock
+		var a1: Vector2 = from_p.lerp(lobby_px, e)
+		var a2: Vector2 = lobby_px.lerp(dock_px, e)
+		var at: Vector2 = a1.lerp(a2, e)
+		var tangent: Vector2 = a2 - a1
+		cart.position = at - position
+		if tangent.length() > 0.5:
+			cart.rotation = lerp_angle(rot0, tangent.angle(), clampf(e * 1.5, 0.0, 1.0))
+		# it fades and shrinks over the second half, as it goes in
+		var k: float = clampf((t - 0.45) / 0.55, 0.0, 1.0)
+		cart.modulate.a = 1.0 - k
+		cart.scale = base * (1.0 - 0.5 * k), 0.0, 1.0, CART_FLY_S)
+	fly.tween_callback(func() -> void:
+		_flying.erase(cart)
+		final_remove_body(id))
+
 func final_remove_body(id):
 	var idx = body_ids.find(id)
 	if idx >= 0:
 		nbody_parts -= 1
 		body_ids.remove_at(idx)
 		var body = bodies[idx]
-		$Tail.position = bodies[-1].position
-		for iidx in range(bodies.size()-1, idx, -1):
-			bodies[iidx].position = bodies[iidx-1].position
-			bodies[iidx].rotation = bodies[iidx-1].rotation
 		bodies.remove_at(idx)
 		if $Skeleton.get_point_count() > 0:
 			$Skeleton.remove_point($Skeleton.get_point_count()-1)
 		tail_dist_back = body_dist * nbody_parts + head_dist
+		# the carts behind (and the van) stay where they are and close up over GAP_CLOSE_S (_pose_art);
+		# they used to be moved up a whole place in one frame
+		_gap_left += float(body_dist)
 		angles.pop_back()
 		body.queue_free()		
 		set_rots()

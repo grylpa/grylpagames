@@ -58,9 +58,37 @@ elsewhere it goes straight, or turns where the road turns, or turns back at a de
 to a teal dock of its own type parks (`game.dec_packet()`); when `packets_left` reaches 0 the level
 is won. `check_agent_collisions()` crashes any two moving cars closer than a quarter tile.
 
+**A door turns whenever it is tapped** (2026-11-12). It used to refuse while anything was in or
+entering its cell (`scripts/door_guard.gd`), and in a busy round a stream of trains could keep the one
+door that mattered locked: rounds became unsolvable. Now a train COMMITS to the door as it enters the
+cell -- its `door_at` / `door_type` metas, set in `tick()` -- and leaves by that same setting, so a
+door turned under it no longer re-routes it mid-cell (the old reason for the guard); only the trains
+that enter afterwards take the new way. The carts follow the engine's trail, so only the engine ever
+reads a door. (For a moment the door can stand at its new angle while a train crosses it the old way.)
+
+**Parking drives INTO the dock** (`agent.drive_into_dock`, 2026-11-12). The car that arrives (its
+engine in the cell before its dock) drives on at `DOCK_SPEED_K` (2x) to the center of that cell and
+straight into the dock; every cart follows the trail as always and fades and shrinks only as it
+crosses the dock's mouth (`_fade_into_dock`; the drawbar is cut at the dock's center), and the car is
+removed once the van is in. It used to stop dead and shrink and fade where it stood, carts out on the
+road. An arrived car is never counted in a crash, and at twice the speed its van pulls away from a
+car following it into the same dock.
+
 A new car is sent out every `dispatch_ms` from a random orange dock; with a short interval
 (3000 ms or less) the next dock must be more than 4 cells from the last, so two cars do not
 leave side by side.
+
+**The train starts coiled inside its dock** (`seed_in_dock`, 2026-11-12, after Detour): at spawn the
+trail is laid straight back through the dock, so every car and the van has its place and heading from the
+first move and slides out in turn; a part still behind the dock's center waits there, hidden
+(`_hide_in_dock`). Before, a part only appeared once the head had driven far enough to lay a trail for
+it -- a gap, then the part popping in with its link. The trimming of the trail keeps the seeded stretch
+while any part still needs it. The waiting stops for good once the whole train has come out
+(`_out_of_dock`): "behind" is measured across the dock's whole edge line, and in Detour a creature
+going into a dock on that same edge was counted as back inside, its link stretched across the board.
+
+**Every part turns, none flips** (2026-11-12): when the train turns back, each car turns round at
+`ART_TURN_RATE` like the head. `set_rots` set every cart straight to its angle and then called `_pose_art`, whose turn at `ART_TURN_RATE` then had nothing left to turn -- so only the engine and the van (separate drawings) turned and every cart between flipped round in one frame. Measured on a turn-back: no car turns more than about 12 degrees in a frame.
 
 ## Levels -- `level_config.gd`
 

@@ -356,6 +356,8 @@ func add_agent_at(p: Vector2i, direction: int):
 	add_child(agent)
 	agents.append(agent)
 	agent.set_pos(game.board_to_px(p), direction)
+	# the truck starts coiled inside the depot above it and comes out of it, part by part
+	agent.seed_in_dock(game.board_to_px(p) - Vector2(0.0, float(game.tile_size)), Vector2.DOWN)
 	if not game.is_sound_playing("dispatch"):
 		game.play_sound("dispatch")
 	if not game.is_sound_playing("motor"):
@@ -421,7 +423,7 @@ func tick():
 		var adj_tar_id = get_adjacent_target_id(p)
 		var _removed_body_part = false
 		if adj_tar_id >= 0:
-			_removed_body_part = agent.remove_body_if_first(adj_tar_id)
+			_removed_body_part = agent.remove_body_if_first(adj_tar_id, game.board_to_px(_target_pos_of(adj_tar_id)), game.board_to_px(p))
 			if _removed_body_part:
 				game.play_sound("delivery")
 				game.delivered_one()
@@ -467,6 +469,13 @@ func tick():
 				board[p.y][p.x].has_agent = false
 				if next_agent_dir == dir:
 					next_agent_dir = -1
+
+# The board cell of the target with this id (the dock a delivered cart goes into).
+func _target_pos_of(target_id: int) -> Vector2i:
+	for i in targets.size():
+		if targets[i].id == target_id:
+			return target_positions[i]
+	return Vector2i.ZERO
 
 func get_adjacent_target_id(q):
 	for i in target_positions.size():

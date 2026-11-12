@@ -109,6 +109,9 @@ func _process(delta: float) -> void:
 		var should_halt = dt > time_from_start_to_target_ms / speed_scale or was_hit
 		if should_halt:
 			reached_target_pos = true
+			if not was_hit and not _dock_legs.is_empty():
+				position = target_position
+				_next_dock_leg()
 			if is_really_moving:
 				if time_to_turn_feet_off == 0:
 					time_to_turn_feet_off = MainGlobals.timems() + 100				
@@ -129,20 +132,65 @@ func _process(delta: float) -> void:
 				reached_target_pos = true
 			angles[0] = last.angle_to_point(position)
 			set_rots()
+	if not _dock_in.is_empty():
+		_fade_into_dock()
 
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]
 
-func mark_arrived():
+# INTO THE DOCK, NOT FADED IN PLACE (2026-11-12, as in Valet): on arriving -- its head in the cell
+# before its dock -- the player goes on at twice its speed to the center of the cell it is in and then
+# straight into the dock and on; every part follows the trail as always, and each fades (and shrinks
+# a little) only as it crosses the dock's mouth, the line joining the parts cut off there too. It is
+# removed once its last part is in. It used to stop dead and shrink and fade where it stood. An arrived
+# player is never counted in a crash.
+const DOCK_SPEED_K: float = 2.0
+var _dock_in: Dictionary = {}     # {mouth, dir, depth} (parent coords)
+var _dock_legs: Array = []        # the points still to drive to
+var _dock_base: Dictionary = {}   # each part's own scale before the drive-in
+
+func drive_into_dock(cell_px: Vector2, dock_px: Vector2) -> void:
 	arrived = true
-	var tween_color = MainGlobals.make_tween()
-	tween_color.tween_property(self, "modulate", Color(1.0,1.0,1.0,0.2), 0.7)
-	var tween_scale = MainGlobals.make_tween()
-	var oldscale = scale
-	tween_scale.tween_property(self, "scale", oldscale * 0.5, 0.4)
-	tween_scale.tween_property(self, "scale", oldscale * 0.1, 0.5)
-	tween_scale.tween_property(self, "modulate", Color(0.7,0.7,0.7,0.01), 0.8)
-	tween_scale.tween_callback(func(): remove_player.emit(true))
+	var tile: float = float(game.tile_size)
+	var dirv: Vector2 = (dock_px - cell_px).normalized()
+	_dock_in = {"mouth": dock_px - dirv * tile * 0.5, "dir": dirv, "depth": tile * 0.5}
+	_dock_legs = []
+	if position.distance_to(cell_px) > 1.0:
+		_dock_legs.append(cell_px)
+	# far enough past the mouth that the last part is in too
+	_dock_legs.append(dock_px + dirv * (0.0 + tile * 0.5))
+	_next_dock_leg()
+
+func _next_dock_leg() -> void:
+	var to: Vector2 = _dock_legs.pop_front()
+	set_target_pos(to)
+	# the player's set_target_pos already times a leg by its length; this one at DOCK_SPEED_K
+	time_from_start_to_target_ms = maxi(1, int(float(time_from_start_to_target_ms) / DOCK_SPEED_K))
+
+# A part's share of the way through the dock's mouth (0 outside .. 1 at the dock's center).
+func _dock_depth(local_p: Vector2) -> float:
+	var gp: Vector2 = position + local_p
+	return clampf((gp - (_dock_in["mouth"] as Vector2)).dot(_dock_in["dir"]) / float(_dock_in["depth"]), 0.0, 1.0)
+
+func _dock_parts() -> Array:
+	return [$Head]
+
+func _fade_into_dock() -> void:
+	var parts: Array = _dock_parts()
+	for part in parts:
+		if part == null or not is_instance_valid(part):
+			continue
+		var n: Node2D = part as Node2D
+		if not _dock_base.has(n):
+			_dock_base[n] = n.scale
+		var k: float = _dock_depth(n.position)
+		n.modulate.a = 1.0 - k
+		n.scale = (_dock_base[n] as Vector2) * (1.0 - 0.35 * k)
+	pass
+	var last: Node2D = parts[-1] as Node2D
+	if _dock_legs.is_empty() and (last == null or _dock_depth(last.position) >= 1.0):
+		_dock_in = {}
+		remove_player.emit(true)
 
 func mark_hit():
 	# set_color(Color(0,0,0))

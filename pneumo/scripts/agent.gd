@@ -4,6 +4,9 @@ extends Area2D
 signal remove_agent(id)
 signal agent_pressed(_transaction_id, _board_pos)
 signal sig_agent_started_moving(_transaction_id)
+# A leg is done and the next is due NOW (see _process): the level hands it out at once instead of on
+# its 50 ms tick.
+signal sig_leg_done
 
 var board_pos: Vector2i
 var direction: int
@@ -99,15 +102,72 @@ func set_color(_color):
 func set_type(_agent_type):
 	agent_type = _agent_type
 	var coloridx = agent_type-1
-	if speed_scale < 1.8:
+	# the color tells the speed band; the bands follow the speeds' range (0.8 .. 2.2 since 2026-11-12,
+	# when the top speed came down from 4.0 -- they were 1.8 and 2.6, and the third color would never show)
+	if speed_scale < 1.3:
 		coloridx = 0
-	elif speed_scale < 2.6:
+	elif speed_scale < 1.75:
 		coloridx = 1
 	else:
 		coloridx = 2
 	color = game.color_by_index(coloridx)
 	set_color(color)
 	
+# THE WHOLE CAPSULE EXISTS FROM THE START, coiled back inside its dispatcher (2026-11-12, after Detour):
+# the trail is laid straight back through the dispatcher at spawn (seed_in_dock), so every tube has its
+# place and heading from the first move and slides out in turn; a tube still behind the dispatcher's
+# center waits there, hidden. Before, a tube only appeared once the capsule had moved far enough to lay
+# a trail for it -- a gap, then the tube popping in with its link. The waiting stops for good once the
+# whole capsule has come out (_out_of_dock): "behind" is measured across the dispatcher's whole edge
+# line, and a capsule going into a receiver on the same edge would otherwise count as back inside.
+var _dock_center: Vector2 = Vector2.INF
+var _out_dir: Vector2 = Vector2.ZERO
+var _out_of_dock: bool = false
+
+func seed_in_dock(dock_px: Vector2, out_dir: Vector2) -> void:
+	_dock_center = dock_px
+	_out_dir = out_dir
+	var back: float = float(tail_dist_back) * 1.5 + float(game.tile_size)
+	time_back_positions = [position - out_dir * back, position]
+	back_total_len = back
+
+# EACH TUBE STAYS UNDER THE DISPATCHER UNTIL IT HAS ITSELF PASSED ITS MOUTH: the capsule rises above the
+# gates once the HEAD is clear (_rise_above_gate_once_clear), which lifted the tubes still in the mouth
+# over the dispatcher too. A tube in the mouth keeps an effective z under the gates' 100.
+func _hide_in_dock() -> void:
+	# BACKING UP, its last tube leads it home: the tubes go back INTO the dispatcher and must hide there
+	# all the while (they used to be re-hidden only once the head was back at the mouth, by when the
+	# leading tubes had driven out through the dispatcher and past the board's edge)
+	if (_out_of_dock and not reversed) or _dock_center == Vector2.INF or bodies.is_empty():
+		return
+	var tile: float = float(game.tile_size)
+	if not reversed and (position + (bodies[-1] as Node2D).position - _dock_center).dot(_out_dir) > tile * 0.9:
+		_out_of_dock = true
+		for i in bodies.size():
+			bodies[i].z_index = -(i + 1)
+			bodies[i].modulate.a = 1.0
+		return
+	var parked: Vector2 = _dock_center - position
+	var mouth: float = tile * 0.5
+	# the mouth's edge on the capsule's axis, local: the link line starts here, never inside
+	var lip: Vector2 = _dock_center + _out_dir * mouth - position
+	for i in bodies.size():
+		var depth: float = (position + (bodies[i] as Node2D).position - _dock_center).dot(_out_dir)
+		var inside: bool = depth < 0.0
+		bodies[i].visible = not inside      # the tube's drawing follows its carrier's visibility
+		# in the mouth (center .. a half tile out, and a tube's half length more): under the gate
+		var in_mouth: bool = depth < mouth + float(body_dist) * 0.5
+		bodies[i].z_index = (Z_IN_GATE - z_index - (i + 1)) if in_mouth else -(i + 1)
+		# AND FADED IN across the mouth: once the capsule is thrown, its dispatcher fades to 40%
+		# (level.activate_transaction), and a tube under it showed straight through, a ghost on the
+		# chevrons with its link across them (the level 9 run, 2026-11-12)
+		var a: float = clampf(depth / mouth, 0.0, 1.0)
+		bodies[i].modulate.a = a * a * (3.0 - 2.0 * a)
+		if inside:
+			bodies[i].position = parked
+		if depth < mouth and i + 1 < $Skeleton.get_point_count():
+			$Skeleton.set_point_position(i + 1, lip)
+
 func set_pos(p, dir):
 	direction = dir
 	_spawn_pos = p
@@ -176,72 +236,236 @@ var _legs_done: int = 0                  # how many targets this capsule has bee
 # level's tick keeps its own time.
 const BOUNCE_SQUASH: float = 0.55        # how far it compresses, as a share of its length
 const BOUNCE_BULGE: float = 0.5          # how much of that it gives back across the axis
-const BOUNCE_IN_MS: float = 90.0         # compressing, held in place
-const BOUNCE_OUT_MS: float = 130.0       # springing back out, moving again
 
 var _bounce_ms: float = -1.0
 var _bounce_axis: Vector2 = Vector2.RIGHT
 var _bounce_last_ms: float = 0.0
-var _bounce_flipped: bool = false
 
-# Called by the level the moment it turns a capsule back.
+# THE BOUNCE IS AN ELASTIC CHAIN (2026-11-12). The capsule runs on until its NOSE meets the face it hit
+# (the cell's edge), and from there it is a small simulation along the track (_sim_step): the head and
+# each tube are equal masses joined by springs at their usual spacing, all coming on at the capsule's
+# speed; the head stops against the face and rebounds, the compression runs down the chain -- each tube
+# decelerating into the one in front and squashing by how compressed its springs are -- and the chain
+# springs back out, the last tube leading as it backs away. Nothing turns and nothing passes through
+# anything. A first version was a fixed timeline (each tube slid in at constant speed and stopped dead,
+# the head held a third of a second) and did not look natural.
+# The head holds the level's clock while the chain is in the air (_process), and the backing-up leg the
+# level has already set is started fresh when the simulation ends.
+# TWO KINDS OF SPRING (2026-11-12, "more compressed -- you don't compress the links"). The LINKS are soft
+# (SPRING_K): the chain closes up until the tubes TOUCH end to end, every link gone. The TUBES are firm
+# but squishy (CONTACT_K): past touching a part is squashed only by how far it is pressed into its
+# neighbor (or into the face), so the ends stay together. Squashing a tube by its springs' compression,
+# as before, shortened it while its center closed up only a quarter of the spacing, so the gaps -- the
+# links -- came out no shorter than at rest. (Stiffer still, at 2600, the chain was a rigid rod.)
+const SPRING_K: float = 500.0            # the links, per unit mass
+const SPRING_DAMP: float = 5.0
+const CONTACT_K: float = 4000.0          # a tube pressed into its neighbor or the face
+const CONTACT_DAMP: float = 14.0
+const SIM_MIN_SPEED: float = 260.0       # px per second: the slowest impact the chain is given
+const MIN_ALONG: float = 0.6             # the most a part is squashed along its length
+const SIM_MAX_MS: float = 900.0
+const POST_RELAX_MS: float = 160.0       # leftover spacing eases back to normal after
+var _sim_on: bool = false
+var _sim_s: PackedFloat32Array = PackedFloat32Array()   # positions along the track, + toward the face
+var _sim_v: PackedFloat32Array = PackedFloat32Array()
+var _sim_rest: PackedFloat32Array = PackedFloat32Array()
+var _sim_wall: float = 0.0
+var _sim_t: float = 0.0
+var _sim_head_at: float = 0.0           # how far the head has been moved along the track so far
+var _sim_dir: Vector2 = Vector2.RIGHT
+var _post_off: PackedFloat32Array = PackedFloat32Array()
+var _post_ms: float = -1.0
+
+# Called by the level the moment it turns a capsule back (and only when it starts backing up).
 func start_bounce(axis: Vector2) -> void:
+	_sim_dir = axis.normalized() if axis != Vector2.ZERO else Vector2.RIGHT
+	# the face: the cell's edge ahead of the cell the head is in, less the nose
+	var cell_c: Vector2 = game.board_to_px(board_pos)
+	var wall: float = (cell_c + _sim_dir * float(game.tile_size) * 0.5 - position).dot(_sim_dir) \
+		- PneumoCapsuleArt.LEN
+	_start_sim(1.0, maxf(0.0, wall))
+
+# BACKING UP INTO ITS OWN DISPATCHER IT BOUNCES OFF ITS EDGE (2026-11-12): its last tube leads, so that is
+# what meets the dispatcher's face, and the wave runs the other way, tail to head; then it goes forward
+# again (the level turns it round: level.gd, tail_at_sender). It used to slide into the dispatcher.
+# How far the leading part (the last tube, or the head with none) still has to go to meet the
+# dispatcher's face, along the way it is backing; INF when it is not on the dispatcher's line.
+func room_to_sender() -> float:
+	if _dock_center == Vector2.INF:
+		return INF
+	var lead: Vector2 = position + ((bodies[-1] as Node2D).position if not bodies.is_empty() else Vector2.ZERO)
+	var face: Vector2 = _dock_center + _out_dir * float(game.tile_size) * 0.5
+	var rel: Vector2 = lead - face
+	if absf(rel.cross(_out_dir)) > float(game.tile_size) * 0.5:
+		return INF
+	return rel.dot(_out_dir) - PneumoCapsuleArt.LEN
+
+func start_tail_bounce() -> void:
+	var lead_d: float = _tube_dist(bodies.size()) if not bodies.is_empty() else 0.0
+	_sim_dir = -_out_dir                      # the way it is backing, toward the face
+	_start_sim(-1.0, lead_d + maxf(0.0, room_to_sender()))
+
+# THE ELASTIC CHAIN, either way round. Positions run along the track, + toward the face. `sign` +1: the
+# face is ahead of the HEAD (it hit something going forward) and the head leads, s_0 > s_1 > ...; -1: the
+# face is ahead of the LAST TUBE (it backed into its dispatcher), s_n > ... > s_0. The part at the face is
+# index 0 or n.
+var _sim_sign: float = 1.0
+
+func _start_sim(sign_v: float, wall: float) -> void:
 	_bounce_ms = MainGlobals.timems()
-	_bounce_flipped = false
-	_bounce_axis = Vector2(absf(axis.x), absf(axis.y))
-	if _bounce_axis == Vector2.ZERO:
-		_bounce_axis = Vector2.RIGHT
+	_bounce_last_ms = _bounce_ms
+	_sim_sign = sign_v
+	var n: int = bodies.size()
+	var leg_ms: float = maxf(1.0, game.major_tick_time_ms * game.time_scale / speed_scale)
+	var v0: float = maxf(SIM_MIN_SPEED, float(game.tile_size) / leg_ms * 1000.0)   # px per second
+	_sim_s.resize(n + 1)
+	_sim_v.resize(n + 1)
+	_sim_rest.resize(n + 1)
+	_sim_s[0] = 0.0
+	_sim_v[0] = v0
+	_sim_rest[0] = 0.0
+	for i in range(1, n + 1):
+		_sim_rest[i] = float(head_dist) if i == 1 else float(body_dist)
+		_sim_s[i] = -sign_v * _tube_dist(i)          # where the tubes are now
+		_sim_v[i] = v0
+	_sim_wall = wall
+	_sim_t = 0.0
+	_sim_head_at = 0.0
+	_sim_on = true
+	_post_ms = -1.0
 
-# 0 while it is not bouncing, otherwise how far through the squash it is, 0..1.
-func _bounce_phase() -> float:
-	if _bounce_ms < 0.0:
-		return 0.0
-	var t: float = MainGlobals.timems() - _bounce_ms
-	if t >= BOUNCE_IN_MS + BOUNCE_OUT_MS:
-		_bounce_ms = -1.0
-		$Head.scale = Vector2.ONE
-		return 0.0
-	if t < BOUNCE_IN_MS:
-		return (t / BOUNCE_IN_MS) * 0.5
-	return 0.5 + ((t - BOUNCE_IN_MS) / BOUNCE_OUT_MS) * 0.5
+func _gap(i: int) -> float:              # the spring between parts i-1 and i, its current length
+	return _sim_sign * (_sim_s[i - 1] - _sim_s[i])
 
-func _apply_bounce_squash(phase: float) -> void:
-	# The head is turned round AT the moment of deepest compression, in one frame, while the
-	# capsule is squashed flat and nothing about its shape says which way it is pointing. Eased
-	# the usual way it swept a visible 180 degree pirouette, which reads as a decision rather than
-	# as an impact.
-	if not _bounce_flipped and phase >= 0.5:
-		_bounce_flipped = true
-		angles[0] = float(direction) * PI / 2.0
-		_head_angle = angles[0]
-		_head_angle_set = true
-		set_rots()
-		# The head's frames roll a line around the capsule, and turning the sprite 180 degrees
-		# throws that line to the opposite position — a jump, right at the moment the player is
-		# watching. Frame i sits at angle 2*PI*i/n around the capsule, so the mirrored pose is
-		# angle -i; stepping there puts the line back where it was and hides the flip in the
-		# artwork as well as in the pose.
-		var frames: SpriteFrames = $Head.sprite_frames
-		if frames != null:
-			var nframes: int = frames.get_frame_count($Head.animation)
-			if nframes > 0:
-				$Head.frame = posmod(-$Head.frame, nframes)
-	# One smooth in-and-out: fully compressed at the half way point.
-	var amount: float = sin(phase * PI)
-	var along: float = 1.0 - (1.0 - BOUNCE_SQUASH) * amount
-	var across: float = 1.0 + (1.0 - BOUNCE_SQUASH) * amount * BOUNCE_BULGE
-	# Squash the HEAD, not the agent. `scale` on the agent scales every child's position too, so
-	# with packets aboard the whole train telescoped in towards the head on every impact -- the
-	# tubes are placed at offsets read off the trail, and scaling the parent shrinks those
-	# offsets. Empty capsules looked fine, which is why it only showed up with packets.
-	# `scale` is in the head's OWN frame, and the head is rotated to face the way it is going, so
-	# its local +x is always the direction of travel. Compress local x and bulge local y and the
-	# squash lines up with the impact whichever way the tube runs.
-	#
-	# Choosing the axis from `_bounce_axis` (a WORLD vector) and applying it to a rotated child was
-	# wrong: at 90 degrees local x is world y, so the compression came out across the tube instead
-	# of along it. Measured over 435 squash frames, 382 of them compressed the wrong world axis.
-	$Head.scale = Vector2(along, across)
+# One frame of the elastic chain, in small steps; then the head moved along the track, the tubes placed
+# at the simulated distances, and every part squashed by its springs' compression.
+func _sim_step(delta: float) -> void:
+	var n: int = _sim_s.size()
+	var w: int = 0 if _sim_sign > 0.0 else n - 1        # the part at the face
+	var left: float = minf(delta, 0.05)
+	while left > 0.0:
+		var h: float = minf(left, 0.002)
+		left -= h
+		var acc: PackedFloat32Array = PackedFloat32Array()
+		acc.resize(n)
+		var touch: float = 2.0 * PneumoCapsuleArt.LEN
+		for i in range(1, n):
+			var g: float = _gap(i)
+			var rv: float = _sim_sign * (_sim_v[i - 1] - _sim_v[i])
+			var f: float = SPRING_K * (g - _sim_rest[i]) + SPRING_DAMP * rv      # < 0 pushes apart
+			if g < touch:
+				f -= CONTACT_K * (touch - g) - CONTACT_DAMP * rv
+			acc[i - 1] -= _sim_sign * f
+			acc[i] += _sim_sign * f
+		# the face: the part at it is pressed into it
+		var pen: float = _sim_s[w] - _sim_wall
+		if pen > 0.0:
+			acc[w] -= CONTACT_K * pen + CONTACT_DAMP * maxf(0.0, _sim_v[w])
+		for i in n:
+			_sim_v[i] += acc[i] * h
+			_sim_s[i] += _sim_v[i] * h
+	_sim_t += delta * 1000.0
+	# the head along the track. Head at the face: forward (laying trail) up to it, back along its own
+	# trail after. Tail at the face: + is the way it backs, so the reverse.
+	var ds: float = (_sim_s[0] - _sim_head_at) * _sim_sign
+	if ds > 0.0:
+		# forward: toward the face, or (tail at the face) the way the head points
+		position += (_sim_dir if _sim_sign > 0.0 else Vector2.from_angle(_head_angle)) * ds
+		time_back_positions.push_back(position)
+		if time_back_positions.size() > 1:
+			back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
+	elif ds < 0.0:
+		_retreat(-ds)
+	_sim_head_at = _sim_s[0]
+	# squash: each part by how far it is pressed into what it touches (its neighbors, the face)
+	var touch_l: float = 2.0 * PneumoCapsuleArt.LEN
+	for i in n:
+		var p_in: float = 0.0
+		if i >= 1:
+			p_in = maxf(p_in, touch_l - _gap(i))
+		if i + 1 < n:
+			p_in = maxf(p_in, touch_l - _gap(i + 1))
+		if i == w:
+			p_in = maxf(p_in, 2.0 * (_sim_s[w] - _sim_wall))
+		var along: float = maxf(MIN_ALONG, 1.0 - maxf(0.0, p_in) / touch_l)
+		_set_squash(i, (1.0 - along) / (1.0 - BOUNCE_SQUASH))
+	_place_tubes()
+	# done once every part is moving away from the face and the spacing has settled, or after SIM_MAX_MS
+	var all_back: bool = true
+	var settled: bool = true
+	for i in n:
+		if _sim_v[i] >= 0.0:
+			all_back = false
+		if i >= 1 and absf(_gap(i) - _sim_rest[i]) > 3.0:
+			settled = false
+	if (all_back and settled and _sim_s[w] < _sim_wall - 1.0) or _sim_t > SIM_MAX_MS:
+		_end_sim()
+
+func _end_sim() -> void:
+	_sim_on = false
+	_bounce_ms = -1.0
+	var n: int = _sim_s.size()
+	# leftover spacing eases back to normal (_tube_dist)
+	_post_off.resize(n)
+	for i in range(1, n):
+		_post_off[i] = _sim_sign * (_sim_s[0] - _sim_s[i]) - _nominal_dist(i)
+	_post_ms = float(MainGlobals.timems())
+	for i in n:
+		_set_squash(i, 0.0)
+	# the leg the level set at the bounce starts now, from where the head is
+	if reversed:
+		_rev_len = _trail_dist_to(target_position)
+		_rev_done = 0.0
+	else:
+		# planned again from where the head is NOW: planned at the bounce, its curve through a door
+		# started from where the head stood then and steered it off its line for a moment
+		_arc_half = 0
+		_legs_done = maxi(0, _legs_done - 1)
+		set_target_once = false             # so _leg_start_ms does not backdate it
+		set_target_pos(target_position, _last_turn_dir)
+	time_set_target_pos = MainGlobals.timems()
+	last_major_tick_ms = time_set_target_pos
+	_leg_done_sent = false
+	# the rebound can carry the head PAST the leg's target: that leg is then done, and the next is asked
+	# for at once from where the head is (driven back to the target it turned round to face it, and
+	# turned round again for the leg after)
+	if not reversed and (target_position - position).dot(Vector2.from_angle(_head_angle)) <= 0.5:
+		target_position = position
+		starting_position = position
+		var leg: int = int(time_from_start_to_target_ms * game.time_scale / speed_scale)
+		time_set_target_pos = MainGlobals.timems() - leg - 1
+		last_major_tick_ms = time_set_target_pos
+
+# A part is squashed in its OWN frame: it is rotated to point along the track, so local x is always the
+# axis of the impact (compress x, bulge y). The squash is on the parts, never the agent: scaling the agent
+# scales every child's position too and telescoped the whole train toward the head. (Choosing the axis
+# from a WORLD vector once compressed 382 of 435 frames across the tube instead of along it.)
+func _set_squash(i: int, amt: float) -> void:
+	var along: float = 1.0 - (1.0 - BOUNCE_SQUASH) * amt
+	var across: float = 1.0 + (1.0 - BOUNCE_SQUASH) * amt * BOUNCE_BULGE
+	if i == 0:
+		$Head.scale = Vector2(along, across)
+		return
+	var b: Node2D = bodies[i - 1]
+	if not b.has_meta("base_scale"):
+		b.set_meta("base_scale", b.scale)
+	var base: Vector2 = b.get_meta("base_scale")
+	b.scale = Vector2(base.x * along, base.y * across)
+
+func _nominal_dist(i: int) -> float:      # tube i is 1-based here: 1 = the one behind the head
+	return float((i - 1) * body_dist + head_dist)
+
+# Tube i's distance from the head along the track right now (1-based).
+func _tube_dist(i: int) -> float:
+	if _sim_on and i < _sim_s.size():
+		return _sim_sign * (_sim_s[0] - _sim_s[i])
+	var nominal: float = _nominal_dist(i)
+	if _post_ms >= 0.0 and i < _post_off.size():
+		var u: float = clampf((MainGlobals.timems() - _post_ms) / POST_RELAX_MS, 0.0, 1.0)
+		if u >= 1.0:
+			return nominal
+		return nominal + _post_off[i] * (1.0 - u * u * (3.0 - 2.0 * u))
+	return nominal
 
 # A capsule's FIRST leg is the one place there is not enough room: it starts at a cell center, so a
 # door directly in front leaves exactly one tile of run-up, and an arc needs a full radius of that
@@ -263,7 +487,99 @@ const EMERGED_FRAC: float = 0.33
 var _spawn_pos: Vector2 = Vector2.ZERO
 var _emerged: bool = false
 
+# NO TURN AT A BOUNCE (2026-11-12): "when hitting a place that demands turning back there shouldn't be
+# a 180 turn -- some elastic reaction, a compression/decompression/bounce". The capsule bounces off the
+# face elastically (start_bounce, _sim_step: a compression wave down the chain) and BACKS UP: the level
+# sends it back through the cells it came by (`cells`, level.gd), its nose still to the wall and its last
+# tube leading, every part sliding back along the very trail it laid (_retreat), so nothing turns and
+# nothing passes through anything. It used to turn the head round at the deepest point of the squash,
+# and each tube then ran on to the wall, spun 180 degrees in a frame and came back through the tubes
+# still arriving. Backing up into its own dispatcher, its tubes slide back in (hidden there all the
+# while, _hide_in_dock) and it comes out forward again.
+var reversed: bool = false
+var cells: Array[Vector2i] = []
+var _rev_len: float = 0.0          # trail length this backing-up leg covers
+var _rev_done: float = 0.0         # and has covered so far
+const TRAIL_KEEP_PX: float = 4000.0  # trail kept beyond the capsule's length, to back up along
+
+func back_at_dispatcher() -> void:
+	_out_of_dock = false
+
+# The trail distance from the head back to the trail's nearest point to `p` (a cell center), within
+# a couple of tiles.
+func _trail_dist_to(p: Vector2) -> float:
+	var best: float = INF
+	var best_s: float = 0.0
+	var s_acc: float = 0.0
+	var b: Vector2 = position
+	if b.distance_to(p) < best:
+		best = b.distance_to(p)
+	for i in range(time_back_positions.size() - 1, -1, -1):
+		var a: Vector2 = time_back_positions[i]
+		s_acc += a.distance_to(b)
+		b = a
+		var d: float = a.distance_to(p)
+		if d < best:
+			best = d
+			best_s = s_acc
+		if s_acc > float(game.tile_size) * 2.5:
+			break
+	return best_s
+
+# Moves the head `dist` back along its own trail, dropping the samples it passes.
+func _retreat(dist: float) -> void:
+	var left: float = dist
+	while left > 0.0 and time_back_positions.size() > 2:
+		var a: Vector2 = time_back_positions[-1]
+		var seg: float = position.distance_to(a)
+		if seg <= left:
+			position = a
+			left -= seg
+			back_total_len -= (time_back_positions[-1] - time_back_positions[-2]).length()
+			time_back_positions.pop_back()
+		else:
+			position = position.move_toward(a, left)
+			left = 0.0
+
+
+# NO STOP BETWEEN TILES (2026-11-12, "the whole capsule chain moves in jumps" at level 9). The level
+# hands out legs on a 50 ms tick, so a capsule that finished one between two ticks stood still until
+# the next -- at 4x speed a leg is ~150 ms, and a quarter of the time was spent standing: stop, go, stop.
+# Now a finished leg asks for the next at once (sig_leg_done), and the new leg's clock is backdated to
+# when the old one was due to end -- by at most one frame, so a capsule that was legitimately waiting
+# is never thrown forward (Delemfp's MAX_LEG_CATCHUP_MS lesson).
+const MAX_LEG_CATCHUP_MS: int = 17
+var _leg_done_sent: bool = false
+
+func _leg_start_ms() -> int:
+	var now_ms: int = MainGlobals.timems()
+	_leg_done_sent = false
+	if not set_target_once:
+		return now_ms
+	var due: int = time_set_target_pos + int(time_from_start_to_target_ms * game.time_scale / speed_scale)
+	var start: int = now_ms - clampi(now_ms - due, 0, MAX_LEG_CATCHUP_MS)
+	# the level's own cadence for this capsule follows the leg, not the tick that handed it out
+	last_major_tick_ms = start
+	return start
+
+var _last_turn_dir: int = -1
+
 func set_target_pos(p, turn_dir: int = -1):
+	_last_turn_dir = turn_dir
+	if reversed:
+		# backing up: along the trail to its nearest point to p, no arcs of its own
+		_arc_half = 0
+		_arc_frac = 0.0
+		_rev_len = _trail_dist_to(p)
+		_rev_done = 0.0
+		_legs_done += 1
+		target_position = p
+		starting_position = position
+		time_set_target_pos = _leg_start_ms()
+		time_from_start_to_target_ms = game.major_tick_time_ms
+		set_target_once = true
+		time_created_ms = MainGlobals.timems()
+		return
 	if _arc_half == 1:
 		# Second half of a turn already under way: finish the arc, then run straight at whatever
 		# the level has just asked for. The capsule is standing at the arc's midpoint.
@@ -281,7 +597,7 @@ func set_target_pos(p, turn_dir: int = -1):
 		_arc_frac = half_len / maxf(half_len + out_len, 0.001)
 		target_position = p
 		starting_position = position
-		time_set_target_pos = MainGlobals.timems()
+		time_set_target_pos = _leg_start_ms()
 		time_from_start_to_target_ms = game.major_tick_time_ms
 		set_target_once = true
 		time_created_ms = MainGlobals.timems()
@@ -318,7 +634,7 @@ func set_target_pos(p, turn_dir: int = -1):
 	_legs_done += 1
 	target_position = p
 	starting_position = position
-	time_set_target_pos = MainGlobals.timems()
+	time_set_target_pos = _leg_start_ms()
 	time_from_start_to_target_ms = game.major_tick_time_ms
 	set_target_once = true
 	time_created_ms = MainGlobals.timems()
@@ -341,16 +657,15 @@ func _process(delta: float) -> void:
 		_last_process_ms = now_ms
 		return
 	_last_process_ms = now_ms
-	var bphase: float = _bounce_phase()
-	if bphase > 0.0:
-		_apply_bounce_squash(bphase)
-		if bphase < 0.5:
-			# Compressing: it has stopped dead against whatever it hit. Push the leg's clock
-			# forward so the move it is about to make does not lose the time.
-			time_set_target_pos += now_ms - _bounce_last_ms
-			_bounce_last_ms = now_ms
-			_ease_head_angle(delta)
-			$Head.rotation = _head_angle
+	if _sim_on:
+		# the elastic chain (_sim_step): the level's clock is held while it runs, and the head keeps
+		# its heading -- it never turns round
+		time_set_target_pos += now_ms - _bounce_last_ms
+		last_major_tick_ms += int(now_ms - _bounce_last_ms)
+		_bounce_last_ms = now_ms
+		$Head.rotation = _head_angle
+		_sim_step(delta)
+		if _sim_on:
 			return
 	_bounce_last_ms = now_ms
 	_rise_above_gate_once_clear()
@@ -359,6 +674,13 @@ func _process(delta: float) -> void:
 	if MainGlobals.timems() - time_created_ms > game.time_to_auto_start_moving_ms:
 		is_moving = true
 		sig_agent_started_moving.emit(transaction_id)
+	if set_target_once and is_moving and not was_hit and not arrived and not _leg_done_sent \
+			and _dock_legs.is_empty() and MainGlobals.timems() - time_set_target_pos \
+			> time_from_start_to_target_ms * game.time_scale / speed_scale:
+		# the leg ran out: the next is handed over HERE, before this frame's move, so the frame does
+		# not stand still (sig_leg_done -> level.tick() -> set_target_pos, synchronously)
+		_leg_done_sent = true
+		sig_leg_done.emit()
 	if set_target_once and is_moving:
 		var dv = target_position - starting_position
 		var now = MainGlobals.timems()
@@ -386,10 +708,20 @@ func _process(delta: float) -> void:
 					var arc_end: Vector2 = _arc_center + _arc_from.rotated(_arc_sweep * 0.5)
 					position = arc_end.lerp(target_position,
 						(sf - _arc_frac) / maxf(1.0 - _arc_frac, 0.001))
-			else:
+			elif not reversed:
 				position = starting_position + v
-			angles[0] = last.angle_to_point(position)
-			if Vector2i(target_position) != Vector2i(starting_position):
+			if reversed:
+				var want: float = _rev_len * sf
+				_retreat(want - _rev_done)
+				_rev_done = want
+				# the nose stays to the wall: it faces AGAINST the way it moves
+				if last.distance_to(position) > 0.01:
+					angles[0] = last.angle_to_point(position) + PI
+			elif last.distance_to(position) > 0.01:
+				# (a frame with no movement -- the first after a bounce -- has no heading: angle_to_point
+				# of a point to itself is 0, which turned the head toward the right and back)
+				angles[0] = last.angle_to_point(position)
+			if not reversed and Vector2i(target_position) != Vector2i(starting_position):
 				time_back_positions.push_back(position)   # raw: rounding the trail to whole pixels
 				# makes the segment lengths alternate and the tubes wobble half a pixel a frame
 				# Only count a segment when one was actually appended. Adding this every frame
@@ -397,26 +729,36 @@ func _process(delta: float) -> void:
 				# the trail from the front and made the followers lurch.
 				if time_back_positions.size() > 1:
 					back_total_len += (time_back_positions[-1] - time_back_positions[-2]).length()
-			while time_back_positions.size() > 2 and back_total_len > tail_dist_back * 1.5:
+			# drop the oldest stretch only while enough trail remains for the whole capsule (the long
+			# seeded stretch back into the dispatcher must not go in one piece while tubes still need it)
+			# the trail is kept long (TRAIL_KEEP_PX past the capsule) so a bounced capsule can back up
+			# along it; only beyond that is the oldest stretch dropped
+			while time_back_positions.size() > 2 and back_total_len \
+					- (time_back_positions[1] - time_back_positions[0]).length() > tail_dist_back * 1.5 + TRAIL_KEEP_PX:
 				back_total_len -= (time_back_positions[1] - time_back_positions[0]).length()
 				time_back_positions.pop_front()
-			var trail_pos
-			#for i in range(nbody_parts-1,-1,-1):
-			for i in bodies.size():
-				trail_pos = pos_back_along_trail(i * body_dist + head_dist)
-				if trail_pos != null:
-					last = bodies[i].position
-					bodies[i].position = trail_pos - position
-					bodies[i].show()
-					while $Skeleton.get_point_count() < i+2:
-						$Skeleton.add_point(Vector2.ZERO)
-					$Skeleton.set_point_position(i+1, bodies[i].position)
-					angles[i+1] = $Skeleton.get_point_position(i+1).angle_to_point($Skeleton.get_point_position(i))
-			
-			# if $Skeleton.get_point_count() > nbody_parts+1:
-			# 	angles[-1] = $Skeleton.get_point_position(nbody_parts+1).angle_to_point($Skeleton.get_point_position(nbody_parts))
-				
-			set_rots()
+			_place_tubes()
+		elif not was_hit and not _dock_legs.is_empty():
+			position = target_position
+			_next_dock_leg()
+
+	if not _dock_in.is_empty():
+		_fade_into_dock()
+
+# Every tube on the trail behind the head (packing up through a bounce, _tube_dist), then the dispatcher's
+# mouth (_hide_in_dock) and the turn (set_rots).
+func _place_tubes() -> void:
+	for i in bodies.size():
+		var trail_pos = pos_back_along_trail(_tube_dist(i + 1))
+		if trail_pos != null:
+			bodies[i].position = trail_pos - position
+			bodies[i].show()
+			while $Skeleton.get_point_count() < i+2:
+				$Skeleton.add_point(Vector2.ZERO)
+			$Skeleton.set_point_position(i+1, bodies[i].position)
+			angles[i+1] = $Skeleton.get_point_position(i+1).angle_to_point($Skeleton.get_point_position(i))
+	_hide_in_dock()
+	set_rots()
 
 # Returns the point exactly `dist` back along the recorded trail, interpolating inside the segment
 # it lands in, or null when the trail is not yet that long.
@@ -446,8 +788,17 @@ func pos_back_along_trail(dist):
 			
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]
+	var step: float = TURN_SPEED * get_process_delta_time()
 	for i in nbody_parts:
-		bodies[i].rotation = angles[i+1]
+		var b: Node2D = bodies[i]
+		var target: float = angles[i+1]
+		# a tube that has just come into view takes its heading; after that it turns at TURN_SPEED
+		if not b.visible or not b.has_meta("turned"):
+			b.rotation = target
+			if b.visible:
+				b.set_meta("turned", true)
+		else:
+			b.rotation += clampf(wrapf(target - b.rotation, -PI, PI), -step, step)
 	
 func add_body(_id):
 	pass
@@ -494,15 +845,66 @@ func final_remove_body(id):
 		return true
 	return false
 
-func mark_arrived():
+# INTO THE DOCK, NOT FADED IN PLACE (2026-11-12, as in Valet): on arriving -- its head in the cell
+# before its dock -- the capsule goes on at twice its speed to the center of the cell it is in and then
+# straight into the dock and on; every part follows the trail as always, and each fades (and shrinks
+# a little) only as it crosses the dock's mouth, the line joining the parts cut off there too. It is
+# removed once its last part is in. It used to stop dead and shrink and fade where it stood. An arrived
+# capsule is never counted in a crash.
+const DOCK_SPEED_K: float = 2.0
+var _dock_in: Dictionary = {}     # {mouth, dir, depth} (parent coords)
+var _dock_legs: Array = []        # the points still to drive to
+var _dock_base: Dictionary = {}   # each part's own scale before the drive-in
+
+func drive_into_dock(cell_px: Vector2, dock_px: Vector2) -> void:
 	arrived = true
-	var tween_color = MainGlobals.make_tween()
-	tween_color.tween_property(self, "modulate", Color(1.0,1.0,1.0,0.2), 0.7)
-	var tween_scale = MainGlobals.make_tween()
-	var oldscale = scale
-	tween_scale.tween_property(self, "scale", oldscale * 0.5, 0.4)
-	tween_scale.tween_property(self, "scale", oldscale * 0.1, 0.5)
-	tween_scale.tween_callback(func(): remove_agent.emit(agent_id))
+	var tile: float = float(game.tile_size)
+	var dirv: Vector2 = (dock_px - cell_px).normalized()
+	_dock_in = {"mouth": dock_px - dirv * tile * 0.5, "dir": dirv, "depth": tile * 0.5}
+	_dock_legs = []
+	if position.distance_to(cell_px) > 1.0:
+		_dock_legs.append(cell_px)
+	# far enough past the mouth that the last part is in too
+	_dock_legs.append(dock_px + dirv * (tail_dist_back + tile * 0.5))
+	_next_dock_leg()
+
+func _next_dock_leg() -> void:
+	var to: Vector2 = _dock_legs.pop_front()
+	var tile: float = float(game.tile_size)
+	set_target_pos(to)
+	# set_target_pos times a leg as one tile; this one is as long as it is, at DOCK_SPEED_K
+	time_from_start_to_target_ms = maxi(1, int(float(game.major_tick_time_ms) * position.distance_to(to) / tile / DOCK_SPEED_K))
+
+# A part's share of the way through the dock's mouth (0 outside .. 1 at the dock's center).
+func _dock_depth(local_p: Vector2) -> float:
+	var gp: Vector2 = position + local_p
+	return clampf((gp - (_dock_in["mouth"] as Vector2)).dot(_dock_in["dir"]) / float(_dock_in["depth"]), 0.0, 1.0)
+
+func _dock_parts() -> Array:
+	return [$Head] + bodies
+
+func _fade_into_dock() -> void:
+	var parts: Array = _dock_parts()
+	for part in parts:
+		if part == null or not is_instance_valid(part):
+			continue
+		var n: Node2D = part as Node2D
+		if not _dock_base.has(n):
+			_dock_base[n] = n.scale
+		var k: float = _dock_depth(n.position)
+		n.modulate.a = 1.0 - k
+		n.scale = (_dock_base[n] as Vector2) * (1.0 - 0.35 * k)
+	# the joining line ends at the dock's center: none runs on past the parts that have gone
+	var dirv: Vector2 = _dock_in["dir"]
+	for i in $Skeleton.get_point_count():
+		var lp: Vector2 = $Skeleton.get_point_position(i)
+		var over: float = (position + lp - (_dock_in["mouth"] as Vector2)).dot(dirv) - float(_dock_in["depth"])
+		if over > 0.0:
+			$Skeleton.set_point_position(i, lp - dirv * over)
+	var last: Node2D = parts[-1] as Node2D
+	if _dock_legs.is_empty() and (last == null or _dock_depth(last.position) >= 1.0):
+		_dock_in = {}
+		remove_agent.emit(agent_id)
 
 func mark_hit():
 	# set_color(Color(0,0,0))
@@ -560,7 +962,9 @@ func _on_body_input_event() -> void:
 # A CONSTANT angular speed, not a proportional ease: taxi tweens its head over a fixed 0.12 s, and
 # matching that here means the swing looks the same in both games and can never exceed this rate,
 # however long a frame runs.
-const TURN_SPEED: float = PI * 0.5 / 0.12   # a right angle in 0.12 s
+# A right angle in 0.12 s at most -- the head's rate, and since 2026-11-12 every tube's too (set_rots):
+# a tube's angle came straight off the trail and could snap.
+const TURN_SPEED: float = PI * 0.5 / 0.12
 
 var _head_angle: float = 0.0
 var _head_angle_set: bool = false

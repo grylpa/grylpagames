@@ -324,6 +324,7 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	next_agent_id += 1
 	agent.agent_pressed.connect(on_agent_pressed)
 	agent.sig_agent_started_moving.connect(on_agent_started_moving)
+	agent.sig_leg_done.connect(_on_agent_leg_done)
 	board[p.y][p.x].has_agent = true
 	# agent.hit.connect(on_agent_hit)
 	agent.remove_agent.connect(on_agent_remove_agent)
@@ -334,6 +335,11 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 	# half a tile further back was tried, to buy the first turn more run-up: it put most of the
 	# capsule inside the gate, which is not what a capsule about to be thrown should look like.
 	agent.set_pos(game.board_to_px(p), direction)
+	agent.cells.clear()
+	agent.cells.append(p)
+	# the capsule starts coiled inside the dispatcher behind it and comes out tube by tube
+	var out_v: Vector2 = Vector2(game.DirArray[direction])
+	agent.seed_in_dock(game.board_to_px(p) - out_v * float(game.tile_size), out_v)
 	var sender = find_closest_target(p, true)
 	var receiver = null
 	var taridxs = range(0, targets.size())
@@ -363,10 +369,11 @@ func reset_sender_receiver(transaction_id):
 			t.reset_sender_receiver()
 
 func on_clicked_door(pos: Vector2i):
-	# never while an actor is in the door's cell (scripts/door_guard.gd)
-	for d0 in doors:
-		if d0.board_pos == pos and DoorGuard.occupied(d0, pos, agents, float(game.tile_size)):
-			return
+	# A DOOR TURNS WHENEVER IT IS TAPPED (2026-11-12, as in Valet). It used to refuse while anything
+	# was in or entering its cell (scripts/door_guard.gd), and a steady stream could keep the one door
+	# that mattered locked, leaving a round unsolvable. Now an actor COMMITS to the door's setting as it
+	# enters the cell (the "door_at" / "door_type" metas, set in tick()) and leaves by it, so turning
+	# the door under it no longer re-routes it mid-cell: only those that enter afterwards take the new way.
 	# Door turns per capsule is the look-ahead measure: it climbs when planning turns into
 	# firefighting, well before the delivery count itself suffers.
 	game.record_count("door_actions")
@@ -434,7 +441,7 @@ func tick():
 				delivered_transaction(agent.transaction_id)
 				var aid = agent.transaction_id
 				MainGlobals.do_after(2, func(): reset_sender_receiver(aid))
-				agent.mark_arrived()
+				agent.drive_into_dock(game.board_to_px(p), game.board_to_px(_target_pos_of(adj_tar_id)))
 				if !game.is_sound_playing("delivery"):
 					game.play_sound("delivery")
 				game.tutorial_notify("delivered")
@@ -443,11 +450,35 @@ func tick():
 			# var _removed_body_part = false
 			# if adj_tar_id >= 0:
 			# 	_removed_body_part = agent.remove_body_if_first(adj_tar_id)
+			# backing up, its last tube about to meet its own dispatcher's face within this leg: it bounces
+			# off it (agent.start_tail_bounce, the wave running tail to head) and goes forward again, by the
+			# ordinary rules below (it used to slide into the dispatcher)
+			if game.in_board(p) and agent.reversed and agent.room_to_sender() < float(game.tile_size):
+				agent.start_tail_bounce()
+				agent.reversed = false
+				agent.direction = (agent.direction + 2) % 4
+			if game.in_board(p) and agent.reversed and agent.cells.size() >= 2:
+				# BACKING UP after a bounce (2026-11-12): the capsule goes back through the cells it
+				# came by, its last tube leading and its nose still to the wall -- no door is read, the
+				# train follows its own track (agent.gd, "NO TURN AT A BOUNCE").
+				var back_q: Vector2i = agent.cells[-2]
+				agent.cells.pop_back()
+				agent.direction = game.dt_to_dir(back_q - p)
+				agent.set_target_pos(game.board_to_px(back_q))
+				agent.board_pos = back_q
+				board[back_q.y][back_q.x].has_agent = true
+				board[p.y][p.x].has_agent = false
+				if agent.cells.size() == 1:
+					agent.back_at_dispatcher()
+				continue
 			if game.in_board(p):
 				var dir = agent.direction
 				var origdir = dir
 				var vdir = game.DirArray[dir]
 				var door_type = board[p.y][p.x].door_type
+				# the setting this capsule entered the cell by, not the door's setting now
+				if door_type >= 0 and agent.has_meta("door_at") and agent.get_meta("door_at") == p:
+					door_type = int(agent.get_meta("door_type"))
 				var q = p + vdir
 				if door_type >= 0:
 					if door_type == 1:
@@ -478,7 +509,15 @@ func tick():
 					dir = (origdir + 2) % 4
 					vdir = game.DirArray[dir]
 					q = p + vdir
-					agent.start_bounce(Vector2(game.DirArray[origdir]))
+					# it does not turn round: it bounces off the face elastically and backs up the way it
+					# came (see the branch above); one backing up into its own dispatcher simply comes
+					# out forward again, no bounce
+					if agent.reversed:
+						agent.reversed = false
+					elif agent.cells.size() >= 2:
+						agent.start_bounce(Vector2(game.DirArray[origdir]))
+						agent.reversed = true
+						agent.cells.pop_back()      # q is the cell before this one
 				agent.direction = dir
 				# Tile CENTERS, with no diagonal offset. The old ±tile/4 nudge at a door put the
 				# capsule off the row it was traveling along, so it ran at odd angles between
@@ -499,6 +538,12 @@ func tick():
 				if turn_dir >= 0 and not can_go_to(q + Vector2i(game.DirArray[turn_dir])):
 					turn_dir = -1
 				agent.set_target_pos(new_agent_pos, turn_dir)
+				# entering a door's cell, the capsule is held to the setting it sees now -- the corner
+				# it plans just above (turn_dir) is then always the one it takes (on_clicked_door)
+				agent.set_meta("door_at", q)
+				agent.set_meta("door_type", cell.door_type)
+				if not agent.reversed:
+					agent.cells.append(q)
 				agent.board_pos = q
 				board[q.y][q.x].has_agent = true
 				board[p.y][p.x].has_agent = false			
@@ -516,6 +561,13 @@ func delivered_transaction(transaction_id):
 			elif t.is_sender:
 				t.set_sender(false, Color.WHITE, transaction_id)
 				
+# The board cell of the target with this id (the receiver an arriving capsule goes into).
+func _target_pos_of(target_id: int) -> Vector2i:
+	for i in targets.size():
+		if targets[i].id == target_id:
+			return target_positions[i]
+	return Vector2i.ZERO
+
 func get_adjacent_target_id(q, agent):
 	for i in target_positions.size():
 		var target = targets[i]
@@ -618,6 +670,8 @@ var pos_last_dispatch = Vector2i(-1,-1)
 func _on_agent_dispatch_timer_timeout() -> void:
 	if tutorial_hold_dispatch:
 		return
+	if PneumoLevelConfig.ONE_CAPSULE_AT_A_TIME and not agents.is_empty():
+		return
 	if start_dispatch and !game.paused():
 		var tm = MainGlobals.timems()
 		if tm - time_last_dispatch >= time_between_dispatches_ms:
@@ -700,6 +754,12 @@ func check_agent_collisions():
 								reset_sender_receiver(tid2)
 							)
 
+# A capsule finished its leg: hand out the next one now, not on the next 50 ms tick (agent.gd,
+# "NO STOP BETWEEN TILES"). Same guard as main.gd's tick.
+func _on_agent_leg_done() -> void:
+	if game.playing and not game.paused():
+		tick()
+
 func on_agent_started_moving(transaction_id):	
 	activate_transaction(transaction_id)
 	
@@ -718,7 +778,10 @@ func activate_transaction(transaction_id):
 	if sender:
 		sender.flash()
 		var tween_color = MainGlobals.make_tween()
-		tween_color.tween_property(sender, "modulate", Color(1.0,1.0,1.0,0.4), 1.7)
+		# DIMMED, NOT SEE-THROUGH (2026-11-12): faded to 40% alpha, the gate's drawing (scripts/dock_art.gd,
+		# overlapping shapes) showed its inner parts through itself -- a block at the mouth that sat there
+		# long after the capsule had gone. A darker, opaque gate says "spent" just as well.
+		tween_color.tween_property(sender, "modulate", Color(0.5, 0.5, 0.5, 1.0), 1.7)
 		# tween_color.tween_callback(func(): sender.hide())
 	for agent in agents:
 		if agent.transaction_id == transaction_id:

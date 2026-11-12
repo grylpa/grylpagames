@@ -134,6 +134,8 @@ func _seed_trail(p: Vector2, dir: int) -> void:
 # Whether the whole creature is clear of its dispatcher: its LAST part has passed the dispatcher's
 # outer edge (half a tile beyond its center) and a little more.
 func is_clear_of_dock() -> bool:
+	if _out_of_dock:
+		return true
 	if bodies.is_empty():
 		return (position - _dock_center).dot(_out_dir) > float(game.tile_size)
 	var last_pos = pos_back_along_trail((bodies.size() - 1) * body_dist + head_dist)
@@ -142,12 +144,20 @@ func is_clear_of_dock() -> bool:
 	return (last_pos - _dock_center).dot(_out_dir) > float(game.tile_size) * 0.9
 
 # Every body part on the trail; one still behind the dispatcher's center waits there, hidden.
+# ONLY UNTIL THE WHOLE CREATURE HAS COME OUT (2026-11-12): "behind" is measured across the dispatcher's
+# whole edge line, so a creature going into a receiver on the SAME edge (into the dock, now that
+# arrivals drive in) had every part counted as back inside the dispatcher -- snapped to its center,
+# the joining line stretched from the tail right across the board to where it started.
+var _out_of_dock: bool = false
+
 func _place_bodies() -> void:
+	if not _out_of_dock and is_clear_of_dock():
+		_out_of_dock = true
 	for i in bodies.size():
 		var trail_pos = pos_back_along_trail(i * body_dist + head_dist)
 		if trail_pos == null:
 			continue
-		var inside: bool = (trail_pos - _dock_center).dot(_out_dir) < 0.0
+		var inside: bool = not _out_of_dock and (trail_pos - _dock_center).dot(_out_dir) < 0.0
 		if inside:
 			trail_pos = _dock_center
 		bodies[i].position = trail_pos - position
@@ -194,7 +204,7 @@ func _process(delta: float) -> void:
 	_ease_head_angle(delta)
 	$Head.rotation = _head_angle
 	var now = MainGlobals.timems()
-	if !signalled_timeout and now >= time_created_ms + life_time_ms:
+	if !signalled_timeout and not arrived and now >= time_created_ms + life_time_ms:   # not while going into its dock
 		mark_timeout()
 		signalled_timeout = true
 	if !is_moving and now - time_created_ms > game.time_to_auto_start_moving_ms:
@@ -230,6 +240,10 @@ func _process(delta: float) -> void:
 		# it can only ever move forward, and by less than one frame of travel.
 		elif not was_hit:
 			position = target_position
+			if not _dock_legs.is_empty():
+				_next_dock_leg()
+	if not _dock_in.is_empty():
+		_fade_into_dock()
 
 # Returns the point exactly `dist` back along the recorded trail, interpolating inside the segment
 # it lands in, or null when the trail is not yet that long.
@@ -260,8 +274,19 @@ func pos_back_along_trail(dist):
 			
 func set_rots():
 	$Head.rotation = _head_angle if _head_angle_set else angles[0]
+	# EACH BODY PART TURNS, at the head's TURN_SPEED (2026-11-12): they were set straight to their angles,
+	# so when a creature turned back only its head turned and every part behind flipped round in one
+	# frame. A part just come into view takes its heading at once.
+	var step: float = TURN_SPEED * get_process_delta_time()
 	for i in nbody_parts:
-		bodies[i].rotation = angles[i+1]
+		var b: Node2D = bodies[i]
+		var target: float = angles[i+1]
+		if not b.visible or not b.has_meta("turned"):
+			b.rotation = target
+			if b.visible:
+				b.set_meta("turned", true)
+		else:
+			b.rotation += clampf(wrapf(target - b.rotation, -PI, PI), -step, step)
 	
 func add_body(_id):
 	pass
@@ -308,15 +333,66 @@ func final_remove_body(id):
 		return true
 	return false
 
-func mark_arrived():
+# INTO THE DOCK, NOT FADED IN PLACE (2026-11-12, as in Valet): on arriving -- its head in the cell
+# before its dock -- the creature goes on at twice its speed to the center of the cell it is in and then
+# straight into the dock and on; every part follows the trail as always, and each fades (and shrinks
+# a little) only as it crosses the dock's mouth, the line joining the parts cut off there too. It is
+# removed once its last part is in. It used to stop dead and shrink and fade where it stood. An arrived
+# creature is never counted in a crash.
+const DOCK_SPEED_K: float = 2.0
+var _dock_in: Dictionary = {}     # {mouth, dir, depth} (parent coords)
+var _dock_legs: Array = []        # the points still to drive to
+var _dock_base: Dictionary = {}   # each part's own scale before the drive-in
+
+func drive_into_dock(cell_px: Vector2, dock_px: Vector2) -> void:
 	arrived = true
-	var tween_color = MainGlobals.make_tween()
-	tween_color.tween_property(self, "modulate", Color(1.0,1.0,1.0,0.2), 0.7)
-	var tween_scale = MainGlobals.make_tween()
-	var oldscale = scale
-	tween_scale.tween_property(self, "scale", oldscale * 0.5, 0.4)
-	tween_scale.tween_property(self, "scale", oldscale * 0.1, 0.5)
-	tween_scale.tween_callback(func(): remove_agent.emit(agent_id, true))
+	var tile: float = float(game.tile_size)
+	var dirv: Vector2 = (dock_px - cell_px).normalized()
+	_dock_in = {"mouth": dock_px - dirv * tile * 0.5, "dir": dirv, "depth": tile * 0.5}
+	_dock_legs = []
+	if position.distance_to(cell_px) > 1.0:
+		_dock_legs.append(cell_px)
+	# far enough past the mouth that the last part is in too
+	_dock_legs.append(dock_px + dirv * (tail_dist_back + tile * 0.5))
+	_next_dock_leg()
+
+func _next_dock_leg() -> void:
+	var to: Vector2 = _dock_legs.pop_front()
+	var tile: float = float(game.tile_size)
+	set_target_pos(to)
+	# set_target_pos times a leg as one tile; this one is as long as it is, at DOCK_SPEED_K
+	time_from_start_to_target_ms = maxi(1, int(float(game.major_tick_time_ms) * position.distance_to(to) / tile / DOCK_SPEED_K))
+
+# A part's share of the way through the dock's mouth (0 outside .. 1 at the dock's center).
+func _dock_depth(local_p: Vector2) -> float:
+	var gp: Vector2 = position + local_p
+	return clampf((gp - (_dock_in["mouth"] as Vector2)).dot(_dock_in["dir"]) / float(_dock_in["depth"]), 0.0, 1.0)
+
+func _dock_parts() -> Array:
+	return [$Head] + bodies
+
+func _fade_into_dock() -> void:
+	var parts: Array = _dock_parts()
+	for part in parts:
+		if part == null or not is_instance_valid(part):
+			continue
+		var n: Node2D = part as Node2D
+		if not _dock_base.has(n):
+			_dock_base[n] = n.scale
+		var k: float = _dock_depth(n.position)
+		n.modulate.a = 1.0 - k
+		n.scale = (_dock_base[n] as Vector2) * (1.0 - 0.35 * k)
+	# the joining line ends at the dock's center: none runs on past the parts that have gone
+	var dirv: Vector2 = _dock_in["dir"]
+	for i in $Skeleton.get_point_count():
+		var lp: Vector2 = $Skeleton.get_point_position(i)
+		var over: float = (position + lp - (_dock_in["mouth"] as Vector2)).dot(dirv) - float(_dock_in["depth"])
+		if over > 0.0:
+			$Skeleton.set_point_position(i, lp - dirv * over)
+	var last: Node2D = parts[-1] as Node2D
+	if _dock_legs.is_empty() and (last == null or _dock_depth(last.position) >= 1.0):
+		_dock_in = {}
+		remove_agent.emit(agent_id, true)
 
 func mark_hit():
 	# set_color(Color(0,0,0))

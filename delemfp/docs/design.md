@@ -254,6 +254,26 @@ tile visibly jumped. Only delemfp carries the backdating -- it measured no benef
 and guidem/parkem/pneumo could not be measured because agents teleporting on spawn swamp the
 signal.
 
+**The truck starts coiled inside its depot** (`seed_in_dock`, 2026-11-12, after Detour): at spawn the
+trail is laid straight back through the depot, so every cart and the van has its place and heading from the
+first move and slides out in turn; a part still behind the depot's center waits there, hidden
+(`_hide_in_dock`). Before, a part only appeared once the head had driven far enough to lay a trail for
+it -- a gap, then the part popping in with its link. The trimming of the trail keeps the seeded stretch
+while any part still needs it. The waiting stops for good once the whole truck has come out
+(`_out_of_dock`): "behind" is measured across the depot's whole edge line, and in Detour a creature
+going into a dock on that same edge was counted as back inside, its link stretched across the board.
+
+**Every part turns, none flips** (2026-11-12): when the truck turns back, each cart turns round at
+`ART_TURN_RATE` like the head. `set_rots` set every cart straight to its angle and then called `_pose_art`, whose turn at `ART_TURN_RATE` then had nothing left to turn -- so only the engine and the van (separate drawings) turned and every cart between flipped round in one frame. Measured on a turn-back: no cart turns more than about 12 degrees in a frame.
+
+**A delivered cart goes INTO its dock** (2026-11-12, as Dispatch's). The moment the delivery counts --
+the ENGINE alongside the dock -- the cart leaves the train and CURVES in over `CART_FLY_S`: on along the
+road toward the lobby (under the engine) and round into the dock's center, fading and shrinking, while
+the truck drives on or stands. The drawbar skips it, and the carts behind and the van close the gap over
+`GAP_CLOSE_S` as the truck moves. Before: it puffed up and shrank on the road and the carts behind jumped
+a whole place in one frame; held aboard until it was itself level with the dock (a first version), a
+truck stopped at the receiver delivered nothing until it was driven back past it.
+
 ## The skeleton and its backing line
 
 `Skeleton` is a `Line2D` whose points are the head, each packet and the tail. `SkeletonBK` is a

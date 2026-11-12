@@ -32,6 +32,21 @@ a dead end and reversing if boxed in.
 
 Unlike parkem's hatches these do **not** time out; a door stays as the player left it.
 
+**A door turns whenever it is tapped** (2026-11-12, as in Valet). It used to refuse while anything was
+in or entering its cell (`scripts/door_guard.gd`), and a steady stream could keep the one door that
+mattered locked, leaving a round unsolvable. Now a capsule COMMITS to the door as it enters the cell -- its
+`door_at` / `door_type` metas, set in `tick()` -- and leaves by that same setting, so a door turned under
+it no longer re-routes it mid-cell; only those that enter afterwards take the new way. Only the head
+reads a door (the body follows its trail). The corner it plans as it enters (`turn_dir`) is therefore always the
+one it takes.
+
+**Arriving drives INTO the dock** (`agent.drive_into_dock`, 2026-11-12, as in Valet): the capsule whose head
+reaches the cell before its dock goes on at `DOCK_SPEED_K` (2x) to that cell's center and straight
+into the dock; every part follows the trail and fades and shrinks only as it crosses the dock's mouth
+(`_fade_into_dock`; the joining line is cut at the dock's center), and it is removed once its last tube is in.
+It used to stop dead and shrink and fade where it stood. An arrived capsule is never in a crash. The capsule's drawing (`capsule_art.gd`) now follows its
+carrier's alpha as well as its scale, so the fade shows.
+
 ## Capsules
 
 `add_agent_at()` sends a capsule with a `transaction_id`; `find_closest_target()` marks a sender,
@@ -45,6 +60,23 @@ Two outcomes:
   `packets_left` reaches 0.
 - **Collided** — `check_agent_collisions()` marks both capsules hit, plays the explosion, and two
   seconds later resets both transactions so they have to be sent again.
+
+**The capsule starts coiled inside its dispatcher** (`seed_in_dock`, 2026-11-12, after Detour): at spawn the
+trail is laid straight back through the dispatcher, so every tube has its place and heading from the
+first move and slides out in turn; a part still behind the dispatcher's center waits there, hidden
+(`_hide_in_dock`). Before, a part only appeared once the head had driven far enough to lay a trail for
+it -- a gap, then the part popping in with its link. The trimming of the trail keeps the seeded stretch
+while any part still needs it. The waiting stops for good once the whole capsule has come out
+(`_out_of_dock`): "behind" is measured across the dispatcher's whole edge line, and in Detour a creature
+going into a dock on that same edge was counted as back inside, its link stretched across the board.
+**Each tube stays UNDER the dispatcher until it has itself passed the mouth** (`_hide_in_dock` sets an
+effective z under the gates' 100 while it is within half a tile and half a tube of the center): the
+capsule rises above the gates once its HEAD is clear (`_rise_above_gate_once_clear`), which lifted the
+tubes still in the mouth over the dispatcher too.
+
+**A waiting capsule turns in place** (`capsule_art.gd`, `IDLE_ROLL_PER_S` 0.6, 2026-11-12): its band
+only turned with travel, so a capsule waiting in the mouth to be thrown sat dead still. Not while the
+game is paused.
 
 ## Capsule head
 
@@ -72,11 +104,8 @@ The extremes (rows 6 and 18) and the cycle length are the ones the original thre
 `speed = 40` against the `speed_scale = 0.5` that `agent.gd` sets gives one traverse per 1.2 s,
 the same cadence as the old 3-frame version, but at 20 fps instead of 2.5.
 
-**The bounce flip depends on this.** When a capsule reverses, `start_bounce()` turns the sprite
-180 degrees, which would throw the line to the mirrored row — a jump exactly when the player is
-watching. Frame `i` sits at angle `PI*i/n`, and the mirrored configuration is angle `-i`, so
-`agent.gd` steps to `posmod(-frame, n)`. That formula is derived from this frame layout: change
-the layout and the flip has to be re-derived.
+(The bounce used to turn the head 180 degrees and step these frames to `posmod(-frame, n)` to hide
+it; since 2026-11-12 a bounced capsule backs up without turning, so there is no flip any more.)
 
 ## Colors and transaction ids
 
@@ -156,6 +185,73 @@ shorter list, which crashed `add_agent_at()` on playing level 9 and then level 1
 **not** gate itself on `major_tick_time_ms` -- the check at the top is commented out -- so calling
 it every frame runs the whole body three times as often and makes the capsules jerky even on
 level 1. Do not move it to `_process` without restoring that gate first.
+
+**No stop between tiles** (2026-11-12, "the whole capsule chain moves in jumps", level 9). Two causes,
+measured over level-9 runs (stalled frames 7-13% before, 1% after -- those left are the bounce's
+deliberate squash):
+- The next leg came only on the 50 ms `GameTick`, so a capsule that finished one between ticks stood
+  still until the next: at 4x a leg is ~150 ms. Now a finished leg emits `sig_leg_done` and the level
+  runs `tick()` at once (`_on_agent_leg_done`, same guard as main.gd's); each agent is still gated by
+  its own `need_to_major_tick()`, so this is not the every-frame tick warned about above.
+- Even then the frame the leg ran out stood still (it only asked). The hand-over now happens at the
+  START of that frame, before the move, and the new leg's clock is backdated to when the old one was
+  due (`_leg_start_ms`, at most `MAX_LEG_CATCHUP_MS` = one frame, Delemfp's lesson).
+
+**No turn at a bounce: an ELASTIC CHAIN, then it backs up** (2026-11-12, "there shouldn't be a 180 turn
+-- some elastic reaction"; then "all body parts should bounce, in order").
+- **Contact.** A capsule turned back runs on until its NOSE meets the face it hit (the cell's edge, less
+  `PneumoCapsuleArt.LEN`). It used to start bouncing at the cell's center, short of the receiver.
+- **The bounce is a small simulation along the track** (`start_bounce`, `_sim_step`): the head and every
+  tube are equal masses, all coming on at the capsule's speed (never less than `SIM_MIN_SPEED` 260 px/s,
+  so a slow one's bounce shows), with TWO kinds of spring: the LINKS are soft (`SPRING_K` 500), so the
+  chain closes up until the tubes touch end to end and every link is gone; the TUBES are firm but
+  squishy (`CONTACT_K` 4000): past touching, a part -- and the part at the face, pressed into it -- is
+  squashed only by how far it is pressed in (`_set_squash`, along its own axis, at most to
+  `MIN_ALONG` 0.6), so the ends stay together. The compression runs down the chain and it springs back
+  out. Squashed by its springs' compression instead, a tube shortened while its center closed up only
+  a quarter of the spacing, and the links came out no shorter than at rest. Measured at level 9: centers
+  close to 27.6 px (rest 34, touching 30), parts squashed to 0.81 of their length. It ends once every part is moving
+  back and the spacing has settled; leftover spacing eases out over `POST_RELAX_MS`. The level's clock is
+  held meanwhile, and the backing-up leg it set is started fresh at the end (`_end_sim`). Two versions
+  before it: the whole chain closing up at once (read as a train reversing), and a fixed timeline -- each
+  tube sliding in at constant speed and stopping dead, the head held a third of a second -- which did not
+  look natural. At 2600 the springs compressed 3 px at 150 px/s: a rigid rod.
+- **Then it backs up**: `reversed` is set and the level sends it back through the cells it came by (the
+  agent's `cells`, appended on every forward move; no door is read while backing up), its nose still to
+  the wall (`angles[0]` faces against the motion) and its last tube leading. The head moves back along
+  its own trail (`_retreat`, each leg as long as the trail to the next cell's center, `_trail_dist_to`),
+  so every part slides back along the path it laid: nothing turns and nothing passes through anything.
+  The trail is kept `TRAIL_KEEP_PX` (4000) past the capsule's length for this.
+- **Backing into its own dispatcher it BOUNCES OFF ITS EDGE**: its last tube leads, so that is what meets
+  the dispatcher's face; when it would within the coming leg (`room_to_sender`), the level starts the
+  same simulation the other way round (`start_tail_bounce`: the face ahead of the LAST tube, the wave
+  running tail to head) and turns it to go forward again by the ordinary rules. It first slid into the
+  dispatcher and came out again, the tubes passing out past the board's edge. Measured: the leading
+  tube stops 1.0-1.5 px short of the face.
+- **After a bounce, the leg is planned again from where the head is** (`_end_sim`): planned at the
+  bounce, a curve through a door started from where the head stood then; and when the rebound carried
+  the head PAST the leg's target, that leg is counted done and the next asked for at once -- driven back
+  to it, the head turned round to face it and round again for the leg after. A frame with no movement
+  sets no heading (`angle_to_point` of a point to itself is 0, which swung the head toward the right).
+- **One capsule at a time, for trying things out**: `PneumoLevelConfig.ONE_CAPSULE_AT_A_TIME` (false)
+  holds the dispatch until the board is empty.
+- Before all this the head was turned round at the deepest point of the squash and each tube ran on to
+  the wall, spun 180 degrees in one frame and came back through the tubes still arriving.
+
+**A spent sender is DIMMED, not see-through** (level `activate_transaction`, 2026-11-12): faded to 40%
+alpha, the gate's drawing (`scripts/dock_art.gd`, overlapping shapes) showed its inner parts through
+itself -- a block at the mouth that sat there long after the capsule had gone. It goes to a darker,
+opaque `Color(0.5, 0.5, 0.5)`.
+
+**Top speeds came down** (`level_config.gd`, 2026-11-12, "the fastest trains in level 9 are way too
+fast"): `max_speed_scale` 1.0 / 1.2 / 1.4 / 1.5 / 1.6 / 1.8 / 1.9 / 2.0 / 2.2 (it climbed to 3.0 at
+level 6 and 4.0 at level 9). A capsule's color tells its speed band, so the bands followed: below 1.3,
+below 1.75, above (they were 1.8 and 2.6, and the third color would never have shown).
+
+**The roll does not speed up with the capsule** (`capsule_art.gd`, `ROLL_PER_S` 1.6): the band turned
+by the distance traveled, so a level-9 capsule at 4x spun about nine turns a second and strobed. It now
+turns at a fixed rate whenever the capsule moves. The tubes' heading is eased at the head's `TURN_SPEED`
+(a right angle in 0.12 s at most, `set_rots`); it came straight off the trail and could snap.
 
 ## Known, measured, unfixed
 
@@ -460,7 +556,7 @@ draws glass tubes on steel, so the tile does too, with one tube, not a network.
 
 - **Capsules are drawn** (`pneumo/scripts/capsule_art.gd`): pneumatic-post canisters seen from
   above -- a cylinder in the capsule's color shaded across its width, steel end caps cut from its own
-  outline with dark seal rings, a light band that rolls round it with the distance traveled; the lead
+  outline with dark seal rings, a light band that rolls round it at a fixed rate while it moves; the lead
   capsule has two small lamps in its front cap. A sibling that copies the carrier's transform, so the
   bounce squash and the turn still apply.
 - **Ducts**: inside corners rounded outward by `FILLET_R` (6) into the empty cell (`fillet_corners`,
