@@ -93,6 +93,9 @@ func set_target_pos(p):
 var _last_process_ms: int = MainGlobals.timems()
 
 func _process(_delta: float) -> void:
+	# a delivered cart's gap closes even while the truck stands (_detach_body)
+	if _gap_left > 0.0:
+		_pose_art()
 	if !DeliveremG.game.playing or !can_move:
 		return
 	# The truck slides between tiles on a hand-rolled interpolation against the WALL clock, not a
@@ -241,8 +244,12 @@ func _pose_art() -> void:
 		return
 	_turn_toward(_head_art, _chord_angle(0.0, HEAD_CHORD, _head_art.rotation))
 	var npts: int = $Skeleton.get_point_count()
-	# the gap a delivered cart left closes over GAP_CLOSE_S, not in one frame (final_remove_body)
-	_gap_left = maxf(0.0, _gap_left - float(body_dist) / GAP_CLOSE_S * get_process_delta_time())
+	# the gap a delivered cart left closes over GAP_CLOSE_S, not in one frame (_detach_body); by the wall
+	# clock, so being posed twice in a frame (moving, and _close_gap) does not close it twice as fast
+	var now_g: int = MainGlobals.timems()
+	if _gap_left > 0.0:
+		_gap_left = maxf(0.0, _gap_left - float(body_dist) / GAP_CLOSE_S * float(now_g - _gap_last_ms) / 1000.0)
+	_gap_last_ms = now_g
 	var prev_pt: Vector2 = Vector2.ZERO
 	for i in bodies.size():
 		var d: float = i * body_dist + head_dist + _gap_left
@@ -332,10 +339,13 @@ var _pending_remove_ids: Dictionary = {}
 # aboard until it was itself level with the dock, it waited for the truck -- one turning back at a dead
 # end, or a steered truck that stopped at the receiver -- and then appeared to jump in, long after.
 # `dock_px` is the dock's center in the truck's parent's coords; `lobby_px` the cell the engine is in.
-const CART_FLY_S: float = 0.40
+const CART_FLY_S: float = 0.70
+const CART_LIFT: float = 1.35       # how much bigger it is drawn at the top of its lift
+const CART_Z: int = 300             # drawn over everything while it is delivered (the engine, the docks)
 const GAP_CLOSE_S: float = 0.35
 var _flying: Dictionary = {}     # cart -> true while it glides into a dock
 var _gap_left: float = 0.0       # trail distance the carts behind a delivered one still have to close
+var _gap_last_ms: int = 0
 
 func remove_body(id, dock_px = null, lobby_px = null):
 	if id in _pending_remove_ids:
@@ -366,8 +376,15 @@ func _send_cart_in(cart: Node2D, id, dock_px: Vector2, lobby_px: Vector2) -> voi
 	_flying[cart] = true
 	var from_p: Vector2 = position + cart.position
 	var base: Vector2 = cart.scale
-	var fly: Tween = MainGlobals.make_tween()
 	var rot0: float = cart.rotation
+	# A DELIVERY IS AN EVENT (2026-11-12, "as if the package is delivered below everything else"): the
+	# cart is lifted OFF the train -- over everything, growing as it rises -- carried along the road and
+	# round into the dock, and set down in it, shrinking and fading, while a ring in the truck's color
+	# pulses out from the dock (_DeliveryRing). It was drawn under the engine and the docks.
+	cart.z_as_relative = false
+	cart.z_index = CART_Z
+	var ring_sent: Array = [false]
+	var fly: Tween = MainGlobals.make_tween()
 	fly.tween_method(func(t: float) -> void:
 		var e: float = t * t * (3.0 - 2.0 * t)
 		# a curve through the lobby: along the road first, then round into the dock
@@ -378,30 +395,75 @@ func _send_cart_in(cart: Node2D, id, dock_px: Vector2, lobby_px: Vector2) -> voi
 		cart.position = at - position
 		if tangent.length() > 0.5:
 			cart.rotation = lerp_angle(rot0, tangent.angle(), clampf(e * 1.5, 0.0, 1.0))
-		# it fades and shrinks over the second half, as it goes in
-		var k: float = clampf((t - 0.45) / 0.55, 0.0, 1.0)
-		cart.modulate.a = 1.0 - k
-		cart.scale = base * (1.0 - 0.5 * k), 0.0, 1.0, CART_FLY_S)
+		# up in the first fifth, held, set down over the last third, fading as it goes in
+		var up: float = clampf(t / 0.2, 0.0, 1.0)
+		var down: float = clampf((t - 0.67) / 0.33, 0.0, 1.0)
+		var lift: float = sin(up * PI * 0.5) * (1.0 - down)
+		cart.scale = base * (1.0 + (CART_LIFT - 1.0) * lift) * (1.0 - 0.45 * down)
+		cart.modulate.a = 1.0 - down * down
+		if down > 0.0 and not ring_sent[0]:
+			ring_sent[0] = true
+			_DeliveryRing.burst(get_parent(), dock_px, color), 0.0, 1.0, CART_FLY_S)
 	fly.tween_callback(func() -> void:
 		_flying.erase(cart)
-		final_remove_body(id))
+		cart.queue_free())
+	# THE CART LEAVES THE TRAIN AT ONCE (2026-11-12): it is out of `bodies` from the moment it is lifted,
+	# so the links join up straight away and the carts behind close up into its place along the track
+	# (_gap_left) -- whether the truck drives on or stands. It used to leave an empty place with the link
+	# drawn across it until it landed, and the gap closed only while the truck moved.
+	_detach_body(id, false)
+
+# The ring a delivery sends out from its dock as the cart is set down: two rings in the truck's color,
+# one after the other, growing and fading.
+class _DeliveryRing extends Node2D:
+	var col: Color = Color.WHITE
+	var t: float = 0.0
+	const DUR: float = 0.55
+	static func burst(host: Node, at: Vector2, c: Color) -> void:
+		if host == null:
+			return
+		var r: _DeliveryRing = _DeliveryRing.new()
+		r.col = c if c is Color else Color.WHITE
+		r.position = at
+		r.z_as_relative = false
+		r.z_index = 299
+		host.add_child(r)
+	func _process(delta: float) -> void:
+		t += delta
+		if t >= DUR:
+			queue_free()
+			return
+		queue_redraw()
+	func _draw() -> void:
+		for k in 2:
+			var u: float = clampf((t - 0.12 * float(k)) / (DUR - 0.12), 0.0, 1.0)
+			if u <= 0.0:
+				continue
+			var e: float = 1.0 - pow(1.0 - u, 3.0)
+			draw_arc(Vector2.ZERO, 6.0 + 26.0 * e, 0.0, TAU, 32, Color(col.lerp(Color.WHITE, 0.5), (1.0 - u) * 0.95), 4.0 * (1.0 - u) + 1.0, true)
 
 func final_remove_body(id):
+	return _detach_body(id, true)
+
+# Takes cart `id` out of the train: the carts behind (and the van) stay where they are and close up over
+# GAP_CLOSE_S (_close_gap, _pose_art) -- they used to be moved up a whole place in one frame. `free_it`:
+# the cart is gone at once (false: it is still flying into its dock and frees itself there).
+func _detach_body(id, free_it: bool) -> bool:
 	var idx = body_ids.find(id)
-	if idx >= 0:
-		nbody_parts -= 1
-		body_ids.remove_at(idx)
-		var body = bodies[idx]
-		bodies.remove_at(idx)
-		if $Skeleton.get_point_count() > 0:
-			$Skeleton.remove_point($Skeleton.get_point_count()-1)
-		tail_dist_back = body_dist * nbody_parts + head_dist
-		# the carts behind (and the van) stay where they are and close up over GAP_CLOSE_S (_pose_art);
-		# they used to be moved up a whole place in one frame
-		_gap_left += float(body_dist)
-		angles.pop_back()
-		body.queue_free()		
-		set_rots()
-		_pending_remove_ids.erase(id)
-		return true
-	return false
+	if idx < 0:
+		return false
+	nbody_parts -= 1
+	body_ids.remove_at(idx)
+	var body = bodies[idx]
+	bodies.remove_at(idx)
+	if $Skeleton.get_point_count() > 0:
+		$Skeleton.remove_point($Skeleton.get_point_count()-1)
+	tail_dist_back = body_dist * nbody_parts + head_dist
+	_gap_left += float(body_dist)
+	angles.pop_back()
+	if free_it:
+		body.queue_free()
+	_gap_last_ms = MainGlobals.timems()
+	set_rots()
+	_pending_remove_ids.erase(id)
+	return true

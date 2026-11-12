@@ -84,9 +84,11 @@ func set_rot(board):
 		$PipeImageLR.show()
 		$PipeImageLR.rotation = 0
 
-# The road is asphalt (asphalt.gdshader, one material shared by every road sprite, the yellow
-# markings kept) with a concrete CURB wherever it meets something that is not road (_draw_curb, from
-# the neighbors set_rot finds). It was flat gray straight onto the lawn.
+# A GARDEN PATH AT NIGHT (2026-11-12): pale flagstones (garden_path.gdshader, one material per path
+# sprite) edged with a darker stone border wherever the path meets the lawn (_draw_curb, from the
+# neighbors set_rot finds). It was an asphalt road (asphalt.gdshader, with its markings, crown and tire
+# tracks) and a concrete curb -- the vehicle games' road, in a game that is a walk; before that, flat
+# gray straight onto the lawn.
 static var _asphalt: ShaderMaterial = null
 var _open: Array = [true, true, true, true]       # r, d, l, u: is there road that way
 var _diag: Array = [true, true, true, true]       # road at the corner between side i and side i+1
@@ -100,7 +102,7 @@ var _trim: Array = [[false, false], [false, false], [false, false], [false, fals
 func _dress_road() -> void:
 	if _asphalt == null:
 		_asphalt = ShaderMaterial.new()
-		_asphalt.shader = preload("res://lightsout/scripts/asphalt.gdshader")
+		_asphalt.shader = preload("res://lightsout/scripts/garden_path.gdshader")
 	# this tile's own copy: its outer corners are rounded by a uniform (RoadCorners.convex)
 	_mat = _asphalt.duplicate()
 	for sp: Sprite2D in [$PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
@@ -136,8 +138,9 @@ func _draw_curb() -> void:
 	var t: float = 20.0
 	var cw: float = 1.5
 	var sh: float = 3.0
-	var stone: Color = Color(0.52, 0.51, 0.49)
-	var lit: Color = Color(0.80, 0.79, 0.75, 0.35)
+	# the path's edging: a darker stone than the flagstones, its top edge catching a little moonlight
+	var stone: Color = Color(0.36, 0.37, 0.39)
+	var lit: Color = Color(0.70, 0.74, 0.80, 0.30)
 	var shade: Color = Color(0, 0, 0, 0.22)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])

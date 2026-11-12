@@ -267,10 +267,15 @@ going into a dock on that same edge was counted as back inside, its link stretch
 `ART_TURN_RATE` like the head. `set_rots` set every cart straight to its angle and then called `_pose_art`, whose turn at `ART_TURN_RATE` then had nothing left to turn -- so only the engine and the van (separate drawings) turned and every cart between flipped round in one frame. Measured on a turn-back: no cart turns more than about 12 degrees in a frame.
 
 **A delivered cart goes INTO its dock** (2026-11-12, as Dispatch's). The moment the delivery counts --
-the ENGINE alongside the dock -- the cart leaves the train and CURVES in over `CART_FLY_S`: on along the
-road toward the lobby (under the engine) and round into the dock's center, fading and shrinking, while
-the truck drives on or stands. The drawbar skips it, and the carts behind and the van close the gap over
-`GAP_CLOSE_S` as the truck moves. Before: it puffed up and shrank on the road and the carts behind jumped
+the ENGINE alongside the dock -- the cart is LIFTED off the train -- drawn over everything (`CART_Z`), growing to `CART_LIFT` -- and
+curves in over `CART_FLY_S` (0.7 s), set down in the dock as a ring in the truck's color pulses out
+(`_DeliveryRing`); it was drawn under the engine and the docks and hardly showed. Its path: on along the
+road toward the lobby, over the engine now, and round into the dock's center, fading and shrinking, while
+the truck drives on or stands. The cart leaves the TRAIN the moment it is lifted (`_detach_body`): the links join up at once and the
+carts behind and the van close up into its place along the track over `GAP_CLOSE_S` (`_gap_left`, by the
+wall clock, posed every frame until closed), whether the truck drives on or stands. (It used to stay in
+the train until it landed, leaving an empty place with the link drawn across it, and the gap closed only
+while the truck moved.) Before: it puffed up and shrank on the road and the carts behind jumped
 a whole place in one frame; held aboard until it was itself level with the dock (a first version), a
 truck stopped at the receiver delivered nothing until it was driven back past it.
 

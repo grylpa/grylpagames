@@ -365,7 +365,9 @@ func create_board() -> void:
 				add_empty(Vector2i(col,row))
 				
 	show_hide_walls()
-	LawnScatter.scatter(self, board, game, 15)     # a few small things on the lawn
+	# the garden: bushes and trees on the lawn (a night garden, not the countryside), and its lamps
+	LawnScatter.scatter(self, board, game, 15, 1.4, 1.0, true)
+	_place_lamps()
 				
 	for pipe in pipes:
 		pipe.set_rot(board)
@@ -1140,20 +1142,33 @@ func check_agent_collisions():
 # 	if target:
 # 		activate_transaction(target.transaction_id)
 
+const PATHS_DARK: Color = Color(0.50, 0.56, 0.70)     # the paths with the lights off
+var _dim_tw: Tween = null
+
+func _set_path_tone(k: float) -> void:
+	var c: Color = Color.WHITE.lerp(PATHS_DARK, k)
+	for pipe in pipes:
+		if is_instance_valid(pipe):
+			pipe.set_modulate(c)
+
 func turn_lights_off():
 	time_to_hide = 0
 	for target in targets:
 		target.hide()
 	for door in doors:
 		door.hide()
-	for pipe in pipes:
-		pipe.set_modulate(Color(1,1,1,0.7))
-		#pipe.set_modulate(Color(0.7,0.7,0.7,1))
-		# pipe.hide()
+	# THE STONES LOSE THEIR LIGHT (2026-11-12): they fade over half a second to a dim, cold moonlight
+	# tone and stay solid. They used to turn 70% see-through at once, which only let the dark lawn
+	# show through the flagstones.
+	if _dim_tw != null and _dim_tw.is_valid():
+		_dim_tw.kill()
+	_dim_tw = create_tween()
+	_dim_tw.tween_method(_set_path_tone, 0.0, 1.0, 0.5)
 	for empty in empties:
 		empty.set_modulate(Color(1,1,1,0.3))
 	for agent in agents:
 		agent.hide()
+	_lamps_on(false)
 	lights_are_off = true
 
 func show_clue():
@@ -1169,12 +1184,14 @@ func turn_lights_on():
 		target.show()
 	for door in doors:
 		door.show()
-	for pipe in pipes:
-		pipe.set_modulate(Color(1,1,1,1))
+	if _dim_tw != null and _dim_tw.is_valid():
+		_dim_tw.kill()
+	_set_path_tone(0.0)                  # at once: a clue's flash is a tenth of a second
 	for empty in empties:
 		empty.set_modulate(Color(1,1,1,1))
 	for agent in agents:
 		agent.show()
+	_lamps_on(true)
 
 func on_time_over():
 	turn_lights_on()
@@ -1256,4 +1273,106 @@ func tutorial_bottom_button(node_name: String) -> Control:
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 15)
+	var field: Control = GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 15)
+	if field != null:
+		field.modulate = NIGHT_LAWN      # (the things on the lawn are drawn under it, so they darken too)
+
+# A GARDEN AT NIGHT (2026-11-12): the shared daytime lawn, tinted dark and cool -- moonlight -- with the
+# garden's bushes and trees on it (LawnScatter's garden mode), pale flagstone paths (pipe.gd,
+# garden_path.gdshader) and a few GARDEN LAMPS beside them that glow while the lights are on and go out
+# with them (_place_lamps, GardenLamp). It was the vehicle games' asphalt road on the daytime lawn.
+const NIGHT_LAWN: Color = Color(0.40, 0.50, 0.62)
+const LAMP_EVERY: int = 28           # about one lamp per this many lawn cells
+var _lamps: Array = []
+
+func _place_lamps() -> void:
+	for l in _lamps:
+		if is_instance_valid(l):
+			l.queue_free()
+	_lamps.clear()
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 7000 + game.board_size.x * 31 + game.board_size.y
+	# lawn cells beside a path (not a dock, not on the board's edge), far apart from each other
+	var spots: Array = []
+	for row in range(1, game.board_size.y - 1):
+		for col in range(1, game.board_size.x - 1):
+			var c = board[row][col]
+			if c.ispipe or c.istarget:
+				continue
+			for dv in [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]:
+				var q: Vector2i = Vector2i(col, row) + dv
+				if board[q.y][q.x].ispipe:
+					spots.append(Vector2i(col, row))
+					break
+	spots.shuffle()
+	var want: int = maxi(2, (game.board_size.x * game.board_size.y) / LAMP_EVERY / 2)
+	var taken: Array = []
+	for sp in spots:
+		if taken.size() >= want:
+			break
+		var near: bool = false
+		for t in taken:
+			if ((t as Vector2i) - (sp as Vector2i)).length() < 4.5:
+				near = true
+				break
+		if near:
+			continue
+		taken.append(sp)
+		var lamp: GardenLamp = GardenLamp.new()
+		lamp.position = game.board_to_px(sp)
+		lamp.phase = rng.randf() * TAU
+		add_child(lamp)
+		_lamps.append(lamp)
+
+func _lamps_on(on: bool) -> void:
+	for l in _lamps:
+		if is_instance_valid(l):
+			(l as GardenLamp).set_on(on)
+
+# A garden lamp, seen from above: a dark post with a lantern on it and, while it is lit, a warm pool of
+# light round it that spills onto the path, breathing a little. It goes out over half a second when the
+# lights go off and is lit at once when they come back (a clue's flash included).
+class GardenLamp extends Node2D:
+	var phase: float = 0.0
+	var _light: float = 1.0
+	var _tw: Tween = null
+	var _glow: Node2D = null
+	func _ready() -> void:
+		z_index = 2
+		# the pool of light, ADDED to what is under it, so it lights the path and the lawn round it
+		_glow = Node2D.new()
+		var m: CanvasItemMaterial = CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		_glow.material = m
+		_glow.show_behind_parent = true
+		_glow.draw.connect(_draw_glow)
+		add_child(_glow)
+	func _draw_glow() -> void:
+		if _light <= 0.01:
+			return
+		var breath: float = 1.0 + 0.05 * sin(phase * 1.7)
+		for k in 8:
+			var f: float = 1.0 - float(k) / 8.0
+			_glow.draw_circle(Vector2.ZERO, 46.0 * f * breath, Color(0.55, 0.40, 0.18, 0.055 * _light))
+	func set_on(on: bool) -> void:
+		if _tw != null and _tw.is_valid():
+			_tw.kill()
+		if on:
+			_light = 1.0
+		else:
+			_tw = create_tween()
+			_tw.tween_property(self, "_light", 0.0, 0.5)
+	func _process(delta: float) -> void:
+		phase += delta
+		queue_redraw()
+		_glow.queue_redraw()
+	func _draw() -> void:
+		draw_circle(Vector2(2.5, 2.5), 8.5, Color(0, 0, 0, 0.40))            # its shadow
+		draw_circle(Vector2.ZERO, 8.0, Color(0.12, 0.12, 0.14))              # the lantern's dark frame
+		var glass: Color = Color(0.30, 0.28, 0.25).lerp(Color(1.0, 0.86, 0.55), _light)
+		draw_circle(Vector2.ZERO, 5.5, glass)
+		for k in 4:                                                          # the frame's four bars
+			var a: float = PI * 0.25 + PI * 0.5 * float(k)
+			draw_line(Vector2.from_angle(a) * 2.0, Vector2.from_angle(a) * 6.5, Color(0.12, 0.12, 0.14), 1.5)
+		if _light > 0.01:
+			draw_circle(Vector2(-1.5, -1.5), 1.8, Color(1, 1, 1, 0.85 * _light))

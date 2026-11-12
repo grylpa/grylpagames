@@ -38,8 +38,8 @@ and the board size (9 up to 23).
 
 The heart of the game. `create_board()` sets `time_to_hide` five seconds out and starts a visible
 countdown. When it elapses — or **as soon as the player makes their first move**, whichever comes
-first — `_start_playing()` calls `turn_lights_off()`: every target and door is hidden and the pipes
-drop to 70% alpha. From then on the player is navigating from memory.
+first — `_start_playing()` calls `turn_lights_off()`: every target and door is hidden and the paths
+dim to a cold moonlight tone (see "A garden at night"). From then on the player is navigating from memory.
 
 That coupling is worth knowing: the first input both starts the walk *and* spends the look. The
 printed instructions say "You cannot move while the lights are on", which is the same fact from the
@@ -250,12 +250,29 @@ board, a light bulb with the maze in its glass.
 
 Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; names in code kept): `motor` the ambient, a quiet night -- a slow harp ostinato in minor, a low reed, crickets (`lightsout_ambient.ogg`, `make_ambient_sounds.py`, -6 dB; it was a car engine, then a low hum the user found bad), which plays on between rounds and stops at the main menu, `feet` steps on stone (were on grass), `delivered` the lights coming on (a switch and a rising shimmer; was an arcade coin), `explosion` the explosion above (was a car crash), `start` a soft switch click.
 
-## The road (the 2026-10-25 look pass)
+## A garden at night (2026-11-12)
 
-The road is asphalt (`asphalt.gdshader`, one material on every road sprite, set in `pipe.gd`'s
-`_dress_road`): aggregate grain, faint wear, a rare stain, in world coordinates, with the tile art's
-yellow markings kept. Each side with no road beyond it gets a thin curb with a faint lit edge and a
-shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surface's own tone, a 3 px shadow, the lit edge faint): at 4 px with a bright stone and a lit line the walls were thick and distracting (user, 2026-10-25). **Corners join** (`_draw_curb` / `_draw_kerb` / `_draw_walls` in `pipe.gd`): on a bend the two strips are mitered on the 45-degree diagonal, and at an inside corner (two open sides, but no road across the corner) the tile draws the small corner piece joining its neighbors' strips, lit edge and shadow carried round; `set_rot` records the diagonal neighbors (`_diag`). Plain full-length strips, the first version, overlapped on bends and left a square hole at every inside corner. It was flat gray straight onto the lawn.
+Lights Out is a WALK at night -- footsteps on stone, crickets and a harp -- and was drawn as the vehicle
+games' asphalt road (markings, crown, tire tracks, concrete curbs) on their daytime lawn. It is now a
+night garden (chosen over a house at night and a cave):
+- **The paths are pale flagstones** (`garden_path.gdshader`, in pipe.gd): irregular slabs about half a
+  tile across (`STONE` 19 px between centers -- 13 read as busy crazy paving), each its own tone in cool
+  moonlight, thin LOW-CONTRAST soil joints with a little moss (the bombs, docks and doors on the path must
+  stay the clearest things), in world coordinates; the tiles' art gives only the alpha, the rounded-corner
+  cut is the asphalt shader's. Edged with a darker stone border (`_draw_curb`: same thin geometry, same
+  joined corners). `asphalt.gdshader` is no longer used.
+- **The lawn is moonlit**: the shared GrassField tinted `NIGHT_LAWN` (level `_fit_ground_to_board`; the
+  things on the lawn are drawn under it and darken with it), with LawnScatter's GARDEN mode -- bushes
+  and trees -- instead of the countryside's stones, ponds and houses.
+- **Garden lamps** (`_place_lamps`, `GardenLamp`): about one per `LAMP_EVERY` lawn cells, on lawn cells
+  beside a path, kept 4.5 cells apart; a dark lantern frame with a warm glass and an ADDITIVE pool of
+  light that spills onto the path and breathes a little. They go out over half a second with the lights
+  (`turn_lights_off`) and are lit at once when they come back (a clue's flash too).
+- **With the lights off the stones lose their light**: the paths fade over half a second to a dim, cold
+  `PATHS_DARK` and stay SOLID (`_set_path_tone`), and come back at once with the lights. They were meant
+  to turn 70% see-through, but the path shader assigned its color outright and so dropped the node's
+  tint: nothing showed at all. `garden_path.gdshader` now multiplies in the tint, taken in `vertex()`
+  (in `fragment()` COLOR already carries the tile art's texture, road markings and all).
 
 ## Look (2026-10)
 
@@ -265,6 +282,6 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
   stubs. A door turns whenever it is tapped (2026-11-12; it used to refuse with an actor in the cell,
   `DoorGuard`). Nothing that moves reads a door here: the bombs (the "agents") stand still and the
   player is steered.
-- Roads: rounded corners, curbs above the surface, crown and tire tracks on straights and bends
-  (`scripts/road_corners.gd`, asphalt.gdshader); the lawn short, with a few small things on it
-  (`scripts/lawn_scatter.gd`). Board: `init_sizes_odd()`, `buttons_height = 0`.
+- Paths: rounded corners (`scripts/road_corners.gd`), flagstones and a stone edging (see "A garden at
+  night"); the lawn at night with garden things on it (`scripts/lawn_scatter.gd`). Board:
+  `init_sizes_odd()`, `buttons_height = 0`.
