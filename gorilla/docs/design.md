@@ -191,6 +191,23 @@ the baby gorilla is drawn by it.
 - The player's walking distances are worked out once per tick (`_bfs_from`), only when needed.
 - Player color (blue) is excluded from possible monster colors
 
+## The overgrown temple (2026-11-12)
+
+The maze was a flat floor in a random color with thin white wall bars -- among the most dated looks in
+the app. It is now the ruins of a temple in the jungle:
+- **Floor** (`temple_floor.gdshader` on each tile's `PipeFloor3`, its own material, told its `cell` in
+  `pipe.gd` `set_rot`): worn sandstone flagstones, ONE PER CELL (everything moves cell by cell), each its
+  own tone with grain, weathering, a few cracks, worn edges, and MOSS creeping out of the joints, thicker
+  in the damp parts. The level's floor color only tints it a little (20%).
+- **Inner walls** (`level._add_temple_walls` / `_draw_temple_walls`, drawn once after the maze is
+  carved, from the cells' `fences`): slim (`TEMPLE_WALL` 6; at 13 they "hide everything") walls of light stone
+  blocks, lit top and left, dark bottom and right, a shadow on the floor, moss on top in patches and now
+  and then a hanging vine; each runs on past both ends by half its thickness, closing corners. The bar
+  sprites are no longer made (`pipe.gd` `show_fence` only records the side; `show_corner_patch` is off).
+- **Outer wall** (`_draw_rim`): the same stone at the SAME thickness (`RIM_W` = `TEMPLE_WALL`), shaded on all
+  four sides like an inner wall, centered on the board's edge so it covers the inner walls' ends. It was a
+  thin white bar; then 8 against the walls' 6 with flat sides, which read as twice as heavy (2026-11-12).
+
 ## Maze Visuals
 
 - **The maze is the whole board** (`room_rect` = the board), and the board fills the screen: `cols`
@@ -731,7 +748,7 @@ and fences. It loops over the board array, not `game.board_size`.
 
 ## The board's rim (2026-11-11)
 
-The room is closed by the same white bar as the maze's inner walls (2/40 of a tile, the strip of
-`art/fence_inner_wall.png`), drawn by `level.gd` `_draw_rim` along every edge where floor meets
-anything that is not floor, inside the cell like an inner wall. The soft inward shadow
-(`_draw_wall_shade`) stays under it.
+The room is closed by `level.gd` `_draw_rim` along every edge where floor meets anything that is not
+floor: since 2026-11-12 the same mossy stone wall as the inner ones, at their thickness, centered on
+the edge (see "Inner walls" / "Outer wall" above). The soft inward shadow (`_draw_wall_shade`) stays
+under it.

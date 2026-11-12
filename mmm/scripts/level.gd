@@ -1551,6 +1551,9 @@ func _draw_castle_walls(shadow: bool) -> void:
 	var w: float = t * CASTLE_WALL
 	var light: Vector2 = Vector2(-0.45, -0.9).normalized()
 	var node: Node2D = _walls_shadow if shadow else _walls_node
+	# the stone of EVERY wall first, then every edge line: drawn wall by wall, the next strip's stone
+	# covered the end of the last one's lines, and each doorway corner lost a stretch of its line
+	var lines: Array = []          # [a, b, color, width]
 	for y in board.size():
 		for x in board[y].size():
 			var cell: OneCell = board[y][x]
@@ -1602,9 +1605,11 @@ func _draw_castle_walls(shadow: bool) -> void:
 				var facing: float = n.dot(-light)
 				# a gold edge: bright toward the light, deep away from it
 				var edge_col: Color = Color(0.90, 0.74, 0.40) if facing > 0.1 else Color(0.46, 0.35, 0.16)
-				node.draw_line(o0, o1, edge_col, 1.3, false)
+				lines.append([o0, o1, edge_col, 1.3])
 				# where it meets the floor: a dark line, the floor edge's own length
-				node.draw_line(mid + side * t * 0.5, mid - side * t * 0.5, Color(0.12, 0.11, 0.14, 0.8), 1.0, false)
+				lines.append([mid + side * t * 0.5, mid - side * t * 0.5, Color(0.12, 0.11, 0.14, 0.8), 1.0])
+	for ln: Array in lines:
+		node.draw_line(ln[0], ln[1], ln[2], float(ln[3]), false)
 
 # THE GREAT HALL'S FURNISHINGS (2026-11-12, hall_decor.gd), LAID OUT, not scattered: scattered at
 # random, small and many, they read as clutter when the whole castle is in view (user). So, few and

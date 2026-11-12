@@ -453,6 +453,108 @@ func _create_maze():
 			removed += 1
 
 	_patch_wall_corners()
+	_add_temple_walls()
+
+# THE TEMPLE'S WALLS (2026-11-12): every wall of the maze -- a cell edge with a fence on either side of it
+# -- drawn as a thick wall of mossy stone blocks along the edge, its top lit from the top left, a dark
+# face on its far side, and a soft shadow on the floor down and to the right. Each runs on past both ends
+# by half its thickness, so walls meeting at a corner close it. Moss grows on top in patches and now and
+# then a vine hangs down a side. They replaced thin white bar sprites. One node over the whole maze,
+# drawn once, after the maze is carved.
+const TEMPLE_WALL: float = 6.0       # (13 hid the paths and what was on them: "waaaaay too thick")
+var _temple_walls: Node2D = null
+var _temple_shadow: Node2D = null
+
+func _add_temple_walls() -> void:
+	for n in [_temple_walls, _temple_shadow]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_temple_shadow = Node2D.new()
+	_temple_shadow.z_index = 0        # over the floor (z -1), drawn just before the walls
+	_temple_shadow.draw.connect(_draw_temple_walls.bind(true))
+	add_child(_temple_shadow)
+	_temple_walls = Node2D.new()
+	_temple_walls.draw.connect(_draw_temple_walls.bind(false))
+	add_child(_temple_walls)
+	move_child(_temple_shadow, 0)
+	move_child(_temple_walls, 1)
+
+func _temple_edges() -> Array:
+	# each wall once: [a, b] corner points of the edge in pixels, and whether it runs across (x)
+	var seen: Dictionary = {}
+	var out: Array = []
+	var t: float = float(game.tile_size)
+	for y in board.size():
+		for x in board[y].size():
+			var cell = board[y][x]
+			if cell == null or cell.pipe == null:
+				continue
+			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			for dir in 4:
+				if not cell.pipe.fences[dir]:
+					continue
+				var n: Vector2 = [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP][dir]
+				var mid: Vector2 = c + n * t * 0.5
+				var key: Vector2i = Vector2i(roundi(mid.x * 2.0), roundi(mid.y * 2.0))
+				if seen.has(key):
+					continue
+				seen[key] = true
+				var side: Vector2 = Vector2(-n.y, n.x)
+				out.append([mid + side * t * 0.5, mid - side * t * 0.5, absf(n.y) > 0.5])
+	return out
+
+func _draw_temple_walls(shadow: bool) -> void:
+	var node: Node2D = _temple_shadow if shadow else _temple_walls
+	var h: float = TEMPLE_WALL * 0.5
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 777
+	for e: Array in _temple_edges():
+		var a: Vector2 = e[0]
+		var b: Vector2 = e[1]
+		var horiz: bool = e[2]
+		var lo: Vector2 = Vector2(minf(a.x, b.x), minf(a.y, b.y)) - Vector2(h, h)
+		var hi: Vector2 = Vector2(maxf(a.x, b.x), maxf(a.y, b.y)) + Vector2(h, h)
+		var r: Rect2 = Rect2(lo, hi - lo)
+		if shadow:
+			node.draw_rect(Rect2(r.position + Vector2(2.0, 3.0), r.size), Color(0.0, 0.0, 0.0, 0.55))
+			continue
+		var stone: Color = Color(0.86, 0.83, 0.75)       # pale, bleached stone: well above the floor
+		node.draw_rect(r, stone)
+		# the blocks: joints across the wall every block's length, each block its own tone
+		var length: float = r.size.x if horiz else r.size.y
+		var nb: int = maxi(1, int(round(length / 11.0)))
+		var bl: float = length / float(nb)
+		for i in nb:
+			var k: float = rng.randf_range(-0.05, 0.05)
+			var br: Rect2 = Rect2(r.position + (Vector2(float(i) * bl, 0) if horiz else Vector2(0, float(i) * bl)),
+				Vector2(bl, r.size.y) if horiz else Vector2(r.size.x, bl))
+			node.draw_rect(br.grow(-0.6), Color(stone.r + k, stone.g + k, stone.b + k * 0.8))
+		# lit top and left edges, dark bottom and right
+		node.draw_rect(Rect2(r.position, Vector2(r.size.x, 1.3)), Color(0.97, 0.95, 0.89))
+		node.draw_rect(Rect2(r.position, Vector2(1.0, r.size.y)), Color(0.66, 0.62, 0.53))
+		node.draw_rect(Rect2(r.position + Vector2(0, r.size.y - 1.4), Vector2(r.size.x, 1.4)), Color(0.50, 0.46, 0.38))
+		node.draw_rect(Rect2(r.position + Vector2(r.size.x - 1.0, 0), Vector2(1.0, r.size.y)), Color(0.52, 0.48, 0.40))
+		# a fine dark outline all round, so the edge is crisp against the floor
+		node.draw_rect(r, Color(0.14, 0.11, 0.08, 0.9), false, 0.9)
+		# moss on top in patches, and now and then a vine hanging down a side
+		var patches: int = rng.randi_range(0, 2)
+		for p in patches:
+			var u: float = rng.randf_range(0.15, 0.85)
+			var pc: Vector2 = r.position + (Vector2(u * r.size.x, r.size.y * 0.5) if horiz else Vector2(r.size.x * 0.5, u * r.size.y))
+			var pr: float = rng.randf_range(1.6, 2.6)
+			node.draw_circle(pc, pr, Color(0.26, 0.40, 0.16, 0.9))
+			node.draw_circle(pc + Vector2(-0.8, -0.8), pr * 0.6, Color(0.38, 0.54, 0.22, 0.9))
+		if rng.randf() < 0.18:
+			var u2: float = rng.randf_range(0.2, 0.8)
+			var top: Vector2 = r.position + (Vector2(u2 * r.size.x, r.size.y) if horiz else Vector2(r.size.x, u2 * r.size.y))
+			var dirv: Vector2 = Vector2(0, 1) if horiz else Vector2(1, 0)
+			var pts: PackedVector2Array = PackedVector2Array()
+			for k2 in 6:
+				var f: float = float(k2) / 5.0
+				pts.append(top + dirv * f * 6.0 + Vector2(dirv.y, dirv.x) * sin(f * 5.0) * 1.0)
+			node.draw_polyline(pts, Color(0.20, 0.36, 0.14), 1.4, true)
+			for k3 in [2, 4]:
+				node.draw_circle(pts[k3] + Vector2(dirv.y, dirv.x) * 1.1, 1.0, Color(0.30, 0.50, 0.20))
 
 # The wall art leaves the corner square open where a wall runs right from a corner and another runs
 # down from it — see pipe.gd show_corner_patch(). A cell owns the patch for its OWN top-left corner,
@@ -1663,38 +1765,54 @@ func _add_wall_shade() -> void:
 	_rim.draw.connect(_draw_rim)
 	add_child(_rim)
 
-# THE BOARD'S RIM (2026-11-11): the same white bar as the maze's inner walls (pipe.gd, the 2-of-40
-# strip of art/fence_inner_wall.png), along every edge where floor meets anything that is not floor,
-# so the room is closed by its own wall rather than ending in a shadow on the lawn. Like an inner
-# wall it lies INSIDE the cell, along the edge; full-length strips overlap at the corners.
-const RIM_W: float = 2.0 / 40.0       # the wall bar's share of a tile
-const RIM_COLOR: Color = Color(1, 1, 1, 1)
+# THE BOARD'S RIM: the temple's OUTER WALL (2026-11-12) -- the same mossy stone as the inner walls
+# (_draw_temple_walls), centered on the edge where floor meets anything that is not floor, so it also
+# covers the inner walls' ends where they meet it. It was a thin white bar (the old wall art's).
+# The SAME thickness as the inner walls, shaded on all four sides like them (2026-11-12): at 8 against
+# their 6, and with its sides left flat pale, the border read as twice as heavy as the maze inside it.
+const RIM_W: float = TEMPLE_WALL  # (16, with walls of 13, was far too heavy; then 8, still too heavy)
 var _rim: Node2D = null
 
 func _draw_rim() -> void:
 	var t: float = float(game.tile_size)
-	var w: float = maxf(1.0, t * RIM_W)
-	for y in board.size():
-		for x in board[y].size():
-			var cell: OneCell = board[y][x]
-			if cell == null or not cell.ispipe:
-				continue
-			var c: Vector2 = game.board_to_px(Vector2i(x, y))
-			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var q: Vector2i = Vector2i(x, y) + dv
-				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size() and board[q.y][q.x] != null and board[q.y][q.x].ispipe:
+	var h: float = RIM_W * 0.5
+	var stone: Color = Color(0.82, 0.79, 0.71)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 991
+	for pass_i in 2:
+		for y in board.size():
+			for x in board[y].size():
+				var cell: OneCell = board[y][x]
+				if cell == null or not cell.ispipe:
 					continue
-				var r: Rect2
-				match dv:
-					Vector2i(1, 0):
-						r = Rect2(c.x + t * 0.5 - w, c.y - t * 0.5, w, t)
-					Vector2i(-1, 0):
-						r = Rect2(c.x - t * 0.5, c.y - t * 0.5, w, t)
-					Vector2i(0, 1):
-						r = Rect2(c.x - t * 0.5, c.y + t * 0.5 - w, t, w)
-					_:
-						r = Rect2(c.x - t * 0.5, c.y - t * 0.5, t, w)
-				_rim.draw_rect(r, RIM_COLOR)
+				var c: Vector2 = game.board_to_px(Vector2i(x, y))
+				for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var q: Vector2i = Vector2i(x, y) + dv
+					if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size() and board[q.y][q.x] != null and board[q.y][q.x].ispipe:
+						continue
+					var n: Vector2 = Vector2(dv)
+					var side: Vector2 = Vector2(-n.y, n.x)
+					var mid: Vector2 = c + n * t * 0.5
+					var a0: Vector2 = mid + side * (t * 0.5 + h)
+					var a1: Vector2 = mid - side * (t * 0.5 + h)
+					var lo: Vector2 = Vector2(minf(a0.x, a1.x), minf(a0.y, a1.y)) - Vector2(absf(n.x), absf(n.y)) * h
+					var hi: Vector2 = Vector2(maxf(a0.x, a1.x), maxf(a0.y, a1.y)) + Vector2(absf(n.x), absf(n.y)) * h
+					var r: Rect2 = Rect2(lo, hi - lo)
+					if pass_i == 0:
+						_rim.draw_rect(Rect2(r.position + Vector2(2.0, 3.0), r.size), Color(0, 0, 0, 0.42))
+						continue
+					var k: float = rng.randf_range(-0.04, 0.04)
+					_rim.draw_rect(r, Color(stone.r + k, stone.g + k, stone.b + k))
+					# a joint across it at the cell boundary, lit top and left, dark bottom and right
+					_rim.draw_line(mid - side * t * 0.5 - n * h, mid - side * t * 0.5 + n * h, Color(0.30, 0.27, 0.22), 1.0)
+					_rim.draw_rect(Rect2(r.position, Vector2(r.size.x, 1.4)), Color(0.96, 0.94, 0.88))
+					_rim.draw_rect(Rect2(r.position, Vector2(1.0, r.size.y)), Color(0.66, 0.62, 0.53))
+					_rim.draw_rect(Rect2(r.position + Vector2(0, r.size.y - 1.6), Vector2(r.size.x, 1.6)), Color(0.48, 0.44, 0.36))
+					_rim.draw_rect(Rect2(r.position + Vector2(r.size.x - 1.0, 0), Vector2(1.0, r.size.y)), Color(0.52, 0.48, 0.40))
+					_rim.draw_rect(r, Color(0.14, 0.11, 0.08, 0.9), false, 0.9)
+					if rng.randf() < 0.35:
+						var pc: Vector2 = mid + side * rng.randf_range(-t * 0.4, t * 0.4)
+						_rim.draw_circle(pc, rng.randf_range(1.8, 3.0), Color(0.26, 0.40, 0.16, 0.9))
 
 func _draw_wall_shade() -> void:
 	var t: float = float(game.tile_size)

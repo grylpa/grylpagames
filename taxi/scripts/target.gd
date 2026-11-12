@@ -14,7 +14,7 @@ var showdef := false
 var is_gas_station := false
 
 func _ready() -> void:
-	pass # Replace with function body.
+	pass
 
 func set_id(_id, show_id=true):
 	id = _id
