@@ -11,15 +11,8 @@ var board_pos := Vector2i.ZERO
 func _ready() -> void:
 	$Grass.hide()
 
-func show_hide_walls(board):
-	var p = board_pos
-
-	$Wall0.visible = p.x+1 < MmmG.game.board_size.x and board[p.y][p.x+1].ispipe
-	$Wall1.visible = p.y+1 < MmmG.game.board_size.y and board[p.y+1][p.x].ispipe
-	$Wall2.visible = p.x > 0 and board[p.y][p.x-1].ispipe
-	$Wall3.visible = p.y > 0 and board[p.y-1][p.x].ispipe
-	
-	$Wall4.visible = p.x+1 < MmmG.game.board_size.x and p.y+1 < MmmG.game.board_size.y and board[p.y+1][p.x+1].ispipe
-	$Wall5.visible = p.y+1 < MmmG.game.board_size.y and p.x > 0 and board[p.y+1][p.x-1].ispipe
-	$Wall6.visible = p.x > 0 and p.y > 0 and board[p.y-1][p.x-1].ispipe
-	$Wall7.visible = p.y > 0 and p.x+1 < MmmG.game.board_size.x and board[p.y-1][p.x+1].ispipe
+# The palace's walls are drawn by the level (level._draw_castle_walls, 2026-11-12) along every floor
+# edge; this cell's old wall sprites stay hidden.
+func show_hide_walls(_board) -> void:
+	for i in 8:
+		get_node("Wall%d" % i).visible = false

@@ -194,7 +194,7 @@ func new_game(_from_scratch: bool = true) -> void:
 	var t: int = level_time_sec
 	var timestr: String = ("%d:%02d min" % [t / 60, t % 60]) if t >= 60 else ("%d sec" % t)
 	game.show_game_popup(self, "Level %d" % current_level_id,
-		"Sort %d balls into their\nmatching-color baskets.\n\nColors: %d\nTime: %s" % [rounds, num_colors, timestr])
+		"Balls: %d\nColors: %d\nTime: %s" % [rounds, num_colors, timestr])     # facts only (2026-11-12)
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:

@@ -2296,9 +2296,9 @@ func new_game(from_scratch: bool = true) -> void:
 	_field_node.queue_redraw()
 
 	var hide_txt: String = "never" if hide_after_ms <= 0.0 else "%d s" % int(hide_after_ms / 1000.0)
-	var body: String = ("Aliens queue up in a gate's outer ring.\n" +
-		"Drag one the pass ACCEPTS onto the boarding ramp, " +
-		"and one it does not back out to the hall.\n")
+	# The level's facts only (2026-11-12): how to board an alien is the instructions screen's. Which
+	# twists THIS round drew is a fact about it, so those stay -- as short table rows.
+	var body: String = ""
 	# Only name the twists THIS ROUND actually drew. _pick_rules has already run, so the briefing
 	# can report what is really on the board rather than what the level permits — with an
 	# independent deny roll, a level that allows deny gates will sometimes have none.
@@ -2309,15 +2309,15 @@ func new_game(from_scratch: bool = true) -> void:
 			n_deny += 1
 		if str(ar.get("pass", {}).get("op", "atom")) != "atom":
 			n_compound += 1
+	body += "Gates: %d\nPass comes down after: %s\nTime: %d s" % [num_areas, hide_txt, level_time_sec]
 	if n_compound > 0:
-		body += "\nSome passes ask for TWO things at once.\n"
+		body += "\nTwo-part passes: Yes"
 	if n_deny > 0:
-		body += "\nA \"NOT ...\" pass boards everyone EXCEPT that.\n"
+		body += "\nNOT passes: Yes"
 	if gate_change_ms > 0.0 and num_areas > 1:
-		body += "\nGATE CHANGE. The passes move between gates.\n"
+		body += "\nGate change: Yes"
 	if priority_every_ms > 0.0:
-		body += "\nNOW BOARDING. Deal with the ringed alien before its ring runs out.\n"
-	body += "\nGates: %d\nPass comes down after: %s\nTime: %d s" % [num_areas, hide_txt, level_time_sec]
+		body += "\nNow boarding: Yes"
 	if game.tutorial_mode:
 		# The tutorial teaches all of this by doing it; the popup would make the player dismiss
 		# a wall of text before being taught it. (_tutorial_setup already ran, up in new_game.)

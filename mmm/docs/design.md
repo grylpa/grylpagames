@@ -71,6 +71,73 @@ The speed bonus (`min(5, 60 - seconds)` score and time) is paid only for a round
 used to be applied before the win/lose branch, so a round lost after ten seconds paid the same as
 one won in ten seconds.
 
+## The palace's look (2026-11-12)
+
+It had the oldest look in the app -- a tinted PHOTO of marble tiles for the floors, the same photo
+for the corridors, and the road games' lawn outside -- and was redrawn over several rounds with the user:
+- **Floors** (`castle_floor.gdshader`, one material for every floor tile, set in `pipe.gd`): POLISHED
+  MARBLE, `style` 1 -- **ONE TILE PER CELL** (movement is tile based: slabs a tile and a half long hid
+  the cells), the cells in a two-tone checker of the room's color, soft clouding, fine pale veins running
+  across the cells, a pillow bevel and a broad sheen. The ROOM'S COLOR is the tint: it is what the
+  player remembers, so the marble only varies it a little. Also in the shader, unused: `style` 0 plain
+  stone slabs ("does not look any better" than the photo) and 2 painted parquet in a basket weave (liked
+  "for a single small room" elsewhere, not here).
+- **Corridors**: the same marble in warm gray, `pipe.gd` `CORRIDOR_STONE` (0.44/0.42/0.40).
+- **Walls** (`level._add_castle_walls` / `_draw_castle_walls`): warm IVORY stone along every edge where
+  floor meets the hall, with a GOLD outer edge (bright facing the light, deep away from it), a dark line
+  against the floor, and a shadow falling outward on its own node one z lower. Each end of a wall is an
+  OUTSIDE corner (strip and line run on by the wall's width), STRAIGHT (stop), or INSIDE (the line stops
+  a wall's width short) -- the strips' lines used to run on and cross at the corners. They were cold gray
+  first. The empty cells' old wall sprites are hidden (`empty_space.gd`).
+- **Outside: a dark GREAT HALL** (`palace_sky.gdshader` `style` 3, `_fit_ground_to_board`): the rooms
+  are lit chambers in it. Near-black marble slabs three tiles across, faintly veined, fine gold inlay
+  lines between them and a gold ring on one slab in four (at two tiles across, and brighter, it read as
+  graph paper). The veins are thin and faint. Tried and turned down: a starry sky ("boring"), a moonlit
+  moat (outdoor nature round an indoor palace: "doesn't match the rooms"), a sea of clouds; all still in
+  the shader (`style` 0-2).
+- **The hall is furnished** (placed by `level._place_hall_decor`, drawn by `hall_decor.gd`
+  `MmmHallDecor`), the third try:
+  - COLONNADES (3-5 in a row across), FOUNTAINS (3x3) and TOPIARY are real 3-D (`hall_art.gd`
+    `MmmHallArt`): a fluted marble column with an Attic base, a gold necking band, a rounded echinus, a ROUND
+    abacus no wider than the flare and a small gold ball on top. (Ionic volutes stuck out like ears; a
+    square abacus showed its top and front in one tone, "a flat rectangle that doesn't fit"; a wide round
+    one made it a mushroom.) The key light is steep, from above and the left, so faces turned up are
+    clearly brighter than faces turned to the viewer; a two-tier marble fountain, water in both bowls, a translucent sheet falling from the
+    upper lip and a jet from a gold spout; a clipped leaf ball on a stem in a stone planter with a gold
+    band. Modelled in code, lit warm from the top left with a cool fill, seen from a high THREE-QUARTER
+    angle (`PITCH_DEG` 58: straight from above a column is a circle and a tree a disc), rendered ONCE at
+    first need into textures (`PX_PER_CELL` 96) centered on each piece's ground point. Their floor
+    shadows are 2-D (`_shadow`: one soft oval drawn out away from the light; stacked copies showed as
+    stripes) because the compatibility renderer cannot cast onto a see-through floor. Fountains carry
+    slow rings on the basin's water, drawn as the camera sees them.
+  - REFLECTING POOLS (4x2) and RUGS (3x2 / 4x3, either way round; runners one cell wide had no room for
+    the border and medallion: "do not look good") lie flat and are shaders in their own rect
+    space: `hall_pool.gdshader` (a veined, beveled marble rim; dark water moving in two sets of small
+    waves, shaded under the rim on the light's side, the hall's warm light lying along it, glints; water
+    lilies with notches and veins, a few in flower) and `hall_carpet.gdshader` (guard stripes, a navy
+    border of gold rosettes spaced to fit each side whole with a larger one in each corner, a red field with a lattice of small flowers, a round medallion with pendants,
+    corner quarters, wool fibers and weave, fringe at the short ends).
+  - LAID OUT, not scattered (`_place_hall_decor`): scattered at random, small and many, they read as
+    clutter with the whole castle in view. Within the CASTLE's bounds plus `DECOR_REACH` (the board is
+    much bigger than the castle; its most open spots were far off screen). PLAZAS first: a fountain at
+    each of the most open spots (`PLAZA_OPEN`, open spaces between the rooms ranked before the margin),
+    one per 900 cells, at least 9 cells from the next, with a topiary on EITHER side or neither (one
+    alone was lopsided); COLONNADES along the longest room walls, `COLONNADE_OUT` cells out, centered,
+    columns two cells apart (`spacing`); then one pool and two rugs in open space. Every piece: a clear
+    cell all round, `rise` rows clear above a standing piece, `DECOR_GAP` from the others.
+  - Two earlier sets were turned down: busts, armor, shields and candelabra ("strange"), then the same
+    kinds as now drawn from flat code shapes ("very very sloppy": no material, no light, no texture).
+- **Patterns are laid from the BOARD, not from MODEL_MATRIX.** In this game that matrix moves with the
+  camera, so as it glided between rooms or followed the player down a corridor every tile kept changing
+  which square of the checker it was, and the floor flashed between its two tones (measured: all tiles at
+  once, ratio 0.86). Each tile now has its own material copy and is told its cell (`pipe.gd` `set_rot` ->
+  `cell`); the hall is told its rect's place (`origin`). Hairlines are also sized in screen pixels
+  (`fwidth`), and veins fade out where they would be thinner than a pixel.
+- **Bricks are castle props** (`castle_prop.gd`, `MmmCastleProp`): `has_brick % 3` picks a stone
+  PILLAR (a flat column top on a square plinth -- shaded as a ball it read as one), a BARREL or a
+  wooden CRATE. The logic is unchanged (still `has_brick`, still blocks the tile).
+- The GrassField is still fitted under the hall (the probes check it), hidden.
+
 ## Look and sound (the 2026-10-24 pass)
 
 - **Walls shade each room's edges** (`level._add_wall_shade()`, `WALL_SHADE` 0.30 of a tile, faint):
@@ -172,8 +239,8 @@ The same mechanism as Storm's, copied into `level.gd` (games do not share script
   (`game_popup.hold()`): it reads only "Building world", with no Start button, and nothing closes it.
   It is laid out at its final size, the real text already in it and hidden. When the board is ready
   and the card has been up at least `BRIEF_HOLD_MS` (1 s), `_release_brief()` puts in the real text
-  (`_brief_text()`: how many rooms, with the count the board actually got, what to do, and the level's
-  rounds) and shows Start. The round -- its clock, `level_is_ready`, the start sound -- begins when
+  (`_brief_text()`: "Rooms" -- the count the board actually got -- and "Rounds"; what to do is the
+  instructions screen's, and was repeated here until 2026-11-12) and shows Start. The round -- its clock, `level_is_ready`, the start sound -- begins when
   the card closes (`_begin_round()`). The tutorial has no card and starts as soon as its board is built.
 - **The background stays opaque while held**, unlike Storm's, where the build is watched: every
   room's floor color is the question at the end of the round, and the whole castle drawn behind a dim

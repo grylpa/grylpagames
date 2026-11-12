@@ -345,14 +345,8 @@ func _intro_text() -> String:
 			lines.append("MATCH = same %s as the card %d back." % [noun, n_back])
 			if num_colors > 1:
 				lines.append("The color does not matter.")
-	lines.append("")
-	lines.append("Swipe RIGHT = match")
-	lines.append("Swipe LEFT = no match")
-	lines.append("")
-	if n_back == 1:
-		lines.append("The first card is just to watch.")
-	else:
-		lines.append("The first %d cards are just to watch." % n_back)
+	# (which way to swipe, and that the first N cards are only watched, are the instructions screen's:
+	# 2026-11-12, they were repeated on every level's card. What counts as a match changes by level.)
 	lines.append("")
 	lines.append("Cards: %s" % _categories_phrase())
 	lines.append("N: %d" % n_back)

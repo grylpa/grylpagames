@@ -197,8 +197,8 @@ func new_game(_from_scratch: bool = true) -> void:
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
 	game.show_game_popup(self, "Level %d" % current_level_id,
 		# parentheses required — `%` binds tighter than `+`
-		("Find the two matching cards and tap them.\n\n" +
-		"Grid: %d x %d\n" +
+		# the level's facts only: what to find is the instructions screen's (2026-11-12)
+		("Grid: %d x %d\n" +
 		"Board time: %s\n" +
 		"Total: %s") % [
 			nc, nr, _fmt_secs(show_time_ms / 1000.0), _fmt_secs(float(duration_sec))

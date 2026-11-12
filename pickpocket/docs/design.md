@@ -387,3 +387,10 @@ green board with gilt capitals spaced wide (Space Grotesk), a double gold rule a
 each end; the florist a white oval with pink lettering (Open Sans) and blooms; the cafe a dark board
 with its name in warm neon (Orbitron) beside a steaming cup. They were four identical black boards.
 The two street lamps stand at the joints between buildings (`lamp_xs`), never across a sign.
+
+## The level card (2026-11-12)
+
+The card before a level holds its FACTS only: `Cups`, `Asks for the thief: Sometimes` (levels with
+`thief_q`), `No theft at all: Sometimes` (levels with `empty_p`), `Rounds`. "Follow the ball under the
+cups, and keep an eye on the street" was repeated on every card; it is the instructions screen's, which
+now also says that later levels sometimes ask for the pickpocket instead.

@@ -228,11 +228,7 @@ func briefing_text() -> String:
 	lines.append("Each round: %d s" % int(round_ms / 1000.0))
 	lines.append("Rotated pieces: " + ("Yes" if rotation_on else "No"))
 	lines.append("To pass: %d%% of rounds" % pass_pct)
-	lines.append("")
-	var how: String = "Remember the picture. It will be cut up and shuffled, and you put it back together by dragging one piece onto another to swap them."
-	if rotation_on:
-		how += " Some pieces will be rotated too, and a tap rotates a piece a quarter turn."
-	lines.append(how + " The same picture comes back for every round, so you can get faster at it. To pass, rebuild it in the last round too.")
+	# the level's facts only: how to play is the instructions screen's (2026-11-12, it was repeated here)
 	return "\n".join(lines)
 
 func _on_game_popup_closed() -> void:

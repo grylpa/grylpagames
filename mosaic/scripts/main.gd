@@ -54,7 +54,8 @@ func _ready() -> void:
 		"\n\n" +
 		"On some levels the pieces are rotated too: tap a piece to rotate it." +
 		"\n\n" +
-		"The same picture comes back for several rounds, so you can get faster at it.")
+		"The same picture comes back for several rounds, so you can get faster at it. " +
+		"To pass a level, rebuild it in the last round too.")
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		MosaicG.save_settings()

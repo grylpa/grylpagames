@@ -194,3 +194,9 @@ An ambient (`mosaic_ambient.ogg`, `devtools/make_ambient_sounds.py`: a kalimba o
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): `swap` a tile sliding into place, `solved` a full chime arpeggio for the picture solved. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+## The level card (2026-11-12)
+
+The card before a level is its facts only (rounds, pieces, picture, time per round, rotation, pass
+mark). It used to end with a paragraph on how to play, repeated on every level; that is the
+instructions screen's, which also gained "To pass a level, rebuild it in the last round too."

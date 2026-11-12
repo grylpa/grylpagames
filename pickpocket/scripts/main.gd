@@ -46,7 +46,8 @@ func _ready() -> void:
 		"Follow it, and tap the cup it is under.\n\n" +
 		"Meanwhile, somewhere on the street around you, a pickpocket lifts a wallet. " +
 		"When the cups stop, everyone freezes: tap the person who was robbed, " +
-		"or No one if you are sure nothing was taken.\n\n" +
+		"or No one if you are sure nothing was taken. On later levels some rounds ask for " +
+		"the pickpocket instead: the question says which.\n\n" +
 		"A round counts only when you get both right.", 26)
 	if not game.shown_instructions:
 		game.show_instructions(self)

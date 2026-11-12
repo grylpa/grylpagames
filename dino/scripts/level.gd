@@ -352,12 +352,9 @@ func _tutorial_setup() -> void:
 # dismissed.
 func _intro_text() -> String:
 	# The facts sit together at the end so they form ONE table; prose above them is left to wrap.
+	# The level's facts only: what SEEN means and which way to swipe are the instructions screen's
+	# (2026-11-12, they were repeated on every level's card).
 	var lines: Array = [
-		"SEEN = this card has already appeared THIS round.",
-		"",
-		"Swipe RIGHT = seen before",
-		"Swipe LEFT = new",
-		"",
 		"Cards: %s" % _folders_phrase(),
 		"Duration: %s" % _fmt_secs(float(duration_sec)),
 	]
