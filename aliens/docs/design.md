@@ -293,7 +293,7 @@ All made for this game by `devtools/make_aliens_sounds.py` (synthesized, seeded)
   the alien radius) up from the alien and fades it, alongside a colored ring flash on the alien
   itself. The small hint ring alone was too subtle to tell a correct call from a mistake.
   A turned-away alien flashes `FULL!`.
-- **No on-screen instruction line.** The intro popup covers the rules; a permanent caption over
+- **No on-screen instruction line.** The instructions screen covers the rules; a permanent caption over
   the play area was just distraction. The inner-ring slot pips were removed for the same reason —
   they marked where a promoted alien would land, which the alien itself makes obvious.
 - **Rule captions live in reserved bands** at the top and bottom of the field — a top-corner area
@@ -494,7 +494,11 @@ Measured cost of the two-line chip: level 10's alien radius is **17.0** where th
 17 px against a 21 px base (level 10, `3 EYES / AND NOT YELLOW`); level 9 never shrinks at all.
 
 The level intro popup names **only the twists that level actually uses** — a briefing listing
-rules the player will not meet is worse than no briefing.
+rules the player will not meet is worse than no briefing. Since 2026-11-12 it holds the level's
+FACTS only, as table rows (`Gates`, `Pass comes down after`, `Time`, then `Two-part passes: Yes`,
+`NOT passes: Yes`, `Gate change: Yes`, `Now boarding: Yes` for the twists drawn): how to board an
+alien, and what each twist means, are the instructions screen's (it gained "Some passes ask for TWO
+things at once").
 
 ## Pressure and level flow
 

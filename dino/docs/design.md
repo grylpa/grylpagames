@@ -60,7 +60,8 @@ if any folder is `dinos`, else grass.
 - **Pre-level popup** (`game.show_game_popup`, the shared briefing card (see "The level intro" below; was the Storm-style "tap anywhere to
   start" panel), built by `_intro_text()`. It opens with **what you are about to be shown**
   (`Cards: Dinos and faces` — `_folders_phrase()` says "faces", not the folder name "people"),
-  then the rule in full, the swipe directions, and the duration. Play + countdown start when it
+  then the duration -- nothing else: what SEEN means and which way to swipe are the instructions
+  screen's (they were repeated on every level's card until 2026-11-12). Play + countdown start when it
   closes (its `closed` signal → `_on_game_popup_closed`). `show_text_popup` is a reusable
   `GenericGameUtil` wrapper over `MainGlobals.generic_text_popup()` (`PopupText`); it sizes to its
   text, so format with short `\n` lines (no auto-wrap).

@@ -385,11 +385,15 @@ func new_game(_from_scratch: bool = true) -> void:
 
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
-	var what: String = "the pickpocket or the person robbed" if thief_q > 0.0 else "the person who was robbed"
-	game.show_game_popup(self, "Level %d" % current_level_id,
-		("Follow the ball under the cups, and keep an eye on the street: tap the cup, then %s.%s\n\n" +
-		"Cups: %d\n" +
-		"Rounds: %d") % [what, "\nSometimes no one is robbed." if empty_p > 0.0 else "", n_cups, rounds_per_level])
+	# The level's facts only (2026-11-12): what to follow and what to tap are the instructions
+	# screen's. Which questions THIS level can ask is a fact about it, so it stays, as table rows.
+	var facts: String = "Cups: %d" % n_cups
+	if thief_q > 0.0:
+		facts += "\nAsks for the thief: Sometimes"
+	if empty_p > 0.0:
+		facts += "\nNo theft at all: Sometimes"
+	facts += "\nRounds: %d" % rounds_per_level
+	game.show_game_popup(self, "Level %d" % current_level_id, facts)
 
 # THE TUTORIAL'S ROUND: slow cups, few of them, an easy theft (a bright wallet, the victim starts),
 # always on the street rather than at the table, and never a question about the pickpocket or an

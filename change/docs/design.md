@@ -76,7 +76,7 @@ comes from the level's `coin_size` key.
 | `overlap` | `"none"` / `"med"` / `"max"` — how much piled coins cover each other |
 
 ## Gameplay flow
-- **Pre-level popup** (`game.show_game_popup`, the shared briefing card — see "The level intro" below): coins, board time, total time.
+- **Pre-level popup** (`game.show_game_popup`, the shared briefing card — see "The level intro" below): coins, board time, total time -- facts only; "drag coins into the tray, then press Pay" is the instructions screen's (it opened every card until 2026-11-12).
   Play starts when it closes (`closed` → `_on_game_popup_closed`).
 - **Board build** (`_build_board`): pick a denomination per coin (weighted). Choose a **solution
   subset** (proper, non-trivial when `num_coins ≥ 3`: `2..num_coins-1` coins) and set the target

@@ -205,7 +205,9 @@ The color does not matter.
 ...
 ```
 
-then the rule in full, the swipe directions, and how many opening cards are just to watch. It
+then the rule in full -- it changes by level. The swipe directions and the opening cards that are
+only watched are the instructions screen's (they were repeated on every level's card until
+2026-11-12). It
 names the symbol dimension the way this level's categories make sense (`SHAPE` / `LETTER` /
 `DIGIT` / `SYMBOL` / `PICTURE`). **Card time is deliberately not shown.**
 

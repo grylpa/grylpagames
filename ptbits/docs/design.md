@@ -72,6 +72,8 @@ Specific to this game:
 - `_tutorial_setup()` also sets `rounds` to a million: `_resolve_ball` ends the level the moment
   `rounds` balls have resolved, which would drop a "Level 1 completed" popup on top of the coach.
 - `new_game()` skips the pre-level popup in tutorial mode and emits `started_playing` directly.
+- The pre-level popup holds the level's facts only -- `Balls`, `Colors`, `Time` (2026-11-12; it opened
+  with "Sort N balls into their matching-color baskets", which is the instructions screen's).
 - `tutorial_release_drag()` runs in the setups after the grab step. While the coach talks the game
   is paused and `_input` returns early, so the finger lift is never seen; without this the tool
   lurches to the last touch point when play resumes.

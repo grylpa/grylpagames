@@ -193,9 +193,8 @@ var _brief = null
 var _brief_shown_ms: int = 0
 
 func _brief_text(n_rooms: int) -> String:
-	var roomsstr: String = "one room" if n_rooms == 1 else "%d rooms" % n_rooms
-	return "Walk through %s and take the coin in each. Remember each room's floor color: you will be asked.\n\nRounds: %d" % [
-		roomsstr, rounds_per_level]
+	# The level's facts only: what to do is the instructions screen's (2026-11-12, it repeated it here).
+	return "Rooms: %d\nRounds: %d" % [n_rooms, rounds_per_level]
 
 func new_game(from_scratch=true):
 	while _building:
@@ -1036,6 +1035,8 @@ func create_board() -> void:
 		await _breathe()
 		pipe.set_rot(board)
 	_add_wall_shade()
+	_add_castle_walls()
+	_place_hall_decor()
 
 	if false:
 		# add doors			
@@ -1524,6 +1525,234 @@ func _draw_wall_shade() -> void:
 				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
 				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
 				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
+
+# THE PALACE'S WALLS (2026-11-12): a rim of dressed stone along every edge where floor (a room or a
+# corridor) meets the sky, lit along its top-left, with a soft shadow falling outward onto the sky. The
+# shadow is its own node one step down, so the floor (z -1) covers whatever of it falls inward.
+const CASTLE_WALL: float = 0.17        # thickness, in tiles
+var _walls_node: Node2D = null
+var _walls_shadow: Node2D = null
+
+func _add_castle_walls() -> void:
+	for n in [_walls_node, _walls_shadow]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_walls_shadow = Node2D.new()
+	_walls_shadow.z_index = -2
+	_walls_shadow.draw.connect(_draw_castle_walls.bind(true))
+	add_child(_walls_shadow)
+	_walls_node = Node2D.new()
+	_walls_node.z_index = -1
+	_walls_node.draw.connect(_draw_castle_walls.bind(false))
+	add_child(_walls_node)
+
+func _draw_castle_walls(shadow: bool) -> void:
+	var t: float = float(game.tile_size)
+	var w: float = t * CASTLE_WALL
+	var light: Vector2 = Vector2(-0.45, -0.9).normalized()
+	var node: Node2D = _walls_shadow if shadow else _walls_node
+	for y in board.size():
+		for x in board[y].size():
+			var cell: OneCell = board[y][x]
+			if cell == null or not cell.ispipe:
+				continue
+			var c: Vector2 = game.board_to_px(Vector2i(x, y))
+			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(x, y) + dv
+				if q.y >= 0 and q.y < board.size() and q.x >= 0 and q.x < board[q.y].size():
+					var other: OneCell = board[q.y][q.x]
+					if other != null and other.ispipe:
+						continue
+				var n: Vector2 = Vector2(dv)
+				var side: Vector2 = Vector2(-n.y, n.x)
+				var side_i: Vector2i = Vector2i(-dv.y, dv.x)
+				var here: Vector2i = Vector2i(x, y)
+				# each END of this edge is one of three joints (2026-11-12: the strips' lines ran on and
+				# crossed at the corners):
+				#   OUTSIDE corner (no floor beside it): the strip and its outer line run on by the wall's
+				#     width, to meet the perpendicular wall's exactly at the corner's point;
+				#   STRAIGHT (floor beside it, none past it): the next cell's wall carries on, stop here;
+				#   INSIDE corner (floor beside it AND past it): the strip stops here, and its outer line
+				#     a wall's width short, where it meets the other wall's outer line.
+				var ends: Array = []
+				for sgn in [1.0, -1.0]:
+					var sv: Vector2i = side_i * int(sgn)
+					if not _is_floor(here + sv):
+						ends.append([w, w])                     # [strip run, outer line run]
+					elif _is_floor(here + sv + dv):
+						ends.append([0.0, -w])
+					else:
+						ends.append([0.0, 0.0])
+				var mid: Vector2 = c + n * t * 0.5
+				var a0: Vector2 = mid + side * (t * 0.5 + float(ends[0][0]))
+				var a1: Vector2 = mid - side * (t * 0.5 + float(ends[1][0]))
+				var quad: PackedVector2Array = PackedVector2Array([a0, a1, a1 + n * w, a0 + n * w])
+				if shadow:
+					var off: Vector2 = Vector2(0.10, 0.15) * t
+					var sq: PackedVector2Array = PackedVector2Array()
+					for p in quad:
+						sq.append(p + off)
+					node.draw_colored_polygon(sq, Color(0.0, 0.0, 0.02, 0.55))
+					continue
+				node.draw_colored_polygon(quad, Color(0.66, 0.61, 0.52))       # warm ivory stone
+				# its outer edge: lit if it faces the light, dark if not -- butt-ended, so the lines of two
+				# walls meet at a corner without running past each other
+				var o0: Vector2 = mid + n * w + side * (t * 0.5 + float(ends[0][1]))
+				var o1: Vector2 = mid + n * w - side * (t * 0.5 + float(ends[1][1]))
+				var facing: float = n.dot(-light)
+				# a gold edge: bright toward the light, deep away from it
+				var edge_col: Color = Color(0.90, 0.74, 0.40) if facing > 0.1 else Color(0.46, 0.35, 0.16)
+				node.draw_line(o0, o1, edge_col, 1.3, false)
+				# where it meets the floor: a dark line, the floor edge's own length
+				node.draw_line(mid + side * t * 0.5, mid - side * t * 0.5, Color(0.12, 0.11, 0.14, 0.8), 1.0, false)
+
+# THE GREAT HALL'S FURNISHINGS (2026-11-12, hall_decor.gd), LAID OUT, not scattered: scattered at
+# random, small and many, they read as clutter when the whole castle is in view (user). So, few and
+# composed:
+#   PLAZAS   -- a fountain in each of the largest open spaces (farthest from any floor), a topiary on
+#              either side of it;
+#   COLONNADES -- along the longest room walls, a fixed distance out, centered on the wall, the columns
+#              two cells apart;
+#   then a reflecting pool or a rug or two only where real open space is left.
+# On cells with a clear cell all round (never against a wall), `rise` rows clear above a standing piece,
+# apart from each other; up to DECOR_REACH past the board. Deterministic for a board.
+var _decor: Array = []
+const DECOR_REACH: int = 5            # cells round the castle that are furnished
+const DECOR_GAP: float = 2.0          # clear cells between two pieces, at least
+const PLAZA_OPEN: int = 4             # a plaza's fountain wants this many clear cells all round
+const COLONNADE_OUT: int = 3          # cells between a room wall and its colonnade
+
+func _place_hall_decor() -> void:
+	for d in _decor:
+		if is_instance_valid(d):
+			d.queue_free()
+	_decor.clear()
+	if board.is_empty():
+		return
+	# the CASTLE's own area and a margin, not the whole board: the board is much bigger than the castle
+	# on it, and its most open spots were far out in its empty corners, off the screen
+	var lo: Vector2i = Vector2i(1 << 20, 1 << 20)
+	var hi: Vector2i = Vector2i(-(1 << 20), -(1 << 20))
+	for y in board.size():
+		for x in board[y].size():
+			if _is_floor(Vector2i(x, y)):
+				lo = Vector2i(mini(lo.x, x), mini(lo.y, y))
+				hi = Vector2i(maxi(hi.x, x + 1), maxi(hi.y, y + 1))
+	if hi.x < lo.x:
+		return
+	lo -= Vector2i(DECOR_REACH, DECOR_REACH)
+	hi += Vector2i(DECOR_REACH, DECOR_REACH)
+	# how open each cell is: Chebyshev distance to the nearest floor (rooms and corridors)
+	var open: Dictionary = {}
+	var queue: Array = []
+	for y in range(lo.y, hi.y):
+		for x in range(lo.x, hi.x):
+			if _is_floor(Vector2i(x, y)):
+				open[Vector2i(x, y)] = 0
+				queue.append(Vector2i(x, y))
+	var qi: int = 0
+	while qi < queue.size():
+		var c: Vector2i = queue[qi]
+		qi += 1
+		for dy in [-1, 0, 1]:
+			for dx in [-1, 0, 1]:
+				var q: Vector2i = c + Vector2i(dx, dy)
+				if q.x < lo.x or q.y < lo.y or q.x >= hi.x or q.y >= hi.y or open.has(q):
+					continue
+				open[q] = int(open[c]) + 1
+				queue.append(q)
+	var placed: Array = []           # Rect2, in cells, the pieces' footprints with their rise
+	# PLAZAS: the most open spots first -- open spaces BETWEEN the rooms (inside the castle's own bounds)
+	# before the margin round it
+	var inner_lo: Vector2i = lo + Vector2i(DECOR_REACH, DECOR_REACH)
+	var inner_hi: Vector2i = hi - Vector2i(DECOR_REACH, DECOR_REACH)
+	var spots: Array = []
+	for k in open.keys():
+		if int(open[k]) >= PLAZA_OPEN:
+			spots.append(k)
+	var inside: Callable = func(c: Vector2i) -> int:
+		return 1 if c.x >= inner_lo.x and c.y >= inner_lo.y and c.x < inner_hi.x and c.y < inner_hi.y else 0
+	spots.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var ka: int = int(inside.call(a)) * 1000 + int(open[a])
+		var kb: int = int(inside.call(b)) * 1000 + int(open[b])
+		return ka > kb or (ka == kb and (a.y * 1000 + a.x) < (b.y * 1000 + b.x)))
+	var n_plazas: int = 0
+	var max_plazas: int = maxi(1, ((hi.x - lo.x) * (hi.y - lo.y)) / 900)     # (at /450 a big castle repeated them)
+	for sp: Vector2i in spots:
+		if n_plazas >= max_plazas:
+			break
+		var at: Vector2i = sp - Vector2i(1, 1)
+		if not _try_decor(MmmHallDecor.Kind.FOUNTAIN, at, Vector2i(3, 3), 1, placed, 9.0):
+			continue
+		n_plazas += 1
+		# a topiary on EITHER side, or neither: one alone made the plaza lopsided
+		if _decor_fits(sp + Vector2i(-3, 0), Vector2i.ONE, 1) and _decor_fits(sp + Vector2i(3, 0), Vector2i.ONE, 1):
+			for side in [-1, 1]:
+				_try_decor(MmmHallDecor.Kind.TREE, sp + Vector2i(side * 3, 0), Vector2i.ONE, 1, placed, 0.5)
+	# COLONNADES along the longest room walls
+	var walls: Array = []            # [length, row start, length, horizontal]
+	for r: Rect2i in rooms:
+		walls.append([r.size.x, Vector2i(r.position.x, r.position.y - 1 - COLONNADE_OUT), true])
+		walls.append([r.size.x, Vector2i(r.position.x, r.end.y + COLONNADE_OUT), true])
+	walls.sort_custom(func(a: Array, b: Array) -> bool: return int(a[0]) > int(b[0]))
+	var n_cols: int = 0
+	for wl: Array in walls:
+		if n_cols >= maxi(1, rooms.size()):
+			break
+		var length: int = int(wl[0])
+		var start: Vector2i = wl[1]
+		# an odd number of cells, so the columns (two apart) end on both sides alike, centered on the wall
+		var span: int = length - 2
+		if span % 2 == 0:
+			span -= 1
+		if span < 3:
+			continue
+		var at2: Vector2i = start + Vector2i((length - span) / 2, 0)
+		var d: MmmHallDecor = _try_decor(MmmHallDecor.Kind.COLONNADE, at2, Vector2i(span, 1), 2, placed, DECOR_GAP)
+		if d != null:
+			d.spacing = 2
+			n_cols += 1
+	# then a pool and a rug or two, only in real open space
+	var extras: Array = [[MmmHallDecor.Kind.POOL, Vector2i(4, 2)], [MmmHallDecor.Kind.CARPET, Vector2i(4, 3)], [MmmHallDecor.Kind.CARPET, Vector2i(3, 2)]]
+	for ex: Array in extras:
+		for sp2: Vector2i in spots:
+			var fp: Vector2i = ex[1]
+			if _try_decor(int(ex[0]), sp2 - fp / 2, fp, 0, placed, DECOR_GAP + 1.0) != null:
+				break
+
+# One piece at `at` (its footprint's top-left cell) if it fits clear of floor and of the pieces already
+# placed (`gap` cells apart); returns it, or null.
+func _try_decor(kind: int, at: Vector2i, fp: Vector2i, rise: int, placed: Array, gap: float) -> MmmHallDecor:
+	if not _decor_fits(at, fp, rise):
+		return null
+	var rect: Rect2 = Rect2(Vector2(at) - Vector2(0, rise), Vector2(fp) + Vector2(0, rise))
+	for o in placed:
+		if (o as Rect2).grow(gap).intersects(rect):
+			return null
+	placed.append(rect)
+	var d: MmmHallDecor = MmmHallDecor.new()
+	d.kind = kind
+	d.cells = fp
+	d.seed_v = fposmod(float(at.x * 7 + at.y * 13) * 0.137, 1.0)
+	d.position = game.board_to_px(at) + Vector2(fp - Vector2i.ONE) * float(game.tile_size) * 0.5
+	d.z_index = -2
+	add_child(d)
+	_decor.append(d)
+	return d
+
+func _decor_fits(at: Vector2i, fp: Vector2i, rise: int = 0) -> bool:
+	# `rise`: rows above it a standing piece reaches up into, seen at the three-quarter angle
+	for y in range(at.y - 1 - rise, at.y + fp.y + 1):
+		for x in range(at.x - 1, at.x + fp.x + 1):
+			if _is_floor(Vector2i(x, y)):
+				return false
+	return true
+
+func _is_floor(q: Vector2i) -> bool:
+	if q.y < 0 or q.y >= board.size() or q.x < 0 or q.x >= board[q.y].size():
+		return false
+	var o: OneCell = board[q.y][q.x]
+	return o != null and o.ispipe
 
 func bcell(p:Vector2i) -> OneCell:
 	return board[p.y][p.x]
@@ -2217,4 +2446,23 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 7)
+	var field: Control = GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 7)
+	if field == null:
+		return
+	# THE PALACE FLOATS IN A NIGHT SKY (2026-11-12, palace_sky.gdshader): the lawn is still sized and
+	# fitted (the probes check it), but hidden, and the sky drawn over the same area.
+	field.visible = false
+	if _sky == null or not is_instance_valid(_sky):
+		_sky = ColorRect.new()
+		_sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var m: ShaderMaterial = ShaderMaterial.new()
+		m.shader = preload("res://mmm/scripts/palace_sky.gdshader")
+		_sky.material = m
+		field.get_parent().add_child(_sky)
+	field.get_parent().move_child(_sky, field.get_index() + 1)
+	_sky.position = field.position
+	_sky.size = field.size
+	(_sky.material as ShaderMaterial).set_shader_parameter("origin", field.position)
+	_sky.show()
+
+var _sky: ColorRect = null

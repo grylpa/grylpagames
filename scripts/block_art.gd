@@ -1,7 +1,8 @@
 class_name BlockArt
 extends Node2D
 
-# The drawn look of the BRICK blocks (Gorilla, Storm, Wolves, Mind Palace, Detour): any Sprite2D
+# The drawn look of the BRICK blocks (Gorilla, Storm, Wolves, Detour; Mind Palace draws castle props
+# instead, mmm/scripts/castle_prop.gd): any Sprite2D
 # showing art/bricks1-3.png. Those were small photo-textured squares, the last photographic thing
 # among the drawn art. Now a chunky block of bricks seen from above: a bevel lit from the screen's
 # top left, a soft shadow, three courses of bricks with mortar, each brick a little different.

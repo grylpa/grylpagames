@@ -47,7 +47,7 @@ come from `CouplesG.dino_texture(idx)`, loaded from the **shared** `res://art/di
 | `duration_sec` | level length; the level completes when it elapses |
 
 ## Gameplay flow
-- **Pre-level popup** (`game.show_game_popup`, the shared briefing card — see "The level intro" below): level, grid size, board time,
+- **Pre-level popup** (`game.show_game_popup`, the shared briefing card — see "The level intro" below; facts only since 2026-11-12, "Find the two matching cards" is the instructions screen's): level, grid size, board time,
   total time. Play starts when it closes (`closed` → `_on_game_popup_closed`).
 - **Board build** (`_build_board`): pick `NC*NR-1` distinct dino images; one of them is the
   duplicate (`target_img`). Its two cells are placed by a **coin flip**: half the time
@@ -132,7 +132,7 @@ Specific to this game:
   protection is that the board deadline is measured in `game.game_time`, which excludes paused
   time. Removing the `paused()` term from `_can_play()` does *not* break anything, because every
   phase comparison in `_process` reads that same frozen clock.
-- `new_game()` skips the "Find the two matching cards / Grid 2 x 2 / Board time…" intro popup in
+- `new_game()` skips the "Grid 2 x 2 / Board time…" intro popup in
   tutorial_mode, and `_level_done()` returns early so `duration_sec` running out mid-lesson cannot
   drop a level-completed popup on the coach.
 - **A dismiss-tap cannot reach the cards.** The cards' hit areas are Controls with `gui_input`,

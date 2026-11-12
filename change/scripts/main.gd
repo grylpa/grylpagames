@@ -50,7 +50,7 @@ func _ready() -> void:
 	game.set_instructions("Change",
 		"You are given an amount to pay. A pile of coins sits on the table." +
 		"\n\n" +
-		"Drag coins into the tray to make up the exact amount.", 28)
+		"Drag coins into the tray to make up the exact amount, then press Pay.", 28)
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		ChangeG.save_settings()
