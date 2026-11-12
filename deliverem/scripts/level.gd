@@ -168,6 +168,7 @@ func show_hide_walls():
 		e.show_hide_walls(board)
 			
 func create_board() -> void:
+	DeliveremG.settle_look()          # the theme, or for Random a pick for this board
 	_fit_ground_to_board()
 	start_dispatch = false
 	board.clear()
@@ -272,6 +273,7 @@ func create_board() -> void:
 				add_empty(Vector2i(col,row))
 	show_hide_walls()
 	LawnScatter.scatter(self, board, game, 12)     # a few small things on the lawn
+	_place_weather()                # streetlights at night, rain in the rain
 				
 	for pipe in pipes:
 		pipe.set_rot(board)
@@ -765,4 +767,170 @@ func tutorial_bottom_button(node_name: String) -> Control:
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 12)
+	var field: Control = GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 12)
+	_tint_lawn(field)
+
+# --- THE THEME: night and rain (2026-11-12) ----------------------------------------------------------
+# DeliveremLevelConfig.THEMES. The lawn is tinted for the hour and the weather (_fit_ground_to_board), the asphalt has
+# its own (pipe.gd, asphalt.gdshader `weather`), and here: STREETLIGHTS at night, RAIN in the rain.
+# MOBILE CONTRAST (2026-11-12, measured at phone size, path cells against the cells round them): the
+# lawn darker and the roads dimmed less than first set -- night measured 1.4-2.0 and rain 1.4-2.1.
+const NIGHT_LAWN: Color = Color(0.22, 0.28, 0.38)
+const RAIN_LAWN: Color = Color(0.40, 0.45, 0.49)      # overcast, and dark enough that the wet roads stand out
+const LAMP_EVERY: int = 26          # about one streetlight per this many lawn cells
+var _weather_nodes: Array = []
+
+func _place_weather() -> void:
+	for n in _weather_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	_weather_nodes.clear()
+	if DeliveremG.look == DeliveremLevelConfig.LOOK_NIGHT:
+		_place_streetlights()
+	elif DeliveremG.look == DeliveremLevelConfig.LOOK_RAIN:
+		var rain: RainFX = RainFX.new()
+		for p in pipes:
+			if is_instance_valid(p):
+				rain.roads.append((p as Node2D).position)
+		add_child(rain)
+		_weather_nodes.append(rain)
+
+func _place_streetlights() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 9100 + game.board_size.x * 31 + game.board_size.y
+	var spots: Array = []
+	for row in range(1, game.board_size.y - 1):
+		for col in range(1, game.board_size.x - 1):
+			var c = board[row][col]
+			if c.ispipe or c.istarget:
+				continue
+			for dv in [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]:
+				var q: Vector2i = Vector2i(col, row) + dv
+				if board[q.y][q.x].ispipe:
+					spots.append(Vector2i(col, row))
+					break
+	var want: int = maxi(2, (game.board_size.x * game.board_size.y) / LAMP_EVERY / 2)
+	var taken: Array = []
+	var order: Array = range(spots.size())
+	for i in range(order.size() - 1, 0, -1):          # a seeded shuffle, the same board the same way
+		var j: int = rng.randi_range(0, i)
+		var t = order[i]
+		order[i] = order[j]
+		order[j] = t
+	for k in order:
+		if taken.size() >= want:
+			break
+		var sp: Vector2i = spots[k]
+		var near: bool = false
+		for t2 in taken:
+			if ((t2 as Vector2i) - sp).length() < 4.5:
+				near = true
+				break
+		if near:
+			continue
+		taken.append(sp)
+		var lamp: StreetLamp = StreetLamp.new()
+		lamp.position = game.board_to_px(sp)
+		add_child(lamp)
+		_weather_nodes.append(lamp)
+
+# A streetlight seen from above: a dark round lamp head on its post, a warm glass, and a smooth pool of
+# light ADDED to the road and lawn round it (one radial gradient: stacked circles show as rings). No
+# shadow: it is the light.
+class StreetLamp extends Node2D:
+	var _glow: Node2D = null
+	static var _pool: GradientTexture2D = null
+	static func _pool_tex() -> GradientTexture2D:
+		if _pool == null:
+			var g: Gradient = Gradient.new()
+			g.set_color(0, Color(1, 1, 1, 1))
+			g.set_color(1, Color(1, 1, 1, 0))
+			g.add_point(0.35, Color(1, 1, 1, 0.55))
+			g.add_point(0.65, Color(1, 1, 1, 0.16))
+			_pool = GradientTexture2D.new()
+			_pool.gradient = g
+			_pool.fill = GradientTexture2D.FILL_RADIAL
+			_pool.fill_from = Vector2(0.5, 0.5)
+			_pool.fill_to = Vector2(1.0, 0.5)
+			_pool.width = 128
+			_pool.height = 128
+		return _pool
+	func _ready() -> void:
+		z_index = 2
+		_glow = Node2D.new()
+		var m: CanvasItemMaterial = CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		_glow.material = m
+		_glow.show_behind_parent = true
+		_glow.draw.connect(func() -> void:
+			_glow.draw_texture_rect(_pool_tex(), Rect2(-58, -58, 116, 116), false, Color(0.62, 0.48, 0.24, 0.85)))
+		add_child(_glow)
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, 7.5, Color(0.14, 0.15, 0.17))
+		draw_circle(Vector2.ZERO, 5.0, Color(1.0, 0.90, 0.62))
+		draw_circle(Vector2(-1.4, -1.4), 1.6, Color(1, 1, 1, 0.85))
+
+# Rain over whatever part of the board is on screen: thin slanted streaks falling, and now and then a
+# ripple ring spreading on a road. Above the board (z), under the HUD (that is another layer).
+class RainFX extends Node2D:
+	var roads: Array = []
+	var _drops: Array = []
+	var _rings: Array = []
+	var _t: float = 0.0
+	var _spawn: float = 0.0
+	const N: int = 150
+	const DIR: Vector2 = Vector2(-0.28, 1.0)
+	func _ready() -> void:
+		z_index = 60
+		for i in N:
+			_drops.append(Vector3(randf(), randf(), randf_range(0.7, 1.3)))
+	func _view() -> Rect2:
+		var inv: Transform2D = get_canvas_transform().affine_inverse()
+		return inv * Rect2(Vector2.ZERO, get_viewport_rect().size)
+	func _process(delta: float) -> void:
+		_t += delta
+		var v: Rect2 = _view()
+		var sp: float = 1.6 / maxf(1.0, v.size.y / 400.0)
+		for i in _drops.size():
+			var d: Vector3 = _drops[i]
+			d.y += delta * sp * d.z
+			d.x += delta * sp * d.z * DIR.x * v.size.y / maxf(1.0, v.size.x)
+			if d.y > 1.0:
+				d.y -= 1.0
+				d.x = randf()
+			d.x = fposmod(d.x, 1.0)
+			_drops[i] = d
+		_spawn -= delta
+		if _spawn <= 0.0 and not roads.is_empty():
+			_spawn = randf_range(0.04, 0.10)
+			var at: Vector2 = roads[randi() % roads.size()] + Vector2(randf_range(-14, 14), randf_range(-14, 14))
+			if v.has_point(at):
+				_rings.append(Vector3(at.x, at.y, 0.0))
+		for i in range(_rings.size() - 1, -1, -1):
+			var r: Vector3 = _rings[i]
+			r.z += delta / 0.55
+			if r.z >= 1.0:
+				_rings.remove_at(i)
+			else:
+				_rings[i] = r
+		queue_redraw()
+	func _draw() -> void:
+		var v: Rect2 = _view()
+		var L: float = v.size.y * 0.035
+		for d in _drops:
+			var p: Vector2 = v.position + Vector2(d.x * v.size.x, d.y * v.size.y)
+			draw_line(p, p + DIR.normalized() * L * d.z, Color(0.80, 0.86, 0.95, 0.28), 1.2, true)
+		for r in _rings:
+			var a: float = 1.0 - r.z
+			draw_arc(Vector2(r.x, r.y), 2.0 + 9.0 * r.z, 0.0, TAU, 20, Color(0.85, 0.90, 1.0, 0.45 * a), 1.2, true)
+
+# the lawn in the theme's light (the things on it are drawn under it and follow)
+func _tint_lawn(field: Control) -> void:
+	if field == null:
+		return
+	if DeliveremG.look == DeliveremLevelConfig.LOOK_NIGHT:
+		field.modulate = NIGHT_LAWN
+	elif DeliveremG.look == DeliveremLevelConfig.LOOK_RAIN:
+		field.modulate = RAIN_LAWN
+	else:
+		field.modulate = Color.WHITE

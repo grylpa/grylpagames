@@ -17,6 +17,9 @@ uniform float round_r = 8.0;
 // Which sides of this tile the road continues through (r, d, l, u), set per tile by pipe.gd. A
 // shared material (the corner fillets) leaves it all-open, which draws no tracks and no markings.
 uniform vec4 open_sides = vec4(1.0);
+// THE THEME'S WEATHER (2026-11-12, set by pipe.gd from the board's look): 0 day, 1 NIGHT -- darker,
+// cooler asphalt, the markings dimmer -- 2 RAIN -- wet: darker, a sheen and puddles reflecting the sky.
+uniform int weather = 0;
 const vec2 SIDE_DIR[4] = vec2[4](vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(-1.0, 0.0), vec2(0.0, -1.0));
 const vec2 CORNER_SIGN[4] = vec2[4](vec2(1.0, 1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0), vec2(1.0, -1.0));
 
@@ -80,6 +83,23 @@ void fragment() {
 		dot_m = 0.0;     // no dashes inside a junction
 	}
 	vec3 stud = vec3(0.96, 0.80, 0.25);
+	if (weather == 1) {
+		// only a little darker than by day, and cool: the NIGHT is in the lawn. Dark roads measured a
+		// contrast of only 1.4 against the night lawn on a phone (2026-11-12): a phone's glare eats the
+		// darkest steps, so what must be told apart has to stay bright.
+		col *= vec3(0.84, 0.88, 1.02);
+		stud *= 0.85;
+	} else if (weather == 2) {
+		col *= 0.96;            // wet, barely darker (for a phone's sake, as at night)
+		// a wet sheen in long soft streaks, and puddles: smooth, dark, catching the gray sky at their rims
+		float sheen = smoothstep(0.55, 0.85, noise(world / vec2(9.0, 70.0) + 3.0));
+		col += vec3(0.05, 0.055, 0.065) * sheen;
+		float pud = smoothstep(0.64, 0.70, noise(world / 46.0 + 11.0));
+		float rim = pud * (1.0 - smoothstep(0.70, 0.76, noise(world / 46.0 + 11.0)));
+		col = mix(col, vec3(0.10, 0.11, 0.13), pud * 0.8);
+		col += vec3(0.10, 0.11, 0.13) * rim;
+		stud *= 0.85;
+	}
 	col = mix(col, stud, dot_m);
 	float keep = 1.0;
 	for (int i = 0; i < 4; i++) {

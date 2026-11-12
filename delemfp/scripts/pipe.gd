@@ -102,6 +102,8 @@ func _dress_road() -> void:
 		_asphalt = ShaderMaterial.new()
 		_asphalt.shader = preload("res://delemfp/scripts/asphalt.gdshader")
 	# this tile's own copy: its outer corners are rounded by a uniform (RoadCorners.convex)
+	# the theme's weather (night, rain) on the asphalt; the shared material is set too, for the fillets
+	_asphalt.set_shader_parameter("weather", DelemfpG.look)
 	_mat = _asphalt.duplicate()
 	for sp: Sprite2D in [$PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
 		sp.material = _mat
@@ -149,6 +151,13 @@ func _draw_curb() -> void:
 	var sh: float = 3.0
 	var stone: Color = Color(0.52, 0.51, 0.49)
 	var lit: Color = Color(0.80, 0.79, 0.75, 0.35)
+	# the curbs in the theme's light: dim and cool at night, darker and wet in the rain
+	if DelemfpG.look == DelemfpLevelConfig.LOOK_NIGHT:
+		stone = Color(0.27, 0.29, 0.34)
+		lit = Color(0.55, 0.60, 0.72, 0.25)
+	elif DelemfpG.look == DelemfpLevelConfig.LOOK_RAIN:
+		stone = Color(0.38, 0.39, 0.40)
+		lit = Color(0.80, 0.84, 0.90, 0.45)
 	var shade: Color = Color(0, 0, 0, 0.22)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])

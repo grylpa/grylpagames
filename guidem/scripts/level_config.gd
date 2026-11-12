@@ -15,6 +15,37 @@ class_name GuidemLevelConfig
 # This table used to be an `if level == n:` ladder in level.gd, with the board size computed
 # beside it as 7 + 2 * level. Every level now states its own values.
 
+# THE THEME (2026-11-12), chosen in the main menu (GuidemG.theme, saved with the settings): the weather and
+# the hour the roads lie in. LOOK_DAY the roads as they were; LOOK_NIGHT a dark cool lawn, darker asphalt
+# and streetlights casting warm pools (level.gd StreetLamp); LOOK_RAIN an overcast lawn, wet asphalt
+# with puddles (asphalt.gdshader `weather`), falling rain and ripples on the roads (level.gd RainFX).
+# Random picks one for every board. GuidemG.look is the CURRENT board's (settled in create_board); pipe.gd,
+# level.gd and the shader read it. A new theme: one more entry here (before Random) and its look there.
+const LOOK_DAY: int = 0
+const LOOK_NIGHT: int = 1
+const LOOK_RAIN: int = 2
+const LOOK_RANDOM: int = -1
+const DEFAULT_THEME: int = LOOK_RANDOM
+const REAL_LOOKS: Array = [LOOK_DAY, LOOK_NIGHT, LOOK_RAIN]
+const THEMES: Array = [
+	{"look": LOOK_DAY, "name": "Day"},
+	{"look": LOOK_NIGHT, "name": "Night"},
+	{"look": LOOK_RAIN, "name": "Rain"},
+	{"look": LOOK_RANDOM, "name": "Random"},
+]
+
+static func theme_names() -> Array:
+	var out: Array = []
+	for t: Dictionary in THEMES:
+		out.append(t["name"])
+	return out
+
+static func theme_index(look: int) -> int:
+	for i in THEMES.size():
+		if int(THEMES[i]["look"]) == look:
+			return i
+	return 0
+
 const LEVELS: Array = [
 	{"level": 1, "rounds": 1, "board_size": 9,  "dispatch_ms": 5000, "num_more_packets": 0, "max_speed_scale": 1.0, "cars_to_park": 3},
 	{"level": 2, "rounds": 1, "board_size": 11, "dispatch_ms": 2500, "num_more_packets": 0, "max_speed_scale": 1.5, "cars_to_park": 3},

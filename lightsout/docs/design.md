@@ -235,14 +235,19 @@ Response times are handed to the shared session record as a whole distribution, 
 `art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `lightsout()`), not
 grabbed. The old tile was a screen grab of the lit board, every marker a few pixels.
 
-It is now ONE board with the lights going out across it (2026-10-30): a soft diagonal split from
-corner to corner, the lit half holding what you must remember -- the dark red bomb on the short way
-and your blue goal pad at the road's end (the road stops there, lawn beyond) -- and the half you
-stand in already dark, only the player (the game's blue creature, glowing) visible in it. The tile
-before this (the walker with its eyes shut and the maze in a thought bubble) read at chooser size as
-a dark board with a blob in the corner. Earlier drafts that were turned down: a split between lit
-and dark (a different, earlier draw of this idea), a light switch, a remembered route on the dark
-board, a light bulb with the maze in its glass.
+It is now **THE LAST LANTERN** (2026-11-12): an old lantern hanging on a chain in the dark, its warm
+light pooling on a few stones of a path that curves away and dissolves into the black, and the game's
+blue walker standing on the near stones at the edge of the light. An icon of the game's idea -- you see
+the way, then walk it in the dark -- not a scene of play, so it fits both themes (the coal mine and the
+night garden). Drawn with soft layered light (`_radial`, `_halo`).
+
+Before it, from 2026-10-30, one board with the lights going out across it on a diagonal (the lit half
+holding the bomb and the blue goal, the dark half the glowing player) -- on tar roads and a day lawn the
+game no longer has. Turned down on the way to the lantern: the board redrawn in each theme, crops of the
+real board rendered in the game (both "super ugly", the drawn garden "nothing like the game"), a
+remembered route on a dark board, a lantern lighting a patch of paths, and a firefly trail. Earlier
+still: the walker with its eyes shut and the maze in a thought bubble (a dark board with a blob in the
+corner at chooser size), a light switch, a light bulb with the maze in its glass.
 
 ## Sounds
 
@@ -273,6 +278,44 @@ night garden (chosen over a house at night and a cave):
   to turn 70% see-through, but the path shader assigned its color outright and so dropped the node's
   tint: nothing showed at all. `garden_path.gdshader` now multiplies in the tint, taken in `vertex()`
   (in `fragment()` COLOR already carries the tile art's texture, road markings and all).
+
+## The coal mine (a second look, 2026-11-12)
+
+**The theme is the player's choice: "Theme" in the main menu** (2026-11-12), a dropdown (a list, not a
+switch, though there are two so far -- more may come): `LightsoutLevelConfig.THEMES` is the list in the
+menu's order (`theme_names`, `theme_index`), `LightsG.theme` the choice, saved as the third settings
+value (an older save has none and gets `DEFAULT_THEME`: Random since 2026-11-12, the mine before). It takes effect with the next board;
+switching back to the garden brings the lawn back and hides the rock (`_fit_ground_to_board`). Both
+looks were liked; Random is the default. (The third idea, a house at night, was not built.) A new
+theme is one more entry in `THEMES` and its look in level.gd, pipe.gd, empty_space.gd and the shaders.
+**"Random"** is the list's third entry (`LOOK_RANDOM`, -1): every new board picks one of the real
+looks (`REAL_LOOKS`) at random. So the code keeps two things apart: `LightsG.theme`, the CHOICE (saved,
+shown in the menu), and `LightsG.look`, the look the current board is drawn in, settled at the start of
+`create_board()` (`LightsG.settle_look`). Everything that draws reads `look`.
+**A fade left running is stopped by `reset()`** (2026-11-12): the lights going off starts a half-second
+fade of the paths (`_dim_tw`); opening the menu inside it paused it, and resumed after a new board was
+built it darkened the NEW paths -- the board started dark, and at the countdown's end `turn_lights_off`
+restarted the fade from lit: a flash of light, then dark. `reset()` kills it and relights the mine's
+rock. (Reproduced by starting a new board mid-fade: the new paths came out at the dark tone with the
+lights on; with the fix, at full light.)
+- **Tunnel floor** (`garden_path.gdshader` `look` 1, `mine_floor`): packed earth and gravel, coal dust
+  in patches, sparse small stones, falling into shadow toward each tunnel wall (`open_sides`).
+- **Rock** where the lawn was (`mine_rock.gdshader` on a ColorRect over the GrassField's area, the lawn
+  hidden, no lawn things): dark blocky masses with cracks, broad nearly level coal STRATA (thin wiggly
+  bands read as scribbles), a rare mineral fleck. The walls' lip is a dark rock edge catching warm light
+  (pipe.gd `_draw_curb`), the empty cells' rim dark rock (empty_space.gd `RIM_MINE`).
+- **Lanterns** on the rock beside the tunnels (the garden lamps, `mine`): warmer and FLICKERING.
+- **Lights off**: the tunnels AND the rock dim (`PATHS_DARK_MINE` 0.62, `ROCK_DARK_MINE` 0.26; the rock
+  shader multiplies in its tint like the path shader), the tunnels much LESS than the rock, so they stay
+  readable on a phone: with only the tunnels dimmed the rock stood brighter than them, and at 0.42 / 0.40
+  the two were so close the tunnels all but vanished on a phone's screen.
+- **Phone contrast** (2026-11-12, median brightness of path cells against the cells round them, WCAG):
+  coal mine 2.6 lit / 2.3 dark (the floor lighter, 0.42/0.37/0.31, and the rock darker than first set;
+  `PATHS_DARK_MINE` 0.86 -- at 0.62 the dark measured 1.7), night garden 2.8 / 2.3.
+- **The lamps' light is one smooth radial gradient** (`GardenLamp._pool_tex`, added; 56 px, the
+  mine's at 0.95 and the garden's at 0.75 -- the first gradient, at 0.50 / 0.40 over 48, was too weak):
+  eight stacked circles showed as rings. And **no shadow** on a lamp: it is the light, so a shadow off to one side --
+  as the other drawings have -- made no sense.
 
 ## Look (2026-10)
 

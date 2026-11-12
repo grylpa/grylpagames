@@ -105,6 +105,8 @@ func _dress_road() -> void:
 		_asphalt.shader = preload("res://lightsout/scripts/garden_path.gdshader")
 	# this tile's own copy: its outer corners are rounded by a uniform (RoadCorners.convex)
 	_mat = _asphalt.duplicate()
+	_mat.set_shader_parameter("look", LightsG.look)
+	_asphalt.set_shader_parameter("look", LightsG.look)
 	for sp: Sprite2D in [$PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
 		sp.material = _mat
 	_curb = Node2D.new()
@@ -138,9 +140,13 @@ func _draw_curb() -> void:
 	var t: float = 20.0
 	var cw: float = 1.5
 	var sh: float = 3.0
-	# the path's edging: a darker stone than the flagstones, its top edge catching a little moonlight
-	var stone: Color = Color(0.36, 0.37, 0.39)
-	var lit: Color = Color(0.70, 0.74, 0.80, 0.30)
+	# the path's edging: a darker stone than the flagstones, its top edge catching a little moonlight;
+	# in the mine, the rough lip of the rock wall, catching the lanterns' warm light
+	var mine: bool = LightsG.look == LightsoutLevelConfig.LOOK_MINE
+	var stone: Color = Color(0.17, 0.15, 0.14) if mine else Color(0.36, 0.37, 0.39)
+	var lit: Color = Color(0.85, 0.62, 0.35, 0.30) if mine else Color(0.70, 0.74, 0.80, 0.30)
+	if mine:
+		cw = 2.5
 	var shade: Color = Color(0, 0, 0, 0.22)
 	var clear: Color = Color(shade, 0.0)
 	var shade_cols: PackedColorArray = PackedColorArray([shade, shade, clear, clear])

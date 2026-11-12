@@ -279,6 +279,29 @@ while the truck moved.) Before: it puffed up and shrank on the road and the cart
 a whole place in one frame; held aboard until it was itself level with the dock (a first version), a
 truck stopped at the receiver delivered nothing until it was driven back past it.
 
+## Themes: day, night, rain (2026-11-12)
+
+"Theme" in the main menu (a list): **Day** (the roads as they were), **Night**, **Rain**, and **Random**,
+the default, which picks one for every board. `DelemfpLevelConfig.THEMES` is the list; `DelemfpG.theme` the choice
+(saved as the third settings value -- an older save has none and gets Random), `DelemfpG.look` the
+current board's, settled at the start of `create_board()` (`DelemfpG.settle_look`).
+- **Night**: the lawn tinted `NIGHT_LAWN`, the asphalt darker and cooler with dimmer markings
+  (asphalt.gdshader `weather` 1), the curbs dim (pipe.gd), and STREETLIGHTS (`StreetLamp`) on lawn cells
+  beside the roads, 4.5 cells apart, each a smooth additive pool of warm light (one radial gradient --
+  stacked circles show as rings -- and no shadow: it is the light).
+- **Rain**: the lawn overcast (`RAIN_LAWN`), the asphalt wet (`weather` 2: darker, a sheen in long soft
+  streaks, puddles catching the sky at their rims), and `RainFX`: slanted streaks falling over whatever
+  part of the board is on screen, and ripple rings spreading now and then on a road.
+The same code is in Valet, Dispatch and Headlights, each its own copy.
+
+**Phone contrast** (2026-11-12, measured at phone size: the median brightness of road cells against
+the cells round them, as a WCAG ratio): Day 1.2-1.3 (the look as it was), Night 1.6, Rain 1.6-1.7. Night
+and rain first measured 1.4-1.5 -- dark roads: a phone's glare eats the darkest steps -- so the night is
+put in the LAWN (`NIGHT_LAWN` 0.22/0.28/0.38) while the roads stay nearly as bright as by day, cool
+(`weather` 1: x 0.84/0.88/1.02), and wet roads are barely darker (x 0.96). Reaching 2 would take lighter
+asphalt in every theme, Day included (not done: asked). The light curb lines, which this measure does not
+see, carry the road edges.
+
 ## The skeleton and its backing line
 
 `Skeleton` is a `Line2D` whose points are the head, each packet and the tail. `SkeletonBK` is a
