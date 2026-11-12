@@ -115,7 +115,7 @@ shade darkens the screen's edges and the bottom (`_shade`).
    goes back.
 3. **FREEZE**: the whistle. Everyone stops mid-stride; nothing moves until the round ends.
 4. **ASK_CUP**: "Where is the ball?" (EVERY line the game says is framed and popped in -- a dark
-   pill with a shadow and an edge, `_say`: the two questions at 36 with a gold edge, the result lines
+   pill with a shadow and an edge, `_say`: the questions on two lines at 30 (`QUESTION_FS`, see "The questions") with a gold edge, the result lines
    at 30 with the edge in their own color. Plain, they read like captions and were missed.) Tapping a cup lifts it (`ball` / `empty`). After a wrong cup,
    the right one comes up too.
 5. **ASK_PERSON**: "Who was robbed?" (or "Who was the pickpocket?", `thief_q`). Tap a person, or
@@ -138,15 +138,25 @@ shade darkens the screen's edges and the bottom (`_shade`).
 
 ## The theft is choreographed
 
-`_start_round` plans it for a moment inside the shuffle, with time left before the freeze for the
-pickpocket to get away. It happens in one of two places.
+`_start_round` plans it for a moment inside the shuffle, over `THEFT_DONE_MS` (0.25 s) before the
+freeze. No time is kept for a getaway (until 2026-11-12, 1.2 s was). It happens in one of two places.
 
 - **On the street** (`_plan_theft`): it picks a victim already on screen, walking or window-shopping.
   It sends a NEW walker in from behind them at the speed that brings the two together at that
-  moment, at a spot where the victim will still be on screen at the freeze. The pickpocket keeps
-  pace, reaches into the back pocket (`reach`), and the wallet travels pocket -> hand -> coat. Then
-  they walk on, or double back half the time, and stop at a window once they are clear of the
-  victim. If nobody suitable is on the street, someone stops to look in a window and is tried again.
+  moment, at a spot where the victim will still be on screen at the freeze. The pickpocket first
+  walks right behind the victim for `tail_ms`, keeping pace (the hand went in the moment they
+  caught up, which was too quick to see), then reaches into the back pocket (`reach`), and the
+  wallet is drawn out and carried to their own pocket (see "The grab" below). Then ANYTHING, as an
+  onlooker at the table never leaves either: they stop right there (30%), double back the way they
+  came (35%) or walk on (35%), and a walker stops at a window once clear of the victim (the lesson's
+  pickpocket never just stops: it must be pointed out on screen). If nobody suitable is on the street, someone stops to look in a window and is tried again.
+  **The meeting is timed by choosing a moment and working out the speed** (7 moments across the
+  window, speeds 0.85-1.45 of a walk); it tried five fixed speeds and hoped one landed in the window,
+  and once `tail_ms` narrowed it (level 1: under 0.2 s) rounds quietly came out with no theft. The window
+  starts 6% into the shuffle and ends `tail_ms + lift_ms + THEFT_DONE_MS` before the freeze. A fallback
+  window-shopper faces away from the nearer edge, so the pickpocket comes from there; and if the
+  street still cannot be timed, the theft happens at the table (`_plan_crowd_theft` /
+  `_plan_corner_theft`) -- a round is empty only when it was meant to be.
 - **In the crowd at the table** (`_plan_crowd_theft`, about a third of thefts when there is a pair):
   one onlooker of a pair robs the other without taking a step, EITHER WAY ROUND at random -- the
   edge one from the inner one's back pocket (which faces the edge), or the inner one from the edge
@@ -176,8 +186,19 @@ pickpocket to get away. It happens in one of two places.
 
 Nothing marks the pickpocket. They come from the same pool of looks, at a walking speed inside the
 ordinary range, and blend back in. **The theft makes no sound**, because a sound would tell the
-player when to look up. On the easy levels (`cue`) the wallet is bright yellow and the victim
-starts at the touch (`jolt`).
+player when to look up. On the easy levels (`cue`, levels 1-2) the wallet is bright yellow and the
+victim STARTS at the touch (`jolt`): once the wallet is out of the pocket the whole figure rises
+5% of its height and settles (`_bob`), up on the toes -- a startle, a second cue for where to look.
+
+**The grab is one continuous move** (`_lift_wallet`, 2026-11-12, from a frame-by-frame strip): over
+`lift_ms` the hand goes to the pocket (to 0.30), draws the wallet UP out of it -- only the part above
+the pocket's mouth shows, `_wallet_clip` (to 0.50) -- carries it in its fingers to the thief's own
+coat pocket at the front hip (`stash_point`, to 0.78), pushes it down in (to 0.90) and goes back to
+rest. The wallet hangs from `grip_point` with the fingertips drawn over its top, so it is always
+HELD; it is a real wallet's size (`WALLET_W`/`WALLET_H`, 0.085 x 0.06 of a height -- it was twice
+that). The arm from the edge does the same up to the pull and then carries it out of the picture.
+Before, the wallet appeared whole beside the pocket before the hand arrived, glided to meet it,
+jumped to the thief's chest and hung there in the air while the hand went back.
 
 **No one carries a visible wallet.** One drawn on everyone would let the player find the victim
 afterwards by scanning for the one without it.
@@ -221,11 +242,37 @@ afterwards by scanning for the one without it.
   way each faces (`_metal`). The rim bows toward the viewer and the base is a full ellipse. The
   first version was shaded in flat strips with a straight rim and read as a wooden bucket. The
   cups are identical on purpose, so the ball cannot be found afterwards by a mark on its cup.
+- **The ball** (`_draw_ball`) has a radius of 0.25 `cup_w` (it was 0.18, too small to spot at a glance
+  under a lifted cup), so it is about half the cup's mouth across.
 
 ## People (passerby.gd)
 
 - **Proportions and shading.** Adult proportions, tapered limbs bending at knee and elbow,
   everything shaded by `_lit` (higher is brighter, the lamp's side brighter and warmer).
+- **Nothing on a person changes in one frame** (`tick_motion`, 2026-11-12, called for everyone every
+  live frame). A head turning for a glance back narrows about its center to 60% and widens the other
+  way (`_glance`, `TURN_S` 0.24 s); a figure turning on the spot (a pickpocket doubling back) does the
+  same to 55% (`_face`); setting off and stopping blend stride and stance, the arm swing, the standing
+  poses and the lean over 0.3 s (`_gait`). Each used to switch in a frame. A deeper squash (30%) was
+  tried and left a paper sliver mid-turn: a person seen from the front is wider, not thinner.
+- **A glance back is a moment**: anyone, standing or walking, now and then looks back over their
+  shoulder for 0.5-1.1 s (not an onlooker watching the cups, not the pickpocket at work). It was one
+  of the standing fidgets, held until the next change of pose, so one caught as they set off kept
+  the head turned for the whole walk.
+- **The body is seen from the side** (`DEPTH` 0.68, 2026-11-12): the head, legs and arms always were,
+  but the coat was a front view's breadth (0.22 of the height across the shoulders), so everyone
+  looked barrel-chested. Every torso measure across the figure, the pockets (`pocket_point`,
+  `stash_point`, level.gd's `_steal_point`) and the lighting's side scale by it.
+- **The near arm has an edge** (`_draw_arm`, 2026-11-12): a dark contour round the sleeve and the
+  hand, and the sleeve a shade LIGHTER than the coat. It was the coat's own color lying on the coat,
+  so an arm in front of the body vanished into it and a hand going for a pocket was never seen to
+  move. The hands are a quarter larger than they were. The far arm, behind the body, has no edge.
+- **Elbows are SOLVED, never placed** (`_elbow_for`, 2026-11-12): two-bone IK from the shoulder and
+  the hand at the arm's true lengths (`UPPER_ARM` 0.165, `FOREARM` 0.15 of a height), the elbow always
+  behind and below the shoulder-hand line for the way the person faces. Each pose used to place its
+  own elbow: the hand on the hip bent it backwards, and blends between poses could swing it across.
+  The arm from the screen's edge (`_hand_points`) is solved the same way, its shoulder an arm's reach
+  behind the hand but never on screen (it was a hose, a stub growing to twice an arm's length).
 - **Telling people apart.** People are distinguished by coat color (kept unique on screen), cut,
   hat or hairstyle, bag, skin and height.
 - **Standing people are never still** (`tick_idle`). They breathe, shift their weight, lean, glance
@@ -234,16 +281,23 @@ afterwards by scanning for the one without it.
 
 ## Levels (PickpocketLevelConfig)
 
-| id | cups | swaps | swap_ms | crowd | lift_ms | cue | thief_q | empty_p | fake_p | far | rounds | pass |
-|----|------|-------|---------|-------|---------|-----|---------|---------|--------|-----|--------|------|
-| 1 | 3 | 4 | 760 | 4 | 1100 | yes | 0 | 0 | 0 | no | 6 | 66 |
-| 2 | 3 | 5 | 660 | 5 | 900 | yes | 0 | 0 | 0 | no | 6 | 66 |
-| 3 | 3 | 6 | 570 | 6 | 760 | no | 0 | 0 | 0 | yes | 6 | 66 |
-| 4 | 3 | 7 | 510 | 6 | 660 | no | 0.3 | 0 | 0 | yes | 8 | 75 |
-| 5 | 4 | 7 | 490 | 7 | 570 | no | 0.3 | 0 | 0.15 | yes | 8 | 75 |
-| 6 | 4 | 8 | 450 | 7 | 500 | no | 0.35 | 0.15 | 0.2 | yes | 8 | 75 |
-| 7 | 4 | 9 | 410 | 8 | 430 | no | 0.4 | 0.2 | 0.25 | yes | 8 | 75 |
-| 8 | 5 | 10 | 380 | 9 | 370 | no | 0.4 | 0.2 | 0.3 | yes | 8 | 75 |
+| id | cups | swaps | swap_ms | crowd | lift_ms | tail_ms | cue | thief_q | empty_p | fake_p | far | rounds | pass |
+|----|------|-------|---------|-------|---------|---------|-----|---------|---------|--------|-----|--------|------|
+| 1 | 3 | 4 | 760 | 4 | 1500 | 600 | yes | 0 | 0 | 0 | no | 6 | 66 |
+| 2 | 3 | 5 | 660 | 5 | 1400 | 550 | yes | 0 | 0 | 0 | no | 6 | 66 |
+| 3 | 3 | 6 | 570 | 6 | 1300 | 500 | no | 0 | 0 | 0 | yes | 6 | 66 |
+| 4 | 3 | 7 | 510 | 6 | 1200 | 450 | no | 0.3 | 0 | 0 | yes | 8 | 75 |
+| 5 | 4 | 7 | 490 | 7 | 1100 | 400 | no | 0.3 | 0 | 0.15 | yes | 8 | 75 |
+| 6 | 4 | 8 | 450 | 7 | 1000 | 350 | no | 0.35 | 0.15 | 0.2 | yes | 8 | 75 |
+| 7 | 4 | 9 | 410 | 8 | 950 | 300 | no | 0.4 | 0.2 | 0.25 | yes | 8 | 75 |
+| 8 | 5 | 10 | 380 | 9 | 900 | 300 | no | 0.4 | 0.2 | 0.3 | yes | 8 | 75 |
+
+**The theft's pace** (2026-11-12, "too fast"): `lift_ms` -- the reach in, a hold at the pocket, the
+hand out -- was 1100 down to 370 ms, a blink on the upper levels; it is now 1500 down to 900. The
+arm from the screen's edge takes `HAND_MS_K` (1.5) times it, the crowd thefts exactly it, and a street
+pickpocket adds `tail_ms` of walking behind the victim first. **One knob moves them all:**
+`PickpocketLevelConfig.THEFT_PACE` multiplies every `lift_ms` and `tail_ms` (1.0 now; higher is
+slower and easier to notice). The longest theft fits the shortest shuffle with room to spare.
 
 `far` (`far_thefts`): whether a theft may happen among the FAR people, on the sidewalk across the
 road by the shops. They are small and far off, much harder to notice, so levels 1-2 keep every theft
@@ -251,6 +305,24 @@ on the near side of the road or at the table (also the fallback window-shopper, 
 
 `crowd` is the street's walkers. The onlookers are on top of that. `pass_pct` sits on a rung of
 the round count: 66 = 4 of 6, 75 = 6 of 8.
+
+## The questions
+
+**Two short lines, a size smaller** (`QUESTION_FS` 30, 2026-11-12): "Where is / the ball?", "Who was /
+robbed?", "Who was the / pickpocket?". On one line at 36 the pill ran across the onlookers at the
+table's front corners on a phone -- over their coats, near their back pockets; two lines make a
+narrow pill that stands between them. (Result lines stay one line at 30.)
+
+## The "No one" button
+
+- **A button, not a caption** (2026-11-12): solid app gold (`ScreenBackdrop.ACCENT`) with dark ink, a
+  deeper gold lip along its bottom and a shadow; pressed, it sinks onto its lip. It was a dark pill
+  with a gold edge and gold letters -- the question's own pill -- and read as one more line of text.
+- **Never over anyone** (`_place_noone`, when the question is asked; the street is frozen then): the
+  first spot whose box touches no one's `body_rect` (grown 6) -- the road between the sidewalks; the
+  band of shop fronts above the far sidewalk, where nobody stands; under the question. It used to sit
+  at a fixed spot on the road, where the near sidewalk's heads and hats reach up into it. On a phone
+  the near people are tall enough that it usually goes to the shop fronts.
 
 ## Scoring
 

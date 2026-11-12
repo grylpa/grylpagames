@@ -64,6 +64,10 @@ var bag_col: Color = BAG_COLORS[0]
 var scarf: bool = false
 var scarf_col: Color = Color.WHITE
 var build: float = 1.0        # 0.9 slight .. 1.12 broad
+# THE BODY IS SEEN FROM THE SIDE (2026-11-12): the head, legs and arms always were, but the coat was
+# drawn at a front view's breadth -- 0.22 of the height across, where a chest seen side-on is about
+# 0.15 -- so everyone looked barrel-chested. Every torso measure across the figure is scaled by this.
+const DEPTH: float = 0.68
 
 # --- motion (the level moves it; these are only what the drawing needs) ---
 var dir: int = 1              # +1 faces right, -1 faces left
@@ -103,15 +107,76 @@ func tick_idle(dt: float, rng: RandomNumberGenerator) -> void:
 		_want["hip"] = 1.0 if r >= 0.22 and r < 0.42 else 0.0
 		_want["far_hip"] = 1.0 if rng.randf() < 0.25 else 0.0
 		_want["lean"] = rng.randf_range(-0.025, 0.035)
-		_want["glance"] = 1.0 if rng.randf() < 0.18 else 0.0
 	var k: float = 1.0 - exp(-3.5 * dt)
 	var ex: float = clampf(excite, 0.0, 1.0)
 	_w_chin = lerpf(_w_chin, float(_want["chin"]) * (1.0 - ex), k)
 	_w_hip = lerpf(_w_hip, float(_want["hip"]) * (1.0 - ex * 0.5), k)
 	_w_far_hip = lerpf(_w_far_hip, float(_want["far_hip"]), k)
 	_lean = lerpf(_lean, float(_want["lean"]) + ex * 0.07, k)
-	_glance = lerpf(_glance, float(_want["glance"]) * (1.0 - ex), k * 1.6)
 	queue_redraw()
+
+# NOTHING ON A PERSON CHANGES IN ONE FRAME (2026-11-12). Three things did: the head's glance back
+# flipped it from one profile to the other, a pickpocket doubling back was mirrored on the spot, and
+# setting off or stopping snapped the legs between stride and stance and the arms out of a pose (a
+# hand on the hip jumped to a walking swing). Now:
+#   _glance  0..1 eases over TURN_S: the head narrows toward a front view, then widens the other way
+#   _face    -1..1 eases toward `dir` the same way, for the whole figure (a turn on the spot)
+#   _gait    0 standing .. 1 walking, eased over GAIT_S: stride, stance, swing, poses and lean blend
+# All three move in tick_motion, which the level calls for everyone every frame the street is live.
+const TURN_S: float = 0.24
+const GAIT_S: float = 0.30
+# The narrowest a figure (or a head) gets mid-turn, as a share of its width. Only a hint of the turn:
+# a person seen from the front is WIDER, not thinner, so a deep squash (0.30 was tried) left a paper
+# sliver in the middle of every turn.
+const TURN_MIN_W: float = 0.55
+const HEAD_TURN_MIN_W: float = 0.60
+
+# A GLANCE BACK IS A MOMENT: now and then anyone, standing or walking, looks back over their shoulder
+# for half a second to a second, then ahead again. It was a standing fidget held until the next change
+# of pose, so one caught as they set off kept the head turned for the whole walk (someone walking
+# right to left, looking right). Not while an onlooker is watching the cups.
+var _glance_left: float = 0.0     # seconds left of the glance under way
+var _glance_wait: float = -1.0    # seconds to the next one
+var _face: float = 0.0            # 0 = not set yet (takes `dir` at the first tick)
+var _gait: float = -1.0           # < 0 = not set yet (takes `walking` at the first tick)
+
+func tick_motion(dt: float, rng: RandomNumberGenerator, may_glance: bool) -> void:
+	if _glance_wait < 0.0:
+		_glance_wait = rng.randf_range(2.0, 9.0)
+	if not may_glance:
+		_glance_left = 0.0
+	elif _glance_left > 0.0:
+		_glance_left -= dt
+	else:
+		_glance_wait -= dt
+		if _glance_wait <= 0.0:
+			_glance_wait = rng.randf_range(5.0, 12.0) if walking else rng.randf_range(3.0, 8.0)
+			if excite < 0.3:
+				_glance_left = rng.randf_range(0.5, 1.1)
+	_glance = move_toward(_glance, 1.0 if _glance_left > 0.0 else 0.0, dt / TURN_S)
+	if _face == 0.0:
+		_face = float(dir)
+	_face = move_toward(_face, float(dir), dt * 2.0 / TURN_S)
+	if _gait < 0.0:
+		_gait = 1.0 if walking else 0.0
+	_gait = move_toward(_gait, 1.0 if walking else 0.0, dt / GAIT_S)
+	queue_redraw()
+
+# 0 standing .. 1 walking, smoothed
+func _g() -> float:
+	if _gait < 0.0:
+		return 1.0 if walking else 0.0
+	return _gait * _gait * (3.0 - 2.0 * _gait)
+
+# The whole figure's x scale: 1 facing `dir`, through TURN_MIN_W, to -1 (still facing the old way).
+func _body_sx() -> float:
+	var v: float = 1.0 if _face == 0.0 else _face * float(dir)
+	return (1.0 if v >= 0.0 else -1.0) * maxf(absf(v), TURN_MIN_W)
+
+# The head: which way it faces (+1 = with the body) and how wide it is drawn, mid-glance.
+func _head_turn() -> Vector2:
+	var e: float = _glance * _glance * (3.0 - 2.0 * _glance)
+	return Vector2(1.0 if e < 0.5 else -1.0, maxf(absf(cos(PI * e)), HEAD_TURN_MIN_W))
 
 # --- the level's bookkeeping, kept on the node ---
 var lane: int = 0
@@ -126,6 +191,7 @@ static var _shadow_tex: GradientTexture2D = null
 # Every shape drawn this frame (local, before the lean): the person's exact body, for taps.
 var _hits: Array = []
 var _hit_rot: float = 0.0
+var _hit_sx: float = 1.0
 
 func randomize_look(rng: RandomNumberGenerator, _coat_idx: int) -> void:
 	coat_idx = _coat_idx
@@ -150,17 +216,28 @@ func coat() -> Color:
 
 # Where a hand would take a wallet from: the back pocket, at the rear hip.
 func pocket_point() -> Vector2:
-	return position + Vector2(-float(dir) * 0.085 * h * build, -0.50 * h)
+	return position + Vector2(-float(dir) * 0.085 * DEPTH * h * build, -0.50 * h)
 
 # The thief's reaching hand, in street coordinates.
 func hand_point() -> Vector2:
 	return position + (_arm_points(true)[2] as Vector2)
 
+# Where the near hand's fingers close on something it holds (the wallet), in street coordinates:
+# a little past the palm, along the forearm.
+func grip_point() -> Vector2:
+	var p: Array = _arm_points(true)
+	var hdir: Vector2 = ((p[2] as Vector2) - (p[1] as Vector2)).normalized()
+	return position + (p[2] as Vector2) + hdir * 0.030 * h
+
+# The thief's own coat pocket, at the front hip, in street coordinates: where a lifted wallet goes.
+func stash_point() -> Vector2:
+	return position + Vector2(float(dir) * 0.075 * DEPTH * h * build, -0.52 * h + _bob())
+
 # THE TOP CENTER OF THE HEAD, in street coordinates -- of the hat when there is one -- exactly as
 # drawn: following the bob, the glance and the lean. The answer tag's pointer ends here, touching
 # the crown (it used to stop at a fixed height, floating above some people and inside others).
 func head_top() -> Vector2:
-	var hd: float = float(dir) if _glance < 0.5 else -float(dir)
+	var hd: float = float(dir) * _head_turn().x
 	var hc: Vector2 = Vector2(0.010 * h * hd, -0.925 * h + _bob())
 	var crown: float = 0.066
 	match hat:
@@ -177,13 +254,15 @@ func head_top() -> Vector2:
 	elif hat == Hat.NONE and hair == Hair.CURLY:
 		crown = 0.075
 	var top: Vector2 = hc + Vector2(0.0, -crown * h)
-	if not walking and absf(_lean) > 0.0005:
-		top = top.rotated(_lean * float(dir))
+	var lean: float = _lean * (1.0 - _g())
+	if absf(lean) > 0.0005:
+		top = top.rotated(lean * float(dir))
 	return position + top
 
 # Is a point (street coordinates) on this person's body, exactly as drawn?
 func hit(pt: Vector2) -> bool:
 	var local: Vector2 = (pt - position).rotated(-_hit_rot)
+	local.x /= _hit_sx
 	for poly in _hits:
 		if Geometry2D.is_point_in_polygon(local, poly):
 			return true
@@ -209,7 +288,7 @@ func set_mark(m: int, text: String = "") -> void:
 # toward amber where the lamps reach.
 func _lit(c: Color, p: Vector2) -> Color:
 	var up: float = clampf(-p.y / h, 0.0, 1.0)
-	var side: float = clampf(p.x / (0.13 * h * build), -1.0, 1.0) * light_dir
+	var side: float = clampf(p.x / (0.13 * DEPTH * h * build), -1.0, 1.0) * light_dir
 	# (2026-11-10 facelift: a wider range from the lit side to the far one, and the far side falls
 	# toward the evening's blue instead of merely darker -- warm light, cool shadow)
 	var k: float = 0.58 + 0.20 * up + 0.26 * side + 0.26 * light_amt
@@ -234,12 +313,23 @@ func _poly(pts: PackedVector2Array, c: Color) -> void:
 
 # A limb segment: a tapered shape from a (radius ra) to b (radius rb), round at both ends.
 func _limb(a: Vector2, b: Vector2, ra: float, rb: float, c: Color) -> void:
+	var pts: PackedVector2Array = _limb_pts(a, b, ra, rb)
+	if not pts.is_empty():
+		_poly(pts, c)
+
+# The same shape, grown by `pad` and filled flat, under a limb: its contour. Not hit-tested.
+func _limb_edge(a: Vector2, b: Vector2, ra: float, rb: float, pad: float, c: Color) -> void:
+	var pts: PackedVector2Array = _limb_pts(a, b, ra + pad, rb + pad)
+	if not pts.is_empty():
+		draw_colored_polygon(pts, c)
+
+func _limb_pts(a: Vector2, b: Vector2, ra: float, rb: float) -> PackedVector2Array:
+	var pts: PackedVector2Array = PackedVector2Array()
 	var d: Vector2 = b - a
 	if d.length() < 0.01:
-		return
+		return pts
 	var u: Vector2 = d.normalized()
 	var n: Vector2 = u.orthogonal()
-	var pts: PackedVector2Array = PackedVector2Array()
 	var segs: int = 5
 	for k in segs + 1:
 		var ang: float = PI * float(k) / float(segs)
@@ -247,7 +337,7 @@ func _limb(a: Vector2, b: Vector2, ra: float, rb: float, c: Color) -> void:
 	for k in segs + 1:
 		var ang2: float = PI * float(k) / float(segs)
 		pts.append(a + (-n * cos(ang2) - u * sin(ang2)) * ra)
-	_poly(pts, c)
+	return pts
 
 func _ellipse_pts(c: Vector2, rx: float, ry: float, n: int = 18) -> PackedVector2Array:
 	var pts: PackedVector2Array = PackedVector2Array()
@@ -259,7 +349,7 @@ func _ellipse_pts(c: Vector2, rx: float, ry: float, n: int = 18) -> PackedVector
 # --- the pose ----------------------------------------------------------------
 
 func _bob() -> float:
-	var b: float = -absf(cos(phase)) * 0.014 * h if walking else sin(idle) * 0.004 * h
+	var b: float = lerpf(sin(idle) * 0.004 * h, -absf(cos(phase)) * 0.014 * h, _g())
 	return b - sin(jolt * PI) * 0.05 * h
 
 # Hip, knee, ankle of one leg.
@@ -269,10 +359,11 @@ func _leg_points(front: bool) -> Array:
 	var hip: Vector2 = Vector2(0.0, -0.50 * h + y0)
 	var ph: float = phase + (0.0 if front else PI)
 	var shift: float = sin(idle * 0.35) * 0.06
-	var s: float = sin(ph) if walking else ((0.10 + shift) if front else (-0.06 + shift))
+	var g: float = _g()
+	var s: float = lerpf((0.10 + shift) if front else (-0.06 + shift), sin(ph), g)
 	var thigh_a: float = s * 0.40                      # radians off vertical, + = forward
 	# the knee bends as the leg swings through
-	var bend: float = (maxf(0.0, cos(ph)) * 0.80 + 0.06) if walking else (0.04 + maxf(0.0, (shift if front else -shift)) * 2.0)
+	var bend: float = lerpf(0.04 + maxf(0.0, (shift if front else -shift)) * 2.0, maxf(0.0, cos(ph)) * 0.80 + 0.06, g)
 	var knee: Vector2 = hip + Vector2(sin(thigh_a) * d, cos(thigh_a)) * 0.25 * h
 	var shin_a: float = thigh_a - bend
 	var ankle: Vector2 = knee + Vector2(sin(shin_a) * d, cos(shin_a)) * 0.24 * h
@@ -286,24 +377,28 @@ func _arm_points(front: bool) -> Array:
 	var d: float = float(dir)
 	var sh: Vector2 = Vector2(-0.005 * h * d, -0.79 * h + y0)
 	var ph: float = phase + (PI if front else 0.0)
-	var s: float = sin(ph) * 0.36 if walking else 0.03
+	var g: float = _g()
+	var s: float = lerpf(0.03, sin(ph) * 0.36, g)
 	var elbow: Vector2 = sh + Vector2(sin(s) * d, cos(s)) * 0.165 * h
 	var fa: float = s + 0.22 + maxf(0.0, s) * 0.55
 	var hand: Vector2 = elbow + Vector2(sin(fa) * d, cos(fa)) * 0.15 * h
-	if not walking:
+	# the standing poses fade as they walk (and come back as they stop); the hip is at the side-on body's
+	# edge (DEPTH), not the old front-view one
+	var st: float = 1.0 - g
+	if st > 0.0:
 		var y1: float = y0
 		if front:
 			var chin_h: Vector2 = Vector2(0.055 * h * d, -0.865 * h + y1)
 			var chin_e: Vector2 = Vector2(0.06 * h * d, -0.64 * h + y1)
-			var hip_h: Vector2 = Vector2(0.075 * h * d, -0.53 * h + y1)
-			var hip_e: Vector2 = Vector2(0.14 * h * d, -0.65 * h + y1)
-			elbow = elbow.lerp(chin_e, _w_chin).lerp(hip_e, _w_hip)
-			hand = hand.lerp(chin_h, _w_chin).lerp(hip_h, _w_hip)
+			var hip_h: Vector2 = Vector2(0.058 * h * d * build, -0.53 * h + y1)
+			var hip_e: Vector2 = Vector2(0.11 * h * d, -0.65 * h + y1)
+			elbow = elbow.lerp(chin_e, _w_chin * st).lerp(hip_e, _w_hip * st)
+			hand = hand.lerp(chin_h, _w_chin * st).lerp(hip_h, _w_hip * st)
 		else:
-			var fh_h: Vector2 = Vector2(-0.075 * h * d, -0.53 * h + y1)
-			var fh_e: Vector2 = Vector2(-0.14 * h * d, -0.65 * h + y1)
-			elbow = elbow.lerp(fh_e, _w_far_hip)
-			hand = hand.lerp(fh_h, _w_far_hip)
+			var fh_h: Vector2 = Vector2(-0.058 * h * d * build, -0.53 * h + y1)
+			var fh_e: Vector2 = Vector2(-0.11 * h * d, -0.65 * h + y1)
+			elbow = elbow.lerp(fh_e, _w_far_hip * st)
+			hand = hand.lerp(fh_h, _w_far_hip * st)
 	if front and reach > 0.0:
 		var out_e: Vector2 = sh + Vector2(0.09 * h * d, 0.14 * h)
 		var out_h: Vector2 = Vector2(0.26 * h * d, -0.52 * h + y0)
@@ -312,7 +407,32 @@ func _arm_points(front: bool) -> Array:
 			out_e = (sh + out_h) * 0.5 + Vector2(-0.03 * h * d, 0.06 * h)
 		elbow = elbow.lerp(out_e, reach)
 		hand = hand.lerp(out_h, reach)
-	return [sh, elbow, hand]
+	return [sh, _elbow_for(sh, hand, elbow), hand]
+
+const UPPER_ARM: float = 0.165   # in h
+const FOREARM: float = 0.15
+
+# THE ELBOW FROM THE SHOULDER AND THE HAND (2026-11-12): two-bone IK at the arm's true lengths, the
+# elbow always on the side an elbow bends -- behind and below the line from shoulder to hand, for
+# someone facing `dir`. Each pose used to place its elbow by hand: the hand on the hip put it in front
+# of that line (an elbow bent backwards), and blending between poses could swing it across. `hint`
+# (the pose's own elbow) is used only for a hand right at the shoulder, where any side will do.
+func _elbow_for(sh: Vector2, hand: Vector2, hint: Vector2) -> Vector2:
+	var a: float = UPPER_ARM * h
+	var b: float = FOREARM * h
+	var v: Vector2 = hand - sh
+	var dist: float = v.length()
+	if dist < 0.001 * h:
+		return hint
+	var u: Vector2 = v / dist
+	if dist >= a + b:
+		return sh + u * (dist * a / (a + b))          # out of reach: a straight arm
+	dist = maxf(dist, absf(a - b) + 0.001 * h)
+	var x: float = (a * a - b * b + dist * dist) / (2.0 * dist)
+	var y: float = sqrt(maxf(0.0, a * a - x * x))
+	# n: the side for which cross(v, elbow - sh) * dir > 0 (y grows downward)
+	var n: Vector2 = Vector2(-u.y, u.x) * float(dir)
+	return sh + u * x + n * y
 
 # --- drawing -----------------------------------------------------------------
 
@@ -320,15 +440,18 @@ func _draw() -> void:
 	var y0: float = _bob()
 	var d: float = float(dir)
 	var c: Color = coat()
-	var bw: float = build
+	var bw: float = build * DEPTH
 
 	_draw_ground_marks()
 	_hits.clear()
 	_hit_rot = 0.0
-	# the whole figure leans from the feet
-	if not walking and absf(_lean) > 0.0005:
-		_hit_rot = _lean * float(dir)
-		draw_set_transform(Vector2.ZERO, _hit_rot, Vector2.ONE)
+	_hit_sx = _body_sx()
+	# the whole figure leans from the feet (standing), and narrows through a turn on the spot
+	var lean: float = _lean * (1.0 - _g())
+	if absf(lean) > 0.0005:
+		_hit_rot = lean * float(dir)
+	if _hit_rot != 0.0 or _hit_sx != 1.0:
+		draw_set_transform(Vector2.ZERO, _hit_rot, Vector2(_hit_sx, 1.0))
 
 	# the far leg and arm first, in shade
 	_draw_leg(_leg_points(false), pants.darkened(0.28))
@@ -398,15 +521,24 @@ func _draw() -> void:
 			Vector2(d * 0.060 * h, top + 0.17 * h), Vector2(d * 0.028 * h, top + 0.17 * h)]), scarf_col.darkened(0.12))
 
 	if bag == Bag.SHOULDER:
-		draw_line(Vector2(-d * 0.07 * h, top + 0.01 * h), Vector2(d * 0.08 * h, -0.52 * h + y0),
+		# (at the narrower, side-on body: the bag hangs at the hip, half over the coat)
+		draw_line(Vector2(-d * 0.05 * h, top + 0.01 * h), Vector2(d * 0.05 * h, -0.52 * h + y0),
 			_lit(bag_col.darkened(0.35), Vector2(0, -0.7 * h)), maxf(1.5, 0.013 * h))
-		_poly(_round_box(Vector2(d * 0.09 * h, -0.49 * h + y0), Vector2(0.062 * h, 0.048 * h), 0.014 * h), bag_col)
-		draw_line(Vector2(d * 0.032 * h, -0.512 * h + y0), Vector2(d * 0.148 * h, -0.512 * h + y0), Color(0, 0, 0, 0.25), maxf(1.0, 0.006 * h))
+		_poly(_round_box(Vector2(d * 0.06 * h, -0.49 * h + y0), Vector2(0.062 * h, 0.048 * h), 0.014 * h), bag_col)
+		draw_line(Vector2(d * 0.002 * h, -0.512 * h + y0), Vector2(d * 0.118 * h, -0.512 * h + y0), Color(0, 0, 0, 0.25), maxf(1.0, 0.006 * h))
 
 	# the near arm, then the head
-	_draw_arm(_arm_points(true), c.darkened(0.05), true)
-	var hd: float = d if _glance < 0.5 else -d
-	_draw_head(Vector2(0.010 * h * hd, -0.925 * h + y0), hd, top)
+	_draw_arm(_arm_points(true), c.lightened(0.10), true)
+	# the head, narrowed about its center while it turns (a glance back): toward a front view, then out
+	# the other way
+	var ht: Vector2 = _head_turn()
+	var hd: float = d * ht.x
+	var hc: Vector2 = Vector2(0.010 * h * hd, -0.925 * h + y0)
+	if ht.y < 0.999:
+		var body_t: Transform2D = Transform2D(_hit_rot, Vector2(_hit_sx, 1.0), 0.0, Vector2.ZERO)
+		var squash: Transform2D = Transform2D(0.0, Vector2(ht.y, 1.0), 0.0, Vector2(hc.x * (1.0 - ht.y), 0.0))
+		draw_set_transform_matrix(body_t * squash)
+	_draw_head(hc, hd, top)
 
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -469,18 +601,30 @@ func _draw_arm(p: Array, col: Color, front: bool) -> void:
 	var sh: Vector2 = p[0]
 	var el: Vector2 = p[1]
 	var hd: Vector2 = p[2]
-	_limb(sh, el, 0.035 * h * build, 0.028 * h, col)
-	_limb(el, hd + (el - hd).normalized() * 0.02 * h, 0.028 * h, 0.023 * h, col)
-	# A HAND, not a blob (2026-11-10): a palm running on from the forearm, the fingers together as one
-	# tapering shape, and a thumb on its forward side.
+	var wr: Vector2 = hd + (el - hd).normalized() * 0.02 * h
 	var hcol: Color = skin if front else skin.darkened(0.22)
 	var hdir: Vector2 = (hd - el).normalized()
-	_limb(hd - hdir * 0.010 * h, hd + hdir * 0.018 * h, 0.019 * h, 0.021 * h, hcol)
-	_limb(hd + hdir * 0.018 * h, hd + hdir * 0.046 * h, 0.019 * h, 0.011 * h, hcol.darkened(0.05))
+	# THE NEAR ARM HAS AN EDGE (2026-11-12): the sleeve was the coat's own color lying on the coat, so
+	# an arm in front of the body vanished into it and a hand going for a pocket was never seen to
+	# move. A dark contour round the sleeve and the hand (drawn first, under them) and a sleeve a
+	# shade LIGHTER than the coat (see _draw) set it apart. The far arm is behind the body and needs none.
+	var hk: float = 1.25          # the hands, a quarter larger than they were: a 2% of h palm was a dot
+	if front:
+		var pad: float = maxf(1.0, 0.007 * h)
+		var edge: Color = Color(0.03, 0.03, 0.06, 0.75)
+		_limb_edge(sh, el, 0.035 * h * build, 0.028 * h, pad, edge)
+		_limb_edge(el, wr, 0.028 * h, 0.023 * h, pad, edge)
+		_limb_edge(hd - hdir * 0.010 * h, hd + hdir * 0.046 * hk * h, 0.021 * hk * h, 0.012 * hk * h, pad, edge)
+	_limb(sh, el, 0.035 * h * build, 0.028 * h, col)
+	_limb(el, wr, 0.028 * h, 0.023 * h, col)
+	# A HAND, not a blob (2026-11-10): a palm running on from the forearm, the fingers together as one
+	# tapering shape, and a thumb on its forward side.
+	_limb(hd - hdir * 0.010 * h, hd + hdir * 0.018 * hk * h, 0.019 * hk * h, 0.021 * hk * h, hcol)
+	_limb(hd + hdir * 0.018 * hk * h, hd + hdir * 0.046 * hk * h, 0.019 * hk * h, 0.011 * hk * h, hcol.darkened(0.05))
 	var fwd: Vector2 = Vector2(float(dir), 0.0) - hdir * hdir.dot(Vector2(float(dir), 0.0))
 	if fwd.length() > 0.05:
 		fwd = fwd.normalized()
-		_limb(hd + fwd * 0.012 * h, hd + fwd * 0.026 * h + hdir * 0.020 * h, 0.0085 * h, 0.0065 * h, hcol.darkened(0.08))
+		_limb(hd + fwd * 0.012 * hk * h, hd + (fwd * 0.026 + hdir * 0.020) * hk * h, 0.0085 * hk * h, 0.0065 * hk * h, hcol.darkened(0.08))
 	# the cuff: a darker band where the sleeve ends
 	var wrist: Vector2 = hd + (el - hd).normalized() * 0.026 * h
 	var across: Vector2 = (el - hd).normalized().orthogonal() * 0.024 * h
