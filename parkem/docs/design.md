@@ -363,7 +363,16 @@ derived from it by the games-doc build and must not be written by hand.
   blocked turns into a free side like a plain road does; and a creature never enters its own SENDER
   (`can_go_to` and `calc_cost_to_move_to` accept a dock only as its own receiver) -- it used to go back
   and forth between the sender and a brick in front of it.
-- **Floor**: `flagstone.gdshader` `floor_style` (pipe.gd `FLOOR_STYLE`) -- 2, the current one, is a
+- **Themes** (2026-11-12): "Theme" in the main menu (a list) -- **Dungeon**, **Courtyard**, and
+  **Random**, the default, a pick for every board (`ParkemLevelConfig.THEMES`; `ParkemG.theme` the choice,
+  saved as the third settings value; `ParkemG.look` the current board's, settled in `create_board`). The
+  look is the floor's style below, and what it lies in: the courtyard in the lawn with its garden things
+  and the litter; the dungeon in DARKNESS (`dungeon_wall.gdshader`: near-black rough rock, only a
+  faint low-contrast grain, no joints or pattern) over the lawn's area, the lawn and the litter hidden
+  (level `_fit_ground_to_board`). A first version, dressed stone in courses, was a second set of tiles of
+  another shape in nearly the floor's color: a mismatch and a distraction. Phone contrast (path cells
+  against the cells round them, median, WCAG): dungeon 2.2, courtyard 3.3.
+- **Floor**: `flagstone.gdshader` `floor_style` (pipe.gd, from `ParkemG.look`; it was a constant) -- 2 is a
   DUNGEON: ONE dark blue-gray slab per board cell (so the grid the creatures turn on is visible),
   slightly irregular edges, deep joints, hairline cracks, warm torchlight pools. 0 is the old mossy
   courtyard; a forest floor (1) was rejected and removed. A few leaves, weed tufts and edge shrubs/ferns

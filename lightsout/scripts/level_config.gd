@@ -8,6 +8,36 @@ class_name LightsoutLevelConfig
 # board_size: width and height of the board (square)
 # num_bombs: number of bomb agents to add
 
+# THE BOARD'S THEME (2026-11-12), chosen in the main menu (LightsG.theme, saved with the settings):
+# LOOK_GARDEN a garden at night (flagstone paths, a moonlit lawn, garden lamps), LOOK_MINE a coal mine
+# (packed-earth tunnels through rock with coal seams, flickering lanterns). level.gd, pipe.gd,
+# empty_space.gd and garden_path.gdshader read LightsG.look -- the look the CURRENT board is drawn in,
+# settled as it is built (LightsG.settle_look): the chosen theme, or for RANDOM one of the real ones at
+# random, a new pick for every board. THEMES is the menu's list, in its order; a new theme is one more
+# entry here (before Random) and its look in those four, and REAL_LOOKS gets it too.
+const LOOK_GARDEN: int = 0
+const LOOK_MINE: int = 1
+const LOOK_RANDOM: int = -1
+const DEFAULT_THEME: int = LOOK_RANDOM      # (Random since 2026-11-12; it was the mine)
+const REAL_LOOKS: Array = [LOOK_MINE, LOOK_GARDEN]
+const THEMES: Array = [
+	{"look": LOOK_MINE, "name": "Coal mine"},
+	{"look": LOOK_GARDEN, "name": "Night garden"},
+	{"look": LOOK_RANDOM, "name": "Random"},
+]
+
+static func theme_names() -> Array:
+	var out: Array = []
+	for t: Dictionary in THEMES:
+		out.append(t["name"])
+	return out
+
+static func theme_index(look: int) -> int:
+	for i in THEMES.size():
+		if int(THEMES[i]["look"]) == look:
+			return i
+	return 0
+
 const LEVELS: Array = [
 	{"level": 1, "rounds": 3, "pass_pct": 60, "board_size": 9,  "num_bombs": 2, "dispatch_ms": 5000},
 	{"level": 2, "rounds": 3, "pass_pct": 60, "board_size": 11, "num_bombs": 4, "dispatch_ms": 2500},

@@ -127,6 +127,15 @@ func reset():
 	next_player_dir = -1
 	time_to_hide = 0
 	lights_are_off = false
+	# A FADE STILL RUNNING FROM THE LAST BOARD STOPS HERE (2026-11-12): the lights going off starts a
+	# half-second fade (_dim_tw); the menu opened within it PAUSED it, and resumed after a new board
+	# was built it darkened the NEW paths -- the next board started dark, and when its countdown ended
+	# turn_lights_off restarted the fade from lit: a flash of light, then dark again.
+	if _dim_tw != null and _dim_tw.is_valid():
+		_dim_tw.kill()
+	_dim_tw = null
+	if _rock != null:
+		_rock.modulate = Color.WHITE
 	play_start_sound = true
 
 	if player != null:
@@ -323,6 +332,7 @@ func create_camera(camscale):
 	agent_cam.set_offset(game.board_to_px(game.get_board_center()))
 	
 func create_board() -> void:
+	LightsG.settle_look()          # the theme, or for Random a pick for this board
 	_fit_ground_to_board()
 	start_dispatch = false
 	board.clear()
@@ -366,7 +376,8 @@ func create_board() -> void:
 				
 	show_hide_walls()
 	# the garden: bushes and trees on the lawn (a night garden, not the countryside), and its lamps
-	LawnScatter.scatter(self, board, game, 15, 1.4, 1.0, true)
+	if LightsG.look != LightsoutLevelConfig.LOOK_MINE:
+		LawnScatter.scatter(self, board, game, 15, 1.4, 1.0, true)
 	_place_lamps()
 				
 	for pipe in pipes:
@@ -1143,13 +1154,21 @@ func check_agent_collisions():
 # 		activate_transaction(target.transaction_id)
 
 const PATHS_DARK: Color = Color(0.50, 0.56, 0.70)     # the paths with the lights off
+# the mine with the lanterns out: the tunnels dim LESS than the rock, so they stay readable on a phone
+# (at 0.42 / 0.40 the two were nearly the same and the tunnels all but vanished on a phone's screen)
+const PATHS_DARK_MINE: Color = Color(0.86, 0.82, 0.80)     # (0.62 measured 1.7 on a phone)
+const ROCK_DARK_MINE: Color = Color(0.26, 0.25, 0.25)
 var _dim_tw: Tween = null
 
 func _set_path_tone(k: float) -> void:
-	var c: Color = Color.WHITE.lerp(PATHS_DARK, k)
+	var dark: Color = PATHS_DARK_MINE if LightsG.look == LightsoutLevelConfig.LOOK_MINE else PATHS_DARK
+	var c: Color = Color.WHITE.lerp(dark, k)
 	for pipe in pipes:
 		if is_instance_valid(pipe):
 			pipe.set_modulate(c)
+	# in the mine the ROCK goes dark with the tunnels (left lit, it stood brighter than the tunnels)
+	if _rock != null:
+		_rock.modulate = Color.WHITE.lerp(ROCK_DARK_MINE, k)
 
 func turn_lights_off():
 	time_to_hide = 0
@@ -1274,7 +1293,28 @@ func tutorial_bottom_button(node_name: String) -> Control:
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
 	var field: Control = GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 15)
-	if field != null:
+	if field == null:
+		return
+	if LightsG.look == LightsoutLevelConfig.LOOK_MINE:
+		# THE MINE: solid rock where the lawn was (mine_rock.gdshader), over the same area
+		field.visible = false
+		field.modulate = Color.WHITE
+		if _rock == null:
+			_rock = ColorRect.new()
+			_rock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var m: ShaderMaterial = ShaderMaterial.new()
+			m.shader = preload("res://lightsout/scripts/mine_rock.gdshader")
+			_rock.material = m
+			add_child(_rock)
+		move_child(_rock, field.get_index() + 1)
+		_rock.position = field.position
+		_rock.size = field.size
+		_rock.show()
+	else:
+		# (the theme can be switched in the menu: the lawn comes back and the rock goes)
+		field.visible = true
+		if _rock != null:
+			_rock.hide()
 		field.modulate = NIGHT_LAWN      # (the things on the lawn are drawn under it, so they darken too)
 
 # A GARDEN AT NIGHT (2026-11-12): the shared daytime lawn, tinted dark and cool -- moonlight -- with the
@@ -1282,6 +1322,7 @@ func _fit_ground_to_board() -> void:
 # garden_path.gdshader) and a few GARDEN LAMPS beside them that glow while the lights are on and go out
 # with them (_place_lamps, GardenLamp). It was the vehicle games' asphalt road on the daytime lawn.
 const NIGHT_LAWN: Color = Color(0.40, 0.50, 0.62)
+var _rock: ColorRect = null          # the mine's rock (LOOK_MINE)
 const LAMP_EVERY: int = 28           # about one lamp per this many lawn cells
 var _lamps: Array = []
 
@@ -1321,6 +1362,7 @@ func _place_lamps() -> void:
 		var lamp: GardenLamp = GardenLamp.new()
 		lamp.position = game.board_to_px(sp)
 		lamp.phase = rng.randf() * TAU
+		lamp.mine = LightsG.look == LightsoutLevelConfig.LOOK_MINE
 		add_child(lamp)
 		_lamps.append(lamp)
 
@@ -1332,8 +1374,10 @@ func _lamps_on(on: bool) -> void:
 # A garden lamp, seen from above: a dark post with a lantern on it and, while it is lit, a warm pool of
 # light round it that spills onto the path, breathing a little. It goes out over half a second when the
 # lights go off and is lit at once when they come back (a clue's flash included).
+# In the mine it is a miner's LANTERN hung on the rock beside the tunnel: the same, warmer, and FLICKERING.
 class GardenLamp extends Node2D:
 	var phase: float = 0.0
+	var mine: bool = false
 	var _light: float = 1.0
 	var _tw: Tween = null
 	var _glow: Node2D = null
@@ -1347,13 +1391,35 @@ class GardenLamp extends Node2D:
 		_glow.show_behind_parent = true
 		_glow.draw.connect(_draw_glow)
 		add_child(_glow)
+	# ONE SMOOTH RADIAL GRADIENT (2026-11-12): it was eight stacked circles, which showed as rings.
+	static var _pool: GradientTexture2D = null
+	static func _pool_tex() -> GradientTexture2D:
+		if _pool == null:
+			var g: Gradient = Gradient.new()
+			g.set_color(0, Color(1, 1, 1, 1))
+			g.set_color(1, Color(1, 1, 1, 0))
+			g.add_point(0.35, Color(1, 1, 1, 0.55))
+			g.add_point(0.65, Color(1, 1, 1, 0.16))
+			_pool = GradientTexture2D.new()
+			_pool.gradient = g
+			_pool.fill = GradientTexture2D.FILL_RADIAL
+			_pool.fill_from = Vector2(0.5, 0.5)
+			_pool.fill_to = Vector2(1.0, 0.5)
+			_pool.width = 128
+			_pool.height = 128
+		return _pool
 	func _draw_glow() -> void:
 		if _light <= 0.01:
 			return
 		var breath: float = 1.0 + 0.05 * sin(phase * 1.7)
-		for k in 8:
-			var f: float = 1.0 - float(k) / 8.0
-			_glow.draw_circle(Vector2.ZERO, 46.0 * f * breath, Color(0.55, 0.40, 0.18, 0.055 * _light))
+		var glow_c: Color = Color(0.55, 0.40, 0.18, 0.75 * _light)
+		if mine:
+			# a flame's flicker: two quick wobbles and a slower one, never quite still
+			breath = 1.0 + 0.06 * sin(phase * 9.0) * sin(phase * 2.3) + 0.04 * sin(phase * 17.0 + 1.0)
+			glow_c = Color(0.65, 0.38, 0.12, 0.95 * _light)
+		# (stronger and wider than the first gradient's 0.40 / 0.50 over 48 px, which was too weak)
+		var r: float = 56.0 * breath
+		_glow.draw_texture_rect(_pool_tex(), Rect2(-r, -r, 2.0 * r, 2.0 * r), false, glow_c)
 	func set_on(on: bool) -> void:
 		if _tw != null and _tw.is_valid():
 			_tw.kill()
@@ -1367,7 +1433,8 @@ class GardenLamp extends Node2D:
 		queue_redraw()
 		_glow.queue_redraw()
 	func _draw() -> void:
-		draw_circle(Vector2(2.5, 2.5), 8.5, Color(0, 0, 0, 0.40))            # its shadow
+		# (no shadow: the lamp IS the light here -- a shadow off to one side, as the other drawings
+		# have, made no sense on it)
 		draw_circle(Vector2.ZERO, 8.0, Color(0.12, 0.12, 0.14))              # the lantern's dark frame
 		var glass: Color = Color(0.30, 0.28, 0.25).lerp(Color(1.0, 0.86, 0.55), _light)
 		draw_circle(Vector2.ZERO, 5.5, glass)

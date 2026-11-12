@@ -199,6 +199,7 @@ func _is_cell_empty(_board_pos):
 	return not full
 
 func create_board() -> void:
+	ParkemG.settle_look()          # the theme, or for Random a pick for this board
 	_fit_ground_to_board()
 	start_dispatch = false
 	board.clear()
@@ -374,6 +375,10 @@ func create_board() -> void:
 	start_dispatch = true
 	ParkemLitter.scatter(self, board, game, pipes)     # a few leaves and weeds on the paving
 	LawnScatter.scatter(self, board, game, 9, 2.0, 1.2, true)     # garden things on the open lawn beyond
+	# the dungeon has no lawn and no leaves: its walls stand where the lawn was (_fit_ground_to_board)
+	var litter: Node = get_node_or_null("Litter")
+	if litter != null:
+		(litter as CanvasItem).visible = ParkemG.look == ParkemLevelConfig.LOOK_COURTYARD
 	if game.tutorial_mode:
 		_tutorial_setup()
 	game.create_fill_screen_camera(self)
@@ -1003,4 +1008,27 @@ func tutorial_creatures_stopped() -> int:
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 16)
+	var field: Control = GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 16)
+	if field == null:
+		return
+	# THE THEME'S SURROUNDINGS (2026-11-12): the courtyard lies in the lawn; the DUNGEON between walls of
+	# dressed stone (dungeon_wall.gdshader) over the same area, the lawn (and the things on it) hidden.
+	if ParkemG.look == ParkemLevelConfig.LOOK_DUNGEON:
+		field.visible = false
+		if _walls == null:
+			_walls = ColorRect.new()
+			_walls.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var m: ShaderMaterial = ShaderMaterial.new()
+			m.shader = preload("res://parkem/scripts/dungeon_wall.gdshader")
+			_walls.material = m
+			add_child(_walls)
+		move_child(_walls, field.get_index() + 1)
+		_walls.position = field.position
+		_walls.size = field.size
+		_walls.show()
+	else:
+		field.visible = true
+		if _walls != null:
+			_walls.hide()
+
+var _walls: ColorRect = null

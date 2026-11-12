@@ -54,6 +54,29 @@ going into a dock on that same edge was counted as back inside, its link stretch
 **Every part turns, none flips** (2026-11-12): when the truck turns back, each cart turns round at
 `ART_TURN_RATE` like the head. `set_rots` set every cart straight to its angle and then called `_pose_art`, whose turn at `ART_TURN_RATE` then had nothing left to turn -- so only the engine and the van (separate drawings) turned and every cart between flipped round in one frame. Measured on a turn-back: no cart turns more than about 12 degrees in a frame.
 
+## Themes: day, night, rain (2026-11-12)
+
+"Theme" in the main menu (a list): **Day** (the roads as they were), **Night**, **Rain**, and **Random**,
+the default, which picks one for every board. `DeliveremLevelConfig.THEMES` is the list; `DeliveremG.theme` the choice
+(saved as the fourth settings value -- an older save has none and gets Random), `DeliveremG.look` the
+current board's, settled at the start of `create_board()` (`DeliveremG.settle_look`).
+- **Night**: the lawn tinted `NIGHT_LAWN`, the asphalt darker and cooler with dimmer markings
+  (asphalt.gdshader `weather` 1), the curbs dim (pipe.gd), and STREETLIGHTS (`StreetLamp`) on lawn cells
+  beside the roads, 4.5 cells apart, each a smooth additive pool of warm light (one radial gradient --
+  stacked circles show as rings -- and no shadow: it is the light).
+- **Rain**: the lawn overcast (`RAIN_LAWN`), the asphalt wet (`weather` 2: darker, a sheen in long soft
+  streaks, puddles catching the sky at their rims), and `RainFX`: slanted streaks falling over whatever
+  part of the board is on screen, and ripple rings spreading now and then on a road.
+The same code is in Valet, Dispatch and Headlights, each its own copy.
+
+**Phone contrast** (2026-11-12, measured at phone size: the median brightness of road cells against
+the cells round them, as a WCAG ratio): Day 1.2-1.3 (the look as it was), Night 1.6, Rain 1.6-1.7. Night
+and rain first measured 1.4-1.5 -- dark roads: a phone's glare eats the darkest steps -- so the night is
+put in the LAWN (`NIGHT_LAWN` 0.22/0.28/0.38) while the roads stay nearly as bright as by day, cool
+(`weather` 1: x 0.84/0.88/1.02), and wet roads are barely darker (x 0.96). Reaching 2 would take lighter
+asphalt in every theme, Day included (not done: asked). The light curb lines, which this measure does not
+see, carry the road edges.
+
 ## Files
 
 ```

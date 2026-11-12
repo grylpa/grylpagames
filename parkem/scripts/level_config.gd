@@ -15,6 +15,35 @@ class_name ParkemLevelConfig
 # level_time                 : seconds the level lasts. Surviving to zero IS passing the level —
 #                              there is nothing else to finish, so the clock is the level.
 
+# THE THEME (2026-11-12), chosen in the main menu (ParkemG.theme, saved with the settings): the floor
+# the creatures walk and what it lies in. LOOK_COURTYARD an old courtyard (mossy paving on a lawn with
+# garden bushes, leaves and weeds about), LOOK_DUNGEON a dungeon (dark slabs with torchlight between
+# dressed-stone walls). Random picks one for every board. ParkemG.look is the CURRENT board's (settled in
+# create_board); pipe.gd and level.gd read it. A new theme is one more entry here (before Random), its
+# floor in flagstone.gdshader and its surroundings in level.gd _fit_ground_to_board.
+const LOOK_COURTYARD: int = 0       # (= flagstone.gdshader floor_style 0)
+const LOOK_DUNGEON: int = 2         # (= floor_style 2)
+const LOOK_RANDOM: int = -1
+const DEFAULT_THEME: int = LOOK_RANDOM
+const REAL_LOOKS: Array = [LOOK_DUNGEON, LOOK_COURTYARD]
+const THEMES: Array = [
+	{"look": LOOK_DUNGEON, "name": "Dungeon"},
+	{"look": LOOK_COURTYARD, "name": "Courtyard"},
+	{"look": LOOK_RANDOM, "name": "Random"},
+]
+
+static func theme_names() -> Array:
+	var out: Array = []
+	for t: Dictionary in THEMES:
+		out.append(t["name"])
+	return out
+
+static func theme_index(look: int) -> int:
+	for i in THEMES.size():
+		if int(THEMES[i]["look"]) == look:
+			return i
+	return 0
+
 const LEVELS: Array = [
 	{"level": 1, "time_between_dispatches_ms": 5000, "num_more_packets": 4, "max_speed_scale": 2.0,
 	 "num_bombs_to_use": 3, "allowed_arrivals": 6, "level_time": 90},

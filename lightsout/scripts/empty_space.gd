@@ -14,6 +14,7 @@ func _ready() -> void:
 # The dark rim where this cell meets the road is DRAWN (scripts/road_corners.gd): it follows the
 # road's rounded inside corners, which cut into this cell; the square wall sprites could not.
 const RIM: Color = Color8(29, 45, 30)
+const RIM_MINE: Color = Color8(14, 12, 11)     # the mine's rock, darkest where it meets the tunnel
 var _rim: Node2D = null
 var _board: Array = []
 
@@ -23,6 +24,7 @@ func show_hide_walls(board):
 	_board = board
 	if _rim == null:
 		_rim = Node2D.new()
-		_rim.draw.connect(func() -> void: RoadCorners.draw_empty_rim(_rim, _board, board_pos, 20.0, RIM, 4.0))
+		var rim: Color = RIM_MINE if LightsG.look == LightsoutLevelConfig.LOOK_MINE else RIM
+		_rim.draw.connect(func() -> void: RoadCorners.draw_empty_rim(_rim, _board, board_pos, 20.0, rim, 4.0))
 		add_child(_rim)
 	_rim.queue_redraw()

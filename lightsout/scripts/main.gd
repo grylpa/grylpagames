@@ -17,6 +17,9 @@ func _ready() -> void:
 	main_menu.sig_slider_changed.connect(on_menu_slider_changed)
 	main_menu.sig_start_game.connect(_on_main_menu_menu_start_game)
 	main_menu.add_entry(1, "Level", 1, LightsoutLevelConfig.LEVELS.size(), false)
+	# the board's theme: a list, not a switch, though there are two so far -- more may come
+	main_menu.add_option_entry(2, "Theme", LightsoutLevelConfig.theme_names())
+	main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	refresh_menu()
 	show_main_menu()
 	$Help.set_texts({
@@ -221,6 +224,12 @@ func _input(event) -> void:
 
 func refresh_menu():
 	main_menu.update_val(1, LightsG.starting_level)
+	main_menu.update_option(2, LightsoutLevelConfig.theme_index(LightsG.theme))
+
+func _on_menu_option_changed(id: int, idx: int) -> void:
+	if id == 2:
+		LightsG.theme = int(LightsoutLevelConfig.THEMES[idx]["look"])
+		LightsG.save_settings()
 
 func on_menu_slider_changed(id, val):
 	if id == 1:

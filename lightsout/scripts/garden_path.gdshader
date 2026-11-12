@@ -16,7 +16,10 @@ varying vec4 tint;      // the node's own tint (modulate), taken in vertex(): se
 // of round_r, in the tile's own frame, so a bend's outside corner is round like its inside one.
 uniform vec4 round_corners = vec4(0.0);
 uniform float round_r = 8.0;
-uniform vec4 open_sides = vec4(1.0);     // kept for pipe.gd, which sets it; the stones do not use it
+uniform vec4 open_sides = vec4(1.0);     // which sides the path runs on through (r, d, l, u); the mine uses it
+// 0 the garden's flagstones; 1 a coal mine's tunnel floor (LightsoutLevelConfig.LOOK, set by pipe.gd)
+uniform int look = 0;
+const vec2 SIDE_DIR[4] = vec2[4](vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(-1.0, 0.0), vec2(0.0, -1.0));
 const vec2 CORNER_SIGN[4] = vec2[4](vec2(1.0, 1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0), vec2(1.0, -1.0));
 
 const float STONE = 19.0;      // px between stone centers (13 read as busy crazy paving)
@@ -43,6 +46,36 @@ void vertex() {
 	world = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy;
 	tile_local = mat2(normalize(MODEL_MATRIX[0].xy), normalize(MODEL_MATRIX[1].xy)) * VERTEX;
 	tint = COLOR;
+}
+
+// A COAL MINE'S TUNNEL FLOOR: packed earth and gravel, brown-gray, with coal dust in patches, small
+// stones, and the floor falling into shadow toward each tunnel wall (a closed side of the tile).
+vec3 mine_floor() {
+	// (lighter than the rock by a clear step: at 0.30 the floor and the rock measured the same brightness
+	// on a phone, contrast 1.04, told apart only by hue and texture)
+	vec3 earth = vec3(0.42, 0.37, 0.31);
+	earth *= 0.88 + 0.20 * noise(world / 9.0) + 0.08 * (noise(world / 2.5) - 0.5);
+	earth *= 1.0 + (hash(floor(world / 1.2)) - 0.5) * 0.10;                      // grit
+	float dust = smoothstep(0.55, 0.85, noise(world / 30.0 + 3.0));
+	earth = mix(earth, vec3(0.08, 0.08, 0.09), dust * 0.55);                       // coal dust
+	// small stones: the nearest of a fine jittered grid, a few of them lighter, a few coal-black
+	vec2 g = world / 7.0;
+	vec2 gi = floor(g);
+	vec2 pt = gi + 0.2 + 0.6 * hash2(gi);
+	float d = length(g - pt) * 7.0;
+	float r = 0.6 + 1.6 * hash(gi + 4.0);
+	float pebble = (1.0 - smoothstep(r - 0.6, r + 0.4, d)) * step(0.78, hash(gi + 9.0));      // sparse
+	vec3 pc = hash(gi + 2.0) > 0.85 ? vec3(0.10, 0.10, 0.11) : vec3(0.40, 0.36, 0.31);
+	earth = mix(earth, pc, pebble * 0.6);
+	// the walls: darker toward every side the tunnel does not continue through
+	float shade = 1.0;
+	for (int i = 0; i < 4; i++) {
+		if (open_sides[i] < 0.5) {
+			float to_wall = 20.0 - dot(tile_local, SIDE_DIR[i]);
+			shade = min(shade, 0.55 + 0.45 * smoothstep(0.0, 9.0, to_wall));
+		}
+	}
+	return earth * shade;
 }
 
 void fragment() {
@@ -86,6 +119,9 @@ void fragment() {
 	float mossy = smoothstep(0.50, 0.80, noise(world / 60.0 + 7.0));
 	float near_joint = 1.0 - smoothstep(0.8, 2.6, edge);
 	col = mix(col, vec3(0.16, 0.24, 0.15), clamp(near_joint * mossy * 0.8, 0.0, 0.8));
+	if (look == 1) {
+		col = mine_floor();
+	}
 	float keep = 1.0;
 	for (int i = 0; i < 4; i++) {
 		if (round_corners[i] > 0.5) {
