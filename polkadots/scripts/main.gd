@@ -22,10 +22,14 @@ func _ready() -> void:
 	felt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	felt.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var mat: ShaderMaterial = ShaderMaterial.new()
-	mat.shader = preload("res://polkadots/scripts/felt.gdshader")
-	mat.set_shader_parameter("size", Vector2(MainGlobals.screen_size))
+	# the DRESSMAKER'S WORKTABLE (2026-11-12): wooden boards, and her things lying round its edges
+	mat.shader = preload("res://polkadots/scripts/worktable.gdshader")
+	mat.set_shader_parameter("size", Vector2(MainGlobals.full_screen_size))
 	felt.material = mat
 	table.add_child(felt)
+	var notions: Node2D = Node2D.new()
+	notions.draw.connect(func() -> void: _draw_notions(notions))
+	table.add_child(notions)
 	add_child(table)
 	PolkadotsG.load_settings()
 	PolkadotsG.init_globals()
@@ -69,6 +73,51 @@ func _ready() -> void:
 		game.progress_level_names[cfg["level"]] = str(cfg["level"])
 	game.progress_pct_label = "% Correct"
 	game.progress_pct_format = "%d"
+
+# THE DRESSMAKER'S THINGS on the worktable, round the edges where the panels leave the table bare: a tape
+# measure curling along the bottom, a tomato pin cushion bristling with pins, a spool of thread. Drawn
+# once, on the table's layer, under the panels.
+func _draw_notions(ci: Node2D) -> void:
+	var sz: Vector2 = Vector2(MainGlobals.full_screen_size)
+	# the tape measure: a yellow band along the bottom edge, curling up at its end, inches marked
+	var y: float = sz.y - 30.0
+	var pts: PackedVector2Array = PackedVector2Array()
+	for i in 41:
+		var f: float = float(i) / 40.0
+		pts.append(Vector2(-10.0 + f * sz.x * 0.55, y + sin(f * 3.0) * 6.0))
+	ci.draw_polyline(pts, Color(0, 0, 0, 0.30), 20.0)
+	for i in pts.size():
+		pts[i] = pts[i] - Vector2(2.0, 3.0)
+	ci.draw_polyline(pts, Color(0.95, 0.80, 0.30), 18.0)
+	for i in range(1, pts.size() - 1):
+		var tick: float = 7.0 if i % 4 == 0 else 4.0
+		ci.draw_line(pts[i] + Vector2(0, -9.0), pts[i] + Vector2(0, -9.0 + tick), Color(0.20, 0.16, 0.10), 1.0)
+	# the tomato pin cushion, bottom right (top right lay under the score)
+	var pc: Vector2 = Vector2(sz.x - 40.0, sz.y - 36.0)
+	ci.draw_circle(pc + Vector2(4.0, 6.0), 24.0, Color(0, 0, 0, 0.30))
+	ci.draw_circle(pc, 24.0, Color(0.72, 0.12, 0.12))
+	for k in 6:
+		var a1: float = TAU * float(k) / 6.0
+		ci.draw_line(pc, pc + Vector2(cos(a1), sin(a1)) * 23.0, Color(0.50, 0.06, 0.06), 1.4)
+	ci.draw_circle(pc + Vector2(-6.0, -7.0), 8.0, Color(1, 1, 1, 0.12))
+	ci.draw_circle(pc, 5.0, Color(0.20, 0.45, 0.20))
+	var heads: Array = [Color(0.95, 0.85, 0.25), Color(0.25, 0.45, 0.85), Color(0.95, 0.95, 0.95), Color(0.30, 0.70, 0.35), Color(0.85, 0.40, 0.80)]
+	for k2 in 7:
+		var a2: float = TAU * float(k2) / 7.0 + 0.4
+		var hp: Vector2 = pc + Vector2(cos(a2), sin(a2)) * (10.0 + 6.0 * float(k2 % 2))
+		ci.draw_circle(hp + Vector2(1.2, 1.6), 3.0, Color(0, 0, 0, 0.30))
+		ci.draw_circle(hp, 3.0, heads[k2 % heads.size()])
+		ci.draw_circle(hp + Vector2(-0.8, -0.8), 1.0, Color(1, 1, 1, 0.8))
+	# a spool of thread lying on its side, between the tape and the cushion
+	var sp: Vector2 = Vector2(sz.x * 0.68, sz.y - 28.0)
+	ci.draw_rect(Rect2(sp + Vector2(-16.0, -9.0) + Vector2(3.0, 4.0), Vector2(32.0, 18.0)), Color(0, 0, 0, 0.30))
+	ci.draw_rect(Rect2(sp + Vector2(-13.0, -8.0), Vector2(26.0, 16.0)), Color(0.20, 0.38, 0.70))
+	for k3 in 8:
+		ci.draw_line(sp + Vector2(-13.0 + 3.2 * float(k3), -8.0), sp + Vector2(-12.0 + 3.2 * float(k3), 8.0), Color(0.30, 0.50, 0.85, 0.7), 1.0)
+	for ex in [-1.0, 1.0]:
+		ci.draw_rect(Rect2(sp + Vector2(ex * 15.0 - 2.5, -10.0), Vector2(5.0, 20.0)), Color(0.80, 0.66, 0.46))
+	ci.draw_line(sp + Vector2(13.0, 3.0), sp + Vector2(40.0, 14.0), Color(0.30, 0.50, 0.85), 1.0)
+
 
 func show_main_menu() -> void:
 	game.stop_sound("ambient")

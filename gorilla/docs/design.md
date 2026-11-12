@@ -204,6 +204,9 @@ the app. It is now the ruins of a temple in the jungle:
   blocks, lit top and left, dark bottom and right, a shadow on the floor, moss on top in patches and now
   and then a hanging vine; each runs on past both ends by half its thickness, closing corners. The bar
   sprites are no longer made (`pipe.gd` `show_fence` only records the side; `show_corner_patch` is off).
+- **Contrast** (once the walls were slim, "no contrast between the walls and the floor"): the floor is a
+  darker sandstone (0.48-0.55), the walls PALE bleached stone (0.86) with a fine dark outline all round
+  and a firmer shadow; the outer wall the same.
 - **Outer wall** (`_draw_rim`): the same stone at the SAME thickness (`RIM_W` = `TEMPLE_WALL`), shaded on all
   four sides like an inner wall, centered on the board's edge so it covers the inner walls' ends. It was a
   thin white bar; then 8 against the walls' 6 with flat sides, which read as twice as heavy (2026-11-12).

@@ -152,7 +152,7 @@ func _apply_layout() -> void:
 	# in the app comes from the top left.
 	_style_panel = StyleBoxFlat.new()
 	_style_panel.bg_color = _panels_bk_color
-	_style_panel.set_corner_radius_all(16)
+	_style_panel.set_corner_radius_all(5)      # a square of fabric, not a rounded card
 	_style_panel.shadow_color = Color(0, 0, 0, 0.40)
 	_style_panel.shadow_size = 10
 	_style_panel.shadow_offset = Vector2(5, 6)
@@ -169,6 +169,7 @@ func _apply_layout() -> void:
 	_style_pressed.shadow_size = 2
 	_style_pressed.shadow_offset = Vector2(1, 1)
 	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_panel)
+	_dress_cloths()
 
 	var dots_panel: Control = $"Root/GameArea/HBox/DotsPanel"
 	var opts_panel: Control = $"Root/GameArea/HBox/OptionsPanel"
@@ -213,6 +214,7 @@ func _start_round() -> void:
 	# Ensure the right number of persistent buttons exist; reset their appearance
 	%DotsInnerPanel.add_theme_stylebox_override("panel", _style_panel)
 	_ensure_option_buttons_count(int(_cfg["num_options"]))
+	_dress_cloths()
 	for btn in _option_buttons:
 		btn.text = ""
 		btn.modulate = Color.WHITE
@@ -451,6 +453,29 @@ func _generate_and_show_dots(rid: int) -> void:
 
 	var tex: Texture2D = $CharViewport.get_texture()
 	%DotsDisplay.set_dots(positions, dot_radius, tex, Rect2(Vector2.ZERO, display_size), _dots_color)
+
+# THE CLOTH (2026-11-12, the dressmaker's table: polka_cloth.gd): the dot panel is a square of fabric
+# pinned at its corners, each option a cloth label with a stitched seam. Under the dots and the letters;
+# its color is the level's panel color, never changed (it is part of the stimulus).
+var _panel_cloth: PolkaCloth = null
+
+func _dress_cloths() -> void:
+	if _panel_cloth == null or not is_instance_valid(_panel_cloth):
+		_panel_cloth = PolkaCloth.new()
+		_panel_cloth.pins = true
+		_panel_cloth.inset = 9.0
+		%DotsInnerPanel.add_child(_panel_cloth)
+		%DotsInnerPanel.move_child(_panel_cloth, 0)
+	_panel_cloth.set_cloth(_panels_bk_color)
+	for btn in _option_buttons:
+		var cl: PolkaCloth = btn.get_node_or_null("Cloth") as PolkaCloth
+		if cl == null:
+			cl = PolkaCloth.new()
+			cl.name = "Cloth"
+			cl.inset = 6.0
+			btn.add_child(cl)
+			btn.move_child(cl, 0)
+		cl.set_cloth(_panels_bk_color)
 
 # ── Option buttons ─────────────────────────────────────────────────────────────
 
