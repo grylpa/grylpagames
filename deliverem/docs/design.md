@@ -110,10 +110,15 @@ reads a door (the body follows its trail).
 4. Passing a dock delivers a packet **only if that dock is first in the list** —
    `remove_body_if_first()`. Wrong-order passes do nothing at all, silently.
    **The delivered cart goes INTO the dock** (2026-11-12). The moment the delivery counts -- the ENGINE
-   alongside the dock -- the cart leaves the train and CURVES in over `CART_FLY_S` (0.4 s): on along the
-   road toward the lobby (under the engine; carts are drawn below it) and round into the dock's center,
-   fading and shrinking, while the truck drives on or stands. The drawbar skips it, and the carts behind
-   and the van close the gap over `GAP_CLOSE_S` as the truck moves (`_gap_left` in `_pose_art`). Before:
+   alongside the dock -- the cart is LIFTED off the train -- drawn over everything (`CART_Z`), growing to `CART_LIFT` -- and
+curves in over `CART_FLY_S` (0.7 s), set down in the dock as a ring in the truck's color pulses out
+(`_DeliveryRing`); it was drawn under the engine and the docks and hardly showed. Its path: on along the
+   road toward the lobby, over the engine now, and round into the dock's center,
+   fading and shrinking, while the truck drives on or stands. The cart leaves the TRAIN the moment it is lifted (`_detach_body`): the links join up at once and the
+carts behind and the van close up into its place along the track over `GAP_CLOSE_S` (`_gap_left`, by the
+wall clock, posed every frame until closed), whether the truck drives on or stands. (It used to stay in
+the train until it landed, leaving an empty place with the link drawn across it, and the gap closed only
+while the truck moved.) Before:
    it puffed up and shrank on the road and the carts behind jumped a whole place in one frame; sent
    straight at the dock it cut diagonally across from a cell short; held aboard until it was itself level
    with the dock it waited on the truck -- one turning back, or a steered one that stopped at the receiver
