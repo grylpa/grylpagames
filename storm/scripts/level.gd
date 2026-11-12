@@ -220,6 +220,18 @@ func reset():
 	pipes.clear()
 	empties.clear()
 	doors.clear()
+	# The last board's walls, their shade and its water go WITH its tiles (2026-11-12). They were only
+	# replaced at the end of the next build, so on every level after the first the old walls stood over
+	# the new rooms going up, then jumped to the new layout ("the walls show in a delay").
+	for n in [_house_walls, _house_shadow, _house_windows, _wall_shade, _flood]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_house_walls = null
+	_house_shadow = null
+	_house_windows = null
+	_window_list = []
+	_wall_shade = null
+	_flood = null
 
 	time_started_level_ms = 0
 
@@ -345,7 +357,7 @@ func _in_corridor(p: Vector2i) -> bool:
 	return cell != null and cell.ispipe and cell.room_id < 0
 	
 # The color under a board cell, for the drawn-path overlay. The floor of a room is painted
-# `color_by_index(room_id).lightened(0.5)` in pipe.gd, so the path is told the same thing and
+# `color_by_index(room_id).darkened(0.2)` in pipe.gd, so the path is told the same thing and
 # picks black or white against it -- a fixed orange line vanished over the warmer rooms.
 func path_color_at(bp: Vector2i) -> Color:
 	if bp.x < 0 or bp.y < 0 or bp.y >= board.size() or bp.x >= board[bp.y].size():
@@ -353,7 +365,7 @@ func path_color_at(bp: Vector2i) -> Color:
 	var rid: int = board[bp.y][bp.x].room_id
 	if rid < 0:
 		return Color(1, 1, 1)
-	return game.color_by_index(rid).lightened(0.5)
+	return game.color_by_index(rid).darkened(0.2)
 
 func add_pipe(p, room_id := -1):
 	if board[p.y][p.x].ispipe:
@@ -377,6 +389,9 @@ func add_pipe(p, room_id := -1):
 	pipe.set_rot(board)
 	# While rooms are still being placed there is no frame for them yet (_frame_build()).
 	pipe.visible = _build_framed
+	# once the rooms are shown, the walls grow with the corridors (one redraw a frame, however many tiles)
+	if _build_framed:
+		_redraw_house()
 
 
 func _on_pipe_pressed(_board_pos):	
@@ -1261,6 +1276,15 @@ func _frame_build() -> void:
 	zoom_camera(false)
 	for pipe in pipes:
 		pipe.visible = true
+	# the walls appear WITH the rooms, not at the end of the build
+	_add_wall_shade()
+	_add_house_walls()
+
+func _redraw_house() -> void:
+	for n in [_house_walls, _house_shadow, _wall_shade]:
+		if n != null and is_instance_valid(n):
+			n.queue_redraw()
+	# (the windows redraw every frame on their own: _draw_house_windows)
 
 # During play: glide to the room the player has walked into; in a corridor, keep them in view.
 func _follow_player_room(delta: float) -> void:
@@ -1658,6 +1682,7 @@ func _add_flood_layer() -> void:
 	if _flood != null and is_instance_valid(_flood):
 		_flood.queue_free()
 	_add_wall_shade()
+	_add_house_walls()
 	_flood = StormFloodLayer.new()
 	add_child(_flood)
 	var top_left: Vector2 = game.board_to_px(Vector2i.ZERO) - Vector2.ONE * float(game.tile_size) * 0.5
@@ -1678,18 +1703,161 @@ const WALL_SHADE_ALPHA: float = 0.30
 const CORNER_STEPS: int = 5
 var _wall_shade: Node2D = null
 
+# THE HOUSE'S WALLS (2026-11-12): white plaster walls with a dark outline round every room and hallway --
+# along each edge where floor meets anything that is not floor -- and WINDOWS in the rooms' outer walls,
+# glass with rain running down it. Drawn like Mind Palace's: the plaster of EVERY wall first, then the
+# lines, so a corner never loses a stretch of its line; a wall runs on past an OUTSIDE corner, stops at
+# a straight joint, and its outer line stops a wall's width short at an INSIDE corner. The rooms used to
+# lie on the rainy ground like rugs.
+const HOUSE_WALL: float = 0.18          # thickness, in tiles (0.16 "a thin white frame", 0.24 "too thick")
+var _house_walls: Node2D = null
+var _house_shadow: Node2D = null
+var _house_windows: Node2D = null       # the windows: their own node, redrawn every frame (the storm)
+var _window_list: Array = []            # [center, along, out], filled by _draw_house_walls
+
+func _add_house_walls() -> void:
+	for n in [_house_walls, _house_shadow, _house_windows]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_house_shadow = Node2D.new()
+	# UNDER the floor tiles (z -1): drawn over them, the shadow fell INWARD too, a dark band across the
+	# corridor and a dark square at every doorway's corner; the floor now covers whatever falls inward
+	_house_shadow.z_index = -2
+	_house_shadow.draw.connect(_draw_house_walls.bind(true, _house_shadow))
+	add_child(_house_shadow)
+	_house_walls = Node2D.new()
+	_house_walls.z_index = 1
+	_house_walls.draw.connect(_draw_house_walls.bind(false, _house_walls))
+	add_child(_house_walls)
+	# the windows OVER the walls (made before them, the walls covered them)
+	_house_windows = Node2D.new()
+	_house_windows.z_index = 1
+	_house_windows.draw.connect(_draw_house_windows.bind(_house_windows))
+	add_child(_house_windows)
+	get_tree().process_frame.connect(_house_windows.queue_redraw)
+
+func _is_house_floor(q: Vector2i) -> bool:
+	if q.y < 0 or q.y >= board.size() or q.x < 0 or q.x >= board[q.y].size():
+		return false
+	var o = board[q.y][q.x]
+	return o != null and o.ispipe
+
+# Each drawing is handed ITS OWN node (bound at connect): reading the level's variable, an old node still
+# drawing once after a new level began drew onto the new one or onto null -- the crash on changing level.
+func _draw_house_walls(shadow: bool, node: Node2D) -> void:
+	var t: float = float(game.tile_size)
+	var w: float = t * HOUSE_WALL
+	var plaster: Color = Color(0.92, 0.91, 0.88)
+	var lines: Array = []
+	var windows: Array = []
+	for y in board.size():
+		for x in board[y].size():
+			var here: Vector2i = Vector2i(x, y)
+			if not _is_house_floor(here):
+				continue
+			var c: Vector2 = game.board_to_px(here)
+			for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				if _is_house_floor(here + dv):
+					continue
+				var n: Vector2 = Vector2(dv)
+				var side: Vector2 = Vector2(-n.y, n.x)
+				var side_i: Vector2i = Vector2i(-dv.y, dv.x)
+				var ends: Array = []
+				for sgn in [1, -1]:
+					var sv: Vector2i = side_i * sgn
+					if not _is_house_floor(here + sv):
+						ends.append([w, w])
+					elif _is_house_floor(here + sv + dv):
+						ends.append([0.0, -w])
+					else:
+						ends.append([0.0, 0.0])
+				var mid: Vector2 = c + n * t * 0.5
+				var a0: Vector2 = mid + side * (t * 0.5 + float(ends[0][0]))
+				var a1: Vector2 = mid - side * (t * 0.5 + float(ends[1][0]))
+				var quad: PackedVector2Array = PackedVector2Array([a0, a1, a1 + n * w, a0 + n * w])
+				if shadow:
+					var off: Vector2 = Vector2(0.08, 0.12) * t
+					var sq: PackedVector2Array = PackedVector2Array()
+					for p in quad:
+						sq.append(p + off)
+					node.draw_colored_polygon(sq, Color(0.0, 0.0, 0.0, 0.45))
+					continue
+				node.draw_colored_polygon(quad, plaster)
+				lines.append([mid + n * w + side * (t * 0.5 + float(ends[0][1])), mid + n * w - side * (t * 0.5 + float(ends[1][1])), Color(0.18, 0.18, 0.20), 1.4])
+				lines.append([mid + side * t * 0.5, mid - side * t * 0.5, Color(0.30, 0.29, 0.28, 0.9), 1.0])
+				# a WINDOW in a room's outer wall, every third cell along it (never at a corner)
+				var cell = board[y][x]
+				# (and a plain wall cell on either side too: never right against a doorway)
+				if cell.room_id >= 0 and _is_house_floor(here + side_i) and _is_house_floor(here - side_i) \
+						and not _is_house_floor(here + side_i + dv) and not _is_house_floor(here - side_i + dv) \
+						and posmod((x if dv.y != 0 else y) * 7 + (y if dv.y != 0 else x) * 3, 3) == 0:
+					windows.append([mid + n * w * 0.5, side, n])
+	if shadow:
+		return
+	for ln: Array in lines:
+		node.draw_line(ln[0], ln[1], ln[2], float(ln[3]), false)
+	_window_list = windows
+
+# THE WINDOWS, AND THE STORM THROUGH THEM (2026-11-12; "no storm feeling inside"): redrawn every frame.
+# Each is a deep frame across the wall with a light sill on the inside, its glass the dark stormy sky
+# with a sheen sliding along it, and a cool wash of daylight falling onto the floor in front of it. Every
+# few seconds LIGHTNING: a double flash that lights every pane and throws a bright burst of light in
+# through the windows across the floors. (The blackouts -- main.gd, the thunder with the house lights
+# cut -- are a separate event and unchanged.)
+func _draw_house_windows(node: Node2D) -> void:
+	if _window_list.is_empty() or not is_instance_valid(node):
+		return
+	var t: float = float(game.tile_size)
+	var w: float = t * HOUSE_WALL
+	var now: float = float(Time.get_ticks_msec()) / 1000.0
+	# lightning: one flash in each 9 s stretch at a seeded moment, a second weaker one just after
+	var seg: float = floor(now / 9.0)
+	var start: float = seg * 9.0 + 1.0 + 6.0 * fposmod(sin(seg * 12.9898) * 43758.5453, 1.0)
+	var dt: float = now - start
+	var flash: float = 0.0
+	if dt >= 0.0 and dt < 0.10:
+		flash = 1.0 - dt / 0.10
+	elif dt >= 0.18 and dt < 0.40:
+		flash = 0.6 * (1.0 - (dt - 0.18) / 0.22)
+	for wd: Array in _window_list:
+		var at: Vector2 = wd[0]
+		var side2: Vector2 = wd[1]
+		var n2: Vector2 = wd[2]
+		var half_len: float = t * 0.42
+		var hw: float = w * 0.5 + 1.5
+		var inner: Vector2 = at - n2 * hw
+		# the light on the floor in front of it
+		var reach: float = t * (1.2 + 1.3 * flash)
+		var a0: float = 0.14 + 0.45 * flash
+		var spill: PackedVector2Array = PackedVector2Array([inner + side2 * half_len, inner - side2 * half_len,
+			inner - side2 * half_len * 1.6 - n2 * reach, inner + side2 * half_len * 1.6 - n2 * reach])
+		var lc: Color = Color(0.78, 0.86, 0.98)
+		node.draw_polygon(spill, PackedColorArray([Color(lc, a0), Color(lc, a0), Color(lc, 0.0), Color(lc, 0.0)]))
+		# the pane, set WITHIN the wall (a dark frame standing out of it read as "strange"): pale glass the
+		# color of the overcast sky, lit by the lightning, a thin frame, a mullion (a sheen sliding along it was
+		# "some strange animation": the panes are still but for the lightning)
+		var hw2: float = w * 0.5 - 0.5
+		var glass: PackedVector2Array = PackedVector2Array([at + side2 * half_len - n2 * hw2, at - side2 * half_len - n2 * hw2,
+			at - side2 * half_len + n2 * hw2, at + side2 * half_len + n2 * hw2])
+		var sky: Color = Color(0.60, 0.70, 0.80).lerp(Color(0.95, 0.97, 1.0), flash)
+		node.draw_colored_polygon(glass, sky)
+		var closed: PackedVector2Array = glass.duplicate()
+		closed.append(glass[0])
+		node.draw_polyline(closed, Color(0.45, 0.47, 0.50), 1.0, false)
+		node.draw_line(at - n2 * hw2, at + n2 * hw2, Color(0.45, 0.47, 0.50), 1.0)
+
 func _add_wall_shade() -> void:
 	if _wall_shade != null and is_instance_valid(_wall_shade):
 		_wall_shade.queue_free()
 	_wall_shade = Node2D.new()
 	_wall_shade.z_index = -1
-	_wall_shade.draw.connect(_draw_wall_shade)
+	_wall_shade.draw.connect(_draw_wall_shade.bind(_wall_shade))
 	add_child(_wall_shade)
 
 func _shade_color(a: float) -> Color:
 	return Color(0.0, 0.0, 0.05, WALL_SHADE_ALPHA * clampf(a, 0.0, 1.0))
 
-func _draw_wall_shade() -> void:
+func _draw_wall_shade(node: Node2D) -> void:
 	var t: float = float(game.tile_size)
 	var d: float = t * WALL_SHADE
 	var cols: PackedColorArray = PackedColorArray([_shade_color(1.0), _shade_color(1.0), _shade_color(0.0),
@@ -1714,21 +1882,21 @@ func _draw_wall_shade() -> void:
 					e0 -= side * d
 				if _shade_wall(cell, p - Vector2i(side)):
 					e1 += side * d
-				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
+				node.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
 			for sx: int in [-1, 1]:
 				for sy: int in [-1, 1]:
 					var wx: bool = _shade_wall(cell, p + Vector2i(sx, 0))
 					var wy: bool = _shade_wall(cell, p + Vector2i(0, sy))
 					if wx and wy:
-						_draw_shade_corner(c + Vector2(sx, sy) * t * 0.5, Vector2(sx, sy), d, false)
+						_draw_shade_corner(node, c + Vector2(sx, sy) * t * 0.5, Vector2(sx, sy), d, false)
 					elif not wx and not wy and _shade_wall(cell, p + Vector2i(sx, sy)):
-						_draw_shade_corner(c + Vector2(sx, sy) * t * 0.5, Vector2(sx, sy), d, true)
+						_draw_shade_corner(node, c + Vector2(sx, sy) * t * 0.5, Vector2(sx, sy), d, true)
 
 # One corner patch, d x d, inward from the cell corner `at` (`dir` points out of the cell toward it), as
 # a small grid with a shade per vertex. u and v are the distances from the two walls' lines. Outside
 # corner: shaded by a smooth minimum of u and v (it rounds the inner edge of the shade, so the two bands
 # blend). Inside corner: by the distance from the wall's corner point, a quarter circle.
-func _draw_shade_corner(at: Vector2, dir: Vector2, d: float, inside: bool) -> void:
+func _draw_shade_corner(node: Node2D, at: Vector2, dir: Vector2, d: float, inside: bool) -> void:
 	var k: float = d * 0.6
 	var pts: Array = []
 	var shades: Array = []
@@ -1748,7 +1916,7 @@ func _draw_shade_corner(at: Vector2, dir: Vector2, d: float, inside: bool) -> vo
 	for j in CORNER_STEPS:
 		for i in CORNER_STEPS:
 			var a: int = j * row + i
-			_wall_shade.draw_polygon(PackedVector2Array([pts[a], pts[a + 1], pts[a + row + 1], pts[a + row]]),
+			node.draw_polygon(PackedVector2Array([pts[a], pts[a + 1], pts[a + row + 1], pts[a + row]]),
 				PackedColorArray([shades[a], shades[a + 1], shades[a + row + 1], shades[a + row]]))
 
 # Whether the floor of `cell` meets a wall toward `q`: anything that is not more of the same room

@@ -53,8 +53,19 @@ float cover(vec2 uv) {
 	return textureLod(screen_texture, uv, 0.0).a;
 }
 
+// THE SHORE WANDERS (2026-11-12): every coverage sample is taken a few pixels off, along a slow noise,
+// so a puddle's edge is ragged like spilled water, not a drawn circle ("glass discs").
+vec2 wobble(vec2 tp, vec2 px) {
+	// broad lobes and a finer fray: a spill, not a disc ("glass beads, buttons")
+	vec2 o = vec2(noise(tp * 1.3 + 4.1), noise(tp * 1.3 + 9.3)) - 0.5;
+	o += 0.35 * (vec2(noise(tp * 4.5 + 1.7), noise(tp * 4.5 + 7.7)) - 0.5);
+	return o * 22.0 * px;
+}
+
 void fragment() {
-	float a = cover(SCREEN_UV);
+	vec2 tp0 = local_px / tile_px;
+	vec2 wob = wobble(tp0, SCREEN_PIXEL_SIZE);
+	float a = cover(SCREEN_UV + wob);
 	if (a <= 0.001) {
 		discard;
 	}
@@ -71,11 +82,15 @@ void fragment() {
 	float far_dry = 0.0;
 	for (int k = 0; k < 8; k++) {
 		vec2 dir = vec2(cos(float(k) * 0.785398), sin(float(k) * 0.785398)) * SCREEN_PIXEL_SIZE;
-		near_dry = max(near_dry, 1.0 - cover(SCREEN_UV + dir * shore_px));
-		far_dry += (1.0 - cover(SCREEN_UV + dir * depth_px)) / 8.0;
+		near_dry = max(near_dry, 1.0 - cover(SCREEN_UV + wob + dir * shore_px));
+		far_dry += (1.0 - cover(SCREEN_UV + wob + dir * depth_px)) / 8.0;
 	}
-	vec3 shallow = mix(water_color.rgb, vec3(1.0), 0.28);
-	vec3 deep = water_color.rgb * 0.8;
+	// WATER ON A FLOOR (2026-11-12): shallow water mostly DARKENS the floor seen through it, with only a
+	// little cool tint; deep water is bluer and less see-through. (Light blue with a white rim read as
+	// glass discs lying on the floor.)
+	// blue enough to read as WATER on any floor color (near-neutral read as gray dirt on a light floor)
+	vec3 shallow = vec3(0.12, 0.22, 0.38);
+	vec3 deep = vec3(0.08, 0.22, 0.48);
 	float depth = 1.0 - far_dry;
 	vec3 col = mix(shallow, deep, depth);
 	// the surface: normals from the ripple field, a glint from the top-left light, moving patches
@@ -84,9 +99,16 @@ void fragment() {
 	float hy = ripple(tp + vec2(0.0, e)) - ripple(tp - vec2(0.0, e));
 	vec3 n = normalize(vec3(-hx * 2.2, -hy * 2.2, 1.0));
 	vec3 half_v = normalize(normalize(vec3(-0.45, -0.55, 0.70)) + vec3(0.0, 0.0, 1.0));
-	float spec = pow(max(dot(n, half_v), 0.0), 60.0);
+	float spec = pow(max(dot(n, half_v), 0.0), 140.0);      // small, sparse glints, not one big shine
 	col *= 0.90 + 0.18 * ripple(tp * 0.7 + 9.0);
-	col = mix(col, vec3(0.85, 0.94, 1.0), near_dry * 0.45);
-	col += vec3(1.0, 1.0, 0.97) * spec * 0.55 * smoothstep(0.0, 0.4, depth + 0.2);
-	COLOR = vec4(col, water_color.a * a * mix(0.55, 0.88, depth));
+	// the meniscus: a thin dark line at the shore, bright only where the shore faces the light
+	vec2 g = vec2(cover(SCREEN_UV + wob + vec2(SCREEN_PIXEL_SIZE.x * 2.0, 0.0)) - cover(SCREEN_UV + wob - vec2(SCREEN_PIXEL_SIZE.x * 2.0, 0.0)),
+		cover(SCREEN_UV + wob + vec2(0.0, SCREEN_PIXEL_SIZE.y * 2.0)) - cover(SCREEN_UV + wob - vec2(0.0, SCREEN_PIXEL_SIZE.y * 2.0)));
+	float facing = clamp(dot(normalize(g + 1e-5), normalize(vec2(0.45, 0.9))), 0.0, 1.0);
+	col = mix(col, vec3(0.05, 0.08, 0.12), near_dry * 0.35);
+	col = mix(col, vec3(0.85, 0.93, 1.0), near_dry * facing * 0.35);
+	col += vec3(1.0, 1.0, 0.97) * spec * 0.7;
+	// see-through: the floor shows under the water, darkened -- deeper water a little less so
+	float alpha = mix(0.32, 0.62, depth) + near_dry * 0.10 + spec * 0.3;
+	COLOR = vec4(col, clamp(alpha, 0.0, 0.95) * a);
 }

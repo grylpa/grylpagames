@@ -880,6 +880,59 @@ at a slant in pale steel streaks, and the gold bolt the one warm, bright thing i
 `devtools/install_thumbs.py` copies it in; the published thumbnail under `docs/src/thumbs/` is
 derived from it by the games-doc build and must not be written by hand.
 
+## A real home (2026-11-12)
+
+The house was pale marble rooms lying on the rainy ground like rugs, with brick blocks and small
+clip-art furniture in them. Now:
+- **Room floors** (`room_floor.gdshader` on each room tile's `PipeFloor2`, its own material copy, told
+  its `cell`, `kind` and `checker` in `pipe.gd` `set_rot` from `FLOOR_PLAN`, by room in turn: marble,
+  ceramic, marble, terracotta, CHECKER marble, ceramic; corridors keep kind 0): POLISHED MARBLE in ONE
+  even tone of the room's color (veins, bevel, sheen -- Mind Palace's floor; a checker only in one room in
+  six: "most should not" be checkerboard), GLAZED CERAMIC (glossy, a THIN grout close to the tile's tone,
+  raised rim, crackle, the window light as a streak), TERRACOTTA (matte, a NARROW mortar a step darker --
+  white grout and dark wide mortar made heavy grids). The marble has EVERY SLAB ITS OWN TONE, clouding in
+  the stone and bolder veins (0.34): flat, an even floor looked plain beside Mind Palace's checker.
+  CORRIDORS are the same marble in warm gray (`pipe.gd` `CORRIDOR_STONE`; they were a photo of gray marble,
+  `PipeImageNoDir`). ONE TILE PER CELL in all three: play is cell by cell ("don't lose the tiles"). The
+  ROOM'S COLOR is the tint -- DEEP, `color_by_index(room).darkened(0.2)` as in Mind Palace (it was
+  `lightened(0.5)`: on those pastels the marble's pale veins, bevels and sheen hardly showed, and the same
+  shader as Mind Palace's looked flat; `level.floor_color_at` is told the same) -- and stays the main thing seen -- the colors do not matter to play, but help
+  the player remember which room is which (white is a palette color: a white room is meant). Laid from
+  the cell, not MODEL_MATRIX; hairlines sized in screen pixels. Tried first and dropped: wooden boards
+  ("unclear", "parquet"), small kitchen tiles two by two (a grid twice as fine as the cells), carpet --
+  drawn per cell on the CPU, and "dull" ("see what you did in Mind Palace").
+- **Walls** (`level._add_house_walls` / `_draw_house_walls`): white plaster, `HOUSE_WALL` 0.18 of a tile
+  (0.16 was "a thin white frame", 0.24 "too thick"), with a dark outline round every room and hallway, drawn like Mind
+  Palace's (all the plaster, then all the lines; outside corners run on, inside corners stop the outer
+  line short), a shadow falling outward -- UNDER the floor tiles (z -2), so the floor covers whatever falls
+  inward (above them it laid a dark band across the corridors and a dark square at every doorway). Windows
+  keep a plain wall cell from any doorway. They are freed with the old board's tiles and built as the
+  rooms appear (`_frame_build`, `_redraw_house` from `add_pipe`): the old walls used to stand over the
+  new rooms on every level after the first ("the walls show in a delay").
+- **Every drawing is handed ITS OWN node** (bound at connect: `_draw_house_walls(shadow, node)`,
+  `_draw_house_windows(node)`, `_draw_wall_shade(node)` and its `_draw_shade_corner(node, ...)`). They read
+  the level's variables before, and when a level was left for another the old nodes, still drawing once
+  before being freed, drew onto the new board's node or onto null: "Drawing is only allowed inside this
+  node's _draw()" by the hundred, and a crash (2026-11-12). Mind Palace and Gorilla got the same fix.
+- **Windows and the storm through them** (`_draw_house_windows`, its own node OVER the walls, redrawn
+  every frame): in the rooms' outer walls every third cell, a pane set WITHIN the wall -- pale glass the
+  color of the overcast sky, a thin frame and a mullion, STILL but for the lightning (a dark frame
+  standing out of the wall with dark glass read as "strange"; a sheen sliding along the glass was "some
+  strange animation") -- and a cool wash of daylight onto the floor; every
+  few seconds LIGHTNING -- a double flash lighting every pane and throwing a burst of light across the
+  floors. The blackouts (main.gd) are separate and unchanged.
+- **Furniture in one style**, seen from above, lit from the top left, on a soft shadow, outlined, filling
+  its tile: the bricks are a BOOKCASE, an ARMCHAIR or a CABINET with a lamp (`home_prop.gd`,
+  `StormHomeProp`, `has_brick % 3`, logic unchanged); the belongings (`room_art.gd` `draw_furniture`) are a
+  POTTED PLANT from above, a TV on its MEDIA CONSOLE (its screen's light across the top), and a RUG filling
+  the tile with a round medallion (it had a diamond: none in the app). Ruined: dulled, with a stain.
+- **The water** (`scenes/water.gdshader`): the shore WANDERS in broad lobes and a finer fray (coverage
+  sampled along a slow noise, 22 px), so a puddle is a spill, not a disc; see-through and BLUE (shallow
+  0.12/0.22/0.38, deep 0.08/0.22/0.48 -- near-neutral read as dirt on a light floor), a thin dark
+  meniscus bright only where the shore faces the light, small sparse glints. The drop rings
+  (`flood_layer.gd`) are one faint thin ring. Before: "glass beads / buttons". (`SCREEN_PIXEL_SIZE` exists
+  only in `fragment()`: helpers take it as an argument.)
+
 ## Look (2026-10)
 
 - Monsters, bombs and the player are drawn by `scripts/monster_art.gd` (a menacing bug; a glossy black

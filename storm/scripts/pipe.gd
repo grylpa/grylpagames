@@ -62,12 +62,13 @@ func _ready() -> void:
 	add_child(_tool_draw)
 	# the floor tile and the furniture are drawn (room_art.gd); their sprites stay for visibility,
 	# placement and the room's tint, with their own pixels hidden
-	$PipeFloor2.self_modulate = Color(1, 1, 1, 0)
-	var floor_art: Node2D = Node2D.new()
-	floor_art.scale = Vector2.ONE / $PipeFloor2.scale
-	floor_art.draw.connect(func() -> void: StormRoomArt.draw_floor(floor_art, 20.0, board_pos))
-	floor_art.z_index = 0
-	$PipeFloor2.add_child(floor_art)
+	# the room's floor (room_floor.gdshader): this tile's own copy of the material, told its cell and the
+	# room's kind in set_rot; the room's color is the sprite's tint
+	if _floor_mat_base == null:
+		_floor_mat_base = ShaderMaterial.new()
+		_floor_mat_base.shader = preload("res://storm/scripts/room_floor.gdshader")
+	_floor_mat = _floor_mat_base.duplicate() as ShaderMaterial
+	$PipeFloor2.material = _floor_mat
 	_furniture_art = Node2D.new()
 	_furniture_art.draw.connect(func() -> void:
 		StormRoomArt.draw_furniture(_furniture_art, _furniture_kind, furniture_ruined))
@@ -148,24 +149,48 @@ func pour(amount: float) -> void:
 			else:
 				action_level = min(overflow_level, dt + action_level)
 
+const CORRIDOR_STONE: Color = Color(0.46, 0.44, 0.41)
+# [kind, checker] per room, in turn: marble, ceramic, marble, terracotta, CHECKER marble, ceramic
+const FLOOR_PLAN: Array = [[0, 0], [1, 0], [0, 0], [2, 0], [0, 1], [1, 0]]
+static var _floor_mat_base: ShaderMaterial = null
+var _floor_mat: ShaderMaterial = null
+var _floor_kind: int = -1          # the room's floor (room_floor.gdshader kind); -1 a corridor
+
 func set_rot(board):
 	var p = board_pos
 	set_coin()
+	# the room's floor, by room: mostly even MARBLE, glazed CERAMIC and TERRACOTTA; a CHECKER of marble
+	# in one room in six (room_floor.gdshader)
+	var rid: int = int(board[p.y][p.x].room_id)
+	var kind: int = int(FLOOR_PLAN[posmod(rid, FLOOR_PLAN.size())][0]) if rid >= 0 else -1
+	var checker: float = float(FLOOR_PLAN[posmod(rid, FLOOR_PLAN.size())][1]) if rid >= 0 else 0.0
+	_floor_kind = kind
+	if _floor_mat != null:
+		_floor_mat.set_shader_parameter("cell", Vector2(p))
+		_floor_mat.set_shader_parameter("kind", maxi(kind, 0))
+		_floor_mat.set_shader_parameter("checker", checker)
 	if board[p.y][p.x].room_id >= 0:
 		# var color = Color.from_rgba8(165,165,165,255)
-		var color = game.color_by_index(board[p.y][p.x].room_id).lightened(0.5)
+		# DEEP like Mind Palace's (darkened, not lightened): on pastel floors (lightened(0.5)) the marble's
+		# pale veins, bevels and sheen hardly showed, and the same shader looked flat ("why are Mind
+		# Palace's floors so much prettier?"). level.floor_color_at() is told the same.
+		var color = game.color_by_index(board[p.y][p.x].room_id).darkened(0.2)
 		$PipeFloor2.modulate = color
 	else:
+		# a CORRIDOR: the same marble in warm gray, as Mind Palace's (it was a photo of gray marble)
 		$PipeFloor1.hide()
-		$PipeFloor2.hide()
-		$PipeImageNoDir.show()
+		$PipeFloor2.show()
+		$PipeFloor2.modulate = CORRIDOR_STONE
+		$PipeImageNoDir.hide()
 
-	if has_brick >= 0 and !bricks.is_empty():
-		if active_brick == null:
-			seed(MainGlobals.timeus())
-			active_brick = bricks[has_brick % bricks.size()]
-			_fill_tile(active_brick)
-			active_brick.show()
+	# a "brick" is drawn as household furniture: a bookcase, an armchair or a cabinet (home_prop.gd),
+	# filling its tile; the brick sprites stay hidden
+	if has_brick >= 0 and active_brick == null:
+		var prop: StormHomeProp = StormHomeProp.new()
+		prop.kind = has_brick % 3
+		prop.z_index = 2
+		add_child(prop)
+		active_brick = prop
 
 # A BRICK FILLS ITS TILE. The water stops at the edge of a tile it cannot enter, and the brick art
 # has a margin inside its 40 px, so a strip of floor showed between the two. The art is shared with

@@ -1496,10 +1496,10 @@ func _add_wall_shade() -> void:
 		_wall_shade.queue_free()
 	_wall_shade = Node2D.new()
 	_wall_shade.z_index = -1
-	_wall_shade.draw.connect(_draw_wall_shade)
+	_wall_shade.draw.connect(_draw_wall_shade.bind(_wall_shade))
 	add_child(_wall_shade)
 
-func _draw_wall_shade() -> void:
+func _draw_wall_shade(node: Node2D) -> void:
 	var t: float = float(game.tile_size)
 	var d: float = t * WALL_SHADE
 	var dark: Color = Color(0.0, 0.0, 0.05, 0.26)
@@ -1524,7 +1524,7 @@ func _draw_wall_shade() -> void:
 				var side: Vector2 = Vector2(-n.y, n.x)
 				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
 				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
-				_wall_shade.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
+				node.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
 
 # THE PALACE'S WALLS (2026-11-12): a rim of dressed stone along every edge where floor (a room or a
 # corridor) meets the sky, lit along its top-left, with a soft shadow falling outward onto the sky. The
@@ -1539,18 +1539,18 @@ func _add_castle_walls() -> void:
 			n.queue_free()
 	_walls_shadow = Node2D.new()
 	_walls_shadow.z_index = -2
-	_walls_shadow.draw.connect(_draw_castle_walls.bind(true))
+	_walls_shadow.draw.connect(_draw_castle_walls.bind(true, _walls_shadow))
 	add_child(_walls_shadow)
 	_walls_node = Node2D.new()
 	_walls_node.z_index = -1
-	_walls_node.draw.connect(_draw_castle_walls.bind(false))
+	_walls_node.draw.connect(_draw_castle_walls.bind(false, _walls_node))
 	add_child(_walls_node)
 
-func _draw_castle_walls(shadow: bool) -> void:
+# (handed its own node: see Storm's _draw_house_walls -- an old node drawing after a rebuild hit the new one)
+func _draw_castle_walls(shadow: bool, node: Node2D) -> void:
 	var t: float = float(game.tile_size)
 	var w: float = t * CASTLE_WALL
 	var light: Vector2 = Vector2(-0.45, -0.9).normalized()
-	var node: Node2D = _walls_shadow if shadow else _walls_node
 	# the stone of EVERY wall first, then every edge line: drawn wall by wall, the next strip's stone
 	# covered the end of the last one's lines, and each doorway corner lost a stretch of its line
 	var lines: Array = []          # [a, b, color, width]

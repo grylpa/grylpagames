@@ -144,10 +144,9 @@ func _draw_rings(ci: Node2D, room: int) -> void:
 				continue
 			var life: float = 1.0 - age / RING_LIFE
 			var col: Color = RING
-			col.a = 0.55 * life
-			ci.draw_arc(ctr, age * RING_SPEED * _tile_px, 0.0, TAU, 32, col, 1.5, true)
-			col.a = 0.3 * life
-			ci.draw_arc(ctr, age * RING_SPEED * 0.62 * _tile_px, 0.0, TAU, 24, col, 1.2, true)
+			# faint and thin (2026-11-12): bright double rings at every leak made each puddle read as a button
+			col.a = 0.22 * life
+			ci.draw_arc(ctr, age * RING_SPEED * _tile_px, 0.0, TAU, 32, col, 1.0, true)
 			if age < 0.25:
 				col.a = 0.6 * (1.0 - age / 0.25)
 				ci.draw_circle(ctr, 0.035 * _tile_px, col)

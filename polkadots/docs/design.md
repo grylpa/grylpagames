@@ -328,7 +328,17 @@ and a letter of dots were tried on the way.
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a bell chime for right, a soft low bell note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
 
-**The table is felt** (`felt.gdshader` -- this game's own copy of Change's -- on a full-screen ColorRect in a CanvasLayer at -10, added in `main.gd`), in the old clear color's green.
+**A dressmaker's table** (2026-11-12; it was green felt, `felt.gdshader`, now deleted):
+- **The worktable** (`worktable.gdshader`, on the full-screen ColorRect in the CanvasLayer at -10 that
+  `main.gd` adds): warm wooden boards with grain, knots, staggered joints and a soft light from the top
+  left. Her things lie round its bottom edge, clear of the panels and the HUD (`main.gd` `_draw_notions`):
+  a yellow TAPE MEASURE, a SPOOL of blue thread and a tomato PIN CUSHION bristling with pins (top right
+  it lay under the score).
+- **Cloth** (`polka_cloth.gd`, `PolkaCloth`, laid by `level._dress_cloths()` UNDER the dots and the
+  letters): the dot panel is a square of fabric (corners 5, not 16) pinned at its corners with
+  yellow-headed pins (red vanished on the red panels); every option is a cloth label. Both carry a faint
+  weave and a STITCHED seam inside the edge. Their colors all come from the level's panel color, which is
+  never changed: it is part of the stimulus.
 
 **The panels' FORM, not their colors** (`level.gd` `_apply_layout`): the panel, letter and dot colors are
 set per level and are part of the stimulus, so they are untouched. The dots panel is rounded (16) with
