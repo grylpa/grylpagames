@@ -871,6 +871,12 @@ rain near a cloud rather than falling from it. Lower down it fills the tile edge
 0.14-0.98 across, it left a strip of dry sky down the left side only, widened by the leftward slant.
 It is brighter near the flash.
 
+**The current tile (2026-11-12) is a clean glossy icon in STORMY colors.** An intermediate version had
+a white cloud on a violet-to-electric-blue sky with round cyan drops -- "a bit too optimistic in colors",
+a weather app's sunny-side icon. Now: a heavy slate-charcoal cloud lit only faintly along its top and
+warmly on its belly where the bolt leaves it, a sky from near-black indigo to deep teal-slate, rain DRIVEN
+at a slant in pale steel streaks, and the gold bolt the one warm, bright thing in the frame.
+
 `devtools/install_thumbs.py` copies it in; the published thumbnail under `docs/src/thumbs/` is
 derived from it by the games-doc build and must not be written by hand.
 
