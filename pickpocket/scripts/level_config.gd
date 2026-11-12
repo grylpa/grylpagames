@@ -8,7 +8,11 @@ extends Node
 #   swaps        swaps in one shuffle
 #   swap_ms      how long one swap takes
 #   crowd        how many passers-by the street keeps
-#   lift_ms      how long the theft takes, from the hand reaching the pocket to the wallet gone
+#   lift_ms      how long the theft takes, from the hand setting off for the pocket to the wallet gone
+#                (the reach-in, a hold at the pocket, the hand back out); the arm from the screen's
+#                edge takes HAND_MS_K (level.gd) times this
+#   tail_ms      how long a pickpocket on the street walks right behind the victim, keeping pace,
+#                before the hand goes in (it used to go in the moment they caught up)
 #   cue          the easy theft: a bright wallet, and the victim starts at the touch
 #   thief_q      the share of rounds that ask for the THIEF instead of the victim
 #   empty_p      the share of rounds with no theft at all (the answer is "No one")
@@ -20,15 +24,19 @@ extends Node
 #   pass_pct     the share of rounds with BOTH answers right needed to pass. It sits exactly on
 #                a rung of the rounds: 66 = 4 of 6, 75 = 6 of 8.
 
+# THE THEFT'S PACE, all levels at once: multiplies every lift_ms and tail_ms. Above 1 the theft is
+# slower and easier to notice, below 1 quicker. (The levels' own values carry the climb in difficulty.)
+const THEFT_PACE: float = 1.0
+
 var LEVELS: Array = [
-	{"id": 1, "name": "1", "cups": 3, "swaps": 4,  "swap_ms": 760, "crowd": 4, "lift_ms": 1100, "cue": true,  "thief_q": 0.0,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": false,  "rounds": 6, "pass_pct": 66},
-	{"id": 2, "name": "2", "cups": 3, "swaps": 5,  "swap_ms": 660, "crowd": 5, "lift_ms": 900,  "cue": true,  "thief_q": 0.0,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": false,  "rounds": 6, "pass_pct": 66},
-	{"id": 3, "name": "3", "cups": 3, "swaps": 6,  "swap_ms": 570, "crowd": 6, "lift_ms": 760,  "cue": false, "thief_q": 0.0,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": true,  "rounds": 6, "pass_pct": 66},
-	{"id": 4, "name": "4", "cups": 3, "swaps": 7,  "swap_ms": 510, "crowd": 6, "lift_ms": 660,  "cue": false, "thief_q": 0.3,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": true,  "rounds": 8, "pass_pct": 75},
-	{"id": 5, "name": "5", "cups": 4, "swaps": 7,  "swap_ms": 490, "crowd": 7, "lift_ms": 570,  "cue": false, "thief_q": 0.3,  "empty_p": 0.0,  "fake_p": 0.15, "far_thefts": true, "rounds": 8, "pass_pct": 75},
-	{"id": 6, "name": "6", "cups": 4, "swaps": 8,  "swap_ms": 450, "crowd": 7, "lift_ms": 500,  "cue": false, "thief_q": 0.35, "empty_p": 0.15, "fake_p": 0.2, "far_thefts": true,  "rounds": 8, "pass_pct": 75},
-	{"id": 7, "name": "7", "cups": 4, "swaps": 9,  "swap_ms": 410, "crowd": 8, "lift_ms": 430,  "cue": false, "thief_q": 0.4,  "empty_p": 0.2,  "fake_p": 0.25, "far_thefts": true, "rounds": 8, "pass_pct": 75},
-	{"id": 8, "name": "8", "cups": 5, "swaps": 10, "swap_ms": 380, "crowd": 9, "lift_ms": 370,  "cue": false, "thief_q": 0.4,  "empty_p": 0.2,  "fake_p": 0.3, "far_thefts": true,  "rounds": 8, "pass_pct": 75},
+	{"id": 1, "name": "1", "cups": 3, "swaps": 4,  "swap_ms": 760, "crowd": 4, "lift_ms": 1500, "tail_ms": 600, "cue": true,  "thief_q": 0.0,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": false,  "rounds": 6, "pass_pct": 66},
+	{"id": 2, "name": "2", "cups": 3, "swaps": 5,  "swap_ms": 660, "crowd": 5, "lift_ms": 1400, "tail_ms": 550, "cue": true,  "thief_q": 0.0,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": false,  "rounds": 6, "pass_pct": 66},
+	{"id": 3, "name": "3", "cups": 3, "swaps": 6,  "swap_ms": 570, "crowd": 6, "lift_ms": 1300, "tail_ms": 500, "cue": false, "thief_q": 0.0,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": true,  "rounds": 6, "pass_pct": 66},
+	{"id": 4, "name": "4", "cups": 3, "swaps": 7,  "swap_ms": 510, "crowd": 6, "lift_ms": 1200, "tail_ms": 450, "cue": false, "thief_q": 0.3,  "empty_p": 0.0,  "fake_p": 0.0, "far_thefts": true,  "rounds": 8, "pass_pct": 75},
+	{"id": 5, "name": "5", "cups": 4, "swaps": 7,  "swap_ms": 490, "crowd": 7, "lift_ms": 1100, "tail_ms": 400, "cue": false, "thief_q": 0.3,  "empty_p": 0.0,  "fake_p": 0.15, "far_thefts": true, "rounds": 8, "pass_pct": 75},
+	{"id": 6, "name": "6", "cups": 4, "swaps": 8,  "swap_ms": 450, "crowd": 7, "lift_ms": 1000, "tail_ms": 350, "cue": false, "thief_q": 0.35, "empty_p": 0.15, "fake_p": 0.2, "far_thefts": true,  "rounds": 8, "pass_pct": 75},
+	{"id": 7, "name": "7", "cups": 4, "swaps": 9,  "swap_ms": 410, "crowd": 8, "lift_ms": 950, "tail_ms": 300, "cue": false, "thief_q": 0.4,  "empty_p": 0.2,  "fake_p": 0.25, "far_thefts": true, "rounds": 8, "pass_pct": 75},
+	{"id": 8, "name": "8", "cups": 5, "swaps": 10, "swap_ms": 380, "crowd": 9, "lift_ms": 900, "tail_ms": 300, "cue": false, "thief_q": 0.4,  "empty_p": 0.2,  "fake_p": 0.3, "far_thefts": true,  "rounds": 8, "pass_pct": 75},
 ]
 
 func max_level() -> int:

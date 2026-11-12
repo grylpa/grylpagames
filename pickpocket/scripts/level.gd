@@ -31,6 +31,7 @@ var n_swaps: int = 4
 var swap_ms: float = 700.0
 var crowd: int = 5
 var lift_ms: float = 900.0
+var tail_ms: float = 0.0         # a street pickpocket shadows the victim this long before reaching
 var cue: bool = true
 var thief_q: float = 0.0
 var empty_p: float = 0.0
@@ -202,18 +203,29 @@ func _build() -> void:
 	_noone_btn = Button.new()
 	_noone_btn.text = "No one"
 	_noone_btn.focus_mode = Control.FOCUS_NONE
-	var mk = func(bg: Color) -> StyleBoxFlat:
+	# A BUTTON, NOT A CAPTION (2026-11-12): it was a dark pill with a gold edge and gold letters --
+	# exactly the question's own pill beside it, so it read as one more line of text. Now it is solid
+	# app gold with dark ink, a deeper gold lip along its bottom and a shadow under it, and pressed it
+	# sinks onto its lip.
+	var mk = func(bg: Color, lip: float, shadow: int) -> StyleBoxFlat:
 		var s: StyleBoxFlat = StyleBoxFlat.new()
 		s.bg_color = bg
 		s.set_corner_radius_all(14)
 		s.set_content_margin_all(8)
-		s.border_color = Color(1.0, 0.92, 0.62, 0.7)
-		s.set_border_width_all(2)
+		s.content_margin_top = 8.0 + (5.0 - lip)
+		s.border_color = ScreenBackdrop.ACCENT.darkened(0.42)
+		s.border_width_bottom = int(lip)
+		s.shadow_color = Color(0, 0, 0, 0.55)
+		s.shadow_size = shadow
+		s.shadow_offset = Vector2(0, 3)
 		return s
-	_noone_btn.add_theme_stylebox_override("normal", mk.call(Color(0.10, 0.11, 0.18, 0.92)))
-	_noone_btn.add_theme_stylebox_override("hover", mk.call(Color(0.16, 0.17, 0.26, 0.95)))
-	_noone_btn.add_theme_stylebox_override("pressed", mk.call(Color(0.06, 0.07, 0.12, 0.95)))
-	_noone_btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.62))
+	_noone_btn.add_theme_stylebox_override("normal", mk.call(ScreenBackdrop.ACCENT, 5.0, 8))
+	_noone_btn.add_theme_stylebox_override("hover", mk.call(ScreenBackdrop.ACCENT.lightened(0.15), 5.0, 10))
+	_noone_btn.add_theme_stylebox_override("pressed", mk.call(ScreenBackdrop.ACCENT.darkened(0.10), 1.0, 3))
+	var ink: Color = Color(0.10, 0.09, 0.16)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		_noone_btn.add_theme_color_override(key, ink)
+	_noone_btn.add_theme_font_override("font", MainGlobals.get_text_font())
 	_noone_btn.pressed.connect(_on_noone_pressed)
 	_noone_btn.hide()
 	add_child(_noone_btn)
@@ -258,7 +270,7 @@ func _layout() -> void:
 	_prompt_y = table_y + cup_h * 0.65 + 6.0
 	_catcher.position = Vector2.ZERO
 	_catcher.size = Vector2(sw, sh)
-	MainGlobals.set_font_size(_prompt, 36 if _prompt_is_question else 30)
+	MainGlobals.set_font_size(_prompt, QUESTION_FS if _prompt_is_question else 30)
 	MainGlobals.set_font_size(_noone_btn, 26)
 	_place_prompt()
 	var bw: float = 220.0 if not mob else 300.0
@@ -300,6 +312,11 @@ func _place_prompt() -> void:
 	_prompt.set_deferred("size", box)
 	_prompt.position = Vector2((_w - box.x) * 0.5, _prompt_y)
 
+# THE QUESTIONS ARE SET ON TWO LINES, a size smaller (2026-11-12): on one line at 36 the pill ran
+# across the onlookers at the table's front corners -- over their coats, near their back pockets --
+# on a phone. Two short lines at QUESTION_FS make a narrow pill that stands between them.
+const QUESTION_FS: int = 30
+
 # `question`: one of the two questions the player must answer -- bigger, framed in gold, popped in.
 func _say(text: String, col: Color = Color(1.0, 0.92, 0.62), question: bool = false) -> void:
 	_prompt.text = text
@@ -312,7 +329,7 @@ func _say(text: String, col: Color = Color(1.0, 0.92, 0.62), question: bool = fa
 		frame.border_color = Color(col, 0.95)
 	_prompt.add_theme_stylebox_override("normal", frame)
 	_prompt_is_question = question
-	MainGlobals.set_font_size(_prompt, 36 if question else 30)
+	MainGlobals.set_font_size(_prompt, QUESTION_FS if question else 30)
 	_prompt.show()
 	_place_prompt()
 	if _prompt_tween != null and _prompt_tween.is_valid():
@@ -386,6 +403,7 @@ func _tutorial_setup() -> void:
 	swap_ms = 950.0
 	crowd = 4
 	lift_ms = 1500.0
+	tail_ms = 700.0
 	cue = true
 	thief_q = 0.0
 	empty_p = 0.0
@@ -446,7 +464,8 @@ func _load_level(id: int) -> void:
 	n_swaps = int(def.get("swaps", 4))
 	swap_ms = float(def.get("swap_ms", 700))
 	crowd = int(def.get("crowd", 5))
-	lift_ms = float(def.get("lift_ms", 900))
+	lift_ms = float(def.get("lift_ms", 900)) * PickpocketLevelConfig.THEFT_PACE
+	tail_ms = float(def.get("tail_ms", 0)) * PickpocketLevelConfig.THEFT_PACE
 	cue = bool(def.get("cue", false))
 	thief_q = float(def.get("thief_q", 0.0))
 	empty_p = float(def.get("empty_p", 0.0))
@@ -666,17 +685,20 @@ func _update_street(now: float, dt: float) -> void:
 func _lamp_xs() -> Array:
 	return _street.lamp_xs()
 
-# Everyone standing keeps moving a little (passerby.tick_idle); the onlookers lean in while the
-# cups are moving. Nobody moves while the street is frozen.
+# Everyone standing keeps moving a little (passerby.tick_idle); for everyone, every turn, glance back
+# and change between walking and standing eases (passerby.tick_motion); the onlookers lean in while
+# the cups are moving. Nobody moves while the street is frozen.
 func _animate_idle(dt_ms: float) -> void:
 	var rng: RandomNumberGenerator = game.rng
 	var watching: bool = phase == Phase.SHUFFLE or phase == Phase.PEEK
 	for p in _crowd:
 		p.excite = lerpf(p.excite, 1.0 if watching else 0.0, clampf(dt_ms / 600.0, 0.0, 1.0))
 		p.tick_idle(dt_ms / 1000.0, rng)
+		p.tick_motion(dt_ms / 1000.0, rng, p.role != 2)    # the pickpocket at work does not glance back
 	for p in _people:
 		if not p.walking and p.role == 0:
 			p.tick_idle(dt_ms / 1000.0, rng)
+		p.tick_motion(dt_ms / 1000.0, rng, p.role != 2)
 
 func _light_people() -> void:
 	# EVERY lamp lights a person, each by how strongly it reaches them, and the side the light comes
@@ -801,7 +823,7 @@ func _plan_crowd_theft(t0: float, tf: float) -> bool:
 	if outer == null or inner == null:
 		return false
 	var lo: float = t0 + (tf - t0) * 0.12
-	var hi: float = maxf(lo, tf - lift_ms - 600.0)
+	var hi: float = maxf(lo, tf - lift_ms - THEFT_DONE_MS)
 	# EITHER WAY ROUND: the edge onlooker robs the inner one (from the back pocket, which faces the
 	# edge), or the inner one robs the edge one (from the side pocket of the coat, which faces them --
 	# the edge one's back pocket faces off the screen). It was always the edge one robbing, so an
@@ -827,6 +849,7 @@ func _plan_crowd_theft(t0: float, tf: float) -> bool:
 # the round is never "who was the pickpocket?". (A walker stepping down from the near sidewalk to the
 # onlooker was tried first and turned down: someone coming forward to the table is far too easy to
 # notice.) _place_crowd keeps the pocket on screen.
+const THEFT_DONE_MS: float = 250.0   # every theft is over this long before the freeze (no getaway kept)
 const HAND_MS_K: float = 1.5     # the arm's whole visit, in lift_ms
 var _hand_theft: Dictionary = {}
 var _hand_node: Node2D = null
@@ -842,7 +865,7 @@ func _plan_corner_theft(t0: float, tf: float) -> bool:
 		return false
 	var dur: float = lift_ms * HAND_MS_K
 	var lo: float = t0 + (tf - t0) * 0.12
-	var hi: float = maxf(lo, tf - dur - 600.0)
+	var hi: float = maxf(lo, tf - dur - THEFT_DONE_MS)
 	_victim = v
 	_thief = null
 	v.role = 1
@@ -851,26 +874,47 @@ func _plan_corner_theft(t0: float, tf: float) -> bool:
 		"skin": PASSERBY.SKINS[rng.randi() % PASSERBY.SKINS.size()]}
 	return true
 
-# 0 -> 1 -> 0: in, at the pocket, out.
+# 0 -> 1 -> 0: in, at the pocket (drawing the wallet up out of it), out with it.
+const HAND_IN: float = 0.35
+const HAND_PULL: float = 0.58
 func _hand_reach(u: float) -> float:
-	if u < 0.35:
-		var a: float = u / 0.35
-		return a * a * (3.0 - 2.0 * a)
-	if u < 0.62:
+	if u < HAND_IN:
+		return _ease01(u / HAND_IN)
+	if u < HAND_PULL:
 		return 1.0
-	var b: float = clampf((1.0 - u) / 0.38, 0.0, 1.0)
-	return b * b * (3.0 - 2.0 * b)
+	return 1.0 - _ease01((u - HAND_PULL) / (1.0 - HAND_PULL))
 
 # The arm's points: the shoulder well past the screen's edge, elbow, hand at the pocket.
 func _hand_points() -> Array:
 	var v = _hand_theft["v"]
 	var side: int = int(_hand_theft["side"])
 	var k: float = float(_hand_theft.get("k", 0.0))
-	var pocket: Vector2 = v.pocket_point()
+	var pocket: Vector2 = v.pocket_point() + Vector2(0.0, -float(_hand_theft.get("up", 0.0)))
 	var edge_x: float = 0.0 if side < 0 else _w
-	var sh: Vector2 = Vector2(edge_x + float(side) * 0.10 * v.h, pocket.y - 0.20 * v.h)
-	var hand: Vector2 = sh.lerp(pocket, k)
-	var elbow: Vector2 = (sh + hand) * 0.5 + Vector2(0.0, 0.07 * v.h * (1.0 - 0.5 * k))
+	# A REAL ARM, not a hose (2026-11-12): it kept its shoulder fixed beyond the edge and stretched
+	# from a stub to twice an arm's length. Now the hand travels from just past the edge to the pocket
+	# and the unseen thief's shoulder comes with it, an arm's reach behind and above; the elbow is solved
+	# at the true lengths (passerby.gd's 0.165 + 0.15 of a height), bending down, as anyone's would.
+	var start: Vector2 = Vector2(edge_x + float(side) * 0.08 * v.h, pocket.y + 0.02 * v.h)
+	var hand: Vector2 = start.lerp(pocket, k)
+	var sh: Vector2 = hand + Vector2(float(side) * 0.20 * v.h, -0.15 * v.h)
+	# ...but never on screen: an arm ending in the air would give the trick away. Where the pocket is
+	# more than an arm from the edge the arm straightens and stretches, evenly.
+	if side < 0:
+		sh.x = minf(sh.x, edge_x - 0.05 * v.h)
+	else:
+		sh.x = maxf(sh.x, edge_x + 0.05 * v.h)
+	var ua: float = 0.165 * v.h
+	var fa: float = 0.15 * v.h
+	var dv: Vector2 = hand - sh
+	if dv.length() >= ua + fa:
+		return [sh, sh + dv * (ua / (ua + fa)), hand]
+	var dist: float = maxf(dv.length(), absf(ua - fa) + 0.001)
+	var ux: Vector2 = dv.normalized()
+	var x: float = (ua * ua - fa * fa + dist * dist) / (2.0 * dist)
+	var y: float = sqrt(maxf(0.0, ua * ua - x * x))
+	var facing: float = -float(side)              # the thief faces in, toward the pocket
+	var elbow: Vector2 = sh + ux * x + Vector2(-ux.y, ux.x) * facing * y
 	return [sh, elbow, hand]
 
 func _update_hand_theft(now: float) -> void:
@@ -884,14 +928,18 @@ func _update_hand_theft(now: float) -> void:
 	if u < 0.0:
 		return
 	_hand_theft["k"] = _hand_reach(clampf(u, 0.0, 1.0))
-	# the wallet: from the pocket into the hand once it is there, then out with it
-	if u >= 0.32 and u < 1.0:
-		_wallet_show = true
-		_wallet_pos = v.pocket_point() if u < 0.45 else (_hand_points()[2] as Vector2)
-	else:
-		_wallet_show = false
-	if cue and u >= 0.40 and u < 1.0:
-		v.jolt = clampf((u - 0.40) / 0.30, 0.0, 1.0)
+	# the wallet: drawn UP out of the pocket by the hand, then out of the picture in its fingers
+	var wh: float = WALLET_H * v.h
+	_hand_theft["up"] = wh * _ease01((u - HAND_IN) / (HAND_PULL - HAND_IN)) if u >= HAND_IN else 0.0
+	_wallet_show = u >= HAND_IN and u < 1.0
+	if _wallet_show:
+		var pts: Array = _hand_points()
+		_wallet_pos = (pts[2] as Vector2) + Vector2(0.0, 0.02 * v.h)
+		_wallet_s = wh
+		_wallet_skin = _hand_theft["skin"]
+		_wallet_clip = v.pocket_point().y + 0.02 * v.h if u < HAND_PULL else INF
+	if cue and u >= HAND_PULL and u < 1.0:
+		v.jolt = clampf((u - HAND_PULL) / 0.30, 0.0, 1.0)
 	elif v.jolt > 0.0:
 		v.jolt = 0.0
 	v.queue_redraw()
@@ -925,14 +973,14 @@ func _draw_hand_theft() -> void:
 # the side pocket at the front of the coat.
 func _steal_point(p, v) -> Vector2:
 	if bool(p.plan.get("front_pocket", false)):
-		return v.position + Vector2(float(v.dir) * 0.085 * v.h * v.build, -0.50 * v.h)
+		return v.position + Vector2(float(v.dir) * 0.085 * PASSERBY.DEPTH * v.h * v.build, -0.50 * v.h)
 	return v.pocket_point()
 
 func _plan_theft(now: float, t0: float, tf: float) -> bool:
 	var rng: RandomNumberGenerator = game.rng
-	var lo: float = t0 + (tf - t0) * 0.12
-	# done well before the freeze, so the pickpocket has time to get away from the victim
-	var hi: float = tf - lift_ms - 1200.0
+	var lo: float = t0 + (tf - t0) * 0.06
+	# done just before the freeze (THEFT_DONE_MS); no time is kept for a getaway, see _update_thief
+	var hi: float = tf - tail_ms - lift_ms - THEFT_DONE_MS
 	if hi < lo:
 		lo = maxf(now + 600.0, hi)
 	var options: Array = []
@@ -952,13 +1000,17 @@ func _plan_theft(now: float, t0: float, tf: float) -> bool:
 		var gap: float = (target_now - xs) * float(d)
 		if gap <= 0.0:
 			continue
-		for k in 5:
-			var s: float = _base_speed(v.lane) * (0.95 + 0.12 * float(k))
-			if s <= vv * 1.15:
+		# AIM FOR A MOMENT IN THE WINDOW and work out the speed that gets there (2026-11-12). It used to
+		# try five fixed speeds and hope one landed in [lo, hi]: once tail_ms narrowed the window
+		# (level 1: under 0.2 s) none often did, and the round quietly came out with no theft.
+		var base: float = _base_speed(v.lane)
+		for k in 7:
+			var tt: float = lo + (hi - lo) * float(k) / 6.0 if hi > lo else lo
+			var dt_meet: float = tt - now
+			if dt_meet <= 100.0:
 				continue
-			var dt_meet: float = gap / (s - vv) * 1000.0
-			var tt: float = now + dt_meet
-			if tt < lo or tt > hi:
+			var s: float = vv + gap / (dt_meet / 1000.0)
+			if s < base * 0.85 or s > base * 1.45 or s <= vv * 1.15:
 				continue
 			var x_meet: float = v.position.x + float(d) * vv * dt_meet / 1000.0
 			var x_freeze: float = v.position.x + float(d) * vv * (tf - now) / 1000.0
@@ -1003,13 +1055,13 @@ func _update_thief(p, now: float, dt: float) -> void:
 			if now >= float(p.plan["tt"]) and v != null and is_instance_valid(v):
 				p.position.x = v.position.x - float(v.dir) * 0.30 * v.h
 				p.plan["step"] = "lift"
-				p.plan["t1"] = now
+				# caught up: walk on right behind them for tail_ms first (u < 0 below: keeping pace,
+				# no reach yet). Straight into the pocket on catching up was too quick to see.
+				p.plan["t1"] = now + tail_ms
 		"lift":
 			var u: float = (now - float(p.plan["t1"])) / lift_ms
 			var fixed: bool = bool(p.plan.get("static", false))
 			if fixed and v != null and is_instance_valid(v):
-				p.reach_at = _steal_point(p, v) - p.position
-				p.reach = clampf(u / 0.30, 0.0, 1.0) if u < 0.70 else clampf((1.0 - u) / 0.30, 0.0, 1.0)
 				_lift_wallet(p, v, u)
 				if u >= 1.0:
 					p.reach = 0.0
@@ -1028,24 +1080,10 @@ func _update_thief(p, now: float, dt: float) -> void:
 				if vstep > 0.0:
 					p.advance(vstep)
 				p.walking = vstep > 0.0
-				p.reach = clampf(u / 0.30, 0.0, 1.0) if u < 0.70 else clampf((1.0 - u) / 0.30, 0.0, 1.0)
-				# the wallet: out of the pocket, into the hand, then into the coat
-				if u >= 0.25 and u < 0.92:
-					_wallet_show = true
-					var from_p: Vector2 = v.pocket_point()
-					var to_p: Vector2 = p.hand_point()
-					var k: float = clampf((u - 0.25) / 0.30, 0.0, 1.0)
-					_wallet_pos = from_p.lerp(to_p, k)
-					if u > 0.70:
-						_wallet_pos = p.position + Vector2(float(p.dir) * 0.06 * p.h, -0.55 * p.h)
-				else:
-					_wallet_show = false
-				if cue and u >= 0.55:
-					v.jolt = clampf((u - 0.55) / 0.30, 0.0, 1.0)
-					v.queue_redraw()
-				_wallet.queue_redraw()
+				_lift_wallet(p, v, u)
 			if u >= 1.0:
 				p.reach = 0.0
+				p.reach_at = Vector2.INF
 				p.walking = true
 				_wallet_show = false
 				_wallet.queue_redraw()
@@ -1053,8 +1091,16 @@ func _update_thief(p, now: float, dt: float) -> void:
 					v.jolt = 0.0
 					v.queue_redraw()
 				p.speed = _base_speed(p.lane) * game.rng.randf_range(0.95, 1.15)
-				# half the time the pickpocket doubles back the way they came
-				if game.rng.randf() < 0.5:
+				# AFTERWARDS, ANYTHING (2026-11-12): walk on, double back the way they came, or simply stop
+				# where they are -- an onlooker at the table never leaves either. A getaway used to be
+				# required, with 1.2 s kept for it before the freeze, which squeezed the theft's window.
+				var after: float = game.rng.randf()
+				if after < 0.30 and not _tutorial:
+					p.walking = false
+					p.plan["step"] = "loiter"
+					p.queue_redraw()
+					return
+				if after < 0.65:
 					p.dir = -p.dir
 				p.plan["step"] = "away"
 				p.plan["t2"] = now + game.rng.randf_range(700.0, 1500.0)
@@ -1094,19 +1140,65 @@ func _update_thief(p, now: float, dt: float) -> void:
 			if p.position.x < -0.6 * p.h or p.position.x > _w + 0.6 * p.h:
 				p.role = 0
 
-# The wallet's flight from the victim's pocket to the thief's hand and into the thief's coat, and
-# the victim's start on the easy levels.
+# THE GRAB, one continuous move (2026-11-12). u runs 0..1 over lift_ms:
+#   0.00-0.30  the hand goes to the victim's pocket
+#   0.30-0.50  it draws the wallet UP out of the pocket (only the part above the pocket's mouth shows)
+#   0.50-0.78  it carries the wallet, in its fingers, to the thief's own coat pocket
+#   0.78-0.90  it pushes the wallet down into that pocket
+#   0.90-1.00  the hand goes back to rest
+# The wallet hangs from the fingers (`grip_point`) the whole time it is seen, so it is never loose.
+# It used to appear whole beside the pocket before the hand got there, glide to meet it, then jump to
+# the thief's chest and hang there in the air while the hand went back.
+const LIFT_REACH: float = 0.30
+const LIFT_PULL: float = 0.50
+const LIFT_CARRY: float = 0.78
+const LIFT_STOW: float = 0.90
+const WALLET_W: float = 0.085     # of the victim's height: a real wallet, not a brick
+const WALLET_H: float = 0.060
+var _wallet_clip: float = INF     # the wallet shows only ABOVE this y (the mouth of a pocket)
+var _wallet_skin: Color = Color(0.8, 0.6, 0.5)
+var _wallet_s: float = 10.0       # the wallet's height, px
+
+static func _ease01(x: float) -> float:
+	var c: float = clampf(x, 0.0, 1.0)
+	return c * c * (3.0 - 2.0 * c)
+
 func _lift_wallet(p, v, u: float) -> void:
-	if u >= 0.25 and u < 0.92:
-		_wallet_show = true
-		var k: float = clampf((u - 0.25) / 0.30, 0.0, 1.0)
-		_wallet_pos = _steal_point(p, v).lerp(p.hand_point(), k)
-		if u > 0.70:
-			_wallet_pos = p.position + Vector2(float(p.dir) * 0.06 * p.h, -0.55 * p.h)
+	var steal: Vector2 = _steal_point(p, v)
+	var stash: Vector2 = p.stash_point()
+	var wh: float = WALLET_H * v.h
+	var up: Vector2 = Vector2(0.0, -wh)
+	var at: Vector2 = steal
+	var r: float = 1.0
+	if u < LIFT_REACH:
+		r = _ease01(u / LIFT_REACH)
+	elif u < LIFT_PULL:
+		at = steal + up * _ease01((u - LIFT_REACH) / (LIFT_PULL - LIFT_REACH))
+	elif u < LIFT_CARRY:
+		at = (steal + up).lerp(stash + up, _ease01((u - LIFT_PULL) / (LIFT_CARRY - LIFT_PULL)))
+	elif u < LIFT_STOW:
+		at = stash + up * (1.0 - _ease01((u - LIFT_CARRY) / (LIFT_STOW - LIFT_CARRY)))
 	else:
-		_wallet_show = false
-	if cue and u >= 0.55:
-		v.jolt = clampf((u - 0.55) / 0.30, 0.0, 1.0)
+		at = stash
+		r = 1.0 - _ease01((u - LIFT_STOW) / (1.0 - LIFT_STOW))
+	p.reach_at = at - p.position
+	p.reach = r if u > 0.0 else 0.0
+	p.queue_redraw()
+	_wallet_show = u >= LIFT_REACH and u < LIFT_STOW
+	if _wallet_show:
+		var grip: Vector2 = p.grip_point()
+		var off: float = grip.y - p.hand_point().y        # the fingers sit a little off the hand's point
+		_wallet_pos = grip
+		_wallet_s = wh
+		_wallet_skin = p.skin
+		_wallet_clip = INF
+		if u < LIFT_PULL:
+			_wallet_clip = steal.y + off
+		elif u >= LIFT_CARRY:
+			_wallet_clip = stash.y + off
+	# the victim starts once the wallet is free of the pocket (the easy levels)
+	if cue and u >= LIFT_PULL and u < 1.0:
+		v.jolt = clampf((u - LIFT_PULL) / 0.30, 0.0, 1.0)
 		v.queue_redraw()
 	_wallet.queue_redraw()
 
@@ -1129,17 +1221,30 @@ func _thief_visible() -> bool:
 	# a pickpocket behind an onlooker at the edges cannot be asked for
 	return _thief.position.x > _w * 0.20 and _thief.position.x < _w * 0.80
 
+# The wallet hangs from the fingers at _wallet_pos (its top edge), cut off below _wallet_clip while it
+# goes into or out of a pocket, and the fingertips are drawn over its top so it is HELD.
 func _draw_wallet() -> void:
 	if not _wallet_show:
 		return
-	var s: float = float(_lane_h[0]) * 0.13
-	if _thief != null and is_instance_valid(_thief):
-		s = _thief.h * 0.13
+	var hgt: float = _wallet_s
+	var wid: float = hgt * WALLET_W / WALLET_H
 	var col: Color = Color(1.0, 0.80, 0.15) if cue else Color(0.42, 0.25, 0.14)
-	var r: Rect2 = Rect2(_wallet_pos - Vector2(s * 0.6, s * 0.42), Vector2(s * 1.2, s * 0.84))
+	var top: float = _wallet_pos.y - hgt * 0.15
+	var bottom: float = minf(top + hgt, _wallet_clip)
+	if bottom - top < 0.5:
+		return
+	var r: Rect2 = Rect2(Vector2(_wallet_pos.x - wid * 0.5, top), Vector2(wid, bottom - top))
 	_wallet.draw_rect(r, col)
 	_wallet.draw_rect(r, col.darkened(0.45), false, 1.5)
-	_wallet.draw_line(r.position + Vector2(0, r.size.y * 0.35), r.position + Vector2(r.size.x, r.size.y * 0.35), col.darkened(0.3), 1.5)
+	var fold: float = top + hgt * 0.35
+	if fold < bottom:
+		_wallet.draw_line(Vector2(r.position.x, fold), Vector2(r.end.x, fold), col.darkened(0.3), 1.5)
+	# fingertips over the top edge
+	var fr: float = maxf(1.5, hgt * 0.22)
+	for k in 3:
+		var fx: float = _wallet_pos.x + (float(k) - 1.0) * fr * 1.3
+		_wallet.draw_circle(Vector2(fx, top + fr * 0.2), fr, _wallet_skin.darkened(0.25))
+		_wallet.draw_circle(Vector2(fx, top + fr * 0.1), fr * 0.8, _wallet_skin)
 
 # --- the round ---------------------------------------------------------------
 
@@ -1187,12 +1292,20 @@ func _start_round(now: float) -> void:
 				# there was no "No one" to tap: the question could not be answered right.
 				for try_lane in ([1, 0] if far_thefts and not _tutorial else [1]):
 					var x: float = _w * (0.38 if rng.randf() < 0.5 else 0.62)
-					var shopper = _spawn(try_lane, x, 1 if rng.randf() < 0.5 else -1, false)
+					# facing away from the nearer edge, so the pickpocket comes from there, behind them,
+					# and does not have to cross the whole street in time
+					var shopper = _spawn(try_lane, x, 1 if x < _w * 0.5 else -1, false)
 					shopper.stand_until = now + 1.0e9
 					shopper.walking = false
 					if _plan_theft(now, t0, tf):
 						break
 					shopper.stand_until = now + rng.randf_range(500.0, 2000.0)
+			if _victim == null and not _tutorial and _crowd.size() >= 2:
+				# the street could not be timed: the theft happens at the table instead
+				if _crowd.size() >= 4:
+					_plan_crowd_theft(t0, tf)
+				else:
+					_plan_corner_theft(t0, tf)
 			if _victim == null:
 				_empty_round = true     # still nobody: an honest empty round, and "No one" is there
 	_ask_thief = false
@@ -1235,16 +1348,50 @@ func _freeze(now: float) -> void:
 
 func _ask_cup() -> void:
 	phase = Phase.ASK_CUP
-	_say("Where is the ball?", Color(1.0, 0.92, 0.62), true)
+	_say("Where is\nthe ball?", Color(1.0, 0.92, 0.62), true)
 
 func _ask_person(now: float) -> void:
 	phase = Phase.ASK_PERSON
 	_ask_t0 = now
-	_say("Who was the pickpocket?" if _ask_thief else "Who was robbed?", Color(1.0, 0.92, 0.62), true)
+	_say("Who was the\npickpocket?" if _ask_thief else "Who was\nrobbed?", Color(1.0, 0.92, 0.62), true)
 	# "No one" is offered on EVERY level, also where no round is ever empty: a button that appeared
 	# only where it could be the answer would say something, and a round that came out empty by
 	# accident must still be answerable.
 	_noone_btn.visible = true
+	_place_noone()
+
+# NEVER OVER ANYONE (2026-11-12): it stood at a fixed spot on the road, where the near sidewalk's
+# heads and hats reach up into it. The street is frozen while it is up, so the spot is chosen then:
+# the first of these that touches no one's body (passerby.body_rect, with a margin) -- the road, between
+# the two sidewalks, near where the player is looking; the band of shop fronts above the far sidewalk,
+# where nobody ever stands (taken whenever a near head reaches up into the road); under the question.
+func _place_noone() -> void:
+	var bs: Vector2 = _noone_btn.size
+	var a: float = _bottom - _top
+	var far_top: float = float(_lane_y[0]) - float(_lane_h[0]) * 1.08
+	var cands: Array = [
+		Vector2(_w * 0.5, _top + 0.362 * a),
+		Vector2(_w * 0.5, _top + (far_top - _top) * 0.5),
+		Vector2(_w * 0.5, _prompt.position.y + _prompt.size.y + 10.0 + bs.y * 0.5),
+	]
+	var bodies: Array = []
+	for p in _people + _crowd:
+		if is_instance_valid(p) and p.visible:
+			bodies.append((p.body_rect() as Rect2).grow(6.0))
+	var pick: Vector2 = cands[0]
+	for c in cands:
+		var r: Rect2 = Rect2(c - bs * 0.5, bs)
+		if r.position.y < _top or r.end.y > _bottom:
+			continue
+		var clear: bool = true
+		for b in bodies:
+			if r.intersects(b):
+				clear = false
+				break
+		if clear:
+			pick = c
+			break
+	_noone_btn.position = pick - bs * 0.5
 
 func _on_cup_picked(c: int, now: float) -> void:
 	_picked_cup = c

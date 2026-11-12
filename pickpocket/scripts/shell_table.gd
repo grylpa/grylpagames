@@ -916,7 +916,7 @@ func _metal(th: float, light_left: bool, v: float) -> Color:
 	return c.lerp(Color(1.0, 0.93, 0.80), clampf(spec, 0.0, 1.0) * 0.85)
 
 func _draw_ball(at: Vector2) -> void:
-	var r: float = cup_w * 0.18
+	var r: float = cup_w * 0.25       # was 0.18: too small to spot at a glance
 	draw_colored_polygon(_oval(at + Vector2(r * 0.2, 0), r * 1.1, r * 0.3), Color(0, 0, 0, 0.4))
 	for k in 6:
 		var f: float = 1.0 - float(k) / 6.0
