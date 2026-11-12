@@ -89,6 +89,12 @@ for the corridors, and the road games' lawn outside -- and was redrawn over seve
   OUTSIDE corner (strip and line run on by the wall's width), STRAIGHT (stop), or INSIDE (the line stops
   a wall's width short) -- the strips' lines used to run on and cross at the corners. They were cold gray
   first. The empty cells' old wall sprites are hidden (`empty_space.gd`).
+- **Doorways are plain** -- the walls' own joints -- and their corners CONTINUE: `_draw_castle_walls`
+  draws the stone of every wall first and every edge line after. Drawn wall by wall, the next strip's
+  stone covered the end of the last one's lines, so each doorway corner lost a stretch of its line ("the
+  room openings are not ok"). Two decorations of the openings were tried and removed first: gold-edged
+  posts with a gold-trimmed threshold ("way too vulgar"), then small stone blocks with a thin threshold
+  ("don't belong there", "a flat ugly line").
 - **Outside: a dark GREAT HALL** (`palace_sky.gdshader` `style` 3, `_fit_ground_to_board`): the rooms
   are lit chambers in it. Near-black marble slabs three tiles across, faintly veined, fine gold inlay
   lines between them and a gold ring on one slab in four (at two tiles across, and brighter, it read as

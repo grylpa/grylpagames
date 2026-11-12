@@ -218,6 +218,29 @@ still read.
   the game it was built from, but nothing places a door (checked 2026-11-12).
   Live docks skip orange and brown. **Board**: `init_sizes_odd()`, `buttons_height = 0`.
 
+## The night plaza (2026-11-12)
+
+The square and its surroundings were the most dated look in the app ("a bare grid") and were redone as
+a CITY TAXI PLAZA AT NIGHT, seen from above. The cabs still drive over every cell: everything on the
+square is flat paint and texture.
+- **The square** (`asphalt.gdshader`; `pipe.gd` `set_rot` passes each tile its `cell` and, for a BAY, the
+  way to the square): the notches along the edge (road on one side only) are taxi BAYS outlined in worn
+  yellow paint; a few cells carry an iron MANHOLE COVER (rim, hatching, rust) or an OIL STAIN (a ragged
+  blot with a faint rainbow sheen); a few small PUDDLES are darker smooth asphalt with only a faint tint of
+  the street's neon and a soft moving highlight (in full neon, and big, they read as smears of paint;
+  dark, as dirt). The faint cell grid stays: it is the grid the cabs move on.
+- **Round it** (`city_surround.gd`): a SIDEWALK ring (`SIDEWALK` 1.35 cells; at 2.4 the rooftops were off
+  the screen) of dark concrete slabs on the board's grid, measured from the SQUARE's own road cells
+  (`_square_rect`; the board is larger, its outer rows hold the docks); STREETLIGHTS along it every 4
+  cells with warm pools; beyond it the ROOFTOPS of the blocks round the plaza (tar, gravel, metal and
+  brick-red roofs with lit parapets, AC units, water tanks, skylights, and now and then a NEON sign on
+  the edge facing the square). Shop-light pools now spill from the building line. All the light is
+  added under the street. The brick paving ("night" STYLE) and the terracotta option are gone.
+- **No awnings.** A striped shop awning behind every pickup point was tried and removed the same day: a
+  row of them read as a fair, not a city, and did not say "pickup point".
+- **Verdict on this pass:** "not really sure what's so different" -- the square's details are subtle.
+  Taxi needs a bolder change later.
+
 ## Restoring saved taxis (2026-11-11)
 
 A saved taxi is put back only onto a ROAD cell of the board as it is now (`create_board`). A save

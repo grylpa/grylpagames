@@ -43,22 +43,17 @@ func _ready() -> void:
 	# and under the apple, bricks and fences.
 	for fl: Sprite2D in [$PipeFloor1, $PipeFloor2, $PipeFloor3, $PipeImageNoDir, $PipeImageLR, $PipeImage4, $PipeImageURD, $PipeImageRD]:
 		fl.z_index = -1
+	# the temple's flagstone (temple_floor.gdshader): this tile's own material, told its cell in set_rot
+	var fm: ShaderMaterial = ShaderMaterial.new()
+	fm.shader = preload("res://gorilla/scripts/temple_floor.gdshader")
+	$PipeFloor3.material = fm
 	# for dir in 4:
 	# 	show_fence(dir, true)
 		
+# The walls are DRAWN by the level (level._add_temple_walls: thick mossy stone walls on the cell edges,
+# 2026-11-12); a cell only keeps which of its sides has one. The bar sprites are no longer made.
 func show_fence(dir, _show:bool):
-	if _show:
-		if fence_objects[dir] == null:
-			fence_objects[dir] = Sprite2D.new()
-			fence_objects[dir].texture = wall_texture
-			fence_objects[dir].rotation = dir * PI / 2		
-			add_child(fence_objects[dir])
-		fence_objects[dir].show()
-		fences[dir] = true
-	else:
-		if fence_objects[dir] != null:
-			fence_objects[dir].hide()
-		fences[dir] = false
+	fences[dir] = _show
 
 # A wall bar is drawn INSIDE its owning cell, along one edge: a right fence covers the strip just
 # left of the cell boundary, a bottom fence the strip just above it. So where a wall runs RIGHT
@@ -89,6 +84,7 @@ static func _wall_thickness(tex: Texture2D) -> int:
 	return _wall_px
 
 func show_corner_patch(_show: bool) -> void:
+	_show = false       # the drawn walls close their own corners (level._add_temple_walls)
 	if not _show:
 		if corner_patch != null:
 			corner_patch.hide()
@@ -320,6 +316,8 @@ func show_dir_floor(board):
 
 func set_rot(board):
 	var p = board_pos
+	if $PipeFloor3.material is ShaderMaterial:
+		($PipeFloor3.material as ShaderMaterial).set_shader_parameter("cell", Vector2(p))
 	set_coin()
 	if board[p.y][p.x].room_id >= 0:
 		if game != null and game.zoomed_in:

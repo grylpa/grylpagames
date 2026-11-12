@@ -139,6 +139,18 @@ func set_rot(board):
 	_trim = RoadCorners.trims(board, p)
 	_convex = RoadCorners.convex(board, p)
 	if _mat != null:
+		# the plaza's details (asphalt.gdshader): this cell, and if it is a BAY (a notch along the edge:
+		# road on one side only) which way the square is
+		_mat.set_shader_parameter("cell", Vector2(p))
+		var raw: Array = [r, d, l, u]
+		var n_open: int = 0
+		var bay: Vector2 = Vector2.ZERO
+		for k2 in 4:
+			if raw[k2]:
+				n_open += 1
+				bay = [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP][k2]
+		_mat.set_shader_parameter("bay", bay if n_open == 1 else Vector2.ZERO)
+	if _mat != null:
 		var ic: Vector4 = Vector4.ZERO
 		for i in 4:
 			if _open[i] and _open[(i + 1) % 4] and _diag[i]:

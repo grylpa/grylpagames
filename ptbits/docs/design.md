@@ -197,3 +197,9 @@ The physical sounds (`devtools/make_action_sounds.py`, wired in `level.gd`): `gr
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a wooden chime for a ball in the right basket, a low wooden note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+## The basket's mouth (2026-11-12)
+
+The dark cup interior (`arena_art.gd` `basket_parts` "cavity") starts AT the mouth. It was carried 30 px
+above it "so the cup is open at the top", which stood a black upside-down trapezoid up out of every
+basket into the arena; the dark interior and the shade under the rim already read as an open cup.

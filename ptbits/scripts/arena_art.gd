@@ -316,8 +316,10 @@ static func basket_parts(p: PackedVector2Array, hw: float) -> Dictionary:
 	return {
 		"outer": quad(Vector2(tl.x - hw, tl.y), Vector2(tr2.x + hw, tr2.y),
 			Vector2(br.x + hw, br.y + 2.0 * hw), Vector2(bl.x - hw, bl.y + 2.0 * hw)),
-		# The cavity is carried 30px above the mouth so the cup is OPEN at the top.
-		"cavity": quad(Vector2(tl.x + hw, tl.y - 30.0), Vector2(tr2.x - hw, tr2.y - 30.0),
+		# The cavity starts AT the mouth. It used to be carried 30px above it "so the cup is open at the
+		# top", which stood a black upside-down trapezoid up out of every basket into the arena (user,
+		# 2026-11-12); the dark interior and the shade under the rim already read as an open cup.
+		"cavity": quad(Vector2(tl.x + hw, tl.y), Vector2(tr2.x - hw, tr2.y),
 			Vector2(br.x - hw, br.y), Vector2(bl.x + hw, bl.y)),
 		# A rolled rim, projecting OUTWARD past the wall and bevelled underneath. Flat caps sitting
 		# square on top of the two walls turned each basket into a horseshoe magnet: a U of colored
