@@ -1331,8 +1331,8 @@ func _place_lamps() -> void:
 		if is_instance_valid(l):
 			l.queue_free()
 	_lamps.clear()
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 7000 + game.board_size.x * 31 + game.board_size.y
+	var lamp_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	lamp_rng.seed = 7000 + game.board_size.x * 31 + game.board_size.y
 	# lawn cells beside a path (not a dock, not on the board's edge), far apart from each other
 	var spots: Array = []
 	for row in range(1, game.board_size.y - 1):
@@ -1361,7 +1361,7 @@ func _place_lamps() -> void:
 		taken.append(sp)
 		var lamp: GardenLamp = GardenLamp.new()
 		lamp.position = game.board_to_px(sp)
-		lamp.phase = rng.randf() * TAU
+		lamp.phase = lamp_rng.randf() * TAU
 		lamp.mine = LightsG.look == LightsoutLevelConfig.LOOK_MINE
 		add_child(lamp)
 		_lamps.append(lamp)

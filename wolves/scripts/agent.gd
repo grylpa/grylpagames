@@ -113,6 +113,7 @@ func set_pos(p, dir):
 
 var _speed_mul := 1.0
 var last_time_moved := MainGlobals.timems()
+var _carry: float = 0.0                       # px of a step left over when a cell was reached
 
 func _process(_delta: float) -> void:
 	_ease_turn(_delta)
@@ -124,38 +125,71 @@ func _process(_delta: float) -> void:
 	if eaten:
 		return
 
-	var v:Vector2 = Vector2.ZERO
-	var target_position = game.board_to_px(board_pos)
-	var dv = target_position - position
-	var dt = MainGlobals.timems() - last_time_moved
-	var speed = 50.0 * speed_scale * _speed_mul / game.major_tick_time_ms / game.time_scale
-	if dv.length() > 1e-3:
-		v = dv / dv.length() * speed
+	_move(_delta)
+
+# THE MOTION (2026-11-13): CELL TO CELL at a constant speed, one cell per step period. The level gives the
+# next cell (board_pos) the frame the animal arrives (main.gd runs its tick every frame, before the
+# animals), and what is left of this frame's step past the cell is carried on into the next, so a run of
+# cells is one even glide. The animal faces the step's direction as it starts it (and turns fast, see
+# TURN_RATE) -- never by the frame-to-frame drift. It was a chase toward the cell at 50 units per tick
+# with the clock stopped while standing, and the next cell only every 50 ms: stop-go, a lurch every cell.
+var _seg_to: Vector2 = Vector2.INF
+var idle_cell: Vector2i = Vector2i(-9999, -9999)    # the level's retry pause for a blocked animal
+var idle_until_ms: int = 0
+
+func _move(delta: float) -> void:
+	var target_position: Vector2 = game.board_to_px(board_pos)
+	if target_position != _seg_to:
+		_seg_to = target_position
+		var step_v: Vector2 = target_position - position
+		if step_v.length() > 0.5 and !eating and !eaten:
+			angles[0] = step_v.angle()
+	var dv: Vector2 = target_position - position
+	if dv.length() < 1e-3:
+		_carry = 0.0                    # standing: nothing carries over a wait
+		return
+	var speed: float = float(game.tile_size) * speed_scale * _speed_mul / float(game.major_tick_time_ms) / game.time_scale
+	# the frame's own time (capped only against a stall): capped at 50 ms, a slow phone slowed the animals
+	# and not the dog, which goes by the clock
+	var step_len: float = speed * minf(delta, 0.25) * 1000.0 + _carry
+	_carry = 0.0
+	if step_len >= dv.length():
+		_carry = minf(step_len - dv.length(), float(game.tile_size) * 0.5)
+		position = target_position
+		# on the cell: ask for the next one now and go on into it with what is left of this frame's step
+		var lv: Node = get_parent()
+		if _carry > 0.01 and not eaten and lv != null and lv.has_method("step_agent_now"):
+			lv.step_agent_now(self)
+			var nxt: Vector2 = game.board_to_px(board_pos)
+			if nxt != target_position:
+				_seg_to = nxt
+				var dv2: Vector2 = nxt - position
+				if !eating:
+					angles[0] = dv2.angle()
+				var go: float = minf(_carry, dv2.length())
+				position += dv2.normalized() * go
+				_carry = 0.0
 	else:
-		return
-	var last = position
-	var newpos = position + v * dt
-	if (last - newpos).length_squared() > (last - target_position).length_squared():
-		newpos = target_position
-	if newpos == position:
-		return
-	position = newpos
-	var actual_dx = position - last
-	# print(actual_dx.length())
-	if actual_dx.length() > 0.01 and !eating and !eaten:
-		angles[0] = last.angle_to_point(position)
-	last_time_moved = MainGlobals.timems()
+		position += dv / dv.length() * step_len
+	last_time_moved = MainGlobals.timems()     # (the level unsticks one that has not moved for 1 s)
 	set_rots()
-		
-# TURNING IS SMOOTH: set_rots only sets where the animal faces (angles[0]); the head swings round to
-# it here, a little each frame. It used to snap, a quarter or half turn in one frame.
-const TURN_RATE: float = 12.0
+
+# TURNING IS QUICK: set_rots only sets where the animal faces (angles[0]); the head swings round to it
+# here, a quarter turn in well under 0.1 s -- eased (it once snapped in one frame), but done as the step
+# starts, not carried on through it (at 12 it was, and the animals turned while walking).
+const TURN_RATE: float = 45.0
 
 func set_rots():
 	pass
 
 func _ease_turn(delta: float) -> void:
-	if eaten or eating:
+	if eaten:
+		return
+	if eating:
+		# the head script rests while eating: turn at its steady pace, a quarter turn in 0.1 s
+		var diff: float = wrapf(float(angles[0]) - $Head.rotation, -PI, PI)
+		var step: float = PI * 0.5 / 0.10 * delta
+		$Head.rotation = float(angles[0]) if absf(diff) <= step else $Head.rotation + signf(diff) * step
 		return
 	$Head.rotation = lerp_angle($Head.rotation, float(angles[0]), clampf(delta * TURN_RATE, 0.0, 1.0))
 	
@@ -189,10 +223,17 @@ func mark_eating(pos_to):
 		return
 	eating = true
 	var node_to_shake = $Head
-	angles[0] = position.angle_to_point(pos_to)
-	node_to_shake.rotation = angles[0]
+	# TURN TO THE SHEEP FIRST (2026-11-13), and bite only once facing it. It snapped round in one frame and
+	# was already biting. The shared head script (scripts/head_anim.gd), which gives every head its smooth
+	# turns and rounded corners, faces a head along its recent path and would hold it facing the way it
+	# came -- so it rests for the bite, and the head turns here at ITS steady pace (a quarter turn in 0.1 s,
+	# never in one step); it takes over again, smoothly, when the bite is done.
+	if (pos_to - position).length() > 0.5:
+		angles[0] = position.angle_to_point(pos_to)
+	$Head.set_process(false)
 	eating_tween_scale = MainGlobals.make_tween()
 	var oldscale = node_to_shake.scale
+	eating_tween_scale.tween_interval(0.15)
 	eating_tween_scale.tween_property(node_to_shake, "scale", oldscale * 1.2, 0.15)
 	eating_tween_scale.tween_property(node_to_shake, "scale", oldscale * 0.7, 0.15)
 	eating_tween_scale.tween_property(node_to_shake, "scale", oldscale * 1.2, 0.15)
@@ -200,6 +241,7 @@ func mark_eating(pos_to):
 	eating_tween_scale.tween_callback(
 		func(): 
 			eating = false
+			$Head.set_process(true)
 	)
 
 func mark_removed():
@@ -260,7 +302,7 @@ func can_set_target_pos():
 	if eaten:
 		return false
 	var supposed_to_be_px = game.board_to_px(board_pos)
-	if (supposed_to_be_px - position).length() < game.tile_size / 10:
+	if (supposed_to_be_px - position).length() < 0.5:          # ON the cell: steps run center to center
 		set_speed_mul()
 		return true
 	else:

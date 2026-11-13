@@ -206,7 +206,7 @@ circles that are drawn. `level._check_floods()` runs every major tick.
 - **A room is ruined when the level's `room_ruin` share of its floor is covered** (0.4 on every level
   for now; `level.room_ruin()`, `room_flood()`; walls, bricks and drains are not floor and do not count), and **one ruined room loses the round** ("A room
   flooded!"). The worst room's share is in the HUD strip, "Worst: 23%", centered on the strip at the
-  clock's size, white while safe and warming toward red as it nears the line (`main.gd`'s
+  clock's size, in the strip's GOLD while safe (it was white, from before the strip went gold) and warming toward red as it nears the line (`main.gd`'s
   `_update_flood_label()`, from `level.worst_room_share()`). It was a small label in each room's corner
   first (easy to miss, and out of sight whenever that room was), then a line under the strip.
 - **Getting through the storm without a ruined room wins** (`on_time_over()`).
@@ -920,7 +920,10 @@ clip-art furniture in them. Now:
   standing out of the wall with dark glass read as "strange"; a sheen sliding along the glass was "some
   strange animation") -- and a cool wash of daylight onto the floor; every
   few seconds LIGHTNING -- a double flash lighting every pane and throwing a burst of light across the
-  floors. The blackouts (main.gd) are separate and unchanged.
+  floors, and lighting THE YARD OUTSIDE at the same instant (`storm_rain.gdshader` `flash`: a cold white
+  wash over the lawn, the rain streaks caught in it; 2026-11-13 -- a flash seen only through the windows,
+  the yard staying dark, read as something wrong with the windows). Both read one clock,
+  `level._lightning_flash()`. The blackouts (main.gd) are separate and unchanged.
 - **Furniture in one style**, seen from above, lit from the top left, on a soft shadow, outlined, filling
   its tile: the bricks are a BOOKCASE, an ARMCHAIR or a CABINET with a lamp (`home_prop.gd`,
   `StormHomeProp`, `has_brick % 3`, logic unchanged); the belongings (`room_art.gd` `draw_furniture`) are a

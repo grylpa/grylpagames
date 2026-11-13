@@ -46,7 +46,7 @@ func _ready() -> void:
 		"You need to scare them back into the compound\n" +
 		"The farm fence may also fail and sheep might wander off forever or wolves might come into the farm and grab sheep\n" +
 		"Don't let them!\n\n" +
-		"You can use the arrow keys, or just draw your path"
+		_controls_text()
 	)
 	if !game.shown_instructions:
 		game.show_instructions(self)
@@ -61,6 +61,16 @@ func _ready() -> void:
 	if MainGlobals.take_pending_tutorial("wolves") \
 			or MainGlobals.take_auto_tutorial("wolves", game.shown_instructions):
 		call_deferred("start_tutorial")
+
+# The controls, for the device in hand (2026-11-13): a phone has no keys, so no keys are mentioned.
+# Every level has two dogs.
+func _controls_text() -> String:
+	if MainGlobals.is_mobile():
+		return "Draw a path with your finger and the dog walks along it.\n\n" + \
+			"You have two dogs. A path goes to the dog nearest where you start drawing it."
+	return "Draw a path with your mouse, or use the arrow keys. Space stops the dog.\n\n" + \
+		"You have two dogs. A path goes to the dog nearest where you start drawing it. " + \
+		"The arrow keys move the dog with the gold outline; Tab passes them to the other dog."
 
 var _tutorial_saved_level: int = -1
 
@@ -124,10 +134,15 @@ func _on_level_started_playing() -> void:
 	game.playing = true
 	hud.restart_time_left_timer()
 
-func _on_game_tick_timeout() -> void:
-	game.tick_game_time()
+# THE LEVEL'S MOVES RUN EVERY FRAME (2026-11-13), before the animals move (a parent processes before
+# its children): an animal that reaches its cell is given the next one in the same frame. On the 50 ms
+# GameTick it waited for the next timeout -- standing up to 50 ms at every cell, then lurching on.
+func _process(_delta: float) -> void:
 	if game.playing and not game.paused():
 		$Level.tick()
+
+func _on_game_tick_timeout() -> void:
+	game.tick_game_time()
 	if game.time_since_saved_ongoing_score_sec() >= 60:
 		_save_ongoing_score()
 

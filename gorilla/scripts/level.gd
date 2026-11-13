@@ -506,8 +506,8 @@ func _temple_edges() -> Array:
 # (handed its own node: an old node drawing after a rebuild must not draw on the new one)
 func _draw_temple_walls(shadow: bool, node: Node2D) -> void:
 	var h: float = TEMPLE_WALL * 0.5
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 777
+	var wall_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	wall_rng.seed = 777
 	for e: Array in _temple_edges():
 		var a: Vector2 = e[0]
 		var b: Vector2 = e[1]
@@ -525,7 +525,7 @@ func _draw_temple_walls(shadow: bool, node: Node2D) -> void:
 		var nb: int = maxi(1, int(round(length / 11.0)))
 		var bl: float = length / float(nb)
 		for i in nb:
-			var k: float = rng.randf_range(-0.05, 0.05)
+			var k: float = wall_rng.randf_range(-0.05, 0.05)
 			var br: Rect2 = Rect2(r.position + (Vector2(float(i) * bl, 0) if horiz else Vector2(0, float(i) * bl)),
 				Vector2(bl, r.size.y) if horiz else Vector2(r.size.x, bl))
 			node.draw_rect(br.grow(-0.6), Color(stone.r + k, stone.g + k, stone.b + k * 0.8))
@@ -537,15 +537,15 @@ func _draw_temple_walls(shadow: bool, node: Node2D) -> void:
 		# a fine dark outline all round, so the edge is crisp against the floor
 		node.draw_rect(r, Color(0.14, 0.11, 0.08, 0.9), false, 0.9)
 		# moss on top in patches, and now and then a vine hanging down a side
-		var patches: int = rng.randi_range(0, 2)
+		var patches: int = wall_rng.randi_range(0, 2)
 		for p in patches:
-			var u: float = rng.randf_range(0.15, 0.85)
+			var u: float = wall_rng.randf_range(0.15, 0.85)
 			var pc: Vector2 = r.position + (Vector2(u * r.size.x, r.size.y * 0.5) if horiz else Vector2(r.size.x * 0.5, u * r.size.y))
-			var pr: float = rng.randf_range(1.6, 2.6)
+			var pr: float = wall_rng.randf_range(1.6, 2.6)
 			node.draw_circle(pc, pr, Color(0.26, 0.40, 0.16, 0.9))
 			node.draw_circle(pc + Vector2(-0.8, -0.8), pr * 0.6, Color(0.38, 0.54, 0.22, 0.9))
-		if rng.randf() < 0.18:
-			var u2: float = rng.randf_range(0.2, 0.8)
+		if wall_rng.randf() < 0.18:
+			var u2: float = wall_rng.randf_range(0.2, 0.8)
 			var top: Vector2 = r.position + (Vector2(u2 * r.size.x, r.size.y) if horiz else Vector2(r.size.x, u2 * r.size.y))
 			var dirv: Vector2 = Vector2(0, 1) if horiz else Vector2(1, 0)
 			var pts: PackedVector2Array = PackedVector2Array()
@@ -1777,8 +1777,8 @@ func _draw_rim(node: Node2D) -> void:
 	var t: float = float(game.tile_size)
 	var h: float = RIM_W * 0.5
 	var stone: Color = Color(0.82, 0.79, 0.71)
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 991
+	var rim_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rim_rng.seed = 991
 	for pass_i in 2:
 		for y in board.size():
 			for x in board[y].size():
@@ -1801,7 +1801,7 @@ func _draw_rim(node: Node2D) -> void:
 					if pass_i == 0:
 						node.draw_rect(Rect2(r.position + Vector2(2.0, 3.0), r.size), Color(0, 0, 0, 0.42))
 						continue
-					var k: float = rng.randf_range(-0.04, 0.04)
+					var k: float = rim_rng.randf_range(-0.04, 0.04)
 					node.draw_rect(r, Color(stone.r + k, stone.g + k, stone.b + k))
 					# a joint across it at the cell boundary, lit top and left, dark bottom and right
 					node.draw_line(mid - side * t * 0.5 - n * h, mid - side * t * 0.5 + n * h, Color(0.30, 0.27, 0.22), 1.0)
@@ -1810,16 +1810,16 @@ func _draw_rim(node: Node2D) -> void:
 					node.draw_rect(Rect2(r.position + Vector2(0, r.size.y - 1.6), Vector2(r.size.x, 1.6)), Color(0.48, 0.44, 0.36))
 					node.draw_rect(Rect2(r.position + Vector2(r.size.x - 1.0, 0), Vector2(1.0, r.size.y)), Color(0.52, 0.48, 0.40))
 					node.draw_rect(r, Color(0.14, 0.11, 0.08, 0.9), false, 0.9)
-					if rng.randf() < 0.35:
-						var pc: Vector2 = mid + side * rng.randf_range(-t * 0.4, t * 0.4)
-						node.draw_circle(pc, rng.randf_range(1.8, 3.0), Color(0.26, 0.40, 0.16, 0.9))
+					if rim_rng.randf() < 0.35:
+						var pc: Vector2 = mid + side * rim_rng.randf_range(-t * 0.4, t * 0.4)
+						node.draw_circle(pc, rim_rng.randf_range(1.8, 3.0), Color(0.26, 0.40, 0.16, 0.9))
 
 func _draw_wall_shade(node: Node2D) -> void:
 	var t: float = float(game.tile_size)
 	var d: float = t * WALL_SHADE
 	var dark: Color = Color(0.0, 0.0, 0.05, 0.28)
 	var clear: Color = Color(0.0, 0.0, 0.05, 0.0)
-	var cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
+	var shade_cols: PackedColorArray = PackedColorArray([dark, dark, clear, clear])
 	for y in board.size():
 		for x in board[y].size():
 			var cell: OneCell = board[y][x]
@@ -1834,4 +1834,4 @@ func _draw_wall_shade(node: Node2D) -> void:
 				var side: Vector2 = Vector2(-n.y, n.x)
 				var e0: Vector2 = c + n * t * 0.5 + side * t * 0.5
 				var e1: Vector2 = c + n * t * 0.5 - side * t * 0.5
-				node.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), cols)
+				node.draw_polygon(PackedVector2Array([e0, e1, e1 - n * d, e0 - n * d]), shade_cols)

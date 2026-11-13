@@ -31,7 +31,7 @@ static func tutorial_level_id() -> int:
 static func steps(level: Node, _game) -> Array:
 	var target_spot: Callable = func():
 		return level.tutorial_target_rect()
-	var decoy_spot: Callable = func():
+	var _decoy_spot: Callable = func():
 		return level.tutorial_decoy_rect(0)
 
 	# Queue one round, then let it appear. Used by every "doing" step below.

@@ -13,6 +13,9 @@ uniform float t = 0.0;
 // the rain's slant (x per y), set by level.gd from a slow wind that swings from side to side
 uniform float wind = 0.28;
 uniform vec4 shade : source_color = vec4(0.04, 0.07, 0.13, 0.46);
+// LIGHTNING (level.gd `_lightning_flash`, 0..1, the same double flash the windows show): the whole yard lit
+// for an instant in a cold white, the gloom lifted and the rain caught in the light (2026-11-13)
+uniform float flash = 0.0;
 
 varying vec2 px;
 
@@ -66,5 +69,10 @@ void fragment() {
 	vec3 light = vec3(0.78, 0.84, 0.95);
 	float a = shade.a + (rain + sp) * (1.0 - shade.a);
 	vec3 col = mix(shade.rgb, light, clamp((rain + sp) / max(a, 0.001), 0.0, 1.0));
+	// the flash: a cold white wash over everything, the streaks brighter still
+	vec3 bolt = vec3(0.88, 0.93, 1.0);
+	float lit = flash * (0.42 + 0.35 * (rain + sp));
+	col = mix(col, bolt, clamp(lit / max(a + lit * (1.0 - a), 0.001), 0.0, 1.0));
+	a = a + lit * (1.0 - a);
 	COLOR = vec4(col, a);
 }

@@ -59,9 +59,32 @@ var level: int = 0
 var num_more_packets = 0
 var num_rooms := 4
 var player = null
+# MORE THAN ONE DOG (2026-11-13): a level may have up to three ("dogs" in level_config.gd, default 1).
+# `player` is the dog being handled at the moment -- every per-dog step sets it and loops over `players`
+# -- and between those it is the first dog (the keyboard's, and the tutorial's). A swipe goes to the dog
+# nearest where it starts (_on_path_drawn).
+var players: Array = []
+const MAX_DOGS: int = 3
+const SWIPE_REACH_MANY: float = 4.0     # with several dogs, a swipe further than this from all of them is ignored
+# the ACTIVE dog: the one the keyboard drives -- the last one swiped, or picked with TAB (Space stops
+# it). Marked by a gold contour (beast_art.gd) when there is more than one.
+var active_dog: int = 0
+
+func _active_dog():
+	if players.is_empty():
+		return null
+	return players[clampi(active_dog, 0, players.size() - 1)]
+
+func set_active_dog(i: int) -> void:
+	if players.is_empty():
+		return
+	active_dog = posmod(i, players.size())
+	for k in players.size():
+		if is_instance_valid(players[k]):
+			players[k].active = players.size() > 1 and k == active_dog
+	player = _active_dog()
 var player_max_speed_scale = 1.7
 var agent_max_speed_scale = 1.0
-var next_player_dir = -1
 var time_to_hide := 0
 var play_start_sound := true
 var pct_sheep_to_add := 0.3
@@ -138,13 +161,15 @@ func _ready() -> void:
 	_fit_ground_to_board()
 	
 func reset():
-	next_player_dir = -1
+	_dogs_running = 0
 	time_to_hide = 0
 	play_start_sound = true
 
-	if player != null:
-		player.queue_free()
-		player = null
+	for d in players:
+		if is_instance_valid(d):
+			d.queue_free()
+	players.clear()
+	player = null
 	# player_cam = null
 
 	if game_cam != null:
@@ -218,6 +243,11 @@ func _input(event) -> void:
 		move_dir(2)
 	elif event.is_action_pressed("up") or event.is_action_pressed("ui_up"):
 		move_dir(3)
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
+		# TAB switches the active dog (the one the arrows drive); Space stays STOP, as it always was
+		if players.size() > 1:
+			set_active_dog(active_dog + 1)
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("stop"):
 		if player != null:
 			player.path.clear()
@@ -235,7 +265,7 @@ func move_dir(dir):
 	player.need_to_stop = false
 	if !game.level_is_ready:
 		return
-	next_player_dir = dir
+	player.next_dir = dir
 	player.is_moving = true
 	if abs(dir - player.direction) == 2:
 		player.last_major_tick_ms = 0
@@ -246,8 +276,9 @@ func _start_playing():
 		play_start_sound = false
 		game.play_sound("start")
 		game.play_sound("ambient")
-		if player != null:
-			player.play()
+		for d in players:
+			if is_instance_valid(d):
+				d.play()
 
 var time_to_remove_compund_fence:float = 0
 var time_to_remove_farm_fence:float = 0
@@ -313,7 +344,7 @@ func add_empty(p):
 
 func dist_from_agents_and_player(p):
 	var d = dist_from_agents(p)
-	return min(d, (p - player.board_pos).length())
+	return min(d, dist_to_player(p))
 
 func dist_from_agents(p):
 	var mind = 1e6
@@ -334,7 +365,110 @@ func dist_from_array(p, arr):
 func show_hide_walls():
 	for e in empties:
 		e.show_hide_walls(board)
-	
+	_redraw_fences()
+
+# THE FENCES (2026-11-12): wooden POST-AND-RAIL, drawn from the cells' fence flags -- a post at each end of
+# every fenced edge, two rails between, lit from the top left on a soft shadow. A piece that BREAKS
+# (_note_broken, from the two remove_*_fence functions) is a FALLEN piece of fence -- the openings are the
+# game, where sheep get out and wolves get in. The pen's fence is white. They were thin dotted yellow bars on the cells next to the fence.
+var _fence_node: Node2D = null
+var _broken: Array = []          # [edge middle, along, out] of every broken piece on this board
+const FENCE_DIRS: Array = [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP]
+
+func _note_broken(p: Vector2i, dir: int) -> void:
+	var t: float = float(game.tile_size)
+	var n: Vector2 = FENCE_DIRS[dir]
+	var c = bcell(p)
+	_broken.append([game.board_to_px(p) + n * t * 0.5, Vector2(-n.y, n.x), n, c != null and c.room_id >= 0])
+
+func _redraw_fences() -> void:
+	if _fence_node == null or not is_instance_valid(_fence_node):
+		_fence_node = Node2D.new()
+		# ABOVE the tiles, below the animals (z 10): made once, so on a rebuilt board (after a level, or
+		# "Oh no!") the new tiles came after it in the tree and were drawn over the fences
+		_fence_node.z_index = 1
+		_fence_node.draw.connect(_draw_fences.bind(_fence_node))
+		add_child(_fence_node)
+	_fence_node.queue_redraw()
+
+func _draw_fences(node: Node2D) -> void:
+	var t: float = float(game.tile_size)
+	var seen: Dictionary = {}
+	var edges: Array = []
+	for y in board.size():
+		for x in board[y].size():
+			var cell = board[y][x]
+			if cell == null or not cell.ispipe or cell.pipe == null:
+				continue
+			for dir in 4:
+				if not cell.pipe.fences[dir]:
+					continue
+				var n: Vector2 = FENCE_DIRS[dir]
+				var mid: Vector2 = game.board_to_px(Vector2i(x, y)) + n * t * 0.5
+				var key: Vector2i = Vector2i(roundi(mid.x * 2.0), roundi(mid.y * 2.0))
+				if seen.has(key):
+					continue
+				seen[key] = true
+				edges.append([mid, Vector2(-n.y, n.x), cell.room_id >= 0])
+	var wood: Color = Color(0.56, 0.40, 0.24)
+	var wood_l: Color = Color(0.72, 0.55, 0.34)
+	var wood_d: Color = Color(0.34, 0.23, 0.13)
+	var sh: Color = Color(0, 0, 0, 0.30)
+	var so: Vector2 = Vector2(2.5, 3.5)
+	# shadows first, then the rails, then the posts over them
+	for e: Array in edges:
+		var a: Vector2 = Vector2(e[0]) + Vector2(e[1]) * t * 0.5
+		var b: Vector2 = Vector2(e[0]) - Vector2(e[1]) * t * 0.5
+		node.draw_line(a + so, b + so, sh, 5.0)
+	# the PEN's fence is painted WHITE (natural wood on its brown earth all but vanished); the farm's is wood
+	for e2: Array in edges:
+		var along: Vector2 = e2[1]
+		var acr: Vector2 = Vector2(-along.y, along.x)
+		var a2: Vector2 = Vector2(e2[0]) + along * t * 0.5
+		var b2: Vector2 = Vector2(e2[0]) - along * t * 0.5
+		var pen: bool = e2[2]
+		for off in [-1.9, 1.9]:
+			node.draw_line(a2 + acr * off, b2 + acr * off, Color(0.55, 0.53, 0.50) if pen else wood_d, 3.2)
+			node.draw_line(a2 + acr * off - Vector2(0.4, 0.5), b2 + acr * off - Vector2(0.4, 0.5), Color(0.96, 0.95, 0.92) if pen else wood_l, 1.6 if pen else 1.2)
+	for e3: Array in edges:
+		var pen2: bool = e3[2]
+		for sgn in [1.0, -1.0]:
+			var pc: Vector2 = Vector2(e3[0]) + Vector2(e3[1]) * t * 0.5 * sgn
+			node.draw_rect(Rect2(pc - Vector2(3.5, 3.5) + so, Vector2(7, 7)), sh)
+			node.draw_rect(Rect2(pc - Vector2(3.5, 3.5), Vector2(7, 7)), Color(0.90, 0.89, 0.86) if pen2 else wood)
+			node.draw_rect(Rect2(pc - Vector2(3.5, 3.5), Vector2(7, 2)), Color(1.0, 1.0, 0.98) if pen2 else wood_l)
+			node.draw_rect(Rect2(pc - Vector2(3.5, 3.5), Vector2(7, 7)), wood_d, false, 1.0)
+	# every OPENING is a piece of FENCE THAT HAS FALLEN DOWN: nothing stands between its posts -- not even a
+	# stub on a post -- and two broken pieces lie loose in the grass, off the line and CLEAR OF BOTH POSTS.
+	# Any wood that met a post read as a small gate standing open; rails laid tidy along the line read worse. The pen's are white.
+	for bk: Array in _broken:
+		var m: Vector2 = bk[0]
+		var al: Vector2 = bk[1]
+		var out_v: Vector2 = bk[2]
+		var pen3: bool = bk[3] if bk.size() > 3 else false
+		var top: Color = Color(0.82, 0.81, 0.78) if pen3 else wood_l.darkened(0.12)
+		var body: Color = Color(0.50, 0.49, 0.46) if pen3 else wood_d
+		for sgn2 in [1.0, -1.0]:
+			var pc2: Vector2 = m + al * t * 0.5 * sgn2
+			node.draw_rect(Rect2(pc2 - Vector2(3.5, 3.5) + so, Vector2(7, 7)), sh)
+			node.draw_rect(Rect2(pc2 - Vector2(3.5, 3.5), Vector2(7, 7)), Color(0.90, 0.89, 0.86) if pen3 else wood)
+			node.draw_rect(Rect2(pc2 - Vector2(3.5, 3.5), Vector2(7, 7)), wood_d, false, 1.0)
+		var h: float = fposmod(sin(m.x * 0.13 + m.y * 0.71) * 43758.5453, 1.0)
+		var flip: float = 1.0 if h > 0.5 else -1.0
+		# [center along the gap, off the line, angle, half length] -- ends stay 9+ units from the posts
+		var pieces: Array = [[-0.12, 8.0, 0.30, 0.15], [0.16, -7.5, -0.40, 0.12]]
+		for pd: Array in pieces:
+			var c0: Vector2 = m + al * t * float(pd[0]) * flip + out_v * float(pd[1]) * flip
+			var dirv: Vector2 = al.rotated(float(pd[2]) + (h - 0.5) * 0.3)
+			var e0: Vector2 = c0 - dirv * t * float(pd[3])
+			var e1: Vector2 = c0 + dirv * t * float(pd[3])
+			node.draw_line(e0 + Vector2(1.0, 1.5), e1 + Vector2(1.0, 1.5), Color(0, 0, 0, 0.28), 3.4)
+			node.draw_line(e0, e1, body, 3.0)
+			node.draw_line(e0 - Vector2(0.3, 0.4), e1 - Vector2(0.3, 0.4), top, 1.0)
+			var sv: Vector2 = Vector2(-dirv.y, dirv.x)
+			node.draw_line(e1, e1 + dirv * 3.0 + sv * 1.3, body, 1.2)
+			node.draw_line(e1, e1 + dirv * 2.2 - sv * 1.2, body, 1.0)
+
 var board_margin = 3
 
 #region create_rooms
@@ -491,6 +625,7 @@ func clear_board_array():
 			board.append(row)
 
 func create_board() -> void:
+	_broken.clear()
 	_fit_ground_to_board()
 	clear_board_array()
 
@@ -498,6 +633,10 @@ func create_board() -> void:
 
 	time_to_remove_compund_fence = game.game_time + 2000
 	time_to_remove_farm_fence = game.game_time + 10000
+	# the wolves' clocks too: game_time starts again at 0 on a new board, and these were left from the last
+	# one -- after a lost level ("Oh no!") the next wolf was due 37 s into the replay (2026-11-13)
+	time_to_next_wolf = game.game_time
+	time_to_play_wolf = game.game_time + 10000
 
 	create_rooms(num_rooms, board_margin)
 	
@@ -708,7 +847,7 @@ func add_bricks():
 				func(x,y):
 					var cell = board[y][x]
 					if cell.is_fillable(): 
-						var d_to_player = (Vector2i(x,y) - player.board_pos).length()
+						var d_to_player = dist_to_player(Vector2i(x,y))
 						var d_to_agents = dist_from_agents(Vector2i(x,y))
 						if d_to_player >= 1 and d_to_agents >= 1:
 							return true
@@ -725,7 +864,7 @@ func add_bricks():
 			func(x,y):
 				var cell = board[y][x]
 				if cell.is_fillable() and cell.is_field and !adjacent_to_room(Vector2i(x,y)): 
-					var d_to_player = (Vector2i(x,y) - player.board_pos).length()
+					var d_to_player = dist_to_player(Vector2i(x,y))
 					var d_to_agents = dist_from_agents(Vector2i(x,y))
 					if d_to_player >= 1 and d_to_agents >= 1:
 						return true
@@ -766,6 +905,12 @@ func zoom_camera(zoom_in: bool):
 		# 	create_player_camera(player_camscale)
 	else:
 		var game_camscale = min(game.get_tiles_in_screen_width() / float(game.board_size.x-4), game.get_tiles_in_screen_height() / float(game.board_size.y-5))
+		# on a phone: the farm and a cell and a half all round it, where the wolves walk (the ring just
+		# outside the fence) -- the tall board fitted as above left only half a cell above and below
+		if MainGlobals.is_mobile():
+			var farm_w: float = float(game.board_size.x - 2 * board_margin)
+			var farm_h: float = float(game.board_size.y - 2 * board_margin)
+			game_camscale = min(game.get_tiles_in_screen_width() / (farm_w + 3.0), game.get_tiles_in_screen_height() / (farm_h + 3.0))
 		var game_center = game.get_viewport_center()# game.board_to_px(game.get_board_center())# - Vector2(game.tile_size / 2,game.tile_size / 2)
 		if !MainGlobals.is_mobile():
 			game_center -= Vector2(0,30)		# to account for level # label
@@ -894,8 +1039,16 @@ func find_path_to_free_sheep(agent):
 			return true
 	return false
 
+# to the NEAREST dog
 func dist_to_player(p):
-	return (p - player.board_pos).length()
+	var best: float = 1e9
+	for d in players:
+		if is_instance_valid(d):
+			best = minf(best, (Vector2(p) - Vector2(d.board_pos)).length())
+	return best
+
+func _is_dog(a) -> bool:
+	return a != null and players.has(a)
 
 func calc_cost_to_move_wolf_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: int, goal: Vector2i):
 	var isgoal = to == goal
@@ -905,7 +1058,7 @@ func calc_cost_to_move_wolf_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, 
 	var tocell = bcell(to)
 	if !tocell.ispipe and not isgoal:
 		return -1
-	if tocell.has_agent and (tocell.agent == player or tocell.agent.agent_type == 1):
+	if tocell.has_agent and (_is_dog(tocell.agent) or tocell.agent.agent_type == 1):
 		return -1
 	if tocell.ispipe and tocell.pipe.has_brick >= 0:
 		return -1
@@ -933,6 +1086,7 @@ func remove_one_compund_fence(room) -> bool:
 			var x = room.position.x
 			var y = game.rng.randi_range(room.position.y, room.end.y-1)
 			if board[y][x].pipe.fences[2]:
+				_note_broken(Vector2i(x, y), 2)
 				board[y][x].pipe.fences[2] = false
 				show_hide_walls()
 				return true
@@ -940,6 +1094,7 @@ func remove_one_compund_fence(room) -> bool:
 			var x = room.end.x-1
 			var y = game.rng.randi_range(room.position.y, room.end.y-1)
 			if board[y][x].pipe.fences[0]:
+				_note_broken(Vector2i(x, y), 0)
 				board[y][x].pipe.fences[0] = false
 				show_hide_walls()
 				return true
@@ -947,6 +1102,7 @@ func remove_one_compund_fence(room) -> bool:
 			var y = room.position.y
 			var x = game.rng.randi_range(room.position.x, room.end.x-1)
 			if board[y][x].pipe.fences[3]:
+				_note_broken(Vector2i(x, y), 3)
 				board[y][x].pipe.fences[3] = false
 				show_hide_walls()
 				return true
@@ -954,6 +1110,7 @@ func remove_one_compund_fence(room) -> bool:
 			var y = room.end.y-1
 			var x = game.rng.randi_range(room.position.x, room.end.x-1)
 			if board[y][x].pipe.fences[1]:
+				_note_broken(Vector2i(x, y), 1)
 				board[y][x].pipe.fences[1] = false
 				show_hide_walls()
 				return true
@@ -975,6 +1132,7 @@ func remove_one_farm_fence() -> bool:
 			v.shuffle()
 			var p = v.pop_front()
 			var c = bcell(p)
+			_note_broken(p, wall)
 			c.fences[wall] = false
 			farm_openings.append(p)
 			if wall == 1:
@@ -1039,9 +1197,11 @@ func add_agent_at(p: Vector2i, direction: int, agent_type: int = 1):
 		
 	return agent
 			
+var _dogs_running: int = 0
 func on_player_is_really_moving(is_moving: bool):
-	if is_moving:
-		game.play_sound("feet")
+	_dogs_running = maxi(0, _dogs_running + (1 if is_moving else -1))
+	if _dogs_running > 0:
+		game.play_sound("feet", false)
 	else:
 		game.stop_sound("feet")
 
@@ -1078,6 +1238,11 @@ func can_player_go_to(p):
 	if (player.board_pos - p).length_squared() > 1.1:
 		return false
 	var cell = bcell(p)
+	# never into (or onto) another dog
+	var topx: Vector2 = game.board_to_px(p)
+	for d in players:
+		if d != player and is_instance_valid(d) and (d.board_pos == p or (Vector2(d.position) - topx).length() < game.tile_size * 0.9):
+			return false
 	return cell.is_field && cell.room_id < 0 && !is_wall_between(player.board_pos, p) && !cell_has_partial_agent(p, player)
 
 func can_agent_go_to(agent,q):
@@ -1105,6 +1270,24 @@ func all_agents_done():
 	return true
 	
 func move_player_on_tick(force: bool):
+	if players.is_empty():
+		return
+	for d in players:
+		if is_instance_valid(d):
+			player = d
+			_move_dog(force)
+	player = _active_dog()
+
+# THE DOG'S NEXT STEP, the moment it is on its cell (player.gd, as it arrives): see step_agent_now
+func step_player_now(dog) -> void:
+	if game.level_is_done or !game.level_is_ready or not game.playing or game.paused():
+		return
+	player = dog
+	_move_dog(false)
+	player = _active_dog()
+
+# one dog's turn (`player`): barking at whatever is near it, and its next step
+func _move_dog(force: bool) -> void:
 	if player == null:
 		return
 
@@ -1153,7 +1336,7 @@ func move_player_on_tick(force: bool):
 			player.direction = dir
 			var new_player_pos = game.board_to_px(q)
 			var actual_tick_time = player.set_target_pos(new_player_pos)
-			next_player_dir = dir
+			player.next_dir = dir
 			player.last_major_tick_ms = MainGlobals.timems() + actual_tick_time - game.major_tick_time_ms * game.time_scale
 			player.board_pos = q
 			board[q.y][q.x].agent = player
@@ -1178,8 +1361,8 @@ func move_player_on_tick(force: bool):
 
 	if game.in_board(p):
 		player.need_to_move = false
-		var used_next_dir = next_player_dir >= 0
-		var dir = next_player_dir if next_player_dir >= 0 else player.direction
+		var used_next_dir = player.next_dir >= 0
+		var dir = player.next_dir if player.next_dir >= 0 else player.direction
 		var vdir = DirArray[dir]
 		var q = p + vdir
 		if !can_player_go_to(q):
@@ -1189,7 +1372,7 @@ func move_player_on_tick(force: bool):
 		var new_player_pos = game.board_to_px(q)
 		var actual_tick_time = player.set_target_pos(new_player_pos)
 		if used_next_dir:
-			next_player_dir = -1
+			player.next_dir = -1
 		player.last_major_tick_ms = MainGlobals.timems() + actual_tick_time - game.major_tick_time_ms * game.time_scale
 		player.board_pos = q
 		mark_visited_room(board[q.y][q.x].room_id)
@@ -1204,121 +1387,134 @@ func tick(force: bool = false):
 	
 	move_player_on_tick(force)
 
-	var removed_agents = []
-	for iagent in agents.size():
-		var agent = agents[iagent]
+	for agent in agents.duplicate():
 		if agent.can_set_target_pos():
-			var acell = bcell(agent.board_pos)
-			if agent.scared and (agent.agent_type == 0 and acell.room_id >= 0 or agent.agent_type == 1 and acell.is_outside):
-				agent.mark_scared(false)
-				game.add_score_and_time(10,0)
-				if agent.agent_type == 1:
-					agent.trying_to_enter = true
-					find_path_to_closest_opening(agent, true, true)
-			if agent.agent_type == 1 and agent.trying_to_enter and !acell.is_outside:
-				agent.trying_to_enter = false
-				agent.to_sheep = true
-				agent.path.clear()
+			_step_agent(agent)
 
-			if !game.level_is_done and check_if_sheep_is_lost(agent):
-				removed_agents.append(agent)
-				continue
-			if agent.was_removed:
-				continue
-			var p = agent.board_pos
-			if game.in_board(p):
-				var dir = agent.direction
-				var vdir = DirArray[dir]
-				var q = p + vdir
+# ONE ANIMAL'S NEXT CELL, the moment it is on its cell: from tick() every frame, and from the animal's own
+# move as it arrives (agent.gd _move) so it goes straight on in the same frame -- given it a frame later,
+# it stopped short at every cell and made the distance up in the next: a hitch at every cell.
+func step_agent_now(agent) -> void:
+	if game.level_is_done or !game.level_is_ready or not game.playing or game.paused():
+		return
+	_step_agent(agent)
 
-				if agent.agent_type == 1:
-					check_if_near_sheep(agent)
-					if agent.path.size() > 0:
-						q = agent.path.pop_front()
-						if !can_agent_go_to(agent,q):
-							agent.path.clear()
-							continue
-						vdir = q - p
-						dir = game.dt_to_dir(vdir)
-					else:
-						if !agent.scared and !agent.trying_to_enter and !agent.to_sheep:
-							var cell = bcell(p)
-							if cell.is_outside:
-								agent.trying_to_enter = true
-								# print("wolf had no mode. set to trying_to_enter")
-							else:
-								agent.to_sheep = true
-								# print("wolf had no mode. set to to_sheep")
+func _step_agent(agent) -> void:
+	# tick runs every frame: an animal that found nowhere to go at this cell tries again 50 ms on,
+	# not every frame (the path searches)
+	var now_ms: int = MainGlobals.timems()
+	if agent.idle_cell == agent.board_pos and now_ms < agent.idle_until_ms:
+		return
+	agent.idle_cell = agent.board_pos
+	agent.idle_until_ms = now_ms + 50
+	var acell = bcell(agent.board_pos)
+	if agent.scared and (agent.agent_type == 0 and acell.room_id >= 0 or agent.agent_type == 1 and acell.is_outside):
+		agent.mark_scared(false)
+		game.add_score_and_time(10,0)
+		if agent.agent_type == 1:
+			agent.trying_to_enter = true
+			find_path_to_closest_opening(agent, true, true)
+	if agent.agent_type == 1 and agent.trying_to_enter and !acell.is_outside:
+		agent.trying_to_enter = false
+		agent.to_sheep = true
+		agent.path.clear()
 
-						if agent.scared:
-							if !find_path_to_closest_opening(agent, false, false):
-								continue
-						elif agent.trying_to_enter:
-							if !find_path_to_closest_opening(agent, true, false):
-								continue
-						elif agent.to_sheep:
-							if !find_path_to_free_sheep(agent):
-								continue
-						else:
-							continue
-
-						q = agent.path.pop_front()
-						vdir = q - p
-						dir = game.dt_to_dir(vdir)
-						if !can_agent_go_to(agent,q):
-							agent.path.clear()
-							continue
-
-				elif agent.agent_type == 0:
-					if agent.path.size() > 0:
-						q = agent.path.pop_front()
-						if !can_agent_go_to(agent,q):
-							agent.path.clear()
-							continue
-						vdir = q - p
-						dir = game.dt_to_dir(vdir)
-					elif agent.scared:
-						var pstart = p
-						var pend = rooms[0].get_center()
-						var pprev = p - vdir
-						var path = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_sheep_to"), 0, pprev)#, path_bounding_rect)
-						while path.size() > 0 and path[0] == pstart:
-							path.pop_front()
-						if path.size() > 0:
-							agent.path = path
-							q = agent.path.pop_front()
-							vdir = q - p
-							dir = game.dt_to_dir(vdir)
-							draw_path(agent.path)
-						else:
-							continue
-						vdir = q - p
-						dir = game.dt_to_dir(vdir)
-						if !can_agent_go_to(agent,q):
-							agent.path.clear()
-							continue					
-
-				if !can_agent_go_to(agent,q):
-					var turn_dirs = [1,3,2]
-					for diradd in turn_dirs:
-						var nextdir = (agent.direction + diradd) % 4
-						var nextvdir = DirArray[nextdir]
-						q = p + nextvdir
-						if can_agent_go_to(agent,q):
-							dir = nextdir
-							break
-				agent.direction = dir
-				if can_agent_go_to(agent, q):
-					# var new_agent_pos = game.board_to_px(q)
-					agent.board_pos = q
-					board[q.y][q.x].agent = agent
-					board[q.y][q.x].has_agent = true
-					board[p.y][p.x].has_agent = false
-
-	for agent in removed_agents:
+	if !game.level_is_done and check_if_sheep_is_lost(agent):
 		if !game.level_is_done:
 			agent.mark_removed()
 			game.add_score_and_time(-1,0)
+		return
+	if agent.was_removed:
+		return
+	var p = agent.board_pos
+	if game.in_board(p):
+		var dir = agent.direction
+		var vdir = DirArray[dir]
+		var q = p + vdir
+
+		if agent.agent_type == 1:
+			check_if_near_sheep(agent)
+			if agent.path.size() > 0:
+				q = agent.path.pop_front()
+				if !can_agent_go_to(agent,q):
+					agent.path.clear()
+					return
+				vdir = q - p
+				dir = game.dt_to_dir(vdir)
+			else:
+				if !agent.scared and !agent.trying_to_enter and !agent.to_sheep:
+					var cell = bcell(p)
+					if cell.is_outside:
+						agent.trying_to_enter = true
+						# print("wolf had no mode. set to trying_to_enter")
+					else:
+						agent.to_sheep = true
+						# print("wolf had no mode. set to to_sheep")
+
+				if agent.scared:
+					if !find_path_to_closest_opening(agent, false, false):
+						return
+				elif agent.trying_to_enter:
+					if !find_path_to_closest_opening(agent, true, false):
+						return
+				elif agent.to_sheep:
+					if !find_path_to_free_sheep(agent):
+						return
+				else:
+					return
+
+				q = agent.path.pop_front()
+				vdir = q - p
+				dir = game.dt_to_dir(vdir)
+				if !can_agent_go_to(agent,q):
+					agent.path.clear()
+					return
+
+		elif agent.agent_type == 0:
+			if agent.path.size() > 0:
+				q = agent.path.pop_front()
+				if !can_agent_go_to(agent,q):
+					agent.path.clear()
+					return
+				vdir = q - p
+				dir = game.dt_to_dir(vdir)
+			elif agent.scared:
+				var pstart = p
+				var pend = rooms[0].get_center()
+				var pprev = p - vdir
+				var path = game.astar(pstart, pend, Callable(self, "calc_cost_to_move_sheep_to"), 0, pprev)#, path_bounding_rect)
+				while path.size() > 0 and path[0] == pstart:
+					path.pop_front()
+				if path.size() > 0:
+					agent.path = path
+					q = agent.path.pop_front()
+					vdir = q - p
+					dir = game.dt_to_dir(vdir)
+					draw_path(agent.path)
+				else:
+					return
+				vdir = q - p
+				dir = game.dt_to_dir(vdir)
+				if !can_agent_go_to(agent,q):
+					agent.path.clear()
+					return					
+
+		if !can_agent_go_to(agent,q):
+			var turn_dirs = [1,3,2]
+			for diradd in turn_dirs:
+				var nextdir = (agent.direction + diradd) % 4
+				var nextvdir = DirArray[nextdir]
+				q = p + nextvdir
+				if can_agent_go_to(agent,q):
+					dir = nextdir
+					break
+		agent.direction = dir
+		if can_agent_go_to(agent, q):
+			# var new_agent_pos = game.board_to_px(q)
+			agent.board_pos = q
+			board[q.y][q.x].agent = agent
+			board[q.y][q.x].has_agent = true
+			board[p.y][p.x].has_agent = false
 		
 func check_if_near_sheep(wolf):
 	if !wolf.to_sheep or wolf.eating:
@@ -1327,7 +1523,7 @@ func check_if_near_sheep(wolf):
 	for agent in agents:
 		if agent.agent_type == 0 and !game.level_is_done:
 			if bcell(agent.board_pos).room_id < 0 and (p - agent.board_pos).length_squared() < 1.1 and !is_wall_between(p, agent.board_pos) and !agent.eaten:
-				wolf.mark_eating(game.board_to_px(agent.board_pos))
+				wolf.mark_eating(agent.position)        # where the sheep IS (it may be between cells)
 				game.tutorial_notify("sheep_eaten")
 				game.play_sound("sheep")
 				agent.mark_eaten(game.board_to_px(p))
@@ -1353,7 +1549,7 @@ func calc_cost_to_move_sheep_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i,
 	if !tocell.ispipe and not isgoal:
 		return -1
 	if tocell.has_agent:
-		if tocell.agent == player || tocell.agent.agent_type == 1:
+		if _is_dog(tocell.agent) || tocell.agent.agent_type == 1:
 			return -1
 		if tocell.agent.agent_type == 0 and tocell.agent.scared and tocell.agent.path.size() == 0:
 			return -1
@@ -1482,6 +1678,11 @@ func _apply_level() -> void:
 	var s: int = 25
 	num_rooms = min(MAX_POSSIBLE_ROOMS, MAX_COLORS_TO_USE, clamped_level)
 	game.forced_board_size = Vector2i(s, s)
+	# A PORTRAIT BOARD ON A PHONE (2026-11-13): the screen is tall, and a square board fitted to its width
+	# left every cell about 32 units across with a third of the screen forest -- the animals were tiny.
+	# 19 x 29: a farm of 13 x 23 (against 19 x 19), shown with a cell and a half round it (zoom_camera).
+	if MainGlobals.is_mobile():
+		game.forced_board_size = Vector2i(19, 29)
 	num_more_packets = 0
 	player_max_speed_scale = 1.7
 	agent_max_speed_scale = min(0.4 + 0.2 * (clamped_level - 1), 2)
@@ -1492,11 +1693,9 @@ func _apply_level() -> void:
 # start from zoom out and stay at zoom out
 
 func add_player_at(p: Vector2i, direction: int):
-	if player != null:
-		player.queue_free()
-		# player_cam = null
 	player = player_scene.instantiate()
 	add_child(player)
+	players.append(player)
 	player.reset()
 	player.direction = direction
 	player.board_pos = p
@@ -1517,9 +1716,33 @@ func mark_visited_room(room_id):
 	visited_rooms[room_id] = true
 
 func add_player():
-	var p = game.get_board_center()
-	p.y = board_margin
-	add_player_at(p, 1)
+	for d in players:
+		if is_instance_valid(d):
+			d.queue_free()
+	players.clear()
+	# the first dog at the top of the farm facing down; a second at the bottom facing up; a third at the
+	# left facing right -- each on the nearest free field cell to its spot
+	var n: int = clampi(int(_cfg.get("dogs", 1)), 1, MAX_DOGS)
+	var c: Vector2i = game.get_board_center()
+	var spots: Array = [[Vector2i(c.x, board_margin), 1], [Vector2i(c.x, game.board_size.y - board_margin - 1), 3],
+		[Vector2i(board_margin, c.y), 0]]
+	for i in n:
+		var p: Vector2i = _free_field_cell_near(spots[i][0])
+		add_player_at(p, int(spots[i][1]))
+	set_active_dog(0)
+
+func _free_field_cell_near(p0: Vector2i) -> Vector2i:
+	for r in 6:
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue
+				var q: Vector2i = p0 + Vector2i(dx, dy)
+				var cell = bcell(q)
+				if cell != null and cell.is_field and cell.room_id < 0 and not cell.has_agent \
+						and (not cell.ispipe or cell.pipe == null or cell.pipe.has_brick < 0):
+					return q
+	return p0
 
 func on_agent_remove_agent(agent_id, _good_remove: bool):
 	for i in agents.size():
@@ -1557,10 +1780,27 @@ func _load_cfg() -> void:
 	game.reset_time_left()
 
 func _on_path_drawn(_path: Array[Vector2i]) -> void: 
+	if players.is_empty() or _path.is_empty():
+		return
+	# the dog nearest where the swipe starts takes it; with several dogs, none if it starts too far from
+	# all of them (one dog keeps its old reach of 9 cells)
+	var dog = null
+	var best: float = 1e9
+	for d in players:
+		if is_instance_valid(d) and not d.was_hit:
+			var dd: float = (Vector2(d.board_pos) - Vector2(_path[0])).length()
+			if dd < best:
+				best = dd
+				dog = d
+	if dog == null or (players.size() > 1 and best > SWIPE_REACH_MANY):
+		return
+	player = dog
 	var path = game.get_player_path(player, _path, 9, Callable(self, "calc_cost_to_move_player_to"))
 	if path.size() > 0:
 		player.path = path.duplicate()
 		game.tutorial_notify("path_drawn")
+		set_active_dog(players.find(dog))
+	player = _active_dog()
 
 func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: int, goal: Vector2i):
 	var isgoal = to == goal
@@ -1593,4 +1833,54 @@ func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 21, game_cam)
+	var field: Control = GrassField.fit(self, get_node_or_null("TextureRect") as CanvasItem, game, 21, game_cam)
+	_plant_forest(field)
+
+# THE WOODS ROUND THE FARM (2026-11-13, forest.gdshader), where the wolves come from: the lawn runs on past
+# the fence and darkens into the trees' shade, the canopy closing in further out. Just over the lawn and
+# under everything else (the animals are at z 10), so a wolf out there is never hidden. Round tree crowns
+# were tried first: on a phone, with the long margins above and below the farm, a children's playground.
+var _forest: TextureRect = null
+var _forest_vp: SubViewport = null
+
+func _plant_forest(field: Control) -> void:
+	if field == null:
+		return
+	if _forest != null and is_instance_valid(_forest):
+		_forest.queue_free()
+	if _forest_vp != null and is_instance_valid(_forest_vp):
+		_forest_vp.queue_free()
+	var t: float = float(game.tile_size)
+	var lo: Vector2 = game.board_to_px(Vector2i(board_margin, board_margin)) - Vector2(t, t) * 0.5
+	var hi: Vector2 = game.board_to_px(game.board_size - Vector2i(board_margin + 1, board_margin + 1)) + Vector2(t, t) * 0.5
+	# RENDERED ONCE, at a third of the resolution, into a texture: the shader is many noise lookups a pixel,
+	# and run over the whole screen every frame it cost a phone its frame rate (the dog, timed by the
+	# clock, then jumped). It is soft anyway, so the lower resolution does not show.
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = preload("res://wolves/scripts/forest.gdshader")
+	mat.set_shader_parameter("area_size", field.size)
+	mat.set_shader_parameter("farm", Vector4(lo.x - field.position.x, lo.y - field.position.y, hi.x - lo.x, hi.y - lo.y))
+	mat.set_shader_parameter("tile", t)
+	_forest_vp = SubViewport.new()
+	_forest_vp.transparent_bg = true
+	_forest_vp.disable_3d = true
+	_forest_vp.size = Vector2i(maxi(1, ceili(field.size.x / 3.0)), maxi(1, ceili(field.size.y / 3.0)))
+	_forest_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var painter: ColorRect = ColorRect.new()
+	painter.size = Vector2(_forest_vp.size)
+	painter.material = mat
+	_forest_vp.add_child(painter)
+	add_child(_forest_vp)
+	_forest = TextureRect.new()
+	_forest.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_forest.texture = _forest_vp.get_texture()
+	_forest.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_forest.stretch_mode = TextureRect.STRETCH_SCALE
+	_forest.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_forest.position = field.position
+	_forest.size = field.size
+	var blend: CanvasItemMaterial = CanvasItemMaterial.new()
+	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA      # a transparent viewport stores premultiplied color
+	_forest.material = blend
+	add_child(_forest)
+	move_child(_forest, field.get_index() + 1)

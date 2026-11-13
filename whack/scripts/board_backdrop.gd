@@ -30,7 +30,6 @@ class_name WhackBoardBackdrop
 const TURF_A: Color = Color(0.153, 0.239, 0.153)
 const TURF_B: Color = Color(0.129, 0.208, 0.133)
 const TURF_EDGE: Color = Color(0.086, 0.141, 0.098)
-const EARTH: Color = Color(0.36, 0.24, 0.14)      # warm turned soil (a cooler one read as rock)
 const RAIL_A: Color = Color(0.706, 0.196, 0.216)
 const RAIL_B: Color = Color(0.914, 0.855, 0.725)
 const LAMP: Color = Color(1.0, 0.87, 0.58)
@@ -64,7 +63,32 @@ static func attach(parent: Control) -> Control:
 		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 		parent.add_child(bg)
 		parent.move_child(bg, 0)
+		# FINE GRASS over the mown bands: short blades, a little lighter or darker, drawn ONCE on their own
+		# layer (the backdrop itself redraws every frame for the lamp; thousands of blades must not)
+		var blades: Control = Control.new()
+		blades.name = "Blades"
+		blades.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		blades.set_anchors_preset(Control.PRESET_FULL_RECT)
+		blades.draw.connect(func() -> void: _blades(blades))
+		blades.resized.connect(blades.queue_redraw)
+		bg.add_child(blades)
 	return bg
+
+static func _blades(c: Control) -> void:
+	var w: float = c.size.x
+	var h: float = c.size.y
+	if w < 4.0 or h < 4.0:
+		return
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 2611
+	var n: int = int(w * h / 70.0)
+	for i in n:
+		var p: Vector2 = Vector2(rng.randf() * w, rng.randf() * h)
+		var blade_len: float = rng.randf_range(3.0, 6.5)
+		var lean: float = rng.randf_range(-0.5, 0.5)
+		var lighter: bool = rng.randf() < 0.5
+		var col: Color = Color(0.32, 0.46, 0.24, 0.30) if lighter else Color(0.05, 0.10, 0.05, 0.30)
+		c.draw_line(p, p + Vector2(lean, -1.0).normalized() * blade_len, col, 1.0)
 
 static func draw(bg: Control, t: float) -> void:
 	var w: float = bg.size.x
@@ -72,7 +96,8 @@ static func draw(bg: Control, t: float) -> void:
 	if w < 4.0 or h < 4.0:
 		return
 	_turf(bg, w, h)
-	_earth(bg, w, h)
+	# (no earth patches since 2026-11-12: scattered over the turf with nothing coming out of them, they read
+	# as "strange unrelated rocks"; the soil is now thrown up by each target as it appears, draw_area.gd)
 	_lamp(bg, w, h, t)
 	_rail(bg, w, h)
 	_vignette(bg, w, h)
@@ -96,48 +121,6 @@ static func _turf(bg: Control, w: float, h: float) -> void:
 	bg.draw_polygon(PackedVector2Array([Vector2(0, h - band), Vector2(w, h - band), Vector2(w, h), Vector2(0, h)]),
 		PackedColorArray([clear, clear, TURF_EDGE, TURF_EDGE]))
 
-# Where things have been coming up. Irregular polygons, never discs: a disc here is a target.
-# They hug the edges, leaving the middle of the board — where the player's eye is being timed —
-# carrying nothing.
-static func _earth(bg: Control, w: float, h: float) -> void:
-	var scale_up: float = _k()
-	var spots: Array = [
-		[0.13, 0.14, 46.0], [0.86, 0.20, 38.0], [0.09, 0.62, 40.0],
-		[0.91, 0.72, 44.0], [0.28, 0.90, 36.0], [0.72, 0.06, 34.0],
-	]
-	for spot: Array in spots:
-		var c: Vector2 = Vector2(w * float(spot[0]), h * float(spot[1]))
-		var r: float = float(spot[2]) * scale_up
-		var pts: PackedVector2Array = PackedVector2Array()
-		var cols: PackedColorArray = PackedColorArray()
-		var n: int = 11
-		for k in n:
-			var ang: float = TAU * float(k) / float(n)
-			# Every vertex pulled in or out by a fixed, repeatable amount: a ragged patch of soil,
-			# and never twice the same shape.
-			var wobble: float = 0.62 + 0.38 * fmod(float(k) * 2.7 + r, 1.0)
-			pts.append(c + Vector2(cos(ang), sin(ang) * 0.62) * r * wobble)
-			cols.append(EARTH.darkened(0.25))
-		# A MOLEHILL, not a flat stain: the ragged edge dark, the heap inside lighter toward the
-		# light (top left), crumbs and pebbles on it. Still irregular, never a filled circle.
-		bg.draw_polygon(pts, cols)
-		var inner: PackedVector2Array = PackedVector2Array()
-		var icols: PackedColorArray = PackedColorArray()
-		for k in n:
-			var q: Vector2 = c + (pts[k] - c) * 0.72 + Vector2(-0.06, -0.08) * r
-			inner.append(q)
-			var lit: float = clampf(((q - c) / r).dot(Vector2(-0.6, -0.8)), -1.0, 1.0)
-			icols.append(EARTH.lightened(0.10 + 0.14 * lit) if lit > 0.0 else EARTH.darkened(-0.10 * lit))
-		bg.draw_polygon(inner, icols)
-		for k in 7:
-			var a2: float = float(k) * 2.39 + r
-			var d2: float = (0.15 + 0.55 * fmod(float(k) * 0.37 + r * 0.01, 1.0)) * r
-			var pb: Vector2 = c + Vector2(cos(a2), sin(a2) * 0.6) * d2
-			var ps: float = (1.2 + fmod(float(k) * 0.71, 1.0) * 1.6) * scale_up
-			bg.draw_rect(Rect2(pb - Vector2(ps, ps * 0.7), Vector2(ps * 2.0, ps * 1.4)), EARTH.lightened(0.28))
-			bg.draw_rect(Rect2(pb + Vector2(-ps, ps * 0.3), Vector2(ps * 2.0, ps * 0.4)), EARTH.darkened(0.35))
-
-# The stall lamp, overhead. From above a lamp is a pool on the ground, not a cone in the air.
 static func _lamp(bg: Control, w: float, h: float, t: float) -> void:
 	var breath: float = 0.5 + 0.5 * sin(t * TAU / 5.0)
 	var glow: Texture2D = MainGlobals.menu_glow_texture()

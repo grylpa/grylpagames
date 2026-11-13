@@ -447,7 +447,9 @@ func tutorial_crowd_rect(side: int):
 		if int(p.get_meta("side", 0)) == side:
 			r = p.body_rect() if not any else r.merge(p.body_rect())
 			any = true
-	return r if any else null
+	if any:
+		return r
+	return null
 
 func _on_game_popup_closed() -> void:
 	if not game.level_is_done and not game.level_is_ready:

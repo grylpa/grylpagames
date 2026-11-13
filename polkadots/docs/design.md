@@ -72,7 +72,7 @@ Settings saved as `[starting_difficulty]`.
 
 1. **Dot display**: A `SubViewport` renders the current letter at the configured font size. Eligible pixels (inside the letter, after erosion by `dot_radius`) are sampled using a stratified 6×6 grid + jitter. Dots are placed within the `DotsDisplay` control using `set_dots()`.
 2. **Option buttons**: `num_options` letter choices are created dynamically in a VBoxContainer. The correct letter is always included; wrong options avoid confusable character groups.
-3. **Uniqueness check**: Each wrong option is rendered in the SubViewport and its overlap fraction with the current dot positions is measured. If >50% of dots fall inside a wrong option's shape, that option is replaced from a pool of unused CHARSET characters. This ensures dots can only plausibly fit one option.
+3. **Uniqueness check** (every round decidable, see "Every round is decidable" below): each wrong option is rendered in the SubViewport and must leave at least `MIN_OUT` (2) of the dots, and at least `MIN_OUT_SHARE` (30%) of them, OUTSIDE its shape. One that does not is replaced by trying candidates one at a time, each measured, until one passes -- never the correct character's look-alikes (`CONFUSABLE_GROUPS`).
 4. **Player taps**: Option button pressed → reveal animation (`DotsDisplay.reveal_letter()`) → feedback popup → `_next_or_finish()`.
 5. **Timeout**: If no tap within `timeout_sec`, the round counts as wrong.
 6. **Option hide**: If `option_display_sec > 0`, option labels are hidden after that time (the player must have already noted them).
@@ -85,8 +85,26 @@ Settings saved as `[starting_difficulty]`.
 
 1. Render current character in `$CharViewport` (SubViewport, fixed 256×256).
 2. Erode inward by `dot_radius` pixels (circular kernel) — only pixels entirely inside the letter remain. If full erosion leaves no pixels (thin strokes), halve the radius and retry until pixels are found.
-3. Stratified 6×6 grid: distribute eligible pixels into 36 cells, sample one dot per cell until 70% of non-empty cells are covered, then fill remaining count from leftover pixels.
-4. Uniqueness: render each wrong option → measure overlap fraction → replace >50%-overlap options.
+3. Stratified 6×6 grid: distribute eligible pixels into 36 cells, sample one dot per cell until 70% of non-empty cells are covered, then fill remaining count from leftover pixels. Dots closer than 2.2 radii are dropped, then the set is TOPPED UP from anywhere in the character to at least `MIN_DOTS` (5); a character that cannot hold 5 at this level's dot size is swapped for another (`_start_round`, up to 8 tries).
+4. Uniqueness: render each wrong option (`_count_inside`, two frames after setting the text) → it must leave enough dots outside → otherwise try candidates until one does.
+
+### Every round is decidable (2026-11-13)
+
+Measured over 60-100 rounds per level (a scratch harness rendering every option and counting the dots
+inside it), the old generator made rounds that could not be answered: up to 14 in 60 on level 1 had 3
+dots or fewer, some only 2, and about one round in 30 on every level had a wrong option holding EVERY dot
+(a 3 that was also an 8, an S also a 5, a P whose dots were all in the 0 beside it). Four causes, all fixed:
+- the check was skipped under 3 dots, and level 1's big dots left room for only 2 on thin characters
+  (now at least 5, or another character);
+- its rule, "no more than 30% of the dots inside a wrong option", is failed by nearly ANY two characters
+  -- they share the frame -- so the 3 passes ran out and the last pass's replacements went on screen
+  unchecked (now: enough dots OUTSIDE each wrong option, and every candidate is measured);
+- the replacements could be the correct character's look-alikes (now excluded);
+- it measured each option ONE frame after drawing it, when the viewport could still hold the previous
+  character (now two, `_count_inside`).
+After: 400 rounds over levels 1, 3, 5 and 8, none with fewer than 5 dots, none with a wrong option holding
+every dot or leaving too few outside. A round takes as long to appear as before (~0.8 s, most of it the
+0.5 s pause between rounds).
 
 ---
 

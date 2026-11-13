@@ -248,9 +248,23 @@ func _start_round() -> void:
 	if _round_id != rid or not is_inside_tree():
 		return
 
-	await _generate_and_show_dots(rid)
-	if _round_id != rid or not is_inside_tree():
-		return
+	# A character that cannot hold MIN_DOTS dots at this level's dot size is swapped for another (a round
+	# of 2 dots could fit several of the options: there was no telling which was meant, 2026-11-13).
+	for attempt in range(8):
+		var ok: bool = await _generate_and_show_dots(rid, attempt == 7)
+		if _round_id != rid or not is_inside_tree():
+			return
+		if ok:
+			break
+		var tried: String = _correct_char
+		while _correct_char == tried:
+			_correct_char = CHARSET[randi() % CHARSET.size()]
+		_option_chars = _build_options(_correct_char, int(_cfg["num_options"]))
+		%CharLabel.text = _correct_char
+		await get_tree().process_frame
+		await get_tree().process_frame
+		if _round_id != rid or not is_inside_tree():
+			return
 	_configure_option_buttons()
 
 	_round_start_time = Time.get_unix_time_from_system()
@@ -272,13 +286,17 @@ func _start_round() -> void:
 
 # ── Character selection ────────────────────────────────────────────────────────
 
-func _build_options(correct: String, count: int) -> Array:
-	# Find the confusable group that contains the correct char
+# The correct character and its look-alikes: never offered beside it.
+func _lookalikes(correct: String) -> Array:
 	var avoid: Array = [correct]
 	for group in CONFUSABLE_GROUPS:
 		if correct in group:
 			avoid = avoid + group
 			break
+	return avoid
+
+func _build_options(correct: String, count: int) -> Array:
+	var avoid: Array = _lookalikes(correct)
 
 	var pool: Array = CHARSET.filter(func(c: String) -> bool: return not (c in avoid))
 	pool.shuffle()
@@ -294,10 +312,41 @@ func _build_options(correct: String, count: int) -> Array:
 
 # ── Dot generation ────────────────────────────────────────────────────────────
 
-func _generate_and_show_dots(rid: int) -> void:
+# EVERY ROUND IS DECIDABLE (2026-11-13). It shows at least MIN_DOTS dots, and every wrong option leaves
+# enough of them outside its shape to rule it out (the uniqueness check below): measured over 60 rounds a level, a round could have 2 dots (level 1's big dots
+# on a thin character) and one wrong option in 30 or so held EVERY dot (a 3 that was also an 8, an S
+# also a 5) -- the check was skipped under 3 dots, its last pass's replacements went unchecked, and the
+# replacements could be the correct character's look-alikes. Returns false, showing nothing, when this
+# character cannot hold MIN_DOTS dots at this level's size: the round then picks another (unless `force`).
+const MIN_DOTS: int = 5
+const MIN_OUT: int = 2                  # dots a wrong option must leave outside its shape...
+const MIN_OUT_SHARE: float = 0.3        # ...and at least this share of them
+
+# How many of `positions` fall inside `ch` drawn in the character viewport; -1 if the round moved on.
+# TWO frames after setting the text: after one the viewport can still hold the previous character.
+func _count_inside(ch: String, positions: Array, display_size: Vector2, rid: int) -> int:
+	%CharLabel.text = ch
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if _round_id != rid or not is_inside_tree():
+		%CharLabel.text = _correct_char
+		return -1
+	var test_img: Image = $CharViewport.get_texture().get_image()
+	test_img.convert(Image.FORMAT_RGBA8)
+	var tw: int = test_img.get_width()
+	var th: int = test_img.get_height()
+	var inside: int = 0
+	for pos in positions:
+		var px: int = int(pos.x / display_size.x * float(tw))
+		var py: int = int(pos.y / display_size.y * float(th))
+		if px >= 0 and px < tw and py >= 0 and py < th and test_img.get_pixel(px, py).a > 0.5:
+			inside += 1
+	return inside
+
+func _generate_and_show_dots(rid: int, force: bool = false) -> bool:
 	var img: Image = $CharViewport.get_texture().get_image()
 	if img == null or img.is_empty():
-		return
+		return true
 
 	img.convert(Image.FORMAT_RGBA8)
 	var iw: int = img.get_width()
@@ -339,7 +388,7 @@ func _generate_and_show_dots(rid: int) -> void:
 		try_erode = max(0, try_erode / 2)
 
 	if letter_pixels.is_empty():
-		return
+		return force
 
 	var dot_radius: float = float(_cfg["dot_radius"])
 	var jitter: float = dot_radius * 0.5
@@ -368,7 +417,7 @@ func _generate_and_show_dots(rid: int) -> void:
 	non_empty.shuffle()
 
 	var density: float = float(_cfg["dot_density"]) / 100.0
-	var total_count: int = max(3, int(letter_pixels.size() * density))
+	var total_count: int = max(MIN_DOTS, int(letter_pixels.size() * density))
 	var coverage_target: int = int(ceil(float(non_empty.size()) * 0.7))
 
 	var positions: Array = []
@@ -404,55 +453,61 @@ func _generate_and_show_dots(rid: int) -> void:
 		if ok_to_use:
 			non_overlaps.append(p)
 	positions = non_overlaps
+	# too few once the touching ones were dropped: top up from anywhere in the character, still apart
+	if positions.size() < MIN_DOTS:
+		var spare: Array = letter_pixels.duplicate()
+		spare.shuffle()
+		for np2 in spare:
+			if positions.size() >= MIN_DOTS:
+				break
+			var pp2: Vector2 = (inner_origin + np2 * inner_size).clamp(inner_origin, inner_origin + inner_size)
+			var apart: bool = true
+			for q2 in positions:
+				if (q2 - pp2).length() < 2.2 * dot_radius:
+					apart = false
+					break
+			if apart:
+				positions.append(pp2)
+	if positions.size() < MIN_DOTS and not force:
+		return false
 
 	# ── Uniqueness check ──────────────────────────────────────────────────────
-	# Render each wrong option and measure what fraction of dots fall inside it.
-	# If > 30% overlap, replace that option. Iterate up to 3 passes so
-	# replacement options are also checked.
-	if positions.size() >= 3:
-		for _pass in range(3):
-			var bad_indices: Array = []
-			for opt_i in range(_option_chars.size()):
-				if _option_chars[opt_i] == _correct_char:
-					continue
-				%CharLabel.text = _option_chars[opt_i]
-				await get_tree().process_frame
-				if _round_id != rid or not is_inside_tree():
-					%CharLabel.text = _correct_char
-					return
-				var test_img: Image = $CharViewport.get_texture().get_image()
-				test_img.convert(Image.FORMAT_RGBA8)
-				var tw: int = test_img.get_width()
-				var th: int = test_img.get_height()
-				var inside: int = 0
-				for pos in positions:
-					var px: int = int(pos.x / display_size.x * float(tw))
-					var py: int = int(pos.y / display_size.y * float(th))
-					if px >= 0 and px < tw and py >= 0 and py < th:
-						if test_img.get_pixel(px, py).a > 0.5:
-							inside += 1
-				if float(inside) / float(positions.size()) > 0.3:
-					bad_indices.append(opt_i)
-
-			if bad_indices.is_empty():
+	# Every wrong option must leave enough of the dots OUTSIDE its shape to be ruled out: at least
+	# MIN_OUT of them, and at least MIN_OUT_SHARE. An option that does not is replaced, by trying
+	# candidates one at a time -- each one measured -- until one passes; never by the correct character's
+	# look-alikes. (The rule used to be "no more than 30% of the dots inside", which nearly any two
+	# characters fail -- they share the frame -- so the passes ran out and the last replacements went on
+	# screen unchecked: a P whose every dot was also in the 0 beside it.)
+	var need_out: int = maxi(MIN_OUT, int(ceil(float(positions.size()) * MIN_OUT_SHARE)))
+	var avoid2: Array = _lookalikes(_correct_char)
+	for opt_i in range(_option_chars.size()):
+		if _option_chars[opt_i] == _correct_char:
+			continue
+		var pool: Array = CHARSET.filter(func(c: String) -> bool: return not (c in _option_chars) and not (c in avoid2))
+		pool.shuffle()
+		var cand: String = _option_chars[opt_i]
+		var pi: int = 0
+		while true:
+			var inside: int = await _count_inside(cand, positions, display_size, rid)
+			if inside < 0:
+				return true                     # the round moved on
+			if positions.size() - inside >= need_out:
 				break
-
-			var replace_pool: Array = CHARSET.filter(func(c: String) -> bool: return not (c in _option_chars))
-			replace_pool.shuffle()
-			var ri: int = 0
-			for bi in bad_indices:
-				if ri < replace_pool.size():
-					_option_chars[bi] = replace_pool[ri]
-					ri += 1
-
-		# Restore correct char and let viewport re-render before set_dots
-		%CharLabel.text = _correct_char
-		await get_tree().process_frame
-		if _round_id != rid or not is_inside_tree():
-			return
+			if pi >= pool.size():
+				break                           # (36 characters: does not happen)
+			cand = pool[pi]
+			pi += 1
+		_option_chars[opt_i] = cand
+	# Restore the correct character and let the viewport re-render before set_dots
+	%CharLabel.text = _correct_char
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if _round_id != rid or not is_inside_tree():
+		return true
 
 	var tex: Texture2D = $CharViewport.get_texture()
 	%DotsDisplay.set_dots(positions, dot_radius, tex, Rect2(Vector2.ZERO, display_size), _dots_color)
+	return true
 
 # THE CLOTH (2026-11-12, the dressmaker's table: polka_cloth.gd): the dot panel is a square of fabric
 # pinned at its corners, each option a cloth label with a stitched seam. Under the dots and the letters;

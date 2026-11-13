@@ -11,6 +11,10 @@ extends RefCounted
 #      startle back where they belong. Nothing on screen says so.
 #   3. They guard the wolves and forget the fence. Most sheep are lost to gaps in the fence,
 #      not to wolves.
+#   4. Every level has TWO dogs (2026-11-13), and the tutorial shows both: a route goes to the dog
+#      nearest where it starts. On desktop it also teaches the keys --
+#      the arrows move the dog with the gold outline, Tab passes it to the other dog, Space stops it;
+#      on a phone there are no keys, so none of that is said.
 
 const LEVEL_ID: int = 1
 
@@ -28,20 +32,40 @@ static func steps(level: Node, _game) -> Array:
 	# the dog could really walk — an invented zig-zag pointed straight through the fence.
 	var demo_path: Callable = func():
 		return level.tutorial_demo_route()
+	var other_dog_spot: Callable = func():
+		for d in level.players:
+			if is_instance_valid(d) and d != level.player:
+				return d
+		return null
+	var mobile: bool = MainGlobals.is_mobile()
+	var with_what: String = "your finger" if mobile else "your mouse"
+
+	var route_text: String = "Draw a route with %s and the dog walks along it, like this." % with_what
+	if not mobile:
+		route_text += "\n\nThe arrow keys work too. Press one and the dog keeps going that way until something stops it, or until you press Space."
+	var two_text: String = "You have a second dog.\n\nA route goes to the dog nearest where you start drawing it."
+	if not mobile:
+		two_text += "\n\nThe arrow keys move the dog with the gold outline. Tab passes it to the other dog."
 
 	return [
 		{
 			"title": "Wolves",
-			"text": "You're the dog.\n\nKeep the sheep inside the compound.",
+			"text": "You control the sheepdogs.\n\nKeep the sheep inside the compound.",
 		},
 		{
-			"text": "Draw a route with your finger or mouse and the dog walks along it, like this.\n\nThe arrow keys work too. Press one and the dog keeps going that way until something stops it.",
+			"text": route_text,
 			"spot": dog_spot,
 			"spot_radius": 70.0,
 			"demo_path": demo_path,
 		},
 		{
-			"text": "Trace a route by drawing it with your finger or mouse.",
+			"title": "Two dogs",
+			"text": two_text,
+			"spot": other_dog_spot,
+			"spot_radius": 70.0,
+		},
+		{
+			"text": "Trace a route by drawing it with %s." % with_what,
 			"await": {"event": "path_drawn", "timeout": 60.0},
 			"demo_path": demo_path,
 			"hint_after": 10.0,

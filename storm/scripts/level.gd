@@ -345,6 +345,7 @@ func _process(delta: float) -> void:
 	if _rain_mat != null and game.playing and not game.paused():
 		_rain_mat.set_shader_parameter("t", game.game_time / 1000.0)
 		_rain_mat.set_shader_parameter("wind", _wind_at(game.game_time / 1000.0))
+		_rain_mat.set_shader_parameter("flash", _lightning_flash())
 	# In a corridor the next step is taken the frame the player arrives, not at the next 50 ms game
 	# tick: at a run, waiting for the tick was a third of every step, and running came out only 1.3x
 	# as fast as walking. Rooms keep the tick's pace -- the pace the levels were measured at.
@@ -1804,21 +1805,27 @@ func _draw_house_walls(shadow: bool, node: Node2D) -> void:
 # few seconds LIGHTNING: a double flash that lights every pane and throws a bright burst of light in
 # through the windows across the floors. (The blackouts -- main.gd, the thunder with the house lights
 # cut -- are a separate event and unchanged.)
+# LIGHTNING: one flash in each 9 s stretch at a seeded moment, a second weaker one just after -- 0..1.
+# The windows (_draw_house_windows) and the yard outside (storm_rain.gdshader `flash`, 2026-11-13) both
+# read it, so they light up together: a flash seen only through the windows, with the yard staying dark,
+# read as something wrong with the windows.
+func _lightning_flash() -> float:
+	var now: float = float(Time.get_ticks_msec()) / 1000.0
+	var seg: float = floor(now / 9.0)
+	var start: float = seg * 9.0 + 1.0 + 6.0 * fposmod(sin(seg * 12.9898) * 43758.5453, 1.0)
+	var dt: float = now - start
+	if dt >= 0.0 and dt < 0.10:
+		return 1.0 - dt / 0.10
+	if dt >= 0.18 and dt < 0.40:
+		return 0.6 * (1.0 - (dt - 0.18) / 0.22)
+	return 0.0
+
 func _draw_house_windows(node: Node2D) -> void:
 	if _window_list.is_empty() or not is_instance_valid(node):
 		return
 	var t: float = float(game.tile_size)
 	var w: float = t * HOUSE_WALL
-	var now: float = float(Time.get_ticks_msec()) / 1000.0
-	# lightning: one flash in each 9 s stretch at a seeded moment, a second weaker one just after
-	var seg: float = floor(now / 9.0)
-	var start: float = seg * 9.0 + 1.0 + 6.0 * fposmod(sin(seg * 12.9898) * 43758.5453, 1.0)
-	var dt: float = now - start
-	var flash: float = 0.0
-	if dt >= 0.0 and dt < 0.10:
-		flash = 1.0 - dt / 0.10
-	elif dt >= 0.18 and dt < 0.40:
-		flash = 0.6 * (1.0 - (dt - 0.18) / 0.22)
+	var flash: float = _lightning_flash()
 	for wd: Array in _window_list:
 		var at: Vector2 = wd[0]
 		var side2: Vector2 = wd[1]

@@ -30,7 +30,7 @@ const LEVEL_ID: int = 1
 static func tutorial_level_id() -> int:
 	return LEVEL_ID
 
-static func steps(level: Node, game) -> Array:
+static func steps(level: Node, _game) -> Array:
 	return [
 		{
 			"title": "Ants",

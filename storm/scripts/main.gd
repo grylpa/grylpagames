@@ -125,9 +125,10 @@ func _update_flood_label() -> void:
 		return
 	var worst: float = $Level.worst_room_share()
 	_flood_label.text = "Worst: %d%%" % int(round(worst * 100.0))
-	# White while safe, warming toward red as it nears the line.
+	# The strip's GOLD while safe (as the clock and the counters -- it was white, from before the strip
+	# went gold, 2026-11-13), warming toward red as it nears the line.
 	var t: float = clampf(worst / $Level.room_ruin(), 0.0, 1.0)
-	_flood_label.add_theme_color_override("font_color", Color(1.0, lerpf(1.0, 0.35, t), lerpf(1.0, 0.3, t)))
+	_flood_label.add_theme_color_override("font_color", ScreenBackdrop.ACCENT.lerp(Color(1.0, 0.35, 0.3), t))
 	_flood_label.show()
 
 func _on_level_started_playing() -> void:

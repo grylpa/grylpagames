@@ -24,8 +24,29 @@ var kind: String = "dog"
 var _t: float = 0.0
 var _tufts: Array = []          # sheep: [offset, radius] per tuft of fleece
 
+# THE SHEEP ARE PICTURES (2026-11-13). Drawn as shapes, a flock of 65 was ~8000 antialiased circles every
+# frame -- 40 ms of render time on a laptop GPU, far worse on a phone (the dog, timed by the clock, jumped;
+# with a few sheep left it was smooth). So the sheep are RENDERED ONCE into an atlas, SHEEP_VARIANTS fleeces
+# x SHEEP_ANGLES headings at twice the size, and each sheep draws the one picture at the heading nearest
+# its own, turned the small rest of the way -- the light still falls from the top left as it turns. Until
+# the atlas is ready (a frame or two) they draw as shapes. The dog and the wolves (few) stay shapes.
+const SHEEP_VARIANTS: int = 6
+const SHEEP_ANGLES: int = 16
+const SHEEP_CELL: int = 128             # px per picture in the atlas
+const SHEEP_RES: float = 2.0            # atlas px per drawing unit
+static var _atlases: Dictionary = {}          # kind -> Texture2D
+static var _baking: Dictionary = {}           # kind -> true while its atlas is being rendered
+var painter: bool = false               # one of the atlas's painters (not an animal)
+var variant: int = -1                   # which fleece (seeds the tufts)
+var _drawn_atlas: bool = false
+var girth: float = 1.0                  # across / along (the dog and the wolf are stockier)
+var _body_pts: PackedVector2Array = PackedVector2Array()     # the dog's or wolf's outline, for its live shadow
+
 const SIZE: float = 0.86            # all three drawn at this scale of the numbers below
-const BEAST_SIZE: float = 1.22      # and the dog and the wolf at this much more
+# and the dog and the wolf at this: NOSE TO TAIL WITHIN ONE CELL (2026-11-13; at 1.22, with long tails,
+# they were 1.6 cells long and read as lying across two). Their tails are short for the same reason.
+const BEAST_SIZE: float = 0.86
+const BEAST_GIRTH: float = 1.7
 const OUTLINE: Color = Color(0.07, 0.06, 0.07)
 const OUT_W: float = 1.4
 const SHADOW: Color = Color(0.0, 0.05, 0.0, 0.22)
@@ -42,26 +63,86 @@ const WOLF_PALE: Color = Color(0.88, 0.86, 0.82)
 const WOLF_EYE: Color = Color(0.98, 0.72, 0.16)
 
 func _ready() -> void:
+	if painter:
+		if kind == "sheep":
+			_make_tufts()
+		return
+	variant = posmod(hash(get_instance_id()), SHEEP_VARIANTS) if kind == "sheep" else 0
+	girth = 1.0 if kind == "sheep" else BEAST_GIRTH
+	if not _atlases.has(kind) and not _baking.has(kind):
+		_bake_atlas(get_tree(), get_script(), kind, SHEEP_VARIANTS if kind == "sheep" else 1, girth)
 	var hs: Vector2 = (get_parent() as Node2D).scale
 	# the dog and the wolf drawn larger, uniformly, so they stand as tall on the field as a sheep
 	var k: float = SIZE * (1.0 if kind == "sheep" else BEAST_SIZE)
-	scale = Vector2(k / maxf(hs.x, 0.001), k / maxf(hs.y, 0.001))
+	# the dog and the wolf STOCKIER across the body than along it (BEAST_GIRTH): one cell long, they would
+	# otherwise be thin gray strokes on a phone's zoomed-out board
+	scale = Vector2(k / maxf(hs.x, 0.001), k * girth / maxf(hs.y, 0.001))
 	if kind == "sheep":
-		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-		rng.seed = get_instance_id()
-		# a THICK fleece: two rings of tufts round the rim, and more inside, each bigger than before
-		var n: int = 14
-		for i in n:
-			var a: float = TAU * float(i) / float(n) + rng.randf_range(-0.10, 0.10)
-			_tufts.append([Vector2(cos(a) * 13.5, sin(a) * 10.0), rng.randf_range(4.8, 6.0)])
-		for i in 9:
-			var a2: float = TAU * float(i) / 9.0 + rng.randf_range(-0.2, 0.2)
-			_tufts.append([Vector2(cos(a2) * 7.5, sin(a2) * 5.0), rng.randf_range(4.6, 5.6)])
-		for i in 3:
-			_tufts.append([Vector2(rng.randf_range(-3.0, 3.0), rng.randf_range(-2.0, 2.0)), rng.randf_range(4.8, 5.8)])
+		_make_tufts()
+
+func _make_tufts() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 1000 + variant
+	# a THICK fleece: two rings of tufts round the rim, and more inside, each bigger than before
+	var n: int = 14
+	for i in n:
+		var a: float = TAU * float(i) / float(n) + rng.randf_range(-0.10, 0.10)
+		_tufts.append([Vector2(cos(a) * 13.5, sin(a) * 10.0), rng.randf_range(4.8, 6.0)])
+	for i in 9:
+		var a2: float = TAU * float(i) / 9.0 + rng.randf_range(-0.2, 0.2)
+		_tufts.append([Vector2(cos(a2) * 7.5, sin(a2) * 5.0), rng.randf_range(4.6, 5.6)])
+	for i in 3:
+		_tufts.append([Vector2(rng.randf_range(-3.0, 3.0), rng.randf_range(-2.0, 2.0)), rng.randf_range(4.8, 5.8)])
+
+# A SHEEP REDRAWS ONLY WHEN IT HAS TURNED (2026-11-13): nothing on it moves with time, only its lighting
+# follows its angle. Redrawn every frame, a flock of 65 -- some 120 antialiased circles each -- was most of
+# a phone's frame, and the dog (timed by the clock) jumped. The dog and the wolves wag their tails, and
+# there are few of them: they still redraw every frame.
+var _drawn_rot: float = 1e9
+
+# Render a kind at every heading (and every fleece, for the sheep), once, into one atlas (see SHEEP_VARIANTS).
+# The dog's and the wolf's are their bodies only, already stretched by their girth; the tail wags live.
+static func _bake_atlas(tree: SceneTree, src_script: Script, what: String, variants: int, g: float) -> void:
+	_baking[what] = true
+	var vp: SubViewport = SubViewport.new()
+	vp.size = Vector2i(SHEEP_ANGLES * SHEEP_CELL, variants * SHEEP_CELL)
+	vp.transparent_bg = true
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	for v in variants:
+		for i in SHEEP_ANGLES:
+			var pn: Node2D = src_script.new()
+			pn.set("kind", what)
+			pn.set("painter", true)
+			pn.set("variant", v)
+			pn.set("girth", g)
+			pn.position = Vector2((float(i) + 0.5) * SHEEP_CELL, (float(v) + 0.5) * SHEEP_CELL)
+			pn.rotation = TAU * float(i) / float(SHEEP_ANGLES)
+			pn.scale = Vector2(SHEEP_RES, SHEEP_RES * g)
+			vp.add_child(pn)
+	tree.root.add_child.call_deferred(vp)
+	var grab: Callable = func() -> void:
+		if is_instance_valid(vp):
+			_atlases[what] = ImageTexture.create_from_image(vp.get_texture().get_image())
+			vp.queue_free()
+		_baking.erase(what)
+	# two frames on: the viewport renders in the frame after it enters the tree
+	tree.process_frame.connect(func() -> void:
+		tree.process_frame.connect(func() -> void:
+			RenderingServer.frame_post_draw.connect(grab, CONNECT_ONE_SHOT), CONNECT_ONE_SHOT), CONNECT_ONE_SHOT)
 
 func _process(delta: float) -> void:
+	if painter:
+		return
 	_t += delta
+	if _atlases.has(kind) and not _drawn_atlas:
+		queue_redraw()
+		return
+	if kind == "sheep":
+		var r: float = global_rotation
+		if absf(angle_difference(r, _drawn_rot)) < 0.03:
+			return
+		_drawn_rot = r
 	queue_redraw()
 
 # Which way the light falls in THIS node's space (the light is fixed on the screen).
@@ -157,11 +238,73 @@ func _ellipse(c: Vector2, rx: float, ry: float, rot: float = 0.0) -> PackedVecto
 func _draw() -> void:
 	match kind:
 		"sheep":
-			_draw_sheep()
-		"wolf":
-			_draw_wolf()
+			if not painter and _atlases.has("sheep") and variant >= 0:
+				_draw_picture()
+			else:
+				_draw_sheep()
 		_:
-			_draw_dog()
+			# the dog and the wolf: the body a picture (once its atlas is ready), the shadow and the wagging
+			# tail live -- a painter draws the body alone
+			var pic: bool = not painter and _atlases.has(kind)
+			if not painter:
+				if _body_pts.is_empty():
+					_body_pts = _dog_outline() if kind == "dog" else _wolf_outline()
+				_shadow_of(_body_pts)
+				if kind == "dog":
+					_active_contour()
+					_dog_tail()
+				else:
+					_wolf_tail()
+			if pic:
+				_draw_picture()
+			elif kind == "dog":
+				_dog_body()
+			else:
+				_wolf_body()
+
+# This animal's picture from its kind's atlas: the one at the heading nearest its own. This node is turned
+# by r (its head's rotation) and stretched by its girth; the picture already holds its heading idx * step
+# and its girth, so both are undone here: (1, 1/girth) . rotate(-idx * step) . 1/SHEEP_RES.
+func _draw_picture() -> void:
+	_drawn_atlas = true
+	var step: float = TAU / float(SHEEP_ANGLES)
+	var idx: int = posmod(roundi(global_rotation / step), SHEEP_ANGLES)
+	var m: Transform2D = Transform2D(0.0, Vector2(1.0, 1.0 / girth), 0.0, Vector2.ZERO) \
+		* Transform2D(-float(idx) * step, Vector2.ZERO) \
+		* Transform2D(0.0, Vector2(1.0 / SHEEP_RES, 1.0 / SHEEP_RES), 0.0, Vector2.ZERO)
+	draw_set_transform_matrix(m)
+	var c: float = float(SHEEP_CELL)
+	draw_texture_rect_region(_atlases[kind], Rect2(-c * 0.5, -c * 0.5, c, c), Rect2(float(idx) * c, float(variant) * c, c, c))
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+# The ACTIVE dog's mark (player.gd mark_strength): a gold contour hugging its body and tail, a soft glow
+# outside it -- the outline grown a little, drawn under the dog, so only the rim shows.
+var _grown: Array = []          # the body outline grown, [glow, contour] (cached: the body never changes)
+const CONTOUR: Color = Color(0.98, 0.80, 0.36)
+
+func _active_contour() -> void:
+	var dog: Node = get_parent().get_parent() if get_parent() != null else null
+	if dog == null or not dog.has_method("mark_strength"):
+		return
+	var a: float = float(dog.call("mark_strength"))
+	if a <= 0.0:
+		return
+	if _grown.is_empty():
+		for grow in [6.0, 3.0]:
+			var polys: Array = Geometry2D.offset_polygon(_body_pts, grow, Geometry2D.JOIN_ROUND)
+			_grown.append(polys[0] if polys.size() > 0 else _body_pts)
+	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 8.0, 0.6, 0.55, 9.0)
+	var tw: Array = [2.6, 3.0, 3.3, 3.5, 3.5, 3.4, 3.1, 2.7, 2.2, 1.7, 1.2]
+	for k in 2:
+		var grow2: float = 6.0 if k == 0 else 3.0
+		var col: Color = Color(CONTOUR, (0.35 if k == 0 else 1.0) * a)
+		draw_colored_polygon(_grown[k], col)
+		# the tail's as overlapping discs along it (its outline grown this wide crosses itself on the curve);
+		# the contour only -- the faint glow's discs would add up to blotches where they overlap
+		if k == 0:
+			continue
+		for i in tail.size():
+			draw_circle(tail[i], float(tw[i]) + grow2, col, true, -1.0, true)
 
 # --- sheep --------------------------------------------------------------------------------------
 
@@ -243,15 +386,15 @@ func _silhouette(prof: Array, jag_x0: float = 0.0, jag_x1: float = 0.0, jag: flo
 				c += 1
 	return pts
 
-func _draw_dog() -> void:
-	var lit: Vector2 = _light_dir()
-	# a border collie from above: a long even body, a slight waist, a neck, a domed skull and a
-	# tapering muzzle -- one outline
-	var body: PackedVector2Array = _silhouette([[-17.0, 4.6], [-14.0, 8.0], [-7.0, 8.6], [0.0, 8.0], [5.0, 8.8],
+# a border collie from above: a long even body, a slight waist, a neck, a domed skull and a tapering
+# muzzle -- one outline
+func _dog_outline() -> PackedVector2Array:
+	return _silhouette([[-17.0, 4.6], [-14.0, 8.0], [-7.0, 8.6], [0.0, 8.0], [5.0, 8.8],
 		[9.5, 6.6], [12.0, 5.2], [14.5, 6.0], [18.0, 5.6], [21.0, 3.6], [24.0, 2.4], [25.5, 0.9]])
-	_shadow_of(body)
+
+func _dog_tail() -> void:
 	# the tail: a long feathered plume curving to one side, the wag a wave along it, the tip white
-	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 19.0, 0.6, 0.55, 9.0)
+	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 8.0, 0.6, 0.55, 9.0)
 	var tw: Array = [2.6, 3.0, 3.3, 3.5, 3.5, 3.4, 3.1, 2.7, 2.2, 1.7, 1.2]
 	_tail_tufts(tail, tw, DOG_COAT, 3)
 	_outlined(_tapered(tail, tw), DOG_COAT)
@@ -261,7 +404,10 @@ func _draw_dog() -> void:
 		tip.append(tail[k])
 		tipw.append(float(tw[k]) - 0.3)
 	draw_colored_polygon(_tapered(tip, tipw), DOG_WHITE)
-	_outlined(body, DOG_COAT)
+
+func _dog_body() -> void:
+	var lit: Vector2 = _light_dir()
+	_outlined(_dog_outline(), DOG_COAT)
 	# a sheen along the back on the lit side
 	draw_colored_polygon(_ellipse(Vector2(-4.0, 0.0) + lit * 2.8, 8.5, 2.4), DOG_SHEEN)
 	# the white collar round the neck, wider underneath (on both flanks), and the blaze to the muzzle
@@ -278,14 +424,27 @@ func _draw_dog() -> void:
 
 # --- wolf ---------------------------------------------------------------------------------------
 
-func _draw_wolf() -> void:
-	# a gray wolf from above: lean flanks, heavy SHAGGY shoulders and neck (the ruff, as a rough
-	# outline), a broad skull, a long narrow muzzle -- one outline -- with tall pointed ears, a dark
-	# saddle and mask, amber eyes and a long bushy tail held low
-	var lit: Vector2 = _light_dir()
-	var body: PackedVector2Array = _silhouette([[-17.0, 4.4], [-13.0, 7.0], [-6.0, 7.4], [1.0, 8.2], [6.0, 10.0],
+# a gray wolf from above: lean flanks, heavy SHAGGY shoulders and neck (the ruff, as a rough outline), a
+# broad skull, a long narrow muzzle -- one outline -- with tall pointed ears, a dark saddle and mask,
+# amber eyes and a bushy tail held low
+func _wolf_outline() -> PackedVector2Array:
+	return _silhouette([[-17.0, 4.4], [-13.0, 7.0], [-6.0, 7.4], [1.0, 8.2], [6.0, 10.0],
 		[10.5, 9.2], [13.0, 6.6], [15.5, 6.8], [19.0, 5.4], [23.0, 3.0], [28.0, 1.8], [30.0, 0.7]])
-	_shadow_of(body)
+
+func _wolf_tail() -> void:
+	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 8.5, 0.15, 0.12, 2.4)
+	var tw: Array = [2.2, 3.4, 4.6, 5.4, 5.8, 5.8, 5.4, 4.7, 3.8, 2.8, 1.6]
+	_tail_tufts(tail, tw, WOLF_COAT, 2)
+	_outlined(_tapered(tail, tw), WOLF_COAT)
+	var tip: PackedVector2Array = PackedVector2Array()
+	var tipw: Array = []
+	for k in range(8, 11):
+		tip.append(tail[k])
+		tipw.append(float(tw[k]) - 0.4)
+	draw_colored_polygon(_tapered(tip, tipw), WOLF_SADDLE.darkened(0.45))
+
+func _wolf_body() -> void:
+	var lit: Vector2 = _light_dir()
 	# the RUFF: shaggy tufts standing out round the shoulders and neck, filled in the coat's color
 	for sgn: float in [-1.0, 1.0]:
 		var edge: PackedVector2Array = PackedVector2Array()
@@ -296,17 +455,7 @@ func _draw_wolf() -> void:
 			edge.append(Vector2(x, sgn * hw * 0.55))
 			ew.append(hw * 0.45)
 		_tail_tufts(edge, ew, WOLF_COAT, 0)
-	var tail: PackedVector2Array = _wavy_tail(Vector2(-15.5, 0.0), 21.0, 0.15, 0.12, 2.4)
-	var tw: Array = [2.2, 3.4, 4.6, 5.4, 5.8, 5.8, 5.4, 4.7, 3.8, 2.8, 1.6]
-	_tail_tufts(tail, tw, WOLF_COAT, 2)
-	_outlined(_tapered(tail, tw), WOLF_COAT)
-	var tip: PackedVector2Array = PackedVector2Array()
-	var tipw: Array = []
-	for k in range(8, 11):
-		tip.append(tail[k])
-		tipw.append(float(tw[k]) - 0.4)
-	draw_colored_polygon(_tapered(tip, tipw), WOLF_SADDLE.darkened(0.45))
-	_outlined(body, WOLF_COAT)
+	_outlined(_wolf_outline(), WOLF_COAT)
 	draw_colored_polygon(_ellipse(Vector2(-2.0, 0.0) + lit * 3.0, 10.0, 3.6), WOLF_LIGHT)
 	# the dark saddle along the back, running up the neck into the mask between the eyes
 	draw_colored_polygon(_silhouette([[-13.0, 1.5], [-6.0, 3.8], [3.0, 4.6], [10.0, 3.2], [16.0, 2.6], [22.0, 1.4], [24.0, 0.4]]), WOLF_SADDLE)

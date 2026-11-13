@@ -921,8 +921,8 @@ const FLOOR_PLATE: float = 80.0
 func _draw_plant_floor(f: Control) -> void:
 	var sz: Vector2 = f.size
 	f.draw_rect(Rect2(Vector2.ZERO, sz), FLOOR_STEEL, true)
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 17
+	var floor_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	floor_rng.seed = 17
 	var y: float = 0.0
 	var row: int = 0
 	while y < sz.y:
@@ -930,7 +930,7 @@ func _draw_plant_floor(f: Control) -> void:
 		while x < sz.x:
 			var r: Rect2 = Rect2(x, y, FLOOR_PLATE, FLOOR_PLATE)
 			# each plate a shade lighter or darker, and lit along its top-left edge
-			var k: float = rng.randf_range(-0.035, 0.035)
+			var k: float = floor_rng.randf_range(-0.035, 0.035)
 			f.draw_rect(r.grow(-1.0), Color(FLOOR_STEEL.r + k, FLOOR_STEEL.g + k, FLOOR_STEEL.b + k), true)
 			f.draw_line(r.position + Vector2(2, 2), r.position + Vector2(FLOOR_PLATE - 2, 2), Color(FLOOR_LIT, 0.35), 1.0)
 			f.draw_line(r.position + Vector2(2, 2), r.position + Vector2(2, FLOOR_PLATE - 2), Color(FLOOR_LIT, 0.25), 1.0)
