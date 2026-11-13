@@ -40,6 +40,32 @@ func _draw() -> void:
 		# in the target's color with a darker rim and a crescent of gloss. Was a
 		# flat disc. The color and the white center dot are unchanged in meaning -- the dot is the
 		# ONLY difference on a same-color decoy -- so the dot stays crisp, white and centered.
+		# THE SOIL IT THROWS UP (2026-11-12): as a target pops up, clods of turned earth are thrown out
+		# round its burrow, scatter a little and fade within the first part of its life. Ragged
+		# polygons, never discs: a filled circle on this board is a target.
+		var burst: float = clampf(age / 0.35, 0.0, 1.0)
+		if burst < 1.0:
+			var seed_v: float = pos.x * 0.37 + pos.y * 0.91
+			for k in 8:
+				var hk: float = fposmod(sin(seed_v + float(k) * 12.9898) * 43758.5453, 1.0)
+				# IRREGULAR: random angles and distances (spaced evenly they made a spiky ring, like a gear)
+				var a: float = TAU * fposmod(hk * 3.7 + seed_v * 0.013, 1.0)
+				# thrown out PAST the countdown ring (radius + 9), where they can be seen
+				var hk2: float = fposmod(hk * 91.7, 1.0)
+				var dist: float = radius + 12.0 + radius * (0.15 + 1.1 * hk2 * hk2 + 0.5 * burst)
+				var cc: Vector2 = pos + Vector2(cos(a), sin(a)) * dist
+				var cr: float = maxf(3.0, radius * (0.16 + 0.10 * hk))
+				var clod: PackedVector2Array = PackedVector2Array()
+				for v in 5:
+					var av: float = TAU * float(v) / 5.0 + hk * 3.0
+					clod.append(cc + Vector2(cos(av), sin(av)) * cr * (0.7 + 0.5 * fposmod(hk * 7.0 + float(v) * 0.37, 1.0)))
+				var fade: float = 1.0 - burst
+				# lighter fresh soil with a dark edge, so it reads on the dark turf
+				draw_colored_polygon(clod, Color(0.50, 0.35, 0.21, 0.95 * fade))
+				var ring_c: PackedVector2Array = clod.duplicate()
+				ring_c.append(clod[0])
+				draw_polyline(ring_c, Color(0.16, 0.10, 0.05, 0.9 * fade), 1.0, true)
+				draw_line(clod[0], clod[1], Color(0.66, 0.50, 0.32, 0.9 * fade), 1.0, true)
 		draw_circle(pos, radius * 1.16, Color(0.16, 0.11, 0.07))
 		draw_circle(pos + Vector2(0.0, radius * 0.06), radius * 1.06, Color(0.08, 0.05, 0.03))
 		draw_circle(pos + Vector2(radius * 0.07, radius * 0.11), radius, Color(0, 0, 0, 0.45))

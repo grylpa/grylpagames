@@ -18,7 +18,16 @@ A herding game. The player is a sheepdog patrolling a fenced farm. Sheep start i
 
 ## Controls
 
-- Arrow keys / touch: move the player (sheepdog)
+- Arrow keys / touch: move the player (sheepdog); Space: stop; Tab: next dog (several dogs)
+- **Several dogs** (a level's `dogs`, 1-3, default 1): a SWIPE goes to the dog nearest where it starts
+  (`_on_path_drawn`); with several dogs a swipe starting more than `SWIPE_REACH_MANY` (4) cells from all
+  of them is ignored -- one dog keeps its old reach of 9. The keyboard drives the ACTIVE dog: the one
+  last swiped, or picked with TAB, which cycles through the dogs. SPACE stops the active dog, on every
+  level (Space switching dogs was tried briefly and lost the stop).
+  The active dog wears a gold CONTOUR hugging its body and wagging tail, with a soft glow outside it,
+  breathing (`beast_art.gd` `_active_contour`, asking `player.gd` `mark_strength()`), fading in and out
+  over a quarter second as the choice moves; with one dog there is none. (A ring on the ground was tried
+  first.)
 - F / L: faster / slower
 - N: new game
 - M: main menu
@@ -30,7 +39,10 @@ A herding game. The player is a sheepdog patrolling a fenced farm. Sheep start i
 - One compound room centered on the board (room 0)
 - Field tiles fill the inside of the farm border (all non-room tiles within the margin)
 - Farm border = outermost ring of field tiles; carries fence flags on its edges
-- The player starts at the top center of the field (above the compound)
+- The board is 25 x 25 on desktop and **19 x 29 on a phone** (`_apply_level`): a phone's screen is tall,
+  and the square board fitted to its width made every cell ~32 units with a third of the screen forest
+- The first dog starts at the top center of the field (above the compound), a second at the bottom
+  center, a third at the left (`add_player`, each on the nearest free field cell)
 
 ## Fence Degradation
 
@@ -42,6 +54,12 @@ Two independent timers (real-time `game.game_time` ms):
 | Farm | `farm_fence_interval` | Random piece of outer farm border → wolves/enemies can enter |
 
 Fence pieces are directional flags (`pipe.fences[0..3]`) on individual tiles. `show_hide_walls()` redraws wall visuals after each removal.
+
+**On a new board every clock starts again** (`create_board`): the fence timers AND the wolves'
+(`time_to_next_wolf`, `time_to_play_wolf`). `game.game_time` restarts at 0 on a new board, and the
+wolves' were left from the last one -- after a lost level ("Oh no!") the next wolf was due ~37 s into the
+replay. The fence layer (`_fence_node`, made once) sits at `z_index` 1, above the tiles: a rebuilt board's
+tiles come after it in the tree and were drawn over the fences.
 
 ## Sheep Behavior
 
@@ -76,8 +94,9 @@ ONE style for all three, seen from above, facing +x, in level pixels (the head's
 a soft shadow on the grass, one dark outline of the same weight (`OUT_W`) round every shape, flat
 fills lit from the top left of the SCREEN. The dog and the wolf are each ONE SILHOUETTE from tail root
 to nose (`_silhouette`: body, neck and head in a single outline), so each reads as one animal and not
-as a body with a head stuck on, and they are drawn `BEAST_SIZE` (1.22) larger than a sheep's scale,
-uniformly. Tails are curves, not sticks (`_wavy_tail`: each segment turns a little further than the
+as a body with a head stuck on, and they are drawn at `BEAST_SIZE` (0.86) of a sheep's scale, so nose to
+tail fits ONE CELL (at 1.22, with long tails, they were 1.6 cells long), and `BEAST_GIRTH` (1.7) wider
+across than along, so on a phone they are not thin strokes; their tails are short for the same reason. Tails are curves, not sticks (`_wavy_tail`: each segment turns a little further than the
 last, and the wag is a WAVE travelling from root to tip, so the tail bends as it swings), with filled
 fur tufts along their edges (`_tail_tufts`).
 
@@ -100,10 +119,44 @@ whose tail -- a straight stroke with a white bulb, swinging round its root -- re
 pendulum", and whose wolf "doesn't look like a wolf". Check new art large (a scratch scene with the
 three animals at 5x) before judging it at game size: at game size details disappear.
 
-**Every animal turns smoothly.** `set_rots` no longer sets the head's rotation: `agent.gd`
-`_ease_turn` and `player.gd` `_process` swing it round to `angles[0]` a little each frame
-(`TURN_RATE` 12/s); it used to snap a quarter or half turn in one frame. A freshly placed animal
-(`set_pos`) faces its way at once, and the eat / eaten / bark tweens still set it directly.
+**The animals are PICTURES** (2026-11-13). Drawn as shapes every frame, a flock of 65 sheep (~120
+antialiased circles each) took ~42 ms of render time a frame on a laptop GPU -- 5 fps; on a phone the dog
+(timed by the clock) jumped, and it was smooth only once few sheep were left. So each kind is RENDERED
+ONCE into an atlas (`_bake_atlas`: a SubViewport, `SHEEP_ANGLES` 16 headings x 6 fleeces for the sheep, 1
+for the dog and the wolf, at `SHEEP_RES` 2x, the dog's and wolf's already stretched by their girth), and
+each animal draws the picture at the heading nearest its own (`_draw_picture`, which undoes the picture's
+heading and girth), so the light still falls from the top left as it turns. The dog's and wolf's
+pictures are their BODIES; the shadow (one cached polygon) and the wagging tail are drawn live. A sheep
+redraws only when it has turned. Until an atlas is ready (a frame or two) the animals draw as shapes.
+Render time with a full flock: ~3 ms; 60 fps.
+
+**Turns are quick and come as a step starts.** `set_rots` does not set the head's rotation: `agent.gd`
+`_ease_turn` and `player.gd` `_process` swing it round to `angles[0]` (`TURN_RATE` 45/s: a quarter turn
+in well under 0.1 s), and `angles[0]` is set from the step's direction as each step STARTS -- never from
+the frame-to-frame drift. At 12/s the animals visibly turned while walking. A freshly placed animal
+(`set_pos`) faces its way at once. A wolf about to eat turns to face the sheep where it IS
+(`mark_eating(agent.position)`), and bites only after 0.15 s, once facing it.
+**The shared head script stays ON** (`scripts/head_anim.gd`): it gives every head its smooth turns and
+rounded corners, and it must not be switched off -- doing so (2026-11-13, to let a wolf face its prey) made
+every turn abrupt. It faces a head along its recent path, so it RESTS only while a wolf eats
+(`mark_eating` -> `$Head.set_process(false)`, back on when the bite is done); meanwhile `_ease_turn`
+turns the head toward the sheep at the script's own steady pace (a quarter turn in 0.1 s).
+
+## Movement (2026-11-13)
+
+Everything moves CELL TO CELL at a constant speed, and a run of cells is one even glide:
+- **The level's moves run every frame** (`main.gd` `_process` -> `level.tick()`; the 50 ms `GameTick` now
+  only keeps the game clock). On the timer, an animal that reached its cell waited up to 50 ms for the
+  next one, then lurched on.
+- **Sheep and wolves** (`agent.gd` `_move`): one cell per step period at
+  `tile * speed_scale * _speed_mul / major_tick_time_ms / time_scale`, by the frame's own time. On the
+  cell (`can_set_target_pos`: within 0.5 units), the animal asks for its next cell AT ONCE
+  (`level.step_agent_now` -> `_step_agent`, the old body of `tick`'s loop) and carries the rest of the
+  frame's step into it; given it a frame later it stopped short at every cell. An animal that finds
+  nowhere to go retries after 50 ms (`idle_cell` / `idle_until_ms`), not every frame (the path searches).
+- **The dog** (`player.gd`): a step that follows straight on from the last starts where and WHEN that one
+  ended (`set_target_pos`), ends exactly ON its cell, and on arriving the dog asks for its next step in the
+  same frame (`level.step_player_now(self)`).
 
 ## A* Pathfinding
 
@@ -137,6 +190,8 @@ Defined in `level_config.gd` as `class_name WolvesLevelConfig`.
 | 3 | 11×11 | 2000 | 7000 | 0.4× | 40% | 4000 | 3 |
 | 4 | 11×11 | 1500 | 5000 | 0.5× | 50% | 3000 | 2 |
 | 5 | 11×11 | 1000 | 1000 | 0.5× | 80% | 1000 | 2 |
+
+`dogs` (1-3, default 1) sets how many dogs a level has; every level has two.
 
 `pct_sheep` x room area = number of sheep placed. Color per level is set in `_cfg["color"]`.
 `pass_pct` is the share of the flock that must survive: 50, 60, 65, 70, 75 for levels 1-5.
@@ -195,7 +250,7 @@ swap the kept value in for.
 
 `times_per_difficulty = 3` (3 stages per level). Stage progression tracked as `difficulty` integer.
 
-- Board size: fixed 25×25
+- Board size: fixed 25×25 (19×29 on a phone)
 - `num_rooms = min(1, ...)` — currently only 1 room (compound)
 - `agent_max_speed_scale = min(0.4 + 0.2 × (level − 1), 2.0)`
 - On level-up (new level, not just new stage): `game.add_life()`
@@ -203,7 +258,9 @@ swap the kept value in for.
 ## Camera
 
 Two camera modes switchable via `zoom_camera(zoom_in)`:
-- **Zoom out** (`zoom_in = false`): game-level camera, fits entire board. Always used in Wolves.
+- **Zoom out** (`zoom_in = false`): game-level camera, fits entire board. Always used in Wolves. On a
+  phone it fits the FARM and a cell and a half all round it, where the wolves walk (the ring just outside
+  the fence); fitted like the desktop board it left half a cell above and below.
 - **Zoom in** (`zoom_in = true`): player-following camera, scaled to `room_max_size + 2` tiles wide. Available but not activated.
 
 ## Key Implementation Notes
@@ -214,7 +271,11 @@ Two camera modes switchable via `zoom_camera(zoom_in)`:
 - `is_wall_between(p, q)` checks fence flags in both directions before allowing movement
 - `can_player_go_to(q)` checks `is_field && room_id < 0 && !has_agent && !is_wall_between`
 - `can_go_to(agent, q)` for sheep (type 0): checks `!has_agent && !is_wall_between` within the board
-- Player starts at `(board_center.x, board_margin)` — top center of the field
+- **The dogs**: `players` is the list; `player` is the dog being handled at the moment (every per-dog step
+  -- `move_player_on_tick` -> `_move_dog`, `step_player_now`, the swipe -- sets it and loops) and between
+  those the ACTIVE dog (`active_dog`, `set_active_dog`, `_active_dog()`). `dist_to_player` is to the NEAREST dog, `_is_dog(a)` tests any of them, a keyboard
+  turn waits on the dog itself (`player.next_dir`), and a dog never steps into another (`can_player_go_to`).
+  `on_player_is_really_moving` counts running dogs for the feet sound.
 - `game.initial_score = 100` — player starts with 100 points
 - `BE.upsert_game_state` and `BE.send_event` — backend telemetry calls on new game and level done
 - `game.progress_time_pos = 7` — time shown at HUD position 7
@@ -249,6 +310,9 @@ wolves/
     ├── agent.gd               (agent/sheep movement and animation)
     ├── player.gd              (player movement, body animation)
     ├── beast_art.gd           (the sheep, the dog and the wolves, drawn from above in one style)
+    ├── farm_prop.gd           (WolvesFarmProp: hay bale, boulder, water trough -- a "brick")
+    ├── pen_floor.gdshader     (the pen: trampled earth and straw)
+    ├── forest.gdshader        (the woods round the farm, rendered once)
     ├── pipe.gd                (tile logic; fences, coins, bricks)
     ├── empty_space.gd         (wall visibility logic)
     ├── target.gd              (unused)
@@ -257,6 +321,12 @@ wolves/
 ## Tutorial
 
 Coached tutorial in `wolves/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
+
+The tutorial plays level 1, with both dogs: a "Two dogs" step spots the second one
+and says a route goes to the dog nearest where you start drawing it. Its words follow the device
+(`MainGlobals.is_mobile()`): on desktop, "your mouse", the arrow keys, Space to stop and Tab to pass the
+arrows to the other dog; on a phone, "your finger" and no keys at all. The instructions screen does the
+same (`main.gd` `_controls_text`).
 
 - **Entry**: as for the other games; `WolvesG.starting_level` is saved/restored by hand.
 - **Hooks in `level.gd`** (no-ops outside tutorial mode): `_on_path_drawn` emits `path_drawn`;
@@ -364,11 +434,13 @@ stretches, then how fast you respond — and `times_to_answer` exists to hold it
 ## The chooser tile
 
 `art/game_screen_200.png` is **drawn** (`devtools/make_thumbs.py`, `wolves()`), not grabbed: the game
-seen TOP-DOWN, as it is played -- the corner of the sheep pen, its fence (the game's yellow rail with
-dark dashes) broken in one place, one sheep slipping out through the gap, the collie racing in along
-the fence, and the wolf closing from the darkening corner. Every animal is a port of `beast_art.gd`
-(`b_sheep`, `b_dog`, `b_wolf`): the same profiles, tufts, outline, top-left light and screen-fixed
-shadow, in the same colors.
+seen TOP-DOWN, as it is played -- the corner of the sheep pen (straw-strewn earth behind its white
+post-and-rail fence, `_rail_fence`) with a FALLEN section, one sheep slipping out through it, the collie
+racing in across the pasture (faint broken lines between its cells), and the wolf closing from the dark
+corner where the woods are. Every animal is a port of `beast_art.gd` (`b_sheep`, `b_dog`, `b_wolf`): the
+same profiles, tufts, outline, top-left light and screen-fixed shadow, in the same colors, and the dog's
+and wolf's short tails and girth (`B_BEAST_GIRTH`). Redrawn 2026-11-13 with the farm; it showed the old
+yellow-and-black taped fence on a plain pen wash.
 
 History (2026-10-30): the tiles before this were all SIDE-ON. Four side-on wolves were drawn and
 dropped (an assembly of discs, a slab-sided polygon, a bench-like barrel, honest proportions that
@@ -383,10 +455,35 @@ Made for this game by `devtools/make_action_sounds.py` (synthesized, seeded; nam
 
 **The field is a mown pasture** (`pasture.gdshader` on each field tile's sprite, set in `pipe.gd`'s `_ready`): a lighter, yellower green than the lawn outside the fence, soft broad patches, blade grain and darker tufts (it had mowing stripes, which read as horizontal bands), in world coordinates. It replaced a gray stone tile that read as asphalt. Mid-light on purpose: the white sheep and the dark wolves must both stand out. The compound keeps its per-level color, and `FIELD_WASH` still applies over it.
 
-## Look (2026-10)
+## Look
 
-- Bricks are drawn by `scripts/block_art.gd` (three types, one mortar). The animals stay
-  `beast_art.gd`'s; `MonsterArt` leaves a head another drawing already hid.
+The animals are `beast_art.gd`'s (see "All the animals are drawn, in one style"); `MonsterArt` leaves a
+head another drawing already hid. The farm round them (2026-11-12; it was a flat purple pen, thin dotted
+yellow fences, brick blocks and a plain dark lawn):
+- **Fences** (`level._draw_fences`, redrawn from `show_hide_walls()`): wooden POST-AND-RAIL, drawn from the
+  cells' `fences` flags -- a post at each end of every fenced edge, two rails between, a soft shadow. The
+  PEN's fence is painted white (natural wood all but vanished on its brown earth). A piece that BREAKS
+  (`_note_broken`, called by `remove_one_compund_fence` / `remove_one_farm_fence` before the flag is
+  cleared; `_broken` is cleared in `create_board`) is FALLEN FENCE: nothing between its posts, not even a
+  stub, and two broken pieces lying loose in the grass, off the line and CLEAR OF BOTH POSTS. Tried and
+  turned down: a gate swung open (an animal could walk round it -- a door, not a gap), wood touching a post
+  (read as a small gate), rails laid tidy along the line, splinters and stubs (debris). The empty cells'
+  yellow bar sprites are hidden (`empty_space.gd`).
+- **The pen** (`pen_floor.gdshader` on each compound tile's `PipeFloor2`, its own material, told its
+  `cell` in `pipe.gd` `set_rot`): trampled earth, hoof-pocked, with SPARSE straw stalks in drifts (dense, it
+  was noise). It ignores the per-level color the pen used to be painted in.
+- **The cells as faint lines** (2026-11-13, `pasture.gdshader`, told the board's `origin` and `tile` by
+  `pipe.gd`): a thin soft seam, a little darker, between every two cells, anti-aliased to about a screen
+  pixel and BROKEN so it blends -- each line wobbles, varies in strength and fades out in gaps; the pen's bedding has the same seams, fainter (`pen_floor.gdshader`). The animals move cell to
+  cell, and with no grid to be seen their square turns looked arbitrary. Tried first: a mown checkerboard
+  (and long before, mowing stripes, which read as bands across the board).
+- **Farm props** (`farm_prop.gd`, `WolvesFarmProp`): a "brick" is a HAY BALE, a BOULDER or a WATER TROUGH,
+  seen from above on a soft shadow. Still a brick to the game.
+- **The woods** (`forest.gdshader`, `level._plant_forest` from `_fit_ground_to_board`): the lawn runs on
+  past the fence and DARKENS into the trees' shade, the canopy closing in further out as soft irregular
+  masses -- no single trees. RENDERED ONCE per board into a texture at a third of the resolution (it is
+  many noise lookups a pixel; run every frame over the whole screen it cost a phone its frame rate), drawn
+  with premultiplied alpha. Round tree crowns were tried first: on a phone, a children's playground.
 
 ## To the screen's foot (2026-11-11)
 

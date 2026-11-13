@@ -23,6 +23,14 @@ func _ready() -> void:
 		_pasture = ShaderMaterial.new()
 		_pasture.shader = preload("res://wolves/scripts/pasture.gdshader")
 	$PipeImageNoDir.material = _pasture
+	# the mown squares are laid on the cells (pasture.gdshader): where cell (0, 0) begins, and its size
+	var t: float = float(game.tile_size)
+	_pasture.set_shader_parameter("origin", game.board_to_px(Vector2i.ZERO) - Vector2(t, t) * 0.5)
+	_pasture.set_shader_parameter("tile", t)
+	# the sheep pen's floor (pen_floor.gdshader): this tile's own material, told its cell in set_rot
+	var pm: ShaderMaterial = ShaderMaterial.new()
+	pm.shader = preload("res://wolves/scripts/pen_floor.gdshader")
+	$PipeFloor2.material = pm
 
 # Inside the fence the ground is a flat WASH over the lawn, not a grass sprite.
 #
@@ -58,12 +66,10 @@ func set_rot(board):
 	var p = board_pos
 	set_coin()
 	if board[p.y][p.x].room_id >= 0:
-		if board[p.y][p.x].color_idx >= 0:
-			$PipeFloor2.modulate = game.color_by_index(board[p.y][p.x].color_idx)
-		elif board[p.y][p.x].color != null:
-			$PipeFloor2.modulate = board[p.y][p.x].color
-		else:
-			$PipeFloor2.modulate = Color.from_rgba8(65,65,65,255)
+		# the pen: trampled earth and straw (pen_floor.gdshader); it was a flat square in a color per level
+		$PipeFloor2.modulate = Color.WHITE
+		if $PipeFloor2.material is ShaderMaterial:
+			($PipeFloor2.material as ShaderMaterial).set_shader_parameter("cell", Vector2(p))
 		# if active_brick != null:
 		# 	active_brick.hide()
 		# return
@@ -72,13 +78,14 @@ func set_rot(board):
 		$PipeFloor2.hide()
 		$PipeImageNoDir.show()
 
-	if has_brick >= 0 and !bricks.is_empty():
-		if active_brick == null:
-			# seed(MainGlobals.timeus())
-			var brick_idx = game.rng.randi_range(0, bricks.size()-1)
-			active_brick = bricks[brick_idx % bricks.size()]
-			# active_brick = bricks[has_brick % bricks.size()]
-			active_brick.show()
+	# a "brick" is drawn as a farm thing: a hay bale, a boulder or a water trough (farm_prop.gd); the
+	# brick sprites stay hidden. Still a brick to the game.
+	if has_brick >= 0 and active_brick == null:
+		var prop: WolvesFarmProp = WolvesFarmProp.new()
+		prop.kind = game.rng.randi_range(0, 2)
+		prop.seed_v = p.x * 31 + p.y * 7
+		add_child(prop)
+		active_brick = prop
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event.is_action_pressed("lclick"):

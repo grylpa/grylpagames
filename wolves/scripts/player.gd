@@ -4,6 +4,7 @@ signal player_pressed(_transaction_id, _board_pos)
 signal sig_is_really_moving(is_really_moving)
 
 var board_pos: Vector2i
+var next_dir: int = -1            # a keyboard turn waiting for the next cell (level.gd)
 var direction: int
 var target_position: Vector2
 var starting_position: Vector2
@@ -51,6 +52,26 @@ func _ready() -> void:
 
 var _art: Node2D = null
 
+# THE ACTIVE DOG (2026-11-13), when a level has more than one: a gold CONTOUR hugging its outline -- body
+# and wagging tail -- with a soft glow outside it, breathing slowly (drawn by beast_art.gd, which asks
+# mark_strength()). The one the keyboard drives (level.gd set_active_dog). It fades in and out over a
+# quarter second as the choice moves; with one dog there is none. (A ring on the ground was tried first.)
+var active: bool = false
+var _mark_a: float = 0.0
+var _mark_t: float = 0.0
+
+func mark_strength() -> float:
+	if _mark_a <= 0.01:
+		return 0.0
+	return _mark_a * (0.75 + 0.25 * sin(_mark_t * 3.2))
+
+func _tick_mark(delta: float) -> void:
+	var want: float = 1.0 if active else 0.0
+	if _mark_a == want and want == 0.0:
+		return
+	_mark_a = move_toward(_mark_a, want, delta * 4.0)
+	_mark_t += delta
+
 func play():
 	# $Head.play("PlayerHeadEyes")
 	$Head.play("circular")
@@ -78,11 +99,22 @@ func set_target_pos(p):
 	if reached_target_pos and _pending_speed_scale_to_use > 0:
 		game.time_scale = _pending_speed_scale_to_use
 		_pending_speed_scale_to_use = -1.0
+	# CHAINED STEPS (2026-11-13): a step that follows straight on from the last one starts where and WHEN
+	# that one ended -- its cell's center, its end time -- so a run is one even glide. It started at the
+	# moment the level got round to it, from wherever the dog then was: a pause or a jump at every cell.
+	var now_ms: int = MainGlobals.timems()
+	var prev_end: int = time_set_target_pos + int(time_from_start_to_target_ms / speed_scale)
+	if set_target_once and now_ms >= prev_end and now_ms - prev_end < 100 and not was_hit:
+		position = target_position
+		time_set_target_pos = prev_end
+	else:
+		time_set_target_pos = now_ms
 	target_position = p
 	starting_position = position
-	time_set_target_pos = MainGlobals.timems()
 	time_from_start_to_target_ms = game.major_tick_time_ms * game.time_scale * \
 	 	p.distance_to(position) / WolvesG.game.tile_size
+	if not barking and p.distance_to(position) > 0.5:
+		angles[0] = (p - position).angle()      # face the step as it starts
 	# abs_time_supposed_to_reach_target_ms = time_set_target_pos + time_from_start_to_target_ms
 	set_target_once = true
 	reached_target_pos = false
@@ -95,9 +127,10 @@ var time_to_turn_feet_off := 0
 var last_pos := Vector2.ZERO
 var velocity := Vector2.ZERO
 func _process(_delta: float) -> void:
+	_tick_mark(_delta)
 	# turning is smooth (see agent.gd): the head swings round to angles[0] a little each frame
 	if not barking:
-		$Head.rotation = lerp_angle($Head.rotation, float(angles[0]), clampf(_delta * 12.0, 0.0, 1.0))
+		$Head.rotation = lerp_angle($Head.rotation, float(angles[0]), clampf(_delta * 45.0, 0.0, 1.0))
 	velocity = (position - last_pos) / _delta
 	last_pos = position
 	if time_to_turn_feet_off > 0 and MainGlobals.timems() > time_to_turn_feet_off and is_really_moving:
@@ -111,7 +144,21 @@ func _process(_delta: float) -> void:
 		var dt = now - time_set_target_pos
 		var should_halt = dt > time_from_start_to_target_ms / speed_scale or was_hit
 		if should_halt:
+			if not was_hit:
+				position = target_position         # end ON the cell (it stopped a frame short of it)
 			reached_target_pos = true
+			# and go straight on into the next step in THIS frame, if there is one (chained from this
+			# step's end, see set_target_pos): given it a frame later, the dog stopped short at every cell
+			# and made the distance up in the next frame -- a hitch per cell
+			var lv: Node = get_parent()
+			if not was_hit and lv != null and lv.has_method("step_player_now"):
+				lv.step_player_now(self)
+				if not reached_target_pos:
+					var span: float = float(time_from_start_to_target_ms) / speed_scale
+					var sf2: float = clampf(float(MainGlobals.timems() - time_set_target_pos) / maxf(span, 1.0), 0.0, 1.0)
+					position = starting_position + (target_position - starting_position) * sf2
+					set_rots()
+					return
 			if is_really_moving:
 				if time_to_turn_feet_off == 0:
 					time_to_turn_feet_off = MainGlobals.timems() + 100				
@@ -123,15 +170,9 @@ func _process(_delta: float) -> void:
 				sig_is_really_moving.emit(true)
 			var sf = dt / float(time_from_start_to_target_ms / speed_scale)
 			var v = dv * sf
-			var last = position
 			# var speed = v.length() / _delta
 			# print("speed %f" % speed)
 			position = starting_position + v
-			var dpos = position - target_position
-			if dpos.length() < 1:
-				reached_target_pos = true
-			if !barking:
-				angles[0] = last.angle_to_point(position)
 			set_rots()
 
 func set_rots():
@@ -177,8 +218,7 @@ func set_major_tick_now():
 	last_major_tick_ms = MainGlobals.timems()
 
 func need_to_major_tick():
-	var target_pos = game.board_to_px(board_pos)
-	if (target_pos - position).length() < game.tile_size / 10:
+	if reached_target_pos:
 		return true
 	var t = MainGlobals.timems()
 	return t - last_major_tick_ms >= game.major_tick_time_ms * game.time_scale / speed_scale and is_moving

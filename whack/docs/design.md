@@ -519,8 +519,15 @@ whatever the coach asked for: all 13 steps still complete, longest step 4.0 s.
 in place of the tiled `res://art/grass.png` that every screen in the app used to wear.
 
 It is a **fairground whack-a-mole box looked down into**: a striped fairground rail around the four
-sides, mown turf inside it, scattered earth where things have been coming up, and the stall lamp
-overhead as a pool of light on the grass.
+sides, mown turf inside it with fine grass blades over the bands (`_blades`, drawn ONCE on their own
+layer, not with the lamp's per-frame redraw), and the stall lamp overhead as a pool of light on the grass.
+
+**No earth patches** (2026-11-12): scattered over the turf with nothing ever coming out of them, they read
+as "strange unrelated rocks" and were removed. The soil is now THROWN UP BY EACH TARGET as it appears
+(`draw_area.gd`): eight clods of fresh soil with dark edges, at irregular angles and distances PAST the
+countdown ring, scattering a little and fading within the first 35% of the target's life. Ragged
+polygons, never discs (a filled circle here is a target); spaced evenly they made a spiky ring, like a
+gear.
 
 **Top-down, because that is how the game is seen.** The targets are circles lying on a surface with
 a countdown ring around each; there is no horizon and no depth in this game, so a backdrop with a

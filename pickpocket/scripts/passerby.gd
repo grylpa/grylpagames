@@ -566,10 +566,10 @@ func _draw_ground_marks() -> void:
 		_shadow_tex.height = 64
 	draw_texture_rect(_shadow_tex, Rect2(-0.24 * h, -0.05 * h, 0.48 * h, 0.10 * h), false)
 	# and the long shadow the nearest lamp throws, away from it, longer the more it lights them
-	var reach: float = 0.55 * h * clampf(light_amt, 0.0, 1.0) * absf(light_dir)
-	if reach > 0.02 * h:
-		var x0: float = -0.20 * h - (reach if light_dir > 0.0 else 0.0)
-		var x1: float = 0.20 * h + (reach if light_dir < 0.0 else 0.0)
+	var shadow_reach: float = 0.55 * h * clampf(light_amt, 0.0, 1.0) * absf(light_dir)
+	if shadow_reach > 0.02 * h:
+		var x0: float = -0.20 * h - (shadow_reach if light_dir > 0.0 else 0.0)
+		var x1: float = 0.20 * h + (shadow_reach if light_dir < 0.0 else 0.0)
 		draw_texture_rect(_shadow_tex, Rect2(x0, -0.04 * h, x1 - x0, 0.08 * h), false, Color(1, 1, 1, 0.55))
 
 func _ring(col: Color) -> void:

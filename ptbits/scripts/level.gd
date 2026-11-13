@@ -358,21 +358,21 @@ func _build_baskets() -> void:
 func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: float, height: float) -> void:
 	var color_bit: int = _color_bit(color_id)
 	var wall_t: float = 24.0
-	var tl: Vector2 = Vector2(cx - top_w * 0.5, top_y)
+	var _tl: Vector2 = Vector2(cx - top_w * 0.5, top_y)
 	var _tr: Vector2 = Vector2(cx + top_w * 0.5, top_y)
-	var bl: Vector2 = Vector2(cx - bot_w * 0.5, top_y + height)
-	var br: Vector2 = Vector2(cx + bot_w * 0.5, top_y + height)
+	var _bl: Vector2 = Vector2(cx - bot_w * 0.5, top_y + height)
+	var _br: Vector2 = Vector2(cx + bot_w * 0.5, top_y + height)
 
 	var body: StaticBody2D = StaticBody2D.new()
 	_set_layers(body, [color_bit], [])
 	# bottom wall
-	_add_wall_shape(body, (bl + br) * 0.5 + Vector2(0.0, wall_t * 0.5), Vector2(bot_w + wall_t, wall_t), 0.0)
+	_add_wall_shape(body, (_bl + _br) * 0.5 + Vector2(0.0, wall_t * 0.5), Vector2(bot_w + wall_t, wall_t), 0.0)
 	# left slanted wall
-	var lseg: Vector2 = bl - tl
-	_add_wall_shape(body, (tl + bl) * 0.5, Vector2(lseg.length(), wall_t), lseg.angle())
+	var lseg: Vector2 = _bl - _tl
+	_add_wall_shape(body, (_tl + _bl) * 0.5, Vector2(lseg.length(), wall_t), lseg.angle())
 	# right slanted wall
-	var rseg: Vector2 = br - _tr
-	_add_wall_shape(body, (_tr + br) * 0.5, Vector2(rseg.length(), wall_t), rseg.angle())
+	var rseg: Vector2 = _br - _tr
+	_add_wall_shape(body, (_tr + _br) * 0.5, Vector2(rseg.length(), wall_t), rseg.angle())
 	add_child(body)
 	_walls.append(body)
 
@@ -381,7 +381,7 @@ func _add_bucket(color_id: int, cx: float, top_y: float, top_w: float, bot_w: fl
 	# and resting scores.
 	var iw: float = bot_w * 0.60
 	_basket_rects[color_id] = Rect2(cx - iw * 0.5, top_y + height * 0.50, iw, height * 0.44)
-	_basket_polys[color_id] = PackedVector2Array([tl, _tr, br, bl])
+	_basket_polys[color_id] = PackedVector2Array([_tl, _tr, _br, _bl])
 
 func _add_wall_shape(body: StaticBody2D, center: Vector2, sz: Vector2, rot: float) -> void:
 	var shp: CollisionShape2D = CollisionShape2D.new()

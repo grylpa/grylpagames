@@ -44,8 +44,8 @@ const INLET_LIGHT: Color = Color(0.769, 0.855, 1.0)
 
 # `_tr` and not `tr`: a parameter called `tr` shadows Object.tr(), which is SHADOWED_VARIABLE_BASE_
 # CLASS. The project convention for that clash is the leading underscore.
-static func quad(tl: Vector2, _tr: Vector2, br: Vector2, bl: Vector2) -> PackedVector2Array:
-	return PackedVector2Array([tl, _tr, br, bl])
+static func quad(_tl: Vector2, _tr: Vector2, _br: Vector2, _bl: Vector2) -> PackedVector2Array:
+	return PackedVector2Array([_tl, _tr, _br, _bl])
 
 # A vertical gradient across one convex quad, in a single draw call.
 static func vgrad(ci: CanvasItem, pts: PackedVector2Array, top_col: Color, bot_col: Color) -> void:
@@ -146,7 +146,7 @@ static func lane_guides(ci: CanvasItem, area: Rect2, baskets: Array, colors: Arr
 			k += 1
 
 # Strips of warm light along the two side walls, glowing softly onto the floor beside them.
-static func wall_lights(ci: CanvasItem, area: Rect2, glow: Texture2D) -> void:
+static func wall_lights(ci: CanvasItem, area: Rect2, _glow: Texture2D) -> void:
 	var l: float = area.position.x
 	var r: float = l + area.size.x
 	var t: float = area.position.y

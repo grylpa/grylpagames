@@ -43,7 +43,7 @@ static func steps(level: Node, _game) -> Array:
 	var s_ht: String = "%.0f" % (float(d[1]) / 1000.0)
 	var s_out: String = "%.0f" % (float(d[2]) / 1000.0)
 	var s_hb: String = "%.0f" % (float(d[3]) / 1000.0)
-	var thr_s: String = "%.0f" % (CrackG.TIMING_THRESHOLD_MS / 1000.0)
+	var _thr_s: String = "%.0f" % (CrackG.TIMING_THRESHOLD_MS / 1000.0)
 
 	return [
 		{

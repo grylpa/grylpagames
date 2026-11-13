@@ -1170,7 +1170,7 @@ func _draw_overlay() -> void:
 func _draw_lantern() -> void:
 	var r: float = _lh_r
 	var c: Vector2 = _lh_pos
-	var hot: Vector2 = Vector2.from_angle(beam_angle)
+	var _hot: Vector2 = Vector2.from_angle(beam_angle)
 	# the tower's shadow, the gallery deck (lit a little from the glass), the railing
 	_overlay.draw_circle(c + Vector2(2.0, 3.0) * _k, r * 0.86, Color(0, 0, 0, 0.45))
 	_overlay.draw_circle(c, r * 0.84, Color(0.14, 0.15, 0.18))

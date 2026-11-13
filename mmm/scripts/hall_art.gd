@@ -135,9 +135,9 @@ class _Renderer extends Node:
 		mi.position = at
 		vp.add_child(mi)
 
-	func _box(vp: SubViewport, size: Vector3, at: Vector3, mat: Material) -> void:
+	func _box(vp: SubViewport, box_size: Vector3, at: Vector3, mat: Material) -> void:
 		var bm: BoxMesh = BoxMesh.new()
-		bm.size = size
+		bm.size = box_size
 		_add(vp, bm, mat, at)
 
 	# A surface of revolution from `prof` (radius, height) bottom to top, `seg` segments round; `flute`

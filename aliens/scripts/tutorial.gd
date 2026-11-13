@@ -115,7 +115,7 @@ static func steps(level: Node, _game) -> Array:
 		return Rect2(al.sim_pos - Vector2(r, r), Vector2(r, r) * 2.0)
 
 	# For steps that just want "whoever is waiting right now".
-	var parked_spot: Callable = func():
+	var _parked_spot: Callable = func():
 		var al = level._tutorial_last_parked
 		if al == null or not is_instance_valid(al):
 			return null
