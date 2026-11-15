@@ -2,7 +2,7 @@
 
 ## Overview
 
-The player watches a robot sort items on one or two endless conveyor belts without seeing the rule. The item in question is marked by amber lights along the belt's rails; when the item reaches the h/2..3h/4 band the robot picks up (✓, item removed) or leaves it (✗); the ✓/✗ seal is stamped on the parcel `robot_answer_time` earlier. After `min_examples` examples per active belt rule, a multiple-choice question asks the player to identify the hidden rule.
+The player watches a robot sort items on one or two endless conveyor belts without seeing the rule. The item in question is marked by amber lights along the belt's rails, and the box stands in a band of amber light across the belt between the two LED rows (2026-11-15, `ParcelArt._draw_underglow`; the lights alone were not indicative enough); when the item reaches the h/2..3h/4 band the robot picks up (✓, item removed) or leaves it (✗); the ✓/✗ seal is stamped on the parcel `robot_answer_time` earlier. After `min_examples` examples per active belt rule, a multiple-choice question asks the player to identify the hidden rule.
 
 ## File Structure
 
@@ -29,7 +29,7 @@ Independent game: it has its own `monkeyc/art/` folder (just the chooser thumbna
 
 ### Demo phase (endless conveyor)
 
-Both belts (or just the left for 1-belt levels) scroll continuously. Items enter from the top. The rail lights come on beside one item and travel with it. The ✓/✗ answer shows at `_mark_top`, then the robot acts when the item reaches the take band (h/2..3h/4):
+Both belts (or just the left for 1-belt levels) scroll continuously. Items enter from the top. The rail lights come on beside one item and travel with it, and a band of amber light runs across the belt between them. The ✓/✗ answer shows at `_mark_top`, then the robot acts when the item reaches the take band (h/2..3h/4):
 - **Pick up** (item matches rule): window flashes green with ✓, item is removed from belt.
 - **Reject** (item does not match): window flashes red/orange with ✗, window disappears (item continues scrolling).
 

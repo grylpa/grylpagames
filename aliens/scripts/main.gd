@@ -45,11 +45,13 @@ func _ready() -> void:
 		"Aliens queue in the gate's outer ring by themselves.\n" +
 		"Flick a MATCH toward the boarding ramp in the center,\n" +
 		"and a NON-match out toward the hall.\n" +
-		"A full queue turns arrivals away, so keep it moving.\n" +
+		"Every gate gets its share of aliens: keep them all moving.\n" +
+		"An alien left waiting too long walks off, and that's a miss,\n" +
+		"and so is every alien a full queue turns away.\n" +
 		"The pass comes down later, so remember it!\n\n" +
 		"Later shifts get harder:\n" +
 		"Some passes ask for TWO things at once.\n" +
-		"A red NOT ... pass boards everyone EXCEPT that.\n" +
+		"A NOT ... pass boards everyone EXCEPT that.\n" +
 		"GATE CHANGE moves the passes between gates.\n" +
 		"NOW BOARDING calls one alien. Clear it in time.", 26)
 	if not game.shown_instructions:

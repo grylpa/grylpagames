@@ -57,6 +57,18 @@ var _overlay: Control = null
 # front edge, below the cards, with a small squash of the box.
 var _spot: float = 0.0                  # 0..1, eased in/out
 var _spot_on: bool = false
+# THE UNDERGLOW (2026-11-15): the rail lights alone were "not indicative enough" -- with several
+# boxes on the belts the eye had to hunt for them. The box in question now also stands in a band of
+# amber light across the belt between the two rows of LEDs (_draw_underglow). Turned down first: dimming every other parcel
+# (most boxes sat dark, and all lit up again between questions), and a gold line round the box's
+# silhouette (not clear whether a 3-D or a 2-D frame).
+const UNDERGLOW: Color = Color(1.0, 0.62, 0.15)        # the rail LEDs' amber
+const UNDERGLOW_INNER: Color = Color(1.0, 0.80, 0.38)  # hotter right at the box's base
+const UNDERGLOW_FEATHER: float = 26.0                  # how soft the band's top and bottom are
+const UNDERGLOW_LAYERS: int = 14
+const UNDERGLOW_STEP: float = 0.07                      # alpha per layer; they stack toward the middle
+const UNDERGLOW_MID: float = 0.55                       # the band's middle, against beside the LEDs
+const RAIL_X: float = 6.0                               # the rail LEDs' x, in from each side
 var _t: float = 0.0
 var _stamp_ok: bool = true
 var _stamp_k: float = -1.0              # <0 no stamp; else the stamp's landing, 0..1
@@ -190,22 +202,6 @@ func _draw() -> void:
 	if _info.is_empty():
 		return
 	var foot: PackedVector2Array = _info["foot"]
-	# the item in question: a warm glow on the belt round it, UNDER the box (over it, it dimmed the cards)
-	if _spot > 0.0:
-		var hull: PackedVector2Array = _info["hull"]
-		var top: float = INF
-		var bot: float = -INF
-		for pt in hull:
-			top = minf(top, pt.y)
-			bot = maxf(bot, pt.y)
-		var gc: Vector2 = Vector2(size.x * 0.5, (top + bot) * 0.5)
-		for g in 7:
-			var f: float = 1.0 - float(g) / 7.0
-			var pts: PackedVector2Array = PackedVector2Array()
-			for a in 24:
-				var ang: float = TAU * float(a) / 24.0
-				pts.append(gc + Vector2(cos(ang) * size.x * 0.58 * f, sin(ang) * (bot - top) * 0.80 * f))
-			draw_colored_polygon(pts, Color(1.0, 0.62, 0.15, 0.07 * _spot))
 	var drop: Vector2 = Vector2(0.0, size.y * 0.035)
 	for g in 3:
 		for poly: PackedVector2Array in Geometry2D.offset_polygon(foot, size.y * 0.025 * float(3 - g)):
@@ -213,6 +209,40 @@ func _draw() -> void:
 			for pt in poly:
 				moved.append(pt + drop)
 			draw_colored_polygon(moved, Color(0, 0, 0, 0.13))
+	# the item in question: neon light under the box, spilling onto the belt round its base (over
+	# the shadow: the light wins)
+	if _spot > 0.0:
+		_draw_underglow()
+
+# The box in question stands in a BAND OF LIGHT across the belt, from the left row of rail LEDs to
+# the right one and as tall as they are: brightest beside the LEDs it comes from, a little less in
+# the middle, its top and bottom edges soft (many thin layers, the narrower ones drawn later so they
+# stack toward the center). Drawn under the picture, so the box stands in it. (A pool hugging the
+# box's footprint was tried first and looked badly shaped; a gold line round the box's silhouette
+# before that read like a sticker -- not clear whether a 3-D or a 2-D frame.)
+func _draw_underglow() -> void:
+	var hull: PackedVector2Array = _info["hull"]
+	var top: float = INF
+	var bot: float = -INF
+	for pt in hull:
+		top = minf(top, pt.y)
+		bot = maxf(bot, pt.y)
+	var breath: float = 0.85 + 0.15 * sin(_t * 3.2)
+	var k: float = _spot * breath
+	var x0: float = RAIL_X
+	var x1: float = size.x - RAIL_X
+	var xm: float = size.x * 0.5
+	var n: int = UNDERGLOW_LAYERS
+	for i2 in n:
+		var f: float = float(n - i2) / float(n)          # 1 = the tallest (softest) layer, drawn first
+		var y0: float = top - 2.0 - UNDERGLOW_FEATHER * f
+		var y1: float = bot + 2.0 + UNDERGLOW_FEATHER * f
+		var edge: Color = Color(UNDERGLOW_INNER.r, UNDERGLOW_INNER.g, UNDERGLOW_INNER.b, UNDERGLOW_STEP * k)
+		var mid: Color = Color(UNDERGLOW.r, UNDERGLOW.g, UNDERGLOW.b, UNDERGLOW_STEP * UNDERGLOW_MID * k)
+		for half in 2:
+			var xa: float = x0 if half == 0 else x1
+			draw_polygon(PackedVector2Array([Vector2(xa, y0), Vector2(xm, y0), Vector2(xm, y1), Vector2(xa, y1)]),
+				PackedColorArray([edge, mid, mid, edge]))
 
 func _draw_cards() -> void:
 	if _info.is_empty():
@@ -269,7 +299,7 @@ func _draw_rail_lights() -> void:
 	var amber: Color = Color(1.0, 0.62, 0.15)
 	var n: int = 9
 	for side in 2:
-		var x: float = 6.0 if side == 0 else size.x - 6.0
+		var x: float = RAIL_X if side == 0 else size.x - RAIL_X
 		# the lit strip along the rail, level with the box
 		_overlay.draw_line(Vector2(x, top - 2.0), Vector2(x, bot + 2.0), Color(amber.r, amber.g, amber.b, 0.25 * k), 12.0)
 		_overlay.draw_line(Vector2(x, top - 2.0), Vector2(x, bot + 2.0), Color(1.0, 0.75, 0.30, 0.55 * k), 4.0)

@@ -136,7 +136,16 @@ filling it at once made them pop in one by one at random places as their picture
   `set_spotlight(true)`: amber LEDs along both of the belt's rails level with it, a lit strip behind
   them and a chase running through them, and a warm glow on the belt UNDER the box (over it, it dimmed
   the cards). The window panel stays, INVISIBLE, for the tutorial's spotlight and the claw's grip.
-  Tried and turned down: the box lifted into lamplight, a red scanner laser.
+  **The box also stands in a BAND OF LIGHT** (2026-11-15, `ParcelArt._draw_underglow`): told the
+  lights alone were not indicative enough. A rectangle of the LEDs' amber across the belt from one
+  row of LEDs to the other (`RAIL_X`) and as tall as they are, brightest beside them
+  (`UNDERGLOW_MID` in the middle), its top and bottom feathered in 14 thin layers
+  (`UNDERGLOW_FEATHER`), drawn under the picture. It replaced the old faint ellipse glow under the box.
+  Tried and turned down: the box lifted into lamplight, a red scanner laser, every OTHER parcel
+  dimmed (most boxes sat dark and less nice, and all lit up again between one question and the
+  next), a gold line round the box's 2-D silhouette (it ran along the box's front face and top
+  like a sticker: not clear whether a 3-D or a 2-D frame, and gold, not the LEDs' amber), and an
+  amber pool hugging the box's footprint (badly shaped).
 - **Verdict**: `ParcelArt.stamp(ok)` -- a solid seal (a green ✓ or red ✗ in a filled disc, white
   mark) thumps onto the box's FRONT EDGE below the cards, facing the viewer, with a small squash of the
   box. Thin ink outlines were lost on both the cards and the cardboard.
@@ -261,7 +270,7 @@ The order is now monkeyc's: **mark first, while the panel is alive; tear down af
 
 | | |
 |---|---|
-| the frame | the highlight panel is INVISIBLE now; the item in question is marked by the parcel's rail lights (see Visual style) and the panel stays only as an anchor |
+| the frame | the highlight panel is INVISIBLE now; the item in question is marked by the parcel's rail lights and amber underglow (see Visual style) and the panel stays only as an anchor |
 | the verdict | a seal stamped on the parcel's front edge (`ParcelArt.stamp`); the old ✓/✗ label on the panel is the fallback for a non-parcel item only |
 | the punch | the seal lands from above with a small squash of the box |
 | growing further | is the PICK-UP, and belongs to the claw (`_claw_pull`). Nothing else swells |

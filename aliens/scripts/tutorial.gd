@@ -198,10 +198,10 @@ static func steps(level: Node, _game) -> Array:
 		{
 			"setup": release_hold,
 			"title": "Both count",
-			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nLeaving it in the ring scores nothing. And while the ring is full, every alien that walks up is turned away, and that costs you.",
+			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nAn alien left waiting too long walks off, and that costs you. So does every alien turned away while the ring is full.",
 		},
 		{
 			"title": "Ready",
-			"text": "Later the pass comes down after a few seconds and you have to remember it, and a second gate opens.",
+			"text": "In the game there are two gates, each with its own pass, and both keep getting aliens. Keep both moving: a level is passed only if every gate is handled well.\n\nLater the passes come down after a few seconds and you have to remember them.",
 		},
 	]

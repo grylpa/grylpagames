@@ -9,7 +9,8 @@ and turns arrivals away. The words "aliens" and "level" are kept as-is. Only pla
 uses this vocabulary — the code still says areas/rings, which is deliberate: renaming the internals
 would be a large refactor with real regression risk and no player benefit.
 
-Cute little aliens roam an open field. There are 1–4 **target areas**, each drawn as two
+Cute little aliens roam an open field. There are 2–4 **target areas** (never one: see
+[Every gate must be worked](#every-gate-must-be-worked)), each drawn as two
 concentric circles: an **outer ring** (annulus) and an **inner ring** (inner disc). Each area has
 a **pass** — a rule about alien traits ("3 EYES", "BLUE"), optionally negated ("NOT BLUE") or
 compound ("1 EYE AND NOT BLUE"). There is deliberately no "TALL" rule; see Trait model.
@@ -127,10 +128,10 @@ comment block at the top of `level_config.gd` for the authoritative list with la
   `fat/thin` and `spots/nospots` are the same trait. A multi-area level's pool must span at least
   `num_areas` traits; the probe checks that, and it caught level 2 shipping 2 gates with an
   all-eyes pool.
-- **Arrival mix ~50/50**, kept there by two light mechanisms rather than a scheduler:
-  `_choose_area_for` sends an alien to an area it actually fits about half the time
-  (`SMART_ENTRY`), and `_arrival_allowed` softly vetoes an attempt when the last 8 arrivals were
-  already lopsided (`ARRIVAL_WINDOW` / `ARRIVAL_SKEW`). Never a hard block. Without this, on a
+- **Arrival mix ~50/50 at each gate**, kept there by two light mechanisms rather than a scheduler:
+  `_choose_area_for` sends an alien to a due gate it actually fits about half the time
+  (`SMART_ENTRY`), and `_arrival_allowed` softly vetoes an attempt when that gate's last 8
+  arrivals were already lopsided (`ARRIVAL_WINDOW` / `ARRIVAL_SKEW`, per gate). Never a hard block. Without this, on a
   rule matching only a third of aliens most walk-ins would be mismatches and "always push it out"
   would be a winning strategy. Measured 0.479 over 142 real self-initiated arrivals.
 - **Hiding**: after `hide_after_sec` the chip reads `?` — not blank, so the player still knows
@@ -474,7 +475,7 @@ any length of time, and a gate change firing on the first frame of play would be
 
 | level | gates | gate change | deny | call (every / window) | compound |
 |---|---|---|---|---|---|
-| 1–3 | 1–2 | — | — | — | — |
+| 1–3 | 2 | — | — | — | — |
 | 4 | 2 | 34 s | — | — | — |
 | 5 | 2 | 30 s | — | 19 s / 8 s | — |
 | 6 | 2 | 34 s | 0.5 | 18 s / 7.5 s | — |
@@ -510,14 +511,16 @@ things at once").
   walking away from that ring via `_send_away_from` and cannot try to enter again for 5 s. Without
   it a released alien turned straight round and marched back in, which made a *correct* release
   look like a failed drag.
-- `park_patience_sec` is the deadlock valve: a parked alien the player never resolves leaves on
-  its own after that long. If it **matched** the gate's pass this is scored as a **miss** — a valid
-  passenger was let go; if it did not match it costs nothing, since leaving is what should have
-  happened to it anyway. Ramped 30 s → 25 s across the levels.
+- `park_patience_sec`: a parked alien the player never resolves walks off after that long, and it
+  is a **miss whether it matched or not** (2026-11-15; it used to cost nothing for a non-matching
+  one, after 25–30 s). Ramped 20 s (level 1) → 13 s. The alien shows it: a thin arc
+  (`alien.set_patience`) appears halfway through the wait and drains, white going red. No clock in
+  the tutorial, nor on a called alien (its call window is the clock); a call that expires charges
+  its one miss and the alien walks off (`_walk_off`), so its patience cannot charge a second.
   **`0` means WAIT FOREVER, not zero seconds** — the check is skipped entirely. That convention is
   a trap worth remembering when editing the config. It **walks** out — `area_idx` is deliberately kept until it is clear
   of the ring, because clearing it immediately made the keep-out treat the alien as a trespasser
-  and teleport it outside in one frame, which looked like it was erased and dumped. `0` disables it (levels 7–8, where the pressure is the point).
+  and teleport it outside in one frame, which looked like it was erased and dumped.
 - **A CORRECT boarding starts fading the instant the player lets go** — no snap onto a slot, no
   hold, and no inner slot claimed at all; it dissolves where it was dropped, which is already
   inside the ramp. Gliding into a slot and then holding kept a correctly-handled alien on screen
@@ -527,7 +530,7 @@ things at once").
 - A promoted alien celebrates in the inner ring for `INNER_HOLD_MS`, fades, and is **recycled**
   with fresh traits elsewhere. Keeps `inner_slots` small, the population constant, the mix fresh.
 - Level ends when `level_time_sec` elapses (`game.sig_time_over` → `_level_done`). Accuracy feeds
-  `AliensG.record_level_result` → replay if under 70%.
+  `AliensG.record_level_result` → replay if under the level's `pass_pct` -- overall OR at any gate.
 - `main.gd` sets `game.game_over_on_time_out = false`: the clock is a per-level budget.
 
 ## Scoring
@@ -573,9 +576,12 @@ Resolved from the alien's **center** at release (`_region_at`), so there is no s
 | PARKED_OUTER(H) | OUTER(H), flicked away from the center | as FIELD |
 | PARKED_OUTER(H) | OUTER(H), otherwise | silent no-op → snap to slot |
 | PARKED_OUTER(H) | any region of area J≠H | **illegal**, no score → snap back |
-| ROAM | FIELD | reposition, no score |
-| ROAM | INNER or OUTER (any) | **illegal**, no score → snap back |
-| PARKED_INNER / SNAPPING / FADING | — | not grabbable |
+| anything but PARKED_OUTER | — | not grabbable (`_topmost_alien_at`) |
+
+**Only an alien waiting in an outer ring responds to a press** (2026-11-15). Roaming, walking-in
+and leaving aliens used to be grabbable: a press on one picked it up with the pickup squeak and
+let it be carried round the hall, though a drop in any ring was refused -- nothing legal could
+come of it, and with click mode on a left click on a roamer seemed to "work".
 
 **A MISTAKE is scored but still CARRIED OUT** — the alien goes where the player put it, with a
 500 ms red flash (`_flash_hint` / `HINT_FLASH_MS`, self-clearing) so the error is legible.
@@ -616,9 +622,8 @@ level ignores it on a phone too (`_clicks_judge`), since a touchscreen has no ri
 When on, a press on an alien **waiting in its outer ring** answers at once (`_click_judge`): LEFT
 boards it, RIGHT turns it away. It goes through `_begin_drag` (so response time is still measured
 to the press, and the pickup squeak plays) and then `_commit_flick` -- the same commit a flick makes,
-so scoring, tutorial events and the glides are identical. A press on anything else (a roaming alien,
-empty field) falls through to the ordinary left-button drag, and dragging and flicking still work
-with the option on.
+so scoring, tutorial events and the glides are identical. A press on any other alien does nothing
+(only waiting aliens can be grabbed at all), and dragging and flicking still work with the option on.
 
 The row is an on/off SWITCH (`main_menu.gd` `add_switch_entry`, drawn by `scripts/menu_switch.gd`:
 a pill that is the dropdowns' dark when off and the menu's gold when on, its knob sliding across). It
@@ -818,6 +823,35 @@ The popup says what happens next, either way — "Accuracy: 55% (need 70%)" plus
 *"Level passed — on to level 3."* or *"You need at least 70% accuracy to pass to the next level."* The number alone never told the player the one thing they wanted to know.
 
 Thresholds ramp with difficulty rather than sitting flat.
+
+**Every gate must reach it, not only the total** (`weakest_gate_pct`, `_gate_tally`, 2026-11-15):
+`record_level_result` is given the lower of the overall accuracy and the weakest gate's, and a gate
+never touched counts as 0%. The card adds a `Weakest gate: NN%` row, and a failed level's line
+reads "...at least NN% accuracy, at every gate...".
+
+## Every gate must be worked
+
+Reported (2026-11-15): a player could stay on one gate and ignore the other entirely, so the game
+did not force the switch it is about. Measured with a bot playing perfectly at one decision per
+0.9 s: working one gate of two still scored ~60% overall, enough to pass level 1. Three causes,
+three fixes:
+
+1. **Traffic followed the room.** An alien's eagerness to enter grows with the free space at its
+   gate, so the gate being kept empty drew nearly all arrivals and the ignored, full gate few. Now
+   **a gate takes an arrival only while DUE** -- at most `GATE_LEAD` (1) arrivals ahead of the
+   quietest gate (`_gate_arrivals`) -- and a full gate keeps `FULL_GATE_PULL` (0.6) of the pull an
+   empty one has, so its aliens keep coming and are turned away (a miss each). Measured splits:
+   41/40 on level 1, 49/49/50/50 on level 8.
+2. **Waiting cost little.** See `park_patience_sec`: every alien that times out is now a miss, and
+   the wait is shorter.
+3. **Passing read the total only.** Now every gate must reach `pass_pct` (above).
+
+Bot, after: both gates worked -- 100% on every level; one gate worked -- weakest gate 0%, level
+failed (overall 60-71% on the 2-gate levels, 27-38% on the 3- and 4-gate ones).
+
+**No level has one gate**: level 1 has two (color and body shape, the easiest traits, passes never
+hidden). The code still lays out a single centered gate, used only by the tutorial, which teaches
+the loop on one gate (`_tutorial_setup`) and then says the game has two, both to be kept moving.
 
 ## The level intro
 
