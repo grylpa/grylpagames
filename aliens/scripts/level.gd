@@ -91,6 +91,13 @@ const LOITER_BAND: float = 4.2      # depth of the loitering band, in alien radi
 const MIN_ENTRY_GAP_MS: float = 550.0   # so two aliens never commit on the same frame
 const RE_ENTRY_COOLDOWN_MS: float = 5000.0  # after being pushed out, an alien stays out a while
 const ARRIVAL_WINDOW: int = 8
+# EVERY GATE GETS ITS SHARE (2026-11-15). Arrivals used to go to whichever gate had ROOM, so a
+# player could work one gate, keep it empty, and pull nearly all the traffic there while the other
+# gate sat full and was simply ignored. Now a gate may run at most GATE_LEAD arrivals ahead of
+# the quietest one, and a FULL gate still draws its share (FULL_GATE_PULL of the eagerness an
+# empty one gets): every alien that reaches it is turned away, a miss.
+const GATE_LEAD: int = 1
+const FULL_GATE_PULL: float = 0.6
 const ARRIVAL_SKEW: int = 6
 
 # --- geometry --------------------------------------------------------------------------------
@@ -160,7 +167,8 @@ var _entry_cooldown_ms: float = 0.0
 var _next_topup_ms: float = 0.0
 var _last_now: float = 0.0
 var topup_swaps: int = 0     # supply-driven replacements (diagnostic)
-var _recent_arrivals: Array = []
+var _recent_arrivals: Array = []    # per gate: the last ARRIVAL_WINDOW arrivals, matched or not
+var _gate_arrivals: Array = []      # per gate: arrivals this level (GATE_LEAD balances them)
 var _play_start_ms: float = 0.0
 var _rules_hidden: bool = false
 var _chips_visible: bool = true      # what the chips are actually showing right now
@@ -203,6 +211,9 @@ var _drag_offset: Vector2 = Vector2.ZERO
 # --- scoring ---
 var total_rounds: int = 0
 var total_corrects: int = 0
+# Per gate: [rounds, corrects]. A level passes only on the WEAKEST gate's accuracy too (2026-11-15):
+# a player working one gate and ignoring the other still reached ~60% overall, enough for level 1.
+var _gate_tally: Array = []
 var times_to_answer: Array = []
 var _score_at_level_start: int = 0
 var _rollback_score_on_next_level: bool = false
@@ -554,6 +565,7 @@ func _reserve_park(ai: int, al, prefer_ang: float) -> bool:
 func _release_park(al) -> void:
 	var ai: int = al.area_idx
 	al.park_angle = al.NO_ANGLE
+	al.set_patience(1.0)
 	if ai >= 0 and ai < _areas.size():
 		_refresh_ring_state(ai)
 
@@ -990,7 +1002,10 @@ func _update_priority(now: float) -> void:
 		elif now >= _called_until_ms:
 			calls_missed += 1
 			_score_mistake(_called_al, now)   # a called passenger left standing is a missed boarding
+			var gone = _called_al
 			_clear_call()
+			if gone.state == AState.PARKED_OUTER:
+				_walk_off(gone)               # one miss for it, not a second when its patience ends
 			_next_priority_ms = now + priority_every_ms
 		else:
 			var left: float = (_called_until_ms - now) / maxf(1.0, priority_window_ms)
@@ -1199,8 +1214,14 @@ func _update_alien(al, d: float, now: float) -> void:
 		AState.LEAVING:
 			_update_leaving(al, d)
 		AState.PARKED_OUTER:
-			if park_patience_ms > 0.0 and now - al.park_ms >= park_patience_ms:
+			# no clock in the tutorial (the coach talks while an alien waits), nor on a called
+			# alien, whose call window is the clock that counts
+			if park_patience_ms <= 0.0 or game.tutorial_mode or al.is_called():
+				al.set_patience(1.0)
+			elif now - al.park_ms >= park_patience_ms:
 				_give_up(al)
+			else:
+				al.set_patience(1.0 - (now - al.park_ms) / park_patience_ms)
 
 func _steer(al, tgt: Vector2, spd: float, d: float) -> void:
 	var to: Vector2 = tgt - al.sim_pos
@@ -1274,7 +1295,9 @@ func _try_enter(al, now: float) -> bool:
 	# almost at once; a full ring attracts no rush, since there is nothing to rush for.
 	var cap: int = _ring_capacity(ar)
 	var taken: int = _taken_angles(ai, null).size()
-	var free_frac: float = clampf(float(cap - taken) / float(maxi(1, cap)), 0.0, 1.0)
+	# a full gate still pulls (see FULL_GATE_PULL): ignoring a gate must not stop its queue coming
+	var free_frac: float = maxf(FULL_GATE_PULL,
+		clampf(float(cap - taken) / float(maxi(1, cap)), 0.0, 1.0))
 	var near_ring: bool = al.sim_pos.distance_to(Vector2(ar["center"])) \
 		<= float(ar["r_out"]) + al.radius * 5.0
 	var eager: float = free_frac * (0.85 if near_ring else 0.35)
@@ -1283,9 +1306,9 @@ func _try_enter(al, now: float) -> bool:
 	var would_match: bool = _gate_wants(al, ai)
 	# An EMPTY ring is a wasted opportunity, so the arrival-mix veto only applies once somebody is
 	# already parked — otherwise the balancer can silently hold everyone out of an empty ring.
-	if taken > 0 and not _arrival_allowed(would_match):
+	if taken > 0 and not _arrival_allowed(would_match, ai):
 		return false                     # too many of this kind lately — mill about and retry
-	_record_arrival(would_match)
+	_record_arrival(would_match, ai)
 	_entry_cooldown_ms = now + MIN_ENTRY_GAP_MS
 	al.state = AState.SEEKING_SLOT
 	al.area_idx = ai
@@ -1293,17 +1316,25 @@ func _try_enter(al, now: float) -> bool:
 	al.seek_start_ms = now
 	return true
 
-# With several areas an alien heads for one it actually belongs to about half the time — that
-# alone keeps the arrival mix near 50/50 without any global scheduler.
+# Only a gate that is DUE takes an arrival: one at most GATE_LEAD arrivals ahead of the quietest
+# gate, so every gate keeps receiving its share whatever the player does with it. Among the due
+# gates an alien heads for one it actually belongs to about half the time.
 func _choose_area_for(al) -> int:
+	_size_gate_tallies()
+	var least: int = 1 << 30
+	for i in _areas.size():
+		least = mini(least, int(_gate_arrivals[i]))
+	var due: Array = []
+	for i in _areas.size():
+		if int(_gate_arrivals[i]) <= least + GATE_LEAD:
+			due.append(i)
 	var pool: Array = []
-	if _areas.size() > 1 and game.rng.randf() < SMART_ENTRY:
-		for i in _areas.size():
-			if _gate_wants(al, i):
+	if due.size() > 1 and game.rng.randf() < SMART_ENTRY:
+		for i in due:
+			if _gate_wants(al, int(i)):
 				pool.append(i)
 	if pool.is_empty():
-		for i in _areas.size():
-			pool.append(i)
+		pool = due
 	# nearest of the acceptable areas: a cross-field hike gets deflected around the other ring and
 	# takes many seconds, which reads as the alien being stuck
 	var best: int = int(pool[0])
@@ -1318,21 +1349,33 @@ func _choose_area_for(al) -> int:
 # Keeps roughly half of arrivals matching. Without it, on a level whose rule matches only a third
 # of aliens, most walk-ins would be mismatches and "always push it out" would be a winning
 # strategy. Never a hard block — just a strong nudge.
-func _arrival_allowed(would_match: bool) -> bool:
-	if _recent_arrivals.size() < ARRIVAL_WINDOW:
+func _arrival_allowed(would_match: bool, ai: int) -> bool:
+	_size_gate_tallies()
+	var recent: Array = _recent_arrivals[ai]
+	if recent.size() < ARRIVAL_WINDOW:
 		return true
 	var same: int = 0
-	for m in _recent_arrivals:
+	for m in recent:
 		if bool(m) == would_match:
 			same += 1
 	if same >= ARRIVAL_SKEW:
 		return game.rng.randf() < 0.25
 	return true
 
-func _record_arrival(matched: bool) -> void:
-	_recent_arrivals.append(matched)
-	while _recent_arrivals.size() > ARRIVAL_WINDOW:
-		_recent_arrivals.remove_at(0)
+func _record_arrival(matched: bool, ai: int) -> void:
+	_size_gate_tallies()
+	var recent: Array = _recent_arrivals[ai]
+	recent.append(matched)
+	while recent.size() > ARRIVAL_WINDOW:
+		recent.remove_at(0)
+	_gate_arrivals[ai] = int(_gate_arrivals[ai]) + 1
+
+# One tally per gate, made to fit the level's gates (cleared with the level in new_game).
+func _size_gate_tallies() -> void:
+	while _gate_arrivals.size() < _areas.size():
+		_gate_arrivals.append(0)
+	while _recent_arrivals.size() < _areas.size():
+		_recent_arrivals.append([])
 
 func _update_leaving(al, d: float) -> void:
 	# release the "may stand inside my own ring" exemption only once genuinely clear of it, so the
@@ -1440,6 +1483,7 @@ func _turned_away(al) -> void:
 	game.add_score_and_time(-penalty, 0)
 	game.add_correct_or_mistake(0, 1)
 	total_rounds += 1
+	_tally_gate(home2, false)
 	_flash_mark(al.sim_pos, "NO ROOM", Color(1.0, 0.55, 0.25))
 	MainGlobals.sig_global_update_hud.emit()
 
@@ -1470,15 +1514,18 @@ func _send_away_from(al, area_idx: int, now: float) -> void:
 			al.wander_target = _random_free_point(al.radius, true, al)
 	al.retarget_ms = now + 2200.0
 
-# Deadlock valve: a parked alien the player never resolves gives up and frees its place.
-# A MATCHING alien walking away is a MISS — the player let a valid passenger go. A non-matching
-# one costs nothing: leaving is exactly what should have happened to it anyway.
-# park_patience_sec = 0 disables the valve entirely (the hardest levels).
+# A parked alien the player never resolves runs out of patience, walks off and frees its place,
+# and that is a MISS whether it matched or not (2026-11-15): every alien at the gate is the
+# player's to handle. It used to cost nothing for a non-matching one and came after 25-30 s, so
+# a gate could be ignored almost for free. park_patience_sec = 0 disables the clock.
 func _give_up(al) -> void:
+	_score_mistake(al, _last_now)
+	_walk_off(al)
+
+# Leave the gate without a judgment (the scoring is the caller's).
+func _walk_off(al) -> void:
 	_end_call_for(al)
 	var home3: int = al.area_idx
-	if home3 >= 0 and home3 < _areas.size() and _gate_wants(al, home3):
-		_score_mistake(al, _last_now)
 	_release_park(al)
 	al.state = AState.LEAVING
 	# area_idx is KEPT until it is actually clear of the ring (see _update_leaving): clearing it
@@ -1660,14 +1707,16 @@ func _on_catcher_gui_input(event: InputEvent) -> void:
 func _clicks_judge() -> bool:
 	return AliensG.click_mode and not MainGlobals.is_mobile()
 
+# Only an alien WAITING in an outer ring can be picked up or clicked (2026-11-15). Roaming,
+# walking-in and leaving aliens used to be grabbable too, so a press on one picked it up with the
+# pickup sound -- and there is nothing legal to do with it: a drop in a ring is refused.
 func _topmost_alien_at(p: Vector2):
 	var best = null
 	var best_z: int = -2147483648
 	for al in _aliens:
 		if not is_instance_valid(al):
 			continue
-		if al.state == AState.PARKED_INNER or al.state == AState.SNAPPING \
-			or al.state == AState.FADING:
+		if al.state != AState.PARKED_OUTER:
 			continue                                    # not grabbable
 		if p.distance_to(al.sim_pos) <= al.radius * 1.20 and al.z_index >= best_z:
 			best_z = al.z_index
@@ -1737,8 +1786,8 @@ func _commit_flick(al, board: bool, now: float) -> void:
 	_start_snap(al, out_pt, AState.ROAM, now)
 
 # CLICK MODE (a desktop option, AliensG.click_mode): a LEFT click on an alien waiting in an outer
-# ring boards it, a RIGHT click turns it away -- no drag at all. Anything else (a roaming alien, a
-# press that hits no waiting alien) falls through to the ordinary drag, so nothing is lost.
+# ring boards it, a RIGHT click turns it away -- no drag at all. A click on any other alien does
+# nothing (see _topmost_alien_at).
 func _click_judge(al, board: bool) -> void:
 	_begin_drag(al, al.sim_pos)          # same bookkeeping as a grab: response time, sound
 	_drag_alien = null
@@ -1857,6 +1906,7 @@ func _flash_mark(at: Vector2, txt: String, col: Color) -> void:
 func _score_correct(al, now: float) -> void:
 	total_rounds += 1
 	total_corrects += 1
+	_tally_gate(al.area_idx, true)
 	# use the banked park->grab time; fall back to park->now for any non-drag scoring path
 	var elapsed: float = al.grab_delay_ms if al.grab_delay_ms >= 0.0 else maxf(0.0, now - al.park_ms)
 	al.grab_delay_ms = -1.0
@@ -1880,6 +1930,7 @@ func _score_mistake(al, now: float) -> void:
 	game.add_correct_or_mistake(0, 1)
 	game.play_sound("wrong")
 	total_rounds += 1
+	_tally_gate(al.area_idx, false)
 	_flash_mark(al.sim_pos, "✗ -%d" % penalty, Color(1.0, 0.38, 0.30))
 	_flash_hint(al, 2, now)      # red pulse so the mistake is visible even though the move stands
 
@@ -2246,6 +2297,7 @@ func new_game(from_scratch: bool = true) -> void:
 	game.need_to_increase_level = false
 	total_rounds = 0
 	total_corrects = 0
+	_gate_tally.clear()
 	game.corrects = 0
 	game.mistakes = 0
 	times_to_answer.clear()
@@ -2266,6 +2318,7 @@ func new_game(from_scratch: bool = true) -> void:
 	_chips_visible = true
 	_reveal_until_ms = 0.0
 	_recent_arrivals.clear()
+	_gate_arrivals.clear()
 	_entry_cooldown_ms = 0.0
 	_next_topup_ms = 0.0
 	_drag_alien = null
@@ -2489,9 +2542,10 @@ func _level_done() -> void:
 	_drag_alien = null
 	var pct: int = pct_correct()
 	var need: int = AliensG.pass_pct_for(current_level_id)
+	var worst: int = weakest_gate_pct()
 	# Passing is now a RESULT, not a formality: below the level's own accuracy the same
-	# level comes round again instead of the next one.
-	var passed: bool = AliensG.record_level_result(current_level_id, pct)
+	# level comes round again instead of the next one -- overall AND at every gate.
+	var passed: bool = AliensG.record_level_result(current_level_id, pct if worst < 0 else mini(pct, worst))
 	# A failed level earns nothing — but the player does not see it vanish while the summary is
 	# still up. The score row IS written now (sig_level_is_done saves it), and it has to record the
 	# score actually kept or failing repeatedly would farm the score list. So the kept value is put
@@ -2515,6 +2569,8 @@ func _level_done() -> void:
 		pct,
 		("%d ms" % mean_response_time_ms()) if not times_to_answer.is_empty() else "N/A"
 	]
+	if worst >= 0:
+		extra += "\nWeakest gate: %d%%" % worst
 	# Say what happens next, either way. "Accuracy: 40%" alone does not tell the player whether
 	# they are moving on, which is the only thing they want to know at that moment.
 	extra += "\n\n" + _progress_line(passed, need)
@@ -2525,7 +2581,7 @@ func _level_done() -> void:
 # What the player gets next, in words.
 func _progress_line(passed: bool, need: int) -> String:
 	if not passed:
-		return "You need at least %d%% accuracy to pass to the next level." % need
+		return "You need at least %d%% accuracy, at every gate, to pass to the next level." % need
 	var nxt: int = AliensG.peek_next_level_id()
 	if nxt <= 0 or nxt == current_level_id:
 		return "Level passed."
@@ -2541,6 +2597,31 @@ func mean_response_time_ms() -> int:
 	for t in times_to_answer:
 		s += t
 	return roundi(s / times_to_answer.size())
+
+func _tally_gate(ai: int, ok: bool) -> void:
+	if ai < 0:
+		return
+	while _gate_tally.size() <= ai:
+		_gate_tally.append([0, 0])
+	var t: Array = _gate_tally[ai]
+	t[0] = int(t[0]) + 1
+	if ok:
+		t[1] = int(t[1]) + 1
+
+# The accuracy at the gate that did worst; a gate nobody touched counts as 0%. -1 with one gate.
+func weakest_gate_pct() -> int:
+	if _areas.size() < 2:
+		return -1
+	var worst: int = 100
+	for i in _areas.size():
+		var rounds: int = 0
+		var corrects: int = 0
+		if i < _gate_tally.size():
+			rounds = int(_gate_tally[i][0])
+			corrects = int(_gate_tally[i][1])
+		var p: int = 0 if rounds <= 0 else int(round(100.0 * float(corrects) / float(rounds)))
+		worst = mini(worst, p)
+	return worst
 
 func pct_correct() -> int:
 	if total_rounds <= 0:

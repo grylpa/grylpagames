@@ -30,9 +30,11 @@ extends Node
 #   level_time_sec     how long the level lasts; it completes when this elapses
 #   pass_pct           accuracy (%) needed to move on; below it the SAME level is played again
 #   rules              pool of MODALITY names (see above); [] = any modality
-#   num_areas          number of target areas. 1 sits in the center of the field; 2 go in
-#                      OPPOSING corners; 3 and 4 fill the remaining corners. 1..2 is the tuned
-#                      range on a phone — 3+ auto-shrinks the aliens.
+#   num_areas          number of target areas, 2 to 4 -- NEVER 1 (2026-11-15: one gate leaves
+#                      nothing to switch between). 2 go in OPPOSING corners; 3 and 4 fill the
+#                      remaining corners. 2 is the tuned size on a phone — 3+ auto-shrinks the
+#                      aliens. (The code still lays out a single centered gate, which only the
+#                      tutorial uses.) Arrivals are shared out evenly between the gates.
 #   alien_speed        roaming speed in SCREEN WIDTHS PER SECOND (0.13 relaxed .. 0.27 brisk).
 #                      0.13 crosses a 680-wide screen in about 8 seconds. An alien heading for an
 #                      area walks 1.7x this.
@@ -42,8 +44,8 @@ extends Node
 #   num_free_aliens    how many aliens live on the field at once
 #   (Neither ring has a slot count: each simply holds as many aliens as physically fit without
 #    overlapping, so both capacities follow from alien_size alone.
-#    While an outer ring is full, every alien that walks up to it is turned away = 1 MISS,
-#    so enter_chance is the pressure knob.)
+#    While an outer ring is full, every alien that walks up to it is turned away = 1 MISS, and a
+#    full gate keeps receiving its share of arrivals, so enter_chance is the pressure knob.)
 #   hide_after_sec     seconds after the level starts before the rule labels turn into "?".
 #                      0 = never hide (teaching levels).
 #   enter_chance       0..1. EVERY alien wants in: each time it picks a new wander target
@@ -52,11 +54,10 @@ extends Node
 #                      loiters near the rings rather than wandering the whole field, so the crowd
 #                      reads as "queueing up". A short global cooldown stops two aliens
 #                      committing on the very same frame.
-#   park_patience_sec  a parked alien the player never resolves gives up and leaves after this
-#                      many seconds. If it MATCHED the gate's pass this costs a MISS — you let a
-#                      valid passenger walk away; if it did not match it costs nothing, since
-#                      leaving is what should have happened to it anyway.
-#                      0 means it waits FOREVER (not "zero seconds") — the check is skipped.
+#   park_patience_sec  a parked alien the player never resolves walks off after this many
+#                      seconds, and that is a MISS whether it matched or not: an ignored gate
+#                      costs a miss per alien. A thin arc round the alien drains through the
+#                      second half of the wait. 0 means it waits FOREVER (not "zero seconds").
 #   colors             OPTIONAL color-id pool, default [0, 1, 2] (blue, red, green)
 #   eye_counts         OPTIONAL eye-count pool, default [1, 2, 3]
 #   antennae_counts    OPTIONAL antenna-count pool, default [0, 1, 2]
@@ -102,33 +103,35 @@ extends Node
 #                      looking at, on a clock, breaks the batch.
 
 const LEVELS: Array = [
-	# 1 — teach the loop: one area, color rules only, the rule never hides, roomy ring.
-	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["color"],
-	 "num_areas": 1, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 9, "hide_after_sec": 0, "enter_chance": 0.16,
-	 "park_patience_sec": 30.0, "pass_pct": 60},
+	# 1 — teach the loop: two gates on the easiest traits (color, body shape), the passes never
+	#     hide, roomy rings. Never one gate (2026-11-15): with one there is nothing to switch
+	#     between, and the switch is the game.
+	{"id": 1, "name": "1", "level_time_sec": 70, "rules": ["color", "shape"],
+	 "num_areas": 2, "alien_speed": 0.145, "alien_size": "big", "num_free_aliens": 9, "hide_after_sec": 0, "enter_chance": 0.16,
+	 "park_patience_sec": 20.0, "pass_pct": 60},
 
 	# 2 — same shape, but now the rule disappears partway through.
 	{"id": 2, "name": "2", "level_time_sec": 80, "rules": ["eyes", "color"],
 	 "num_areas": 2, "alien_speed": 0.155, "alien_size": "big", "num_free_aliens": 10, "hide_after_sec": 35, "enter_chance": 0.20,
-	 "park_patience_sec": 30.0, "pass_pct": 65},
+	 "park_patience_sec": 18.0, "pass_pct": 65},
 
 	# 3 — silhouette rules; body shape varies independently of everything else.
 	{"id": 3, "name": "3", "level_time_sec": 90, "rules": ["shape", "eyes", "color", "antennae"],
 	 "num_areas": 2, "alien_speed": 0.165, "alien_size": "med", "num_free_aliens": 9, "hide_after_sec": 28, "enter_chance": 0.24,
-	 "park_patience_sec": 29.0, "pass_pct": 70},
+	 "park_patience_sec": 17.0, "pass_pct": 70},
 
 	# 4 — GATE CHANGE arrives. Everything else is held at level 3's settings on purpose: one new
 	#     idea at a time, and this is a big one.
 	{"id": 4, "name": "4", "level_time_sec": 100, "rules": ["color", "eyes"],
 	 "num_areas": 2, "alien_speed": 0.175, "alien_size": "med", "num_free_aliens": 10, "hide_after_sec": 25, "enter_chance": 0.30,
-	 "park_patience_sec": 28.0,
+	 "park_patience_sec": 16.0,
 	 "gate_change_sec": 34.0, "pass_pct": 70},
 
 	# 5 — NOW BOARDING arrives: a called alien on a clock, so a gate can no longer be worked alone.
 	{"id": 5, "name": "5", "level_time_sec": 110,
 	 "rules": ["antennae", "eyes", "color", "shape"],
 	 "num_areas": 2, "alien_speed": 0.185, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 20, "enter_chance": 0.36,
-	 "colors": [0, 1, 3], "park_patience_sec": 27.0,
+	 "colors": [0, 1, 3], "park_patience_sec": 15.0,
 	 "gate_change_sec": 30.0, "priority_every_sec": 19.0, "priority_window_sec": 8.0, "pass_pct": 75},
 
 	# 6 — DENY gates arrive; spots join the pool. Gate change is eased off while the new polarity
@@ -136,7 +139,7 @@ const LEVELS: Array = [
 	{"id": 6, "name": "6", "level_time_sec": 120,
 	 "rules": ["spots", "eyes", "shape", "antennae", "color"],
 	 "num_areas": 2, "alien_speed": 0.205, "alien_size": "med", "num_free_aliens": 12, "hide_after_sec": 14, "enter_chance": 0.42,
-	 "colors": [0, 2, 4], "park_patience_sec": 26.0,
+	 "colors": [0, 2, 4], "park_patience_sec": 15.0,
 	 "gate_change_sec": 34.0, "deny_chance": 0.5,
 	 "priority_every_sec": 18.0, "priority_window_sec": 7.5, "pass_pct": 75},
 
@@ -144,14 +147,14 @@ const LEVELS: Array = [
 	{"id": 7, "name": "7", "level_time_sec": 140,
 	 "rules": ["eyes", "shape", "antennae", "spots", "color"],
 	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 9, "enter_chance": 0.50,
-	 "colors": [0, 1, 3, 4], "park_patience_sec": 25.0,
+	 "colors": [0, 1, 3, 4], "park_patience_sec": 14.0,
 	 "gate_change_sec": 26.0, "deny_chance": 0.5,
 	 "priority_every_sec": 15.0, "priority_window_sec": 6.5, "pass_pct": 80},
 
 	# 8 — every usable rule, four gates, fast: the ring only empties if the player empties it.
 	{"id": 8, "name": "8", "level_time_sec": 170, "rules": [],
 	 "num_areas": 4, "alien_speed": 0.265, "alien_size": "small", "num_free_aliens": 14, "hide_after_sec": 6, "enter_chance": 0.60,
-	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0,
+	 "colors": [0, 1, 2, 3], "park_patience_sec": 13.0,
 	 "gate_change_sec": 22.0, "deny_chance": 0.5,
 	 "priority_every_sec": 13.0, "priority_window_sec": 6.0, "pass_pct": 80},
 
@@ -161,7 +164,7 @@ const LEVELS: Array = [
 	{"id": 9, "name": "9", "level_time_sec": 130,
 	 "rules": ["color", "eyes", "shape", "antennae"],
 	 "num_areas": 2, "alien_speed": 0.195, "alien_size": "med", "num_free_aliens": 11, "hide_after_sec": 22, "enter_chance": 0.36,
-	 "colors": [0, 1, 3], "park_patience_sec": 27.0,
+	 "colors": [0, 1, 3], "park_patience_sec": 15.0,
 	 "gate_change_sec": 32.0,
 	 "priority_every_sec": 18.0, "priority_window_sec": 7.5,
 	 "compound_chance": 1.0, "compound_ops": ["and", "or"], "pass_pct": 85},
@@ -169,7 +172,7 @@ const LEVELS: Array = [
 	# 10 — everything at once: all four operators, deny on whichever gates stay simple, 3 gates.
 	{"id": 10, "name": "10", "level_time_sec": 180, "rules": [],
 	 "num_areas": 3, "alien_speed": 0.235, "alien_size": "small", "num_free_aliens": 13, "hide_after_sec": 10, "enter_chance": 0.50,
-	 "colors": [0, 1, 2, 3], "park_patience_sec": 25.0,
+	 "colors": [0, 1, 2, 3], "park_patience_sec": 13.0,
 	 "gate_change_sec": 26.0, "deny_chance": 0.5,
 	 "priority_every_sec": 14.0, "priority_window_sec": 6.5,
 	 "compound_chance": 0.6, "pass_pct": 85},

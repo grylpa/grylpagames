@@ -60,6 +60,11 @@ var _look: Vector2 = Vector2(0.0, 1.0)    # unit gaze direction for the pupils
 var _hint: int = 0                        # 0 none, 1 legal target, 2 illegal, 3 grabbed
 var _called: bool = false                 # this alien is the priority passenger being boarded now
 var _call_frac: float = 1.0               # share of the call window still left (drives the arc)
+var _patience: float = 1.0                # share of its waiting time left while parked (1 = all of it)
+
+# The waiting arc shows only in the second half of an alien's patience: a full circle round every
+# parked alien from the moment it arrives would be clutter, and the first half needs no warning.
+const PATIENCE_SHOW: float = 0.5
 
 const ALIEN_COLORS: Array = [
 	Color(0.28, 0.56, 0.95),  # 0 blue
@@ -127,6 +132,15 @@ func set_called(on: bool, frac: float = 1.0) -> void:
 
 func is_called() -> bool:
 	return _called
+
+# How much of its patience a parked alien has left (1 = it just arrived, 0 = it walks off). Every
+# alien left waiting too long is a miss, so an ignored gate shows it: the arcs drain there.
+func set_patience(frac: float) -> void:
+	var f: float = clampf(frac, 0.0, 1.0)
+	if absf(f - _patience) < 0.01 and (f < PATIENCE_SHOW) == (_patience < PATIENCE_SHOW):
+		return
+	_patience = f
+	queue_redraw()
 
 func body_color() -> Color:
 	return ALIEN_COLORS[color_id]
@@ -273,6 +287,17 @@ func _draw() -> void:
 			# clockwise from 12 o'clock, shrinking toward it as the window runs out
 			draw_arc(Vector2.ZERO, cr, -PI * 0.5, -PI * 0.5 + TAU * _call_frac,
 				maxi(6, int(40.0 * _call_frac)), Color(1.0, 0.80, 0.20, 0.95), radius * 0.11, true)
+
+	# 8b) patience: a thin arc that appears halfway through the wait and drains to nothing, white
+	# going red. Not on a called alien, whose call arc is the clock that counts.
+	if not _called and _patience < PATIENCE_SHOW:
+		var pf: float = _patience / PATIENCE_SHOW
+		var pr: float = radius * 1.30
+		var pcol: Color = Color(1.0, 0.36, 0.30, 0.95).lerp(Color(1.0, 1.0, 1.0, 0.75), pf)
+		draw_arc(Vector2.ZERO, pr, 0.0, TAU, 40, Color(pcol.r, pcol.g, pcol.b, 0.16), radius * 0.07, true)
+		if pf > 0.0:
+			draw_arc(Vector2.ZERO, pr, -PI * 0.5, -PI * 0.5 + TAU * pf,
+				maxi(6, int(40.0 * pf)), pcol, radius * 0.08, true)
 
 	# 9) hint ring while dragging
 	if _hint != 0:
