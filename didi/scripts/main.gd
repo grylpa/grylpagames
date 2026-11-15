@@ -38,8 +38,12 @@ func _ready() -> void:
 
 	var ins_font_sz: int = 36 if MainGlobals.is_mobile() else 22
 	game.set_instructions("Pinpoint",		
-		"A shape flashes briefly at the center and a dot flashes somewhere else.\n" +
-		"Then, find the location where the dot flashed and tap the shape that appeared in the center.",
+		"You're on a stakeout above a square at night, in the rain.\n\n" +
+		"Lightning lights the square for a moment. At the center a courier holds an umbrella. " +
+		"At the same moment a lookout, in a yellow raincoat under a see-through umbrella, is seen at one of the eight spots around the fountain.\n\n" +
+		"Then the lamps come on, with people under umbrellas at every spot. " +
+		"Tap the courier's umbrella at the spot where the lookout was.\n\n" +
+		"The flash gets shorter as you get better, and longer when you miss.",
 		ins_font_sz)
 	if not game.shown_instructions:
 		game.show_instructions(self)

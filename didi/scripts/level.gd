@@ -33,9 +33,70 @@ const DIR_POSITIONS: Array = [
 	Vector2i(6, 6),  # 7: BR
 ]
 
+# THE STAKEOUT (2026-11-15). A rooftop over a night square in the rain. LIGHTNING lights it for one
+# moment: the courier's umbrella at the center (WHAT -- its print and colors) and, at the same instant,
+# the lookout glimpsed at one of the eight street mouths (WHERE). Then near darkness
+# (the MASK), then the street lamps come on over umbrellas at every corner, and one tap answers both:
+# the courier's umbrella, at the lookout's corner. This is the research task behind Pinpoint (the
+# "useful field of view" speed training): a center item and a peripheral target shown TOGETHER, briefly,
+# then masked. It used to show the shape first and the dot 150 ms later, with no mask.
+#
+# The DISPLAY TIME ADAPTS (a staircase): three fully right in a row shorten the flash by STEP_DOWN, a
+# miss lengthens it by STEP_UP, so every player is kept at their own limit (it settles near 80% right).
+# The levels add complexity instead: more umbrellas per corner, more look-alike prints, two-colored
+# canopies and passers-by glimpsed with the lookout (clutter).
+const MIN_FLASH_MS: float = 34.0          # two frames at 60 Hz
+const FLASH_CEILING: float = 1.6          # the slowest it adapts to, x the level's starting time
+const STEP_DOWN: float = 0.85
+const STEP_UP: float = 1.20
+const STREAK_TO_STEP: int = 3
+const MASK_MS: float = 280.0
+const LAMPS_MS: float = 180.0             # the lamps coming on
+# EACH SPOT IS A GROUP IN ITS STREET, CENTERED ON THE LOOKOUT'S PLACE (2026-11-15): a pair down the
+# street either side of it, or a triangle round it (see _get_cluster_positions), with no one ON it.
+# Each spot is then a group of its own, set apart from the next by the roofs between the streets. Before: the people stood side by side across the street, either side of the
+# lookout's point (at 170 and 190 degrees for a lookout at 180), and the sixteen umbrellas made one even
+# ring with no visible groups. No jitter: the research task's targets are at fixed places too.
+const PERIPH_R: float = 3.00              # the lookout, and the queue's middle place
+const CLUSTER_R: float = PERIPH_R
+const QUEUE_STEP: float = 0.80            # tiles between the two people of a pair
+const TRIANGLE_H: float = 0.95            # a trio's triangle: tip to base, tiles
+const TRIANGLE_HALF_BASE: float = 0.46    # and half its base
+const CANOPY_TILES: float = 0.80          # a figure's width (an umbrella's), in tiles -- everyone alike
+const CANOPY_FRAME_W: float = 92.0        # the same width in agent.gd's drawing frame (2 R)
+const FIG_DROP_TILES: float = 0.42        # a figure stands this far below its point, so its umbrella
+                                          # (not its feet) is centered on the ring
+const VIEW_W_TILES: float = 8.4           # the scene's width the camera must show: out to the queues' ends
+const VIEW_H_TILES: float = 8.6           # and its height
+const VIEW_MID_TILES: float = 0.0         # how far above the fountain that height's middle is
+const VIEW_TOP_PX: float = 56.0           # the HUD strip
+const VIEW_BOTTOM_PX: float = 70.0        # the button bar
+# The light on the figures is NEUTRAL in both moments (2026-11-15): an umbrella's COLOR is part of what
+# the player remembers, and a cold light in the flash and a warm one in the answer shifted the same
+# color two ways, so the right umbrella did not match the courier's. The scene carries the lightning
+# and the lamplight; the umbrellas keep their true colors.
+const LIGHT_FLASH: Color = Color(1.0, 1.0, 1.0)
+const LIGHT_LAMPS: Color = Color(1.0, 1.0, 1.0)
+const DIR_VEC: Array = [Vector2(0, -1), Vector2(0, 1), Vector2(-1, 0), Vector2(1, 0),
+	Vector2(-0.70710678, -0.70710678), Vector2(0.70710678, -0.70710678),
+	Vector2(-0.70710678, 0.70710678), Vector2(0.70710678, 0.70710678)]
+const FEEDBACK_RIGHT_MS: float = 650.0
+const FEEDBACK_WRONG_MS: float = 1300.0   # longer: it shows where the lookout really was
+
 var level: int = 1
-var _center_ms: int = 700
-var _periph_ms: int = 200
+var _flash_ms: float = 500.0              # the current display time (adapts)
+var _flash_start_ms: float = 500.0        # this level's starting display time
+var _streak: int = 0
+var _clutter: int = 0
+var _rotate: bool = false                 # corner umbrellas may be turned unlike the courier's
+var _model_spin: float = 0.0
+var _clutter_agents: Array = []
+var _mask_until_ms: float = -1.0
+var _lamps: float = 0.0
+var _clear_at_ms: float = -1.0            # feedback showing: clear the answer umbrellas then
+var _plaza: ColorRect = null
+var _plaza_mat: ShaderMaterial = null
+var _periph_px: Vector2 = Vector2.ZERO    # where the lookout was, to show after a miss
 var _num_same: int = 2
 var _num_options: int = 2
 var _two_colors: bool = false
@@ -153,8 +214,8 @@ func new_game(from_scratch: bool = true) -> void:
 		return
 	var lvl: Dictionary = DidiLevelConfig.get_level(level)
 	game.show_game_popup(self, "Level %d" % level,
-		"Center: %d ms\nPeriph flash: %d ms\nTimeout: %.1f s\nRounds: %d" % [
-			lvl["center_ms"], lvl["periph_ms"],
+		"Umbrellas per corner: %d\nPassers-by: %d\nTime to answer: %.1f s\nRounds: %d" % [
+			lvl["num_options"], lvl.get("clutter", 0),
 			float(lvl["time_to_consider_fail"]) / 1000.0, lvl["rounds"]])
 
 func _load_cfg(increase: bool = false) -> void:
@@ -166,8 +227,11 @@ func _load_cfg(increase: bool = false) -> void:
 	game.forced_board_size = Vector2i(s, s)
 	game.init_sizes()
 	var lvl: Dictionary = DidiLevelConfig.get_level(level)
-	_center_ms = lvl["center_ms"]
-	_periph_ms = lvl["periph_ms"]
+	_flash_start_ms = float(lvl["flash_ms"])
+	_flash_ms = _flash_start_ms
+	_streak = 0
+	_clutter = int(lvl.get("clutter", 0))
+	_rotate = bool(lvl.get("rotate", false))
 	_num_same = lvl["num_same"]
 	_two_colors = lvl["two_colors"]
 	_same_color_alts = lvl["same_color_alts"]
@@ -229,6 +293,9 @@ func _clear_round_state() -> void:
 	if _periph_agent != null and is_instance_valid(_periph_agent):
 		_periph_agent.queue_free()
 	_periph_agent = null
+	_clear_clutter()
+	_mask_until_ms = -1.0
+	_clear_at_ms = -1.0
 	_model_done = false
 	_periph_done = false
 	_pending_answer_at_ms = -1.0
@@ -242,7 +309,8 @@ func _schedule_next_round(delay_ms: float) -> void:
 	_time_to_show_model_ms = game.game_time + delay_ms
 	_need_to_show_model = true
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_light_plaza(delta)
 	if game.level_is_done:
 		return
 	# Update circular arc timer continuously (real time for smooth animation)
@@ -253,6 +321,9 @@ func _process(_delta: float) -> void:
 		_timer_arc.queue_redraw()
 	if game.paused() or not game.level_is_ready:
 		return
+	if _clear_at_ms >= 0.0 and game.game_time >= _clear_at_ms:
+		_clear_at_ms = -1.0
+		_clear_answer_agents()
 	if _need_to_show_model and game.game_time >= _time_to_show_model_ms:
 		if tutorial_hold_round:
 			# Held: keep the round pending so it starts the moment the coach lets it, rather than
@@ -276,7 +347,7 @@ func _spawn_model() -> void:
 	var center: Vector2i = Vector2i(3, 3)
 	_model_done = false
 	var agent: Area2D = agent_scene.instantiate()
-	agent.time_to_hide_ms = float(_center_ms)
+	agent.time_to_hide_ms = _flash_ms
 	agent.is_model = true
 	agent.is_correct = false
 	agent.board_pos = center
@@ -289,14 +360,18 @@ func _spawn_model() -> void:
 		_round_model_color = [c, c]
 	_round_model_texture_idx = agent.set_rand_texture()
 	agent.set_pos(game.board_to_px(center), 0)
+	_person(agent, LIGHT_FLASH)
 	agent.set_colors(_round_model_color)
+	_model_spin = agent.spin
 	agent.need_to_remove_agent.connect(_on_model_removed)
 	_model_agent = agent
+	# The lookout and any passers-by in the SAME flash: the research task shows the center item and
+	# the peripheral target together (it used to show the dot 150 ms after the shape).
+	_spawn_periph_flash()
+	_spawn_clutter()
 	game.play_sound("dispatch")
 	game.tutorial_notify("model_shown")   # no-op outside tutorial mode
-	# Schedule periph flash shortly after model appears
-	_need_to_show_periph = true
-	_time_to_show_periph_ms = game.game_time + 150.0
+	game.tutorial_notify("periph_shown")
 
 func _on_model_removed(_agent) -> void:
 	if is_instance_valid(_agent):
@@ -308,23 +383,19 @@ func _on_model_removed(_agent) -> void:
 func _spawn_periph_flash() -> void:
 	_periph_dir_idx = game.rng.randi() % 8
 	var center_px: Vector2 = game.board_to_px(Vector2i(3, 3))
-	var edge_px: Vector2 = game.board_to_px(DIR_POSITIONS[_periph_dir_idx])
-	var t: float = game.rng.randf_range(0.8, 1.0)
-	var flash_px: Vector2 = center_px.lerp(edge_px, t)
+	# On ONE RING for every direction, so no direction is nearer the center (easier) than another.
+	# (It was 80-100% of the way to the board's edge, which put the corners 41% further out.)
+	var flash_px: Vector2 = center_px + (DIR_VEC[_periph_dir_idx] as Vector2) * PERIPH_R * float(game.tile_size)
+	_periph_px = flash_px
 	var agent: Area2D = agent_scene.instantiate()
-	agent.time_to_hide_ms = float(_periph_ms)
+	agent.time_to_hide_ms = _flash_ms
 	agent.is_model = false
 	agent.is_correct = false
 	agent.board_pos = DIR_POSITIONS[_periph_dir_idx]
 	add_child(agent)
 	agent.set_pos(flash_px, 0)
-	# Periph uses a random shape/color (like DDOOO) so the center flash is needed
-	# to know the shape, and the periph flash is only used for position memory
-	agent.set_rand_texture()
-	var c: Color = game.next_color()
-	agent.set_colors([c, c])
-	agent.scale *= 0.55
-	game.tutorial_notify("periph_shown")   # no-op outside tutorial mode
+	agent.set_kind(agent.Kind.LOOKOUT)        # the yellow raincoat: position only, nothing to remember
+	_person(agent, LIGHT_FLASH)
 	agent.need_to_remove_agent.connect(func(_a):
 		if is_instance_valid(_a):
 			_a.queue_free()
@@ -334,9 +405,98 @@ func _spawn_periph_flash() -> void:
 	)
 	_periph_agent = agent
 
+# The flash is over: near darkness for MASK_MS (so nothing lingers on the eye -- the display time
+# is then the time the player really had), then the lamps and the answer.
+# PASSERS-BY glimpsed in the same flash (the research task's clutter, from level 3): dark coats on
+# the same ring, at random bearings clear of the lookout and of each other. Gone with the flash.
+func _spawn_clutter() -> void:
+	_clear_clutter()
+	if _clutter <= 0:
+		return
+	var center_px: Vector2 = game.board_to_px(Vector2i(3, 3))
+	# The research's hardest stage fills the other places with look-alikes: so the passers-by stand
+	# at the OTHER posts first, in random order, and only beyond seven between the posts.
+	var spots: Array = []
+	for k in 8:
+		if k != _periph_dir_idx:
+			spots.append((DIR_VEC[k] as Vector2).angle())
+	spots.shuffle()
+	for k2 in 8:
+		spots.append((DIR_VEC[k2] as Vector2).angle() + PI / 8.0)
+	for i2 in mini(_clutter, spots.size()):
+		var agent: Area2D = agent_scene.instantiate()
+		agent.time_to_hide_ms = _flash_ms
+		add_child(agent)
+		agent.set_pos(center_px + Vector2.from_angle(float(spots[i2])) * PERIPH_R * float(game.tile_size), 0)
+		agent.set_kind(agent.Kind.PASSERBY)
+		_person(agent, LIGHT_FLASH)
+		agent.input_pickable = false
+		_clutter_agents.append(agent)
+
+func _clear_clutter() -> void:
+	for a in _clutter_agents:
+		if is_instance_valid(a):
+			a.queue_free()
+	_clutter_agents.clear()
+
+# THE STAIRCASE: three fully right in a row -> a shorter flash; any miss -> a longer one.
+func _adapt(right: bool) -> void:
+	if game.tutorial_mode:
+		return
+	if right:
+		_streak += 1
+		if _streak >= STREAK_TO_STEP:
+			_streak = 0
+			_flash_ms = maxf(MIN_FLASH_MS, _flash_ms * STEP_DOWN)
+	else:
+		_streak = 0
+		_flash_ms = minf(_flash_start_ms * FLASH_CEILING, _flash_ms * STEP_UP)
+
+# The answer is in: the tapped umbrella ringed green or red, and after a miss the right one ringed
+# gold and the lookout shown again where they stood, so the player sees what they lost. The umbrellas
+# go when the feedback has been seen (_clear_at_ms).
+func _show_feedback(tapped) -> void:
+	_answer_active = false
+	if _timer_arc != null:
+		_timer_arc.hide()
+	var right: bool = tapped != null and tapped.is_correct
+	if tapped != null:
+		tapped.set_mark(1 if right else 2)
+	if not right:
+		var c = tutorial_correct_agent()
+		if c != null:
+			c.set_mark(3)
+		var ghost: Area2D = agent_scene.instantiate()
+		ghost.time_to_hide_ms = FEEDBACK_WRONG_MS
+		add_child(ghost)
+		ghost.set_pos(_periph_px, 0)
+		ghost.set_kind(ghost.Kind.LOOKOUT)
+		_person(ghost, LIGHT_LAMPS)
+		ghost.modulate.a = 0.75
+		ghost.input_pickable = false
+		ghost.need_to_remove_agent.connect(func(g): if is_instance_valid(g): g.queue_free())
+	_clear_at_ms = game.game_time + (FEEDBACK_RIGHT_MS if right else FEEDBACK_WRONG_MS)
+
+# The plaza's three lights, every frame: LIGHTNING while the flash is up (held, with the figures,
+# while a tutorial caption pauses the game), the MASK until it runs out, the LAMPS eased on for the
+# answer and off again.
+func _light_plaza(delta: float) -> void:
+	if _plaza_mat == null:
+		return
+	var flash_on: bool = (_model_agent != null and is_instance_valid(_model_agent) and _model_agent.visible) \
+		or (_periph_agent != null and is_instance_valid(_periph_agent) and _periph_agent.visible)
+	_plaza_mat.set_shader_parameter("flash", 1.0 if flash_on else 0.0)
+	var masking: bool = _mask_until_ms >= 0.0 and game.game_time < _mask_until_ms
+	_plaza_mat.set_shader_parameter("mask", 1.0 if masking else 0.0)
+	var lamps_to: float = 1.0 if (_answer_active or _clear_at_ms >= 0.0) else 0.0
+	_lamps = move_toward(_lamps, lamps_to, delta * 1000.0 / LAMPS_MS)
+	_plaza_mat.set_shader_parameter("lamps", _lamps)
+
 func _maybe_start_answer() -> void:
 	if _model_done and _periph_done and _pending_answer_at_ms < 0.0 and not _answer_active:
-		_pending_answer_at_ms = game.game_time + 300.0
+		_clear_clutter()
+		_mask_until_ms = game.game_time + MASK_MS
+		_pending_answer_at_ms = game.game_time + MASK_MS
 
 func _dispatch_answer_stage() -> void:
 	if game.paused() or game.level_is_done or _answer_active:
@@ -369,70 +529,35 @@ func _dispatch_answer_stage() -> void:
 	_timer_arc.show()
 	_timer_arc.queue_redraw()
 
-# Returns world-space positions for each sub-agent in the cluster at dir_idx.
-# num_opts=2: pair perpendicular to inward axis; cardinals spread wider to align
-#             their option centers with adjacent corner option centers.
-# num_opts=3: triangle — one outer (away from center) + two inner flanking it.
-# num_opts=4: corners → diamond (outer/inner/left/right);
-#             cardinals → 2×2 grid (outer-L, outer-R, inner-L, inner-R).
+# Where the people of one spot stand, round the lookout's place in that street (CLUSTER_R) -- with NO
+# ONE ON IT, so no umbrella is singled out by standing exactly where the lookout flashed:
+#   2: a queue down the street, one nearer the fountain and one farther, half a step either side;
+#   3: a triangle whose CENTER is the lookout's place, its tip toward the fountain and its base toward
+#      the edge of the screen.
 func _get_cluster_positions(dir_idx: int, num_opts: int) -> Array:
-	var is_corner: bool = dir_idx >= 4
-	var center_px: Vector2 = game.board_to_px(Vector2i(3, 3))
-	var edge_px: Vector2 = game.board_to_px(DIR_POSITIONS[dir_idx])
-	var option_rad_s = 0.65 if is_corner else 0.8
-	if num_opts == 2:
-		option_rad_s = 0.68 if is_corner else 0.88
-	var base_px: Vector2 = center_px.lerp(edge_px, option_rad_s)
-	var inward: Vector2 = (center_px - edge_px).normalized()
-	var perp: Vector2 = Vector2(-inward.y, inward.x)
 	var t: float = float(game.tile_size)
-	# s_corner is the baseline spacing for corner clusters and drives
-	# the cardinal alignment formula.
-	var s_corner: float = t * 0.56
-	match num_opts:
-		2:
-			var s: float = 0.75		# how close the cluster elements are to each other
-			return [base_px - perp * s_corner * s, base_px + perp * s_corner * s]
-		3:
-			# var s: float = t * (0.62 if is_corner else 0.62)
-			var s: float = t * 0.62
-			return [
-				base_px - inward * (s * 0.55),
-				base_px + inward * (s * 0.4) - perp * (s * 0.6),
-				base_px + inward * (s * 0.4) + perp * (s * 0.6),
-			]
-		4:
-			var s: float = t * 0.5
-			if is_corner:
-				# Screen-space diamond (N/S/E/W), same radius as the cardinal grid
-				return [
-					base_px + Vector2(0.0, -s),
-					base_px + Vector2(0.0,  s),
-					base_px + Vector2(-s, 0.0),
-					base_px + Vector2( s, 0.0),
-				]
-			else:
-				# 2×2 grid matching corner spacing: each point s/√2 away in each axis
-				var d: float = s / sqrt(2.0)
-				return [
-					base_px - inward * d - perp * d,
-					base_px - inward * d + perp * d,
-					base_px + inward * d - perp * d,
-					base_px + inward * d + perp * d,
-				]
-	return [base_px]
+	var out_dir: Vector2 = DIR_VEC[dir_idx]
+	var perp: Vector2 = Vector2(-out_dir.y, out_dir.x)
+	var spot: Vector2 = game.board_to_px(Vector2i(3, 3)) + out_dir * CLUSTER_R * t
+	if num_opts <= 2:
+		return [spot - out_dir * QUEUE_STEP * 0.5 * t, spot + out_dir * QUEUE_STEP * 0.5 * t]
+	var h: float = TRIANGLE_H * t                  # the triangle's height, tip to base
+	return [spot - out_dir * h * 2.0 / 3.0,        # the tip, toward the fountain
+		spot + out_dir * h / 3.0 - perp * TRIANGLE_HALF_BASE * t,
+		spot + out_dir * h / 3.0 + perp * TRIANGLE_HALF_BASE * t]
 
-func _cluster_agent_scale(dir_idx: int, num_opts: int) -> float:
-	var is_corner: bool = dir_idx >= 4
-	match num_opts:
-		2: return 0.22 if is_corner else 0.22
-		3: return 0.18 if is_corner else 0.18
-		4: return 0.18 if is_corner else 0.18
-		_: return 0.18
+# Every figure the same size -- umbrellas, the lookout's clear one, the passers-by's black ones (fairness:
+# no spot's people bigger, so easier, than another's) -- standing so its umbrella is centered on its
+# point, drawn in front of anyone further back, and lit by the moment it belongs to.
+func _person(agent: Area2D, light: Color) -> void:
+	var sc: float = CANOPY_TILES * float(game.tile_size) / CANOPY_FRAME_W
+	agent.scale = Vector2(sc, sc)
+	agent.position += Vector2(0.0, FIG_DROP_TILES * float(game.tile_size))
+	agent.z_index = 100 + int(agent.position.y * 0.5)
+	agent.set_light(light)
 
 func _spawn_answer_cluster(dir_idx: int, has_correct_shape: bool) -> void:
 	var positions: Array = _get_cluster_positions(dir_idx, _num_options)
-	var cluster_scale: float = _cluster_agent_scale(dir_idx, _num_options)
 	# Randomly pick which sub-slot within this cluster gets the correct shape
 	var correct_sub: int = game.rng.randi() % positions.size()
 	for sub_idx in positions.size():
@@ -447,8 +572,12 @@ func _spawn_answer_cluster(dir_idx: int, has_correct_shape: bool) -> void:
 		agent.is_correct_direction = (dir_idx == _periph_dir_idx)
 		agent.board_pos = DIR_POSITIONS[dir_idx]
 		add_child(agent)
-		agent.scale = Vector2(cluster_scale, cluster_scale)
 		agent.set_pos(px, 0)
+		_person(agent, LIGHT_LAMPS)
+		# The same turn as the courier's unless the level allows otherwise (`rotate`): a turned
+		# "half" or "stripes" print reads as a different print.
+		if not _rotate:
+			agent.spin = _model_spin
 		if this_correct_shape:
 			agent.set_texture(_round_model_texture_idx)
 			agent.set_colors(_round_model_color.duplicate(true))
@@ -457,7 +586,12 @@ func _spawn_answer_cluster(dir_idx: int, has_correct_shape: bool) -> void:
 			if _same_color_alts:
 				agent.set_colors(_round_model_color.duplicate(true))
 			else:
+				# a CLEARLY different umbrella (level 1: the research's "car or truck")
 				var c: Color = game.next_color()
+				for _try in 8:
+					if not c.is_equal_approx(_round_model_color[0]):
+						break
+					c = game.next_color()
 				agent.set_colors([c, c])
 		agent.agent_pressed.connect(func(_a): _on_answer_agent_pressed(_a))
 		_answer_agents.append(agent)
@@ -472,7 +606,6 @@ func _on_answer_agent_pressed(agent) -> void:
 		game.play_sound("swoosh")
 		return
 	var elapsed_ms: float = game.game_time - _answer_start_game_time
-	var board_pos: Vector2i = agent.board_pos
 
 	# WHICH DIRECTION the dot was in, and what survived of the round. A percentage for the
 	# session cannot show a corner the player keeps missing, and it cannot separate losing the
@@ -487,14 +620,14 @@ func _on_answer_agent_pressed(agent) -> void:
 		"ms": int(elapsed_ms),
 	})
 
+	_adapt(agent.is_correct)
 	if agent.is_correct:
 		var score_to_add: int = max(1, int(10 - elapsed_ms / 300.0))
 		_add_time_to_answer_ms(int(elapsed_ms))
 		game.add_score_and_time(score_to_add, 15)
 		game.add_correct_or_mistake(1, 0)
 		game.play_sound("delivery")
-		_flash_at(board_pos, true)
-		_show_score_popup(board_pos, "+" + str(score_to_add), true)
+		_show_score_popup(agent.position, "+" + str(score_to_add), true)
 		game.tutorial_notify("answered_right")   # no-op outside tutorial mode
 		num_corrects_in_level_so_far += 1
 	elif agent.is_correct_direction:
@@ -502,29 +635,26 @@ func _on_answer_agent_pressed(agent) -> void:
 		game.add_score_and_time(1, 5)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("swoosh")
-		_flash_at(board_pos, false)
-		_show_score_popup(board_pos, "+1", false)
+		_show_score_popup(agent.position, "+1", false)
 	elif agent.is_correct_shape:
 		# Correct shape, wrong direction — partial credit
 		game.add_score_and_time(1, 5)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("swoosh")
-		_flash_at(board_pos, false)
-		_show_score_popup(board_pos, "+1", false)
+		_show_score_popup(agent.position, "+1", false)
 	else:
 		# Decoy
 		game.add_score_and_time(-1, -5)
 		game.add_correct_or_mistake(0, 1)
 		game.play_sound("swoosh")
-		_flash_at(board_pos, false)
-		_show_score_popup(board_pos, "-1", false)
+		_show_score_popup(agent.position, "-1", false)
 
-	_end_answer_stage()
+	_show_feedback(agent)
 
 	if agent.is_correct and num_corrects_in_level_so_far >= _num_corrects_for_next_level:
 		_level_done(true)
 		return
-	_schedule_next_round(500.0)
+	_schedule_next_round((FEEDBACK_RIGHT_MS if agent.is_correct else FEEDBACK_WRONG_MS) + 350.0)
 
 func _on_answer_timeout() -> void:
 	# A round that ran out is a round got wrong in that direction, not a round that never
@@ -536,11 +666,12 @@ func _on_answer_timeout() -> void:
 
 	if not _answer_active:
 		return
+	_adapt(false)
 	game.add_score_and_time(-1, -5)
 	game.add_correct_or_mistake(0, 1)
 	game.play_sound("swoosh")
-	_end_answer_stage()
-	_schedule_next_round(500.0)
+	_show_feedback(null)
+	_schedule_next_round(FEEDBACK_WRONG_MS + 350.0)
 
 func _end_answer_stage() -> void:
 	_answer_active = false
@@ -567,8 +698,10 @@ func _level_done(didwin: bool) -> void:
 	# failing the same level over and over is a way to farm the score list.
 	#
 	# Passing is a RESULT, not a formality: below this level's accuracy the SAME level comes
-	# round again. The bar rises with the level, from 60% to at most 80%.
-	var need: int = mini(60 + 5 * (level - 1), 80)
+	# round again. The bar rises with the level, from 60% to at most 70%: the adaptive flash holds a
+	# player near 80% right, so a bar at 80% (as before the staircase) would fail them for playing at
+	# exactly the level the game puts them at. Failing now means struggling even at the slowest flash.
+	var need: int = mini(60 + 2 * (level - 1), 70)
 	var pct: int = game.session_pct_correct()
 	var passed: bool = true
 	if didwin and level < DidiLevelConfig.MAX_LEVEL:
@@ -605,20 +738,7 @@ func _on_level_done_popup_closed() -> void:
 const FEEDBACK_OK_TEXT_COLOR: Color = Color(0.3, 1.0, 0.3)
 const FEEDBACK_BAD_TEXT_COLOR: Color = Color(1.0, 0.4, 0.4)
 
-func _flash_at(board_pos: Vector2i, is_correct: bool) -> void:
-	var rect: ColorRect = ColorRect.new()
-	var col: Color = Color(0.0, 0.9, 0.0, 0.55) if is_correct else Color(0.9, 0.0, 0.0, 0.55)
-	rect.color = col
-	var sz: float = float(game.tile_size) * 1.1
-	rect.size = Vector2(sz, sz)
-	rect.position = game.board_to_px(board_pos) - Vector2(sz * 0.5, sz * 0.5)
-	rect.z_index = 5
-	add_child(rect)
-	var tween: Tween = create_tween()
-	tween.tween_property(rect, "color:a", 0.0, 0.35)
-	tween.tween_callback(rect.queue_free)
-
-func _show_score_popup(board_pos: Vector2i, text: String, is_correct: bool) -> void:
+func _show_score_popup(px: Vector2, text: String, is_correct: bool) -> void:
 	var label: Label = Label.new()
 	label.text = text
 	label.add_theme_color_override("font_color",
@@ -626,7 +746,6 @@ func _show_score_popup(board_pos: Vector2i, text: String, is_correct: bool) -> v
 	label.add_theme_font_size_override("font_size", 32)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.custom_minimum_size = Vector2(game.tile_size * 3, 0)
-	var px: Vector2 = game.board_to_px(board_pos)
 	label.position = px - Vector2(game.tile_size * 1.5, game.tile_size * 0.5)
 	label.z_index = 10
 	add_child(label)
@@ -657,12 +776,20 @@ func _create_camera() -> void:
 		_agent_cam = Camera2D.new()
 		add_child(_agent_cam)
 	_agent_cam.make_current()
-	_agent_cam.zoom = Vector2(
-		min(6.0, 1.0 / game.get_board_part_of_width()),
-		min(6.0, 1.0 / game.get_board_part_of_width()))
+	# Fit the whole SCENE, not just the board's width: from the roofline above the far spots to the
+	# near spots, between the HUD strip and the button bar. Fitting the width alone put the buildings
+	# above the screen on the shorter desktop canvas and the ring too high (2026-11-15).
+	var t: float = float(game.tile_size)
+	var canvas: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var avail_h: float = canvas.y - VIEW_TOP_PX - VIEW_BOTTOM_PX
+	var z: float = minf(canvas.x / (VIEW_W_TILES * t), avail_h / (VIEW_H_TILES * t))
+	_agent_cam.zoom = Vector2(z, z)
 	_agent_cam.enabled = true
 	_agent_cam.set_anchor_mode(Camera2D.ANCHOR_MODE_DRAG_CENTER)
-	_agent_cam.set_offset(game.board_to_px(Vector2i(3, 3)))
+	# the scene's middle (VIEW_MID_TILES above the fountain) at the middle of the free band
+	var band_mid: float = VIEW_TOP_PX + avail_h * 0.5
+	var c: Vector2 = game.board_to_px(Vector2i(3, 3))
+	_agent_cam.set_offset(Vector2(c.x, c.y - VIEW_MID_TILES * t + (canvas.y * 0.5 - band_mid) / z))
 
 # What the player gets next, in words. An accuracy figure alone does not say whether they are
 # moving on, which is the only thing they want to know at that moment.
@@ -671,15 +798,34 @@ func _progress_line(passed: bool, need: int) -> String:
 		return "You need at least %d%% accuracy to pass to the next level." % need
 	return "Level passed. On to level %d." % (level + 1)
 
-# The background. This game has no world in it — a shape flashes and you answer — so there is no
-# ground to draw: `scripts/study_backdrop.gd` puts a deep, near-uniform surface behind the board and
-# nothing else. It is deliberately featureless. These are perceptual tests: a background that is
-# brighter in some directions than others makes the same shape easier to catch in some
-# directions than others, so what variation there is, is radially symmetric and tiny.
-#
-# Called from _ready() once the board's geometry exists, and again from _load_cfg(). This game has
-# no create_board: the board is a fixed 7x7 at every level, so _load_cfg is the only place its size
-# could ever change, and `fit()` costs nothing when it has not.
+# THE SQUARE (plaza.gdshader) under everything: a ColorRect first in the layer, covering the board
+# plus a four-tile margin and the whole canvas (the camera shows more than the board on a phone), its
+# pattern laid from the board's CENTER and the tile size. It replaced StudyBackdrop's plain surface.
+# Called from _ready() and _load_cfg() (the board is a fixed 7x7, so that is the only place its size
+# could change).
 func _fit_ground_to_board() -> void:
-	StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
-		StudyBackdrop.PINPOINT, 34)
+	var tiled: CanvasItem = get_node_or_null("TextureRect") as CanvasItem
+	if _plaza == null:
+		_plaza = ColorRect.new()
+		_plaza.name = "Plaza"
+		_plaza.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_plaza_mat = ShaderMaterial.new()
+		_plaza_mat.shader = preload("res://didi/scripts/plaza.gdshader")
+		_plaza.material = _plaza_mat
+		add_child(_plaza)
+		move_child(_plaza, 0)
+	var m: float = game.tile_size * 4.0
+	var r: Rect2 = Rect2(game.board_to_px(Vector2i(0, 0)) - Vector2(m, m),
+		game.board_to_px(game.board_size) - game.board_to_px(Vector2i(0, 0)) + Vector2(m, m) * 2.0)
+	r = r.merge(Rect2(Vector2.ZERO, Vector2(MainGlobals.full_screen_size)))
+	if r.size.x < 4.0 or r.size.y < 4.0:
+		return
+	if tiled != null:
+		tiled.hide()
+	_plaza.position = r.position
+	_plaza.size = r.size
+	_plaza_mat.set_shader_parameter("rect_pos", r.position)
+	_plaza_mat.set_shader_parameter("rect_size", r.size)
+	_plaza_mat.set_shader_parameter("center", game.board_to_px(Vector2i(3, 3)))
+	_plaza_mat.set_shader_parameter("tile", float(game.tile_size))
+	_plaza_mat.set_shader_parameter("lamp_r", 3.45)

@@ -1,9 +1,10 @@
 extends RefCounted
 class_name StudyBackdrop
 
-# The background for the four games that have no world in them: Witness (`ddooo`), Pinpoint
-# (`didi`), Lineup (`ooo`) and Glimpse (`pop`). Nothing in these games stands on ground — a shape
-# flashes and you answer — so they were showing a lawn for no reason at all.
+# The background for the games that have no world in them: Witness (`ddooo`), Lineup (`ooo`) and
+# Glimpse (`pop`). Nothing in these games stands on ground — a shape flashes and you answer — so they
+# were showing a lawn for no reason at all. (Pinpoint, `didi`, used it too until 2026-11-15; it is a
+# night square in the rain now, `didi/scripts/plaza.gdshader`, kept fair for the reason below.)
 #
 # **The first rule here is UNIFORMITY, not decoration.** All four are perceptual tests, and two of
 # them measure something that a background can quietly corrupt:

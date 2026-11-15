@@ -73,14 +73,14 @@ const SPARK_LEN: int = 12
 static func categories() -> Array:
 	var seen: Array = []
 	for entry in MainCfg.games:
-		if entry.size() > 3 and not seen.has(entry[3]):
+		if entry.size() > 3 and not seen.has(entry[3]) and not MainCfg.is_hidden(str(entry[0])):
 			seen.append(entry[3])
 	return seen
 
 static func games_in(category: String) -> Array:
 	var out: Array = []
 	for entry in MainCfg.games:
-		if entry.size() > 3 and entry[3] == category:
+		if entry.size() > 3 and entry[3] == category and not MainCfg.is_hidden(str(entry[0])):
 			out.append(entry[0])
 	return out
 
