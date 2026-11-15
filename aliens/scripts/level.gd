@@ -97,6 +97,9 @@ const ARRIVAL_WINDOW: int = 8
 # the quietest one, and a FULL gate still draws its share (FULL_GATE_PULL of the eagerness an
 # empty one gets): every alien that reaches it is turned away, a miss.
 const GATE_LEAD: int = 1
+const POCKET_CLEAR: float = 1.0         # extra radii a spawn or wander point keeps off every ring
+const STUCK_MS: float = 5000.0          # a roamer that has not moved a radius in this long is stuck
+const STUCK_GRAB_MS: float = 1500.0     # ...and from this long the player may pull it free by hand
 const FULL_GATE_PULL: float = 0.6
 const ARRIVAL_SKEW: int = 6
 
@@ -214,6 +217,7 @@ var total_corrects: int = 0
 # Per gate: [rounds, corrects]. A level passes only on the WEAKEST gate's accuracy too (2026-11-15):
 # a player working one gate and ignoring the other still reached ~60% overall, enough for level 1.
 var _gate_tally: Array = []
+var stuck_rescues: int = 0          # times the stuck watchdog had to step in (for the probes)
 var times_to_answer: Array = []
 var _score_at_level_start: int = 0
 var _rollback_score_on_next_level: bool = false
@@ -1159,9 +1163,13 @@ func _is_clear_of_aliens(p: Vector2, r: float, ignore_al) -> bool:
 			return false
 	return true
 
+# A free point keeps a further POCKET_CLEAR radii off every ring (2026-11-15). Merely clear of the
+# rings, a point could be in a POCKET: beside a corner gate whose ring comes within a few units of
+# the side edge, an alien fits between the ring and the edge but cannot get out either way, and
+# recycled aliens were placed there and stuck (measured: 1-5 a level on the 3- and 4-gate levels).
 func _is_free_point(p: Vector2, r: float) -> bool:
 	for ar in _areas:
-		if p.distance_to(Vector2(ar["center"])) < float(ar["r_out"]) + r + KEEP_OUT_PAD:
+		if p.distance_to(Vector2(ar["center"])) < float(ar["r_out"]) + r * (1.0 + POCKET_CLEAR) + KEEP_OUT_PAD:
 			return false
 	return true
 
@@ -1206,6 +1214,7 @@ func _resolve_positions() -> void:
 			_constrain_alien(al)
 
 func _update_alien(al, d: float, now: float) -> void:
+	_watch_stuck(al, now)
 	match al.state:
 		AState.ROAM:
 			_update_roam(al, d, now)
@@ -1216,12 +1225,41 @@ func _update_alien(al, d: float, now: float) -> void:
 		AState.PARKED_OUTER:
 			# no clock in the tutorial (the coach talks while an alien waits), nor on a called
 			# alien, whose call window is the clock that counts
-			if park_patience_ms <= 0.0 or game.tutorial_mode or al.is_called():
+			if game.tutorial_mode and al == _tutorial_patience_al:
+				# the demo: the ring runs down from half to nearly nothing every 5 s, again and again
+				al.set_patience(0.5 - 0.42 * fposmod((now - _tutorial_patience_t0) / 5000.0, 1.0))
+			elif park_patience_ms <= 0.0 or game.tutorial_mode or al.is_called():
 				al.set_patience(1.0)
 			elif now - al.park_ms >= park_patience_ms:
 				_give_up(al)
 			else:
 				al.set_patience(1.0 - (now - al.park_ms) / park_patience_ms)
+
+# LAST RESORT for a trapped alien (2026-11-15): a roaming or leaving alien that has not moved a
+# radius in STUCK_MS fades out and comes back in open space with fresh traits (_recycle), at no
+# cost. Pockets are no longer spawned into and the wedge escape now picks the open way round, so
+# this should not fire; it is there so that no geometry can keep one trapped for good.
+func _is_stuck(al) -> bool:
+	return (al.state == AState.ROAM or al.state == AState.LEAVING) and al.still_since_ms > 0.0 \
+		and _last_now - al.still_since_ms >= STUCK_GRAB_MS
+
+func _watch_stuck(al, now: float) -> void:
+	if al.state != AState.ROAM and al.state != AState.LEAVING:
+		al.still_pos = al.sim_pos
+		al.still_since_ms = now
+		return
+	if al.sim_pos.distance_to(al.still_pos) > al.radius or al.still_since_ms <= 0.0:
+		al.still_pos = al.sim_pos
+		al.still_since_ms = now
+		return
+	if now - al.still_since_ms < STUCK_MS:
+		return
+	stuck_rescues += 1
+	al.still_since_ms = now
+	al.area_idx = -1
+	al.fade_glide = false
+	al.state = AState.FADING
+	al.fade_t0 = now
 
 func _steer(al, tgt: Vector2, spd: float, d: float) -> void:
 	var to: Vector2 = tgt - al.sim_pos
@@ -1320,6 +1358,8 @@ func _try_enter(al, now: float) -> bool:
 # gate, so every gate keeps receiving its share whatever the player does with it. Among the due
 # gates an alien heads for one it actually belongs to about half the time.
 func _choose_area_for(al) -> int:
+	if game.tutorial_mode:
+		return clampi(tutorial_gate, 0, _areas.size() - 1)
 	_size_gate_tallies()
 	var least: int = 1 << 30
 	for i in _areas.size():
@@ -1625,14 +1665,25 @@ func _slide_out_of_wedge(p: Vector2, r: float, own_idx: int) -> Vector2:
 		var dist: float = dv.length()
 		if dist >= need - 0.01 or dist < 0.0001:
 			continue
-		# still inside after the clamp: step around the ring toward the field center
+		# still inside after the clamp: step around the ring, whichever way OPENS UP -- the side
+		# where, a little further round, the field's bounds leave the alien further out of the ring.
+		# (It used to step toward the field's center, which beside a corner gate leads up into the
+		# closed gap between the ring and the edge: the alien never got out.)
 		var nrm: Vector2 = dv / dist
 		var tang: Vector2 = Vector2(-nrm.y, nrm.x)
-		var to_center: Vector2 = (_field.position + _field.size * 0.5) - q
-		if tang.dot(to_center) < 0.0:
+		if _room_round(c, nrm, -0.35, r, need) > _room_round(c, nrm, 0.35, r, need):
 			tang = -tang
 		q += tang * (need - dist)
 	return q
+
+# How far from the ring's center `c` an alien standing at the keep-out distance `need` would be, a
+# bit of the way round from bearing `nrm` (by `turn` radians), once held inside the field. Where the
+# field's edge cuts in, this comes out short of `need`: that way is closed.
+func _room_round(c: Vector2, nrm: Vector2, turn: float, r: float, need: float) -> float:
+	var lo: Vector2 = _field.position + Vector2(r, r)
+	var hi: Vector2 = _field.position + _field.size - Vector2(r, r)
+	var probe: Vector2 = (c + nrm.rotated(turn) * need).clamp(lo, hi)
+	return probe.distance_to(c)
 
 func _constrain_alien(al) -> void:
 	if al.state == AState.PARKED_OUTER or al.state == AState.PARKED_INNER \
@@ -1653,13 +1704,15 @@ func _constrain_alien(al) -> void:
 	var before_slide: Vector2 = al.sim_pos
 	al.sim_pos = _slide_out_of_wedge(al.sim_pos, al.radius, skip)
 	if al.sim_pos.distance_squared_to(before_slide) > 0.01:
-		# genuinely pinched: aim at the open center so it walks itself free
-		var field_center: Vector2 = _field.position + _field.size * 0.5
+		# genuinely pinched: aim the way it slid, well round the ring, so it walks itself free
+		var slid: Vector2 = al.sim_pos - before_slide
+		var away: Vector2 = al.sim_pos + slid.normalized() * al.radius * 6.0
+		away = away.clamp(lo, hi)
 		if al.state == AState.ROAM:
-			al.wander_target = field_center
+			al.wander_target = away
 			al.retarget_ms = _last_now + 1600.0
 		elif al.state == AState.LEAVING:
-			al.waypoints = [field_center]
+			al.waypoints = [away]
 	al.sim_pos = al.sim_pos.clamp(lo, hi)
 	# Bounce only when actually pressing OUTWARD. This runs once per resolve cycle, so it has to
 	# be idempotent: a plain "flip if out of bounds" would flip an odd/even number of times and
@@ -1710,13 +1763,15 @@ func _clicks_judge() -> bool:
 # Only an alien WAITING in an outer ring can be picked up or clicked (2026-11-15). Roaming,
 # walking-in and leaving aliens used to be grabbable too, so a press on one picked it up with the
 # pickup sound -- and there is nothing legal to do with it: a drop in a ring is refused.
+# The one exception is a STUCK alien (out in the hall, not having moved a radius in STUCK_GRAB_MS):
+# the player may pull it free by hand, as a drag, never a judgment.
 func _topmost_alien_at(p: Vector2):
 	var best = null
 	var best_z: int = -2147483648
 	for al in _aliens:
 		if not is_instance_valid(al):
 			continue
-		if al.state != AState.PARKED_OUTER:
+		if al.state != AState.PARKED_OUTER and not _is_stuck(al):
 			continue                                    # not grabbable
 		if p.distance_to(al.sim_pos) <= al.radius * 1.20 and al.z_index >= best_z:
 			best_z = al.z_index
@@ -1939,6 +1994,7 @@ func _score_mistake(al, now: float) -> void:
 func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
 	game.tutorial_notify("promoted_wrong" if is_mistake else "promoted_correct")
 	game.tutorial_notify("promoted")
+	game.tutorial_notify("resolved")
 	_end_call_for(al)
 	_release_park(al)
 	if is_mistake:
@@ -1983,6 +2039,7 @@ func _accept_into_inner(al, now: float, is_mistake: bool) -> void:
 func _send_to_field(al, now: float, is_mistake: bool) -> void:
 	game.tutorial_notify("evicted_wrong" if is_mistake else "evicted_correct")
 	game.tutorial_notify("evicted")
+	game.tutorial_notify("resolved")
 	_end_call_for(al)
 	var home: int = al.area_idx
 	_release_park(al)
@@ -2046,10 +2103,11 @@ func _update_snaps(now: float) -> void:
 				# told at snap-start would go looking for a parked alien and find none.
 				# No-ops outside tutorial mode. The match variant lets a step wait for the exact
 				# situation it is about to describe, so its wording cannot disagree with the screen.
-				_tutorial_last_parked = al
-				game.tutorial_notify("alien_parked_matching" if _gate_wants(al, al.area_idx)
-					else "alien_parked_mismatching")
-				game.tutorial_notify("alien_parked")
+				if al.area_idx == tutorial_gate:
+					_tutorial_last_parked = al
+					game.tutorial_notify("alien_parked_matching" if _gate_wants(al, al.area_idx)
+						else "alien_parked_mismatching")
+					game.tutorial_notify("alien_parked")
 
 # A promoted alien celebrates briefly, then fades and is recycled with fresh traits elsewhere.
 # That keeps the inner ring turning over, the population constant, and the trait mix fresh.
@@ -2391,6 +2449,18 @@ var _tutorial_last_parked = null
 
 # Set by a tutorial step that has asked the player to deal with one specific alien; see _try_enter.
 var tutorial_hold_arrivals: bool = false
+# The gate the tutorial is teaching on right now: arrivals go only there, and the "an alien
+# parked" events and the helpers above only look there.
+var tutorial_gate: int = 0
+# The alien whose patience ring the tutorial is showing (it runs down and loops; it never walks off).
+var _tutorial_patience_al = null
+var _tutorial_patience_t0: float = 0.0
+
+func tutorial_show_patience(al) -> void:
+	if _tutorial_patience_al != null and is_instance_valid(_tutorial_patience_al):
+		_tutorial_patience_al.set_patience(1.0)
+	_tutorial_patience_al = al
+	_tutorial_patience_t0 = _last_now
 
 # --- Tutorial helpers --------------------------------------------------------------------------
 #
@@ -2404,11 +2474,14 @@ var tutorial_hold_arrivals: bool = false
 
 # The alien a "this one …" step should be about: still parked, and still on the claimed side of the
 # pass. Prefers the one that just arrived; otherwise any parked alien that fits. null if none.
+# Only aliens at `tutorial_gate`, the gate the step is about.
 func tutorial_parked_alien(want_match: bool, prefer = null):
-	if prefer != null and is_instance_valid(prefer) 			and prefer.state == AState.PARKED_OUTER 			and _gate_wants(prefer, prefer.area_idx) == want_match:
+	if prefer != null and is_instance_valid(prefer) and prefer.state == AState.PARKED_OUTER \
+			and prefer.area_idx == tutorial_gate and _gate_wants(prefer, prefer.area_idx) == want_match:
 		return prefer
 	for al in _aliens:
-		if is_instance_valid(al) and al.state == AState.PARKED_OUTER 				and _gate_wants(al, al.area_idx) == want_match:
+		if is_instance_valid(al) and al.state == AState.PARKED_OUTER and al.area_idx == tutorial_gate \
+				and _gate_wants(al, al.area_idx) == want_match:
 			return al
 	return null
 
@@ -2417,7 +2490,8 @@ func tutorial_parked_alien(want_match: bool, prefer = null):
 # never touched it, so that would be a penalty for nothing.
 func _tutorial_make_room(except_al) -> bool:
 	for al in _aliens:
-		if al == except_al or not is_instance_valid(al) or al.state != AState.PARKED_OUTER:
+		if al == except_al or not is_instance_valid(al) or al.state != AState.PARKED_OUTER \
+				or al.area_idx != tutorial_gate:
 			continue
 		var home: int = al.area_idx
 		_end_call_for(al)
@@ -2456,21 +2530,25 @@ func tutorial_request_arrival(want_match: bool) -> void:
 	if pick == null:
 		_spawn_alien()
 		pick = _aliens[_aliens.size() - 1]
-	_force_pass(pick, _areas[0].get("pass", {}), _match_want(0, want_match))
+	var gi: int = clampi(tutorial_gate, 0, _areas.size() - 1)
+	_force_pass(pick, _areas[gi].get("pass", {}), _match_want(gi, want_match))
 	# Straight to the ring: no entry roll, no arrival-mix veto, no cooldown. If the ring is full,
 	# make room first — otherwise the reservation fails silently and nothing ever arrives.
-	if not _reserve_park(0, pick, pick.NO_ANGLE):
+	if not _reserve_park(gi, pick, pick.NO_ANGLE):
 		_tutorial_make_room(pick)
-		if not _reserve_park(0, pick, pick.NO_ANGLE):
+		if not _reserve_park(gi, pick, pick.NO_ANGLE):
 			return
 	pick.state = AState.SEEKING_SLOT
-	pick.area_idx = 0
+	pick.area_idx = gi
 	pick.seek_start_ms = _last_now
 
-# One gate, pass always visible, no gate changes or priority calls: the tutorial teaches the core
-# promote/evict decision, and every one of those is an extra rule layered on top of it.
+# Two gates as in the game (since 2026-11-15; it used to teach on one), passes always visible, no
+# gate changes or priority calls: the tutorial teaches the core promote/evict decision and the
+# switch between gates, and every one of those is an extra rule layered on top of it.
 func _tutorial_setup() -> void:
-	num_areas = 1
+	num_areas = 2
+	tutorial_gate = 0
+	_tutorial_patience_al = null
 	hide_after_ms = 0.0
 	gate_change_ms = 0.0
 	priority_every_ms = 0.0

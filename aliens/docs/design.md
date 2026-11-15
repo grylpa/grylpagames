@@ -194,8 +194,20 @@ DRAGGED / SNAPPING / FADING`.
   The only way into an inner ring is the player dragging an alien there.
 - **Wedge escape.** A band between a ring and a screen edge can be narrower than an alien, and the
   field clamp undoes the radial keep-out every frame — a permanent trap. `_slide_out_of_wedge`
-  moves such an alien *along* the ring toward the open center, and a pinched alien is also
-  retargeted at the field center so it walks itself free instead of being shoved back.
+  moves such an alien *along* the ring, **whichever way opens up** (`_room_round` probes a little
+  way round each side, held inside the field), and a pinched alien is retargeted well round the
+  ring that way so it walks itself free. It used to slide toward the field's CENTER, which beside
+  a corner gate leads up into the closed gap between ring and edge.
+- **No pockets** (2026-11-15). On the 3- and 4-gate levels a corner ring comes within ~6 units of
+  the side edge, leaving a POCKET beside it: room for an alien, no way out on either side.
+  Recycled aliens were placed there (`_random_free_point` only asked for a point clear of the
+  rings) and stayed -- measured 1, 5 and 3 stuck on levels 7, 8 and 10, the player's only way out
+  being to drag one free. `_is_free_point` now also keeps `POCKET_CLEAR` (1) more radii off every
+  ring. After: 0 stuck over two runs of level 8 and one each of 7, 10 and 2.
+- **Stuck watchdog** (`_watch_stuck`, last resort): a ROAM or LEAVING alien that has not moved a
+  radius in `STUCK_MS` (5 s) fades out and comes back in open space with fresh traits (`_recycle`),
+  at no cost; `stuck_rescues` counts it (0 in the runs above). From `STUCK_GRAB_MS` (1.5 s) still,
+  the player may also pull it free by hand (see Scoring: the one non-waiting alien that can be grabbed).
 - A seeker that cannot squeeze into a crowded ring gives up after `SEEK_TIMEOUT_MS` (3.5 s) and
   visibly wanders off **away from that ring**, which reads as changing its mind rather than being
   stuck. Standing still for 6 s looked like a bug even though the watchdog would have freed it.
@@ -576,12 +588,14 @@ Resolved from the alien's **center** at release (`_region_at`), so there is no s
 | PARKED_OUTER(H) | OUTER(H), flicked away from the center | as FIELD |
 | PARKED_OUTER(H) | OUTER(H), otherwise | silent no-op → snap to slot |
 | PARKED_OUTER(H) | any region of area J≠H | **illegal**, no score → snap back |
-| anything but PARKED_OUTER | — | not grabbable (`_topmost_alien_at`) |
+| anything but PARKED_OUTER | — | not grabbable (`_topmost_alien_at`), except a STUCK one |
 
 **Only an alien waiting in an outer ring responds to a press** (2026-11-15). Roaming, walking-in
 and leaving aliens used to be grabbable: a press on one picked it up with the pickup squeak and
 let it be carried round the hall, though a drop in any ring was refused -- nothing legal could
-come of it, and with click mode on a left click on a roamer seemed to "work".
+come of it, and with click mode on a left click on a roamer seemed to "work". The one exception is
+a STUCK alien (`_is_stuck`: roaming or leaving, not moved a radius in `STUCK_GRAB_MS`), which the
+player may drag free -- a reposition in the hall, never a judgment, in click mode too.
 
 **A MISTAKE is scored but still CARRIED OUT** — the alien goes where the player put it, with a
 500 ms red flash (`_flash_hint` / `HINT_FLASH_MS`, self-clearing) so the error is legible.
@@ -737,6 +751,24 @@ Re-create it from this list if the simulation is changed.
 
 Coached tutorial in `aliens/scripts/tutorial.gd`; see `docs/tutorials.md` for the framework.
 
+**It teaches on TWO gates** (2026-11-15; it used to teach on one, which became obsolete when
+level 1 got two gates). The steps: what the game is ("you work two gates"); gate 1's pass, its
+outer ring and its inner circle; board a matching alien, turn a non-matching one away; then
+**the other gate** and its own pass; one alien at that gate, of a random kind, which the player
+must judge alone ("Does it match ...? Board it or turn it away", awaiting `resolved`); the
+**patience ring** shown on a waiting alien (`tutorial_show_patience`: it runs down from half to
+nearly nothing every 5 s and loops, and never walks off -- no patience runs out in the
+tutorial), which the player then boards; "both count"; and "keep both gates moving: a level is
+passed only if every gate is handled well".
+
+- **`level.tutorial_gate`** is the gate the step is on. Normal arrivals in tutorial mode go only
+  there (`_choose_area_for`), the parking events fire only for it, and `tutorial_parked_alien`,
+  `tutorial_request_arrival` and `_tutorial_make_room` only look there. The tutorial's spots and
+  pass text read it too.
+- `resolved` is emitted with both `promoted` and `evicted`, for the step that leaves the call to
+  the player. `devtools/probe_tut.gd -- aliens` drives the whole tutorial (it answers that step
+  correctly) and checks every "matches / doesn't match" caption against the marked alien.
+
 - **Entry**: as for the other games — `take_pending_tutorial("aliens")`, `game.begin_tutorial()`
   before `new_game()`, and `AliensG.starting_level_id` saved/restored by hand.
 - **Hooks in `level.gd`** (no-ops outside tutorial mode): parking in an outer ring emits
@@ -777,7 +809,7 @@ Coached tutorial in `aliens/scripts/tutorial.gd`; see `docs/tutorials.md` for th
   after `_load_level()`. It first ran at the *end* of `new_game`, by which point the rules and the
   world were already built, so it silently did nothing: a NOT pass stayed in play, and since
   `_gate_wants()` returns `matches != deny`, the coach announced a blue alien as "matching" a
-  GREEN pass. It forces one gate, a permanently visible pass, and no gate changes,
+  GREEN pass. It forces two gates, permanently visible passes, and no gate changes,
   priority calls, compound passes or NOT passes. Each of those is a layer on top of the core
   promote/evict decision, which is all the tutorial teaches.
 

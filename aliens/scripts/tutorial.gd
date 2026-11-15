@@ -121,38 +121,49 @@ static func steps(level: Node, _game) -> Array:
 			return null
 		var r: float = float(al.radius) * 1.35
 		return Rect2(al.sim_pos - Vector2(r, r), Vector2(r, r) * 2.0)
+	# Gate-aware spots and pass text: the step's gate is level.tutorial_gate.
 	var gate_spot: Callable = func():
-		if level._areas.is_empty():
+		var g: int = level.tutorial_gate
+		if g >= level._areas.size():
 			return null
-		var c: Vector2 = Vector2(level._areas[0]["center"])
-		var r: float = float(level._areas[0]["r_out"])
+		var c: Vector2 = Vector2(level._areas[g]["center"])
+		var r: float = float(level._areas[g]["r_out"])
 		return Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0)
 	var inner_spot: Callable = func():
-		if level._areas.is_empty():
+		var g: int = level.tutorial_gate
+		if g >= level._areas.size():
 			return null
-		var c: Vector2 = Vector2(level._areas[0]["center"])
-		var r: float = float(level._areas[0]["r_in"])
+		var c: Vector2 = Vector2(level._areas[g]["center"])
+		var r: float = float(level._areas[g]["r_in"])
 		return Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0)
 	var pass_spot: Callable = func():
-		if level._rule_labels.is_empty():
+		var g: int = level.tutorial_gate
+		if g >= level._rule_labels.size():
 			return null
-		return level._rule_labels[0]
+		return level._rule_labels[g]
 
-	# The gate's pass in words, read from the live level. Every line that talks about matching
+	# The step's gate's pass in words, read from the live level. Every line that talks about matching
 	# quotes it, so the caption and the chip on screen cannot disagree — which is exactly what
 	# went wrong when the coach called a blue alien a match for a GREEN pass.
 	var pass_text: Callable = func() -> String:
-		if level._areas.is_empty():
+		var g: int = level.tutorial_gate
+		if g >= level._areas.size():
 			return "the pass"
-		return level._pass_label(level._areas[0].get("pass", {}), false)
+		return level._pass_label(level._areas[g].get("pass", {}), false)
+
+	var to_gate: Callable = func(g: int) -> void:
+		level.tutorial_hold_arrivals = false
+		level.tutorial_gate = g
 
 	return [
 		{
 			"title": "Aliens",
-			"text": "You work a spaceport gate.\n\nAliens queue up at it, and you decide who boards.",
+			"text": "You work two gates at an alien spaceport.\n\nAliens queue up at each, and you decide who boards.",
 		},
 		{
-			"text": func(): return "This is the gate's pass: %s.\n\nOnly aliens that match it may board." % pass_text.call(),
+			"setup": func() -> void:
+				to_gate.call(0),
+			"text": func(): return "This is this gate's pass: %s.\n\nOnly aliens that match it may board here." % pass_text.call(),
 			"spot": pass_spot,
 		},
 		{
@@ -196,12 +207,63 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Press it and flick it outward, away from the rings.",
 		},
 		{
+			"setup": func() -> void:
+				to_gate.call(1),
+			"title": "The other gate",
+			"text": func(): return "The other gate has its own pass: %s.\n\nEach gate boards only by its own pass." % pass_text.call(),
+			"spot": pass_spot,
+		},
+		{
+			"setup": func() -> void:
+				if randf() < 0.5:
+					want_match_arrival.call()
+				else:
+					want_mismatch_arrival.call(),
+			"text": "One is on its way to this gate.",
+			"await": {"event": "alien_parked", "timeout": 60.0},
+		},
+		{
+			"setup": func() -> void:
+				ctx["al"] = level._tutorial_last_parked,
+			"text": func(): return "Does it match %s?\n\nBoard it or turn it away." % pass_text.call(),
+			"spot": locked_spot,
+			"await": {"event": "resolved", "timeout": 60.0},
+			"hint_after": 10.0,
+			"hint": "Flick it toward the center to board it, or outward to turn it away.",
+		},
+		{
+			"setup": func() -> void:
+				release_hold.call()
+				want_match_arrival.call(),
+			"tick": nudge_match,
+			"text": "Here comes another.",
+			"await": {"event": "alien_parked_matching", "timeout": 60.0},
+		},
+		{
+			"setup": func() -> void:
+				lock_match.call()
+				level.tutorial_show_patience(ctx["al"]),
+			"title": "Don't keep them waiting",
+			"text": "When an alien has waited a while, a ring around it starts to run down. If it runs out, the alien walks off, and that costs you.",
+			"spot": locked_spot,
+		},
+		{
+			"setup": func() -> void:
+				level.tutorial_show_patience(null),
+			"tick": relock,
+			"text": func(): return "Board it now: it matches %s." % pass_text.call(),
+			"spot": locked_spot,
+			"await": {"event": "promoted", "timeout": 60.0},
+			"hint_after": 8.0,
+			"hint": "Press the alien and flick it toward the center of the gate.",
+		},
+		{
 			"setup": release_hold,
 			"title": "Both count",
-			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nAn alien left waiting too long walks off, and that costs you. So does every alien turned away while the ring is full.",
+			"text": "Turning the wrong alien away scores as much as boarding the right one.\n\nWhile a ring is full, every alien that walks up is turned away, and that costs you too.",
 		},
 		{
 			"title": "Ready",
-			"text": "In the game there are two gates, each with its own pass, and both keep getting aliens. Keep both moving: a level is passed only if every gate is handled well.\n\nLater the passes come down after a few seconds and you have to remember them.",
+			"text": "Keep both gates moving: a level is passed only if every gate is handled well.\n\nLater the passes come down after a few seconds and you have to remember them.",
 		},
 	]

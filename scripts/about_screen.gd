@@ -149,6 +149,8 @@ func _add_text(parent: VBoxContainer, txt: String, col: Color) -> Label:
 	var lbl: Label = Label.new()
 	lbl.text = txt
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# reading text: the text face, not the display font (2026-11-15); headers keep the display font
+	lbl.add_theme_font_override("font", MainGlobals.get_text_font())
 	lbl.add_theme_color_override("font_color", col)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
