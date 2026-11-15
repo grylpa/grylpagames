@@ -103,6 +103,7 @@ var _prev_judged_belt: int = -1
 var _rt_switch: Array = []                # grab times after a judgment on the OTHER belt
 var _rt_repeat: Array = []                # and after one on the same belt
 var _gates: Array = []                    # the scanner gate on each belt (scanner_gate.gd)
+var _treads: Array = []                   # the belts' rollers, kept turning at the parcels' pace
 var _go_total: int = 0                    # parcels that matched their belt's rule (to grab) ...
 var _go_hit: int = 0                      # ... and how many were grabbed
 var _nogo_total: int = 0                  # parcels that did not (to let ride) ...
@@ -204,6 +205,7 @@ func _apply_sleek_chrome() -> void:
 			var tread: BeltTread = BeltTread.new()
 			box.add_child(tread)
 			box.move_child(tread, 0)
+			_treads.append(tread)
 			# ...and the housings over both ends, ABOVE the items: parcels come out from under the top
 			# one and go back under the bottom one (scripts/belt_hood.gd). Same belt in both games.
 			box.add_child(BeltHood.new())
@@ -475,6 +477,11 @@ var _tutorial_held: Array = []            # [belt, entry] of the parcel the belt
 var tutorial_want_truth: int = -1
 
 func _scroll_belts(delta: float) -> void:
+	# the rollers turn exactly as fast as the parcels ride (and stand still when the tutorial holds)
+	var v: float = 0.0 if tutorial_hold_belts else scroll_speed * _speed_mul * (item_h / SPEED_REF_ITEM_H)
+	for tread in _treads:
+		if is_instance_valid(tread):
+			(tread as BeltTread).speed = v
 	if tutorial_hold_belts:
 		return
 	for si in 2:

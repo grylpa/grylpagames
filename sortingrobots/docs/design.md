@@ -144,7 +144,14 @@ filling it at once made them pop in one by one at random places as their picture
   (rendered by the parcels' own renderer: a stacked pallet, a loose pile of boxes, a pallet with one or
   two left), one or two a side, each at its own height, size and kind -- four identical pallets in four
   corners read as staged. Too narrow a margin gets none (Sorting Robots' two wide belts leave little).
-- **Belts**: a ROLLER conveyor (`scripts/belt_tread.gd`, steel rollers -- no turning mark since 2026-11-15, it read as a black artifact -- brass side rails) under
+- **Belts**: a ROLLER conveyor (`scripts/belt_tread.gd`, steel rollers turning, shown by a GLINT -- a thin line of light across each roller's whole width
+  rolling over its front (alpha 0.34; 0.16 was too subtle), each roller a small step (`GLINT_STEP`)
+  behind the one above, the turn timed so the glints make a RIPPLE running down the belt at exactly the
+  parcels' pace (all in step, they pulsed in place; a physically true turn put each roller nearly half a
+  turn behind the next, where the eye cannot tell which way the ripple runs) -- that turns at the parcels' own pace (`_scroll_belts` sets the
+  treads' `speed` every frame, so it follows the staircase and stops when the tutorial holds the belts);
+  until 2026-11-15 a short dark dash at one spot on each roller, at a fixed speed, which read as a black
+  artifact -- brass side rails) under
   a dark housing with a brass lip across each end, drawn OVER the items (`scripts/belt_hood.gd`), so a
   parcel comes out from under the top one and goes back under the bottom one. Both games build the
   belt the same way (it used to differ: here items slid in over the belt's top frame). `belt_edge.gd`
