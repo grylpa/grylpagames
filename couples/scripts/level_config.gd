@@ -12,6 +12,9 @@ extends Node
 #   gap_sec        blank pause between boards
 #   duration_sec   how long the level lasts; the level completes when it elapses
 
+# pass_pct is AT MOST 75 (2026-11-15): the adaptive pace (level.gd) settles a player near 80% right
+# wherever the time limit is what holds them back, so a bar at 80% or more would fail them for playing
+# exactly where the game puts them.
 var LEVELS: Array = [
 	{"id": 1, "name": "1", "nc": 2, "nr": 2, "show_time_sec": 6.0,  "gap_sec": 1.0, "duration_sec": 40, "pass_pct": 60},
 	{"id": 2, "name": "2", "nc": 3, "nr": 2, "show_time_sec": 7.0,  "gap_sec": 1.0, "duration_sec": 50, "pass_pct": 60},
@@ -20,8 +23,8 @@ var LEVELS: Array = [
 	{"id": 5, "name": "5", "nc": 4, "nr": 4, "show_time_sec": 12.0, "gap_sec": 0.8, "duration_sec": 80, "pass_pct": 70},
 	{"id": 6, "name": "6", "nc": 5, "nr": 4, "show_time_sec": 12.0, "gap_sec": 0.8, "duration_sec": 80, "pass_pct": 70},
 	{"id": 7, "name": "7", "nc": 6, "nr": 4, "show_time_sec": 12.0, "gap_sec": 0.8, "duration_sec": 80, "pass_pct": 75},
-	{"id": 8, "name": "8", "nc": 7, "nr": 4, "show_time_sec": 12.0, "gap_sec": 0.8, "duration_sec": 80, "pass_pct": 80},
-	{"id": 9, "name": "9", "nc": 8, "nr": 4, "show_time_sec": 15.0, "gap_sec": 0.8, "duration_sec": 100, "pass_pct": 80},
+	{"id": 8, "name": "8", "nc": 7, "nr": 4, "show_time_sec": 12.0, "gap_sec": 0.8, "duration_sec": 80, "pass_pct": 75},
+	{"id": 9, "name": "9", "nc": 8, "nr": 4, "show_time_sec": 15.0, "gap_sec": 0.8, "duration_sec": 100, "pass_pct": 75},
 ]
 
 func max_level() -> int:

@@ -17,6 +17,9 @@ class_name PolkadotsLevelConfig
 
 # don't use more than 5 options
 
+# pass_pct is AT MOST 75 (2026-11-15): the adaptive pace (level.gd) settles a player near 80% right
+# wherever the time limit is what holds them back, so a bar at 80% or more would fail them for playing
+# exactly where the game puts them.
 const LEVELS: Array = [
 	{"level": 1, "num_options": 3, "dot_density": 1.5, "dot_radius": 16.0, "timeout_sec": 4.0, "rounds_per_level": 10, "option_display_sec": 0.0, "letter_size": 120, "pass_pct": 60, 
 	"bk_color": Color(0.7,0,0,1), "dot_color": Color(1,1,1,1), "letter_color": Color(1,1,1,1), },
@@ -28,7 +31,7 @@ const LEVELS: Array = [
 	{"level": 5, "num_options": 5, "dot_density": 0.4, "dot_radius": 10.0, "timeout_sec": 2.0, "rounds_per_level": 10, "option_display_sec": 4.0, "letter_size": 90, "pass_pct": 70},
 	{"level": 6, "num_options": 5, "dot_density": 0.5, "dot_radius":  9.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 3.5, "letter_size": 90, "pass_pct": 75},
 	{"level": 7, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 3.0, "letter_size": 80, "pass_pct": 75},
-	{"level": 8, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 2.5, "letter_size": 80, "pass_pct": 83},
+	{"level": 8, "num_options": 5, "dot_density": 0.5, "dot_radius":  8.0, "timeout_sec": 2.0, "rounds_per_level": 12, "option_display_sec": 2.5, "letter_size": 80, "pass_pct": 75},
 ]
 
 const default_bk_color: Color = Color(0.99, 0.79, 0.3, 1.0)

@@ -238,7 +238,6 @@ const BOUNCE_SQUASH: float = 0.55        # how far it compresses, as a share of 
 const BOUNCE_BULGE: float = 0.5          # how much of that it gives back across the axis
 
 var _bounce_ms: float = -1.0
-var _bounce_axis: Vector2 = Vector2.RIGHT
 var _bounce_last_ms: float = 0.0
 
 # THE BOUNCE IS AN ELASTIC CHAIN (2026-11-12). The capsule runs on until its NOSE meets the face it hit

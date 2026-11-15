@@ -1,8 +1,15 @@
 extends Node
 
-# window_dur: seconds the highlight window stays open per judgment
-# belt_spd: pixels/second the conveyor scrolls
-# hide_after: rounds after which the rule labels are hidden
+# QUALITY CONTROL (2026-11-15): parcels pass through a scanner gate on each belt; tap it to grab the one
+# at its line when it passes that belt's rule, or let it ride (see level.gd).
+# belt_spd: the belts' STARTING speed, in pixels per second for a desktop-sized parcel (scaled to the
+#   parcel's size, so a phone runs at the same pace). It then adapts: faster after three right in a
+#   row, slower after a miss, between 0.65x and 2.1x.
+# hide_after: judgments after which the rule labels are hidden
+# rounds: judgments in a level (every parcel that crosses a scanner is one: grabbed or let ride)
+# pass_pct: BALANCED accuracy (matches grabbed and non-matches let ride, averaged; chance is 50).
+# swap_sec: 0 = never; else about every this many seconds the two belts trade rules (a banner, the
+#   signs up again briefly)
 #
 # rules: the pool of rule keys allowed for this level. The two shown rules are picked from this
 #   pool at RANDOM each time the level loads, so which rules appear — and which belt each one
@@ -25,12 +32,12 @@ extends Node
 #   shown together as the two rules, so a pool may safely contain all of them.
 # pass_pct: accuracy (%) needed to move on. Below it the SAME level is played again.
 const LEVELS: Array = [
-	{"id": 1, "name": "1", "rules": ["digit", "square"],                                            "hide_after": 6, "rounds": 10, "window_dur": 3.0, "belt_spd": 65, "pass_pct": 60},
-	{"id": 2, "name": "2", "rules": ["even_odd", "vowel", "hollow"],                                "hide_after": 5, "rounds": 12, "window_dur": 2.6, "belt_spd": 70, "pass_pct": 65},
-	{"id": 3, "name": "3", "rules": ["hollow", "even_odd", "vowel", "square"],                      "hide_after": 4, "rounds": 12, "window_dur": 2.3, "belt_spd": 75, "pass_pct": 70},
-	{"id": 4, "name": "4", "rules": ["prime", "filled", "vowel", "lines", "color_shape"],      	    "hide_after": 3, "rounds": 15, "window_dur": 2.0, "belt_spd": 80, "pass_pct": 70},
-	{"id": 5, "name": "5", "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "hide_after": 2, "rounds": 15, "window_dur": 1.7, "belt_spd": 85, "pass_pct": 75},
-	{"id": 6, "name": "6", "rules": [],                                                             "hide_after": 2, "rounds": 15, "window_dur": 1.7, "belt_spd": 85, "pass_pct": 75},
+	{"id": 1, "name": "1", "rules": ["digit", "square"],                                            "hide_after": 18, "rounds": 30, "belt_spd": 95,  "swap_sec": 0,  "pass_pct": 65},
+	{"id": 2, "name": "2", "rules": ["even_odd", "vowel", "hollow"],                                "hide_after": 15, "rounds": 36, "belt_spd": 105, "swap_sec": 0,  "pass_pct": 65},
+	{"id": 3, "name": "3", "rules": ["hollow", "even_odd", "vowel", "square"],                      "hide_after": 12, "rounds": 36, "belt_spd": 115, "swap_sec": 0,  "pass_pct": 70},
+	{"id": 4, "name": "4", "rules": ["prime", "filled", "vowel", "lines", "color_shape"],            "hide_after": 9,  "rounds": 45, "belt_spd": 120, "swap_sec": 24, "pass_pct": 70},
+	{"id": 5, "name": "5", "rules": ["lines", "hollow", "prime", "color_shape", "stroop", "vowel"], "hide_after": 6,  "rounds": 45, "belt_spd": 130, "swap_sec": 20, "pass_pct": 75},
+	{"id": 6, "name": "6", "rules": [],                                                             "hide_after": 6,  "rounds": 45, "belt_spd": 130, "swap_sec": 18, "pass_pct": 75},
 ]
 
 # LEVEL_PROGRESSION_ORDER: the level play order; may repeat ids. When the list runs out it

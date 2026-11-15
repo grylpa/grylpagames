@@ -1,16 +1,14 @@
 extends RefCounted
 
-# Sorting Robots' coached tutorial. See docs/tutorials.md for the step schema.
+# Sorting Robots' coached tutorial (Quality Control, 2026-11-15). See docs/tutorials.md for the schema.
 #
 # Two things make this game confusing on first contact:
-#   1. The framed item is judged against the rule of the belt IT is on — not against whichever of
-#      the two rules the player happens to be reading. With a rule at each belt head, checking the
-#      wrong one is the natural mistake.
-#   2. The rules disappear. Six rounds in, exactly when the player has settled, both labels fade
-#      out; without warning that reads as the game breaking rather than as the point of it.
-#
-# So this names the belt and reads its rule out at the moment the frame appears, and then makes the
-# labels vanish deliberately with the coach present to say what just happened.
+#   1. A parcel is judged by the rule of the belt IT is on -- not by whichever rule the player happens
+#      to be reading. With a rule at each belt head, checking the wrong one is the natural mistake.
+#   2. Letting a parcel ride is an answer too. A player who taps everything, or nothing, has not
+#      understood that the scanner asks a question about every parcel.
+# So the belts STOP with a parcel at the scanner (`tutorial_hold_at_scanner`): once with one to grab,
+# once with one to let ride, the coach naming the belt and reading its rule. Then the labels fade.
 
 const LEVEL_ID: int = 1
 
@@ -22,13 +20,16 @@ static func steps(level: Node, _game) -> Array:
 		return level.tutorial_rule_label(0)
 	var right_rule: Callable = func():
 		return level.tutorial_rule_label(1)
-	var window_spot: Callable = func():
-		return level.tutorial_window_panel()
+	var held_spot: Callable = func():
+		return level.tutorial_held_parcel()
+	var held_belt_rule: Callable = func() -> String:
+		var b: int = level.tutorial_held_belt()
+		return "%s belt: %s" % [level.tutorial_belt_name(b).capitalize(), level.tutorial_rule_text(b)]
 
 	return [
 		{
 			"title": "Sorting Robots",
-			"text": "There are two belts, with a robot working each one. Each belt has its own rule, but the robots can't read it.\n\nYou decide what they keep.",
+			"text": "Quality control at the depot. Two belts, a robot at each, and each belt has its own rule.\n\nYou tell the robots what to grab.",
 		},
 		{
 			"text": func(): return "The left belt asks: %s" % level.tutorial_rule_text(0),
@@ -39,59 +40,46 @@ static func steps(level: Node, _game) -> Array:
 			"spot": right_rule,
 		},
 		{
-			# window_SETTLED, not window_opened: the frame slides in from above the belt, so at the
-			# moment it opens it is sitting over the rule label and looks like it is framing THAT.
-			# The level runs the belts on until the item is clear of the label, then stops them.
-			# First judgment is a MATCH, so the player picks something up and sees the claw work.
-			"setup": func() -> void: level.tutorial_want_truth = 1,
-			"text": "Every so often a frame closes around one item.",
-			"await": {"event": "window_settled", "timeout": 45.0},
+			"setup": func() -> void:
+				level.tutorial_want_truth = 1
+				level.tutorial_hold_at_scanner = true,
+			"text": "Each belt runs through a scanner in its middle. The parcel inside the scanner is the one to judge.",
+			"await": {"event": "qc_held", "timeout": 45.0},
 		},
 		{
-			"title": "Which rule",
-			"text": func(): return "This one is on the %s belt, so the question is: %s\n\nAlways use the rule of the belt the item is on." % [
-				level.tutorial_belt_name(level.tutorial_window_belt()),
-				level.tutorial_rule_text(level.tutorial_window_belt())],
-			"spot": window_spot,
-		},
-		{
-			"text": func(): return ("It matches, so it belongs here.\n\nSwipe RIGHT to pick it up."
-				if level.tutorial_window_truth()
-				else "It doesn't match, so it doesn't belong here.\n\nSwipe LEFT to leave it."),
-			"spot": window_spot,
+			"title": "Grab it",
+			"text": func(): return "%s\n\nIt matches, so tap this belt to grab it." % held_belt_rule.call(),
+			"spot": held_spot,
 			"await": "judged",
 			"hint_after": 12.0,
-			"hint": "Swipe across the screen, or use the left and right arrow keys.",
+			"hint": "Tap the belt it is on (or press the left or right arrow key).",
 		},
 		{
-			# Second is deliberately a non-match, so they also practise leaving one alone. Left to
-			# itself the picker only balances yes/no across a whole level, so both could be takes.
-			#
-			# The caption does NOT say so: it is written before the item has even been chosen, and a
-			# promise made ahead of the game is one the tutorial should not be making. The player
-			# judges it for themselves; the staging only makes sure they meet both answers.
-			"setup": func() -> void: level.tutorial_want_truth = 0,
-			"text": "Another one. Judge it by the rule of the belt it's on.",
-			"await": {"event": "window_settled", "timeout": 60.0},
+			"setup": func() -> void:
+				level.tutorial_want_truth = 0
+				level.tutorial_hold_at_scanner = true,
+			"text": "Another one.",
+			"await": {"event": "qc_held", "timeout": 45.0},
 		},
 		{
-			"spot": window_spot,
-			"text": func(): return "%s belt: %s\n\nRIGHT to pick it up, LEFT to leave it." % [
-				level.tutorial_belt_name(level.tutorial_window_belt()).capitalize(),
-				level.tutorial_rule_text(level.tutorial_window_belt())],
-			"await": "judged",
-			"hint_after": 12.0,
-			"hint": "Right to pick up, left to leave.",
+			"title": "Let it ride",
+			"text": func(): return "%s\n\nThis one doesn't match. Don't tap: let it ride on through." % held_belt_rule.call(),
+			"spot": held_spot,
+		},
+		{
+			"setup": func() -> void: level.tutorial_release(),
+			"text": "Letting a parcel ride is an answer too.",
+			"await": {"event": "qc_rode", "timeout": 20.0},
 		},
 		{
 			"title": "The rules fade",
 			"setup": func() -> void:
 				level.tutorial_want_truth = -1
 				level.tutorial_hide_labels_now(),
-			"text": "The rules are gone.\n\nA few rounds into every level they fade out, and from then on you have to remember both.",
+			"text": "The rules are gone.\n\nPart way into every level they fade out, and from then on you have to remember both.",
 		},
 		{
 			"title": "Ready",
-			"text": "Judge each framed item before its time runs out. Later levels draw harder rules, swap which belt they sit on, and take the labels away sooner.",
+			"text": "Parcels keep coming on both belts, faster as you get better. Judge each one by its own belt's rule. Later levels draw harder rules and swap them between the belts.",
 		},
 	]

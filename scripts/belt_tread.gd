@@ -9,9 +9,12 @@ class_name BeltTread
 # something running. The rollers turn continuously, which is what a conveyor does whether or not
 # anything is on it.
 
-# A ROLLER CONVEYOR since the parcels (2026-11-02): a row of steel rollers across the belt, standing
-# still while they turn (a mark on each rolls round), which is how a parcel line looks. It was a
-# rubber belt of scrolling slats before, which is right for loose items and wrong under boxes.
+# A ROLLER CONVEYOR since the parcels (2026-11-02): a row of steel rollers across the belt, which is how
+# a parcel line looks. It was a rubber belt of scrolling slats before, which is right for loose items
+# and wrong under boxes. NO turning mark (2026-11-15): a short dark dash on each roller, rolling round
+# at a fixed speed, was meant to show the rollers turning; it read as a black artifact on the belt, and
+# its speed had nothing to do with the parcels' (Sorting Robots' belts now speed up as the player
+# improves). The parcels moving show the belt running.
 const TROUGH: Color = Color(0.045, 0.036, 0.030, 1.0)
 const ROLL_DARK: Color = Color(0.120, 0.110, 0.100)
 const ROLL_LIT: Color = Color(0.600, 0.570, 0.520)
@@ -22,20 +25,11 @@ const PITCH: float = 17.0
 const ROLL_H: float = 12.0
 const RAIL_W: float = 5.0
 
-# How fast the rollers turn, as surface speed (units a second) -- the parcels' own pace.
-@export var speed: float = 34.0
-
-var _turn: float = 0.0
-
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 func _ready() -> void:
 	resized.connect(queue_redraw)
-
-func _process(delta: float) -> void:
-	_turn = fmod(_turn + speed * delta, ROLL_H * PI)
-	queue_redraw()
 
 func _draw() -> void:
 	var w: float = size.x
@@ -46,7 +40,6 @@ func _draw() -> void:
 	var x0: float = RAIL_W + 1.0
 	var x1: float = w - RAIL_W - 1.0
 	var y: float = 4.0
-	var mark_t: float = _turn / (ROLL_H * PI)          # 0..1 round the roller
 	while y < h:
 		var top: float = y
 		var mid: float = y + ROLL_H * 0.38
@@ -56,12 +49,6 @@ func _draw() -> void:
 			PackedColorArray([ROLL_DARK, ROLL_DARK, ROLL_LIT, ROLL_LIT]))
 		draw_polygon(PackedVector2Array([Vector2(x0, mid), Vector2(x1, mid), Vector2(x1, bot), Vector2(x0, bot)]),
 			PackedColorArray([ROLL_LIT, ROLL_LIT, ROLL_DARK.darkened(0.3), ROLL_DARK.darkened(0.3)]))
-		# the mark that shows it turning: seen only on the front half of the turn
-		var a: float = mark_t * TAU
-		if cos(a) > 0.0:
-			var my: float = y + ROLL_H * 0.5 + sin(a) * ROLL_H * 0.5
-			var mx: float = lerpf(x0, x1, 0.22)
-			draw_line(Vector2(mx, my), Vector2(mx + 7.0, my), Color(0, 0, 0, 0.35 * cos(a)), 2.0)
 		# its axle ends in the rails
 		draw_circle(Vector2(RAIL_W * 0.5, y + ROLL_H * 0.5), 2.0, RAIL_DARK)
 		draw_circle(Vector2(w - RAIL_W * 0.5, y + ROLL_H * 0.5), 2.0, RAIL_DARK)

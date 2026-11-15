@@ -250,3 +250,16 @@ An ambient (`dino_ambient.ogg`, `devtools/make_ambient_sounds.py`: a JUNGLE -- i
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a marimba chime for right, a soft low marimba note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+## The adaptive pace (2026-11-15)
+
+The level's time limit (`card_time_sec`, the card's time) is only where a player STARTS. Three right answers in a row shorten it by
+`PACE_DOWN` (x0.85); any miss -- a wrong answer or a timeout -- lengthens it by `PACE_UP` (x1.20); it stays
+between `PACE_MIN` (0.45) and `PACE_MAX` (1.5) times the level's value, and starts afresh with every level.
+Not in the tutorial. So the game speeds up as the player gets better, instead of running everyone at one
+fixed pace -- the engagement audit found this game "moves on by itself and never adapts". The same
+staircase as Pinpoint's flash (`_adapt_pace` in `level.gd`, its own copy).
+
+Because the staircase settles a player near 80% right wherever the time limit is what holds them back,
+every level's `pass_pct` is AT MOST 75: a bar at 80% or more would fail a player for playing exactly where
+the game puts them.

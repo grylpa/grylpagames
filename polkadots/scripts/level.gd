@@ -192,6 +192,8 @@ func _apply_layout() -> void:
 func _load_cfg() -> void:
 	var diff: int = clamp(_level - 1, 0, PolkadotsLevelConfig.LEVELS.size() - 1)
 	_cfg = PolkadotsLevelConfig.LEVELS[diff]	
+	_pace = 1.0                       # the adaptive pace starts afresh with every level
+	_pace_streak = 0
 	_panels_bk_color = _cfg.get("bk_color", PolkadotsLevelConfig.default_bk_color)
 	_letters_color = _cfg.get("letter_color", PolkadotsLevelConfig.default_letters_color)
 	_dots_color = _cfg.get("dot_color", PolkadotsLevelConfig.default_dots_color)
@@ -269,7 +271,7 @@ func _start_round() -> void:
 
 	_round_start_time = Time.get_unix_time_from_system()
 	_can_click = true
-	_timeout_duration = float(_cfg["timeout_sec"])
+	_timeout_duration = _timeout_now()
 	_timeout_fill_style.bg_color = Color(0.3, 0.85, 0.3, 1.0)
 	_timeout_bar.value = 1.0
 	_timeout_bar.show()
@@ -281,7 +283,7 @@ func _start_round() -> void:
 	else:
 		$HideOptionsTimer.stop()
 
-	$TimeoutTimer.wait_time = float(_cfg["timeout_sec"])
+	$TimeoutTimer.wait_time = _timeout_now()
 	$TimeoutTimer.start()
 
 # ── Character selection ────────────────────────────────────────────────────────
@@ -631,6 +633,7 @@ func _on_option_pressed(idx: int) -> void:
 
 	%DotsDisplay.reveal_letter()
 
+	_adapt_pace(correct)
 	if correct:
 		_rounds_correct += 1
 		update_score.emit(10)
@@ -655,7 +658,8 @@ func _on_timeout_timer_timeout() -> void:
 	$HideOptionsTimer.stop()
 
 	_rounds_done += 1
-	_total_response_time_ms += float(_cfg["timeout_sec"]) * 1000.0
+	_total_response_time_ms += _timeout_now() * 1000.0
+	_adapt_pace(false)
 
 	update_score.emit(0)
 	PolkadotsG.game.play_sound("wrong")
@@ -732,3 +736,31 @@ func _next_or_finish() -> void:
 		sig_level_is_done.emit(int(_cfg["level"]), avg_time_ms, pct_correct)
 	else:
 		_start_round()
+
+# THE ADAPTIVE PACE (2026-11-15). The level's timeout is only where a player STARTS: three right in a
+# row shorten it by PACE_DOWN, any miss (a wrong pick or a timeout) lengthens it by PACE_UP, between
+# PACE_MIN and PACE_MAX times the level's value. So rounds come faster as the player gets better
+# instead of every player at one fixed pace (the engagement audit). Not in the tutorial. Reset with
+# the level (_load_cfg).
+const PACE_DOWN: float = 0.85
+const PACE_UP: float = 1.20
+const PACE_STREAK: int = 3
+const PACE_MIN: float = 0.45
+const PACE_MAX: float = 1.50
+var _pace: float = 1.0
+var _pace_streak: int = 0
+
+func _timeout_now() -> float:
+	return float(_cfg["timeout_sec"]) * _pace
+
+func _adapt_pace(right: bool) -> void:
+	if PolkadotsG.game.tutorial_mode:
+		return
+	if right:
+		_pace_streak += 1
+		if _pace_streak >= PACE_STREAK:
+			_pace_streak = 0
+			_pace = maxf(PACE_MIN, _pace * PACE_DOWN)
+	else:
+		_pace_streak = 0
+		_pace = minf(PACE_MAX, _pace * PACE_UP)

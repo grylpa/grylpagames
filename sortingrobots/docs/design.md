@@ -1,19 +1,31 @@
 # Sorting Robots — design
 
-Two conveyor belts run down the screen, each with its **own rule** written at its head. Items scroll
-past on both. Every so often a frame closes around one item, and you judge that item against the
-rule of **the belt it is on**: swipe right to pick it up (yes, it matches), left to leave it (no).
-A correct pick-up sends a robot claw out to yank the item off that side.
+**QUALITY CONTROL** (2026-11-15). Two conveyor belts run down the screen, each with its **own rule** on
+the sign at its head. Parcels ride both belts through a **scanner gate** fixed at each belt's middle (like
+an airport scanner, not an X-ray); the parcel inside the gate is in question; the gate is lit, steadily. **Tap the scanner** (or anywhere on its belt) to have its robot grab the parcel
+when it passes THAT belt's rule; **let it ride** (don't tap) when it doesn't. Parcels come at irregular
+spacing on both belts, so calls come every second or two and often nearly together -- and the rule to
+apply switches with the belt the parcel is on. The belts speed up as the player gets better. Part way
+into a level **the rule labels fade** and both rules must be held in mind; on later levels **the belts
+trade rules** now and then (a banner, the signs up again briefly).
 
-Then the thing the game is really about: **after a few rounds the rule labels fade away** and you
-have to keep both rules in your head.
+**Why it changed.** It used to frame ONE parcel at a time, which crawled down for a swipe right/left,
+with long watching in between: 3-15 decisions a minute, up to 22 s before the first ("still a boring
+game", even after the depot look). Measured after: ~28 decisions a minute, a median of 1.8 s apart,
+the first at 4.6 s.
+
+**What it keeps, and why.** Each parcel carries TWO cards -- one for each rule (a letter and a number, a
+shape and a color...) -- and the BELT it is on decides which rule applies: the task-switching experiment
+in which the stimulus's place cues the task (Rogers & Monsell 1995), with the rules held in memory once
+the labels go. Letting a parcel ride is a deliberate non-response, so it trains holding back too
+(go/no-go). The new switch-cost record is that research's own measure.
 
 ## Files
 
 ```
 sortingrobots/scripts/
 ├── globals.gd        SortingRobotsG autoload: starting_level, save/load settings
-├── level_config.gd   levels: the RULE POOL, hide_after, rounds, window_dur, belt_spd
+├── level_config.gd   levels: the RULE POOL, hide_after, rounds, belt_spd, swap_sec, pass_pct
 ├── main.gd           orchestrator: menu, HUD, instructions
 ├── level.gd          belts, item generation per rule, the judging window, scoring
 ├── tutorial.gd       the coached tutorial
@@ -32,55 +44,65 @@ plays. Rule keys: `digit`, `square`, `even_odd`, `vowel`, `prime`, `filled`, `ho
 `_are_confusable()` keeps overlapping rules apart — a filled square satisfies both "is it a square?"
 and "is it filled?", so those two are never shown together. A pool may safely contain both.
 
-## A round
+## A round: the scanner
 
-1. `_open_window()` picks a belt at random and frames an item that is still entering from the top,
-   preferring one whose truth balances the yes/no spread so far. `window_target_truth` is whether
-   that item satisfies THAT belt's rule.
-2. The player swipes (or uses arrow keys) — `_input` → `_evaluate_answer(user_picks_up)`.
-3. `_score_answer()` scores it: a speed bonus on top of 10 for a right call, a small penalty for a
-   wrong one or a timeout at `window_duration`.
-4. After `rounds_before_hide` judgments, `_hide_labels()` fades both rule labels to alpha 0.
+- **The scanner gate** (`scanner_gate.gd`, one per belt, `_place_gate`): fixed at the belt's middle
+  (`SCAN_FRAC`), its opening `GATE_H` parcels long; a housing with an indicator light on each side of the
+  belt and a hazard-striped beam across it where parcels go in and come out, so the parcel inside stays
+  fully in view. Its light is CONSTANT: the opening always lit and its lamps always on. The light is
+  ADDED to what is under it (a child with an additive material), so the parcel inside is brightened as
+  under a lamp; drawn as an ordinary wash it was "too dim", and stronger it fogged the parcel. The
+  housings are slim, and each is only as wide as the space beside its belt allows -- the INNER ones,
+  where the two belts meet, take just under half the gap (`place(..., side_room)`), so the two gates
+  do not overlap in the middle (they did at first).
+  **The sweep**: a soft band of extra light moves down through the opening every `SWEEP_S` (2.2 s), so
+  the machine reads as scanning -- deliberately NOT a flicker (over a level a flicker irritates, and it
+  can bother people sensitive to it).
+  Tried and dropped the same day: a thin scanner LINE (it did not read as a place to act -- the user's
+  picture was a fixed machine the parcels pass under), and a light that came on as a parcel entered and
+  flashed green or red after a judgment, with the parcel's own light band (it started too early, and a
+  reacting light was not what was pictured). The verdict is the red stamp on a missed parcel and the
+  claw taking a right one.
+- `_update_scanner()` each frame: a parcel whose middle comes within `SCAN_HALF` of the gate's middle
+  (mostly inside it) becomes LIVE on its belt (`set_spotlight`); one that has left the gate unjudged is
+  resolved as LET RIDE.
+- `_tap_belt(b)` -- a touch on the belt's half of the screen (`_belt_at`), or the left / right arrow key --
+  resolves the live parcel on that belt as GRABBED; with nothing live there a tap costs nothing.
+- `_resolve(b, entry, tapped)`: the truth is the parcel's card for the rule THIS belt asks
+  (`_truth_on`, through `_belt_rule`). A grab of a match: +10 and a speed bonus, the claw takes it
+  (`_claw_pull`). A let-ride of a non-match: +`REJECT_POINTS`, with a small green "✓ +2" floating up from the
+  parcel as it leaves the gate and fading in half a second (`_tick_let_ride`), silent -- before, the
+  points landed with nothing on screen, so a correct "no" felt like nothing happened; it stays quieter
+  than a miss because about half the parcels earn one. A grab of a non-match or a
+  let-ride of a match: a miss, stamped red on the parcel. Each counts toward `rounds`; the labels hide
+  after `hide_after`; the level ends at `rounds`.
+- **The staircase** (`_adapt_speed`): three right in a row, the belts x`SPEED_UP`; a miss, x`SPEED_DOWN`;
+  between `SPEED_MIN` and `SPEED_MAX` times `belt_spd`, which is set for a desktop-sized parcel and
+  scaled by the parcel's height (`SPEED_REF_ITEM_H`), so a phone runs at the same pace.
+- **Spacing** is irregular (`QC_PITCH_MIN`..`QC_PITCH_MAX` parcel heights) and independent on the two
+  belts, so calls sometimes come together.
+- **Rule swaps** (`swap_sec`, `_update_rule_swap`): the belts trade rules (`_belt_rule`), a "RULES SWAPPED"
+  banner, the signs up for `SWAP_SHOW_MS` and hidden again if they were.
+- **Grading is BALANCED accuracy** (`pct_correct`): the mean of matches grabbed and non-matches let ride.
+  Plain accuracy gave a player who never tapped ~50% and random tapping 59% -- within reach of a pass;
+  balanced, both are 50% (chance). `pass_pct` is set against it (65 at levels 1-2).
+- **Switch cost** (`switch_cost_ms`, on the level card): how much slower a right grab is just after a
+  judgment on the other belt than after one on the same belt. Each trial records `belt`, `switch` and
+  `go` beside `rule`, `right`, `hidden` and `ms`.
 
 ## Tutorial
 
-`sortingrobots/scripts/tutorial.gd`, entry `sortingrobots/scripts/main.gd::start_tutorial()`.
+`sortingrobots/scripts/tutorial.gd`, entry `main.gd::start_tutorial()`. Rewritten for Quality Control.
 
-Two things make this game confusing on first contact, and neither survives being written in a
-paragraph:
-
-- **The framed item is judged against its OWN belt's rule**, not against whichever rule you happen
-  to be reading. With two rules on screen it is natural to check the wrong one.
-- **The rules disappear.** It happens six rounds in, just as the player has settled, and reads as
-  the game breaking rather than as the point of it.
-
-So the tutorial names the belt and its rule at the moment the frame appears (the caption is built
-from the live label text), and then makes the labels vanish deliberately, with the coach present to
-say what just happened.
-
-Specific to this game:
-
-- Level 1's pool is `digit` / `square` — two rules a first-timer can hold without effort.
-- `window_duration` is pushed out of reach for the tutorial and restored: judging under a 3 s clock
-  while reading a caption is not a fair introduction.
-- `rounds_before_hide` is pushed out too, so the labels vanish exactly when the coach says so
-  rather than mid-explanation.
-- **The belts stop for the tutorial.** `_open_window()` deliberately frames an item that is still
-  ABOVE the belt so the frame slides in with it — which during a tutorial puts the frame over the
-  rule label, reading as though the RULE were framed. In tutorial mode the belts run on until the
-  framed item clears the label, then `tutorial_hold_belts` stops everything and `window_settled` is
-  reported; the hold lifts when the judgment is made.
-- **The staging is never announced.** The second judgment is forced to be a non-match, but the
-  caption does not say so: it is written before the item has even been chosen, so a promise made
-  there is one the tutorial cannot keep by itself. The player judges for themselves; the staging
-  only guarantees they meet both answers.
-- **The player meets both answers.** `_open_window()` only PREFERS a truth that balances the yes/no
-  spread, so two "leave it" rounds in a row are perfectly possible and a player could finish having
-  never picked anything up. `tutorial_want_truth` makes the first judgment a match and the second a
-  non-match, and while it is set the picker waits for an item of that kind rather than settling for
-  whatever is closest.
-- Events reported to the coach: `window_opened`, `window_settled`, `judged`, `labels_hidden` — all
-  `game.tutorial_notify`, no-ops outside tutorial mode.
+Two things confuse a first-timer: a parcel is judged by the rule of ITS belt, not the one being read;
+and letting a parcel ride is an answer too. So the belts STOP with a parcel at the scanner
+(`tutorial_hold_at_scanner` -> `qc_held`), once with one to grab (`tutorial_want_truth` 1 makes the parcels
+that come matches) and once with one to let ride (0), the coach naming the belt and reading its rule
+(`tutorial_held_belt`, `tutorial_rule_text`); then the labels fade on cue (`tutorial_hide_labels_now`).
+No speed staircase and no swaps in the tutorial; `rounds_before_hide` is out of reach. The let-ride step
+waits on `qc_rode` (a let-ride), not `judged`, because the answer there is NOT tapping. Events:
+`qc_live`, `qc_held`, `judged`, `judged_right/_wrong`, `qc_rode`, `labels_hidden`.
+`devtools/probe_tut.gd -- sortingrobots` drives it (it taps the held belt when the parcel matches).
 
 ---
 
@@ -122,7 +144,7 @@ filling it at once made them pop in one by one at random places as their picture
   (rendered by the parcels' own renderer: a stacked pallet, a loose pile of boxes, a pallet with one or
   two left), one or two a side, each at its own height, size and kind -- four identical pallets in four
   corners read as staged. Too narrow a margin gets none (Sorting Robots' two wide belts leave little).
-- **Belts**: a ROLLER conveyor (`scripts/belt_tread.gd`, steel rollers turning, brass side rails) under
+- **Belts**: a ROLLER conveyor (`scripts/belt_tread.gd`, steel rollers -- no turning mark since 2026-11-15, it read as a black artifact -- brass side rails) under
   a dark housing with a brass lip across each end, drawn OVER the items (`scripts/belt_hood.gd`), so a
   parcel comes out from under the top one and goes back under the bottom one. Both games build the
   belt the same way (it used to differ: here items slid in over the belt's top frame). `belt_edge.gd`

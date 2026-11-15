@@ -33,16 +33,19 @@ extends Node
 const WHITE: Color = Color(1, 1, 1, 1)
 const PEOPLE_YELLOW: Color = Color(1, 0.8039216, 0, 1)  # exact weris card-border yellow
 
+# pass_pct is AT MOST 75 (2026-11-15): the adaptive pace (level.gd) settles a player near 80% right
+# wherever the time limit is what holds them back, so a bar at 80% or more would fail them for playing
+# exactly where the game puts them.
 var LEVELS: Array = [
 	{"id": 1, "name": "1 D", "menu_name": " 1 Dinos, easiest",  "card_size": "big",   "card_time_sec": 6.0, "gap_sec": 0.8, "start_cards": 3, "new_after": 2, "duration_sec": 40,  "source": "dinos", "pass_pct": 65},
 	{"id": 2, "name": "2 D", "menu_name": " 2 Dinos, easy",  "card_size": "big",   "card_time_sec": 5.0, "gap_sec": 0.7, "start_cards": 3, "new_after": 2, "duration_sec": 70,  "source": "dinos", "pass_pct": 70},
 	{"id": 3, "name": "3 D", "menu_name": " 3 Dinos, medium",  "card_size": "med",   "card_time_sec": 4.0, "gap_sec": 0.6, "start_cards": 4, "new_after": 2, "duration_sec": 80,  "source": "dinos", "pass_pct": 70},
 	{"id": 4, "name": "4 P", "menu_name": " 4 Faces, easy",  "card_size": "med",   "card_time_sec": 5.0, "gap_sec": 0.7, "start_cards": 4, "new_after": 2, "duration_sec": 80,  "source": "people", "pass_pct": 75},
 	{"id": 5, "name": "5 DP", "menu_name": " 5 Dinos+faces", "card_size": "med",   "card_time_sec": 4.5, "gap_sec": 0.6, "start_cards": 5, "new_after": 2, "duration_sec": 90,  "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW], "pass_pct": 75},
-	{"id": 6, "name": "6 D", "menu_name": " 6 Dinos, fast",  "card_size": "small", "card_time_sec": 2.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 120, "source": "dinos", "pass_pct": 80},
-	{"id": 7, "name": "7 DP", "menu_name": " 7 Dinos+faces, fast", "card_size": "small", "card_time_sec": 2.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 120, "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW], "pass_pct": 80},
-	{"id": 8, "name": "8 D", "menu_name": " 8 Dinos, fastest",  "card_size": "small", "card_time_sec": 1.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 300, "source": "dinos", "pass_pct": 80},
-	{"id": 9, "name": "9 DP", "menu_name": " 9 Dinos+faces, long", "card_size": "small", "card_time_sec": 1.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 30*60, "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW], "pass_pct": 80},
+	{"id": 6, "name": "6 D", "menu_name": " 6 Dinos, fast",  "card_size": "small", "card_time_sec": 2.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 120, "source": "dinos", "pass_pct": 75},
+	{"id": 7, "name": "7 DP", "menu_name": " 7 Dinos+faces, fast", "card_size": "small", "card_time_sec": 2.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 120, "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW], "pass_pct": 75},
+	{"id": 8, "name": "8 D", "menu_name": " 8 Dinos, fastest",  "card_size": "small", "card_time_sec": 1.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 300, "source": "dinos", "pass_pct": 75},
+	{"id": 9, "name": "9 DP", "menu_name": " 9 Dinos+faces, long", "card_size": "small", "card_time_sec": 1.0, "gap_sec": 0.5, "start_cards": 6, "new_after": 2, "duration_sec": 30*60, "source": "dinos,people", "border_colors": [WHITE, PEOPLE_YELLOW], "pass_pct": 75},
 ]
 
 func max_level() -> int:
