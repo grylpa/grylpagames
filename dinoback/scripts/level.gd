@@ -425,6 +425,9 @@ func _load_level(id: int) -> void:
 	num_colors = maxi(1, int(def.get("num_colors", 1)))
 	card_size_key = str(def.get("card_size", "med"))
 	card_time_ms = float(def.get("card_time_sec", 4.0)) * 1000.0
+	_pace_base_ms = card_time_ms
+	_pace = 1.0
+	_pace_streak = 0
 	gap_ms = float(def.get("gap_sec", 0.6)) * 1000.0
 	duration_sec = int(def.get("duration_sec", 60))
 	target_rate = clampf(float(def.get("target_rate", 0.30)), 0.05, 0.6)
@@ -746,6 +749,7 @@ func _register_answer(said_match) -> void:
 		var base_pts: int = 10 if _cur_is_target else 5
 		game.add_score_and_time(base_pts + bonus, 0)
 		game.add_correct_or_mistake(1, 0)
+		_adapt_pace(true)
 		game.play_sound("correct")
 		_feedback.text = "Match!" if _cur_is_target else "Correct"
 		_feedback.add_theme_color_override("font_color", Color(0.25, 0.85, 0.35, 1.0))
@@ -753,6 +757,7 @@ func _register_answer(said_match) -> void:
 		var penalty: int = mini(3, maxi(0, game.score))
 		game.add_score_and_time(-penalty, 0)
 		game.add_correct_or_mistake(0, 1)
+		_adapt_pace(false)
 		game.play_sound("wrong")
 		if timed_out:
 			_feedback.text = "Too slow"
@@ -1022,3 +1027,29 @@ func tutorial_is_target() -> bool:
 func tutorial_n_back() -> int:
 	return n_back
 
+# THE ADAPTIVE PACE (2026-11-15). The level's time limit is only where a player STARTS: three right in a
+# row shorten it by PACE_DOWN, any miss lengthens it by PACE_UP, between PACE_MIN and PACE_MAX times the
+# level's value. So the game speeds up as the player gets better instead of running every player at
+# one fixed pace (the engagement audit: "moves on by itself, never adapts"). The same staircase as
+# Pinpoint's flash; not in the tutorial.
+const PACE_DOWN: float = 0.85
+const PACE_UP: float = 1.20
+const PACE_STREAK: int = 3
+const PACE_MIN: float = 0.45
+const PACE_MAX: float = 1.50
+var _pace: float = 1.0
+var _pace_streak: int = 0
+var _pace_base_ms: float = 0.0
+
+func _adapt_pace(right: bool) -> void:
+	if game.tutorial_mode or _pace_base_ms <= 0.0:
+		return
+	if right:
+		_pace_streak += 1
+		if _pace_streak >= PACE_STREAK:
+			_pace_streak = 0
+			_pace = maxf(PACE_MIN, _pace * PACE_DOWN)
+	else:
+		_pace_streak = 0
+		_pace = minf(PACE_MAX, _pace * PACE_UP)
+	card_time_ms = _pace_base_ms * _pace

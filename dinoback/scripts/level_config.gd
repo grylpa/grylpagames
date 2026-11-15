@@ -56,6 +56,9 @@ extends Node
 # IDS ARE THE PLAY ORDER. `new_game` advances with `current_level_id + 1`, so they must stay
 # sequential and match the array order; inserting a level means renumbering everything after it.
 
+# pass_pct is AT MOST 75 (2026-11-15): the adaptive pace (level.gd) settles a player near 80% right
+# wherever the time limit is what holds them back, so a bar at 80% or more would fail them for playing
+# exactly where the game puts them.
 var LEVELS: Array = [
 	# --- 1-back: learn the task itself -----------------------------------------------------------
 	{"id": 1, "name": "1 N1", "menu_name": " 1 N1 Shapes", "n_back": 1, "source": "shapes", "rule": "symbol",
@@ -73,48 +76,48 @@ var LEVELS: Array = [
 	# the hard part of a photo — there is no name to rehearse, only the picture itself
 	{"id": 4, "name": "4 N1", "menu_name": " 4 N1 Dinos", "n_back": 1, "source": "dinos", "rule": "symbol",
 	 "pool_size": 5, "num_colors": 1, "card_size": "big", "card_time_sec": 4.5, "gap_sec": 0.6,
-	 "duration_sec": 75, "pass_pct": 80},
+	 "duration_sec": 75, "pass_pct": 75},
 	{"id": 5, "name": "5 N1", "menu_name": " 5 N1 Faces", "n_back": 1, "source": "people", "rule": "symbol",
 	 "pool_size": 5, "num_colors": 1, "card_size": "big", "card_time_sec": 4.5, "gap_sec": 0.6,
-	 "duration_sec": 75, "pass_pct": 80},
+	 "duration_sec": 75, "pass_pct": 75},
 
 	# --- 2-back ----------------------------------------------------------------------------------
 	{"id": 6, "name": "6 N2", "menu_name": " 6 N2 Digits", "n_back": 2, "source": "digits", "rule": "symbol",
 	 "pool_size": 5, "num_colors": 1, "card_size": "big", "card_time_sec": 4.0, "gap_sec": 0.6,
-	 "duration_sec": 90, "pass_pct": 80},
+	 "duration_sec": 90, "pass_pct": 75},
 	{"id": 7, "name": "7 N2", "menu_name": " 7 N2 Shape only", "n_back": 2, "source": "shapes", "rule": "symbol",
 	 "pool_size": 5, "num_colors": 3, "card_size": "med", "card_time_sec": 4.0, "gap_sec": 0.6,
-	 "duration_sec": 90, "pass_pct": 85},
+	 "duration_sec": 90, "pass_pct": 75},
 	{"id": 8, "name": "8 N2", "menu_name": " 8 N2 Color only", "n_back": 2, "source": "shapes", "rule": "color",
 	 "pool_size": 6, "num_colors": 4, "card_size": "med", "card_time_sec": 4.0, "gap_sec": 0.5,
-	 "duration_sec": 100, "pass_pct": 85},
+	 "duration_sec": 100, "pass_pct": 75},
 	# both at once: a small pool, because now every card has two things to hold
 	{"id": 9, "name": "9 N2", "menu_name": " 9 N2 Shape+color", "n_back": 2, "source": "shapes", "rule": "both",
 	 "pool_size": 4, "num_colors": 3, "card_size": "med", "card_time_sec": 4.0, "gap_sec": 0.5,
-	 "duration_sec": 100, "pass_pct": 85},
+	 "duration_sec": 100, "pass_pct": 75},
 	{"id": 10, "name": "10 N2", "menu_name": "10 N2 Letter+color", "n_back": 2, "source": "letters", "rule": "both",
 	 "pool_size": 5, "num_colors": 4, "card_size": "med", "card_time_sec": 4.0, "gap_sec": 0.5,
-	 "duration_sec": 110, "pass_pct": 85},
+	 "duration_sec": 110, "pass_pct": 75},
 	{"id": 11, "name": "11 N2", "menu_name": "11 N2 Dinos", "n_back": 2, "source": "dinos", "rule": "symbol",
 	 "pool_size": 6, "num_colors": 1, "card_size": "med", "card_time_sec": 4.0, "gap_sec": 0.5,
-	 "duration_sec": 110, "pass_pct": 85},
+	 "duration_sec": 110, "pass_pct": 75},
 	{"id": 12, "name": "12 N2", "menu_name": "12 N2 Faces", "n_back": 2, "source": "people", "rule": "symbol",
 	 "pool_size": 6, "num_colors": 1, "card_size": "med", "card_time_sec": 4.0, "gap_sec": 0.5,
-	 "duration_sec": 110, "pass_pct": 85},
+	 "duration_sec": 110, "pass_pct": 75},
 
 	# --- 3-back ----------------------------------------------------------------------------------
 	{"id": 13, "name": "13 N3", "menu_name": "13 N3 Shape only", "n_back": 3, "source": "shapes", "rule": "symbol",
 	 "pool_size": 5, "num_colors": 3, "card_size": "med", "card_time_sec": 3.0, "gap_sec": 0.5,
-	 "duration_sec": 120, "pass_pct": 85},
+	 "duration_sec": 120, "pass_pct": 75},
 	{"id": 14, "name": "14 N3", "menu_name": "14 N3 Letter only", "n_back": 3, "source": "letters", "rule": "symbol",
 	 "pool_size": 6, "num_colors": 4, "card_size": "med", "card_time_sec": 3.0, "gap_sec": 0.5,
-	 "duration_sec": 120, "pass_pct": 85},
+	 "duration_sec": 120, "pass_pct": 75},
 	{"id": 15, "name": "15 N3", "menu_name": "15 N3 Dinos", "n_back": 3, "source": "dinos", "rule": "symbol",
 	 "pool_size": 6, "num_colors": 1, "card_size": "med", "card_time_sec": 3.5, "gap_sec": 0.5,
-	 "duration_sec": 130, "pass_pct": 85},
+	 "duration_sec": 130, "pass_pct": 75},
 	{"id": 16, "name": "16 N3", "menu_name": "16 N3 Faces", "n_back": 3, "source": "people", "rule": "symbol",
 	 "pool_size": 6, "num_colors": 1, "card_size": "med", "card_time_sec": 3.5, "gap_sec": 0.5,
-	 "duration_sec": 120, "pass_pct": 85},
+	 "duration_sec": 120, "pass_pct": 75},
 
 	# --- the top of the ramp ---------------------------------------------------------------------
 	{"id": 17, "name": "17 N3", "menu_name": "17 N3 Shape+color", "n_back": 3, "source": "shapes", "rule": "both",

@@ -40,11 +40,13 @@ func _ready() -> void:
 	$Help.close_help.connect(_on_help_close_help)
 
 	game.set_instructions("Sorting Robots",
-		"Two conveyor belts, each with a rule.\n" +
-		"Items fill both belts. One item gets boxed.\n" +
-		"Does the boxed item match that belt's rule?\n" +
-		"Swipe right = PICK UP (yes). Swipe left = LEAVE (no).\n" +
-		"After a few rounds, the rules disappear.", 28)
+		"Two conveyor belts, each with its own rule.\n" +
+		"Each belt runs through a scanner in its middle.\n" +
+		"When the parcel inside a scanner matches ITS belt's rule, tap that scanner to grab it.\n" +
+		"If it doesn't match, let it ride: don't tap.\n" +
+		"On a computer: the left and right arrow keys tap the two belts.\n" +
+		"The belts speed up as you get better, and the rules disappear after a while.\n" +
+		"Later levels swap the rules between the belts.", 28)
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		SortingRobotsG.save_settings()
@@ -82,11 +84,11 @@ func start_tutorial() -> void:
 	SortingRobotsG.starting_level_id = tut.tutorial_level_id()
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
-	# The caption must not cover either rule label or the framed item it is talking about.
+	# The caption must not cover either rule label or the parcel held at the scanner.
 	runner.keep_clear = [
 		func(): return $Level.tutorial_rule_label(0),
 		func(): return $Level.tutorial_rule_label(1),
-		func(): return $Level.tutorial_window_panel(),
+		func(): return $Level.tutorial_held_parcel(),
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 
