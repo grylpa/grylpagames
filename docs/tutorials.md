@@ -251,6 +251,11 @@ auto-wrapping `Label` computes that minimum from whatever width it currently has
 hit this twice: once putting the caption at y = −1952 with height 2644, and once inflating the
 label stack to 2223 px on the opening step.
 
+**The caption and the hint are set in the text face** (`MainGlobals.get_text_font()`, Open Sans
+SemiBold, 2026-11-15), as is the announcement badge: they are read as sentences, and the player's
+display font (Orbitron by default) is slow to read across one. The title and the Skip button keep
+the display font.
+
 Height comes from `_label_height()`, which rebuilds it from **whole font lines**
 (`f.get_height(fs) + line_spacing` per line) rather than from
 `Font.get_multiline_string_size().y`. That call returns the *text's* extent, while a Label reserves
@@ -333,8 +338,8 @@ else a drag is a flick that sets a direction (`gorilla`), a swipe answer (`dino`
 object (`change`, `aliens`). Telling a player to "draw a path" in a game that has no drawn paths is
 the same class of error the tutorials exist to fix. Grep before you write the sentence.
 
-**Run per-game setup before the level is built, not after.** Aliens' `_tutorial_setup()` (one
-gate, no NOT passes, no compound passes) originally ran at the end of `new_game`, long after
+**Run per-game setup before the level is built, not after.** Aliens' `_tutorial_setup()` (two
+gates, no NOT passes, no compound passes) originally ran at the end of `new_game`, long after
 `_load_level()` and `_pick_rules()` had already baked those choices in — so it silently did
 nothing and the tutorial ran on a level it thought it had simplified. It now runs immediately
 after `_load_level()`.

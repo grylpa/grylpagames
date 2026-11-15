@@ -29,6 +29,8 @@ func popup_text(text_title: String, text: String, vcenter:bool, top_px := 80.0) 
 	# fine as-is). The popup sizes to the content, so this shrinks the whole panel.
 	var fs: int = 36 if MainGlobals.is_mobile() else 26
 	_label.text = text
+	# reading text: the text face, not the display font (2026-11-15; see tutorial.gd)
+	_label.add_theme_font_override("font", MainGlobals.get_text_font())
 	_label.add_theme_font_size_override("font_size", fs)
 	# "Tap anywhere to start" — a bit larger on mobile
 	MainGlobals.set_font_size(_tap, 16)

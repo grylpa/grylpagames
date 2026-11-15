@@ -269,7 +269,12 @@ func _build() -> void:
 	_rule.visible = false
 	vbox.add_child(_rule)
 
+	# The caption and the hint are READING text, so they are set in the text face (Open Sans
+	# SemiBold, as the instructions screen's body), not the player's display font: Orbitron or
+	# Stormfaze are fine for a title but slow to read across a sentence (2026-11-15). The title and
+	# the Skip button keep the display font.
 	_text_label = Label.new()
+	_text_label.add_theme_font_override("font", MainGlobals.get_text_font())
 	MainGlobals.set_font_size(_text_label, 19)
 	_text_label.add_theme_color_override("font_color", TEXT_COLOR)
 	_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -278,6 +283,7 @@ func _build() -> void:
 	vbox.add_child(_text_label)
 
 	_foot_label = Label.new()
+	_foot_label.add_theme_font_override("font", MainGlobals.get_text_font())
 	MainGlobals.set_font_size(_foot_label, 15)
 	_foot_label.add_theme_color_override("font_color", HINT_COLOR)
 	_foot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -965,7 +971,7 @@ func _draw_badge(text: String, alpha: float, good: bool, avoid = null) -> void:
 	var a: float = clampf(alpha, 0.0, 1.0)
 	if a <= 0.0:
 		return
-	var font: Font = MainGlobals.get_system_sans_font()
+	var font: Font = MainGlobals.get_text_font()
 	if font == null:
 		return
 	var fs: int = MainGlobals.ui_font_size(19)
