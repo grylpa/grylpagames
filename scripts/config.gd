@@ -14,7 +14,7 @@ var games = [
 	["gorilla",       "Gorilla",        "Eat apples and rescue the lost baby gorillas",           "Attention & Speed"],
 	["pickpocket",    "Pickpocket",     "Follow the ball and catch the pickpocket",               "Attention & Speed"],
 	["wolves",        "Wolves",         "Guard your flock from the wolves",                       "Attention & Speed"],
-	["didi",          "Pinpoint",       "Match the shape to where the dot flashed",                                    "Attention & Speed"],
+	["didi",          "Pinpoint",       "Catch the courier and the lookout in a flash of lightning", "Attention & Speed"],
 	["ddooo",         "Witness",        "Remember what flashed, and where",                         "Attention & Speed"],
 	["pop",           "Glimpse",        "Catch it out of the corner of your eye",                 "Attention & Speed"],
 	["ooo",           "Lineup",         "Pick the culprit out of the lineup",                     "Attention & Speed"],
@@ -55,6 +55,20 @@ var games = [
 
 ]
 
+# GAMES HIDDEN FROM THE PLAYER: list a game's folder here to take it out of the app without deleting
+# anything -- e.g. HIDDEN_GAMES = ["monkeyc"] hides Apprentice. It disappears from the game chooser
+# and the progress screens; its files, saved scores and settings are untouched, and everything that
+# keeps data in order (file renames on login, score sync) still covers it. Take it off the list to
+# bring the game back.
+const HIDDEN_GAMES: Array = [
+	"monkeyc",                              # Apprentice: its first minute is all watching (2026-11-15)
+	"ddooo", "pop", "ooo",                  # Witness, Glimpse, Lineup: Pinpoint is kept for that skill
+	"breathe", "udbr", "crack", "mother",   # the Serenity games do not belong in this collection
+]
+
+func is_hidden(folder: String) -> bool:
+	return HIDDEN_GAMES.has(folder)
+
 # Games that have an authored coached tutorial ({folder}/scripts/tutorial.gd). This drives the
 # automatic first-run tutorial and the suppression of the instructions wall for those games; the
 # two buttons that offer a tutorial (the game's main menu and its instructions screen) instead test
@@ -90,6 +104,8 @@ func supports_desktop(g) -> bool:
 # sense with a touch keyboard, so it is hidden on desktop. Score sync deliberately does NOT use
 # this: a game hidden here may still have scores from the player's other device.
 func runs_on_this_platform(g) -> bool:
+	if is_hidden(str(g[0])):
+		return false
 	return supports_mobile(g) if MainGlobals.is_mobile() else supports_desktop(g)
 
 # set to value of game folder if a single game

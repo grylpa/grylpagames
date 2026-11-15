@@ -114,7 +114,7 @@ func _build() -> void:
 
 	_version_lbl = _add_text(body, "Version " + MainGlobals.version, Color(0.72, 0.72, 0.72, 1.0))
 	_body_nodes.append(_version_lbl)
-	_body_nodes.append(_add_text(body, "A collection of small challenging and relaxing games.", Color(0.9, 0.9, 0.9, 1.0)))
+	_body_nodes.append(_add_text(body, "A collection of small, challenging games.", Color(0.9, 0.9, 0.9, 1.0)))
 
 	# The app has no other home for global preferences, and About is already the one
 	# app-level screen reachable from the chooser — so Settings hangs off it.

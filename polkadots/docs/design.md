@@ -7,7 +7,7 @@
 **Singleton:** `PolkadotsG`
 **Save key (short name):** `polkadots`
 **Initial time:** 5 minutes
-**Background color:** `0x3C5D3EFF` (dark green)
+**Background color:** `Color(0.155, 0.180, 0.215)` (dark slate, the cloth's own color)
 
 Polka Dots is a letter/number recognition game. Each round shows a pattern of dots arranged so they outline a letter or digit. The player must identify which character the dots form by tapping one of the displayed options.
 
@@ -347,11 +347,12 @@ Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one
 games): a bell chime for right, a soft low bell note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
 
 **A dressmaker's table** (2026-11-12; it was green felt, `felt.gdshader`, now deleted):
-- **The worktable** (`worktable.gdshader`, on the full-screen ColorRect in the CanvasLayer at -10 that
-  `main.gd` adds): warm wooden boards with grain, knots, staggered joints and a soft light from the top
-  left. Her things lie round its bottom edge, clear of the panels and the HUD (`main.gd` `_draw_notions`):
-  a yellow TAPE MEASURE, a SPOOL of blue thread and a tomato PIN CUSHION bristling with pins (top right
-  it lay under the score).
+- **The tablecloth** (`linen.gdshader`, 2026-11-15, on the full-screen ColorRect in the CanvasLayer at
+  -10 that `main.gd` adds): a dark, cool slate LINEN -- a fine plain weave at very low contrast, a faint
+  slub here and there, a soft light from the top left. NOTHING lies on it. It replaced wooden boards
+  (`worktable.gdshader`, deleted) with a yellow tape measure, a spool and a tomato pin cushion round
+  the bottom edge: the wood was "more distracting than beautiful", the tape looked out of place, and
+  the cushion showed through the menu button. The panels are the stimulus; the ground stays all but plain.
 - **Cloth** (`polka_cloth.gd`, `PolkaCloth`, laid by `level._dress_cloths()` UNDER the dots and the
   letters): the dot panel is a square of fabric (corners 5, not 16) pinned at its corners with
   yellow-headed pins (red vanished on the red panels); every option is a cloth label. Both carry a faint

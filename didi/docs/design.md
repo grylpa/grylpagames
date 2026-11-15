@@ -1,13 +1,24 @@
-# DIDI — design
+# Pinpoint (folder `didi`) — design
 
-Two things flash in quick succession and you need both of them. A **shape** appears at the center
-for `center_ms`, and 150 ms later a **dot** flashes off to one side for `periph_ms`. Both vanish.
-Then eight clusters of shapes appear, one per compass direction, and you must tap the shape that
-matches the center one **in the direction the dot flashed**.
+**A stakeout** (2026-11-15). You watch a night square from a rooftop, in the rain. LIGHTNING lights
+it for a moment: at the center a **courier** holds an umbrella (WHAT: its print and colors), and at the
+same instant a **lookout** in a yellow raincoat is glimpsed at one of the eight street mouths (WHERE).
+Then it goes nearly dark (the MASK), the street lamps come on, and umbrellas
+stand at every corner. One tap answers both questions: the courier's umbrella, at the lookout's corner.
 
-The trap is deliberate: several other directions also contain the correct shape
-(`num_same`), and the dot's own shape and colour are random. So remembering only the shape puts you
-in the wrong place, and remembering only the place leaves you picking between shapes.
+The trap is deliberate: other corners also hold an umbrella with the courier's print (`num_same`),
+so remembering only the umbrella puts you at the wrong corner, and remembering only the corner leaves
+you picking between umbrellas.
+
+**Why this game, and why this shape.** Of the four flash games it was kept (Witness, Glimpse and
+Lineup are hidden) because it is the closest to the research task with the most support behind it:
+the "useful field of view" speed-of-processing training of the ACTIVE study -- a center item and a
+peripheral target shown TOGETHER, briefly, then masked, with the display time adapted to the player.
+The redesign made it faithful on the four points it missed: the two cues used to come one after the
+other (the dot 150 ms after the shape), there was no mask, the time was fixed per level, and there
+was no clutter. Its single tap (where + what in one) was kept over Witness's two answers: half the
+input, more rounds a minute, and both halves still recorded (`got_dir`, `got_shape`). The study's
+results must never become an app claim.
 
 ## Files
 
@@ -16,31 +27,51 @@ didi/scripts/
 ├── globals.gd        DidiG autoload: starting_level, save/load settings
 ├── level_config.gd   DidiLevelConfig.LEVELS — 8 levels, all the timing lives here
 ├── main.gd           orchestrator: menu, HUD, instructions
-├── level.gd          the round machine: model, peripheral flash, answer clusters, scoring
-├── agent.gd          one shape: texture, one or two colours, self-hides after time_to_hide_ms
+├── level.gd          the round machine: the flash, mask, lamps, answer clusters, staircase, scoring
+├── agent.gd          one person, drawn three-quarter: under an UMBRELLA (print + colors), the LOOKOUT, a PASSERBY
+├── plaza.gdshader    the square, three-quarter view: 8 streets, buildings, fountain, lamps, rain;
+│                     its lightning, mask (rain on glass) and lamps
 ```
 
 ## A round
 
-1. `_spawn_model()` — a random shape at board (3,3), shown for `center_ms`, its texture index and
-   colours kept in `_round_model_texture_idx` / `_round_model_color`. Schedules the flash 150 ms out.
-2. `_spawn_periph_flash()` — picks `_periph_dir_idx` (0-7), places a small agent 80-100% of the way
-   towards that edge, with a **random** texture and colour: it carries position only.
-3. When both have hidden, `_dispatch_answer_stage()` builds eight clusters of `num_options` shapes.
-   `num_same` clusters contain the model's shape — always including the flash direction. Exactly one
-   agent has `is_correct` (right shape AND right direction).
-4. `_on_answer_agent_pressed()` scores: full marks for `is_correct`; +1 partial for right direction
-   with the wrong shape, or the right shape in the wrong direction; a miss otherwise.
-   `_time_to_consider_fail_ms` auto-fails the round if nothing is tapped.
+1. `_spawn_model()` — the LIGHTNING. The courier's umbrella at the center (its print `texture_idx`, one
+   of `agent.PRINTS`, and its colors kept as `_round_model_texture_idx` / `_round_model_color`), and in
+   the same frame `_spawn_periph_flash()` (the lookout, `_periph_dir_idx` 0-7, on ONE RING, `PERIPH_R`
+   tiles out in every direction) and `_spawn_clutter()` (`clutter` passers-by in dark coats on the same
+   ring, clear of the lookout and of each other). All of them last `_flash_ms`, and the plaza is lit
+   while they show.
+2. When they have gone, `_maybe_start_answer()` raises the MASK for `MASK_MS` (280): near darkness,
+   so nothing lingers on the eye and the display time is the time the player really had.
+3. `_dispatch_answer_stage()` — the LAMPS come on (`LAMPS_MS`) over eight clusters of `num_options`
+   umbrellas, on one ring (`CLUSTER_R`) for every corner. `num_same` corners hold the courier's print,
+   always including the lookout's. Exactly one umbrella has `is_correct`.
+4. `_on_answer_agent_pressed()` scores as before: full marks for `is_correct`; +1 partial for the right
+   corner with the wrong umbrella, or the right umbrella at the wrong corner; a miss otherwise. The
+   answer stage times out after `_time_to_consider_fail_ms`.
+5. `_show_feedback()` — the tapped umbrella is ringed green or red; after a miss the right one is
+   ringed gold and the lookout stands again where it was, for `FEEDBACK_WRONG_MS`, so the player sees
+   what they lost. Then the next round.
 
-Levels tighten everything at once: `center_ms` 700→200, `periph_ms` 200→50, `num_options` 2→4,
-`num_same` 3→4, and two-coloured shapes arrive at level 5.
+**Equal distances** (2026-11-15): the lookout and the clusters used to be placed toward the board's
+edge squares, which put the corner directions 41% further out than the straight ones -- harder in
+four directions than the other four. Both are on rings now.
+
+## The adaptive flash (a staircase)
+
+`_adapt(right)`: three fully right rounds in a row shorten the flash by `STEP_DOWN` (x0.85); any miss
+(a partial, a wrong tap, a timeout) lengthens it by `STEP_UP` (x1.20), between `MIN_FLASH_MS` (34, two
+frames) and `FLASH_CEILING` (1.6) x the level's `flash_ms`. This keeps every player near their own limit
+(it settles near 80% right) instead of a fixed time that is too easy for some and too hard for others.
+Not in the tutorial. The LEVELS add complexity instead: more umbrellas per corner, more look-alike
+prints, two-colored canopies from level 5, passers-by from level 3.
 
 ## Timing and pause
 
 Both the level's scheduler and `agent.gd` measure against `game.game_time`, which excludes paused
 time. So while anything pauses the game — including a tutorial caption — a flash that is on screen
-STAYS on screen, and the round clock does not advance. That is what makes this game teachable at
+STAYS on screen, and the round clock does not advance. The plaza's lightning follows the figures
+(`_light_plaza` lights it while they are visible), so it holds too. That is what makes this game teachable at
 all: the coach can freeze the moment the shape appears and talk about something the player can
 still see.
 
@@ -51,7 +82,7 @@ the level just played — `game.session_pct_correct()` over that level's own `co
 against a bar that rises with the level:
 
 ```
-need = mini(60 + 5 * (level - 1), 80)
+need = mini(60 + 2 * (level - 1), 70)
 ```
 
 Below it the SAME level comes round again; at or above it, the next one. The gate's result is
@@ -121,10 +152,13 @@ Only the failed level's points go back; everything earned in levels already pass
 `didi/scripts/tutorial.gd`, entry `didi/scripts/main.gd::start_tutorial()`.
 
 You cannot learn this by watching, because by the time you know to look, both cues are gone. So the
-tutorial freezes ON each cue in turn — the shape while it is still lit, then the dot while it is
-still lit — and only then lets the answer stage arrive. The decoys are named explicitly, because
-"the same shape appears in other directions too" is the rule that makes the game hard and the one a
-player is least likely to work out before losing several rounds to it.
+tutorial FREEZES ON THE LIGHTNING (pausing holds the figures and the light) and points at each cue in
+turn while it is still lit -- the courier's umbrella, then the lookout -- and only then lets the lamps
+come on. The decoys are named explicitly, because "the courier's umbrella also stands at other
+corners" is the rule that makes the game hard and the one a player is least likely to work out before
+losing several rounds to it. (Since the stakeout both cues appear together, so `model_shown` and
+`periph_shown` fire in the same frame and no step waits for the second one.) No staircase in the
+tutorial. `probe_tut.gd -- didi` drives it: 9 steps.
 
 Specific to this game:
 
@@ -136,44 +170,93 @@ Specific to this game:
   directly): a panel of level timings in front of the coach is the first thing a player would have
   to dismiss.
 - **The final step ignores every tap but the right one** (`tutorial_only_correct_taps`): no score,
-  no partial credit, no round ending. It also FRAMES the correct shape, because that step is a
-  demonstration of what "right shape, right direction" looks like rather than a test — the closing
+  no partial credit, no round ending. It also FRAMES the correct umbrella, because that step is a
+  demonstration of what "right umbrella, right corner" looks like rather than a test — the closing
   step then says that in play nothing is framed and near misses do score.
 - `_time_to_consider_fail_ms` is pushed out of reach for the tutorial and restored afterwards: a
   6 s answer clock is fine for play and absurd for someone reading a caption.
 - Events reported to the coach: `model_shown`, `periph_shown`, `answer_ready`, `answered_right` —
   all `game.tutorial_notify`, no-ops outside tutorial mode.
 
-## The background
+## The scene: the square, three-quarter view
 
-This game has no world in it — a shape flashes and you answer — so there is no ground to draw. What
-sits behind the board is `scripts/study_backdrop.gd`, shared with Witness (`ddooo`), Lineup (`ooo`) and Glimpse (`pop`), the other three games
-with nothing standing on anything. It used to show a lawn, for no reason at all.
+`plaza.gdshader` on a ColorRect first in the Level layer (`_fit_ground_to_board`), covering the board plus
+a four-tile margin and the whole canvas, laid out from the board's CENTER and `tile` in world units. The
+square seen STEEPLY FROM ABOVE, as an old top-down adventure game draws a town: the round square and its
+EIGHT STREETS laid out flat (each answer direction is a street, each spot stands at a street's mouth),
+the buildings between the streets drawn with their roofs AND the brick front wall that faces us (lit
+windows here and there), lamp posts at the street mouths standing up the screen, a round fountain in the
+middle, rain.
 
-```gdscript
-StudyBackdrop.fit(self, get_node_or_null("TextureRect") as CanvasItem, game,
-    StudyBackdrop.PINPOINT, 34)
-```
+**Three tries, 2026-11-15.**
+1. STRAIGHT DOWN: the directions were crisp (streets) and the umbrellas' prints read whole, but people
+   were shapes -- "different background colors of the same game", the lookout an eye.
+2. STREET VIEW (from a low rooftop, people side-on): the story came through, but it was LESS EFFECTIVE --
+   the eight spots became a circle on a perspective floor with nothing marking the directions, the
+   prints shrank to thin side-on domes, and buildings, posts and bodies cluttered the flash. Both the
+   WHAT and the WHERE got harder to catch.
+3. THREE-QUARTER (this): the top view's geometry and prints, the street view's people.
 
-`_fit_ground_to_board()` is called at the end of `_ready()` and from `_load_cfg()` (this game has no `create_board` — the board is a fixed 7x7 at every
-level, so `_load_cfg` is the only place its size could change). `fit()` hides the tiled
-`TextureRect` it replaces, attaches a control as the Level layer's first child so it draws behind
-the board, sizes it to the board plus a four-tile margin merged with the full canvas, and populates
-it — rebuilding only when that rect actually changed.
+**Fairness.** The square, streets, lamps and roofs are the same under a 45-degree turn; only the front
+walls break it (they face us, at the top), and they stand outside the ring, behind no one. Every
+umbrella is the same size (`CANOPY_TILES`), every person without one too (`PERSON_BOOST` larger), and each
+figure stands `FIG_DROP_TILES` below its point so its UMBRELLA, not its feet, is on the ring.
 
-**It is deliberately featureless, and that is a gameplay constraint, not a shortcut.** This game asks which of EIGHT directions a dot flashed in. If the background were brighter in
-some directions than others, the dot would be easier to catch in some directions than others, and
-the game would no longer be measuring what it claims to. That is why the only variation is radially
-symmetric: identical whichever way the dot went.
-So there is no vignette, no gradient with a direction to it, no pattern and no motion. The surface
-is a deep base (`StudyBackdrop.PINPOINT`, a low-chroma slate blue), a radially symmetric lift toward
-the centre at 5% alpha, and a fine untiled dust of specks in two tones at 4-9% alpha — enough that
-the screen reads as a matte surface rather than as a missing asset, and far too little to compete
-with a coloured shape.
+Its lights, set every frame by `_light_plaza()`: `flash` -- the square only MODERATELY brighter, so the eye goes to
+the people (drawn in their true colors); `mask` -- RAIN RUNNING DOWN THE GLASS we look
+through, `MASK_MS`: streams and scattered beads over a dark blue wash, soft and low contrast; `lamps` --
+warm pools at the street mouths, for the answer. The rain: thin slanted streaks and splash rings.
 
-`probe_lawn.gd` checks this game with the other three: backdrop present and first in its layer,
-populated before any board is built, covering board and canvas, the tiled ground retired only once
-it has something in it, and the centre lift both small and direction-free.
+**The mask's history.** Blocky noise read as TV static; a sheet of driving rain was "disturbing"; plain
+BLACK was calm but lets the afterimage linger (a dark field prolongs it), so the player effectively saw
+longer than the flash -- weaker training. The research masks with a PATTERN for that reason; rain on glass
+is a pattern that fits the story and stays gentle.
+
+**The figures** (`agent.gd`, origin at the feet): UMBRELLA -- the canopy seen almost from above (eight
+panels drawn round, then foreshortened by `SQUASH`), carrying one of seven PRINTS (`plain`, `stripes`,
+`dots`, `rim`, `cap`, `half`, `ribs`), with the person's coat hem and legs below its front edge; LOOKOUT --
+a yellow raincoat under a clear umbrella; PASSERBY -- a plain black umbrella. The print
+is DARK on a light canopy and light on a dark one (a pale tint made every umbrella read the same).
+`spin` turns the canopy; the spots' umbrellas copy the courier's unless the level has `rotate`. The person
+under an umbrella is random and means nothing. Figures are lit by the moment (`set_light`), sorted front
+to back by their y, and tapped on the umbrella and the person under it.
+
+**The camera fits the whole SQUARE** (`_create_camera`): `VIEW_W_TILES` x `VIEW_H_TILES`, between the HUD
+strip and the button bar, its middle `VIEW_MID_TILES` above the fountain. Fitting the board's width alone (as the old board game did) put the
+buildings above the shorter desktop canvas and the ring too high.
+
+**Two or more per spot, ALWAYS** (`num_options` >= 2). The research task always asks for both answers --
+the center item (from two) and the place (from eight). One per spot was tried at levels 1-2 for a gentler
+start and taken back the same day: with one umbrella at a spot, knowing the spot is enough, and the
+center item stops mattering. The gentle start is instead the research's own: at level 1 `num_same` is 8
+(the courier's umbrella stands at every spot) and the decoy beside it is CLEARLY different
+(`same_color_alts` off: another color as well as another print -- "a car or a truck"). From level 2 the
+decoys share the courier's color, so only the print tells them apart; later levels add decoy spots
+(`num_same` < 8), more people per spot, two-color canopies, turned umbrellas and passers-by.
+
+**Each spot is a GROUP IN ITS STREET, centered on the lookout's place, with no one ON it**
+(`_get_cluster_positions`): a PAIR down the street, one nearer the fountain and one farther
+(`QUEUE_STEP` apart); a TRIO as a triangle whose center is the lookout's place, its tip toward the
+fountain and its base toward the screen's edge (`TRIANGLE_H`, `TRIANGLE_HALF_BASE`). So the groups are
+clearly separate (each in its own street, set apart by the roofs), sit exactly round where the lookout
+flashed, and no single umbrella is singled out by standing on that very spot. Tried and replaced the
+same day: people side by side across the street (at 170 and 190 degrees for a lookout at 180, and the
+sixteen umbrellas formed one even ring with no visible groups); the same round the lamp posts; and a
+queue with one umbrella exactly on the lookout's place. At most 3 per spot (`num_options`), so the groups
+stay on screen. The lamp posts stand at the KERB of each street mouth, clear of the groups. The
+passers-by stand at the OTHER spots first (the research's hardest stage fills the other places with
+look-alikes), then between them. No jitter: the research task's targets are at fixed places too.
+
+**The light on the figures is NEUTRAL** (`LIGHT_FLASH`, `LIGHT_LAMPS` both white): an umbrella's color is
+part of what the player remembers, and a cold light in the flash and a warm one in the answer shifted the
+same color two ways, so the right umbrella did not match the courier's. The scene carries the lightning
+and the lamplight.
+
+**The lookout** is a yellow raincoat under a SEE-THROUGH umbrella -- the same size and drawing as every
+umbrella, the only clear one -- and the passers-by carry plain BLACK umbrellas. Everything in the square
+is an umbrella. Tried and dropped the same day: a yellow figure from straight above (it read as an eye),
+and a whole slim person raising a lit torch (too big and too dull beside the umbrellas; the question
+"what is it?" had only meant that the flash was too short to tell).
 
 ## What this game measures
 
@@ -213,6 +296,9 @@ a bright rim, a sweep, and a single large blip off to one side. "Where did it fl
 the game asks, and a radar is the picture of it. Drawn bold -- few lines, thick rim, big blip -- so it
 still reads at chooser size; a finer radar with more rings lost its appeal when small. A compass with a
 push pin and an eye with a spark at the edge of its view were turned down.
+
+**Open (2026-11-15):** the radar no longer fits the stakeout, nor does the `dispatch` sound (a radar
+ping, now played with the lightning). Both wait until the stakeout's look is approved.
 
 ## Sounds
 
