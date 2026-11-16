@@ -316,6 +316,7 @@ player's own saved state back into the level so Continue still resumes their gam
 |---|---|---|
 | `dino` | discrete swipe / two buttons | "seen" means *this round*; the drain bar is a deadline |
 | `change` | drag into a container | no running total is shown; coins hide under each other |
+| `tipscales` | tap a crate, tap / long-press a weight, tap a paper | the chalk is what a crate MAY weigh; a weight it can still have is refused (a mistake); Hint does one step and says why |
 | `aliens` | drag within a simulation | outer ring vs inner ring; evicting is a correct call too |
 | `gorilla` | flick to set a direction | you eat AND watch the whole maze; a lost baby appears far away and must be rescued before a monster gets it |
 | `pickpocket` | tap a cup, then tap a person | two jobs at once: the cups up close and the street out of the corner of the eye; the questions come in order, the cup then the person |
