@@ -60,8 +60,10 @@ func set_carry(o: int, announce: bool, delay: float = 0.0) -> void:
 
 # A vault just opened: its object pops up big ("FOUND / CROWN / Remember this room"), holds, and shrinks
 # away -- there is no card for it, nothing is carried.
-func announce_found(o: int, room: String = "") -> void:
-	_ann.append({"obj": o, "kind": "found", "t": -1.0, "after": _now, "room": room})
+# `avoid_y`: the opened safe's height on the screen -- the card goes in the other half, so it never covers
+# the safe it is about (it stood in the upper third, and a safe in the room's upper half was under it).
+func announce_found(o: int, room: String = "", avoid_y: float = -1.0) -> void:
+	_ann.append({"obj": o, "kind": "found", "t": -1.0, "after": _now, "room": room, "avoid_y": avoid_y})
 
 # The room's name as the player walks in: large, letter-spaced, over the room, then gone.
 const ROOM_S: float = 2.2
@@ -73,6 +75,19 @@ func show_room(room: String) -> void:
 
 # A question on the map goes straight into the BANNER at the top (popping in), not into a big card in the
 # middle: there it covered rooms of the map being asked about. The map is framed below the banner.
+# "ALL FOUND": every object of the round in a row, popping in one by one, held, then gone (level.gd
+# _finish_exploring, while the camera glides out to the map).
+const RECAP_POP_S: float = 0.22           # between one badge and the next
+const RECAP_HOLD_S: float = 1.3
+var _recap: Array = []
+var _recap_t: float = -100.0
+func show_recap(objs: Array) -> void:
+	_recap = objs.duplicate()
+	_recap_t = _now
+
+func recap_seconds() -> float:
+	return 0.3 + RECAP_POP_S * float(_recap.size()) + RECAP_HOLD_S + 0.4
+
 func set_request(o: int) -> void:
 	request = o
 	if o >= 0:
@@ -86,8 +101,12 @@ func pop(text: String, color: Color, at: Vector2) -> void:
 	_pops.append({"text": text, "color": color, "pos": at, "t": _now})
 
 func clear_all() -> void:
+	curtain = 0.0
+	time_frac = -1.0
 	carry = -1
 	request = -1
+	_recap.clear()
+	_room_name = ""
 	_ann.clear()
 	_pops.clear()
 
@@ -114,7 +133,16 @@ func _name(o: int) -> String:
 func _col(o: int) -> Color:
 	return objects[o][2]
 
+# THE CURTAIN between the walk and the map (0 open .. 1 closed): the castle goes dark behind the recap, the
+# view jumps to the whole castle, and the gray map comes up out of the dark. A glide out from where the
+# player stood, over floors still furnished, handed the player the map they were meant to build in their
+# head (the user, 2026-11-16).
+const CURTAIN_COLOR: Color = Color(0.035, 0.04, 0.055)
+var curtain: float = 0.0
+
 func _draw() -> void:
+	if curtain > 0.0:
+		draw_rect(Rect2(Vector2(-4000.0, -4000.0), size + Vector2(8000.0, 8000.0)), Color(CURTAIN_COLOR, curtain))
 	if objects.is_empty():
 		return
 	# Which card is still being announced (it appears only once the announcement has flown into it).
@@ -131,6 +159,7 @@ func _draw() -> void:
 	if request >= 0 and not hide_req:
 		_draw_banner(request)
 	_draw_room_name()
+	_draw_recap()
 	if not flying.is_empty() and float(flying["t"]) >= 0.0:
 		_draw_announcement(flying)
 	for p in _pops:
@@ -163,6 +192,61 @@ func _draw_banner(o: int) -> void:
 	draw_string(f, Vector2(tx, y + hfs + nfs * 1.15), _name(o), HORIZONTAL_ALIGNMENT_LEFT, -1, nfs, Color.WHITE)
 	draw_string(tf, Vector2(tx, y + hfs + nfs * 1.15 + sfs * 1.6), "Tap its room on the map",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, sfs, Color(1, 1, 1, 0.8))
+	_draw_time_bar(lr)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+# THE QUESTION'S TIME (level.gd ANSWER_*): a bar along the banner's foot, draining from full; green, then
+# amber, then red in its last quarter, where it also throbs. -1: no bar (the tutorial).
+var time_frac: float = -1.0
+func _draw_time_bar(lr: Rect2) -> void:
+	if time_frac < 0.0:
+		return
+	var h: float = 9.0
+	var inset: float = 16.0
+	var track: Rect2 = Rect2(lr.position.x + inset, lr.end.y - h - 9.0, lr.size.x - inset * 2.0, h)
+	draw_rect(track, Color(0, 0, 0, 0.45))
+	var f: float = clampf(time_frac, 0.0, 1.0)
+	var col: Color = Color(0.40, 0.90, 0.45).lerp(Color(1.0, 0.78, 0.25), clampf((0.6 - f) / 0.3, 0.0, 1.0))
+	if f < 0.25:
+		col = Color(1.0, 0.36, 0.30).lightened(0.25 * (0.5 + 0.5 * sin(_now * 14.0)))
+	draw_rect(Rect2(track.position, Vector2(track.size.x * f, h)), col)
+
+func _draw_recap() -> void:
+	if _recap.is_empty():
+		return
+	var t: float = _now - _recap_t
+	var total: float = recap_seconds()
+	if t < 0.0 or t > total:
+		return
+	var n: int = _recap.size()
+	var f: Font = get_theme_default_font()
+	var hfs: int = MainGlobals.ui_font_size(26)
+	var br: float = minf(size.x * 0.88 / float(n) * 0.40, 34.0)
+	var w: float = size.x * 0.90
+	var h: float = hfs * 1.6 + br * 2.0 + 40.0
+	var r: Rect2 = Rect2((size.x - w) * 0.5, size.y * 0.42 - h * 0.5, w, h)
+	# in with a pop, out by shrinking
+	var s: float = 0.6 + 0.4 * minf(1.0, t / 0.25) + 0.08 * sin(minf(1.0, t / 0.25) * PI)
+	if t > total - 0.4:
+		s *= maxf(0.0, (total - t) / 0.4)
+	if s < 0.02:
+		return
+	draw_set_transform(r.get_center(), 0.0, Vector2(s, s))
+	var lr: Rect2 = Rect2(-r.size * 0.5, r.size)
+	_panel(lr, GOLD, 5.0)
+	var head: String = "ALL %d FOUND" % n
+	var hw: float = f.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
+	draw_string(f, Vector2(-hw * 0.5, lr.position.y + 16.0 + hfs), head, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, GOLD)
+	var step: float = lr.size.x * 0.92 / float(n)
+	var y: float = lr.position.y + 26.0 + hfs * 1.3 + br
+	for i in n:
+		var ti: float = t - 0.3 - RECAP_POP_S * float(i)
+		if ti < 0.0:
+			continue
+		var u: float = minf(1.0, ti / 0.18)
+		var bs: float = 0.4 + 0.6 * u + 0.15 * sin(u * PI)
+		var x: float = -lr.size.x * 0.46 + step * (float(i) + 0.5)
+		BADGE.draw(self, Vector2(x, y), br * bs, _sym(int(_recap[i])), _col(int(_recap[i])))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _draw_room_name() -> void:
@@ -199,7 +283,10 @@ func _draw_announcement(a: Dictionary) -> void:
 	var is_found: bool = a["kind"] == "found"
 	var accent: Color = GOLD if is_new else REQ
 	var big_h: float = minf(size.y * 0.19, 230.0)
-	var big: Rect2 = Rect2(size.x * 0.06, size.y * 0.27 - big_h * 0.5, size.x * 0.88, big_h)   # above the room's center, where the player usually is
+	var big_cy: float = size.y * 0.27                 # above the room's center, where the player usually is
+	if float(a.get("avoid_y", -1.0)) >= 0.0 and float(a["avoid_y"]) < size.y * 0.5:
+		big_cy = size.y * 0.72                        # the safe is up there: the card goes below it
+	var big: Rect2 = Rect2(size.x * 0.06, big_cy - big_h * 0.5, size.x * 0.88, big_h)
 	var slot: Rect2 = _card_rect(0 if is_new else 1)
 	var head: String = "FOUND" if is_found else ("NEW OBJECT" if is_new else "WHERE IS THE")
 	var sub: String = ("In the %s" % str(a.get("room", "")) if str(a.get("room", "")) != "" else "Remember this room") if is_found else ("Put it in an empty room" if is_new else "Tap its room on the map")

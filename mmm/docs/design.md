@@ -83,18 +83,54 @@ mmm/scripts/
    announced, +1, `delivery` (`found`). **Walked into again** (`_peek`): it opens for a moment and the
    object's name rises over it -- no points, no cost (`peeked`); the player may refresh their memory
    while roaming, as in a real house.
-6. When `_round_complete()` (every vault opened) the player spins away
-   (`mark_arrived()`) -> `on_player_remove_player(true)`: hazards cleared, and `MAP_DELAY_MS` later
-   `_start_map()`: `zoom_camera(false)` frames the whole castle (`_castle_rect()`, corridors included)
-   and every floor shows plain gray (pipe.gd's zoomed-out look) (`map_shown`).
+6. When `_round_complete()` (every vault opened) walking is over (`player.arrived`; collisions off) and
+   `_finish_exploring()` runs: the last safe gets NO FOUND card (its card and then the recap left a dead
+   pause between them, "a short freeze"), and `RECAP_AFTER_S` (0.35 s) after it opens an **"ALL n FOUND"**
+   card pops up with every object's badge in a row, one by one (`fetch_hud.gd` `show_recap`). Behind it,
+   a CUT, not a glide: a short dip to dark (`fetch_hud.gd` `curtain`, `CURTAIN_CLOSE_S` 0.3 s), the
+   player and the monsters gone, every floor gray and the view set on the whole castle (framed below the
+   banner) behind it, held fully dark a few frames, and the gray map fades in while the card is still up
+   (`CURTAIN_OPEN_S` 0.9 s). Then `_start_map()` (`map_shown`). Until 2026-11-16 the camera GLIDED out from
+   the player's room over floors still furnished: it showed how the walked rooms lie together, the very
+   map the round asks the player to have built in their head (the user). A dark screen behind the card
+   until the questions was "bleak"; hence the fade-in under the card. A sequence still running when the
+   round is reset stops (`_round_token`).
+   **There is no session clock** (`main.gd`: `game.uses_session_clock = false`; the HUD shows none, the
+   level card no "Time left", the round's win no longer adds time). It only cut sessions short at a
+   random moment, mid-walk or mid-question; the time that matters is each question's (below).
 7. **The questions** (`_update_questions`): the vaults' objects in a random order, one at a time,
    `QUESTION_GAP_MS` apart (`asked`). A tap on any floor tile of a room (pipe.gd `pipe_pressed` ->
    `_on_floor_tapped`) answers for that room:
-   - the right room: +5, plus up to +5 for speed (one less every 2 s), `right`; the room takes its color
-     back (`_color_room`) and its pedestal shows the object for good (`room_answered`);
-   - a wrong room: -1, `gaveup`, its pedestal opens on what is really there for `REVEAL_MS`, and the
-     question stays open. Sets `_round_had_wrong_answer`. A room already found ignores taps.
-   After the last one, `level_is_done(true)` a second later (not in the tutorial; `map_done`).
+   - the right room: +5, plus up to +5 for speed (one less every 2 s), `right`; the object pops up
+     LARGE, about 2x2 cells, centered on its safe (`pedestal.gd` `big`) -- also where it shows only for a
+     moment (keep_found off); the room takes its floor back where the level allows (`room_answered`);
+   - a wrong room: -1, `gaveup`, its pedestal opens on what is really there for `REVEAL_MS` (level 1
+     only, `reveal_wrong`), and the question stays open. Sets `_round_had_wrong_answer`. A room already
+     found ignores taps while something marks it.
+   - **the time bar runs out**: every question has its own time, a bar draining along the banner's foot
+     (`fetch_hud.gd` `time_frac`: green, amber, then red and throbbing in its last quarter). It ADAPTS to
+     the player over the session, a staircase (`ANSWER_*` in level.gd): from 12 s, an answer in under
+     60% of the time tightens it by 10%, a run-out loosens it by 25%, within 4..20 s -- the pressure kept
+     near the edge of what this player can do, the way adaptive speed training works, not a clock's
+     random cut (the user, 2026-11-16: "add a per question time bar that adapts"). Counted only while the
+     game runs (paused time is not), none in the tutorial. A run-out is a miss: -1, a mistake
+     (`answer_timeouts` counted), `gaveup`, and the right room flashes amber with its object shown large
+     for a moment ("Time's up: it was here"); then the next question. The time an answer took (for the
+     score's speed bonus and the recorded `rt` distribution) is the same pause-free count.
+   After the last one, **everything is shown** (`_reveal_all`, "when all are done, show all"): room by
+   room every floor comes back and every safe opens on its object, LARGE (about 2x2 cells, centered on
+   the safe; a safe is never next to a wall, so it stays in its room), with a pop (`REVEAL_STEP_S`), then
+   `level_is_done(true)` (not in the tutorial, nor if play was left meanwhile; `map_done`).
+
+**Game over clears the overlays** (`on_time_over` / `on_lives_depleted` -> `_end_overlays`): the map's
+question, the announcements and the room name go, and any recap, cut or reveal still running stops
+(`_round_token`); the curtain lifts. The "WHERE IS" banner stayed up under the game-over card.
+
+**No green at the edges**: the great hall's rect runs `SKY_MARGIN_TILES` (40) past the board on every
+side, and the window's clear color is the hall's near-black (`main.gd`). Framed below the question's
+banner, the pulled-out map reached past the hall, and the old lawn-green clear color showed as a strip
+along the top and sides. On the higher levels nothing stays on show
+   while answering, so this is the first time the player sees the whole palace at once.
 
 The time each map answer took is kept in `times_to_answer` (the last 20), reported as `rt` by
 `main.gd::get_game_score()`.
@@ -137,8 +173,9 @@ more in-your-face". Now (`fetch_hud.gd`, `object_badge.gd`, `pedestal.gd`):
   and the map is framed BELOW it (`_frame_for(..., top)`). It was a big card in the middle that then
   flew into a card at the top, and in both places it covered rooms of the map being asked about ("the
   question sometimes hides a vault").
-- **Announcements**: a vault's object ("FOUND / CROWN / Remember this room", gold) pops up large in the
-  upper third, the screen dimmed a little, holds 1.25 s and shrinks away. Queued, one at a time. **Laid out once and
+- **Announcements**: a vault's object ("FOUND / CROWN / In the kitchen", gold) pops up large in the
+  upper third -- or the lower part when the opened safe is in the screen's upper half, so it never covers
+  the safe it is about (`announce_found(..., avoid_y)`; in the upper third it usually did) -- the screen dimmed a little, holds 1.25 s and shrinks away. Queued, one at a time. **Laid out once and
   scaled through a transform**: fitting the text to the moving rect asked for a new font size every
   frame, each rasterized afresh -- half a second a frame.
 - **Vaults not opened yet are BEACONS** (rings spreading out, a warm glow), so the ones still to find

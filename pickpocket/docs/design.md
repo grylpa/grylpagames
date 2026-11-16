@@ -331,7 +331,9 @@ narrow pill that stands between them. (Result lines stay one line at 30.)
 - **Level end:** after `rounds` rounds the level is judged on the share of rounds with both
   right. Below `pass_pct` the same level comes again. The card lists both right, ball found and
   street right.
-- **No session clock** (`uses_session_clock = false`).
+- **No session clock** (`uses_session_clock = false`). main.gd still starts the HUD's timer, but since
+  2026-11-16 the shared HUD never counts down for a game without a session clock (it did: the hidden
+  countdown would have ended the session after 5 minutes).
 - **Score row:** `[didwin, aborted, level, mean answer time, pct]`. The answer time runs from the
   person question to the tap.
 

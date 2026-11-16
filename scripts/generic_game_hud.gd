@@ -673,7 +673,9 @@ func _on_time_left_timer_timeout() -> void:
 	var now = game.game_time
 	if now - _last_time_left_timer_tick >= 1000:
 		_last_time_left_timer_tick = now
-		if game.playing and not game.paused():
+		# a game without a session clock (uses_session_clock false) never counts down, even if it starts the
+		# timer: Pickpocket did, and its hidden clock would have ended the session after 5 minutes
+		if game.playing and not game.paused() and game.uses_session_clock:
 			add_score_and_time(0,-1, false)
 
 func delivered_one():

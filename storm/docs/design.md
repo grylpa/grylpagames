@@ -4,7 +4,27 @@
 
 A time-pressure management game. A storm is battering your old house and the roof is leaking. You must protect your belongings by placing containers, towels and masking tape under leaks, emptying filled containers at drains, and keeping any room from flooding.
 
+## What can be stepped on
+
+Since 2026-11-16 (`level._blocks_feet`, used by `can_go_to` and the path cost): a rug, a rag, a drain's
+grate and a taped leak can be walked over; the vase of flowers, the television and a bucket, cup or plate
+standing under a leak cannot (`WALK_OVER_FURNITURE`, `BLOCKING_TOOLS`) -- "some things can be walked on
+(rug) but most should not". Nothing is lost by it: a tool is placed, emptied and taken back from the next
+cell over (`create_actions_popup` accepts distance 0 or 1). A blocking piece of furniture is placed off
+the room's edge, so never in or beside a doorway, and with nothing solid in the 8 cells round it, so it
+never walls a cell in (`add_furniture`, `_solid_near`). A drawn route ending ON a blocked cell stops the
+player beside it.
+
 ## The drawn path
+
+**The stroke is made walkable** (`level._repair_path`, 2026-11-16). The path arrives as the cells under
+the finger, and a finger cutting the corner into a side corridor crosses the wall cell beside the
+opening. The player used to stop at that cell for good: the rest of the stroke stayed queued, so
+neither it nor the corridor run went on ("it refused to enter a corridor which opened to the left",
+"it doesn't auto advance in corridors", both on a phone). Now a cell that cannot be walked is dropped,
+and the walk to the next one that can is routed (A*, at most `PATH_DETOUR_MAX` 8 steps). A path step
+that has become solid since clears the rest of the path (`move_player_on_tick`) instead of freezing the
+player.
 
 The path the player drags is the shared `PathOverlay/PathLine` in `scenes/main.tscn`. Its own color
 is a fixed orange, which disappeared over the warmer room floors.
@@ -487,6 +507,7 @@ storm/
     ├── level.gd           (core gameplay, board, rooms, leaks)
     ├── level_config.gd    (StormLevelConfig — 12 levels)
     ├── pipe.gd            (one tile's leak: pours into its tool or onto the floor)
+    ├── room_looks.gd      (the house's rooms: each one's floor material, checker and tint)
     ├── tool_art.gd        (StormToolArt — the five tools, drawn)
     ├── flood_layer.gd     (StormFloodLayer — the water on the floor: one circle per leak)
     ├── action_panel.gd    (one inventory box)
@@ -526,6 +547,10 @@ Coached tutorial in `storm/scripts/tutorial.gd`; see `docs/tutorials.md` for the
 - The help screen's instructions (`main.gd`, `set_instructions`) say the same, from the same
   constants. They used to point at a per-room percentage that the HUD's "Worst" label replaced.
 - The level's intro popup is skipped in tutorial mode.
+- **Step 2 is a silent wait** (`advance_when`: the player is on the board; its `house_built` event is
+  never sent, the timeout a backstop). A quick reader tapping past the title reached the "Draw a route"
+  step while the house was still being built, and its spotlight on the player resolved to nothing
+  (probe_tut: "declares a spotlight but nothing resolved"). Mind Palace's tutorial does the same.
 
 ## The level intro
 
@@ -772,16 +797,20 @@ shared by the eleven grass games — not a tile. `level.gd`'s `_fit_ground_to_bo
 installation:
 
 ```gdscript
-GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19)
+GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19, cam)
 ```
+
+`cam` is the game camera, and `zoom_camera(false)` refits after framing the whole mansion: that view
+shows more than the board plus a screen, and on a tall phone a bare band of the clear color showed
+above and below the lawn (2026-11-16). The rain (`_fit_weather`) follows the field.
 
 It hides the tiled `TextureRect` it replaces, attaches a `GrassField` control to `BgLayer` (a nested `CanvasLayer`, `layer = -1`, `follow_viewport_enabled`) so it
 draws behind everything, sizes it to the board plus a four-tile margin (merged with the full canvas,
 so a board smaller than the screen still has grass to the edges), and sows it. The seed is this
 game's own — 19 — so no two games show the same field.
 
-It is called twice: at the end of `_ready()`, so the lawn is already there before the first board is
-built, and at the START of `create_board()`, for a level that changes the board's size. `fit()`
+It is called at the end of `_ready()`, so the lawn is already there before the first board is built,
+at the START of `create_board()`, for a level that changes the board's size, and on every zoom out. `fit()`
 re-sows only when the rect actually changed, because the field is a `MultiMeshInstance2D` of tens to
 hundreds of thousands of blades and building it is not something to redo between rounds.
 
@@ -885,22 +914,24 @@ derived from it by the games-doc build and must not be written by hand.
 The house was pale marble rooms lying on the rainy ground like rugs, with brick blocks and small
 clip-art furniture in them. Now:
 - **Room floors** (`room_floor.gdshader` on each room tile's `PipeFloor2`, its own material copy, told
-  its `cell`, `kind` and `checker` in `pipe.gd` `set_rot` from `FLOOR_PLAN`, by room in turn: marble,
-  ceramic, marble, terracotta, CHECKER marble, ceramic; corridors keep kind 0): POLISHED MARBLE in ONE
-  even tone of the room's color (veins, bevel, sheen -- Mind Palace's floor; a checker only in one room in
-  six: "most should not" be checkerboard), GLAZED CERAMIC (glossy, a THIN grout close to the tile's tone,
-  raised rim, crackle, the window light as a streak), TERRACOTTA (matte, a NARROW mortar a step darker --
-  white grout and dark wide mortar made heavy grids). The marble has EVERY SLAB ITS OWN TONE, clouding in
-  the stone and bolder veins (0.34): flat, an even floor looked plain beside Mind Palace's checker.
-  CORRIDORS are the same marble in warm gray (`pipe.gd` `CORRIDOR_STONE`; they were a photo of gray marble,
-  `PipeImageNoDir`). ONE TILE PER CELL in all three: play is cell by cell ("don't lose the tiles"). The
-  ROOM'S COLOR is the tint -- DEEP, `color_by_index(room).darkened(0.2)` as in Mind Palace (it was
-  `lightened(0.5)`: on those pastels the marble's pale veins, bevels and sheen hardly showed, and the same
-  shader as Mind Palace's looked flat; `level.floor_color_at` is told the same) -- and stays the main thing seen -- the colors do not matter to play, but help
-  the player remember which room is which (white is a palette color: a white room is meant). Laid from
-  the cell, not MODEL_MATRIX; hairlines sized in screen pixels. Tried first and dropped: wooden boards
-  ("unclear", "parquet"), small kitchen tiles two by two (a grid twice as fine as the cells), carpet --
-  drawn per cell on the CPU, and "dull" ("see what you did in Mind Palace").
+  its `cell`, `kind` and `checker` in `pipe.gd` `set_rot`): since 2026-11-16 each room is a ROOM OF A
+  HOUSE in a house's material and color (`storm/scripts/room_looks.gd` `LOOKS`: kitchen cream ceramic,
+  living room terracotta, hall stone marble in a checker, bathroom sage ceramic, study brown marble,
+  dining room rose marble, sunroom sand terracotta, bedroom mauve ceramic), shuffled per board
+  (`level._room_looks`, `room_look(rid)` -> [kind, checker, tint]; the path overlay is told the same
+  tint). Before, the tint was the app's palette (`color_by_index(room).darkened(0.2)`: deep purple,
+  crimson, white...), which read as a diagram ("way less pretty than Mind Palace"); first tries of the
+  terracottas and the study were too orange and too drab olive. **No blue or cyan floor and nothing very
+  dark**: the water is blue and seeing it spread is the game. The rooms still differ (material and hue),
+  which is what the colors were for. No room names on screen (Mind Palace's): here the eye is on the water.
+  The three kinds: POLISHED MARBLE (veins, bevel, sheen, every slab its own tone, clouding; a checker
+  only where the look says), GLAZED CERAMIC (glossy, a THIN grout close to the tile's tone, raised rim,
+  crackle, the window light as a streak), TERRACOTTA (matte, a NARROW mortar a step darker -- white grout
+  and dark wide mortar made heavy grids). CORRIDORS are the same marble in warm gray (`pipe.gd`
+  `CORRIDOR_STONE`). ONE TILE PER CELL in all three: play is cell by cell ("don't lose the tiles"). Laid
+  from the cell, not MODEL_MATRIX; hairlines sized in screen pixels. Tried first and dropped: wooden
+  boards ("unclear", "parquet"), small kitchen tiles two by two (a grid twice as fine as the cells),
+  carpet -- drawn per cell on the CPU, and "dull" ("see what you did in Mind Palace").
 - **Walls** (`level._add_house_walls` / `_draw_house_walls`): white plaster, `HOUSE_WALL` 0.18 of a tile
   (0.16 was "a thin white frame", 0.24 "too thick"), with a dark outline round every room and hallway, drawn like Mind
   Palace's (all the plaster, then all the lines; outside corners run on, inside corners stop the outer
@@ -944,7 +975,7 @@ clip-art furniture in them. Now:
   `scripts/head_anim.gd` + `scripts/path_smoother.gd`.
 - Bricks are drawn by `scripts/block_art.gd`: three types (deep red long bricks; pale pink narrow
   bricks; red with sandy ones mixed in) in one mortar.
-- Floor: one-tone marble tiles in each room's color with soft veins that run across tiles
+- Floor: a house room's material and color per room (see "A real home" above), veins running across tiles
   (`storm/scripts/room_art.gd draw_floor`); furniture drawn there too -- a vase of flowers, a
   television on its stand, a fringed rug kept inside its tile -- dark and stained when ruined.
 - Tool menu: the original outlined swatches, and BEHIND the menu the board blurred

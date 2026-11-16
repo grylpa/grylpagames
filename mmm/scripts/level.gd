@@ -52,7 +52,6 @@ const OBJECTS: Array = [
 	["☎", "telephone", Color(0.10, 0.10, 0.12)], ["♫", "music box", Color(0.48, 0.25, 0.70)],
 	["☕", "teacup", Color(0.50, 0.30, 0.20)], ["⚖", "scales", Color(0.20, 0.45, 0.42)]]
 const QUESTION_GAP_MS: int = 900          # after one room is found, before the next question
-const MAP_DELAY_MS: int = 1700            # the last vault's object is seen, then the view pulls back
 const REVEAL_MS: int = 1100               # how long a wrong room's pedestal stays open
 const BOMB_CLEAR: int = 2                 # no bomb within this many tiles of a pedestal
 const PEDESTAL_SCRIPT: GDScript = preload("res://mmm/scripts/pedestal.gd")
@@ -207,6 +206,7 @@ func reset():
 	_found_rooms.clear()
 	_on_map = false
 	_last_room_named = -2
+	_round_token += 1
 	_request = -1
 	if _hud != null:
 		_hud.clear_all()
@@ -252,6 +252,7 @@ func new_game(from_scratch=true):
 	if from_scratch:
 		level = MmmG.starting_level
 		round_in_level = 0
+		_answer_limit_ms = ANSWER_START_MS
 		# The first level of a session starts clean and stamps its own starting score; every later
 		# level does the same from _advance_if_needed().
 		_level_is_over = false
@@ -329,6 +330,7 @@ func _process(delta: float) -> void:
 	_update_fetch_view()
 	if game.playing and game.level_is_ready and not game.level_is_done:
 		_update_questions()
+		_run_question_clock(delta)
 	if player != null and game.playing and not game.paused() and game.level_is_ready \
 			and not game.level_is_done and _in_corridor(player.board_pos):
 		move_player_on_tick()
@@ -1805,8 +1807,8 @@ func move_player_on_tick(force:bool = false):
 	if _round_complete():
 		for agent in agents:
 			agent.is_moving = false
-		game.play_sound("swoosh")
-		player.mark_arrived()
+		player.arrived = true           # walking is over; _finish_exploring takes it from here
+		_finish_exploring()
 		return
 
 	var p = player.board_pos
@@ -1983,8 +1985,7 @@ func level_is_done(didwin: bool):
 		# only because there was nothing else in front of it.
 		var time_from_start_s = (MainGlobals.timems() - time_started_level_ms) / 1000
 		var score_add = min(5, 60 - time_from_start_s)
-		var time_add = min(10, 60 - time_from_start_s)
-		game.add_score_and_time(score_add,time_add)
+		game.add_score_and_time(score_add, 0)      # (no session clock to add time to)
 	if round_in_level >= rounds_per_level:
 		_finish_level()
 		return
@@ -2140,19 +2141,14 @@ func on_agent_remove_agent(agent_id, _good_remove: bool):
 
 # The round ends when the player spins away: won when everything was stored and fetched (there is no
 # quiz any more), lost when a hazard caught them.
+# The player leaves only when caught (a round won goes on to the map through _finish_exploring).
 func on_player_remove_player(_arrived: bool):
-	if _arrived:
-		for agent in agents:
-			agent.queue_free()
-		agents.clear()
-		# everything is stored: now the map (see "STORE, THEN THE MAP" at the top)
-		MainGlobals.do_after(MAP_DELAY_MS / 1000.0, func():
-			if not game.level_is_done and not rooms.is_empty():
-				_start_map())
-	else:
+	if not _arrived:
 		level_is_done(false)
 
 func check_agent_collisions():
+	if player == null or player.arrived:
+		return                         # walking is over (every safe opened): nothing can catch the player now
 	for i in agents.size():
 		var a1 = agents[i]
 		# var d_p_to_a = (a1.board_pos - player.board_pos).length()
@@ -2178,11 +2174,20 @@ func check_agent_collisions():
 # func show_clue():
 # 	update_score.emit(-1)
 
+# The game is over (time or lives): the map's question, the announcements and anything still playing out
+# go with it -- the "WHERE IS" banner stayed up under the game-over card.
 func on_time_over():
-	pass
+	_end_overlays()
 
 func on_lives_depleted():
-	pass
+	_end_overlays()
+
+func _end_overlays() -> void:
+	_round_token += 1          # a recap, cut or reveal still running stops
+	_request = -1
+	_to_ask.clear()
+	if _hud != null:
+		_hud.clear_all()
 
 func add_door_at(p):
 	if not game.in_board(p):
@@ -2264,12 +2269,17 @@ func _fit_ground_to_board() -> void:
 		_sky.material = m
 		field.get_parent().add_child(_sky)
 	field.get_parent().move_child(_sky, field.get_index() + 1)
-	_sky.position = field.position
-	_sky.size = field.size
-	(_sky.material as ShaderMaterial).set_shader_parameter("origin", field.position)
+	# Well past the board on every side: the map is framed below the question's banner, and pulled out
+	# to the whole castle the view reached past the lawn's rect -- the window's green showed as a strip
+	# along the top and sides.
+	var margin: Vector2 = Vector2(SKY_MARGIN_TILES, SKY_MARGIN_TILES) * float(game.tile_size)
+	_sky.position = field.position - margin
+	_sky.size = field.size + margin * 2.0
+	(_sky.material as ShaderMaterial).set_shader_parameter("origin", _sky.position)
 	_sky.show()
 
 var _sky: ColorRect = null
+const SKY_MARGIN_TILES: float = 40.0
 
 # --- store, then the map ------------------------------------------------------------------------
 
@@ -2318,8 +2328,11 @@ func _use_pedestal(cell: Vector2i) -> void:
 		tws.tween_callback(func() -> void:
 			if is_instance_valid(node) and not _found_rooms.has(rid):
 				node.set_state(node.State.COVERED))
-	if _hud != null:
-		_hud.announce_found(o, room_name(rid))
+	# The LAST safe gets no FOUND card: it goes straight into the "ALL FOUND" moment (_finish_exploring);
+	# its card first, then the recap, left a dead pause between them.
+	if _hud != null and not _round_complete():
+		var safe_rect: Rect2 = _screen_rect_for_cells(cell, cell)
+		_hud.announce_found(o, room_name(rid), safe_rect.get_center().y if safe_rect.size.x > 0.0 else -1.0)
 	_to_ask.append(o)
 	game.add_score_and_time(1, 0)
 	game.play_sound("delivery")
@@ -2344,9 +2357,101 @@ func _peek(rid: int) -> void:
 	game.tutorial_notify("peeked")
 
 # THE MAP: the whole castle from above, every floor plain gray (pipe.gd, zoomed out), the covers on.
+# EVERY SAFE OPENED (2026-11-16): an "ALL FOUND" card pops up with every object's badge in a row, and the
+# map fades in behind it (see _finish_exploring).
+const RECAP_AFTER_S: float = 0.35         # the last safe opening, then at once the recap
+const CURTAIN_CLOSE_S: float = 0.3        # a short dip to dark hides the jump to the whole castle
+const CURTAIN_OPEN_S: float = 0.9         # and the gray map fades in behind the ALL FOUND card
+var _round_token: int = 0                 # bumped by reset(): a sequence still running from an old round stops
+
+# THE WALK IS OVER: the recap of what was found, over a CUT to the map -- not a glide. A short dip to dark,
+# the view put on the whole castle with every floor already gray behind it, and the map fades in while the
+# ALL FOUND card is still up (not a dark screen behind the card: "bleak", the user). A glide out from
+# where the player stood, over the furnished floors, showed the player how the rooms they walked lie
+# together: the very map the round asks them to have built in their head.
+func _finish_exploring() -> void:
+	var token: int = _round_token
+	await get_tree().create_timer(RECAP_AFTER_S).timeout
+	if token != _round_token or game.level_is_done or not game.playing:
+		return
+	if _hud != null:
+		var objs: Array = []
+		for rid in pedestals.keys():
+			objs.append(int(pedestals[rid]["obj"]))
+		_hud.show_recap(objs)
+		var twc: Tween = _hud.create_tween()
+		twc.tween_property(_hud, "curtain", 1.0, CURTAIN_CLOSE_S)
+	game.play_sound("swoosh")
+	_on_map = true
+	_next_question_ms = MainGlobals.timems() + 1000000000     # no question before _start_map
+	await get_tree().create_timer(CURTAIN_CLOSE_S).timeout
+	if token != _round_token or game.level_is_done or not game.playing:
+		return
+	# behind the curtain: no player, no monsters, every floor gray, the view on the whole castle (the timer
+	# and the tween do not end on the same frame: the jump must never show)
+	if _hud != null:
+		_hud.curtain = 1.0
+	for agent in agents:
+		agent.queue_free()
+	agents.clear()
+	if player != null and is_instance_valid(player):
+		player.modulate.a = 0.0
+	game.zoomed_in = false
+	_framed_room = -2
+	var map_top: float = HUD_TOP
+	if _hud != null:
+		map_top = maxf(HUD_TOP, _hud.banner_rect().end.y + 12.0)
+	var frame: Dictionary = _frame_for(_castle_rect(), -1.0, map_top)
+	if _frame_tween != null and _frame_tween.is_valid():
+		_frame_tween.kill()
+	if game_cam != null:
+		game_cam.position = frame["pos"]
+		game_cam.zoom = Vector2.ONE * float(frame["zoom"])
+	for pipe in pipes:
+		pipe.set_rot(board)
+	if _hud != null:
+		var two: Tween = _hud.create_tween()
+		two.tween_interval(0.08)          # a few frames fully dark: the jump is drawn behind them
+		two.tween_property(_hud, "curtain", 0.0, CURTAIN_OPEN_S)
+	var rest: float = (_hud.recap_seconds() - CURTAIN_CLOSE_S) if _hud != null else 0.5
+	await get_tree().create_timer(maxf(CURTAIN_OPEN_S, rest)).timeout
+	if token != _round_token or game.level_is_done or not game.playing:
+		return
+	_start_map()
+
+# EVERYTHING SHOWN at the end of the map: room by room, each floor comes back and each safe opens on its
+# object, in a ripple; then the round card ("when all are done, show all" -- on the higher levels a
+# found room shows nothing any more, so the player never saw the whole palace at once).
+const REVEAL_STEP_S: float = 0.18
+func _reveal_all(during_tutorial: bool) -> void:
+	var token: int = _round_token
+	await get_tree().create_timer(0.6).timeout
+	var order: Array = range(rooms.size())
+	for rid in order:
+		if token != _round_token:
+			return
+		_color_room(rid)
+		if pedestals.has(rid):
+			var node = pedestals[rid]["node"]
+			var o: int = int(pedestals[rid]["obj"])
+			if node != null and is_instance_valid(node):
+				node.big = true           # about 2x2 cells, centered on its safe
+				node.set_state(node.State.OPEN, _obj_symbol(o), _obj_color(o))
+				node.scale = Vector2.ONE * 0.3
+				var tw: Tween = node.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				tw.tween_property(node, "scale", Vector2.ONE, 0.30)
+		await get_tree().create_timer(REVEAL_STEP_S).timeout
+	game.play_sound("right")
+	await get_tree().create_timer(1.6).timeout
+	# not if the round was left meanwhile (back to the menu: the card would come up over it)
+	if token != _round_token or during_tutorial or not game.playing or game.level_is_done:
+		return
+	level_is_done(true)
+
 func _start_map() -> void:
 	_on_map = true
-	zoom_camera(false)
+	if game.zoomed_in:
+		zoom_camera(false)
 	_to_ask.shuffle()
 	_next_question_ms = MainGlobals.timems() + QUESTION_GAP_MS
 	game.play_sound("swoosh")
@@ -2360,9 +2465,76 @@ func _update_questions() -> void:
 		return
 	_request = _to_ask.pop_front()
 	_request_since_ms = MainGlobals.timems()
+	_req_used_ms = 0.0
 	if _hud != null:
 		_hud.set_request(_request)
 	game.tutorial_notify("asked")
+
+# THE QUESTION'S TIME BAR (2026-11-16). Each question has its own time, shown as a bar draining on the
+# banner (fetch_hud.gd `time_frac`), and it ADAPTS to the player, a staircase over the session: an answer in
+# under ANSWER_QUICK of the time tightens it by ANSWER_TIGHTEN, a question run out loosens it by
+# ANSWER_LOOSEN, within ANSWER_MIN_MS..ANSWER_MAX_MS. So the pressure stays near the edge of what this
+# player can do, the way adaptive speed training works, instead of the session clock's random cut. The
+# walk is not timed at all (main.gd: no session clock). Counted only while the game runs (not paused); none
+# in the tutorial. A question run out is a miss: -1, a mistake, and the right room shows its object.
+const ANSWER_START_MS: float = 12000.0
+const ANSWER_MIN_MS: float = 4000.0
+const ANSWER_MAX_MS: float = 20000.0
+const ANSWER_QUICK: float = 0.6
+const ANSWER_TIGHTEN: float = 0.9
+const ANSWER_LOOSEN: float = 1.25
+var _answer_limit_ms: float = ANSWER_START_MS
+var _req_used_ms: float = 0.0
+
+func _run_question_clock(delta: float) -> void:
+	var timed: bool = _on_map and _request >= 0 and not game.tutorial_mode
+	if _hud != null:
+		_hud.time_frac = (1.0 - _req_used_ms / _answer_limit_ms) if timed else -1.0
+	if _request < 0 or game.paused():
+		return
+	_req_used_ms += delta * 1000.0
+	if timed and _req_used_ms >= _answer_limit_ms:
+		_question_ran_out()
+
+func _question_ran_out() -> void:
+	var o: int = _request
+	var rid: int = -1
+	for r in pedestals.keys():
+		if int(pedestals[r]["obj"]) == o:
+			rid = r
+	_answer_limit_ms = minf(ANSWER_MAX_MS, _answer_limit_ms * ANSWER_LOOSEN)
+	game.record_count("answer_timeouts")
+	game.add_score_and_time(-1, 0)
+	game.add_correct_or_mistake(0, 1)
+	game.play_sound("gaveup")
+	_round_had_wrong_answer = true
+	if rid >= 0:
+		# where it was: the room flashes amber and the object shows, LARGE, for a moment
+		_found_rooms[rid] = true
+		var node = pedestals[rid]["node"]
+		var pcell: Vector2i = pedestals[rid]["pos"]
+		_flash_room(rid, Color(1.0, 0.78, 0.25))
+		if node != null and is_instance_valid(node):
+			node.big = true
+			node.set_state(node.State.OPEN, _obj_symbol(o), _obj_color(o))
+			node.scale = Vector2.ONE * 0.3
+			var twp: Tween = node.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			twp.tween_property(node, "scale", Vector2.ONE, 0.30)
+			var help_level: int = MmmLevelConfig.LEVELS[0]["level"] if game.tutorial_mode else level
+			if not MmmLevelConfig.flag(help_level, "keep_found"):
+				var twf: Tween = node.create_tween()
+				twf.tween_interval(REVEAL_MS / 1000.0)
+				twf.tween_callback(func() -> void:
+					if is_instance_valid(node):
+						node.set_state(node.State.COVERED))
+		_pop_at(pcell, "Time's up: it was here", Color(1.0, 0.78, 0.25))
+	_request = -1
+	if _hud != null:
+		_hud.set_request(-1)
+		_hud.time_frac = -1.0
+	_next_question_ms = MainGlobals.timems() + QUESTION_GAP_MS + REVEAL_MS
+	if _to_ask.is_empty():
+		_reveal_all(game.tutorial_mode)
 
 # A tap on the map: which room is it?
 func _on_floor_tapped(cell_pos: Vector2i) -> void:
@@ -2381,7 +2553,11 @@ func _on_floor_tapped(cell_pos: Vector2i) -> void:
 	var pcell: Vector2i = ped["pos"]
 	if int(ped["obj"]) == _request:
 		# FOUND: the room takes its color back and shows its object for good
-		var took: int = MainGlobals.timems() - _request_since_ms
+		var took: int = int(_req_used_ms)
+		if not game.tutorial_mode:
+			# the bar adapts: a quick answer tightens it; a slow one leaves it (a run-out loosens it)
+			if _req_used_ms < _answer_limit_ms * ANSWER_QUICK:
+				_answer_limit_ms = maxf(ANSWER_MIN_MS, _answer_limit_ms * ANSWER_TIGHTEN)
 		times_to_answer.append(took)
 		while times_to_answer.size() > 20:
 			times_to_answer.remove_at(0)
@@ -2395,7 +2571,13 @@ func _on_floor_tapped(cell_pos: Vector2i) -> void:
 		if MmmLevelConfig.flag(help_level, "color_found"):
 			_color_room(rid)
 		if node != null and is_instance_valid(node):
+			# every right answer shows its object LARGE, about 2x2 cells, over its safe -- also where it
+			# shows only for a moment (keep_found off)
+			node.big = true
 			node.set_state(node.State.OPEN, _obj_symbol(_request), _obj_color(_request))
+			node.scale = Vector2.ONE * 0.3
+			var twp: Tween = node.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			twp.tween_property(node, "scale", Vector2.ONE, 0.30)
 			if not MmmLevelConfig.flag(help_level, "keep_found"):
 				var twf: Tween = node.create_tween()
 				twf.tween_interval(REVEAL_MS / 1000.0)
@@ -2412,9 +2594,7 @@ func _on_floor_tapped(cell_pos: Vector2i) -> void:
 		if _to_ask.is_empty():
 			var during_tutorial: bool = game.tutorial_mode
 			game.tutorial_notify("map_done")
-			MainGlobals.do_after(1, func():
-				if not during_tutorial:
-					level_is_done(true))
+			_reveal_all(during_tutorial)
 	else:
 		# WRONG: that room's pedestal opens on what is really there, then covers again
 		game.add_score_and_time(-1, 0)
