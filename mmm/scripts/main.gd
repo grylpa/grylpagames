@@ -32,10 +32,10 @@ func _ready() -> void:
 	game.sig_add_life.connect(on_add_life)
 
 	game.set_instructions("Mind Palace", 
-		"Welcome to your new mansion!\n\n" +
-		"Explore the rooms of your mansion and pick up all coins from all rooms.\n" + 
-		"Remember each room color.\n" + 
-		"After collecting all the coins, you will see a map of the mansion and will need to indicate what color each room had"
+		"Your castle is your mind palace: keep it in your head, and what is in each room.\n\n" +
+		"Every room has a vault with an object inside. Walk into a vault to open it and see what it holds. You can walk into it again later to look again.\n\n" +
+		"When every vault is opened, you see the castle from above as a plain map, every room the same gray. For each object, tap the room it was in. A wrong room costs a point.\n\n" +
+		"Bombs and enemies end the round if they touch you."
 	)
 	if !game.shown_instructions:
 		game.show_instructions(self)
@@ -66,14 +66,11 @@ func start_tutorial() -> void:
 	MmmG.starting_level = tut.tutorial_level_id()
 	new_game()
 	var runner: TutorialRunner = TutorialRunner.new()
-	# The caption must not cover the room being talked about, the coin it says to take, or the
-	# answer swatches at the end — all of which sit wherever the castle put them.
-	# The floor patch being talked about and the coin being pointed at. NOT whole rooms: a room is
-	# most of the screen, and listing it just forces the caption into the least-bad overlap anyway.
+	# The caption must not cover the pedestal being talked about (wherever the castle put it). NOT whole
+	# rooms: a room is most of the screen, and listing it just forces the least-bad overlap anyway.
 	runner.keep_clear = [
-		func(): return _rect_or_null($Level.tutorial_coin_here_rect()),
-		# So the caption steps aside instead of sitting on the room still to be answered.
-		func(): return _rect_or_null($Level.tutorial_unanswered_room_rect()),
+		func(): return _rect_or_null($Level.tutorial_pedestal_here_rect()),
+		func(): return _rect_or_null($Level.tutorial_cards_rect()),
 	]
 	runner.run(self, tut.steps($Level, game), game, Callable(self, "_on_tutorial_done"))
 

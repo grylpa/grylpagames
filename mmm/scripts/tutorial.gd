@@ -1,18 +1,14 @@
 extends RefCounted
 
-# Mind Palace's coached tutorial. See docs/tutorials.md for the step schema.
+# Mind Palace's coached tutorial (store and fetch, 2026-11-15). See docs/tutorials.md for the step schema.
 #
-# What a first-time player actually gets wrong is not a control — it is that the goal is DEFERRED.
-# Nothing on screen while you explore says you are being tested on the floor colors, so a newcomer
-# collects the coins happily, the map appears, and they are asked a question they had no reason to
-# prepare for. By then it is unanswerable: you cannot go back and look.
+# Two things are not obvious on sight: that a vault is opened by walking INTO it, and that the round's
+# real test comes later, on a plain map -- you must know where in the castle each room is. So the coach
+# spots the first vault while saying "remember which room", asks the player to notice the way to
+# the second, and stays with them through both questions on the map.
 #
-# So the test is announced BEFORE the first coin, with the floor spotlit while it is said, and again
-# on the second room. Everything else in the game — the coins, the walking, the corridors — is
-# obvious on sight and gets one line each.
-#
-# The castle is the smallest the game can build (two rooms), the decoy colors are off, and nothing
-# hunts the player; see level.gd::_tutorial_setup.
+# The castle is the smallest the game can build (two rooms, so two objects), and nothing hunts the
+# player; see level.gd::_tutorial_setup.
 
 const LEVEL_ID: int = 1
 
@@ -21,20 +17,23 @@ static func tutorial_level_id() -> int:
 
 static func steps(level: Node, _game) -> Array:
 	var player_spot: Callable = func():
-		return level.player if level.player != null and is_instance_valid(level.player) else null
-	# A patch of floor by the player, not the whole room: a room fills most of the screen, so a
-	# caption has nowhere to stand that is not on top of it.
-	# Captured when the step opens rather than recomputed every frame: the marker is in screen
-	# space, and the camera is still gliding after the player stops, so a live rect drifts under a
-	# caption that is standing still.
-	var coin_spot: Callable = func():
-		var r: Rect2 = level.tutorial_coin_here_rect()
+		var r: Rect2 = level.tutorial_player_rect()
+		return r if r.size.x > 0.0 else null
+	var pedestal_spot: Callable = func():
+		var r: Rect2 = level.tutorial_pedestal_here_rect()
 		return r if r.size.x > 0.0 else null
 
 	return [
 		{
 			"title": "Mind Palace",
-			"text": "You're in a castle of rooms joined by corridors. There's one coin in each room.",
+			"text": "A castle of rooms joined by corridors. You'll store things in its rooms, then come back for them.",
+		},
+		{
+			# No caption: the castle is still being built behind the opening card when a quick reader
+			# taps on, and the next step points at the player, who does not exist yet. The game runs
+			# here and the step ends itself the moment the player is on the board.
+			"await": {"event": "castle_built", "timeout": 30.0},
+			"advance_when": func() -> bool: return level.tutorial_player_rect().size.x > 0.0,
 		},
 		{
 			"text": "This is you. Swipe in a direction and you keep walking that way until you turn. The arrow keys work too.\n\nTry it.",
@@ -46,54 +45,39 @@ static func steps(level: Node, _game) -> Array:
 		},
 		{
 			"setup": func() -> void: level.tutorial_halt_player(),
-			"title": "Room colors",
-			"text": "Look at this room's floor color.\n\nWhen all the coins are collected, you'll see a map and be asked what color each room was. You can't go back to check.",
-		},
-		{
-			"text": "Take the coin.",
-			"spot": coin_spot,
-			# Stand the frame well clear of the coin: hugging it looked like a glitch, not a pointer.
+			"title": "Vaults",
+			"text": "Each room has a vault with something inside. Walk into this one to open it, and remember which room it's in.",
+			"spot": pedestal_spot,
 			"spot_pad": 18.0,
-			"await": "coin_taken",
+			"await": "found",
 			"hint_after": 12.0,
-			"hint": "Walk onto it.",
+			"hint": "Walk straight into the vault.",
 		},
 		{
-			"text": "One room done. Remember its color!\n\nNow find the other one, through the corridor.",
-			"await": "room_entered",
+			"text": func(): return "The %s is in this room.\n\nNow find the other vault: through the corridor, and notice the way you go." % level.tutorial_last_found_name(),
+			"await": {"event": "found", "timeout": 120.0},
 			"hint_after": 15.0,
-			"hint": "Follow the corridor out of this room.",
+			"hint": "Follow the corridor to the other room, and walk into its vault.",
 		},
 		{
-			# NO marker. A patch of floor beside the player points at nothing they are being asked
-			# to do, and the coin — the thing they ARE being asked for — is usually off screen when
-			# this step opens, since they have just walked in and the room is bigger than the view.
-			# By now they have taken one coin already and know what to do with the next.
-			"setup": func() -> void: level.tutorial_halt_player(),
-			"text": "This floor is a different color. Remember this one too, and take its coin.",
-			"await": "coin_taken",
-			"hint_after": 15.0,
-			"hint": "Walk onto the coin in this room.",
-		},
-		{
-			"text": "That was the last coin, so now you're asked.",
-			"await": {"event": "map_shown", "timeout": 60.0},
+			"text": "That was the last vault. Now the castle is shown from above, as a plain map.",
+			"await": {"event": "asked", "timeout": 30.0},
 		},
 		{
 			"title": "The map",
-			"text": "Every room you visited is here, with a strip of colors on it.\n\nTap a room's strip, then choose the color that room's floor was. A wrong pick costs a point and leaves the room open, so you can try again.",
+			"text": func(): return "Where is the %s?\n\nEvery room is gray here, so think of where it is in the castle, and tap that room. A wrong room costs a point and shows what's in it." % level.tutorial_request_name(),
 			"await": {"event": "room_answered", "timeout": 180.0},
 			"hint_after": 20.0,
-			"hint": "The swatches are drawn on the room itself.",
+			"hint": "Which way did you walk after leaving it?",
 		},
 		{
-			"text": "That room's floor is filled in now.\n\nNow the other one. The round isn't over until every room has a color.",
+			"text": func(): return "Right. And the %s?" % level.tutorial_request_name(),
 			"await": {"event": "room_answered", "timeout": 180.0},
 			"hint_after": 20.0,
-			"hint": "Tap the other room's strip, then its color.",
+			"hint": "Tap the other room.",
 		},
 		{
 			"title": "Ready",
-			"text": "That's a full round.\n\nLater levels have more rooms to remember, and the strips include colors that weren't in the castle at all, so you can't just rule colors out.\n\nThere are also bombs in the rooms, and enemies walking around them. Touching either one ends the round.",
+			"text": "That's a round.\n\nLater levels have more rooms, so more vaults and a bigger castle to keep in your head. There are also bombs in the rooms and enemies walking around them. Touching either one ends the round.",
 		},
 	]
