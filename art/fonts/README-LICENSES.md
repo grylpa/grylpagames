@@ -8,6 +8,7 @@ metadata and the matching upstream license file.
 | OpenSans-SemiBold.ttf | SIL OFL 1.1 (Open Sans Project Authors, 2020) | OpenSans-OFL.txt |
 | NotoSansSymbols-Regular.ttf | SIL OFL 1.1 (Noto Project / Google) | NotoSansSymbols-OFL.txt |
 | NotoSansSymbols2-Regular.ttf | SIL OFL 1.1 (Noto Project / Google) | NotoSansSymbols2-OFL.txt |
+| NotoSerif-Bold.ttf | SIL OFL 1.1 (Noto Project / Google) | NotoSerif-OFL.txt |
 | JetBrainsMono.ttf | SIL OFL 1.1 (JetBrains, 2020) | JetBrainsMono-OFL.txt |
 | Stormfaze.otf | CC0 1.0 (public domain, per embedded metadata) | Stormfaze-LICENSE.txt |
 | Exo2.ttf | SIL OFL 1.1 (The Exo 2 Project Authors, 2013) | Exo2-OFL.txt |
