@@ -55,6 +55,14 @@ static func steps(level: Node, _game) -> Array:
 			"text": "The roof leaks.\n\nKeep the water off your things.",
 		},
 		{
+			# No caption: the house is still being built behind the opening card when a quick reader taps
+			# on, and the next step points at the player, who does not exist yet (its spotlight resolved to
+			# nothing). The game runs here and the step ends itself the moment the player is on the board;
+			# the event is never sent, its timeout only a backstop (Mind Palace's tutorial does the same).
+			"await": {"event": "house_built", "timeout": 30.0},
+			"advance_when": func() -> bool: return level.player != null and is_instance_valid(level.player),
+		},
+		{
 			"text": "Draw a route with your finger or mouse and you walk along it, like this.\n\nThe arrow keys work too. Press one and you keep going that way until something stops you.",
 			"spot": player_spot,
 			"spot_radius": 70.0,

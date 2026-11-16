@@ -102,7 +102,7 @@ enabled=PackedStringArray("res://addons/ver_tools/plugin.cfg")
 
 [gui]
 
-theme/custom_font="uid://bgmv6k842mxxs"
+theme/custom_font="uid://cxfcy40qyu1vs"
 
 [importer_defaults]
 

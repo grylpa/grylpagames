@@ -9,8 +9,14 @@ var _did_per_level_save: bool = false
 func _ready() -> void:
 	game = MmmG.game
 	game.initial_score = 100
+	# NO SESSION CLOCK (2026-11-16): walking the castle is not timed -- the time that matters is how long a
+	# question on the map takes, and that has its own adaptive bar (level.gd ANSWER_*). The clock only cut
+	# sessions short at a random moment.
+	game.uses_session_clock = false
 	randomize()
-	RenderingServer.set_default_clear_color(Color.hex(0x3C5D3EFF))
+	# the great hall's near-black, not the old lawn's green: wherever the view reaches past the hall's
+	# drawn rect, it must not show as a green strip
+	RenderingServer.set_default_clear_color(Color(0.035, 0.04, 0.055))
 	MmmG.load_settings()
 	main_menu = game.create_main_menu(self)	
 	main_menu.sig_slider_changed.connect(on_menu_slider_changed)
@@ -34,7 +40,7 @@ func _ready() -> void:
 	game.set_instructions("Mind Palace", 
 		"Your castle is your mind palace: keep it in your head, and what is in each room.\n\n" +
 		"Every room has a vault with an object inside. Walk into a vault to open it and see what it holds. You can walk into it again later to look again.\n\n" +
-		"When every vault is opened, you see the castle from above as a plain map, every room the same gray. For each object, tap the room it was in. A wrong room costs a point.\n\n" +
+		"When every vault is opened, you see the castle from above as a plain map, every room the same gray. For each object, tap the room it was in before its time bar runs out. A wrong room, or a bar run out, costs a point.\n\n" +
 		"Bombs and enemies end the round if they touch you."
 	)
 	if !game.shown_instructions:

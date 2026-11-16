@@ -3,8 +3,8 @@ shader_type canvas_item;
 // STORM'S ROOM FLOORS (2026-11-12), on every room tile's PipeFloor2 sprite (pipe.gd gives each tile its
 // own copy of the material). Three floors a house has, ONE TILE PER CELL in every one of them -- the
 // player walks, places tools and catches leaks cell by cell, so the grid must always read ("don't lose
-// the tiles"). The ROOM'S COLOR is the node's tint and stays the main thing seen: it is how the player
-// remembers which room is which.
+// the tiles"). The node's tint is the room's color (room_looks.gd: a house room's material color, never
+// blue -- the water must read on it): with the material, it is how the player tells the rooms apart.
 //   kind 0 POLISHED MARBLE: two close tones of the room's color in a checker, soft clouding, fine pale
 //          veins running on across the cells, a pillow bevel and a broad sheen (Mind Palace's floor).
 //   kind 1 GLAZED CERAMIC: a glossy tile in a thin grout close to its tone, a raised rim with a soft inner line, a

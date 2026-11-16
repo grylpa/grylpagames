@@ -150,32 +150,34 @@ func pour(amount: float) -> void:
 				action_level = min(overflow_level, dt + action_level)
 
 const CORRIDOR_STONE: Color = Color(0.46, 0.44, 0.41)
-# [kind, checker] per room, in turn: marble, ceramic, marble, terracotta, CHECKER marble, ceramic
-const FLOOR_PLAN: Array = [[0, 0], [1, 0], [0, 0], [2, 0], [0, 1], [1, 0]]
 static var _floor_mat_base: ShaderMaterial = null
 var _floor_mat: ShaderMaterial = null
 var _floor_kind: int = -1          # the room's floor (room_floor.gdshader kind); -1 a corridor
 
+# [kind, checker, tint] of room `rid` from the level (the tiles are its children); a plain stone where
+# there is no level to ask (the blackout scene's copy)
+func _look_of(rid: int) -> Array:
+	var lv: Node = get_parent()
+	if rid >= 0 and lv != null and lv.has_method("room_look"):
+		return lv.room_look(rid)
+	return [0, 0.0, Color(0.76, 0.72, 0.64)]
+
 func set_rot(board):
 	var p = board_pos
 	set_coin()
-	# the room's floor, by room: mostly even MARBLE, glazed CERAMIC and TERRACOTTA; a CHECKER of marble
-	# in one room in six (room_floor.gdshader)
+	# the room's floor: a room of a house (level.gd room_look, room_looks.gd) -- its material
+	# (room_floor.gdshader kind), checker and tint
 	var rid: int = int(board[p.y][p.x].room_id)
-	var kind: int = int(FLOOR_PLAN[posmod(rid, FLOOR_PLAN.size())][0]) if rid >= 0 else -1
-	var checker: float = float(FLOOR_PLAN[posmod(rid, FLOOR_PLAN.size())][1]) if rid >= 0 else 0.0
+	var look: Array = _look_of(rid)
+	var kind: int = int(look[0]) if rid >= 0 else -1
+	var checker: float = float(look[1]) if rid >= 0 else 0.0
 	_floor_kind = kind
 	if _floor_mat != null:
 		_floor_mat.set_shader_parameter("cell", Vector2(p))
 		_floor_mat.set_shader_parameter("kind", maxi(kind, 0))
 		_floor_mat.set_shader_parameter("checker", checker)
 	if board[p.y][p.x].room_id >= 0:
-		# var color = Color.from_rgba8(165,165,165,255)
-		# DEEP like Mind Palace's (darkened, not lightened): on pastel floors (lightened(0.5)) the marble's
-		# pale veins, bevels and sheen hardly showed, and the same shader looked flat ("why are Mind
-		# Palace's floors so much prettier?"). level.floor_color_at() is told the same.
-		var color = game.color_by_index(board[p.y][p.x].room_id).darkened(0.2)
-		$PipeFloor2.modulate = color
+		$PipeFloor2.modulate = look[2]
 	else:
 		# a CORRIDOR: the same marble in warm gray, as Mind Palace's (it was a photo of gray marble)
 		$PipeFloor1.hide()
@@ -257,6 +259,9 @@ func set_action(_action:String, _texture:Array, _action_level:float, _overflow_l
 
 var _furniture_art: Node2D = null
 var _furniture_kind: String = ""
+
+func furniture_kind() -> String:
+	return _furniture_kind
 
 func set_furniture(_texture:Texture2D, _val:int, _modulate:Color):
 	# drawn (room_art.gd) from which picture this is; the sprite only carries the texture

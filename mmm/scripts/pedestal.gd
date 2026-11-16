@@ -39,6 +39,7 @@ var state: int = State.EMPTY
 var symbol: String = ""
 var obj_color: Color = Color.WHITE
 var opened_once: bool = false             # the lamp: red until first opened, then green
+var big: bool = false                     # the final reveal: the object about 2x2 cells, over its safe
 var tile: float = 40.0
 var beacon: bool = false:
 	set(v):
@@ -169,7 +170,12 @@ func _draw_open(door: Rect2) -> void:
 	edge.append(slab[0])
 	draw_polyline(edge, Color(0.02, 0.02, 0.03), maxf(1.0, s * 0.03), true)
 	draw_circle(door.position + Vector2(-s * 0.15, s * 0.52), s * 0.06, CHROME_MID)
-	BADGE.draw(self, hole.get_center(), s * 0.36, symbol, obj_color)
+	if big:
+		# the final reveal: the object large, centered on its safe (the safe is never next to the room's
+		# wall, so two cells across stay inside the room)
+		BADGE.draw(self, hole.get_center(), tile * 0.98, symbol, obj_color)
+	else:
+		BADGE.draw(self, hole.get_center(), s * 0.36, symbol, obj_color)
 
 func _brushing(r: Rect2) -> void:
 	var step: float = maxf(2.0, r.size.y / 18.0)

@@ -357,16 +357,25 @@ func _in_corridor(p: Vector2i) -> bool:
 	var cell: OneCell = bcell(p)
 	return cell != null and cell.ispipe and cell.room_id < 0
 	
-# The color under a board cell, for the drawn-path overlay. The floor of a room is painted
-# `color_by_index(room_id).darkened(0.2)` in pipe.gd, so the path is told the same thing and
-# picks black or white against it -- a fixed orange line vanished over the warmer rooms.
+# A ROOM'S FLOOR (room_looks.gd): [kind, checker, tint] for room `rid`, the same for all its tiles, a
+# different house room on each board. pipe.gd paints with it; the path overlay is told the same tint.
+const ROOM_LOOKS: Script = preload("res://storm/scripts/room_looks.gd")
+var _room_looks: Array = []
+
+func room_look(rid: int) -> Array:
+	var order: Array = _room_looks if not _room_looks.is_empty() else range(ROOM_LOOKS.LOOKS.size())
+	var look: Array = ROOM_LOOKS.LOOKS[int(order[posmod(rid, order.size())])]
+	return [int(look[1]), float(look[2]), look[3]]
+
+# The color under a board cell, for the drawn-path overlay: the room's floor tint, as pipe.gd paints it,
+# so the path picks black or white against it -- a fixed orange line vanished over the warmer rooms.
 func path_color_at(bp: Vector2i) -> Color:
 	if bp.x < 0 or bp.y < 0 or bp.y >= board.size() or bp.x >= board[bp.y].size():
 		return Color(1, 1, 1)
 	var rid: int = board[bp.y][bp.x].room_id
 	if rid < 0:
 		return Color(1, 1, 1)
-	return game.color_by_index(rid).darkened(0.2)
+	return room_look(rid)[2]
 
 func add_pipe(p, room_id := -1):
 	if board[p.y][p.x].ispipe:
@@ -1002,6 +1011,8 @@ func create_board() -> void:
 	# rng.seed = 1110
 
 	game.colors.shuffle()
+	_room_looks = range(ROOM_LOOKS.LOOKS.size())
+	_room_looks.shuffle()
 
 	board.clear()
 	for row_index in game.board_size.y:
@@ -1143,12 +1154,34 @@ func add_furniture():
 	var next_kind: int = 0
 	for r in rooms:
 		for _i in per_room:
-			var f = furniture[kinds[next_kind % kinds.size()]]
+			var kind_name: String = kinds[next_kind % kinds.size()]
+			var f = furniture[kind_name]
 			next_kind += 1
-			var p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1,
-				func(x,y): return board[y][x].is_fillable())
+			var p: Vector2i
+			if WALK_OVER_FURNITURE.has(kind_name):
+				p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1,
+					func(x,y): return board[y][x].is_fillable())
+			else:
+				# a piece the player cannot step through: off the room's edge (so it never stands in a
+				# doorway or beside one) and with nothing solid around it (so it never walls a cell in),
+				# as the bricks are kept off the edge
+				p = MainGlobals.pick_one_cell(r.position.x+1, r.position.y+1, r.end.x-2, r.end.y-2,
+					func(x,y): return board[y][x].is_fillable() and dist_to_player(Vector2i(x,y)) >= 1 \
+						and not _solid_near(Vector2i(x,y)))
 			if p.x >= 0:
 				board[p.y][p.x].pipe.set_furniture(f[0], f[1], f[2])
+
+# anything solid (a brick, a blocking piece) in the 8 cells round `c`
+func _solid_near(c: Vector2i) -> bool:
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			var q: Vector2i = c + Vector2i(dx, dy)
+			var n = bcell(q)
+			if n != null and n.ispipe and (n.pipe.has_brick >= 0 or _blocks_feet(n)):
+				return true
+	return false
 
 func add_bricks():
 	var brick0 = game.rng.randi_range(0,2)
@@ -1262,6 +1295,7 @@ func zoom_camera(zoom_in: bool):
 	else:
 		_framed_room = -2
 		_set_cam(_frame_for(_castle_rect()))
+		_fit_ground_to_board()     # the lawn and the rain reach as far as this widest view
 
 # WHILE THE BOARD IS BUILT, behind the briefing, the camera is already on the mansion view that
 # zoom_camera(false) sets at the end, so what is shown going up is what will be played on, and nothing
@@ -1397,8 +1431,23 @@ func can_go_to(p):
 	if !game.in_board(p, board_margin):
 		return false
 	var cell = board[p.y][p.x]
-	var cond = cell.ispipe && cell.pipe.has_brick < 0
+	var cond = cell.ispipe && cell.pipe.has_brick < 0 && not _blocks_feet(cell)
 	return cond
+
+# WHAT CAN BE STEPPED ON (2026-11-16): a rug, a rag on the floor, a drain's grate, a tape-fixed leak; NOT
+# the vase of flowers or the television, nor a bucket, cup or plate standing under a leak ("some things
+# can be walked on (rug) but most should not"). The player walked through all of them. Nothing is lost:
+# a tool is placed, emptied and taken back from the next cell over (create_actions_popup: distance 0 or
+# 1), and the furniture that blocks never stands where it could shut a way (add_furniture).
+const WALK_OVER_FURNITURE: Array = ["rug"]
+const BLOCKING_TOOLS: Array = ["bucket", "cup", "plate"]
+
+func _blocks_feet(cell) -> bool:
+	if not cell.ispipe or cell.pipe == null or not is_instance_valid(cell.pipe):
+		return false
+	if cell.pipe.furniture_value > 0 and not WALK_OVER_FURNITURE.has(cell.pipe.furniture_kind()):
+		return true
+	return cell.action != null and BLOCKING_TOOLS.has(cell.action.name)
 	
 # THE PLAYER RUNS IN A CORRIDOR. Nothing happens there -- no leak, no tool, no furniture -- so a corridor
 # is only the way from one room to the next, and walking it at room pace was dead time. Each step
@@ -1423,9 +1472,10 @@ func move_player_on_tick():
 	if player.path.size() > 0:
 		var q = player.path[0]
 		if !can_go_to(q):
+			# blocked (a cell that became solid): drop the rest -- kept, it froze the player for good
+			player.path.clear()
 			next_player_dir = -1
 			return
-			# player.path.clear()
 		else:
 			q = player.path.pop_front()
 			var vdir = q - p
@@ -2534,11 +2584,51 @@ func add_drains():
 				cell.action = CAction.new("drain",-1)
 				cell.pipe.set_action("drain", action_textures["drain"], 0, 0)
 		
-func _on_path_drawn(_path: Array[Vector2i]) -> void: 
+func _on_path_drawn(_path: Array[Vector2i]) -> void:
 	var path = game.get_player_path(player, _path, 9, Callable(self, "calc_cost_to_move_player_to"))
 	if path.size() > 0:
-		player.path = path.duplicate()
+		path = _repair_path(path)
+	if path.size() > 0:
+		player.path = path
+		next_player_dir = -1
 		game.tutorial_notify("path_drawn")   # no-op outside tutorial mode
+
+# A FINGER'S PATH, MADE WALKABLE (2026-11-16). The stroke is the cells under the finger, and a finger
+# cutting the corner into a side corridor crosses the wall cell beside the opening: the player stopped
+# there for good -- the rest of the stroke still queued, so neither it nor the corridor run went on ("it
+# refused to enter a corridor which opened to the left", "it doesn't auto advance in corridors"). Now a
+# cell that cannot be walked is dropped, and the walk to the next one that can is routed (A*, short).
+const PATH_DETOUR_MAX: int = 8
+func _repair_path(raw: Array) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if player == null:
+		return out
+	var cur: Vector2i = player.board_pos
+	var cost: Callable = Callable(self, "calc_cost_to_move_player_to")
+	for c in raw:
+		var q: Vector2i = c
+		if q == cur or not can_go_to(q):
+			continue
+		var d: Vector2i = q - cur
+		if absi(d.x) + absi(d.y) == 1 and not is_wall_between(cur, q):
+			out.append(q)
+			cur = q
+			continue
+		var seg: Array[Vector2i] = game.astar(cur, q, cost, -1, cur)
+		while seg.size() > 0 and seg[0] == cur:
+			seg.pop_front()
+		if seg.is_empty() or seg[-1] != q or seg.size() > PATH_DETOUR_MAX:
+			continue
+		var walkable: bool = true
+		for sq in seg:
+			if not can_go_to(sq):
+				walkable = false
+				break
+		if not walkable:
+			continue
+		out.append_array(seg)
+		cur = q
+	return out
 
 func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i, _id: int, goal: Vector2i):
 	var isgoal = to == goal
@@ -2549,7 +2639,9 @@ func calc_cost_to_move_player_to(prev_pos: Vector2i, from: Vector2i, to:Vector2i
 	if !tocell.ispipe and not isgoal:
 		return -1
 	if tocell.ispipe and tocell.pipe.has_brick >= 0:
-		return -1	
+		return -1
+	if tocell.ispipe and not isgoal and _blocks_feet(tocell):
+		return -1
 	if is_wall_between(from,to):
 		return -1
 	# if tocell.room_id < 0:
@@ -2589,7 +2681,10 @@ func is_wall_between(p, q, also_check_brick:bool = true):
 # The ground node is looked up with get_node_or_null because this script is not only on the
 # level scene: storm's blackout.tscn carries a copy of it too, and a hard $ path there throws.
 func _fit_ground_to_board() -> void:
-	var field: Control = GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19)
+	# with the game camera: the whole-mansion view (zoom_camera(false)) shows more than the board and a
+	# screen, and on a tall phone a bare band showed above and below the lawn (2026-11-16)
+	var cam: Camera2D = game_cam if game_cam != null and is_instance_valid(game_cam) and game_cam.enabled else null
+	var field: Control = GrassField.fit(get_node_or_null("BgLayer"), get_node_or_null("BgLayer/TextureRect") as CanvasItem, game, 19, cam)
 	_fit_weather(field)
 
 # The rain's slant over time: it HOLDS a direction for a while, then swings smoothly across to the
