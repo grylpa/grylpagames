@@ -13,6 +13,7 @@ class OneCell:
 	var door_type := -1
 	var has_agent := false
 	var room_id := -1
+	var room_kind := -1      # room_kinds.gd: the room's kind, so its floor
 	var color_idx := -1
 	var pipe = null
 	var is_corridor = false
@@ -21,7 +22,6 @@ class OneCell:
 		return ispipe && door_type < 0 && !has_agent && pipe.can_fill()
 	
 var times_to_answer := []
-var _round_start_ms := 0
 
 var rounds_per_level: int = 3
 var start_dispatch := false
@@ -31,7 +31,42 @@ var agents = []
 var pipes = []
 var empties = []
 var doors = []
-var coins = {}
+
+# VAULTS, THEN THE MAP (2026-11-16) -- memory AND navigation. Every room has a VAULT (a pedestal under a
+# brass dome) with an OBJECT inside. Walking the castle, you open each vault by walking into it: the
+# object shows, big, and the vault closes again. When every vault has been opened the view pulls back
+# to the whole castle as a PLAIN map --
+# every floor the same gray, so "the anchor is in the red room" does not answer it -- and you are asked
+# for each object in turn: tap the room where you left it. That needs a map of the castle in your head,
+# built while you walked it (the point of the old floor-color quiz, which asked about colors).
+# A right room shows its color and its object; a wrong one opens its pedestal for a moment, costs a
+# point, and you try again. Hazards end the round while you walk.
+# Tried and dropped: carrying the objects and storing them yourself ("we don't have a good story for
+# carrying"), and requests interleaved with the storing, fetched by walking back ("now it's just a
+# memory game").
+const OBJECTS: Array = [
+	["♛", "crown", Color(0.85, 0.62, 0.05)], ["⚓", "anchor", Color(0.12, 0.35, 0.75)],
+	["☂", "umbrella", Color(0.72, 0.15, 0.45)], ["♞", "knight", Color(0.35, 0.35, 0.40)],
+	["✉", "letter", Color(0.15, 0.55, 0.65)], ["✂", "scissors", Color(0.80, 0.25, 0.15)],
+	["⌛", "hourglass", Color(0.62, 0.42, 0.18)], ["⚘", "flower", Color(0.25, 0.60, 0.20)],
+	["☎", "telephone", Color(0.10, 0.10, 0.12)], ["♫", "music box", Color(0.48, 0.25, 0.70)],
+	["☕", "teacup", Color(0.50, 0.30, 0.20)], ["⚖", "scales", Color(0.20, 0.45, 0.42)]]
+const QUESTION_GAP_MS: int = 900          # after one room is found, before the next question
+const MAP_DELAY_MS: int = 1700            # the last vault's object is seen, then the view pulls back
+const REVEAL_MS: int = 1100               # how long a wrong room's pedestal stays open
+const BOMB_CLEAR: int = 2                 # no bomb within this many tiles of a pedestal
+const PEDESTAL_SCRIPT: GDScript = preload("res://mmm/scripts/pedestal.gd")
+const FETCH_HUD_SCRIPT: GDScript = preload("res://mmm/scripts/fetch_hud.gd")
+var pedestals: Dictionary = {}            # room id -> {"pos", "obj" (-1 empty), "node"}
+var _ped_at: Dictionary = {}              # cell -> room id
+var _to_ask: Array = []                   # stored objects still to be asked about on the map
+var _request: int = -1                    # the object asked about now, or -1
+var _next_question_ms: int = 0
+var _request_since_ms: int = 0
+var _found_rooms: Dictionary = {}         # room id -> true, once found on the map
+var _on_map: bool = false
+var _last_found: int = -1                 # the object in the vault opened last (for the tutorial)
+var _hud: Control = null                  # fetch_hud.gd: the cards, the announcements, the pops
 var agent_start_positions = []
 var agent_start_directions = []
 var time_started_level_ms = 0
@@ -53,7 +88,6 @@ var _score_at_level_start: int = 0
 var _rollback_score_on_next_level: bool = false
 var num_more_packets = 0
 var num_rooms := 4
-var num_distracting_colors := 0
 var player = null
 var player_max_speed_scale = 1.5
 var agent_max_speed_scale = 1.0
@@ -65,7 +99,6 @@ var num_bricks_per_room := 2
 var MAX_POSSIBLE_ROOMS := 12
 var MAX_COLORS_TO_USE := 12
 var last_level_was_a_win := true
-var in_answring_mode := false
 @export var pipe_scene: PackedScene = load("res://mmm/scenes/pipe.tscn")
 @export var empty_scene: PackedScene = load("res://mmm/scenes/empty_space.tscn")
 @export var agent_scene: PackedScene = load("res://mmm/scenes/agent.tscn")
@@ -134,6 +167,7 @@ func _ready() -> void:
 	# app-wide "a card closed" signal cannot tell a round card from the level's briefing, and closing
 	# the briefing started the next round.
 	MainGlobals.sig_path_drawn.connect(_on_path_drawn)  
+	_make_hud()
 	
 func reset():
 	start_dispatch = false
@@ -159,14 +193,23 @@ func reset():
 		c.queue_free()
 	for c in empties:
 		c.queue_free()
-	for c in small_popups.keys():
-		small_popups[c].queue_free()
 	pipes.clear()
 	empties.clear()
 	agents.clear()
 	doors.clear()
-	small_popups.clear()
-	coins.clear()
+	for rid in pedestals.keys():
+		var node = pedestals[rid]["node"]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	pedestals.clear()
+	_ped_at.clear()
+	_to_ask.clear()
+	_found_rooms.clear()
+	_on_map = false
+	_last_room_named = -2
+	_request = -1
+	if _hud != null:
+		_hud.clear_all()
 
 	agent_start_positions = []
 	agent_start_directions = []
@@ -222,7 +265,6 @@ func new_game(from_scratch=true):
 	game.need_to_increase_level = false
 	time_last_dispatch = -10000
 	pos_last_dispatch = Vector2i(-1,-1)
-	in_answring_mode = false
 	_brief = null
 	if not game.tutorial_mode or probe_real_round:
 		var brief = game.show_game_popup(self, "Level %d" % level, _brief_text(num_rooms))
@@ -284,6 +326,9 @@ func _start_playing():
 
 func _process(delta: float) -> void:
 	_follow_player_room(delta)
+	_update_fetch_view()
+	if game.playing and game.level_is_ready and not game.level_is_done:
+		_update_questions()
 	if player != null and game.playing and not game.paused() and game.level_is_ready \
 			and not game.level_is_done and _in_corridor(player.board_pos):
 		move_player_on_tick()
@@ -318,6 +363,8 @@ func _hazard_sounds() -> void:
 		game.play_sound(names[k], false)
 	
 func add_pipe(p, room_id := -1):
+	if room_id >= 0:
+		board[p.y][p.x].room_kind = _kind_of(room_id)
 	if board[p.y][p.x].ispipe:
 		if room_id >= 0:
 			board[p.y][p.x].room_id = room_id
@@ -332,77 +379,13 @@ func add_pipe(p, room_id := -1):
 	board[p.y][p.x].room_id = room_id
 	add_child(pipe)
 	pipes.append(pipe)
-	pipe.pipe_pressed.connect(_on_pipe_pressed)
-
-func _check_if_all_rooms_answered():
-	for rid in rooms.size():
-		if not answered_rooms.has(rid):
-			return false
-	# game.play_sound("delivery")
-	_record_answer_time()
-	# Decided HERE, not inside level_is_done: this is deferred by a second, and by the time it fires
-	# the player has usually tapped through the closing caption and the tutorial has ended — so a
-	# guard that reads tutorial_mode at that moment sees false and shows the panel anyway. That is
-	# exactly how "Round 1 of Level 1 completed" kept appearing after the tutorial.
-	var during_tutorial: bool = game.tutorial_mode
-	MainGlobals.do_after(1, func():
-		if during_tutorial:
-			return
-		level_is_done(true))
-	return true
-
-func _record_answer_time():
-	var t := MainGlobals.timems() - _round_start_ms
-	if t > 0 and t < 60000:
-		times_to_answer.append(t)
-		while times_to_answer.size() > 20:
-			times_to_answer.remove_at(0)
+	pipe.pipe_pressed.connect(_on_floor_tapped)   # the map at the end of the round is answered by tapping
 
 func mean_time_to_answer_ms() -> int:
 	if times_to_answer.is_empty(): return 9999
 	var s := 0
 	for t in times_to_answer: s += t
 	return roundi(float(s) / times_to_answer.size())
-
-func answered(correct: bool):
-	if correct:
-		# Only a CORRECT answer moves the coach on. A wrong pick leaves the palette open and the
-		# room unnamed, so the player should stay on the step and try again rather than be told
-		# "now do the other room" while this one is still unanswered.
-		game.tutorial_notify("room_answered")   # no-op outside tutorial mode
-		game.add_score_and_time(1,5)
-		game.add_correct_or_mistake(1,0)
-		game.play_sound("right")
-		_check_if_all_rooms_answered()
-	else:
-		game.add_score_and_time(-1,-5)
-		game.add_correct_or_mistake(0,1)
-		# One wrong pick is enough: the round can still be finished (the palette stays open and the
-		# player tries again) but it is no longer a fully correct one, and that is what the level
-		# gate counts.
-		_round_had_wrong_answer = true
-		game.play_sound("gaveup")
-
-func _on_pipe_pressed(_board_pos):
-	var cell = board[_board_pos.y][_board_pos.x]
-	if in_answring_mode and cell.room_id >= 0:
-	# if cell.color_idx >= 0:
-		var did_answer:bool = answered_rooms.get(cell.room_id,false)
-		if not did_answer:
-			create_color_selection_popup(cell.room_id, false)
-		# if cell.color_idx == cell.room_id:
-		# 	answered_rooms[cell.room_id] = true
-		# 	var room = rooms[cell.room_id]
-		# 	for row in range(room.position.y, room.end.y):
-		# 		for col in range(room.position.x, room.end.x):
-		# 			var p = Vector2i(col,row)
-		# 			if board[p.y][p.x].ispipe:
-		# 				board[p.y][p.x].color_idx = cell.room_id
-		# 				board[p.y][p.x].pipe.set_rot(board)
-		# 	answered(true)
-		# else:
-		# 	answered(false)
-			
 
 func add_empty(p):
 	var e = empty_scene.instantiate()
@@ -459,9 +442,19 @@ func _carve_room(pos: Vector2i, sz: Vector2i, room_id:int) -> void:
 			add_pipe(Vector2i(x, y), room_id)
 
 var rooms:Array[Rect2i] = []
+const KINDS_SCRIPT: Script = preload("res://mmm/scripts/room_kinds.gd")
+var _room_kinds: Array = []               # room id -> kind (room_kinds.gd), shuffled per castle
+var _last_room_named: int = -2            # the room whose name was shown last
+
+func _kind_of(room_id: int) -> int:
+	if room_id < 0 or _room_kinds.is_empty():
+		return -1
+	return int(_room_kinds[room_id % _room_kinds.size()])
+
+func room_name(room_id: int) -> String:
+	return KINDS_SCRIPT.kind_name(_kind_of(room_id))
 var rooms_checked_connections = {}
 var visited_rooms = {}
-var answered_rooms = {}
 
 func did_visit_all_rooms() -> bool:
 	for rid in rooms.size():
@@ -475,9 +468,11 @@ func create_rooms(nrooms := 4, margin := 5, RD := 5, PAD := 3) -> void:
 	var center = game.board_size / 2
 
 	rooms.clear()
+	# every room a different kind while there are kinds to go round
+	_room_kinds = range(KINDS_SCRIPT.KINDS.size())
+	_room_kinds.shuffle()
 	rooms_checked_connections.clear()
 	visited_rooms.clear()
-	answered_rooms.clear()
 
 	var w0: int = _room_side()
 	var h0: int = _room_side()
@@ -1070,7 +1065,7 @@ func create_board() -> void:
 	add_player()
 	zoom_camera(true)
 
-	add_coins()
+	add_pedestals()
 	add_bricks()
 	add_bomb_agents()
 	add_moving_agents()
@@ -1117,20 +1112,38 @@ func close_to_corridor(p:Vector2i, dist:int):
 				return true
 	return false
 
-func add_coins():
-	for r in rooms:
-		var p = MainGlobals.pick_one_cell(r.position.x, r.position.y, r.end.x-1, r.end.y-1, 
-			func(x,y):
-				var _p = Vector2i(x,y)
-				return !close_to_corridor(_p,2) and board[y][x].is_fillable() and dist_from_agents_and_player(_p) >= 1)
-		if p.x >= 0:
-			var cell = board[p.y][p.x]
-			if p.x == r.position.x or p.y == r.position.y or p.x == r.end.x-1 or p.y == r.end.y - 1:
-				cell.pipe.has_coin = 2
-			else:
-				cell.pipe.has_coin = 1
-			cell.pipe.set_rot(board)
-			coins[p] = true
+# One PEDESTAL per room, where the room's coin used to be, and the objects for this round: as many as
+# there are rooms, handed over in a random order, the first already in hand.
+func add_pedestals() -> void:
+	var placed: Array = []
+	for rid in rooms.size():
+		var r: Rect2i = rooms[rid]
+		var p = MainGlobals.pick_one_cell(r.position.x + 1, r.position.y + 1, r.end.x - 2, r.end.y - 2,
+			func(x, y):
+				var _p: Vector2i = Vector2i(x, y)
+				return !close_to_corridor(_p, 2) and board[y][x].is_fillable() and dist_from_agents_and_player(_p) >= 1)
+		if p.x < 0:
+			continue
+		var node: Node2D = PEDESTAL_SCRIPT.new()
+		node.tile = float(game.tile_size)
+		node.position = game.board_to_px(p)
+		node.z_index = 2
+		add_child(node)
+		pedestals[rid] = {"pos": p, "obj": -1, "seen": false, "node": node}
+		_ped_at[p] = rid
+		board[p.y][p.x].pipe.has_brick = -1
+		placed.append(rid)
+	# an object in every vault, none twice
+	var ids: Array = range(OBJECTS.size())
+	ids.shuffle()
+	for k in placed.size():
+		var prid: int = placed[k]
+		pedestals[prid]["obj"] = ids[k]
+		var pn = pedestals[prid]["node"]
+		if pn != null and is_instance_valid(pn):
+			pn.set_state(pn.State.COVERED)
+	_to_ask.clear()
+	_request = -1
 
 func add_bricks():
 	var brick0 = game.rng.randi_range(0,2)
@@ -1140,7 +1153,7 @@ func add_bricks():
 			var p = MainGlobals.pick_one_cell(r.position.x+1, r.position.y+1, r.end.x-2, r.end.y-2, 
 				func(x,y):
 					var cell = board[y][x]
-					if cell.is_fillable(): 
+					if cell.is_fillable() and not _near_pedestal(Vector2i(x, y)): 
 						var d_to_player = (Vector2i(x,y) - player.board_pos).length()
 						var d_to_agents = dist_from_agents(Vector2i(x,y))
 						if d_to_player >= 1 and d_to_agents >= 1:
@@ -1185,19 +1198,20 @@ func _largest_room_zoom() -> float:
 
 # Where the camera goes, and how far in, to show `r` (in tiles) as large as it fits -- or, given
 # `fixed_zoom`, at that zoom, centred the same way.
-func _frame_for(r: Rect2, fixed_zoom: float = -1.0) -> Dictionary:
+# `top`: screen space kept clear above the frame (the HUD strip; on the map, the question's banner too).
+func _frame_for(r: Rect2, fixed_zoom: float = -1.0, top: float = HUD_TOP) -> Dictionary:
 	var view: Vector2 = get_viewport().get_visible_rect().size
 	var bottom: float = 70.0 if MainGlobals.is_mobile() else 44.0
 	var t: float = float(game.tile_size)
 	var w_px: float = (r.size.x + 2.0 * FRAME_MARGIN) * t
 	var h_px: float = (r.size.y + 2.0 * FRAME_MARGIN) * t
-	var z: float = minf(view.x / w_px, (view.y - HUD_TOP - bottom) / h_px)
+	var z: float = minf(view.x / w_px, (view.y - top - bottom) / h_px)
 	if fixed_zoom > 0.0:
 		z = fixed_zoom
 	var top_left: Vector2 = game.board_to_px(Vector2i(r.position)) - Vector2(t, t) * 0.5
 	var center: Vector2 = top_left + r.size * t * 0.5
 	# Centred in the band between the HUD strip and the button bar, not in the whole screen.
-	return {"pos": center - Vector2(0.0, (HUD_TOP - bottom) * 0.5) / z, "zoom": z}
+	return {"pos": center - Vector2(0.0, (top - bottom) * 0.5) / z, "zoom": z}
 
 # How far a corridor can run outside the two rooms it joins: its search is kept to their outline grown
 # by this (add_corridors). So every corridor lies within the rooms' outline grown by it.
@@ -1250,7 +1264,12 @@ func zoom_camera(zoom_in: bool):
 		_set_cam(_room_frame(_framed_room))
 	else:
 		_framed_room = -2
-		_set_cam(_frame_for(_castle_rect()))
+		# below the question's banner, so it never covers a room (it did: "the question sometimes hides
+		# a vault")
+		var map_top: float = HUD_TOP
+		if _hud != null:
+			map_top = maxf(HUD_TOP, _hud.banner_rect().end.y + 12.0)
+		_set_cam(_frame_for(_castle_rect(), -1.0, map_top))
 
 # During play: glide to the room the player has walked into; in a corridor, keep them in view.
 func _follow_player_room(delta: float) -> void:
@@ -1292,10 +1311,8 @@ var tutorial_no_movers: bool = false
 func _tutorial_setup() -> void:
 	tutorial_no_movers = true
 	num_bomb_agents_to_add = 0
-	# The smallest castle the game can make, and a palette with no decoy colors in it: the lesson is
-	# "you will be asked what color each room was", not "pick it out of a dozen you never saw".
+	# The smallest castle the game can make: two rooms, so two objects to store and fetch.
 	num_rooms = 2
-	num_distracting_colors = 0
 	# No bricks either. They are harmless — they only block a tile — but the tutorial never
 	# mentions them, and an unexplained object in a room the coach is talking about is one more
 	# thing for a first-timer to wonder about. _apply_level puts the count back for real play.
@@ -1357,42 +1374,32 @@ func tutorial_halt_player() -> void:
 	if player != null and is_instance_valid(player):
 		player.path.clear()
 
-# The ROOM still waiting for an answer. Used only to keep the caption off it; nothing is drawn on
-# it (framing a room was tried and rejected, see docs/design.md).
-#
-# The whole room, not just its color strip: with the rooms stacked vertically, dodging the strip
-# alone moved the caption straight onto the room it belonged to — 67%% of it covered — and the
-# player could not see which room they were being asked about.
-#
-# Only while answering. During the walk there are no answers pending, and reserving a whole room
-# then left the caption nowhere to stand but on the player.
-func tutorial_unanswered_room_rect() -> Rect2:
-	if not in_answring_mode:
-		return Rect2()
-	# Only once ONE room is left. While several are still open the player can start with whichever
-	# they can see, so reserving one of them means nothing — and with two rooms filling the map, a
-	# full-width caption cannot clear both anyway.
-	var pending: Array = []
-	for rid in rooms.size():
-		if not answered_rooms.get(rid, false):
-			pending.append(rid)
-	if pending.size() != 1:
-		return Rect2()
-	return tutorial_room_rect(int(pending[0]))
-
-func tutorial_coin_rect() -> Rect2:
-	for p in coins.keys():
-		return _screen_rect_for_cells(p, p)
+# The pedestal in the room the player is in (or any pedestal), in screen space, for the coach.
+func tutorial_pedestal_here_rect() -> Rect2:
+	var here: int = tutorial_current_room()
+	if pedestals.has(here):
+		var hp: Vector2i = pedestals[here]["pos"]
+		return _screen_rect_for_cells(hp, hp)
+	for rid in pedestals.keys():
+		var pp: Vector2i = pedestals[rid]["pos"]
+		return _screen_rect_for_cells(pp, pp)
 	return Rect2()
 
-# The coin in the room the player is in, if there is one — better to point at that than at whichever
-# coin happens to come first in the dictionary.
-func tutorial_coin_here_rect() -> Rect2:
-	var here: int = tutorial_current_room()
-	for p in coins.keys():
-		if here >= 0 and bcell(p).room_id == here:
-			return _screen_rect_for_cells(p, p)
-	return tutorial_coin_rect()
+# The player, as a screen rect round their cell (the tile, so the frame is the same size as the
+# pedestal's).
+func tutorial_player_rect() -> Rect2:
+	if player == null or not is_instance_valid(player):
+		return Rect2()
+	return _screen_rect_for_cells(player.board_pos, player.board_pos)
+
+func tutorial_cards_rect() -> Rect2:
+	return _hud.cards_rect() if _hud != null else Rect2()
+
+func tutorial_last_found_name() -> String:
+	return "%s %s" % [_obj_symbol(_last_found), _obj_name(_last_found)] if _last_found >= 0 else ""
+
+func tutorial_request_name() -> String:
+	return "%s %s" % [_obj_symbol(_request), _obj_name(_request)] if _request >= 0 else ""
 
 func add_moving_agents():
 	if tutorial_no_movers:
@@ -1421,7 +1428,9 @@ func add_bomb_agents():
 	for i in range(nloops):
 		for r in rooms:
 			var p = MainGlobals.pick_one_cell(r.position.x+1, r.position.y+1, r.end.x-2, r.end.y-2, 
-				func(x,y): return board[y][x].is_fillable() and dist_from_agents_and_player(Vector2i(x,y)) >= 1)
+				# never beside a pedestal: a bomb there made one unusable ("a bomb in a vault")
+				func(x,y): return board[y][x].is_fillable() and dist_from_agents_and_player(Vector2i(x,y)) >= 1 \
+					and not _near_pedestal(Vector2i(x, y), BOMB_CLEAR))
 			if p.x >= 0:
 				board[p.y][p.x].has_agent = true
 				add_agent_at(p, 0, 0)
@@ -1472,7 +1481,7 @@ func can_go_to(p):
 	if !game.in_board(p, board_margin):
 		return false
 	var cell = board[p.y][p.x]
-	var cond = cell.ispipe && cell.pipe.has_brick < 0
+	var cond = cell.ispipe && cell.pipe.has_brick < 0 && not _ped_at.has(p)    # a pedestal is solid
 	return cond
 	
 func all_agents_done():
@@ -1783,13 +1792,6 @@ func move_player_on_tick(force:bool = false):
 	if !player.need_to_major_tick() and !force:
 		return
 	var cell = board[player.board_pos.y][player.board_pos.x]
-	if cell.pipe != null and cell.pipe.has_coin >= 0:
-		game.add_score_and_time(cell.pipe.has_coin, 0)
-		game.play_sound("delivery")
-		game.tutorial_notify("coin_taken")   # no-op outside tutorial mode
-		cell.pipe.has_coin = -1
-		cell.pipe.set_rot(board)
-		coins.erase(player.board_pos)
 
 	player.set_major_tick_now()
 
@@ -1800,7 +1802,7 @@ func move_player_on_tick(force:bool = false):
 	if player.arrived or player.was_hit:
 		return	
 
-	if did_visit_all_rooms() and len(coins) == 0:
+	if _round_complete():
 		for agent in agents:
 			agent.is_moving = false
 		game.play_sound("swoosh")
@@ -1811,6 +1813,11 @@ func move_player_on_tick(force:bool = false):
 
 	if player.path.size() > 0:
 		var q = player.path[0]
+		if _ped_at.has(q):
+			_use_pedestal(q)              # walked into a pedestal: use it, and stop there
+			player.path.clear()
+			next_player_dir = -1
+			return
 		if !can_go_to(q):
 			next_player_dir = -1
 			return
@@ -1835,6 +1842,10 @@ func move_player_on_tick(force:bool = false):
 		var dir = next_player_dir
 		var vdir = DirArray[dir]
 		var q = p + vdir
+		if _ped_at.has(q):
+			_use_pedestal(q)              # walked into a pedestal: use it, and stop there
+			next_player_dir = -1
+			return
 		if !can_go_to(q) and cell.room_id < 0:
 			dir = (next_player_dir + 1) % 4
 			vdir = DirArray[dir]
@@ -2052,8 +2063,7 @@ func _apply_level() -> void:
 		if int(lv["level"]) == level:
 			rounds_per_level = int(lv["rounds"])
 			break
-	num_rooms = min(MAX_POSSIBLE_ROOMS, MAX_COLORS_TO_USE, 1 + level)
-	num_distracting_colors = level - 1 + round_in_level
+	num_rooms = min(MAX_POSSIBLE_ROOMS, MAX_COLORS_TO_USE, OBJECTS.size(), 2 + level)
 	game.forced_board_size = Vector2i(s, s)
 	num_more_packets = 0
 	player_max_speed_scale = 1.5
@@ -2128,31 +2138,19 @@ func on_agent_remove_agent(agent_id, _good_remove: bool):
 			agents.remove_at(i)
 			break
 
-var colors_for_popup: Array = []
-func on_player_remove_player(_arrived: bool):		
+# The round ends when the player spins away: won when everything was stored and fetched (there is no
+# quiz any more), lost when a hazard caught them.
+func on_player_remove_player(_arrived: bool):
 	if _arrived:
 		for agent in agents:
 			agent.queue_free()
 		agents.clear()
-		in_answring_mode = true
-		_round_start_ms = MainGlobals.timems()
-		zoom_camera(false)
-		await get_tree().process_frame
-		# num_distracting_colors = 22		# for debug
-		var n:int = min(MAX_POSSIBLE_ROOMS, MAX_COLORS_TO_USE, rooms.size() + num_distracting_colors)
-		var rndn = range(0, n)
-		rndn.shuffle()
-		colors_for_popup = rndn.duplicate()
-		for room_id in range(rooms.size()):
-			create_color_selection_popup(room_id, true)
-		game.tutorial_notify("map_shown")   # no-op outside tutorial mode
-	else:	
+		# everything is stored: now the map (see "STORE, THEN THE MAP" at the top)
+		MainGlobals.do_after(MAP_DELAY_MS / 1000.0, func():
+			if not game.level_is_done and not rooms.is_empty():
+				_start_map())
+	else:
 		level_is_done(false)
-	# if player != null:
-	# 	player.queue_free()
-	# 	player = null
-	# 	player_cam = null
-	# level_is_done(arrived)
 
 func check_agent_collisions():
 	for i in agents.size():
@@ -2200,205 +2198,6 @@ func add_door_at(p):
 	door.set_rot(door_type)
 	door.hide()
 	doors.append(door)					
-
-var popup:PopupPanel = null
-
-func _unhandled_input(event: InputEvent) -> void:
-	if popup == null or not is_instance_valid(popup) or not popup.visible:
-		return
-
-	if event.is_action_pressed("ui_cancel"):
-		_close_popup()
-		get_viewport().set_input_as_handled()
-
-const swatch_tex: Texture2D = preload("res://art/floor2.png")
-const color_layouts = [
-	[],[],	# for 0,1
-	[1,1],
-	[1,1,1],
-	[2,2],
-	[1,3,1],
-	[2,2,2],
-	[2,3,2],
-	[2,2,2,2],
-	[3,3,3],
-	[2,3,3,2],
-	[2,3,3,3],
-	[3,3,3,3]
-]
-
-var small_popups = {}
-
-func create_color_selection_popup(room_id: int, small_version: bool) -> void:
-	var color_indices = colors_for_popup
-	var room = rooms[room_id]
-	var p0 = room.position
-	var p1 = room.end - Vector2i(1,1)
-
-	var screen_pos: Vector2
-
-	var small_popup:PanelContainer
-
-	var vbox_container := VBoxContainer.new()
-	vbox_container.alignment = BoxContainer.ALIGNMENT_CENTER
-	var sep := 1
-	vbox_container.add_theme_constant_override("separation", 0)#sep)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color.TRANSPARENT#(0.1, 0.1, 0.1, 0.0)
-	# sb.set_border_width_all(sep)
-	# sb.border_color = Color(0.1, 0.1, 0.1, 1.0)
-
-	var actual_pipe_w := 0
-	if small_version:
-		var p0g = board[p0.y][p0.x].pipe.position
-		var p1g = board[p1.y][p1.x].pipe.position
-		actual_pipe_w = (board[p0.y+1][p0.x+1].pipe.position - p0g).x
-		p0g = game.board_to_px(p0)
-		p1g = game.board_to_px(p1)
-		var pcg = (p0g + p1g) / 2.0
-
-		# print("room id %d pcg %s" % [room_id, str(pcg)])
-		screen_pos = pcg
-		small_popup = PanelContainer.new()
-		add_child(small_popup)
-		small_popups[room_id] = small_popup
-		small_popup.add_child(vbox_container)
-		small_popup.add_theme_stylebox_override("panel", sb)
-	else:
-		var p0g = board[p0.y][p0.x].pipe.global_position
-		var p1g = board[p1.y][p1.x].pipe.global_position
-		var p01g = board[p0.y+1][p0.x+1].pipe.global_position
-		var pcg = (p0g + p1g) / 2.0
-		var p_transform = get_viewport().get_canvas_transform()
-		screen_pos = p_transform * pcg
-		actual_pipe_w = int((p_transform * p01g - p_transform * p0g).x)
-
-		if popup != null and is_instance_valid(popup):
-			popup.queue_free()
-			popup = null
-		popup = PopupPanel.new()
-		add_child(popup)
-		popup.unresizable = true
-		popup.add_child(vbox_container)
-		popup.add_theme_stylebox_override("panel", sb)
-
-	var n = color_indices.size()
-	var w: int = max(1, floori(sqrt(n)))
-	var h: int = max(1, ceili(float(n) / float(w))) # IMPORTANT
-
-	var layout = [0]
-	if n < color_layouts.size():
-		layout.append_array(color_layouts[n])
-		w = MainGlobals.array_max(layout)
-		h = layout.size()
-	else:
-		for i in range(h):
-			layout.append(w)
-	MainGlobals.cumsum_inplace(layout)
-
-	var box_w := actual_pipe_w * 2
-	if small_version:
-		box_w = int(actual_pipe_w / 1.1)
-
-	if small_version:
-		small_popup.size = Vector2i(box_w * w + (w+1)*sep, box_w * h + (h+1)*sep)
-		small_popup.position = screen_pos - small_popup.size/2.0#(MainGlobals.clamp_popup_rect(screen_pos - small_popup.size/2.0, small_popup.size, 20)).position
-	else:
-		popup.size = Vector2i(box_w * w + (w+1)*sep, box_w * h + (h+1)*sep)
-		var rect := MainGlobals.clamp_popup_rect(screen_pos - popup.size/2.0, popup.size, 20)
-		popup.popup(rect)
-
-	_build_palette(vbox_container, layout, room_id, sep, box_w, small_popup)
-
-func _build_palette(vbox_container:VBoxContainer, layout, room_id, sep, box_w, small_version):
-	var color_indices = colors_for_popup
-	var hbox_container: HBoxContainer = null
-	
-	var n = layout[-1]
-	for i in range(n):
-		var is_correct = color_indices[i] == room_id
-		# var col: int = i % w
-		# if col == 0:
-		if i in layout:
-			hbox_container = HBoxContainer.new()
-			vbox_container.add_child(hbox_container)
-			hbox_container.add_theme_constant_override("separation", 0)#sep)
-			hbox_container.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-
-
-		var panel := PanelContainer.new()
-		panel.set_custom_minimum_size(Vector2(box_w + 2*sep, box_w + 2*sep))
-		var sbs := StyleBoxFlat.new()
-		sbs.bg_color = Color.TRANSPARENT
-		sbs.set_border_width_all(sep)
-		sbs.border_color = Color(0.1, 0.1, 0.1, 1.0)
-		panel.add_theme_stylebox_override("panel", sbs)
-
-		var swatch := TextureRect.new()
-		swatch.texture = swatch_tex
-		swatch.modulate = game.color_by_index(color_indices[i])
-		swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		swatch.stretch_mode = TextureRect.STRETCH_SCALE
-		swatch.set_custom_minimum_size(Vector2(box_w, box_w))
-		swatch.mouse_filter = Control.MOUSE_FILTER_STOP
-		if small_version:
-			swatch.set_meta("room_id", room_id)
-			swatch.gui_input.connect(_on_small_color_rect_input.bind(swatch))
-		else:
-			swatch.set_meta("is_correct", is_correct)
-			swatch.set_meta("room_id", room_id)
-			swatch.gui_input.connect(_on_color_rect_input.bind(swatch))
-		panel.add_child(swatch)
-		hbox_container.add_child(panel)
-
-func _on_small_color_rect_input(event, rect: Control):
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var room_id: int = int(rect.get_meta("room_id"))		
-		create_color_selection_popup(room_id, false)
-
-# func _on_color_rect_input(event, rect: ColorRect):
-func _on_color_rect_input(event, rect: Control):
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		# var selected_color: Color = rect.color
-		var is_correct: int = int(rect.get_meta("is_correct"))
-		if is_correct:
-			var room_id: int = int(rect.get_meta("room_id"))
-			answered_rooms[room_id] = true
-			if room_id in small_popups:
-				small_popups[room_id].queue_free()
-				small_popups.erase(room_id)
-			var room = rooms[room_id]
-			for row in range(room.position.y, room.end.y):
-				for col in range(room.position.x, room.end.x):
-					var p = Vector2i(col,row)
-					if board[p.y][p.x].ispipe:
-						board[p.y][p.x].color_idx = room_id
-						board[p.y][p.x].pipe.set_rot(board)
-			answered(true)
-			_close_popup()
-		else:
-			_flash_wrong(rect)
-			answered(false)
-
-# Say NO where the player is looking — at the swatch they just tapped. The score ticking down at
-# the top of the screen is easy to miss entirely, and was the only sign that a pick was wrong.
-func _flash_wrong(rect: Control) -> void:
-	if rect == null or not is_instance_valid(rect):
-		return
-	var back: Color = rect.modulate
-	rect.modulate = Color(1.0, 0.25, 0.25, 1.0)
-	var tw: Tween = MainGlobals.make_tween()
-	tw.tween_property(rect, "modulate", back, 0.45)
-	var start_x: float = rect.position.x
-	var shake: Tween = MainGlobals.make_tween()
-	shake.tween_property(rect, "position:x", start_x - 5.0, 0.05)
-	shake.tween_property(rect, "position:x", start_x + 5.0, 0.09)
-	shake.tween_property(rect, "position:x", start_x, 0.05)
-
-func _close_popup():
-	popup.hide()
-	popup.queue_free()
-	popup = null
 
 func _on_path_drawn(_path: Array[Vector2i]) -> void: 
 	var path = game.get_player_path(player, _path, 9, Callable(self, "calc_cost_to_move_player_to"))
@@ -2471,3 +2270,227 @@ func _fit_ground_to_board() -> void:
 	_sky.show()
 
 var _sky: ColorRect = null
+
+# --- store, then the map ------------------------------------------------------------------------
+
+func _obj_name(o: int) -> String:
+	return str(OBJECTS[o][1]) if o >= 0 else ""
+
+func _obj_symbol(o: int) -> String:
+	return str(OBJECTS[o][0]) if o >= 0 else ""
+
+func _obj_color(o: int) -> Color:
+	return OBJECTS[o][2] if o >= 0 else Color.WHITE
+
+func _round_complete() -> bool:
+	if pedestals.is_empty():
+		return false
+	for rid in pedestals.keys():
+		if not pedestals[rid]["seen"]:
+			return false
+	return true
+
+# A pedestal is SOLID: the player uses it by walking into it, and stops there. (Stepping ONTO it would
+# let a walk across a room brush a pedestal by accident.)
+func _near_pedestal(c: Vector2i, reach: int = 1) -> bool:
+	for pc in _ped_at.keys():
+		if absi(pc.x - c.x) <= reach and absi(pc.y - c.y) <= reach:
+			return true
+	return false
+
+# The player walked into the vault at `cell`: the first time, it opens and shows what is inside, big,
+# then closes again. Opened once, it stays shut (it is the map that asks about it now).
+const OPEN_SHOW_MS: int = 1300            # how long an opened vault shows its object
+func _use_pedestal(cell: Vector2i) -> void:
+	var rid: int = int(_ped_at[cell])
+	var ped: Dictionary = pedestals[rid]
+	var o: int = int(ped["obj"])
+	if ped["seen"]:
+		_peek(rid)      # opened before: look again, for nothing and at no cost
+		return
+	ped["seen"] = true
+	_last_found = o
+	var node = ped["node"]
+	if node != null and is_instance_valid(node):
+		node.set_state(node.State.OPEN, _obj_symbol(o), _obj_color(o))
+		var tws: Tween = node.create_tween()
+		tws.tween_interval(OPEN_SHOW_MS / 1000.0)
+		tws.tween_callback(func() -> void:
+			if is_instance_valid(node) and not _found_rooms.has(rid):
+				node.set_state(node.State.COVERED))
+	if _hud != null:
+		_hud.announce_found(o, room_name(rid))
+	_to_ask.append(o)
+	game.add_score_and_time(1, 0)
+	game.play_sound("delivery")
+	game.tutorial_notify("found")    # the last one ends the walk: move_player_on_tick sees _round_complete()
+
+# A vault opened before, walked into again: it opens for a moment and shows what it holds (and the
+# room's name, as a reminder). No points, no cost, no announcement.
+func _peek(rid: int) -> void:
+	var ped: Dictionary = pedestals[rid]
+	var node = ped["node"]
+	var o: int = int(ped["obj"])
+	if node == null or not is_instance_valid(node) or node.state == node.State.OPEN:
+		return
+	node.set_state(node.State.OPEN, _obj_symbol(o), _obj_color(o))
+	var tw: Tween = node.create_tween()
+	tw.tween_interval(OPEN_SHOW_MS / 1000.0)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(node) and not _found_rooms.has(rid):
+			node.set_state(node.State.COVERED))
+	_pop_at(ped["pos"], "%s %s" % [_obj_symbol(o), _obj_name(o)], Color(1.0, 0.90, 0.60))
+	game.play_sound("swoosh")
+	game.tutorial_notify("peeked")
+
+# THE MAP: the whole castle from above, every floor plain gray (pipe.gd, zoomed out), the covers on.
+func _start_map() -> void:
+	_on_map = true
+	zoom_camera(false)
+	_to_ask.shuffle()
+	_next_question_ms = MainGlobals.timems() + QUESTION_GAP_MS
+	game.play_sound("swoosh")
+	game.tutorial_notify("map_shown")
+
+# The next question once the last is answered and the pause is over.
+func _update_questions() -> void:
+	if not _on_map or _request >= 0 or _to_ask.is_empty() or game.paused():
+		return
+	if MainGlobals.timems() < _next_question_ms:
+		return
+	_request = _to_ask.pop_front()
+	_request_since_ms = MainGlobals.timems()
+	if _hud != null:
+		_hud.set_request(_request)
+	game.tutorial_notify("asked")
+
+# A tap on the map: which room is it?
+func _on_floor_tapped(cell_pos: Vector2i) -> void:
+	if not _on_map or _request < 0 or not game.in_board(cell_pos):
+		return
+	var rid: int = bcell(cell_pos).room_id
+	if rid < 0 or not pedestals.has(rid):
+		return
+	# A room already found is ignored while it shows so (its floor or its object); where nothing marks it
+	# any more (higher levels), tapping it again is just a wrong room.
+	var lv_f: int = MmmLevelConfig.LEVELS[0]["level"] if game.tutorial_mode else level
+	if _found_rooms.has(rid) and (MmmLevelConfig.flag(lv_f, "color_found") or MmmLevelConfig.flag(lv_f, "keep_found")):
+		return
+	var ped: Dictionary = pedestals[rid]
+	var node = ped["node"]
+	var pcell: Vector2i = ped["pos"]
+	if int(ped["obj"]) == _request:
+		# FOUND: the room takes its color back and shows its object for good
+		var took: int = MainGlobals.timems() - _request_since_ms
+		times_to_answer.append(took)
+		while times_to_answer.size() > 20:
+			times_to_answer.remove_at(0)
+		var pts: int = 5 + maxi(0, 5 - took / 2000)
+		game.add_score_and_time(pts, 0)
+		game.add_correct_or_mistake(1, 0)
+		game.play_sound("right")
+		_found_rooms[rid] = true
+		# how much stays on show is the level's (MmmLevelConfig: color_found, keep_found)
+		var help_level: int = MmmLevelConfig.LEVELS[0]["level"] if game.tutorial_mode else level
+		if MmmLevelConfig.flag(help_level, "color_found"):
+			_color_room(rid)
+		if node != null and is_instance_valid(node):
+			node.set_state(node.State.OPEN, _obj_symbol(_request), _obj_color(_request))
+			if not MmmLevelConfig.flag(help_level, "keep_found"):
+				var twf: Tween = node.create_tween()
+				twf.tween_interval(REVEAL_MS / 1000.0)
+				twf.tween_callback(func() -> void:
+					if is_instance_valid(node):
+						node.set_state(node.State.COVERED))
+		_flash_room(rid, Color(0.45, 1.0, 0.50))
+		_pop_at(pcell, "✓ +%d" % pts, Color(0.45, 1.0, 0.50))
+		_request = -1
+		if _hud != null:
+			_hud.set_request(-1)
+		_next_question_ms = MainGlobals.timems() + QUESTION_GAP_MS
+		game.tutorial_notify("room_answered")
+		if _to_ask.is_empty():
+			var during_tutorial: bool = game.tutorial_mode
+			game.tutorial_notify("map_done")
+			MainGlobals.do_after(1, func():
+				if not during_tutorial:
+					level_is_done(true))
+	else:
+		# WRONG: that room's pedestal opens on what is really there, then covers again
+		game.add_score_and_time(-1, 0)
+		game.add_correct_or_mistake(0, 1)
+		game.play_sound("gaveup")
+		_round_had_wrong_answer = true
+		_flash_room(rid, Color(1.0, 0.35, 0.30))
+		var lv_w: int = MmmLevelConfig.LEVELS[0]["level"] if game.tutorial_mode else level
+		if MmmLevelConfig.flag(lv_w, "reveal_wrong"):
+			if node != null and is_instance_valid(node):
+				node.set_state(node.State.OPEN, _obj_symbol(int(ped["obj"])), _obj_color(int(ped["obj"])))
+				var tw2: Tween = node.create_tween()
+				tw2.tween_interval(REVEAL_MS / 1000.0)
+				tw2.tween_callback(func() -> void:
+					if is_instance_valid(node) and not _found_rooms.has(rid):
+						node.set_state(node.State.COVERED))
+			_pop_at(pcell, "✗ That's the %s" % _obj_name(int(ped["obj"])), Color(1.0, 0.42, 0.35))
+		else:
+			_pop_at(pcell, "✗ Not there", Color(1.0, 0.42, 0.35))
+		game.tutorial_notify("map_missed")
+
+# The tapped room lights up for a moment on the map (green right, red wrong) -- the answer is seen even
+# where nothing stays on show.
+func _flash_room(rid: int, c: Color) -> void:
+	var r: Rect2i = rooms[rid]
+	var t: float = float(game.tile_size)
+	var flash: ColorRect = ColorRect.new()
+	flash.color = Color(c.r, c.g, c.b, 0.45)
+	flash.position = game.board_to_px(r.position) - Vector2(t, t) * 0.5
+	flash.size = Vector2(r.size) * t
+	flash.z_index = 3
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(flash)
+	var tw: Tween = flash.create_tween()
+	tw.tween_property(flash, "color:a", 0.0, 0.7)
+	tw.tween_callback(flash.queue_free)
+
+# A found room shows its floor color again on the map.
+func _color_room(rid: int) -> void:
+	var r: Rect2i = rooms[rid]
+	for row in range(r.position.y, r.end.y):
+		for col in range(r.position.x, r.end.x):
+			var c = board[row][col]
+			if c.ispipe and c.room_id == rid and c.pipe != null:
+				c.color_idx = rid
+				c.pipe.set_rot(board)
+
+# A result over the pedestal at `cell`, in screen space.
+func _pop_at(cell: Vector2i, text: String, color: Color) -> void:
+	if _hud == null:
+		return
+	var r: Rect2 = _screen_rect_for_cells(cell, cell)
+	if r.size.x > 0.0:
+		_hud.pop(text, color, r.get_center() - Vector2(0.0, r.size.y * 0.3))
+
+func _make_hud() -> void:
+	var hud_layer: CanvasLayer = CanvasLayer.new()
+	hud_layer.layer = 5
+	add_child(hud_layer)
+	_hud = FETCH_HUD_SCRIPT.new()
+	_hud.objects = OBJECTS
+	_hud.position = Vector2.ZERO
+	_hud.size = Vector2(MainGlobals.screen_size)
+	hud_layer.add_child(_hud)
+
+# Every frame: a vault not opened yet is a BEACON, so the ones still to find stand out from across a room.
+func _update_fetch_view() -> void:
+	var live: bool = game.level_is_ready and not game.level_is_done and not _on_map
+	# the room's name, as the player walks in
+	if live and _hud != null and player != null and is_instance_valid(player):
+		var here: int = _player_room()
+		if here != _last_room_named:
+			_last_room_named = here
+			if here >= 0:
+				_hud.show_room(room_name(here))
+	for rid in pedestals.keys():
+		var node = pedestals[rid]["node"]
+		if node != null and is_instance_valid(node):
+			node.beacon = live and not pedestals[rid]["seen"]

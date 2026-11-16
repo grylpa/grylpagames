@@ -1,8 +1,21 @@
 # Mind Palace (folder `mmm`) — design
 
-You wander a castle of rooms joined by corridors, picking up one coin per room. When every room has
-been visited and every coin taken, the view zooms out to the whole floor plan and you are asked,
-room by room, **what color that room's floor was**. Right answers score, wrong ones cost.
+**Vaults, then the map** (since 2026-11-16): memory AND navigation. Every room of a castle joined by
+corridors has a **vault** (a safe, the same in every room) with an OBJECT inside. Walking the castle you
+open each vault by walking into it: the object shows, big ("FOUND / CROWN / Remember this room"), and
+the vault shuts again. When every vault has been opened the view pulls back to the whole castle as a
+**plain map** -- every floor the same gray -- and you are asked for each object in turn: **tap the room
+it was in**. That takes a map of the castle in your head, built while walking it in the zoomed view,
+where you never see more than a room. A right room takes its color back and shows its object; a wrong
+one opens for a moment and costs a point, and you try again. Bombs and monsters end the round while you
+walk.
+
+History: until 2026-11-15 you took one coin per room and the map asked each room's FLOOR COLOR (the
+same navigation test, about a less interesting fact, and "dull"). On 2026-11-15/16 the player
+CARRIED each object and stored it themselves, first with requests interleaved and fetched by walking
+back ("now it's just a memory game": the map in your head was no longer tested), then with this map at
+the end -- carrying dropped: "we just don't have a good story for carrying yet". The map is plain gray on purpose: with the colors on, "the anchor
+is in the red room" would answer it without knowing where that room is.
 
 The name in the chooser and in game is "Mind Palace"; the folder and `file_names_prefix` stay `mmm`,
 because every scores/settings file on disk is named after that prefix.
@@ -42,27 +55,49 @@ mmm/scripts/
 ├── globals.gd       MmmG autoload: starting_level, save/load settings
 ├── level_config.gd  MmmLevelConfig.LEVELS — 12 levels, 3 rounds each
 ├── main.gd          orchestrator: menu, HUD, instructions, score rows
-├── level.gd         the castle: rooms, corridors, coins, bricks, hazards, the answer popups
+├── level.gd         the castle: rooms, corridors, vaults, bricks, hazards, the map
 ├── player.gd        you; continuous movement, `mark_arrived()` ends the exploring phase
 ├── agent.gd         the things that move in the rooms and the bombs
-├── pipe.gd          one floor tile: holds `has_coin`, `has_brick`, and the room color
+├── pedestal.gd      a room's vault, drawn as a SAFE DOOR (Crack the Safe's): shut, or OPEN (door aside, the object inside); a BEACON until opened
+├── object_badge.gd  how an object looks everywhere: a disc in its own color, white ring, white symbol
+├── fetch_hud.gd     the overlay: the WHERE IS card, the big announcements, the results
+├── pipe.gd          one floor tile: holds `has_brick` and the room color (`has_coin` is no longer used)
 ```
 
 ## A round
 
 1. The level's briefing goes up at once, held, and `create_board()` builds the castle behind it (see
    "The briefing and the build"): `num_rooms` rooms (`create_rooms`), joined (`add_corridors`), then
-   `add_player`, `add_coins` (one per room), `add_bricks`, `add_bomb_agents`, `add_moving_agents`.
-   The round starts when the card's Start is pressed (`_begin_round()`).
-2. You walk with swipes or arrow keys — `move_dir()` sets a direction and you keep going until you
+   `add_player`, `add_pedestals` (one per room, where the coin used to be), `add_bricks` (never next
+   to a pedestal, `_near_pedestal`), `add_bomb_agents` (never within `BOMB_CLEAR` (2) tiles of one: a
+   bomb beside a pedestal made it unusable), `add_moving_agents`. The round starts when
+   the card's Start is pressed (`_begin_round()`).
+2. You walk with swipes or arrow keys -- `move_dir()` sets a direction and you keep going until you
    turn or hit something, like Gorilla. Entering a tile calls `mark_visited_room()`.
-3. Stepping on a coin tile takes it (`move_player_on_tick`), worth 1 or 2 depending on whether it
-   sat on the room's edge.
-4. When `did_visit_all_rooms() and len(coins) == 0`, the player spins away (`mark_arrived()`), which
-   fires `remove_player(true)` → `on_player_remove_player()`: agents are cleared, `in_answring_mode`
-   goes on, the camera zooms out, and one color-selection popup is created per room.
-5. Each answer calls `answered(correct)`: +1 score / +5 s, or −1 / −5. When every room has been
-   answered, `_check_if_all_rooms_answered()` ends the round a second later.
+3. **The objects** (`OBJECTS`: twelve, each a symbol, a name and a color -- crown, anchor, ...): one in
+   every vault, none twice (`add_pedestals`). How they are shown: see "In your face".
+4. **A vault is SOLID and opened by walking INTO it** (`can_go_to` refuses it; `move_player_on_tick`
+   calls `_use_pedestal` when the next step, or the next step of a drawn path, is a vault, and stops the
+   player there). Stepping ONTO one would let a walk across a room brush it by accident.
+5. `_use_pedestal` on a vault not opened yet (`seen`): it opens for `OPEN_SHOW_MS`, its object is
+   announced, +1, `delivery` (`found`). **Walked into again** (`_peek`): it opens for a moment and the
+   object's name rises over it -- no points, no cost (`peeked`); the player may refresh their memory
+   while roaming, as in a real house.
+6. When `_round_complete()` (every vault opened) the player spins away
+   (`mark_arrived()`) -> `on_player_remove_player(true)`: hazards cleared, and `MAP_DELAY_MS` later
+   `_start_map()`: `zoom_camera(false)` frames the whole castle (`_castle_rect()`, corridors included)
+   and every floor shows plain gray (pipe.gd's zoomed-out look) (`map_shown`).
+7. **The questions** (`_update_questions`): the vaults' objects in a random order, one at a time,
+   `QUESTION_GAP_MS` apart (`asked`). A tap on any floor tile of a room (pipe.gd `pipe_pressed` ->
+   `_on_floor_tapped`) answers for that room:
+   - the right room: +5, plus up to +5 for speed (one less every 2 s), `right`; the room takes its color
+     back (`_color_room`) and its pedestal shows the object for good (`room_answered`);
+   - a wrong room: -1, `gaveup`, its pedestal opens on what is really there for `REVEAL_MS`, and the
+     question stays open. Sets `_round_had_wrong_answer`. A room already found ignores taps.
+   After the last one, `level_is_done(true)` a second later (not in the tutorial; `map_done`).
+
+The time each map answer took is kept in `times_to_answer` (the last 20), reported as `rt` by
+`main.gd::get_game_score()`.
 
 Touching a moving agent or a bomb kills the round outright: `check_agent_collisions()` →
 `player.mark_hit()` → `remove_player(false)` → `level_is_done(false)`.
@@ -71,17 +106,68 @@ The speed bonus (`min(5, 60 - seconds)` score and time) is paid only for a round
 used to be applied before the win/lose branch, so a round lost after ten seconds paid the same as
 one won in ten seconds.
 
+## The vault is a safe door (2026-11-16)
+
+`pedestal.gd`: a SAFE DOOR seen straight on, the SAME in every room ("it should be a recognized item"),
+drawn the way Crack the Safe draws its safe (copied and scaled to a tile; games do not share scripts):
+brushed steel lit from the top left, beveled, a recessed panel, four hex bolts, a big chrome dial with a
+black face, silver ticks, a gold pointer and a knurled knob, a three-spoke handle, and a small LAMP --
+red until the safe is first opened, green after. 1.12 tiles a side. Open: the door swung aside on its
+hinges (a steel slab seen nearly edge-on) and the object's badge in the dark compartment, drawn above
+everything round it (`z_index` 30) since the player stands beside it.
+
+**It stands out on every floor** (the user's rule): a soft light halo behind it, a thick BLACK outline
+and a bright GOLD frame inside that, and a deep shadow -- the black carries it on light floors, the gold
+and the halo on dark ones. The beacon (rings round a safe not opened yet) is a child that redraws every
+frame; the door is drawn only when its state changes.
+
+Tried and dropped the same day: a brass dome on a round plinth (a serving dish); a flat strongbox in
+three-quarter view ("much less contrasting and visible ... much less nice"); a real 3-D strongbox
+rendered like the hall's columns ("this 3-D almost front view doesn't match any other item"); furniture
+fitting each room (offered, turned down for one recognizable thing).
+
+## In your face (2026-11-15)
+
+The first version said everything in one small gold line. The user: "everything should be much much
+more in-your-face". Now (`fetch_hud.gd`, `object_badge.gd`, `pedestal.gd`):
+
+- **Every object is a BADGE** -- a disc in the object's own color with a white ring and its symbol --
+  the same in an open vault and in the announcements and the card.
+- **The map's question is a BANNER** across the top (`banner_rect`, popping in, its border pulsing),
+  and the map is framed BELOW it (`_frame_for(..., top)`). It was a big card in the middle that then
+  flew into a card at the top, and in both places it covered rooms of the map being asked about ("the
+  question sometimes hides a vault").
+- **Announcements**: a vault's object ("FOUND / CROWN / Remember this room", gold) pops up large in the
+  upper third, the screen dimmed a little, holds 1.25 s and shrinks away. Queued, one at a time. **Laid out once and
+  scaled through a transform**: fitting the text to the moving rect asked for a new font size every
+  frame, each rasterized afresh -- half a second a frame.
+- **Vaults not opened yet are BEACONS** (rings spreading out, a warm glow), so the ones still to find
+  stand out from across a room.
+- **Results over the vault**, big, rising and fading: "✓ +8", "✗ That's the teacup" (shrunk to fit the
+  screen when long).
+- Nothing is drawn on the player. (While objects were carried, one floated over the head at the
+  player's size, then was held small in two hands -- "even worse".) `fetch_hud.gd` still has the
+  CARRYING card (`set_carry`), unused.
+
 ## The palace's look (2026-11-12)
 
 It had the oldest look in the app -- a tinted PHOTO of marble tiles for the floors, the same photo
 for the corridors, and the road games' lawn outside -- and was redrawn over several rounds with the user:
-- **Floors** (`castle_floor.gdshader`, one material for every floor tile, set in `pipe.gd`): POLISHED
-  MARBLE, `style` 1 -- **ONE TILE PER CELL** (movement is tile based: slabs a tile and a half long hid
-  the cells), the cells in a two-tone checker of the room's color, soft clouding, fine pale veins running
-  across the cells, a pillow bevel and a broad sheen. The ROOM'S COLOR is the tint: it is what the
-  player remembers, so the marble only varies it a little. Also in the shader, unused: `style` 0 plain
-  stone slabs ("does not look any better" than the photo) and 2 painted parquet in a basket weave (liked
-  "for a single small room" elsewhere, not here).
+- **Floors: each room a KIND** (since 2026-11-16, `room_kinds.gd`): living room (oak parquet), kitchen
+  (cream and slate checker tiles, four a cell), bathroom (aqua mosaic, sixteen a cell), library and study
+  (walnut / cherry planks, three a cell), bedroom and nursery (carpet with a diamond in each carpet tile),
+  garden (a flagstone a cell, grass between), ballroom and dining room (marble checker), cellar (rough
+  stone), sunroom (terracotta). Shuffled per castle, all different up to twelve rooms (`_room_kinds`,
+  `_kind_of`; `OneCell.room_kind`, set in `add_pipe`). Drawn by `castle_floor.gdshader` with `use_cols`
+  on and the kind's `style`, `col_a`, `col_b` (pipe.gd `_show_kind`); every style keeps the CELLS
+  readable (its pattern lines up with them, or a faint joint marks them). The room's NAME shows as the
+  player walks in (`fetch_hud.gd` `show_room`, where the cards are -- there are none while walking), and
+  the FOUND card says where ("In the kitchen"). **On the map every room is plain gray stone** (`style`
+  0, tint) until found, then it shows its kind's floor: knowing "the kitchen" must still be joined to
+  where the kitchen is.
+  Before: each room's floor was its own COLOR (the old quiz asked for it), POLISHED MARBLE `style` 1
+  tinted by the node's modulate, the cells in a two-tone checker -- still how `style` 1 draws with
+  `use_cols` off.
 - **Corridors**: the same marble in warm gray, `pipe.gd` `CORRIDOR_STONE` (0.44/0.42/0.40).
 - **Walls** (`level._add_castle_walls` / `_draw_castle_walls`): warm IVORY stone along every edge where
   floor meets the hall, with a GOLD outer edge (bright facing the light, deep away from it), a dark line
@@ -150,7 +236,7 @@ for the corridors, and the road games' lawn outside -- and was redrawn over seve
   a band along every edge where a room meets anything but more of itself or a corridor (doorways stay
   open). Only the edge darkens -- the floor's COLOR is what the player remembers, and every room's
   middle is untouched. The floor sprites are at z -1 (`pipe.gd` `_ready`) so the band lies over the
-  floor and under the coin and bricks. It loops over the board array, not `game.board_size`.
+  floor and under the pedestals and bricks. It loops over the board array, not `game.board_size`.
 - **Sounds** (`devtools/make_mmm_sounds.py`, `make_ambient_sounds.py`; names in code kept): `motor` =
   the castle's MUSIC, `mmm_ambient.ogg` -- a harp ostinato in D dorian, a recorder-like tune that comes
   and goes, a soft reed drone, a frame drum. It was a car engine registered and never played, then a
@@ -162,8 +248,8 @@ for the corridors, and the road games' lawn outside -- and was redrawn over seve
   growl through vowel formants was heard as "a cow mooing") are loops whose loudness
   follows the nearest bomb and the nearest moving monster, silent beyond `HAZARD_HEAR_TILES` (4) and
   -4 dB when touching (`_hazard_sounds`, only while the round is really played). `feet` =
-  steps on stone (were on grass); `delivery` = coin pickup; `right` = a room named right (it shared the
-  coin's sound); `gaveup` = named wrong; `swoosh` = a shimmer as the floor plan opens out; `explosion` (a BOMB set off) =
+  steps on stone (were on grass); `right` = the right room on the map;
+  `gaveup` = a wrong room; `swoosh` = the map opening out; `delivery` = a vault opened; `explosion` (a BOMB set off) =
   the big explosion Lights Out uses (`make_action_sounds.boom`, a little shorter) when a hazard catches
   you (it was a car crash, then a 45-95 Hz boom a phone plays as nothing); `caught` (`mmm_caught`) = a
   MONSTER catching you, a harsh unvoiced snarl and a heavy chomp (`check_agent_collisions` picks by
@@ -172,15 +258,22 @@ for the corridors, and the road games' lawn outside -- and was redrawn over seve
 
 ## Difficulty
 
-`_apply_level()` is the whole curve: `num_rooms = 1 + level` (capped at 12), and
-`num_distracting_colors = level - 1 + round_in_level` — extra colors that appear in the answer
-palette but were never on any floor. So level 1 round 1 is two rooms and no decoys; by level 6 it is
-seven rooms and a palette with several colors that are pure noise. Board size grows with the level
-and agents speed up.
+`_apply_level()`: `num_rooms = 2 + level` (capped by `MAX_POSSIBLE_ROOMS`, the palette and the 12
+`OBJECTS`), so level 1 is three rooms and three vaults: more vaults, and a bigger castle to hold in
+your head. Board size grows with the level and agents speed up.
 
-`num_distracting_colors` rises with `round_in_level`, and `round_in_level` now counts LOST rounds
-too (see below) — so a level the player is struggling with gets harder round by round rather than
-holding still.
+**The map's help is withdrawn level by level** (`MmmLevelConfig` flags, `flag(level, key)`;
+2026-11-16). Every tapped room flashes (green right, red wrong, `_flash_room`) on every level; beyond
+that:
+
+| from level | withdrawn | why |
+|---|---|---|
+| 2 | `reveal_wrong`: a wrong room showing what is really in it ("✗ That's the teacup"); now "✗ Not there" | it told the player where ANOTHER object was, answering a later question for them |
+| 3 | `color_found`: a found room taking back its floor | colored rooms narrowed what was left to choose from |
+| 4 | `keep_found`: a found room's object staying on show (it shows for `REVEAL_MS`, then covers) | the same, for the objects |
+
+Where neither the floor nor the object marks a found room any more, tapping it again is simply a wrong
+room. The tutorial gets level 1's help.
 
 ## Passing a level
 
@@ -192,12 +285,12 @@ named right first try:
 passed = 100 * _rounds_fully_correct / _rounds_played >= MmmLevelConfig.pass_pct_for(level)
 ```
 
-One wrong pick in `answered()` sets `_round_had_wrong_answer` and spoils the round for the gate. The
-round can still be finished — the palette stays open and the player tries again — it just no longer
-counts toward the level.
+One wrong room on the map sets `_round_had_wrong_answer` and spoils the round for the gate. The round
+can still be finished -- the question stays open and the player tries again -- it just no longer counts
+toward the level.
 
 **The gate has its own counters on purpose.** Every other gated game reads
-`game.session_pct_correct()`, but here `game.corrects` / `game.mistakes` already count ROOM ANSWERS
+`game.session_pct_correct()`, but here `game.corrects` / `game.mistakes` already count MAP ANSWERS
 and the HUD shows them (`hud.show_corrects_mistakes()`). Putting round verdicts in the same pair
 would mix two different units in one number and make the counter on screen wrong.
 
@@ -248,9 +341,8 @@ The same mechanism as Storm's, copied into `level.gd` (games do not share script
   (`_brief_text()`: "Rooms" -- the count the board actually got -- and "Rounds"; what to do is the
   instructions screen's, and was repeated here until 2026-11-12) and shows Start. The round -- its clock, `level_is_ready`, the start sound -- begins when
   the card closes (`_begin_round()`). The tutorial has no card and starts as soon as its board is built.
-- **The background stays opaque while held**, unlike Storm's, where the build is watched: every
-  room's floor color is the question at the end of the round, and the whole castle drawn behind a dim
-  card would show them all.
+- **The background stays opaque while held**, unlike Storm's, where the build is watched (kept from
+  the color quiz, when the whole castle behind a dim card showed every answer; harmless now).
 - It replaced a yellow "Building board" label (`BuildingLabel`, now removed with its style) after
   which the round started at once.
 - **The board is built in slices.** `_breathe()` in every loop of the build hands the frame back after
@@ -284,7 +376,7 @@ is starting: only then does it reset `round_in_level` and the round tally (`_rou
 `_rounds_fully_correct`, `_round_had_wrong_answer`). Otherwise a retry would inherit the rounds that
 failed the level and could not pass it even played perfectly.
 
-`game.corrects` / `game.mistakes` are deliberately left alone — they are the session's room answers,
+`game.corrects` / `game.mistakes` are deliberately left alone — they are the session's map answers,
 not the level's rounds.
 
 ## A failed level earns nothing
@@ -300,79 +392,24 @@ attempt banked its points and the retry cost nothing.
 
 ## Tutorial
 
-`mmm/scripts/tutorial.gd`, entry `mmm/scripts/main.gd::start_tutorial()`.
+`mmm/scripts/tutorial.gd` (vaults, then the map; 2026-11-16). Two things are not obvious on sight: that a
+vault is opened by walking INTO it, and that the test comes later, on a plain map -- you must know
+where in the castle each room is. The coach spots the first vault ("remember which room it's in"), asks the
+player to notice the way to the second room, and stays with them through both
+questions on the map.
 
-The thing this game needs taught is not a control, it is a **deferred goal**: nothing on screen
-while you explore says you are being tested on the floor colors, so a first-timer collects the coins
-happily and is then asked a question they had no reason to prepare for. The tutorial therefore says
-what the test will be *before* the first coin, and points at the floor while saying it.
-
-Specific to this game:
-
-- **The step that sends the player to the second room marks nothing.** The other room is off camera
-  (the view is zoomed to the player), so a marker on it lands off screen. Marking the corridor mouth
-  instead was tried and reverted: the doorway is often not visible either, so a marker floating at
-  the edge of the room is more confusing than the plain instruction to follow the corridor.
-- **The tutorial answers BOTH rooms.** The round is not over until every room has been named, so
-  stopping after one would leave the player having seen most of a process rather than all of it.
-  The caption keeps clear of the room still to be answered — the whole ROOM, not just its color
-  strip: with the rooms stacked vertically, dodging the strip alone put the caption straight onto
-  its room, 67% of it covered, and the player could not see which room was being asked about. Only
-  while `in_answring_mode`, and only once ONE room is left — while several are open the player can
-  start with whichever they can see, and a full-width caption cannot clear two rooms at once.
-- **No end-of-round panel.** Two guards, because one is not enough. `level_is_done()` returns early
-  in tutorial_mode — every branch of it ends in a popup ("Level 1 completed", "Well done!", "Oh
-  no!"). But `_check_if_all_rooms_answered()` schedules that call with `do_after(1)`, and a second
-  later the player has usually tapped through the closing caption, the tutorial has ended and
-  tutorial_mode is false again — so the guard inside sees nothing to suppress and the panel appears
-  anyway. The flag is therefore also captured at SCHEDULE time, while the tutorial is still up.
-  Scoring and level progression are suppressed in tutorial mode regardless.
-- **Nothing on the floor is marked.** Markers here are screen-space rects over a camera-followed
-  world, so anything captured at the wrong instant is off screen and anything recomputed every
-  instant wanders after the player. The rule that works: pin the first value that lands on screen,
-  then hold it — and only use a marker where the thing is reliably in view. Only two things are ever
-  marked: the player on the movement step, and the coin in the first room. Floor markers were tried
-  in both rooms and removed — a marker on the tile underfoot reads as the "this is you" frame
-  shrinking, one beside the player points at nothing being asked for, and the floor being discussed
-  is the whole room anyway.
-- **The tutorial castle is empty apart from the coins.** No bombs, no enemies, no bricks. Note that
-  `num_bomb_agents_to_add = 0` is NOT enough on its own: `add_bomb_agents()` divides by it and only
-  checks "have I placed enough?" AFTER placing one, so a count of zero is a division by zero on a
-  path that can still leave a bomb. The function returns early instead.
-  There are three places an agent could come from: `add_bomb_agents()` and `add_moving_agents()`
-  at board build, both guarded, and `_on_agent_dispatch_timer_timeout()` during play — which cannot
-  fire here, because `start_dispatch` is never set true in this game (only ever false). No guard is
-  needed there, and adding one would imply a path that does not exist.
-- **Hazards are switched off** (`num_bomb_agents_to_add = 0`, `tutorial_no_movers`). Being killed
-  mid-lesson would end the round and teach nothing.
-- **The smallest possible castle**: level 1's two rooms, and `num_distracting_colors` forced to 0,
-  so the palette at the end holds exactly the two colors that were actually on the floors.
-- **Answering is two taps**, which is easy to miss when reading the code: the strip drawn on a room
-  (`small_version`) only OPENS that room's palette; the swatch inside it, carrying `is_correct`, is
-  what answers. A wrong pick costs a point and leaves the room open to try again, so
-  `room_answered` is reported only for a correct one — otherwise the coach moves on while the room
-  is still unnamed.
-- **Single-cell spotlights frame a whole tile.** Tile positions are points, so
-  `_screen_rect_for_cells(p, p)` produced a zero-size rect and the frame round the coin came out at
-  20 px — smaller than the coin inside it, which reads as a rendering glitch rather than as a
-  pointer. It now grows by half a tile each side (plus the step's `spot_pad`), giving 69 px against
-  a 57 px tile. The tile size comes from the camera (`game.tile_size * canvas_scale`), not from
-  the neighboring tile: `add_coins()` puts some coins on a room's EDGE, where the tile to the
-  right is a wall with no pipe to measure, and the frame collapsed to a fixed inset there — the
-  same marker was about two tiles wide mid-room and about one on an edge.
-- **A wrong pick flashes.** `_flash_wrong()` reddens and shakes the swatch that was tapped. Before
-  it, the only signs were a point coming off the counter at the top of the screen and a sound —
-  both easy to miss entirely, so a wrong answer looked like the game ignoring you. This applies in
-  normal play too, not only in the tutorial.
-- **The answer step marks nothing.** Three attempts at pointing the player at one specific room
-  all failed: refusing taps on the others left dead-looking strips; hiding the other strips still
-  left the ROOMS tappable, which brings their strip back. The step now frames no room and says
-  "tap a room's strip, then choose the color that room's floor was" — every room is equally
-  answerable, in any order, exactly as in normal play.
-- **Hazards, accurately**: `add_agent_at` sets `is_moving` only when `agent_type != 0`, so bombs
-  (type 0) sit still and enemies (type 1) patrol. The closing step says exactly that.
-- Events reported to the coach: `coin_taken`, `room_entered`, `map_shown`, `room_answered` — all
-  `game.tutorial_notify`, no-ops outside tutorial mode.
+- **The smallest castle**: two rooms, so two vaults (`_tutorial_setup`: `num_rooms = 2`, no bombs, no
+  monsters, no bricks).
+- **A silent step waits for the castle** before the player is pointed at: a quick reader tapped past
+  the title while the castle was still being built, and the next step's spotlight had no player to
+  frame (`advance_when` on `tutorial_player_rect()`).
+- The player is framed by their CELL (`tutorial_player_rect`) and the pedestal by its
+  (`tutorial_pedestal_here_rect`, also a keep-clear zone in `main.gd`, with the showing cards).
+- The captions name the actual objects (`tutorial_last_found_name`, `tutorial_request_name`).
+- Events: `found`, `map_shown`, `asked`, `room_answered`, `map_missed`, `map_done`. A finished tutorial
+  round never shows the round card.
+- `devtools/probe_tut.gd -- mmm` plays it: routes into a vault not opened yet (the route may END on a
+  solid vault), and on the map taps a tile of the room holding what is asked about.
 
 ## The ground and the camera
 
@@ -403,18 +440,19 @@ frame: `process_priority = 1`). Stepping into a corridor clears the framed room,
 walked into is framed afresh even when it is the one just left: the frame used to be redone only for
 a DIFFERENT room, and walking out into a corridor and back left the view where the corridor had taken
 it -- on level 12 the player walked off the top of the screen. `probe_mmm_build` walks that route and
-checks the player is on screen, and that every room gets the same zoom. For the answers the camera
-frames the whole castle, as large as it fits.
+checks the player is on screen, and that every room gets the same zoom. While storing the
+player never sees more than a room and the corridor they are in -- the map in their head is theirs to
+build. The questions are asked on the whole castle.
 It replaced a camera parented to the player at ONE zoom for every room, sized for the widest room
 the game can make plus two tiles -- so a 5-wide room took up half the screen's width. Measured: a
 7 x 9 room fills the band from y 78 to 726 of 788 (at its own zoom, before the zoom was fixed).
 
-**The answers' view frames the corridors too** (`_castle_rect()`, as in Storm): the rooms' outline
+**The map frames the corridors too** (`_castle_rect()`, as in Storm): the rooms' outline
 grown by `CORRIDOR_REACH` (3), the reach the corridor search is confined to, kept to the board. It
 framed the rooms alone, and in 10 of 12 builds some corridor ran up to 3 tiles outside and was cut off
 (`probe_mmm_build`, framing the rooms alone: 50 of 596 tiles).
 
-**A bit faster in a corridor** (`_set_player_pace()`, `CORRIDOR_RUN` 2): a corridor holds no coin and
+**A bit faster in a corridor** (`_set_player_pace()`, `CORRIDOR_RUN` 2): a corridor holds no pedestal and
 asks nothing. Each step into a corridor tile is taken at twice the walking speed, and in a corridor
 the next step is taken the frame the player arrives rather than at the next game tick (`_process()`).
 Measured at 60 fps: 145 ms a corridor tile against 236 in a room, about 1.6x. (Storm runs at 3x.)

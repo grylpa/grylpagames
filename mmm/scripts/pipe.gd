@@ -45,19 +45,35 @@ func set_coin():
 		%CoinLabelShadow.text = coin_text
 		%CoinLabelText.text = coin_text
 
+const KINDS_SCRIPT: Script = preload("res://mmm/scripts/room_kinds.gd")
+
+# The floor of a room kind (-1: the map's plain gray stone).
+func _show_kind(k: int) -> void:
+	if _mat == null:
+		return
+	if k < 0:
+		_mat.set_shader_parameter("use_cols", false)
+		_mat.set_shader_parameter("style", 0)
+		$PipeFloor2.modulate = Color.from_rgba8(65, 65, 65, 255)
+		return
+	var kind: Array = KINDS_SCRIPT.KINDS[k % KINDS_SCRIPT.KINDS.size()]
+	_mat.set_shader_parameter("use_cols", true)
+	_mat.set_shader_parameter("style", int(kind[1]))
+	_mat.set_shader_parameter("col_a", kind[2])
+	_mat.set_shader_parameter("col_b", kind[3])
+	$PipeFloor2.modulate = Color.WHITE
+
 func set_rot(board):
 	var p = board_pos
 	if _mat != null:
 		_mat.set_shader_parameter("cell", Vector2(board_pos))
 	set_coin()
 	if board[p.y][p.x].room_id >= 0:
-		if game != null and game.zoomed_in:
-			$PipeFloor2.modulate = game.color_by_index(board[p.y][p.x].room_id).darkened(0.3)
-		else:
-			if board[p.y][p.x].color_idx >= 0:
-				$PipeFloor2.modulate = game.color_by_index(board[p.y][p.x].color_idx)
-			else:
-				$PipeFloor2.modulate = Color.from_rgba8(65,65,65,255)
+		# A room shows its KIND's floor (room_kinds.gd) while walking, and on the map once found
+		# (color_idx set); otherwise, on the map, plain gray stone.
+		var shown: bool = (game != null and game.zoomed_in) or board[p.y][p.x].color_idx >= 0
+		_show_kind(board[p.y][p.x].room_kind if shown else -1)
+		if not (game != null and game.zoomed_in):
 			if active_brick != null:
 				active_brick.hide()
 			# $PipeCoin1.hide()
