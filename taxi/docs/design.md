@@ -248,3 +248,9 @@ made on a different board -- a desktop's is larger than a phone's, and a level's
 put taxis off the board: `add_taxi_at` failed on the index and `set_fuel_level` then hit nothing.
 One that does not fit, or whose cell is taken, starts at a free starting spot instead
 (`_add_taxi_at_free_start`) with its own fuel, so the player keeps every taxi they had.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): A CITY AVENUE AT NIGHT and the player's CAB STATION, in 3-D through one camera. The STILL SCENE IS A PICTURE shipped with the game, `taxi/art/menu_city.webp` (baked by `devtools/make_menu_bake.gd` through this script's `bake_mode`, at twice the size, centered on `BAKE_CY`; the layouts only slide it up or down): the sky, the road and sidewalks in lit tiles, the blocks (drawn far to near; every window a recess with its reveal, soffit and sill, lit rooms or dark glass, recessed shopfronts with awnings), the lamp posts, and the station built in REAL 3-D by `taxi/scripts/menu_station3d.gd` -- concrete forecourt, painted-brick building with a lit garage (a cab, tires) and shop, the canopy with its checker and CITY CABS, steel columns, a raised island with bollards, two rounded glossy pumps (lit displays, nozzles, hoses), a price sign -- at 1:100 so the engine's lights reach (they fall off by metres), with both faces of its meshes drawn. At run time only what moves is drawn: the cabs (a body swept from a side profile, lit by the scene's lights, glass, wheels in arches, lenses, the roof sign), the lamps' glow and streaks on the wet road, the neon's breath; one cab comes up from behind us to the pump, waits, and drives away. Re-bake when the still parts change. Without the picture the poster falls back to drawing the city itself.
+Made up, never the board: the menu also opens mid-game.

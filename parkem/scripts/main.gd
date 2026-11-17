@@ -101,6 +101,10 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
+# the main menu's poster (main_menu.gd asks the game for one): a dungeon corridor, a door swinging shut before each creature reaches the gold
+func menu_backdrop() -> Control:
+	return preload("res://parkem/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()
