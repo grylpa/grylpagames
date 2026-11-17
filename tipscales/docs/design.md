@@ -44,12 +44,20 @@ and Space (hold). None of that works on a phone, and an Expert puzzle took tens 
   2 colors of 4 crates to 6 of 6 (`level_config.gd`), and the depth through the clue MIX (strong clues
   on the first levels, weak "tipping" ones later), the spare clues and `tries`.
 - **The WORKBENCH: one crate at a time.** The board only SHOWS the crates (each with a paper tag of the
-  weights it may still have, or its weight). Tapping a crate puts it on the workbench under the board,
-  with its weights as big iron bell weights: TAP one to cross it out (or back), LONG-PRESS one
+  weights it may still have, or its weight). Tapping a crate puts it on the workbench under the board
+  -- and the crate itself grows a little (`LIFT_SCALE` 1.10, eased in and back out, drawn over its
+  neighbors; `_animate_lift`) --
+  with its weights as big iron bell weights (the crate itself shown only as its letter on a weight in its
+color -- a picture of the crate and its name in words were too much): TAP one to cross it out (or back), LONG-PRESS one
   (`LONG_PRESS_MS`; a gold ring fills round it, shown only once the finger has held for `RING_AFTER_MS` -- from the first moment, every plain tap flashed a quarter of it) to settle the crate on it at once.
-- **The tickets follow the crate.** While a crate is selected, only the scales that name it are listed
-  ("SCALES WITH RED C") -- most of the scrolling goes. Tapping a ticket FOCUSES it: its crates are framed
-  on the board in their own colors (Mor's hover frames). Its check sets it aside, to the end of the list
+- **The papers that name the crate are MARKED.** While a crate is on the workbench, every paper naming it
+  has its browned EDGE in the workbench leather's green instead (`RELEVANT`, its hue raised to
+  read on the dark counter; the papers are baked twice, `paper.gdshader` `edge_col`, `_tex_paper_rel`) --
+  frames drawn round it, thin or thick, were tried and did not look good (the user); the crate's stamp inside is not marked (the user); the rest are left as they are -- NOT dimmed,
+  since dimmed is what a paper set aside looks like and the two read the same (the user). Nothing is
+  reordered, and if none of the marked papers is in view the first is scrolled to ("SCALES 12 · 4
+  RELEVANT"). They used to be the only papers LISTED: the list jumping away and back was confusing (the user). Tapping a ticket FOCUSES it: its crates are framed
+  on the board in their own colors (Mor's hover frames). Its brass button sets it aside, to the end of the list
   (Mor's order); a ticket whose crates are all settled is SETTLED and moves down by itself.
 - **Crossing out is FREE** (2026-11-16; it was the Einstein game's rule, the true weight protected and a
   refusal counted as a mistake -- but every refusal TOLD the player that weight was the crate's: "a huge
@@ -58,15 +66,20 @@ and Space (hold). None of that works on a phone, and an Expert puzzle took tens 
   plate off again. The plates are derived afresh from the slates after every move (`_recompute`). A
   MISTAKE is counted only when one SHOWS (the counter cannot be used as a probe): a crate left with NO weight
   (a red "?" on its slate: two plates in its color took its last ones), every crate plated but the scales
-  NOT BALANCING (said without saying where), or Hint having to put a weight back. Considered and turned down
+  NOT BALANCING (said without saying where), or Hint having to point out a weight rubbed off wrongly. Considered and turned down
   by the user: a verdict the moment a crate is plated. The crates' points come when the puzzle balances.
-- **The explained hint** (Mor's): FIRST, if a weight a crate really has was rubbed off, Hint puts it back
-  ("Red C can still weigh 3 kg -- nothing rules that out. It was rubbed off by mistake."), a mistake as well
-  as a hint. Otherwise `puzzle.next_step` finds the simplest deduction from the player's own
-  board -- the color rule first, then clues naming fewer crates, the live ones before those set aside --
-  applies it, frames the crates it touched (green, `_hint_rings`), focuses and scrolls to its ticket, and
-  says why: "From Gold B = Red C + 2: Gold B can't be 1 or 2 kg; Red C can't be 5 or 6 kg." or "Teal D
-  must be 4 kg: no other teal crate can still weigh 4."
+- **The explained hint** (Mor's) SHOWS a step, it does not make it (2026-11-17, the user: pressing Hint
+  over and over solved a puzzle at a profit). FIRST, if a weight a crate really has was rubbed off, Hint
+  points it out ("Red C can still weigh 3 kg -- nothing rules that out. It was rubbed off by mistake: tap it
+  back."), a mistake as well as a hint. Otherwise `puzzle.next_step` finds the simplest deduction from the
+  player's own board -- the color rule first, then clues naming fewer crates, the live ones before those set
+  aside -- frames the crates it is about (green, `_hint_rings`, 4 s), focuses and scrolls to its ticket, and
+  says why: "Hint: from Gold B = Red C + 2, Gold B can't be 1 or 2 kg; Red C can't be 5 or 6 kg." or "Hint:
+  Teal D must be 4 kg -- no other teal crate can still weigh 4." The player makes the move.
+  A LEVEL HAS `HINTS_PER_LEVEL` (3), shown on the button ("Hint · 2", grey at 0: "No hints left on this
+  level."), each -5. A hint this puzzle has already given is shown again FREE (`_hints_given`), and a
+  pointed-out mistake is counted once. The tutorial's hints are unlimited and free. The briefing card lists
+  "Hints: 3".
 
 ## The screen (`scripts/level.gd`, drawn in code)
 
@@ -88,8 +101,11 @@ you stayed too close to the original grab"; the second builds a place:
   heads. On top (`draw_crate`): the letter sprayed through a stencil, and a SLATE hung on a nail with the
   weights the crate may still have CHALKED on it -- a weight crossed out is rubbed off, leaving a smudge.
   A settled crate wears a BRASS PLATE with its weight stamped in.
-- THE WORKBENCH (`leather.gdshader`): green pebbled leather with a gold-tooled double rule in a walnut
-  frame, set into the counter; the weights on it are CAST-IRON BELLS lit from above (brass for the
+- THE WORKBENCH (`leather.gdshader`): green pebbled leather with a gold-tooled double rule, laid on
+  the counter -- NO walnut frame round it any more, and the crates start right under the top strip (`top`
+  50, just under the strip's counters, `head` 6, bench 94 / 64 tall) with only 6 of rack over the top row (it was 30) and the rack clear
+  of the strip: both were room the crates needed, most on the big boards (the user:
+  "a lot of wasted space above the crates"); the weights on it are CAST-IRON BELLS lit from above (brass for the
   crate's own once settled), a weight crossed out chalked through.
 - THE COUNTER below (the same shader): dark oak boards with a rounded lip, and on it THE CLUE PAPERS
   (`paper.gdshader`): old ledger slips, laid paper with fibers, foxing, browned and DECKLED (torn) edges and
@@ -113,10 +129,14 @@ you stayed too close to the original grab"; the second builds a place:
   `rule_tokens`: "Red C" in words took the room the signs needed); BETWEEN reads "[A] between [B] & [C]".
   The papers are a little taller when the rules are on (`_card_h`). Hints still write names in words.
 - THE PAPERS MOVE, they do not jump (`_animate_cards`): each eases to its place in the list. Setting one
-  aside stamps its check and dims it where it lies, with a small press (`ASIDE_HOLD_MS` 420), and only then
+  aside pushes its button in and dims it where it lies, with a small press (`ASIDE_HOLD_MS` 420), and only then
   does it go to the end, the others sliding up -- at once, "you can't really tell something happened".
-  The check box is larger (58 on a phone, 44 on desktop).
-- The papers' header ("SCALES 11 · 1 set aside") is one size for the word and the numbers, 27 on a phone.
+  The set-aside control is a round BRASS PUSH-BUTTON in the corner (`scales_art.gd` `_aside_button`, the
+  crates' plate brass; it was a plain inked square box): up, a domed button with a double chevron DOWN ("to
+  the bottom"); set aside, pushed in (sunk, but full brass -- NOT dimmed with
+  its paper, since it still works), a double chevron UP ("back up"). Not a check (it reads as
+  "correct", and nothing is checked there) nor an arrow onto a line (the download sign) -- the user. Its touch area is 58 on a phone, 44 on desktop.
+- The papers' header ("SCALES 11 · 1 SET ASIDE") is one size, one case (capitals) and one color (the word's gold) for the words and the numbers, 27 on a phone.
 - READABLE ON A PHONE (the user: everything under the crates was unreadable): the papers stay TWO TO A ROW
   but are TALLER on a phone (`_card_h`): larger crate stamps and brass weights, and the rule (when written
   out) in large signs. One to a row, the rule beside the
@@ -147,10 +167,32 @@ The real game on the smallest board (2 colors of 4), its puzzles FIXED (seeded f
 tutorial mode, so the coach always meets the same board), and the level never ends under it. Steps: the
 title; a silent wait until the crates are on the shelves; what the chalk means; tap a paper (`focused`); tap
 one of its glowing crates (`selected`); rub off a weight the scales rule out, and that a still-possible one
-is refused (`crossed`); Hint does one step and says why (`hinted`); finish the puzzle (`solved`); what a
+is refused (`crossed`); Hint shows one step and says why, and the player makes it (`hinted`; the step puts the workbench away first,
+`tutorial_close_bench`, since the Hint button shows only without a crate on it); finish the puzzle (`solved`); what a
 level is and what passes it. Hooks: `tutorial_board_rect`, `tutorial_ticket_rect`,
 `tutorial_focus_crates_rect`, `tutorial_bench_rect`, `tutorial_hint_rect`. `devtools/probe_tut.gd
 tipscales` drives it through (`_act_tipscales`).
+
+## The main menu's poster
+
+The shared menu (`main_menu.gd`, "THE POSTER") gives the screen to `scripts/menu_world.gd` (`main.gd`
+`menu_backdrop()`), with only a slim panel at the foot: "Tip the Scales" in cast brass at the top, the pitch
+between two short rules, and THE BALANCE -- a big brass weigh-house scale on the counter (plinth, column,
+a dial whose needle stands up from the beam, pans on chains), two crates on one pan and a crate and a "2"
+weight on the other, rocking as if a crate had just been set down: a damped swing to one side, then to the
+other (`_beam_angle`, 7 s; each swing starts exactly where the last came to rest -- it jumped at first).
+Behind it THE WALL, in three layers under the balance (`_draw_wall_layer`; the papered wall and the
+dressing drawn once, the view every frame): olive-striped wallpaper with a small gilt motif, aged toward
+the corners, a picture rail, an oak chair rail and raised wainscot panels; a tall arched window centered
+behind the balance -- a moulded casing with a keystone, a deep reveal, a fanlight and small panes, faint
+reflections on the glass, a sill -- looking out on a night sky over a town's roofline (a spire, a few lit
+windows), soft clouds drifting across a moon with a halo, a lit limb and its seas; velvet curtains in lit and
+shaded folds under a scalloped pelmet on a brass rod with finials, held back by gold cords with tassels;
+two engravings (a steelyard, a pair of scales: hatched sky, horizon, the subject in ink) in moulded gilt
+frames with a cream mat, hung a touch askew by a cord on two screw eyes from hooks on the picture rail,
+casting shadows. The house's brass standard weights stand on the counter, largest to smallest. (Earlier:
+the game's rack of crates behind it -- "we don't do that"; then a plain window and flat curtains, a
+moonlight slab across the glass, flat frames -- "strange and plain", the user.) Made up, never the board.
 
 ## Scoring and levels
 
@@ -162,7 +204,7 @@ tipscales` drives it through (`_act_tipscales`).
   rocking (`_draw_waiting`); it was a line of text, easily missed.
 
 - +1 a crate, +10 a puzzle, both when it balances, +5 more if CLEAN (at most `CLEAN_MISTAKES` (1) mistake and no
-  hint); -2 a mistake, -3 a hint. Starts at 0. No session clock.
+  hint); -2 a mistake, -5 a hint (3 a level, and they do not make the move). Starts at 0. No session clock.
 - A level passes when `pass_pct` (66) of its puzzles were solved cleanly: 2 of 3.
 - Score row: `[didwin, aborted, level, mean seconds per puzzle, % clean]`; the puzzle times are recorded
   whole (`record_times(..., "puzzle")`), and mistakes, hints and puzzles solved are counted.
@@ -184,6 +226,7 @@ tipscales/
     ├── globals.gd          (TipscalesG: starting level; no session clock)
     ├── level_config.gd     (TipscalesLevelConfig: sizes, clue mixes, spare clues, puzzles, pass)
     ├── main.gd             (menu, instructions, scores)
+    ├── menu_world.gd       (the main menu's poster: the name in brass, a rocking balance)
     ├── level.gd            (the screen, the rules of play, hints, the puzzle flow)
     ├── puzzle.gd           (generator, solver, depth, hint steps; pure logic, thread-safe)
     ├── scales_art.gd       (crates and slates, iron weights, the clue engravings)

@@ -436,3 +436,9 @@ A POOL HALL ambient, as MUSIC (`bucketmadness_ambient.ogg`, `devtools/make_ambie
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): a billiard room seen low over the table: the felt running away in perspective under a green-shaded lamp's cone, beer bottles (scripts/bottle_art.gd) dim on the far rail, a cue across the near corner, and the game's own ball pair (scripts/ball_art.gd) ROLLING up the felt from a speck at the far end -- in perspective (its depth z gives both its size and its place on a ground plane), decelerating as a struck ball does (s = 1 - (1-p)^2), its labels turned by the distance rolled over the radius (`ball_art.gd` `roll_angle`, unused in the game; the first version glided) -- and dropping into the big leather pocket in the near rail (sink_into), then the next pair (4.2 s).
+Made up, never the board: the menu also opens mid-game.

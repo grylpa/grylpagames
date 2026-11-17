@@ -2,16 +2,18 @@ extends Control
 class_name MenuSwitch
 
 # AN ON/OFF SWITCH for a main-menu row (main_menu.gd add_switch_entry), drawn in the menu's own
-# colors: a pill track that is the dropdowns' dark when off and the menu's gold when on, with a knob
+# colors: a pill track that is a light slate when off and the menu's gold when on, with a knob
 # that slides across. A yes/no setting used to be a dropdown with "Off"/"On" in it, or a two-step
 # slider -- neither of which reads as a switch.
 
 signal toggled(is_on: bool)
 
 const SLIDE_TIME: float = 0.14
-const TRACK_OFF: Color = Color(0.10, 0.105, 0.125)
-const TRACK_EDGE: Color = Color(1.0, 1.0, 1.0, 0.10)
-const KNOB_OFF: Color = Color(0.80, 0.80, 0.84)
+# OFF reads on a phone too (the user, 2026-11-17: the menu's contrast was too low): the track a lighter
+# slate than the panel with a clear edge, the knob near white -- it was a near-black track and a grey knob
+const TRACK_OFF: Color = Color(0.30, 0.31, 0.36)
+const TRACK_EDGE: Color = Color(1.0, 1.0, 1.0, 0.40)
+const KNOB_OFF: Color = Color(0.97, 0.97, 0.99)
 const TRACK_ON: Color = Color(0.976, 0.792, 0.353)   # main_menu.gd ACCENT
 const KNOB_ON: Color = Color(0.153, 0.118, 0.043)    # main_menu.gd INK
 

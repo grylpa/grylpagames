@@ -97,9 +97,10 @@ func set_game(_game):
 	# early in a game's _ready (weris: line 17) while set_instructions() comes much later (line 37),
 	# so a check made here would find the text empty in every game and the button would never appear
 	# for the games that need it most. One frame later, _ready has finished and the answer is real.
-	call_deferred("_maybe_add_tutorial_button")
 	_restyle()
-	_add_picture()
+	_build_card()
+	call_deferred("_maybe_add_tutorial_button")
+	call_deferred("_finish_card")
 	call_deferred("_ensure_full_width")
 
 # --- the look ---------------------------------------------------------------------------------
@@ -126,7 +127,12 @@ func _restyle() -> void:
 			ScreenBackdrop.draw(_bg, _bg_t, ScreenBackdrop.MENU_TOP, ScreenBackdrop.MENU_BOT, ACCENT))
 	set_process(true)
 
-	%OptionsFrame.add_theme_stylebox_override("panel", ScreenBackdrop.card_style())
+	# MORE CONTRAST ON A PHONE (the user, 2026-11-17: "the contrast of the main menu is too low on
+	# mobile"): the options panel a step lighter than the night behind it, with a visible edge
+	var frame_sb: StyleBoxFlat = ScreenBackdrop.card_style()
+	frame_sb.bg_color = Color(1.0, 1.0, 1.0, 0.085)
+	frame_sb.border_color = Color(ACCENT, 0.30)
+	%OptionsFrame.add_theme_stylebox_override("panel", frame_sb)
 	ScreenBackdrop.style_title(%Title, ACCENT)
 
 	# The two buttons the player came here for. Same object as the game-over Restart, and the SAME
@@ -143,100 +149,263 @@ func _restyle() -> void:
 		if holder != null:
 			holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		GameButton.style(b, ACCENT, INK, int(pair[2]))
+	if %StartNewGameButton.text == "START":
+		%StartNewGameButton.text = "PLAY"
 	if _pulse == null or not _pulse.is_valid():
 		_pulse = GameButton.pulse(%StartNewGameButton, ACCENT)
 
-# THE GAME'S ICON beside its name: its own chooser tile, small, at the top left and centered on the
-# title's line -- rounded (a rounded panel that clips its child), a thin gold hairline round it and a
-# soft shadow -- so each game's menu says which game this is at a glance instead of being the same
-# title-and-START page in every game. It sat above the options at first, which only fitted when the
-# menu had few rows; at the title it always has room. Skipped quietly when a game has no tile.
-var _picture: Control = null
-const PICTURE_MARGIN: float = 16.0
+# THE OPENING CARD (2026-11-17; the user: "i kind of hate it that the first screen the player sees, for
+# each game they run, is that same, bland, main menu"). Everything sits on ONE CARD in the middle of the
+# screen: the game's name, its one-line pitch (MainCfg.games), the level, PLAY, and "How to play" and
+# "Settings" as a row of small links -- the other options FOLD under Settings, only a level row stays
+# out. Behind the card is the GAME'S OWN WORLD when it offers one: a game's main scene may define
+# `menu_backdrop() -> Control`, a full-screen Control the menu puts behind the card under a light scrim
+# (Tip the Scales: its weigh-house). A game without one gets its chooser icon made into a poster
+# (menu_icon_poster.gd). (The picture used to be a small icon left of the title, then large on the card.)
+const CARD_PAD: float = 26.0
+const ICON_POSTER: Script = preload("res://scripts/menu_icon_poster.gd")
+var _card: PanelContainer = null
+var _world: Control = null
+var _pitch: Label = null
+var _links: HBoxContainer = null
+var _settings_btn: Button = null
+var _settings_open: bool = false
 
-func _add_picture() -> void:
-	if _picture != null or game == null:
-		return
-	var path: String = "res://%s/art/game_screen_200.png" % str(game.file_names_prefix)
-	if not ResourceLoader.exists(path):
-		return
-	# the shadow on its own panel behind: a clipping panel masks with everything it draws, its
-	# shadow included, which squared and darkened the rounded corners
-	var holder: Control = Control.new()
-	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var shadow: Panel = Panel.new()
-	var shadow_sb: StyleBoxFlat = StyleBoxFlat.new()
-	shadow_sb.bg_color = Color(0, 0, 0, 1)
-	shadow_sb.set_corner_radius_all(12)
-	shadow_sb.shadow_color = Color(0, 0, 0, 0.5)
-	shadow_sb.shadow_size = 10
-	shadow_sb.shadow_offset = Vector2(0, 4)
-	shadow_sb.anti_aliasing = true
-	shadow.add_theme_stylebox_override("panel", shadow_sb)
-	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
-	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(shadow)
-	var clip: Panel = Panel.new()
-	var round_sb: StyleBoxFlat = StyleBoxFlat.new()
-	round_sb.bg_color = Color(0, 0, 0, 1)
-	round_sb.set_corner_radius_all(12)
-	round_sb.anti_aliasing = true
-	clip.add_theme_stylebox_override("panel", round_sb)
-	clip.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
-	clip.set_anchors_preset(Control.PRESET_FULL_RECT)
-	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(clip)
-	var img: TextureRect = TextureRect.new()
-	img.texture = load(path)
-	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	img.set_anchors_preset(Control.PRESET_FULL_RECT)
-	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	clip.add_child(img)
-	var rim: Panel = Panel.new()
-	var rim_sb: StyleBoxFlat = StyleBoxFlat.new()
-	rim_sb.bg_color = Color(0, 0, 0, 0)
-	rim_sb.set_corner_radius_all(12)
-	rim_sb.set_border_width_all(2)
-	rim_sb.border_color = Color(ACCENT, 0.65)
-	rim_sb.anti_aliasing = true
-	rim.add_theme_stylebox_override("panel", rim_sb)
-	rim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	rim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	clip.add_child(rim)
-	$ColorRect.add_child(holder)
-	_picture = holder
-	_fit_picture.call_deferred()
+func _card_style() -> StyleBoxFlat:
+	var sb: StyleBoxFlat = StyleBoxFlat.new()
+	sb.bg_color = Color(0.055, 0.06, 0.085, 0.86)
+	sb.set_corner_radius_all(26)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(ACCENT, 0.40)
+	sb.shadow_color = Color(0, 0, 0, 0.55)
+	sb.shadow_size = 18
+	sb.shadow_offset = Vector2(0, 6)
+	sb.anti_aliasing = true
+	sb.content_margin_left = CARD_PAD
+	sb.content_margin_right = CARD_PAD
+	sb.content_margin_top = CARD_PAD
+	sb.content_margin_bottom = CARD_PAD
+	return sb
 
-# Placed against the title every frame the menu is shown (the title's size settles a frame or two
-# after it is set, and a phone rotates): as tall as about one and a half title lines, its middle on
-# the title's middle. It shrinks rather than touch a long centered title, and hides below 32 px.
-func _fit_picture() -> void:
-	if _picture == null or not is_instance_valid(_picture):
+func _build_card() -> void:
+	if _card != null:
 		return
-	var title_r: Rect2 = %Title.get_global_rect()
-	var title_h: float = float(%Title.get_theme_font_size("font_size")) * 1.5
-	var side: float = clampf(title_h, 40.0, MainGlobals.ui_font_size(64))
-	var host: Control = $ColorRect
-	var origin: Vector2 = host.get_global_rect().position
-	# the title's TEXT, not its label (which may span the screen): measured from its font
-	var text_w: float = %Title.get_theme_font("font").get_string_size(%Title.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
-		%Title.get_theme_font_size("font_size")).x
-	var text_left: float = title_r.position.x + (title_r.size.x - text_w) * 0.5
-	side = minf(side, text_left - origin.x - PICTURE_MARGIN * 2.0)
-	_picture.visible = side >= 32.0
-	_picture.size = Vector2(side, side)
-	_picture.global_position = Vector2(origin.x + PICTURE_MARGIN, title_r.get_center().y - side * 0.5)
+	var vb: VBoxContainer = %MarginStartNewGame.get_parent() as VBoxContainer
+	var center: Control = vb.get_parent() as Control
+	_card = PanelContainer.new()
+	_card.name = "Card"
+	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_card.add_theme_stylebox_override("panel", _card_style())
+	center.add_child(_card)
+	_card.owner = self
+	vb.reparent(_card, false)       # reparent keeps the owner, so the %names still resolve
+	vb.add_theme_constant_override("separation", 10)
+	# the name moves from the top of the screen into the card
+	var title: Label = %Title
+	var title_margin: Control = title.get_parent() as Control
+	title.reparent(vb, false)
+	title.owner = self
+	vb.move_child(title, 0)
+	title.custom_minimum_size = Vector2(0, 0)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title_margin.hide()
+	# its pitch under it
+	_pitch = Label.new()
+	_pitch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pitch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pitch.add_theme_font_override("font", MainGlobals.get_text_font())
+	MainGlobals.set_font_size(_pitch, 19)
+	_pitch.add_theme_color_override("font_color", Color(0.93, 0.90, 0.84, 0.92))
+	_pitch.text = _pitch_text()
+	_pitch.visible = _pitch.text != ""
+	vb.add_child(_pitch)
+	vb.move_child(_pitch, 1)
+	# the options a little apart from the words above them
+	var gap: Control = Control.new()
+	gap.custom_minimum_size = Vector2(0, 6)
+	vb.add_child(gap)
+	vb.move_child(gap, 2)
+	# the small links under PLAY
+	var lm: MarginContainer = MarginContainer.new()
+	lm.add_theme_constant_override("margin_top", 22)
+	_links = HBoxContainer.new()
+	_links.alignment = BoxContainer.ALIGNMENT_CENTER
+	_links.add_theme_constant_override("separation", 18)
+	lm.add_child(_links)
+	vb.add_child(lm)
+	# the START button and the Continue button come closer under a card
+	%MarginStartNewGame.add_theme_constant_override("margin_top", 22)
+	%MarginContinue.add_theme_constant_override("margin_top", 22)
+
+func _pitch_text() -> String:
+	if game == null:
+		return ""
+	for g in MainCfg.games:
+		if str(g[0]) == str(game.file_names_prefix):
+			return str(g[2])
+	return ""
+
+# One frame after set_game, when the game has added its options: its world or its picture, and the fold.
+func _finish_card() -> void:
+	var host: Node = get_parent()
+	if _world == null and host != null and host.has_method("menu_backdrop"):
+		_world = host.call("menu_backdrop") as Control
+		if _world != null:
+			var ground: Control = $ColorRect
+			ground.add_child(_world)
+			ground.move_child(_world, 1)       # over the night backdrop (child 0), under everything else
+			if _world.has_method("menu_draws_title") and bool(_world.call("menu_draws_title")):
+				_to_poster()
+			else:
+				var scrim: ColorRect = ColorRect.new()
+				scrim.color = Color(0.0, 0.0, 0.0, 0.22)
+				scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+				ground.add_child(scrim)
+				ground.move_child(scrim, 2)
+	if _world == null and game != null:
+		# no poster of its own: the game's icon made into one (menu_icon_poster.gd)
+		var ip: Control = ICON_POSTER.new()
+		ip.call("setup", str(game.file_names_prefix), str(game.name), _pitch_text())
+		_world = ip
+		var ground2: Control = $ColorRect
+		ground2.add_child(_world)
+		ground2.move_child(_world, 1)
+		_to_poster()
+	_setup_fold()
+
+# THE POSTER (a world that draws its own title, `menu_draws_title()`): the scene is the screen -- the
+# game's name set in its own style, and what the game is about -- and the card shrinks to a slim panel
+# at the FOOT holding only the level, PLAY and the links, so it hides as little of the scene as it can.
+# The world is told where the panel starts (`set_scene_bottom(y)`), to lay its scene out above it.
+var _poster: bool = false
+
+func _to_poster() -> void:
+	_poster = true
+	%Title.hide()
+	if _pitch != null:
+		_pitch.hide()
+	var center: Control = _card.get_parent() as Control
+	center.anchor_top = 1.0
+	center.anchor_bottom = 1.0
+	var foot: float = 92.0 if MainGlobals.is_mobile() else 52.0
+	center.offset_bottom = -foot
+	center.offset_top = -foot
+	center.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	var sb: StyleBoxFlat = _card_style()
+	sb.bg_color = Color(0.05, 0.035, 0.025, 0.80)
+	sb.content_margin_top = CARD_PAD * 0.7
+	sb.content_margin_bottom = CARD_PAD * 0.7
+	_card.add_theme_stylebox_override("panel", sb)
+	# tight: the scene is what the player should look at
+	var mobile: bool = MainGlobals.is_mobile()
+	%MarginStartNewGame.add_theme_constant_override("margin_top", 14 if mobile else 8)
+	%MarginContinue.add_theme_constant_override("margin_top", 14 if mobile else 8)
+	if _links != null:
+		(_links.get_parent() as MarginContainer).add_theme_constant_override("margin_top", 14 if mobile else 8)
+	var flat: StyleBoxFlat = StyleBoxFlat.new()
+	flat.draw_center = false
+	flat.content_margin_left = 6.0
+	flat.content_margin_right = 6.0
+	flat.content_margin_top = 2.0
+	flat.content_margin_bottom = 2.0
+	%OptionsFrame.add_theme_stylebox_override("panel", flat)
+	(%MarginStartNewGame.get_parent() as VBoxContainer).add_theme_constant_override("separation", 4)
+	if not mobile:
+		sb.content_margin_top = 12.0
+		sb.content_margin_bottom = 12.0
+	_card.resized.connect(func() -> void: _tell_scene_bottom.call_deferred())
+	_tell_scene_bottom.call_deferred()
+
+# the panel's new size settles a frame after a fold; the poster re-lays itself above it then
+func _tell_scene_bottom_later() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_tell_scene_bottom()
+
+func _tell_scene_bottom() -> void:
+	if _world != null and is_instance_valid(_world) and _world.has_method("set_scene_bottom"):
+		_world.call("set_scene_bottom", _card.get_global_rect().position.y - $ColorRect.get_global_rect().position.y)
+
+# THE FOLD: a row naming the level stays on the card; every other option goes under "Settings".
+func _is_level_row(row: Node) -> bool:
+	for c in row.get_children():
+		if c is Label and str((c as Label).text).to_lower().contains("level"):
+			return true
+	return false
+
+func _foldable() -> Array:
+	var out: Array = []
+	for row in _option_rows_vbox.get_children():
+		if not _is_level_row(row):
+			out.append(row)
+	# the slider grid: a label then its slider, pair by pair; a level slider stays out like a level list
+	if grid != null:
+		var kids: Array = grid.get_children()
+		var k: int = 0
+		while k + 1 < kids.size():
+			var lbl: Node = kids[k]
+			if not (lbl is Label and str((lbl as Label).text).to_lower().contains("level")):
+				out.append(kids[k])
+				out.append(kids[k + 1])
+			k += 2
+	return out
+
+func _setup_fold() -> void:
+	if _links == null:
+		return
+	var rows: Array = _foldable()
+	if rows.is_empty():
+		if _settings_btn != null:
+			_settings_btn.hide()
+		_apply_fold()
+		return
+	if _settings_btn == null:
+		_settings_btn = _link_button("Settings")
+		_settings_btn.pressed.connect(func() -> void:
+			_settings_open = not _settings_open
+			_apply_fold())
+		_links.add_child(_settings_btn)
+	_settings_btn.show()
+	_apply_fold()
+
+func _apply_fold() -> void:
+	for c in _foldable():
+		(c as CanvasItem).visible = _settings_open
+	if grid != null:
+		var any_shown: bool = false
+		for c in grid.get_children():
+			if (c as CanvasItem).visible:
+				any_shown = true
+		grid.visible = any_shown
+	var level_rows: int = 0
+	for row in _option_rows_vbox.get_children():
+		if _is_level_row(row):
+			level_rows += 1
+	_option_rows_vbox.visible = level_rows > 0 or (_settings_open and _option_rows_vbox.get_child_count() > 0)
+	%OptionsFrame.visible = (grid != null and grid.visible) or _option_rows_vbox.visible
+	if _settings_btn != null:
+		_settings_btn.text = "Hide settings" if _settings_open else "Settings"
+	if _poster:
+		_tell_scene_bottom_later()
+
+func _link_button(text: String) -> Button:
+	var btn: Button = Button.new()
+	btn.text = text
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.custom_minimum_size = Vector2(GameButton.primary_size().x * 0.40, 0.0)
+	GameButton.style(btn, ACCENT, INK, GameButton.SECONDARY_FONT, true)
+	return btn
 
 func _process(delta: float) -> void:
-	if _picture != null and visible:
-		_fit_picture()
 	if _bg != null and is_instance_valid(_bg) and _bg.is_visible_in_tree():
 		_bg_t += delta
 		_bg.queue_redraw()
 
 func _ensure_full_width() -> void:
-	%OptionsFrame.custom_minimum_size.x = MainGlobals.screen_size.x - 40
+	%OptionsFrame.custom_minimum_size.x = MainGlobals.screen_size.x - 40 - CARD_PAD * 2.0
+	if _card != null:
+		_card.custom_minimum_size.x = MainGlobals.screen_size.x - 40
 
 # "How to play" on the game's OWN menu, for a player who is already inside the game and should not
 # have to go back out to the chooser to find out how it works.
@@ -252,7 +421,7 @@ func _ensure_full_width() -> void:
 var _howto_added: bool = false
 
 func _maybe_add_tutorial_button() -> void:
-	if _howto_added:
+	if _howto_added or _links == null:
 		return
 	var host: Node = get_parent()
 	if host == null:
@@ -261,18 +430,12 @@ func _maybe_add_tutorial_button() -> void:
 	var has_text: bool = game != null and not String(game.instructions_text).strip_edges().is_empty()
 	if not has_tutorial and not has_text:
 		return
-	var vbox: Node = %MarginStartNewGame.get_parent()
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_top", 40)
-	var btn: Button = Button.new()
-	btn.text = "How to play"
-	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn.custom_minimum_size = Vector2(GameButton.primary_size().x * 0.72, 0.0)
-	# Ghost: the same button as START, in its secondary form — present, not competing with it.
-	GameButton.style(btn, ACCENT, INK, GameButton.SECONDARY_FONT, true)
+	# Ghost: the same button as START, in its secondary form — present, not competing with it; on the
+	# card's row of links, first
+	var btn: Button = _link_button("How to play")
 	btn.pressed.connect(_on_tutorial_button_pressed)
-	margin.add_child(btn)
-	vbox.add_child(margin)
+	_links.add_child(btn)
+	_links.move_child(btn, 0)
 	_howto_added = true
 
 func _on_tutorial_button_pressed() -> void:
@@ -356,6 +519,7 @@ func add_entry(_id, _name, _min_val, _max_val, _is_bool):
 	sliders.append(slid)
 	_normalize_slider_widths()
 	_apply_row_rhythm()
+	_setup_fold()
 
 # Sliders land in a GridContainer and options in a VBox beside it, so without this the two halves
 # of one menu keep two different vertical rhythms. Set in code rather than the scene so the three
@@ -398,6 +562,7 @@ func add_option_entry(_id: int, _name: String, _options: Array) -> void:
 	btn.clip_text = true
 	btn.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	btn.theme = _option_theme
+	_style_option_button(btn)
 	for opt in _options:
 		btn.add_item(str(opt))
 	_apply_option_font(btn, _options)
@@ -423,6 +588,31 @@ func add_option_entry(_id: int, _name: String, _options: Array) -> void:
 	_option_labels.append(lbl)
 	_align_option_labels()
 	_apply_row_rhythm()
+	_setup_fold()
+
+# THE DROPDOWN'S VALUE READS (the user: low contrast on a phone): it was Godot's default -- light grey on a
+# near-black box that hardly stood off the panel. Now bright cream on a lighter, gold-edged box.
+const OPTION_TEXT: Color = Color(1.0, 0.97, 0.90)
+
+func _style_option_button(btn: OptionButton) -> void:
+	for state in ["normal", "hover", "pressed", "focus", "hover_pressed"]:
+		var sb: StyleBoxFlat = StyleBoxFlat.new()
+		sb.set_corner_radius_all(12)
+		sb.set_border_width_all(2)
+		sb.content_margin_left = 14.0
+		sb.content_margin_right = 14.0
+		sb.content_margin_top = 6.0
+		sb.content_margin_bottom = 6.0
+		if state == "focus":
+			sb.draw_center = false
+			sb.border_color = Color(ACCENT, 0.0)
+		else:
+			sb.bg_color = Color(1.0, 1.0, 1.0, 0.16 if state == "normal" else 0.24)
+			sb.border_color = Color(ACCENT, 0.55 if state == "normal" else 0.85)
+		btn.add_theme_stylebox_override(state, sb)
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+		btn.add_theme_color_override(c, OPTION_TEXT)
+	btn.add_theme_constant_override("outline_size", 0)
 
 # Every option row's label gets the widest one's width, so the dropdowns start on one line rather
 # than each wherever its own label happens to end.
@@ -453,6 +643,7 @@ func add_switch_entry(_id: int, _name: String) -> void:
 	_option_labels.append(lbl)
 	_align_option_labels()
 	_apply_row_rhythm()
+	_setup_fold()
 
 var _switches: Array = []
 
@@ -494,12 +685,14 @@ func update_val(_id, _val):
 
 func hide_frame():
 	%OptionsFrame.hide()
+	if _settings_btn != null:
+		_settings_btn.hide()
 
 func _on_start_new_game_button_pressed() -> void:
 	sig_start_game.emit(true)
 
 func show_continue_and_start_new(_visible:bool):
-	%StartNewGameButton.text = "NEW GAME" if _visible else "START"
+	%StartNewGameButton.text = "NEW GAME" if _visible else "PLAY"
 	# No font override here. This line set 80 for every game that called it — whether or not it
 	# was showing a Continue button — which is why START was huge in dino, whack and taxi and
 	# ordinary in Moving Cards and Polka Dots. The size comes from GameButton.PRIMARY_FONT now,

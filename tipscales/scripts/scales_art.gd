@@ -32,6 +32,10 @@ const PAPER: Color = Color(0.95, 0.91, 0.82)
 const BRASS: Color = Color(0.86, 0.68, 0.32)
 const BRASS_DARK: Color = Color(0.55, 0.40, 0.16)
 const GLOW: Color = Color(1.0, 0.80, 0.40)
+# THE RELEVANT PAPERS' MARK: the workbench leather's green (leather.gdshader 0.10, 0.24, 0.17), same hue,
+# a little lighter -- baked into a relevant paper's browned EDGE (level.gd _tex_paper_rel). Drawn frames
+# needed it light to show and still looked poor; on the paper's own edge it can be this deep (the user).
+const RELEVANT: Color = Color(0.20, 0.46, 0.32)
 const CHALK: Color = Color(0.95, 0.94, 0.89)
 const SLATE: Color = Color(0.15, 0.17, 0.18)
 
@@ -234,6 +238,14 @@ static func caption(cl: Dictionary, cols: int) -> String:
 	return ""
 
 # A crate in an engraving: a colored ink STAMP, its letter left in the paper's color.
+# THE CRATE ON THE WORKBENCH: the papers that name it are MARKED (level.gd sets this before drawing them),
+# the paper itself only -- the crate's stamp inside is left plain (the user). They used to be the only
+# papers listed, and the list jumping away and back when a crate was picked was confusing (the user).
+static var hl_crate: int = -1
+
+static func set_marked_crate(i: int) -> void:
+	hl_crate = i
+
 static func _stamp(ci: CanvasItem, ctr: Vector2, s: float, idx: int, cols: int, serif: Font, ring: bool, a: float) -> void:
 	var c: Color = set_color(idx / cols)
 	var r: Rect2 = Rect2(ctr - Vector2(s, s * 0.84) * 0.5, Vector2(s, s * 0.84))
@@ -265,12 +277,16 @@ static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, sta
 	var ctr: Vector2 = r.get_center()
 	ci.draw_set_transform(ctr, deg_to_rad(tilt_deg), Vector2.ONE)
 	var lr: Rect2 = Rect2(-r.size * 0.5, r.size)
-	if state == 1:
+	var marked: bool = hl_crate >= 0 and (cl["c"] as Array).has(hl_crate)
+	# the other papers are NOT dimmed: dimmed is what a paper set aside looks like (the user: the two read
+	# the same). A relevant one is drawn on a paper baked with a GREEN browned edge (level.gd passes it) --
+	# frames drawn round it, thin or thick, did not look good (the user)
+	if state == 1 and not marked:
 		for k in 5:
 			ci.draw_rect(lr.grow(4.0 + 3.0 * float(k)), Color(GLOW, 0.13 - 0.02 * float(k)))
 	_soft_shadow(ci, lr.grow(-2.0), Vector2(3.0, 5.0), 6.0, 0.55)
 	if paper != null:
-		ci.draw_texture_rect(paper, lr, false, Color(1, 1, 1, 1) if state <= 1 else Color(0.78, 0.76, 0.72))
+		ci.draw_texture_rect(paper, lr, false, Color(1, 1, 1, 1) if a >= 1.0 else Color(0.78, 0.76, 0.72))
 	else:
 		ci.draw_rect(lr, PAPER)
 	var ink: Color = Color(INK, 0.9 * a)
@@ -383,17 +399,45 @@ static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, sta
 		ci.draw_rect(sr.grow(-4.0), Color(red, 0.4), false, 1.0)
 		ci.draw_string(serif, Vector2(-sw * 0.5, sfs * 0.36), st, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs, red)
 		ci.draw_set_transform(ctr, deg_to_rad(tilt_deg), Vector2.ONE)
-	# the set-aside check, in the corner: an inked box
+	# the set-aside button, in the corner
 	if aside_btn.size.x > 0.0 and state != 3:
-		var bc: Vector2 = aside_btn.get_center() - ctr
-		var br: float = aside_btn.size.x * 0.30
-		var box: Rect2 = Rect2(bc - Vector2(br, br), Vector2(br, br) * 2.0)
-		ci.draw_rect(box, Color(INK, 0.06 if state != 2 else 0.20))
-		ci.draw_rect(box, Color(INK, 0.55 * a), false, 1.4)
-		if state == 2:
-			ci.draw_polyline(PackedVector2Array([bc + Vector2(-br * 0.6, 0.0), bc + Vector2(-br * 0.1, br * 0.55),
-				bc + Vector2(br * 0.8, -br * 0.8)]), Color(0.68, 0.16, 0.14, 0.9), 2.2)
+		_aside_button(ci, aside_btn.get_center() - ctr, aside_btn.size.x * 0.32, state == 2)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+# THE SET-ASIDE BUTTON: a round brass push-button, the brass of the crates' plates (it was a plain inked
+# square box). Its sign says what it DOES, not a check -- a check reads as "correct", and nothing is checked
+# here (the user): up, a double chevron down, "to the bottom"; pushed in (set aside) -- sunk, the light on
+# its lower rim, but full brass, not dimmed with its paper since it still works -- a double chevron up.
+static func _aside_button(ci: CanvasItem, c: Vector2, rad: float, down: bool) -> void:
+	if not down:
+		# its shadow on the paper, then the rim and the domed face, lit from the top left
+		for k in 3:
+			ci.draw_circle(c + Vector2(1.5, 2.5), rad + 2.5 - float(k), Color(INK, 0.10 + 0.06 * float(k)))
+		ci.draw_circle(c, rad, BRASS_DARK)
+		ci.draw_circle(c, rad * 0.86, BRASS)
+		ci.draw_circle(c + Vector2(-rad * 0.22, -rad * 0.24), rad * 0.46, Color(1.0, 0.93, 0.70, 0.45))
+		ci.draw_circle(c + Vector2(-rad * 0.30, -rad * 0.34), rad * 0.18, Color(1.0, 0.98, 0.88, 0.55))
+		ci.draw_arc(c, rad * 0.86, PI * 0.1, PI * 0.9, 16, Color(BRASS_DARK, 0.8), maxf(1.0, rad * 0.08))
+		_file_sign(ci, c, rad, true, Color(INK, 0.80))
+	else:
+		# pushed in: a dark ring of the hole round it, the face lower and in shade, lit from below
+		# NOT dimmed with its paper: it still works (the user) -- full brass, only sunk
+		ci.draw_circle(c, rad + 1.5, Color(INK, 0.45))
+		ci.draw_circle(c, rad, BRASS_DARK)
+		ci.draw_circle(c + Vector2(0.0, rad * 0.06), rad * 0.84, BRASS)
+		ci.draw_arc(c, rad * 0.84, PI * 0.15, PI * 0.85, 16, Color(1.0, 0.95, 0.75, 0.70), maxf(1.0, rad * 0.10))
+		ci.draw_arc(c, rad * 0.80, PI * 1.1, PI * 1.9, 16, Color(INK, 0.40), maxf(1.0, rad * 0.14))
+		_file_sign(ci, c, rad, false, Color(INK, 0.85))
+
+# a double chevron, down ("to the bottom") or up ("back up"); no line under it -- an arrow onto a line is
+# the download sign (the user)
+static func _file_sign(ci: CanvasItem, c: Vector2, rad: float, into: bool, col: Color) -> void:
+	var w: float = maxf(1.8, rad * 0.17)
+	var hw: float = rad * 0.40
+	var dy: float = rad * 0.26 * (1.0 if into else -1.0)
+	for k in 2:
+		var y: float = c.y + rad * (0.20 * float(2 * k - 1)) - dy * 0.5
+		ci.draw_polyline(PackedVector2Array([Vector2(c.x - hw, y), Vector2(c.x, y + dy), Vector2(c.x + hw, y)]), col, w, true)
 
 # THE RULE, WRITTEN OUT (when the menu's switch is on): the same colored crate stamps as the engraving, and
 # the math between them in large type -- "Red C" in words took the room the signs needed.
@@ -468,3 +512,30 @@ static func draw_rule(ci: CanvasItem, area: Rect2, cl: Dictionary, cols: int, se
 			var kw: float = serif.get_string_size(kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
 			ci.draw_string(serif, wc + Vector2(-kw * 0.5, ws * 0.30), kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(INK, a))
 		x += w2 + b * 0.22
+
+# THE CRATE ON THE WORKBENCH, as a weight: a bell in the crate's own color with its letter cast on it (the
+# full crate drawn there, and its name in words, were too much -- the user).
+static func draw_letter_weight(ci: CanvasItem, r: Rect2, row: int, letter: String, serif: Font) -> void:
+	var c: Color = set_color(row)
+	var ctr: Vector2 = r.get_center()
+	var s: float = minf(r.size.x, r.size.y)
+	var w: float = s * 0.92
+	var h: float = s * 0.70
+	var top: float = ctr.y - h * 0.34
+	var bot: float = ctr.y + h * 0.56
+	ci.draw_colored_polygon(PackedVector2Array([
+		Vector2(ctr.x - w * 0.52, bot + 1.0), Vector2(ctr.x + w * 0.56, bot + 1.0),
+		Vector2(ctr.x + w * 0.46, bot + s * 0.07), Vector2(ctr.x - w * 0.42, bot + s * 0.07)]), Color(0, 0, 0, 0.45))
+	var poly: PackedVector2Array = PackedVector2Array([
+		Vector2(ctr.x - w * 0.34, top), Vector2(ctr.x + w * 0.34, top),
+		Vector2(ctr.x + w * 0.50, bot), Vector2(ctr.x - w * 0.50, bot)])
+	ci.draw_polygon(poly, PackedColorArray([c.lightened(0.35), c, c.darkened(0.45), c.darkened(0.15)]))
+	ci.draw_rect(Rect2(ctr.x - w * 0.52, bot - s * 0.07, w * 1.04, s * 0.07), c.darkened(0.5))
+	ci.draw_line(Vector2(ctr.x - w * 0.30, top + 2.0), Vector2(ctr.x - w * 0.43, bot - s * 0.08), Color(1, 1, 1, 0.35), maxf(1.5, s * 0.025))
+	ci.draw_line(Vector2(ctr.x - w * 0.34, top), Vector2(ctr.x + w * 0.34, top), c.lightened(0.5), maxf(2.0, s * 0.03))
+	ci.draw_arc(Vector2(ctr.x, top - s * 0.07), s * 0.12, PI, TAU, 18, c.darkened(0.2), maxf(2.5, s * 0.05))
+	var fs: int = int(s * 0.46)
+	var tw: float = serif.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var p: Vector2 = Vector2(ctr.x - tw * 0.5, ctr.y + h * 0.28)
+	ci.draw_string_outline(serif, p, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(3, int(s * 0.05)), Color(0.10, 0.06, 0.03, 0.85))
+	ci.draw_string(serif, p, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.99, 0.97, 0.90))

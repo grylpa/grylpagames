@@ -584,3 +584,9 @@ size: it still reads as four colored towers.
 - Bricks are drawn by `scripts/block_art.gd`: three types (deep red long bricks; pale pink narrow
   bricks; red with sandy ones mixed in) in one mortar.
 - Doors are the shared drawn gate / nail stubs (`scripts/door_art.gd`).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): a palace floating in the game's night sky (palace_sky.gdshader) on a rock with roots hanging, two islets with turrets beside it, five towers with stone courses and arched windows, glowing stepping stones floating up to the gate; behind it slowly twinkling stars, a moon and a violet glow. Its windows light one by one in the rooms' colors until the whole palace glows, then go dark (11 s). THE PALACE IS DRAWN ONCE and never moves -- only soft things do (mist, the window light, the stones' glow, the flags): the first version bobbed the whole palace and twinkled fast, which the user saw as jitter and flicker.
+Made up, never the board: the menu also opens mid-game.

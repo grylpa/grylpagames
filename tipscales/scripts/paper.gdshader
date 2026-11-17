@@ -6,6 +6,9 @@ shader_type canvas_item;
 
 uniform vec2 size = vec2(320.0, 150.0);
 uniform float seed = 3.0;
+// the browned edge; a RELEVANT paper (naming the crate on the workbench) is baked with a green one instead
+// (level.gd _tex_paper_rel): its edge is the mark, no frame drawn round it (the user)
+uniform vec3 edge_col = vec3(0.70, 0.52, 0.32);
 
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21) + seed * 0.31);
@@ -48,7 +51,7 @@ void fragment() {
 	float e = min(min(px.x, size.x - px.x), min(px.y, size.y - px.y));
 	float rag = 2.2 + 2.0 * fbm(vec2(px.x + px.y, px.y - px.x) * 0.25);
 	float alpha = smoothstep(rag - 1.0, rag + 0.6, e);
-	col = mix(vec3(0.70, 0.52, 0.32), col, smoothstep(0.0, 14.0 + 10.0 * cloud, e));
+	col = mix(edge_col, col, smoothstep(0.0, 14.0 + 10.0 * cloud, e));
 	// a soft fold, slightly off center
 	float fold = abs(px.x - size.x * 0.52);
 	col *= 1.0 - 0.05 * (1.0 - smoothstep(0.0, 6.0, fold)) + 0.025 * (1.0 - smoothstep(0.0, 14.0, fold - 4.0));

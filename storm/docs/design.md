@@ -985,3 +985,19 @@ clip-art furniture in them. Now:
   and `tree_exiting` comes after, and a lambda that captured the layer itself errored with "Lambda
   capture at index 0 was freed" (2026-11-02).
 - A one-room level glides into its room like the others (no countdown).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`; the
+shared `main_menu.gd` keeps only a slim panel at the foot): the house at night in the storm, in depth --
+storm-blue sky with three layers of soft clouds drifting (lit underneath in a flash), a far curtain of
+fainter rain, rolling hills; THE HOUSE large (sized from the room between the name and the ground -- from
+the strip below the horizon it came out a squat bungalow), two storeys lit on the left by the porch lamp
+and shaded to the right, a shingled roof with an overflowing gutter dripping, a round attic window, three
+curtained windows lit warm (a figure passing behind one), a loose shutter swinging in the wind, a porch
+on posts with steps, a downspout gushing into a bucket, the chimney's smoke torn sideways; a bending
+tree, a picket fence open at the path, stepping stones, the windows' reflections in the wet ground,
+puddles rippling, rain splashing, leaves blowing across; lightning every 4.5-8 s (the first at 1.4 s) with
+a forked bolt behind the roof, the scene whitened. Glows are many faint discs (`_soft_glow`), never visible
+rings. "STORM" in storm-blue light, white in a flash. The first version (one storey, plain) was "a perfect
+concept but too plain" (the user). Made up, never the board: the menu also opens mid-game.

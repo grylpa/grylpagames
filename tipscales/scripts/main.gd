@@ -51,8 +51,8 @@ func _ready() -> void:
 		"A crate raised between two others on a shelf weighs more than one of them and less than the " +
 		"other, in either order.\n\n" +
 		"Tap a scale to see its crates on the board. Every puzzle can be solved by reasoning alone. " +
-		"A mistake costs points, and so does a hint. A hint puts back a weight rubbed off by mistake " +
-		"before it does anything else.")
+		"A mistake costs points, and so does a hint. A level has three hints: each shows you one step and " +
+		"why, and you make the move. A hint points out a weight rubbed off by mistake before anything else.")
 	if not game.shown_instructions:
 		game.show_instructions(self)
 		TipscalesG.save_settings()
@@ -109,6 +109,10 @@ func _exit_tree() -> void:
 func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
+
+# the main menu's backdrop (main_menu.gd asks the game for one): the weigh-house itself
+func menu_backdrop() -> Control:
+	return preload("res://tipscales/scripts/menu_world.gd").new()
 
 func show_main_menu() -> void:
 	game.stop_sound("ambient")

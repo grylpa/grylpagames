@@ -396,3 +396,9 @@ The card before a level holds its FACTS only: `Cups`, `Asks for the thief: Somet
 `thief_q`), `No theft at all: Sometimes` (levels with `empty_p`), `Rounds`. "Follow the ball under the
 cups, and keep an eye on the street" was repeated on every card; it is the instructions screen's, which
 now also says that later levels sometimes ask for the pickpocket instead.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): a CLOSE-UP: the hustler's table (shell_table.gd, laid out at 1/1.75 and drawn at 1.75) shuffling the cups without end under the lantern, the dusk street (street.gd) dimmed behind, and only two figures passing in silhouette -- someone, and the thief a step behind reaching for their pocket. Restaged on 2026-11-17: the wide street with people on both sidewalks looked "too much like something that is playable" (the user).
+Made up, never the board: the menu also opens mid-game.

@@ -74,7 +74,7 @@ void fragment() {
 		float post_w = 12.0;
 		float lx = board.x - post_w - 4.0;
 		float rx = board.x + board.z + 4.0;
-		float top = board.y - 30.0;
+		float top = board.y - 6.0;       // a thin margin of rack over the top row (it was 30: wasted wood)
 		float bottom = board.y + board.w + 14.0;
 		bool in_rows = px.y > top && px.y < bottom;
 		if (in_rows && ((px.x > lx && px.x < lx + post_w) || (px.x > rx && px.x < rx + post_w))) {
