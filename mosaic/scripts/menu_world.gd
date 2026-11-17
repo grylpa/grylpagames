@@ -18,6 +18,17 @@ const LAPIS: Color = Color(0.16, 0.24, 0.52)
 const TERRA: Color = Color(0.66, 0.30, 0.20)
 
 var _img: Image = null
+var _img_task: int = -1
+var _made: Image = null
+var _live_a: float = 0.0
+
+func _make_picture() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 404
+	var img: Image = MosaicPicture.make("scenery", 4, 4, false, rng)
+	if img != null and img.is_compressed():
+		img.decompress()
+	_made = img
 var _wall: Control = null
 var _live: Control = null
 var _rows: int = 26
@@ -26,16 +37,11 @@ var _border: Array = []              # [Rect2, Color, is_gold]
 var _laid_for: float = -2.0
 
 func _setup() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 404
-	_img = MosaicPicture.make("scenery", 4, 4, false, rng)
-	if _img != null and _img.is_compressed():
-		_img.decompress()
-	_wall = Control.new()
-	_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_wall.draw.connect(func() -> void: _draw_wall(_wall))
-	add_child(_wall)
+	# THE PICTURE IS MADE OFF THE MAIN THREAD (it took a quarter of a second, holding the menu up), and the wall --
+	# niche, columns, the mosaic itself -- is a still layer, baked (menu_poster.gd `add_still`): it shows at once
+	# from its picture; what moves (the loose tiles, the light, the flames) fades in when the picture is ready
+	_img_task = WorkerThreadPool.add_task(_make_picture)
+	_wall = add_still(func(d: Control) -> void: _draw_wall(d))
 	_live = Control.new()
 	_live.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_live.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -94,7 +100,16 @@ func _border_col(ring: int, k: int) -> Color:
 		return GOLD.lightened(0.10 * h01(k + 77))
 	return [LAPIS, TERRA, LAPIS, GOLD][k % 4]
 
-func _tick(_delta: float) -> void:
+func _tick(delta: float) -> void:
+	if _img == null and _img_task >= 0 and WorkerThreadPool.is_task_completed(_img_task):
+		WorkerThreadPool.wait_for_task_completion(_img_task)
+		_img_task = -1
+		_img = _made
+		_laid_for = -2.0
+	if _img == null:
+		return
+	_live_a = fade_in(true, _live_a, delta)
+	_live.modulate = Color(1, 1, 1, _live_a)
 	if absf(scene_bottom - _laid_for) > 0.5:
 		_laid_for = scene_bottom
 		_lay()

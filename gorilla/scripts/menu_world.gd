@@ -27,11 +27,8 @@ var _bananas: Node2D = null
 var _laid_for: Vector2 = Vector2.ZERO
 
 func _setup() -> void:
-	_back = Control.new()
-	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_back.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_back.draw.connect(func() -> void: _draw_back(_back))
-	add_child(_back)
+	# the forest floor never moves: a still layer, baked (menu_poster.gd `add_still`)
+	_back = add_still(func(d: Control) -> void: _draw_back(d))
 	_figures = Node2D.new()
 	add_child(_figures)
 	_adult = ADULT.new()

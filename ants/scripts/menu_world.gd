@@ -36,7 +36,8 @@ var _grains: Array = []              # the nest mound's granules: [Vector3, radi
 var _for_bottom: float = -2.0
 
 func _setup() -> void:
-	_ground = _mk(func(d: Control) -> void: _draw_ground(d))
+	# the ground never moves: a still layer, baked (menu_poster.gd `add_still`)
+	_ground = add_still(func(d: Control) -> void: _draw_ground(d))
 	_life = _mk(func(d: Control) -> void: _draw_life(d))
 	_front = _mk(func(d: Control) -> void: _draw_front(d))
 	_build_trail()

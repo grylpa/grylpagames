@@ -35,7 +35,6 @@ const BAKED: String = "res://guidem/art/menu_hotel.webp"
 const BAKE_W: int = 680
 const BAKE_H: int = 1500
 const BAKE_CY: float = 750.0
-var bake_mode: bool = false
 var _live_only: bool = false
 var _bg_tex: Texture2D = null
 var _bg_layer: Control = null
@@ -107,6 +106,11 @@ func _setup() -> void:
 		_canopy_bulbs()
 		for k in POOL:
 			_cars.append(_make_car())
+
+# the live view renders only while the poster is on screen (it rendered on behind the game, slowing everything)
+func _shown_changed(shown: bool) -> void:
+	if _vp != null and not bake_mode:
+		_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if shown else SubViewport.UPDATE_DISABLED
 
 # --- the frame: the viewport is sized and placed so the scene's center sits where the menu wants it ------------
 

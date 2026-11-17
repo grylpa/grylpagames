@@ -30,6 +30,7 @@ var _wall: Control = null
 var _back: Control = null
 var _caps: Control = null
 var _front: Control = null
+var _over: Control = null
 var _feed: PackedVector2Array = PackedVector2Array()
 var _branches: Array = []            # three PackedVector2Array, from the junction to each receiver's mouth
 var _feed_len: float = 1.0
@@ -39,10 +40,15 @@ var _recv: Array = []                # receivers' mouths
 var _for_bottom: float = -2.0
 
 func _setup() -> void:
-	_wall = _mk(func(d: Control) -> void: _draw_wall(d))
-	_back = _mk(func(d: Control) -> void: _draw_back(d))
+	# WHAT NEVER MOVES IS BAKED (menu_poster.gd `add_still`): the wall, the tubes' backs and the receivers' mouths,
+	# the glass, the junction's housing, the receivers, the gauge and the valve -- all of it was redrawn every frame
+	# (a heavy frame on a phone). Live: the capsules, and over everything the dial's pointer, the gauge's needle,
+	# the receivers' lamps when they flash, the steam
+	_wall = add_still(func(d: Control) -> void: _draw_wall(d))
+	_back = add_still(func(d: Control) -> void: _draw_back(d))
 	_caps = _mk(func(d: Control) -> void: _draw_capsules(d))
-	_front = _mk(func(d: Control) -> void: _draw_front(d))
+	_front = add_still(func(d: Control) -> void: _draw_front(d))
+	_over = _mk(func(d: Control) -> void: _draw_over(d))
 
 func _mk(fn: Callable) -> Control:
 	var c: Control = Control.new()
@@ -128,8 +134,9 @@ func _tick(_delta: float) -> void:
 		_lay()
 		_wall.queue_redraw()
 		_back.queue_redraw()
+		_front.queue_redraw()
 	_caps.queue_redraw()
-	_front.queue_redraw()
+	_over.queue_redraw()
 
 # --- the wall: tiles, the lamp's light, the counter, decorative pipework: drawn once ------------------------
 
@@ -398,15 +405,11 @@ func _draw_front(d: Control) -> void:
 	for k in 3:
 		var dir_k: Vector2 = (_at(_branches[k], 60.0)[1] as Vector2)
 		d.draw_circle(_junction + dir_k * jr * 0.52, 4.0, HUES[k])
-	var ang: float = _dial_angle()
-	var tipv: Vector2 = Vector2.from_angle(ang)
-	d.draw_colored_polygon(PackedVector2Array([_junction + tipv * jr * 0.46, _junction + tipv.orthogonal() * 4.0, _junction - tipv * jr * 0.16, _junction - tipv.orthogonal() * 4.0]), Color(0.12, 0.10, 0.10))
-	_knob(d, _junction, 5.0, BRASS)
-	d.draw_arc(_junction, jr * 0.70, PI * 1.05, PI * 1.55, 16, Color(1, 1, 1, 0.45), 3.0, true)
+	# (the pointer is live: _draw_over)
 	# THE RECEIVERS: a brass bell over each mouth, a body down to the counter, a lamp that flashes on arrival
 	for b in 3:
 		var m: Vector2 = _recv[b]
-		_receiver(d, m, counter_y, HUES[b], _flash(b))
+		_receiver(d, m, counter_y, HUES[b], 0.0)
 	var fy: float = _feed[0].y
 	# a PRESSURE GAUGE on the feed, its needle trembling round its mark
 	# on the wall above the feed -- only where there is room under the title (a short desktop menu has none)
@@ -419,10 +422,7 @@ func _draw_front(d: Control) -> void:
 		var ta: float = PI * 0.8 + PI * 1.4 * float(k) / 8.0
 		d.draw_line(gc + Vector2.from_angle(ta) * 15.0, gc + Vector2.from_angle(ta) * 19.0, Color(0.2, 0.2, 0.2), 1.2)
 	d.draw_arc(gc, 17.0, PI * 0.8 + PI * 1.4 * 0.78, PI * 2.2, 8, Color(0.85, 0.2, 0.15), 2.5)
-	var na: float = PI * 0.8 + PI * 1.4 * (0.58 + 0.03 * sin(t * 2.3) + 0.015 * sin(t * 7.1))
-	d.draw_line(gc, gc + Vector2.from_angle(na) * 17.0, Color(0.12, 0.10, 0.10), 2.0, true)
-	_knob(d, gc, 2.8, BRASS)
-	d.draw_arc(gc, 21.0, PI * 1.05, PI * 1.5, 12, Color(1, 1, 1, 0.5), 2.5, true)
+	# (the needle is live: _draw_over)
 	# the steam pipe's VALVE WHEEL: a cast rim of round section, four spokes, a domed hub -- each shaded round
 	var vw: Vector2 = Vector2(full.x * 0.86, _feed[0].y)
 	var red: Color = Color(0.70, 0.16, 0.12)
@@ -431,7 +431,38 @@ func _draw_front(d: Control) -> void:
 		_cyl(d, vw + Vector2.from_angle(sa) * 3.0, vw + Vector2.from_angle(sa) * 15.0, 2.2, red.darkened(0.6), red, red.lightened(0.5))
 	_torus(d, vw, 15.5, 3.0, red.darkened(0.65), red, red.lightened(0.55))
 	_knob(d, vw, 5.0, BRASS)
-	# and its vent breathing steam
+
+# WHAT MOVES, over the baked front: the dial's pointer, the gauge's needle (and the glass over each), a receiver's
+# lamp when it flashes, the vent's steam
+func _draw_over(d: Control) -> void:
+	if _feed.is_empty():
+		return
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
+	var counter_y: float = bottom - 26.0
+	var jr: float = R * 2.3
+	var tipv: Vector2 = Vector2.from_angle(_dial_angle())
+	d.draw_colored_polygon(PackedVector2Array([_junction + tipv * jr * 0.46, _junction + tipv.orthogonal() * 4.0, _junction - tipv * jr * 0.16, _junction - tipv.orthogonal() * 4.0]), Color(0.12, 0.10, 0.10))
+	_knob(d, _junction, 5.0, BRASS)
+	d.draw_arc(_junction, jr * 0.70, PI * 1.05, PI * 1.55, 16, Color(1, 1, 1, 0.45), 3.0, true)
+	var fy: float = _feed[0].y
+	if counter_y - fy >= 300.0:
+		var gc: Vector2 = Vector2(full.x * 0.27, fy - R - 36.0)
+		var na: float = PI * 0.8 + PI * 1.4 * (0.58 + 0.03 * sin(t * 2.3) + 0.015 * sin(t * 7.1))
+		d.draw_line(gc, gc + Vector2.from_angle(na) * 17.0, Color(0.12, 0.10, 0.10), 2.0, true)
+		_knob(d, gc, 2.8, BRASS)
+		d.draw_arc(gc, 21.0, PI * 1.05, PI * 1.5, 12, Color(1, 1, 1, 0.5), 2.5, true)
+	for b in 3:
+		var fl: float = _flash(b)
+		if fl <= 0.0:
+			continue
+		var m: Vector2 = _recv[b]
+		var body: Rect2 = Rect2(m.x - R * 1.4, m.y + 10.0, R * 2.8, counter_y - m.y - 10.0)
+		var lc: Vector2 = Vector2(m.x, body.position.y + minf(44.0, body.size.y * 0.45))
+		var hue: Color = HUES[b]
+		for k in 10:
+			d.draw_circle(lc, 12.0 + 40.0 * (1.0 - float(k) / 10.0), Color(hue.lightened(0.3), 0.05 * fl))
+		_knob(d, lc, 7.5, hue.darkened(0.35).lerp(hue.lightened(0.45), fl))
 	var vent: Vector2 = Vector2(full.x * 0.95, _feed[0].y - 22.0)
 	for k in 8:
 		var su: float = fposmod(t * 0.22 + float(k) / 8.0, 1.0)

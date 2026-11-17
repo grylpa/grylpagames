@@ -10,7 +10,7 @@ extends "res://scripts/menu_poster.gd"
 const CARD: GDScript = preload("res://shared/scripts/card.gd")
 const BG: String = "res://art/dinos/bk1.jpg"
 const N_BACK: int = 2
-const STEP: float = 1.6          # a card every 1.6 s: at 2.6 the pause was too long
+const STEP: float = 1.1          # a card every 1.1 s (2.6 and then 1.6 were "too long" a pause, the user)
 const SHOWN: int = 6
 # the stream of pictures; where a card repeats the one two before it, the thread shows
 const STREAM: Array = [3, 14, 3, 21, 8, 21, 11, 27, 11, 19, 5, 19]

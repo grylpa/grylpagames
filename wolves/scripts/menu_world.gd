@@ -25,18 +25,11 @@ var _dust: Array = []          # [screen position, when] behind a fleeing wolf
 var _bark: float = 0.0
 
 func _setup() -> void:
-	var lawn: Control = Control.new()
-	lawn.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lawn.set_anchors_preset(Control.PRESET_FULL_RECT)
-	lawn.draw.connect(func() -> void: _draw_lawn(lawn))
-	add_child(lawn)
+	# the lawn and the woods never move: still layers, baked (menu_poster.gd `add_still`)
+	add_still(func(d: Control) -> void: _draw_lawn(d))
 	# THE WOODS, drawn once: tree crowns seen from above round an irregular glade (the user's rule: a poster
 	# is a picture -- the square clearing in the game's forest shader read like a board)
-	_woods = Control.new()
-	_woods.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_woods.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_woods.draw.connect(func() -> void: _draw_woods(_woods))
-	add_child(_woods)
+	_woods = add_still(func(d: Control) -> void: _draw_woods(d))
 	# the sheep's contact shadows, under them: they stand ON the grass (without, they floated like clouds)
 	_shadows = Control.new()
 	_shadows.mouse_filter = Control.MOUSE_FILTER_IGNORE

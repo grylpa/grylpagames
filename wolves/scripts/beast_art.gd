@@ -35,6 +35,11 @@ const SHEEP_ANGLES: int = 16
 const SHEEP_CELL: int = 128             # px per picture in the atlas
 const SHEEP_RES: float = 2.0            # atlas px per drawing unit
 static var _atlases: Dictionary = {}          # kind -> Texture2D
+static var baking_tool: bool = false          # set by the tool that makes the shipped atlases
+
+static func set_baking_tool(on: bool) -> void:
+	baking_tool = on
+
 static var _baking: Dictionary = {}           # kind -> true while its atlas is being rendered
 var painter: bool = false               # one of the atlas's painters (not an animal)
 var variant: int = -1                   # which fleece (seeds the tufts)
@@ -103,6 +108,12 @@ var _drawn_rot: float = 1e9
 # Render a kind at every heading (and every fleece, for the sheep), once, into one atlas (see SHEEP_VARIANTS).
 # The dog's and the wolf's are their bodies only, already stretched by their girth; the tail wags live.
 static func _bake_atlas(tree: SceneTree, src_script: Script, what: String, variants: int, g: float) -> void:
+	# SHIPPED, when it has been made (devtools/make_wolves_atlases.gd): rendering every heading of every fleece took
+	# a third of a second -- seconds on a phone -- each time the game or its menu started
+	var shipped: String = "res://wolves/art/beast_%s.webp" % what
+	if not baking_tool and ResourceLoader.exists(shipped):
+		_atlases[what] = load(shipped)
+		return
 	_baking[what] = true
 	var vp: SubViewport = SubViewport.new()
 	vp.size = Vector2i(SHEEP_ANGLES * SHEEP_CELL, variants * SHEEP_CELL)

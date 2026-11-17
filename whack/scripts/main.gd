@@ -116,6 +116,10 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
+# the main menu's poster (main_menu.gd asks the game for one): a fairground shooting gallery at night, bullseyes and decoys on rails
+func menu_backdrop() -> Control:
+	return preload("res://whack/scripts/menu_world.gd").new()
+
 func show_main_menu() -> void:
 	game.stop_sound("ambient")
 	main_menu.show_continue_and_start_new(false)
