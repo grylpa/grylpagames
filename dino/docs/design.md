@@ -263,3 +263,9 @@ staircase as Pinpoint's flash (`_adapt_pace` in `level.gd`, its own copy).
 Because the staircase settles a player near 80% right wherever the time limit is what holds them back,
 every level's `pass_pct` is AT MOST 75: a bar at 80% or more would fail a player for playing exactly where
 the game puts them.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): the game's own dinosaur cards (shared/scripts/card.gd) held up in a wide FAN like a magician's hand, over the game's background darkened to a vignette with a warm spot behind; the fan breathes slowly and every 3.2 s one card rises out of it, lit, turning to face you, then sinks back (a card's origin is its top-center, so it is placed to turn about its center). Restaged on 2026-11-17: one card dealt and swiped at a time looked "too much like it's playable" (the user).
+Made up, never the board: the menu also opens mid-game.

@@ -217,3 +217,9 @@ Response times are handed to the shared session record as a whole distribution, 
 
 The felt is sized to `full_screen_size`, not `screen_size`: it runs on down behind the app's button
 bar (it stopped 40 units short, at the footer, and the clear color showed there).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): the game's own coins in a slow-motion SHOWER through a pool of lamplight over the darkened felt, in three depths (small and dim far back, big and sharp in front), each turning as it falls (never edge-on), past a large $2.85 price tag hanging in the foreground. Restaged on 2026-11-17: a tray with coins dropping into it looked "too much like something that is playable" (the user).
+Made up, never the board: the menu also opens mid-game.

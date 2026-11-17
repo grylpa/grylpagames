@@ -10,8 +10,8 @@ extends RefCounted
 #   3. working on a crate is the workbench: tap a weight to rub it off (and again to bring it back), and a
 #      crate down to one weight gets its plate; nothing is checked as you go -- a wrong rub-off shows only
 #      when a crate is left with nothing or the scales do not balance at the end;
-#   4. Hint does ONE step and says why -- the way to learn the reasoning, not a give-away -- and puts back
-#      a weight rubbed off by mistake before anything else.
+#   4. Hint SHOWS one step and says why, and the player makes it -- the way to learn the reasoning, not a
+#      give-away -- and points out a weight rubbed off by mistake before anything else.
 
 const LEVEL_ID: int = 1
 
@@ -76,19 +76,22 @@ static func steps(level: Node, _game) -> Array:
 			"hint": "Not sure yet? That is what Hint is for: close the workbench and try it.",
 		},
 		{
-			"text": "When a crate is down to one weight, it gets a brass plate, and that weight is gone from the rest of its color.\n\nStuck? Hint does one step for you, and says why; if you rubbed off a weight by mistake, it puts that back first. Try it.",
+			# the workbench is put away first: the Hint button shows only without a crate on it, and the
+			# spot used to land on the bench's small x with nothing saying so (the user: unclear how to go on)
+			"setup": func() -> void: level.tutorial_close_bench(),
+			"text": "When a crate is down to one weight, it gets a brass plate, and that weight is gone from the rest of its color.\n\nStuck? Tap Hint: it shows you one step and says why, and you make it. If you rubbed off a weight by mistake, it points that out first.",
 			"spot": hint_spot,
 			"await": {"event": "hinted", "timeout": 90.0},
 			"keep_clear": [board_spot],
-			"hint_after": 15.0,
-			"hint": "Close the workbench (the x) to see the Hint button.",
+			"hint_after": 8.0,
+			"hint": "Tap the Hint button. (With a crate on the workbench, close it first with the x.)",
 		},
 		{
-			"text": "Read why, under the workbench. Now weigh up the rest of the crates.",
+			"text": "Read why, under the workbench, and make that move yourself. Then weigh up the rest of the crates.",
 			"await": {"event": "solved", "timeout": 600.0},
 			"keep_clear": keep,
 			"hint_after": 45.0,
-			"hint": "Hints cost points in a real game, but here they are free.",
+			"hint": "Here hints are free. In a real game a level has only three, and each costs points.",
 		},
 		{
 			"title": "Balanced!",

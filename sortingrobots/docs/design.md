@@ -421,3 +421,9 @@ A FACTORY ambient, as MUSIC (`sortingrobots_ambient.ogg`, `devtools/make_ambient
 
 Made for this game by `devtools/make_answer_sounds.py` (synthesized, seeded; one timbre per family of
 games): a soft latch and machine chime for an item sorted right, a low note for wrong. They replaced an arcade coin and a swoosh shared by nearly every game in the app.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): night in the parcel depot: a dark ribbed wall, a hanging lamp's cone, an amber beacon turning, hazard stripes along the floor; a crane's cable to a yellow spreader bar whose two straps run down to the lid corners of one of the game's own parcels (scripts/parcel_art.gd), swinging it (the straps turn with the box: a claw drawn over its top did not reach it), over a PILE of four more -- two on the floor, one across them, one on top, each resting on those below (a column with gaps read as shelves); the boxes are hidden until every picture is rendered, then fade in together (they appeared one by one), and every 3.4 s the inspector's seal stamping the swinging box, green or red, then lifting.
+Made up, never the board: the menu also opens mid-game.

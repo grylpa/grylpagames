@@ -104,6 +104,10 @@ func _exit_tree() -> void:
 	# MainGlobals.path_screen_offset = game.screen_offset                                                                                                                                                                                                                                         
 	# MainGlobals.path_board_size = game.board_size      
 	
+# the main menu's poster (main_menu.gd asks the game for one): the palace floating in the night, its windows lit in turn
+func menu_backdrop() -> Control:
+	return preload("res://mmm/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	game.stop_sound("motor")
 	game.stop_sound("feet")

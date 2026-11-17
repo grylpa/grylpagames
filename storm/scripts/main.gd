@@ -95,6 +95,10 @@ func _ready() -> void:
 	$Blackout.hide()
 	$Level.sig_blackout.connect(on_show_blackout)
 	
+# the main menu's poster (main_menu.gd asks the game for one): the house in the storm
+func menu_backdrop() -> Control:
+	return preload("res://storm/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()

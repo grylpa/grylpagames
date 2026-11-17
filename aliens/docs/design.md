@@ -978,3 +978,9 @@ the rim, the shine) and the ring is neutral silver like the game's gates.
 
 The space sky runs to the very foot of the screen (`full_screen_size`), behind the app's button bar;
 sized to `screen_size` it stopped there and left a band of the clear color (2026-11-11).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): an alien night (violet to teal, stars twinkling slowly, a ringed planet and two moons shaded as lit spheres to match the 3-D saucer -- flat circles did not); a flying saucer hangs high, lights chasing round its rim, letting the game's own aliens (alien.gd, each different) drift down a beam of light, turning gently, to a gate's glowing boarding pad on a dark deck, where two larger aliens wait.
+Made up, never the board: the menu also opens mid-game.

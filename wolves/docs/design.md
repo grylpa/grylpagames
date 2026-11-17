@@ -490,3 +490,9 @@ yellow fences, brick blocks and a plain dark lawn):
 The lawn reaches as far as the zoomed-out game camera sees: `_fit_ground_to_board` passes
 `game_cam` to `GrassField.fit`, and `zoom_camera` refits after setting it. On a phone the camera
 shows more than one screen of world and the lawn stopped short of the foot (2026-11-11).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): the clearing seen from above -- a lawn drawn ONCE on its own layer (lit from the top left, soft patches, ~4200 blades in three greens, clover, small flowers: the user asked for better grass under the sheep), forest.gdshader's woods closing in round it (tile 15) -- with the game's own animals (beast_art.gd, under a Node2D scaled 2.2): a flock grazing, the collie circling (every turn eased, `_turn`, at most 2.6 rad/s), two wolves creeping out of the trees until the dog dashes at them and they slink back (a 9 s cycle).
+Made up, never the board: the menu also opens mid-game.

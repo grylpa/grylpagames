@@ -106,6 +106,10 @@ func _restore_tutorial_globals() -> void:
 
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
+# the main menu's poster (main_menu.gd asks the game for one): the flock, the dog and the wolves
+func menu_backdrop() -> Control:
+	return preload("res://wolves/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	# the pasture's bells used to ring on over the menu when a level was left part way
 	game.stop_sound("ambient")

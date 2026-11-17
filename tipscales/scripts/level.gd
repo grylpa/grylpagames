@@ -32,13 +32,20 @@ signal started_playing
 
 const LONG_PRESS_MS: float = 450.0
 const RING_AFTER_MS: float = 200.0
-const BENCH_RULE: float = 17.5        # the workbench's inner gold rule, in from its edge (leather.gdshader)
+const BENCH_RULE: float = 7.5         # the workbench's inner gold rule, in from its edge (leather.gdshader)
 const TAP_SLOP: float = 12.0
 const POINTS_CRATE: int = 1
 const POINTS_PUZZLE: int = 10
 const POINTS_CLEAN: int = 5
 const COST_MISTAKE: int = 2
-const COST_HINT: int = 3
+const COST_HINT: int = 5
+# HINTS ARE FEW, AND THEY SHOW, NOT DO (the user: pressing Hint over and over solved a puzzle at a profit).
+# A level has HINTS_PER_LEVEL of them (the tutorial: as many as it likes, free); a hint marks the crates and
+# the paper and says why -- the player makes the move. A hint this puzzle has given already is
+# shown again at no cost. A weight rubbed off by mistake is pointed out first (a mistake, counted once).
+const HINTS_PER_LEVEL: int = 3
+var hints_left: int = HINTS_PER_LEVEL
+var _hints_given: Dictionary = {}    # this puzzle's hints given (by text): one given already is free again
 const NEXT_PUZZLE_S: float = 2.6
 
 var game: GenericGameUtil
@@ -178,6 +185,13 @@ func tutorial_focus_crates_rect() -> Rect2:
 func tutorial_bench_rect() -> Rect2:
 	return _bench_rect if puzzle != null else Rect2()
 
+# the tutorial's Hint step opens with the workbench put away, so the Hint button is there to be tapped (it
+# shows only with no crate on the bench, and the step before leaves one there)
+func tutorial_close_bench() -> void:
+	if selected >= 0:
+		selected = -1
+		_redraw()
+
 func tutorial_hint_rect() -> Rect2:
 	return _hint_rect() if puzzle != null and selected < 0 else _bench_close_rect()
 
@@ -197,6 +211,7 @@ func new_game(from_scratch: bool = true) -> void:
 	game.level_label_changed("Tutorial" if game.tutorial_mode else "%d · %s" % [current_level_id, str(_cfg.get("name", ""))])
 	puzzles_done = 0
 	clean_done = 0
+	hints_left = HINTS_PER_LEVEL
 	_tutorial_gen = 0
 	puzzle_times_ms.clear()
 	puzzle = null
@@ -209,8 +224,8 @@ func new_game(from_scratch: bool = true) -> void:
 		return
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
 		MainGlobals.sig_game_popup_closed.connect(_on_game_popup_closed)
-	var facts: String = "Colors: %d\nCrates per color: %d (1 to %d kg)\nPuzzles: %d" % [
-		int(_cfg["colors"]), int(_cfg["crates"]), int(_cfg["crates"]), int(_cfg["puzzles"])]
+	var facts: String = "Colors: %d\nCrates per color: %d (1 to %d kg)\nPuzzles: %d\nHints: %d" % [
+		int(_cfg["colors"]), int(_cfg["crates"]), int(_cfg["crates"]), int(_cfg["puzzles"]), HINTS_PER_LEVEL]
 	game.show_game_popup(self, TipscalesLevelConfig.level_title(current_level_id), facts)
 
 func _on_game_popup_closed() -> void:
@@ -270,8 +285,10 @@ func _begin_puzzle() -> void:
 	focus = -1
 	aside.clear()
 	_pops.clear()
+	_lift.clear()
 	_hint_rings.clear()
 	_flagged_empty.clear()
+	_hints_given.clear()
 	_wrong_flagged = false
 	_card_at.clear()
 	_press_card.clear()
@@ -509,8 +526,6 @@ func ticket_order() -> Array:
 	var live: Array = []
 	var done: Array = []
 	for ci in puzzle.clues.size():
-		if selected >= 0 and not (puzzle.clues[ci]["c"] as Array).has(selected):
-			continue
 		if aside.has(ci):
 			continue
 		if _is_settled_clue(ci):
@@ -518,24 +533,26 @@ func ticket_order() -> Array:
 		else:
 			live.append(ci)
 	var out: Array = live + done
-	for ci in aside:
-		if selected < 0 or (puzzle.clues[ci]["c"] as Array).has(selected):
-			out.append(ci)
-	return out
+	return out + aside
 
 func hint() -> void:
 	if not _can_play():
 		return
 	var now: float = Time.get_ticks_msec()
-	# AN ERROR FIRST: a weight rubbed off that the crate really has is put back, and that is a mistake
+	# AN ERROR FIRST: a weight rubbed off that the crate really has is pointed out (the player brings it
+	# back), and that is a mistake
 	for i in puzzle.n_crates():
 		var tb: int = PUZZLE.bit(puzzle.answer[i])
 		if crossed[i] & tb:
-			_count_hint()
-			crossed[i] &= ~tb
-			_hint_rings[i] = now + 2600.0
-			_recompute()
-			_mistake("Hint: %s can still weigh %d kg -- nothing rules that out. It was rubbed off by mistake." % [_name(i), puzzle.answer[i]])
+			var mt: String = "Hint: %s can still weigh %d kg -- nothing rules that out. It was rubbed off by mistake: tap it back." % [_name(i), puzzle.answer[i]]
+			if not _use_hint(mt):
+				return
+			_hint_rings[i] = now + 4000.0
+			if _hint_charged:
+				_mistake(mt)     # counted once: a repeat of the same hint is free and no new mistake
+			else:
+				_say(mt, Color(1.0, 0.55, 0.45), MSG_HINT_MS)
+			_redraw()
 			return
 	var masks: PackedInt32Array = PackedInt32Array()
 	masks.resize(puzzle.n_crates())
@@ -544,36 +561,51 @@ func hint() -> void:
 	var st: Dictionary = puzzle.next_step(masks, live_clues())
 	if st.is_empty():
 		return
-	_count_hint()
 	var text: String = ""
+	var rings: Array = []
 	if st["kind"] == "row":
 		for i in st["place"].keys():
 			var v: int = int(st["place"][i])
-			text = "%s must be %d kg: no other %s crate can still weigh %d." % [_name(i), v,
+			text = "Hint: %s must be %d kg -- no other %s crate can still weigh %d." % [_name(i), v,
 				ART.SET_NAMES[i / _cols()].to_lower(), v]
-			_hint_rings[i] = now + 2200.0
-			crossed[i] = _full() & ~PUZZLE.bit(v)
+			rings.append(i)
 	else:
 		var ci: int = int(st["clue"])
-		focus = ci
 		var parts: Array = []
 		for i in st["remove"].keys():
-			crossed[i] |= int(st["remove"][i])
-			_hint_rings[i] = now + 2200.0
+			rings.append(i)
 			parts.append("%s can't be %s" % [_name(i), _list_weights(int(st["remove"][i]))])
-		text = "From %s: %s." % [ART.caption(puzzle.clues[ci], _cols()), "; ".join(parts)]
+		text = "Hint: from %s, %s." % [ART.caption(puzzle.clues[ci], _cols()), "; ".join(parts)]
+		focus = ci
 		_scroll_to_clue(ci)
-	_recompute()
-	if not _solved:
-		_say(text, Color(1.0, 0.86, 0.50), MSG_HINT_MS)
+	if not _use_hint(text):
+		return
+	for i in rings:
+		_hint_rings[i] = now + 4000.0
+	_say(text, Color(1.0, 0.86, 0.50), MSG_HINT_MS)
 	_redraw()
 
-func _count_hint() -> void:
-	puzzle_hints += 1
+# Spends a hint on `text`, unless this puzzle has given it already (free again). False when none is left.
+var _hint_charged: bool = false      # the last call spent one (a pointed-out mistake counts only then)
+func _use_hint(text: String) -> bool:
+	_hint_charged = false
 	game.tutorial_notify("hinted")
+	if _hints_given.has(text):
+		game.play_sound("hint")
+		return true
+	if not game.tutorial_mode and hints_left <= 0:
+		_say("No hints left on this level.", Color(0.95, 0.90, 0.80), MSG_INFO_MS)
+		game.play_sound("wrong")
+		return false
+	_hints_given[text] = true
+	_hint_charged = true
+	puzzle_hints += 1
 	game.play_sound("hint")
-	game.add_score_and_time(-COST_HINT, 0)
 	game.record_count("hints")
+	if not game.tutorial_mode:
+		hints_left -= 1
+		game.add_score_and_time(-COST_HINT, 0)
+	return true
 
 func _list_weights(m: int) -> String:
 	var vs: Array = []
@@ -612,6 +644,7 @@ const LEATHER_SHADER: Shader = preload("res://tipscales/scripts/leather.gdshader
 const BAKE_SCALE: float = 2.0
 var _tex_crates: Array = []      # [row * 2 + variant]
 var _tex_paper: Array = []
+var _tex_paper_rel: Array = []     # the same papers with a green edge: the relevant ones
 var _tex_leather: Texture2D = null
 var _baked_key: String = ""
 var _baking: bool = false
@@ -631,11 +664,15 @@ func _bake_materials() -> void:
 		for variant in 2:
 			crates.append(await _bake(CRATE_SHADER, _cell, {"paint": ART.set_color(r), "seed": float(r * 7 + variant * 3 + 1)}))
 	var papers: Array = []
+	var papers_rel: Array = []
+	var rel: Color = ART.RELEVANT
 	for k in 3:
 		papers.append(await _bake(PAPER_SHADER, _card, {"seed": float(k * 5 + 2)}))
+		papers_rel.append(await _bake(PAPER_SHADER, _card, {"seed": float(k * 5 + 2), "edge_col": Vector3(rel.r, rel.g, rel.b)}))
 	var leather: Texture2D = await _bake(LEATHER_SHADER, _bench_rect.size, {})
 	_tex_crates = crates
 	_tex_paper = papers
+	_tex_paper_rel = papers_rel
 	_tex_leather = leather
 	_baking = false
 	_redraw()
@@ -678,21 +715,25 @@ func _layout() -> void:
 	_view.position = Vector2.ZERO
 	_view.size = full
 	var mobile: bool = MainGlobals.is_mobile()
-	var top: float = 64.0
+	# THE RACK STARTS JUST UNDER THE TOP STRIP'S COUNTERS, with only a thin margin of it over the top row
+	# (weighhouse.gdshader: `head` 6 here, 6 there), and the workbench has no walnut frame: both were room
+	# the crates needed, most on the big boards (the user: "a lot of wasted space above the crates"; the rack
+	# lifted whole ran up under the strip, which was ugly)
+	var top: float = 50.0     # the strip's counters end above it
 	var side: float = 14.0
 	var rows: int = _rows()
 	var cols: int = _cols()
 	_gap = 8.0 if cols >= 6 else 10.0
-	var head: float = 22.0
+	var head: float = 6.0
 	var cw: float = (_w - side * 2.0 - _gap * float(cols - 1)) / float(cols)
 	cw = minf(cw, 128.0)
 	var ch: float = cw * 0.80
-	var bench_h: float = 112.0 if mobile else 82.0
+	var bench_h: float = 94.0 if mobile else 64.0
 	var msg_h: float = 70.0 if mobile else 34.0
 	# at least this much of the tickets shows; on the short desktop canvas the board comes first
 	var tick_min: float = (2.2 if mobile else 1.0) * (_card_h() + 10.0) + 20.0
 	var foot: float = float(MainGlobals.full_screen_size.y) - (92.0 if mobile else 50.0)
-	var board_max: float = foot - top - 22.0 - 12.0 - bench_h - 4.0 - msg_h - 28.0 - tick_min
+	var board_max: float = foot - top - head - 12.0 - bench_h - 4.0 - msg_h - 28.0 - tick_min
 	var need: float = head + float(rows) * ch + float(rows - 1) * _gap
 	if need > board_max:
 		ch = maxf(36.0, (board_max - head - float(rows - 1) * _gap) / float(rows))
@@ -728,6 +769,11 @@ func _card_h() -> float:
 		return 196.0 if MainGlobals.is_mobile() else 128.0
 	return 168.0 if MainGlobals.is_mobile() else 112.0
 
+func _paper_tex(ci: int) -> Texture2D:
+	var rel: bool = selected >= 0 and not _solved and (puzzle.clues[ci]["c"] as Array).has(selected)
+	var set_: Array = _tex_paper_rel if rel and not _tex_paper_rel.is_empty() else _tex_paper
+	return set_[ci % set_.size()] if not set_.is_empty() else null
+
 func _ticket_cols() -> int:
 	return 2
 
@@ -758,7 +804,7 @@ func _bench_close_rect() -> Rect2:
 
 func _hint_rect() -> Rect2:
 	# inside the workbench's gold rule, like the text beside it
-	var hw: float = 140.0 if MainGlobals.is_mobile() else 120.0
+	var hw: float = 170.0 if MainGlobals.is_mobile() else 130.0
 	var hh: float = minf(58.0 if MainGlobals.is_mobile() else 50.0, _bench_rect.size.y - (BENCH_RULE + 5.0) * 2.0)
 	return Rect2(_bench_rect.end.x - BENCH_RULE - 8.0 - hw, _bench_rect.position.y + (_bench_rect.size.y - hh) * 0.5, hw, hh)
 
@@ -792,7 +838,7 @@ func _animate_cards(delta: float) -> void:
 			_aside_pending.erase(ci)
 			if not aside.has(ci):
 				aside.append(ci)
-	var key: String = "%d/%d" % [selected, puzzle.clues.size()]
+	var key: String = "%d" % puzzle.clues.size()
 	if key != _cards_key:
 		_cards_key = key
 		_card_at.clear()
@@ -827,6 +873,21 @@ func _max_scroll() -> float:
 	var rows_n: int = int(ceil(float(n) / float(_ticket_cols())))
 	return maxf(0.0, 8.0 + float(rows_n) * (_card.y + 10.0) - _tick_rect.size.y)
 
+# the papers naming the crate just picked are marked where they lie; if none of them is in view, the first
+# is scrolled into it
+func _show_a_marked_paper() -> void:
+	var order: Array = ticket_order()
+	var first: int = -1
+	for k in order.size():
+		if (puzzle.clues[order[k]]["c"] as Array).has(selected):
+			var cr: Rect2 = _card_rect(k)
+			if cr.position.y >= -cr.size.y * 0.3 and cr.end.y <= _tick_rect.size.y + cr.size.y * 0.3:
+				return
+			if first < 0:
+				first = order[k]
+	if first >= 0:
+		_scroll_to_clue(first)
+
 func _scroll_to_clue(ci: int) -> void:
 	var k: int = ticket_order().find(ci)
 	if k < 0:
@@ -838,9 +899,32 @@ func _scroll_to_clue(ci: int) -> void:
 
 # --- per frame ------------------------------------------------------------------------------------------
 
+# THE CRATE ON THE WORKBENCH STANDS A LITTLE LARGER (the user): it grows to LIFT_SCALE when picked and
+# shrinks back when put down, both eased (LIFT_RATE), and is drawn over its neighbors while it is larger.
+const LIFT_SCALE: float = 1.10
+const LIFT_RATE: float = 14.0
+var _lift: Dictionary = {}          # crate -> its current scale, while it is not 1
+
+func _animate_lift(delta: float) -> void:
+	if puzzle == null:
+		_lift.clear()
+		return
+	if selected >= 0 and not _solved and not _lift.has(selected):
+		_lift[selected] = 1.0
+	var k: float = 1.0 - exp(-delta * LIFT_RATE)
+	for i in _lift.keys():
+		var tgt: float = LIFT_SCALE if i == selected and not _solved else 1.0
+		var cur: float = lerpf(float(_lift[i]), tgt, k)
+		if tgt == 1.0 and cur < 1.002:
+			_lift.erase(i)
+		else:
+			_lift[i] = cur
+		_view.queue_redraw()
+
 func _process(delta: float) -> void:
 	_poll_generation()
 	_animate_cards(delta)
+	_animate_lift(delta)
 	var now: float = Time.get_ticks_msec()
 	# the long press on a weight settles the crate on it
 	if _press_on == "weight" and not _press_fired and now - _press_t >= LONG_PRESS_MS and selected >= 0 and _can_play():
@@ -880,7 +964,17 @@ func _draw_view() -> void:
 	var now: float = Time.get_ticks_msec()
 	var cols: int = _cols()
 	var focus_crates: Array = puzzle.clues[focus]["c"] if focus >= 0 and focus < puzzle.clues.size() else []
+	# the lifted crates last, so a larger one lies over its neighbors
+	var draw_order: Array = []
 	for i in puzzle.n_crates():
+		if not _lift.has(i):
+			draw_order.append(i)
+	for i in _lift.keys():
+		if i != selected and i < puzzle.n_crates():
+			draw_order.append(i)
+	if _lift.has(selected) and selected < puzzle.n_crates():
+		draw_order.append(selected)
+	for i in draw_order:
 		var ring: int = 0
 		if _hint_rings.has(i):
 			ring = 3
@@ -893,6 +987,7 @@ func _draw_view() -> void:
 			var u: float = (now - float(_pops[i])) / 350.0
 			if u < 1.0:
 				pop = 1.0 + 0.12 * sin(u * PI)
+		pop *= float(_lift.get(i, 1.0))
 		ART.draw_crate(_view, crate_rect(i), _crate_tex(i), i / cols, i % cols, cols, open_mask(i), crossed[i],
 			placed[i], ring, pop, _serif)
 	_draw_bench()
@@ -945,7 +1040,7 @@ func _draw_waiting() -> void:
 
 func _draw_bench() -> void:
 	var r: Rect2 = _bench_rect
-	# the workbench: green leather in a walnut frame (leather.gdshader, baked), set into the counter
+	# the workbench: green leather with a gold rule (leather.gdshader, baked), laid on the counter
 	for k in 4:
 		_view.draw_rect(Rect2(r.position + Vector2(0, 4), r.size).grow(5.0 - float(k)), Color(0, 0, 0, 0.12))
 	if _tex_leather != null:
@@ -960,7 +1055,7 @@ func _draw_bench() -> void:
 		var t1: String = ("Puzzle %d of %d" % [puzzles_done + 1, int(_cfg.get("puzzles", 3))]) if not _solved \
 			else ("Puzzle %d of %d: balanced!" % [puzzles_done, int(_cfg.get("puzzles", 3))])
 		var t2: String = "%d of %d crates settled" % [placed_n, puzzle.n_crates()]
-		# inside the leather's gold rule (leather.gdshader: the frame 9, the inner rule 8.5 in from it): the
+		# inside the leather's gold rule (leather.gdshader: the inner rule 7.5 in from the edge): the
 		# two lines sized to that height and centered in it -- at a fixed place they ran over the rule on
 		# the shorter desktop bench
 		var inner: Rect2 = r.grow(-(BENCH_RULE + 5.0))
@@ -974,24 +1069,22 @@ func _draw_bench() -> void:
 		_view.draw_string(_text_font, Vector2(x0, y0 + fs1 * 0.80 + gap + fs2 * 0.95), t2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(0.98, 0.94, 0.84, 0.92))
 		if not _solved:
 			var hr: Rect2 = _hint_rect()
+			# the hints left on the button ("Hint · 2"); spent, it greys (the tutorial's are unlimited)
+			var out_of: bool = not game.tutorial_mode and hints_left <= 0
 			_view.draw_rect(Rect2(hr.position + Vector2(0, 3), hr.size), Color(0, 0, 0, 0.4))
-			_view.draw_rect(hr, ART.BRASS)
-			_view.draw_rect(hr.grow(-3.0), Color(0.95, 0.80, 0.45))
-			var ht: String = "Hint"
+			_view.draw_rect(hr, ART.BRASS if not out_of else Color(0.42, 0.38, 0.32))
+			_view.draw_rect(hr.grow(-3.0), Color(0.95, 0.80, 0.45) if not out_of else Color(0.58, 0.54, 0.47))
+			var ht: String = "Hint" if game.tutorial_mode else "Hint · %d" % hints_left
 			var hfs: int = 29 if MainGlobals.is_mobile() else 22
 			var hw: float = _serif.get_string_size(ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
-			_view.draw_string(_serif, Vector2(hr.get_center().x - hw * 0.5, hr.get_center().y + hfs * 0.36), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, ART.INK)
+			_view.draw_string(_serif, Vector2(hr.get_center().x - hw * 0.5, hr.get_center().y + hfs * 0.36), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, ART.INK if not out_of else Color(ART.INK, 0.55))
 		return
 	# the crate being worked on, and its weights
-	var cs: float = r.size.y - 22.0
-	var cr: Rect2 = Rect2(r.position.x + 10.0, r.position.y + 6.0, cs * 1.05, cs * 0.84)
+	# the crate being worked on: its letter on a weight in its color (no picture of the crate, no name)
 	var cols: int = _cols()
-	ART.draw_crate(_view, cr, _crate_tex(selected), selected / cols, selected % cols, cols, open_mask(selected),
-		crossed[selected], placed[selected], 0, 1.0, _serif)
-	var nm: String = _name(selected)
-	var nfs: int = 17 if MainGlobals.is_mobile() else 13
-	var nw: float = _text_font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs).x
-	_view.draw_string(_text_font, Vector2(cr.get_center().x - nw * 0.5, r.end.y - 4.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs, Color(0.95, 0.88, 0.75))
+	var ls: float = r.size.y - 12.0
+	ART.draw_letter_weight(_view, Rect2(r.position.x + BENCH_RULE + 4.0, r.position.y + 6.0, ls, ls),
+		selected / cols, ART.LETTERS[selected % cols], _serif)
 	var taken: int = _taken(selected)
 	for v in range(1, cols + 1):
 		var st: int = 0
@@ -1029,23 +1122,33 @@ func _draw_message() -> void:
 
 func _draw_tickets_head() -> void:
 	var t: String = "SCALES"
-	if selected >= 0:
-		t = "SCALES WITH %s" % _name(selected).to_upper()
 	var n: int = ticket_order().size()
 	var sub: String = "%d" % n
-	if selected < 0 and not aside.is_empty():
-		sub += " · %d set aside" % aside.size()
+	if selected >= 0:
+		sub += " · %d RELEVANT" % _marked_count()
+	elif not aside.is_empty():
+		sub += " · %d SET ASIDE" % aside.size()
 	var mob: bool = MainGlobals.is_mobile()
 	var fs: int = 27 if mob else 18
 	var base_y: float = _head_rect.size.y - 8.0
-	_view.draw_string(_serif, _head_rect.position + Vector2(4.0, base_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.88, 0.60))
+	# one color for the whole header, the word's gold (the user: the numbers were a paler cream)
+	var head_col: Color = Color(1.0, 0.88, 0.60)
+	_view.draw_string(_serif, _head_rect.position + Vector2(4.0, base_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, head_col)
 	var tw: float = _serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	_view.draw_string(_serif, _head_rect.position + Vector2(tw + 14.0, base_y), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.97, 0.90, 0.78, 0.8))
+	_view.draw_string(_serif, _head_rect.position + Vector2(tw + 14.0, base_y), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, head_col)
 	_view.draw_line(_head_rect.position + Vector2(4.0, base_y + 6.0), Vector2(_head_rect.end.x, _head_rect.position.y + base_y + 6.0), Color(0.85, 0.62, 0.32, 0.45), 1.0)
+
+func _marked_count() -> int:
+	var n: int = 0
+	for cl in puzzle.clues:
+		if (cl["c"] as Array).has(selected):
+			n += 1
+	return n
 
 func _draw_tickets() -> void:
 	if puzzle == null:
 		return
+	ART.set_marked_crate(selected if not _solved else -1)
 	var order: Array = ticket_order()
 	var now: float = Time.get_ticks_msec()
 	var swing: float = 0.0
@@ -1073,7 +1176,7 @@ func _draw_tickets() -> void:
 		# askew on the counter; a full-width paper less (the same angle moves its ends twice as far)
 		var tilt_deg: float = float((ci * 37 + 11) % 7 - 3) * 0.45 * minf(1.0, 320.0 / _card.x)
 		ART.draw_ticket(_tickets, cr, puzzle.clues[ci], _cols(), st, _serif,
-			_tex_paper[ci % _tex_paper.size()] if not _tex_paper.is_empty() else null, _aside_rect(cr), swing, tilt_deg,
+			_paper_tex(ci), _aside_rect(cr), swing, tilt_deg,
 			TipscalesG.show_rules)
 	# the scroll bar, while there is more
 	var ms: float = _max_scroll()
@@ -1082,9 +1185,7 @@ func _draw_tickets() -> void:
 		var bh: float = maxf(30.0, h * h / (h + ms))
 		var by: float = (h - bh) * (_scroll / ms)
 		_tickets.draw_rect(Rect2(_w - 6.0, by, 3.0, bh), Color(0.95, 0.85, 0.65, 0.35))
-	if order.is_empty() and selected >= 0:
-		_tickets.draw_string(_text_font, Vector2(20.0, 30.0), "No scale names this crate: the color rule settles it.",
-			HORIZONTAL_ALIGNMENT_LEFT, _w - 40.0, 15, Color(0.95, 0.88, 0.75, 0.7))
+	ART.set_marked_crate(-1)
 
 # --- input ----------------------------------------------------------------------------------------------
 
@@ -1124,14 +1225,14 @@ func _on_view_input(ev: InputEvent) -> void:
 		selected = -1 if selected == i else i
 		if selected >= 0:
 			game.tutorial_notify("selected")
-		_scroll = 0.0
-		_scroll_v = 0.0
+			if _marked_count() == 0:
+				_say("No scale names this crate: only the rest of its color can settle it.")
+			_show_a_marked_paper()
 		game.play_sound("pick")
 		_redraw()
 		return
 	if selected >= 0 and _bench_close_rect().grow(6.0).has_point(p):
 		selected = -1
-		_scroll = 0.0
 		_redraw()
 		return
 	if selected < 0 and _hint_rect().has_point(p):

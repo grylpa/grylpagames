@@ -37,6 +37,10 @@ var diagonal: bool = false
 # size as it goes (it is going down, away from us), then falls in -- smaller and darker -- the second
 # a beat behind the first. The stage draws the hole under them, so they visibly go INTO it.
 const SINK_TIME: float = 0.60
+# ROLLING, from outside (Pockets' menu poster): when >= 0, the labels are turned by this angle -- the
+# distance rolled over the radius -- instead of rocking, so the balls ROLL on the felt rather than glide.
+# Unused in the game (-1).
+var roll_angle: float = -1.0
 var _sink: float = -1.0
 var _sink_to: Vector2 = Vector2.ZERO
 var _hole: float = 20.0
@@ -116,6 +120,8 @@ func _draw_ball(c: Vector2, r: float, tex: Texture2D, k: int, fall: float) -> vo
 		draw_circle(c, r, Color(0.93, 0.90, 0.82))
 	# the label, turned: rocking along the roll (downward) in play, all the way over in the drop
 	var theta: float = 0.22 * sin(_t * 3.2 + float(_phase[k]))
+	if roll_angle >= 0.0 and _spin < 0.0:
+		theta = fmod(roll_angle + float(_phase[k]), TAU)
 	if _spin >= 0.0:
 		theta = _spin + float(_phase[k]) * 0.1
 	var ct: float = cos(theta)
