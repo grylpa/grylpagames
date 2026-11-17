@@ -74,7 +74,14 @@ func _fit_option_font(btn: OptionButton, mf: FontFile) -> void:
 	if not btn.has_meta("_mono_base_fs"):
 		btn.set_meta("_mono_base_fs", btn.get_theme_font_size("font_size"))
 	var base: int = int(btn.get_meta("_mono_base_fs"))
-	var avail: float = btn.size.x - 24.0        # the button's own horizontal padding
+	# the room the text really has: the box less its padding AND the dropdown's arrow (the user could not see the
+	# "7" of "7 · Weighmaster": measured against the box less 24, the name was too wide, and a right-aligned
+	# clipped text loses its START -- the number)
+	var sb: StyleBox = btn.get_theme_stylebox("normal")
+	var pad: float = (sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)) if sb != null else 24.0
+	var arrow: Texture2D = btn.get_theme_icon("arrow")
+	var arrow_w: float = (float(arrow.get_width()) + float(btn.get_theme_constant("arrow_margin"))) if arrow != null else 24.0
+	var avail: float = btn.size.x - pad - arrow_w - 6.0
 	var fs: int = base
 	while fs > 14 and mf.get_string_size(longest, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > avail:
 		fs -= 1
@@ -560,6 +567,9 @@ func add_option_entry(_id: int, _name: String, _options: Array) -> void:
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.fit_to_longest_item = false
 	btn.clip_text = true
+	# what does not fit is trimmed at its END ("7 · Weighm…"), never its start: right-aligned and clipped, the
+	# level's number was the part cut off
+	btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	btn.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	btn.theme = _option_theme
 	_style_option_button(btn)

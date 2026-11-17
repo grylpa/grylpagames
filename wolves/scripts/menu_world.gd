@@ -21,6 +21,7 @@ var _wolves: Array = []
 var _center: Vector2 = Vector2.ZERO
 var _laid_for: Vector2 = Vector2.ZERO
 var _shadows: Control = null
+var _dog_th: float = 1e9        # the dog's angle round the flock
 var _dust: Array = []          # [screen position, when] behind a fleeing wolf
 var _bark: float = 0.0
 
@@ -144,19 +145,23 @@ func _tick(delta: float) -> void:
 		_steer(_wolves[k], goal, 95.0 if fleeing else 30.0, delta)
 		if fleeing and fmod(t, 0.09) < delta:
 			_dust.append([_wolves[k].position * ZOOM, t])
-	# the dog circles the flock, and in the middle of the cycle dashes at the nearer wolf
+	# THE DOG circles the flock, and in the middle of the cycle swings round to the first wolf's side and runs
+	# at it. ONE continuous goal (the user saw it jitter: a "keep out of the flock" goal and a "circle" goal
+	# took turns every frame near the flock's edge, and it stood turning left and right on the spot): the dog
+	# keeps its own angle round the flock -- going on round while circling, turning toward the wolf's while
+	# dashing -- and its distance out goes from the ring to just short of the wolf, never into the flock
 	var ring: float = spread * 2.0
-	var ang: float = t * 0.9
-	var circling: Vector2 = _center + Vector2(cos(ang), sin(ang)) * ring
-	var dash: float = smoothstep(0.50, 0.62, u) * (1.0 - smoothstep(0.70, 0.86, u))
-	var target: Vector2 = _wolves[0].position.lerp(_center, 0.15)
-	var goal: Vector2 = circling.lerp(target, dash)
-	# never through the flock: a goal inside it is pushed out to its edge, and a dog inside it heads out
 	var keep: float = spread * 1.75
-	if goal.distance_to(_center) < keep:
-		goal = _center + (goal - _center).normalized() * keep
-	if _dog.position.distance_to(_center) < keep:
-		goal = _center + (_dog.position - _center).normalized() * (keep + 10.0)
+	var dash: float = smoothstep(0.50, 0.62, u) * (1.0 - smoothstep(0.70, 0.86, u))
+	var wolf_off: Vector2 = _wolves[0].position - _center
+	if _dog_th > 1e8:
+		_dog_th = (_dog.position - _center).angle() if _dog.has_meta("init") else 0.0
+	if dash > 0.01:
+		_dog_th += clampf(angle_difference(_dog_th, wolf_off.angle()), -1.1 * delta, 1.1 * delta) * dash + 0.9 * delta * (1.0 - dash)
+	else:
+		_dog_th += 0.9 * delta
+	var reach: float = lerpf(ring, maxf(keep, wolf_off.length() * 0.85), dash)
+	var goal: Vector2 = _center + Vector2.from_angle(_dog_th + 0.35 * (1.0 - dash)) * reach
 	_steer(_dog, goal, 90.0, delta)
 	# THE BARK: as the dog reaches the wolves it stops short and barks -- its head jerks forward with each
 	# bark, rings of sound go out ahead of it -- and the wolves bolt

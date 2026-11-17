@@ -73,8 +73,11 @@ func _tick(delta: float) -> void:
 	_adult.position.y = _ground_at(_adult.position.x, floor_y) - ah * 0.48 + room2 * 0.05 - absf(sin(ph)) * ah * 0.025
 	_adult.rotation = sin(ph) * 0.025 + (_ground_at(_adult.position.x + 20.0, floor_y) - _ground_at(_adult.position.x - 20.0, floor_y)) / 40.0 * 0.6
 	# the baby on its log at the left, the bananas beside it
+	# its feet ON the log's rounded top, a quarter of the way down its face (the log is a cylinder seen a little
+	# from above: its top edge is the far side of the top, so feet on that edge stood in the air)
 	var log_top: float = floor_y - room2 * 0.10
-	_baby.position = Vector2(full.x * 0.24, log_top - float(_baby.get("body_height")) * 0.46)
+	var feet_y: float = floor_y - room2 * 0.11 + room2 * 0.10 * 0.24
+	_baby.position = Vector2(full.x * 0.24, feet_y - float(_baby.get("body_height")) * 0.49)
 	_bananas.position = Vector2(full.x * 0.40, log_top - room2 * 0.035)
 	_bananas.set("now_ms", 5000.0)        # long since arrived: fully shown (at age 0 it is transparent)
 	_bananas.set("born_ms", 0.0)
@@ -151,11 +154,39 @@ func _draw_back(d: Control) -> void:
 	var room: float = floor_y - float(g["top"])
 	var log_y: float = floor_y - room * 0.06
 	var log_r: Rect2 = Rect2(full.x * 0.04, log_y - room * 0.05, full.x * 0.48, room * 0.10)
-	d.draw_rect(log_r, Color(0.28, 0.18, 0.10))
-	d.draw_rect(Rect2(log_r.position, Vector2(log_r.size.x, log_r.size.y * 0.35)), Color(0.36, 0.48, 0.16))
-	for k in 8:
-		var bx: float = log_r.position.x + log_r.size.x * (0.05 + 0.12 * float(k))
-		d.draw_line(Vector2(bx, log_r.position.y + log_r.size.y * 0.45), Vector2(bx + 30.0, log_r.position.y + log_r.size.y * 0.55), Color(0.18, 0.11, 0.06), 2.0)
+	# A ROUND LOG lying on the ground: its shadow on the floor, the bark shaded as a cylinder (lit along the top,
+	# dark underneath), furrows following the round, moss over the top with a ragged lower edge, and where the
+	# baby stands, the moss pressed dark under its feet
+	var lh: float = log_r.size.y
+	d.draw_set_transform(Vector2(log_r.get_center().x, log_r.end.y), 0.0, Vector2(1.0, 0.16))
+	d.draw_circle(Vector2.ZERO, log_r.size.x * 0.56, Color(0, 0, 0, 0.30))
+	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var bands: int = 14
+	for k in bands:
+		var v0: float = float(k) / float(bands)
+		var v1: float = float(k + 1) / float(bands)
+		var nrm_y: float = (v0 + v1) - 1.0                              # -1 top .. 1 bottom
+		var lit: float = clampf(0.75 - 0.55 * nrm_y - 0.35 * nrm_y * nrm_y, 0.15, 1.0)
+		d.draw_rect(Rect2(log_r.position.x, log_r.position.y + lh * v0, log_r.size.x, lh * (v1 - v0) + 0.6), Color(0.13, 0.08, 0.04).lerp(Color(0.44, 0.30, 0.17), lit))
+	for k in 16:
+		var bx: float = log_r.position.x + log_r.size.x * (0.02 + 0.061 * float(k)) + 9.0 * h01(k + 610)
+		var pl: PackedVector2Array = PackedVector2Array()
+		for j in 7:
+			var vv: float = 0.30 + 0.68 * float(j) / 6.0
+			pl.append(Vector2(bx + 7.0 * sin(vv * 2.5 + float(k)), log_r.position.y + lh * vv))
+		d.draw_polyline(pl, Color(0.10, 0.06, 0.03, 0.75), 1.6, true)
+	var moss: PackedVector2Array = PackedVector2Array()
+	moss.append(log_r.position + Vector2(0.0, lh * 0.02))
+	var n_m: int = 30
+	for k in n_m + 1:
+		var mx: float = log_r.position.x + log_r.size.x * float(k) / float(n_m)
+		moss.append(Vector2(mx, log_r.position.y + lh * (0.34 + 0.16 * h01(k + 640))))
+	moss.append(Vector2(log_r.end.x, log_r.position.y + lh * 0.02))
+	d.draw_colored_polygon(moss, Color(0.30, 0.42, 0.13))
+	d.draw_rect(Rect2(log_r.position.x, log_r.position.y - 1.0, log_r.size.x, lh * 0.13), Color(0.46, 0.60, 0.22))
+	d.draw_set_transform(Vector2(full.x * 0.24, log_r.position.y + lh * 0.24), 0.0, Vector2(1.0, 0.22))
+	d.draw_circle(Vector2.ZERO, room * 0.20 * 0.32, Color(0.08, 0.12, 0.03, 0.45))
+	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_ell(d, Vector2(log_r.end.x, log_r.get_center().y), log_r.size.y * 0.30, log_r.size.y * 0.50, Color(0.55, 0.40, 0.24))
 	_ell(d, Vector2(log_r.end.x, log_r.get_center().y), log_r.size.y * 0.18, log_r.size.y * 0.32, Color(0.42, 0.28, 0.15))
 

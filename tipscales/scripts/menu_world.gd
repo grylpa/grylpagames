@@ -223,6 +223,7 @@ func _draw_wall(full: Vector2) -> void:
 # "too plain", the pictures to be improved "both inside, their frame and how they are hanged", "what about the
 # wall?") ----------------------------------------------------------------------------------------------------
 
+const EDGE: Color = Color(0.07, 0.04, 0.02, 0.85)     # the balance's dark edge, against the wall
 const WOOD_D: Color = Color(0.16, 0.09, 0.04)
 const WOOD: Color = Color(0.30, 0.18, 0.08)
 const WOOD_L: Color = Color(0.46, 0.30, 0.15)
@@ -594,15 +595,22 @@ func _draw_balance(full: Vector2) -> void:
 		_fg.draw_circle(Vector2.ZERO, 150.0 - float(k) * 22.0, Color(0, 0, 0, 0.10 + 0.04 * float(k)))
 	_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# the plinth and the column
-	var pw: float = 170.0 if mobile else 130.0
-	var ph: float = 26.0 if mobile else 18.0
+	# HEAVIER THAN IT WAS (the user: hard to see on a phone over the paintings and the paneling): a broader plinth,
+	# a thicker column and beam, bigger chain links -- and a dark edge round each, so it stands off the wall
+	var pw: float = 230.0 if mobile else 170.0
+	var ph: float = 36.0 if mobile else 26.0
+	_fg.draw_colored_polygon(PackedVector2Array([Vector2(cx - pw * 0.5 - 3.0, foot + 2.0), Vector2(cx + pw * 0.5 + 3.0, foot + 2.0),
+		Vector2(cx + pw * 0.36 + 3.0, foot - ph - 3.0), Vector2(cx - pw * 0.36 - 3.0, foot - ph - 3.0)]), EDGE)
 	_fg.draw_colored_polygon(PackedVector2Array([Vector2(cx - pw * 0.5, foot), Vector2(cx + pw * 0.5, foot),
 		Vector2(cx + pw * 0.36, foot - ph), Vector2(cx - pw * 0.36, foot - ph)]), Color(0.30, 0.17, 0.08))
 	_fg.draw_line(Vector2(cx - pw * 0.36, foot - ph), Vector2(cx + pw * 0.36, foot - ph), Color(0.55, 0.36, 0.18), 2.0)
-	_fg.draw_rect(Rect2(cx - pw * 0.30, foot - ph - 10.0, pw * 0.60, 10.0), ART.BRASS_DARK)
-	_fg.draw_rect(Rect2(cx - pw * 0.30, foot - ph - 10.0, pw * 0.60, 3.0), ART.BRASS)
-	var cw: float = 20.0 if mobile else 15.0
-	var col: Rect2 = Rect2(cx - cw * 0.5, pivot.y, cw, foot - ph - 10.0 - pivot.y)
+	var collar: float = 16.0 if mobile else 12.0
+	_fg.draw_rect(Rect2(cx - pw * 0.30 - 2.0, foot - ph - collar - 2.0, pw * 0.60 + 4.0, collar + 2.0), EDGE)
+	_fg.draw_rect(Rect2(cx - pw * 0.30, foot - ph - collar, pw * 0.60, collar), ART.BRASS_DARK)
+	_fg.draw_rect(Rect2(cx - pw * 0.30, foot - ph - collar, pw * 0.60, 4.0), ART.BRASS)
+	var cw: float = 32.0 if mobile else 24.0
+	var col: Rect2 = Rect2(cx - cw * 0.5, pivot.y, cw, foot - ph - collar - pivot.y)
+	_fg.draw_rect(col.grow_individual(2.5, 0.0, 2.5, 0.0), EDGE)
 	_fg.draw_rect(col, ART.BRASS_DARK)
 	_fg.draw_rect(Rect2(col.position.x + cw * 0.18, col.position.y, cw * 0.28, col.size.y), ART.BRASS)
 	_fg.draw_rect(Rect2(col.position.x + cw * 0.24, col.position.y, cw * 0.10, col.size.y), Color(BRASS_LIGHT, 0.7))
@@ -624,10 +632,14 @@ func _draw_balance(full: Vector2) -> void:
 		_draw_pan(ends[k], hang, k, mobile)
 	# the beam, over the chains' hooks
 	_fg.draw_set_transform(pivot, a, Vector2.ONE)
-	var bh: float = 14.0 if mobile else 10.0
-	_fg.draw_colored_polygon(PackedVector2Array([Vector2(-L - 6.0, -bh * 0.35), Vector2(-30.0, -bh * 0.5),
+	var bh: float = 22.0 if mobile else 16.0
+	var beam: PackedVector2Array = PackedVector2Array([Vector2(-L - 6.0, -bh * 0.35), Vector2(-30.0, -bh * 0.5),
 		Vector2(30.0, -bh * 0.5), Vector2(L + 6.0, -bh * 0.35), Vector2(L + 6.0, bh * 0.35), Vector2(30.0, bh * 0.5),
-		Vector2(-30.0, bh * 0.5), Vector2(-L - 6.0, bh * 0.35)]), ART.BRASS_DARK)
+		Vector2(-30.0, bh * 0.5), Vector2(-L - 6.0, bh * 0.35)])
+	var ring: PackedVector2Array = beam.duplicate()
+	ring.append(beam[0])
+	_fg.draw_polyline(ring, EDGE, 5.0, true)
+	_fg.draw_colored_polygon(beam, ART.BRASS_DARK)
 	_fg.draw_line(Vector2(-L - 4.0, -bh * 0.18), Vector2(L + 4.0, -bh * 0.18), ART.BRASS, bh * 0.30)
 	_fg.draw_line(Vector2(-L, -bh * 0.26), Vector2(L, -bh * 0.26), Color(BRASS_LIGHT, 0.6), 1.5)
 	for e in [-L, L]:
@@ -668,16 +680,29 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 		var to: Vector2 = rim + Vector2(x, -2.0 if x == 0.0 else 0.0)
 		if x == 0.0:
 			to = rim + Vector2(0.0, -cs.y - 2.0)   # the middle one stops on the load
-		var n: int = int(hook.distance_to(to) / 9.0)
+		var link: float = 4.2 if mobile else 3.2
+		_fg.draw_line(hook, to, EDGE, link * 2.0 + 3.0, true)
+		var n: int = int(hook.distance_to(to) / (link * 3.2))
+		var along: float = (to - hook).angle()
 		for j in n:
 			var p: Vector2 = hook.lerp(to, (float(j) + 0.5) / float(maxi(1, n)))
-			_fg.draw_circle(p, 2.6, ART.BRASS_DARK)
-			_fg.draw_circle(p, 1.3, ART.BRASS)
+			# links alternate: one seen flat (an oval ring), the next edge-on (a bar)
+			if j % 2 == 0:
+				_fg.draw_set_transform(p, along, Vector2(1.0, 0.62))
+				_fg.draw_arc(Vector2.ZERO, link, 0.0, TAU, 14, ART.BRASS, link * 0.55, true)
+				_fg.draw_arc(Vector2.ZERO, link, PI * 1.1, PI * 1.6, 6, BRASS_LIGHT, link * 0.3, true)
+				_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			else:
+				var dv: Vector2 = Vector2.from_angle(along) * link * 1.1
+				_fg.draw_line(p - dv, p + dv, ART.BRASS_DARK, link * 0.75, true)
 	# the bowl: a shallow dish, its far rim then its front
 	var pts: PackedVector2Array = PackedVector2Array()
 	for j in 17:
 		var u: float = PI * float(j) / 16.0
 		pts.append(rim + Vector2(-cos(u) * pw * 0.5, sin(u) * depth))
+	var pring: PackedVector2Array = pts.duplicate()
+	pring.append(pts[0])
+	_fg.draw_polyline(pring, EDGE, 4.0, true)
 	_fg.draw_colored_polygon(pts, ART.BRASS_DARK)
 	var lit: PackedVector2Array = PackedVector2Array()
 	for j in 17:

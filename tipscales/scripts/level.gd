@@ -1223,6 +1223,10 @@ func _on_view_input(ev: InputEvent) -> void:
 	var i: int = _crate_at(p)
 	if i >= 0:
 		selected = -1 if selected == i else i
+		# ONE HIGHLIGHT AT A TIME (the user): a picked crate marks its papers, a tapped paper marks its crates --
+		# never both. Picking a crate lets a focused paper go
+		if selected >= 0:
+			focus = -1
 		if selected >= 0:
 			game.tutorial_notify("selected")
 			if _marked_count() == 0:
@@ -1295,6 +1299,9 @@ func _tap_ticket(p: Vector2) -> void:
 			game.play_sound("tick")
 		else:
 			focus = -1 if focus == ci else ci
+			# and tapping a paper puts a picked crate down
+			if focus >= 0:
+				selected = -1
 			if focus >= 0:
 				game.tutorial_notify("focused")
 			game.play_sound("pick")
