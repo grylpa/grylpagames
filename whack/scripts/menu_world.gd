@@ -1,56 +1,74 @@
 extends "res://scripts/menu_poster3d.gd"
 
-# WHACK'S OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): A FAIRGROUND
-# SHOOTING GALLERY AT NIGHT. A booth with red-and-white striped sides and posts, a striped awning with its scalloped
-# valance, a back wall of deep blue painted with gold stars, prizes hanging at the sides, a varnished counter with a
-# brass rail and a lit strip, WHACK lit on the header in a frame of bulbs that chase; a boardwalk of planks in front.
-# Across the back run three brass rails, and on them TARGETS slide by -- tin bullseyes, red and white with a gold
-# heart -- and among them DECOYS (grey, a black cross, a red rim: don't hit those). Every so often a bullseye is
-# HIT: a burst of sparks, it flips back on its hinge and rises again a moment later; the decoys are never hit.
-# The booth is the baked picture (guidem's way: `whack/art/menu_booth.webp`); the targets, the sparks, the bulbs
-# and the booth's sides (which the targets slide behind) are live. One clock (`t`); nothing pops.
-# Made up, never the board.
+# WHACK'S OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): A WHACK-A-MOLE
+# STALL AT A FAIRGROUND AT NIGHT -- the game's own board is a fairground whack-a-mole box (board_backdrop.gd), so the
+# poster is the stall it stands in (a shooting gallery was tried first: "why display a shooting range when whack is
+# actually a whack-a-mole?", the user). A booth with red-and-white striped sides and posts, a striped awning with its
+# scalloped valance, a valance of puffed scallops with chasing bulbs, a back wall of deep blue with gold stars,
+# plush bears hung on the sides' fronts. In it the GAME TABLE: a turf top inside a striped rail, six burrows ringed
+# with soil, a varnished body with striped panels. Out of the burrows pop the game's own DOMED BUTTONS (draw_area.gd),
+# throwing soil -- the real ones red with the white center dot, the decoys blue without it -- and a big wooden
+# MALLET swings down on each real one (a burst of stars, the button knocked back down) and lifts again, never
+# touching a decoy, which sinks back on its own.
+# The booth and the table's body are the baked picture (`whack/art/menu_booth.webp`); the turf top (the buttons
+# come up THROUGH it), the burrows, buttons, soil, mallet, stars, bulbs, sides and bears are live. One clock (`t`);
+# nothing pops. Made up, never the board.
 
-const ROWS: Array = [[150.0, -20.0, 42.0], [215.0, -26.0, -36.0], [280.0, -32.0, 30.0]]   # y, z, speed (units/s)
-const SPACING: float = 112.0
-const SPAN: float = 560.0             # the rails' loop: the targets wrap behind the booth's sides
-const HIT_EVERY: float = 1.15
+const HOLES: Array = [Vector3(-125.0, 0.0, 30.0), Vector3(0.0, 0.0, 30.0), Vector3(125.0, 0.0, 30.0),
+	Vector3(-125.0, 0.0, 115.0), Vector3(0.0, 0.0, 115.0), Vector3(125.0, 0.0, 115.0)]
+const TOP_Y: float = 150.0             # the table's turf
+const DOME_R: float = 27.0
+const HIT_EVERY: float = 1.35
 const RED: Color = Color(0.80, 0.08, 0.08)
 const GOLD: Color = Color(0.95, 0.75, 0.25)
+const TARGET: Color = Color(0.86, 0.20, 0.18)
+const DECOY: Color = Color(0.26, 0.48, 0.90)
+const SOIL: Color = Color(0.36, 0.24, 0.14)
 
-var _targets: Array = []              # [Node3D hinge, row, index, decoy]
+var _domes: Array = []                # [Node3D, body material, rim material, dot node] per hole
+var _clods: Array = []                # [MeshInstance3D, hole, k] -- soil thrown as a button comes up
 var _sparks: Array = []               # [MeshInstance3D, material]
 var _bulbs: Array = []
+var _mallet: Node3D = null
+var _swing: Node3D = null
 
+# ONE PICTURE PER PLATFORM: a desktop's menu leaves the poster only a short band, so its camera stands further back
+# and sees the whole stall, header to table, with the fair round it (with the phone's camera the panel hid the table)
 func _baked_path() -> String:
-	return "res://whack/art/menu_booth.webp"
+	return "res://whack/art/menu_booth.webp" if mobile else "res://whack/art/menu_booth_d.webp"
 
 func _eye() -> Vector3:
-	return Vector3(0.0, 250.0, 780.0)
+	return Vector3(0.0, 400.0, 600.0) if mobile else Vector3(0.0, 440.0, 930.0)
 
 func _aim() -> Vector3:
-	return Vector3(0.0, 230.0, 0.0)
+	return Vector3(0.0, 205.0, 0.0) if mobile else Vector3(0.0, 215.0, 0.0)
 
 func _fov() -> float:
-	return 46.0
+	return 47.0
 
 func _frame_frac() -> float:
-	return 0.48
+	return 0.50
+
+# the awning's top, above the scene's center
+func _scene_top() -> float:
+	return 250.0 if mobile else 150.0
 
 func _environment(env: Environment) -> void:
 	env.background_color = Color(0.015, 0.015, 0.04)
 	env.ambient_light_color = Color(0.45, 0.42, 0.60)
-	env.ambient_light_energy = 0.30
+	env.ambient_light_energy = 0.32
 
 func _build_lights() -> void:
-	# the booth's lamps under the header, warm on the targets; the bulbs' glow on the awning; a cool night fill
-	spot(Vector3(-90.0, 360.0, 140.0), Vector3(-40.0, 200.0, -30.0), Color(1.0, 0.86, 0.62), 9.0, 420.0, 40.0, true)
-	spot(Vector3(90.0, 360.0, 140.0), Vector3(40.0, 200.0, -30.0), Color(1.0, 0.86, 0.62), 9.0, 420.0, 40.0)
-	light(Vector3(0.0, 400.0, 200.0), Color(1.0, 0.80, 0.50), 0.8, 300.0)
-	light(Vector3(0.0, 60.0, 260.0), Color(1.0, 0.70, 0.45), 0.6, 260.0)
+	# the booth's lamps under the header, warm on the table; a glow from the bulbs; a cool night fill
+	spot(Vector3(-110.0, 380.0, 170.0), Vector3(-50.0, TOP_Y, 70.0), Color(1.0, 0.86, 0.62), 9.0, 460.0, 45.0, true)
+	spot(Vector3(110.0, 380.0, 170.0), Vector3(50.0, TOP_Y, 70.0), Color(1.0, 0.86, 0.62), 9.0, 460.0, 45.0)
+	light(Vector3(0.0, 400.0, 220.0), Color(1.0, 0.80, 0.50), 0.8, 320.0)
+	light(Vector3(0.0, 60.0, 360.0), Color(1.0, 0.70, 0.45), 0.6, 300.0)
 	light(Vector3(-300.0, 300.0, 300.0), Color(0.55, 0.65, 1.0), 0.5, 500.0)
+	# a soft warm light in front, up at the valance
+	light(Vector3(0.0, 300.0, 420.0), Color(1.0, 0.85, 0.65), 1.1, 420.0)
 
-# --- the booth: baked --------------------------------------------------------------------------------------
+# --- textures ---------------------------------------------------------------------------------------------------
 
 func _stripes(n: int, a: Color, b: Color, bands: int) -> ImageTexture:
 	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
@@ -82,180 +100,277 @@ func _stars(n: int) -> ImageTexture:
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
+
+# mown turf: green bands, fine speckle
+func _turf(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n:
+			var band: bool = (x * 6 / n) % 2 == 0
+			var c: Color = Color(0.26, 0.52, 0.20) if band else Color(0.22, 0.45, 0.17)
+			c = c.lightened(0.10 * (h01(x * 31 + y * 17) - 0.5))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+# --- the booth and the table's body: baked -------------------------------------------------------------------
+
 func _build_still() -> void:
 	var wood: StandardMaterial3D = mat(Color.WHITE, 0.45, 0.0, tex_wood(256, Color(0.52, 0.28, 0.14), 3), Vector3(3, 1, 1))
 	var dark_wood: StandardMaterial3D = mat(Color.WHITE, 0.35, 0.0, tex_wood(256, Color(0.28, 0.14, 0.07), 5), Vector3(3, 1, 1))
 	var brass: StandardMaterial3D = mat(Color(0.88, 0.68, 0.32), 0.3, 0.4)
 	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(256, RED, Color(0.96, 0.93, 0.86), 8))
 	# the boardwalk in front, planks
-	box(Vector3(900.0, 6.0, 500.0), mat(Color.WHITE, 0.7, 0.0, tex_wood(256, Color(0.40, 0.30, 0.22), 9), Vector3(4, 8, 1)), Vector3(0.0, -3.0, 300.0))
-	# the back wall of stars
-	box(Vector3(460.0, 340.0, 4.0), mat(Color.WHITE, 0.8, 0.0, _stars(256), Vector3(2, 1.5, 1)), Vector3(0.0, 200.0, -42.0))
-	# the header board over the opening and its lettering, framed
-	box(Vector3(480.0, 70.0, 12.0), mat(Color(0.12, 0.06, 0.20), 0.5), Vector3(0.0, 410.0, 112.0))
-	box(Vector3(484.0, 4.0, 14.0), brass, Vector3(0.0, 446.0, 112.0))
-	box(Vector3(484.0, 4.0, 14.0), brass, Vector3(0.0, 374.0, 112.0))
-	# the header says what the booth offers (the game's name is the poster's own title, over it)
-	label("WIN A PRIZE", 34.0, Color(1.0, 0.86, 0.35), Vector3(0.0, 422.0, 119.0))
-	# the awning: a striped slope out over the counter, its valance of scallops
-	var awning: MeshInstance3D = box(Vector3(500.0, 3.0, 90.0), stripe, Vector3(0.0, 366.0, 160.0), Vector3(-18.0, 0.0, 0.0))
-	awning.rotation_degrees = Vector3(-18.0, 0.0, 0.0)
-	for k in 20:
-		var sx: float = -240.0 + float(k) * 25.0 + 12.5
-		var sc: MeshInstance3D = cyl(12.5, 12.5, 2.0, mat(RED if k % 2 == 0 else Color(0.96, 0.93, 0.86), 0.6), Vector3(sx, 342.0, 204.0), Vector3(90.0, 0.0, 0.0), null, 24)
-		sc.scale = Vector3(1.0, 1.0, 0.8)
-	# the counter: a varnished front with brass trim and a lit strip, a dark top, a brass rail along it
-	box(Vector3(480.0, 92.0, 40.0), wood, Vector3(0.0, 46.0, 100.0))
-	box(Vector3(492.0, 6.0, 52.0), dark_wood, Vector3(0.0, 95.0, 100.0))
-	box(Vector3(480.0, 3.0, 2.0), glow(Color(1.0, 0.82, 0.45)), Vector3(0.0, 80.0, 121.0))
-	cyl(1.6, 1.6, 486.0, brass, Vector3(0.0, 104.0, 118.0), Vector3(0.0, 0.0, 90.0))
-	for k in 7:
-		box(Vector3(46.0, 50.0, 1.0), dark_wood, Vector3(-195.0 + float(k) * 65.0, 42.0, 120.6))
-	# the posts at the corners, striped
-	for px in [-245.0, 245.0]:
-		cyl(7.0, 7.0, 380.0, stripe, Vector3(px, 190.0, 118.0))
-		sphere(9.0, brass, Vector3(px, 384.0, 118.0))
-	# the rails across the back, brass, on brackets
-	for row in ROWS:
-		cyl(2.2, 2.2, 440.0, brass, Vector3(0.0, float(row[0]) - 4.0, float(row[1]) - 6.0), Vector3(0.0, 0.0, 90.0))
-		for bx in [-200.0, 0.0, 200.0]:
-			box(Vector3(4.0, 8.0, 12.0), brass, Vector3(bx, float(row[0]) - 4.0, float(row[1]) - 12.0))
-	# prizes hanging at the sides: plush bears on cords
-	for k in 6:
-		var side: float = -1.0 if k < 3 else 1.0
-		var bx2: float = side * (178.0 - float(k % 3) * 8.0)
-		var by: float = 330.0 - float(k % 3) * 48.0
-		var bz: float = 40.0 - float(k % 3) * 22.0
-		var fur: StandardMaterial3D = mat([Color(0.85, 0.55, 0.30), Color(0.45, 0.65, 0.90), Color(0.92, 0.55, 0.70)][k % 3], 0.95)
-		box(Vector3(0.6, 360.0 - by - 14.0, 0.6), mat(Color(0.9, 0.9, 0.85), 0.8), Vector3(bx2, (360.0 + by + 14.0) * 0.5, bz))
-		sphere(11.0, fur, Vector3(bx2, by - 8.0, bz))
-		sphere(8.0, fur, Vector3(bx2, by + 9.0, bz))
+	box(Vector3(1000.0, 6.0, 700.0), mat(Color.WHITE, 0.7, 0.0, tex_wood(256, Color(0.40, 0.30, 0.22), 9), Vector3(4, 8, 1)), Vector3(0.0, -3.0, 300.0))
+	# THE FAIR AROUND IT (seen at the sides, more on a desktop): the neighbor stalls, dim, under their own awnings,
+	# and strings of bulbs looping between poles
+	for side in [-1.0, 1.0]:
+		var nx: float = side * 560.0
+		var tent: StandardMaterial3D = mat(Color.WHITE, 0.7, 0.0, _stripes(128, Color(0.20, 0.30, 0.55) if side < 0.0 else Color(0.20, 0.45, 0.30), Color(0.85, 0.80, 0.70), 8))
+		box(Vector3(300.0, 260.0, 20.0), tent, Vector3(nx, 130.0, -160.0))
+		box(Vector3(330.0, 3.0, 90.0), tent, Vector3(nx, 290.0, -110.0), Vector3(-20.0, 0.0, 0.0))
+		box(Vector3(260.0, 70.0, 6.0), mat(Color(0.10, 0.06, 0.04), 0.6), Vector3(nx, 205.0, -148.0))
+		box(Vector3(240.0, 50.0, 2.0), glow(Color(0.50, 0.32, 0.16)), Vector3(nx, 205.0, -144.0))
+		box(Vector3(310.0, 100.0, 60.0), dark_wood, Vector3(nx, 50.0, -110.0))
+		cyl(5.0, 5.0, 520.0, dark_wood, Vector3(side * 360.0, 260.0, 260.0))
+		for k in 13:
+			var u: float = float(k) / 12.0
+			var bx: float = lerpf(side * 360.0, side * 760.0, u)
+			var by: float = 515.0 - 60.0 * 4.0 * u * (1.0 - u)
+			sphere(3.4, glow([Color(1.0, 0.85, 0.5), Color(1.0, 0.45, 0.4), Color(0.6, 0.8, 1.0)][k % 3]), Vector3(bx, by, 260.0 - 300.0 * u))
+	box(Vector3(2400.0, 6.0, 1400.0), mat(Color.WHITE, 0.7, 0.0, tex_wood(256, Color(0.40, 0.30, 0.22), 9), Vector3(10, 16, 1)), Vector3(0.0, -3.5, 0.0))
+	# the back wall of stars, and a shelf of prizes along it
+	box(Vector3(460.0, 350.0, 4.0), mat(Color.WHITE, 0.8, 0.0, _stars(256), Vector3(2, 1.4, 1)), Vector3(0.0, 175.0, -62.0))
+	box(Vector3(440.0, 6.0, 30.0), dark_wood, Vector3(0.0, 262.0, -46.0))
+	for k in 9:
+		var px: float = -190.0 + float(k) * 47.5
+		var col: Color = [Color(0.85, 0.55, 0.30), Color(0.45, 0.65, 0.90), Color(0.92, 0.55, 0.70), Color(0.95, 0.85, 0.40)][k % 4]
+		var pm: StandardMaterial3D = mat(col, 0.95)
+		sphere(13.0, pm, Vector3(px, 278.0, -44.0))
+		sphere(10.0, pm, Vector3(px, 299.0, -42.0))
 		for e in [-1.0, 1.0]:
-			sphere(3.2, fur, Vector3(bx2 + e * 5.5, by + 15.5, bz))
-		sphere(2.6, mat(Color(0.95, 0.88, 0.80), 0.9), Vector3(bx2, by + 7.0, bz + 7.0))
-	# (the striped sides are live: the targets slide behind them)
+			sphere(4.0, pm, Vector3(px + e * 7.0, 307.0, -44.0))
+	# (no header board: the user -- "remove the win a prize area to make all else bigger")
+	# the awning: a striped slope out over the table, its valance of scallops
+	box(Vector3(500.0, 3.0, 90.0), stripe, Vector3(0.0, 366.0, 160.0), Vector3(-18.0, 0.0, 0.0))
+	# THE VALANCE: a band along the awning's front edge, and under it PUFFED FABRIC SCALLOPS, each a rounded cushion
+	# lit by the lamps (they were flat discs, the user: "make the white/red circles nicer"), a gold cord along the seam
+	box(Vector3(504.0, 16.0, 10.0), stripe, Vector3(0.0, 349.0, 205.0))
+	for k in 20:
+		var sx: float = -240.0 + float(k) * 25.2 + 12.6
+		var fab: StandardMaterial3D = mat(RED if k % 2 == 0 else Color(0.96, 0.93, 0.86), 0.55, 0.0)
+		fab.clearcoat_enabled = true
+		fab.clearcoat = 0.25
+		var sc: MeshInstance3D = sphere(12.6, fab, Vector3(sx, 341.0, 204.0))
+		sc.scale = Vector3(1.0, 1.05, 0.42)
+	cyl(1.8, 1.8, 506.0, mat(Color(0.95, 0.76, 0.34), 0.3, 0.6), Vector3(0.0, 341.5, 210.5), Vector3(0.0, 0.0, 90.0))
+	for k2 in 21:
+		sphere(2.4, mat(Color(0.95, 0.76, 0.34), 0.3, 0.6), Vector3(-252.0 + float(k2) * 25.2, 341.5, 211.5))
+	# THE TABLE's body: varnished, striped panels in brass frames, a lit strip under its lip
+	box(Vector3(440.0, TOP_Y - 6.0, 200.0), wood, Vector3(0.0, (TOP_Y - 6.0) * 0.5, 70.0))
+	box(Vector3(440.0, 3.0, 2.0), glow(Color(1.0, 0.82, 0.45)), Vector3(0.0, TOP_Y - 18.0, 171.0))
+	var panel_stripe: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 6))
+	for k in 5:
+		var px2: float = -168.0 + float(k) * 84.0
+		box(Vector3(70.0, 80.0, 1.0), brass, Vector3(px2, 66.0, 170.4))
+		box(Vector3(64.0, 74.0, 1.0), panel_stripe, Vector3(px2, 66.0, 171.0))
+	# the posts at the corners, striped
+	for px3 in [-245.0, 245.0]:
+		cyl(7.0, 7.0, 380.0, stripe, Vector3(px3, 190.0, 118.0))
+		sphere(9.0, brass, Vector3(px3, 384.0, 118.0))
 
-# --- live: the sides, the targets, the sparks, the bulbs ------------------------------------------------------------
-
-func _bullseye(decoy: bool) -> ImageTexture:
-	var n: int = 128
-	var img: Image = Image.create(n, n, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	for y in n:
-		for x in n:
-			var r: float = Vector2(float(x) - 63.5, float(y) - 63.5).length() / 63.5
-			if r > 1.0:
-				continue
-			var c: Color
-			if decoy:
-				c = Color(0.80, 0.08, 0.08) if r > 0.86 else Color(0.62, 0.64, 0.66)
-				var u: float = (float(x) - 63.5) / 63.5
-				var v: float = (float(y) - 63.5) / 63.5
-				if r < 0.70 and (absf(u - v) < 0.14 or absf(u + v) < 0.14):
-					c = Color(0.05, 0.05, 0.05)
-			else:
-				var ring: int = int(r * 5.0)
-				c = GOLD if r < 0.18 else ([RED, Color(0.96, 0.94, 0.90)][ring % 2])
-			img.set_pixel(x, y, c)
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+# --- live ---------------------------------------------------------------------------------------------------------
 
 func _build_live() -> void:
-	# the striped sides (the targets wrap out of sight behind them), in front of everything on the rails
-	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(256, RED, Color(0.96, 0.93, 0.86), 8))
+	var brass: StandardMaterial3D = mat(Color(0.88, 0.68, 0.32), 0.3, 0.4)
+	# the striped sides
+	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 8))
 	for side in [-1.0, 1.0]:
 		box(Vector3(30.0, 380.0, 170.0), stripe, Vector3(side * 238.0, 190.0, 30.0))
-	var face_mat: StandardMaterial3D = mat(Color.WHITE, 0.35, 0.3, _bullseye(false))
-	face_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-	var decoy_mat: StandardMaterial3D = mat(Color.WHITE, 0.4, 0.3, _bullseye(true))
-	decoy_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-	var tin: StandardMaterial3D = mat(Color(0.55, 0.56, 0.60), 0.35, 0.5)
-	var disc_q: QuadMesh = QuadMesh.new()
-	disc_q.size = Vector2(46.0, 46.0)
-	for r in ROWS.size():
-		var count: int = int(SPAN / SPACING)
-		for i in count:
-			var decoy: bool = h01(r * 31 + i * 7) < 0.25
-			var hinge: Node3D = Node3D.new()
-			root.add_child(hinge)
-			# its carriage on the rail, its stem, the disc (a tin back and the painted face)
-			box(Vector3(14.0, 8.0, 10.0), tin, Vector3(0.0, -2.0, -4.0), Vector3.ZERO, hinge)
-			box(Vector3(3.0, 14.0, 2.0), tin, Vector3(0.0, 7.0, 0.0), Vector3.ZERO, hinge)
-			cyl(23.5, 23.5, 1.6, tin, Vector3(0.0, 37.0, -1.0), Vector3(90.0, 0.0, 0.0), hinge, 40)
-			put(disc_q, decoy_mat if decoy else face_mat, Vector3(0.0, 37.0, 0.2), Vector3.ZERO, hinge)
-			_targets.append([hinge, r, i, decoy])
-	for k in 14:
-		var sm: StandardMaterial3D = glow(Color(1.0, 0.85, 0.40))
-		var mi: MeshInstance3D = sphere(1.6, sm, Vector3.ZERO)
+	# THE TURF TOP (live: the buttons come up through it) inside a striped rail, the burrows ringed with soil
+	box(Vector3(436.0, 8.0, 196.0), mat(Color.WHITE, 0.9, 0.0, _turf(64), Vector3(3, 1.4, 1)), Vector3(0.0, TOP_Y - 4.0, 70.0))
+	var rail: StandardMaterial3D = mat(Color.WHITE, 0.5, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 16))
+	box(Vector3(440.0, 12.0, 10.0), rail, Vector3(0.0, TOP_Y + 2.0, 168.0))
+	box(Vector3(440.0, 12.0, 10.0), rail, Vector3(0.0, TOP_Y + 2.0, -28.0))
+	for side2 in [-1.0, 1.0]:
+		box(Vector3(10.0, 12.0, 196.0), rail, Vector3(side2 * 215.0, TOP_Y + 2.0, 70.0))
+	var soil: StandardMaterial3D = mat(SOIL, 0.95)
+	var hole_m: StandardMaterial3D = mat(Color(0.03, 0.02, 0.01), 1.0)
+	for k in HOLES.size():
+		var hp: Vector3 = HOLES[k] + Vector3(0.0, TOP_Y, 0.0)
+		var ring: TorusMesh = TorusMesh.new()
+		ring.inner_radius = DOME_R + 1.0
+		ring.outer_radius = DOME_R + 12.0
+		var rm: MeshInstance3D = put(ring, soil, hp + Vector3(0.0, 1.0, 0.0))
+		rm.scale = Vector3(1.0, 0.45, 1.0)
+		cyl(DOME_R + 2.0, DOME_R + 2.0, 1.0, hole_m, hp + Vector3(0.0, 0.6, 0.0))
+		# THE BUTTON: a dome in its color on a darker rim; the real target's white center dot
+		var d: Node3D = Node3D.new()
+		root.add_child(d)
+		var body_m: StandardMaterial3D = mat(TARGET, 0.25, 0.05)
+		body_m.clearcoat_enabled = true
+		body_m.clearcoat = 0.8
+		var rim_m: StandardMaterial3D = mat(TARGET.darkened(0.35), 0.4)
+		var dome: MeshInstance3D = sphere(DOME_R, body_m, Vector3(0.0, 8.0, 0.0), d, true)
+		dome.scale = Vector3(1.0, 0.72, 1.0)
+		cyl(DOME_R + 1.0, DOME_R + 1.0, 16.0, rim_m, Vector3(0.0, 0.0, 0.0), Vector3.ZERO, d, 40)
+		var dot: MeshInstance3D = cyl(6.0, 6.0, 1.2, mat(Color(1, 1, 1), 0.3), Vector3(0.0, 8.0 + DOME_R * 0.72 + 0.2, 0.0), Vector3.ZERO, d, 24)
+		_domes.append([d, body_m, rim_m, dot])
+		for c in 6:
+			var cm: MeshInstance3D = sphere(3.2 + 1.6 * h01(k * 9 + c), soil, Vector3.ZERO)
+			cm.visible = false
+			_clods.append([cm, k, c])
+	# THE MALLET: a pivot at the grip, a turned handle, a big wooden head with brass bands, its face striking down
+	_mallet = Node3D.new()
+	root.add_child(_mallet)
+	_swing = Node3D.new()
+	_mallet.add_child(_swing)
+	var handle_m: StandardMaterial3D = mat(Color.WHITE, 0.5, 0.0, tex_wood(64, Color(0.72, 0.52, 0.30), 4))
+	var head_m: StandardMaterial3D = mat(Color.WHITE, 0.45, 0.0, tex_wood(64, Color(0.62, 0.32, 0.16), 2))
+	cyl(5.0, 6.0, 130.0, handle_m, Vector3(-65.0, 0.0, 0.0), Vector3(0.0, 0.0, 90.0), _swing)
+	cyl(7.0, 7.0, 30.0, mat(Color(0.15, 0.08, 0.05), 0.7), Vector3(-12.0, 0.0, 0.0), Vector3(0.0, 0.0, 90.0), _swing)
+	cyl(26.0, 26.0, 74.0, head_m, Vector3(-135.0, 0.0, 0.0), Vector3.ZERO, _swing, 40)
+	for e in [-1.0, 1.0]:
+		cyl(26.6, 26.6, 6.0, brass, Vector3(-135.0, e * 30.0, 0.0), Vector3.ZERO, _swing, 40)
+	# the stars of a hit
+	for k in 12:
+		var sm: StandardMaterial3D = glow(Color(1.0, 0.88, 0.40))
+		var mi: MeshInstance3D = sphere(3.4, sm, Vector3.ZERO)
 		mi.visible = false
 		_sparks.append([mi, sm])
-	# the bulbs round the header
-	var n_b: int = 0
-	for side_y in [448.0, 372.0]:
-		for k in 24:
-			var bm: StandardMaterial3D = glow(Color(1.0, 0.86, 0.55))
-			sphere(3.0, bm, Vector3(-236.0 + float(k) * 20.5, side_y, 120.0))
-			_bulbs.append(bm)
-			n_b += 1
-	for side_x in [-242.0, 242.0]:
-		for k in 3:
-			var bm2: StandardMaterial3D = glow(Color(1.0, 0.86, 0.55))
-			sphere(3.0, bm2, Vector3(side_x, 391.0 + float(k) * 19.0, 120.0))
-			_bulbs.append(bm2)
+	# PRIZES on the sides' fronts: plush bears hung by cords from the awning's frame
+	for k in 6:
+		var side3: float = -1.0 if k < 3 else 1.0
+		var bx2: float = side3 * 238.0
+		var by: float = 318.0 - float(k % 3) * 62.0
+		var bz: float = 128.0
+		var fur: StandardMaterial3D = mat([Color(0.85, 0.55, 0.30), Color(0.45, 0.65, 0.90), Color(0.92, 0.55, 0.70)][(k + (k / 3)) % 3], 0.95)
+		box(Vector3(0.6, 30.0, 0.6), mat(Color(0.9, 0.9, 0.85), 0.8), Vector3(bx2, by + 34.0, bz))
+		sphere(12.0, fur, Vector3(bx2, by - 8.0, bz))
+		sphere(9.0, fur, Vector3(bx2, by + 10.0, bz + 1.0))
+		for e2 in [-1.0, 1.0]:
+			sphere(3.6, fur, Vector3(bx2 + e2 * 6.5, by + 17.0, bz))
+			sphere(3.6, fur, Vector3(bx2 + e2 * 11.0, by - 5.0, bz + 3.0))
+		sphere(3.0, mat(Color(0.95, 0.88, 0.80), 0.9), Vector3(bx2, by + 8.0, bz + 8.5))
+		for e3 in [-1.0, 1.0]:
+			sphere(1.2, mat(Color(0.05, 0.04, 0.04), 0.3), Vector3(bx2 + e3 * 3.2, by + 12.5, bz + 8.6))
+	# the bulbs along the valance band, chasing
+	for k in 24:
+		var bm: StandardMaterial3D = glow(Color(1.0, 0.86, 0.55))
+		sphere(3.0, bm, Vector3(-236.0 + float(k) * 20.5, 349.0, 210.5))
+		_bulbs.append(bm)
 
-# which target is hit at hit number h (a bullseye near the middle), and when
-func _hit_target(h: int) -> int:
-	var tries: int = 0
-	var k: int = int(h01(h * 13 + 5) * float(_targets.size()))
-	while tries < _targets.size():
-		var tg: Array = _targets[(k + tries) % _targets.size()]
-		if not bool(tg[3]):
-			return (k + tries) % _targets.size()
-		tries += 1
-	return 0
+# --- the motion ---------------------------------------------------------------------------------------------------
+
+# the hole of the real target struck at hit h (never the one just struck)
+func _target_hole(h: int) -> int:
+	var k: int = int(h01(h * 13 + 5) * float(HOLES.size())) % HOLES.size()
+	var prev: int = int(h01((h - 1) * 13 + 5) * float(HOLES.size())) % HOLES.size()
+	if k == prev:
+		k = (k + 2) % HOLES.size()
+	return k
+
+# the decoy that comes up around hit h (on two hits of three), in a hole that is neither this target's nor the next's
+func _decoy_hole(h: int) -> int:
+	if posmod(h, 3) == 2:
+		return -1
+	var a: int = _target_hole(h)
+	var b: int = _target_hole(h + 1)
+	var k: int = int(h01(h * 29 + 11) * float(HOLES.size())) % HOLES.size()
+	while k == a or k == b:
+		k = (k + 1) % HOLES.size()
+	return k
+
+const RAISE: float = 0.30             # how far up a button stands out of its burrow
 
 func _animate(_delta: float) -> void:
-	# targets along their rails; flipped back on their hinge while "hit"
-	var down: Array = []
-	down.resize(_targets.size())
-	down.fill(0.0)
+	if _mallet == null:
+		return
 	var hn: int = int(floor(t / HIT_EVERY))
-	var hit_pos: Array = []
-	for h in range(hn - 2, hn + 1):
+	var up: Array = []
+	up.resize(HOLES.size())
+	up.fill(0.0)
+	var kind: Array = []
+	kind.resize(HOLES.size())
+	kind.fill(0)                        # 0 target, 1 decoy
+	var since_rise: Array = []
+	since_rise.resize(HOLES.size())
+	since_rise.fill(9.0)
+	for h in range(hn - 1, hn + 3):
 		var th: float = float(h) * HIT_EVERY
-		var dt: float = t - th
-		if dt < 0.0:
+		var tk: int = _target_hole(h)
+		# a target: up 0.7 s before its strike, knocked down by it
+		var f: float = smoothstep(th - 0.80, th - 0.62, t) * (1.0 - smoothstep(th + 0.01, th + 0.16, t))
+		if f > float(up[tk]):
+			up[tk] = f
+			kind[tk] = 0
+		if t >= th - 0.80 and t - (th - 0.80) < float(since_rise[tk]):
+			since_rise[tk] = t - (th - 0.80)
+		var dk: int = _decoy_hole(h)
+		if dk >= 0:
+			var g: float = smoothstep(th - 0.55, th - 0.38, t) * (1.0 - smoothstep(th + 0.45, th + 0.70, t))
+			if g > float(up[dk]):
+				up[dk] = g
+				kind[dk] = 1
+			if t >= th - 0.55 and t - (th - 0.55) < float(since_rise[dk]):
+				since_rise[dk] = t - (th - 0.55)
+	for k in HOLES.size():
+		var dd: Array = _domes[k]
+		var node: Node3D = dd[0]
+		var u: float = float(up[k])
+		node.position = HOLES[k] + Vector3(0.0, TOP_Y - 24.0 + 24.0 * u + DOME_R * RAISE * u, 0.0)
+		node.visible = u > 0.01
+		var col: Color = TARGET if int(kind[k]) == 0 else DECOY
+		(dd[1] as StandardMaterial3D).albedo_color = col
+		(dd[2] as StandardMaterial3D).albedo_color = col.darkened(0.35)
+		(dd[3] as Node3D).visible = int(kind[k]) == 0
+	# the soil thrown up as a button comes out: clods flying out of the burrow and falling back on the turf
+	for cl in _clods:
+		var mi: MeshInstance3D = cl[0]
+		var hk: int = int(cl[1])
+		var s: float = float(since_rise[hk])
+		if s > 0.55:
+			mi.visible = false
 			continue
-		var idx: int = _hit_target(h)
-		# down fast, a moment lying back, up again slowly
-		var f: float = smoothstep(0.0, 0.14, dt) * (1.0 - smoothstep(1.0, 1.5, dt))
-		down[idx] = maxf(float(down[idx]), f)
-		if dt < 0.6:
-			hit_pos.append([idx, dt, h])
-	for k in _targets.size():
-		var tg: Array = _targets[k]
-		var hinge: Node3D = tg[0]
-		var row: Array = ROWS[int(tg[1])]
-		var x: float = fposmod(float(tg[2]) * SPACING + float(row[2]) * t + SPAN * 0.5, SPAN) - SPAN * 0.5
-		hinge.position = Vector3(x, float(row[0]), float(row[1]))
-		hinge.rotation_degrees = Vector3(-80.0 * float(down[k]), 0.0, 0.0)
-	# the sparks of the latest hit, flying out and fading
-	for s in _sparks:
-		(s[0] as MeshInstance3D).visible = false
-	if not hit_pos.is_empty():
-		var hp: Array = hit_pos[hit_pos.size() - 1]
-		var center: Vector3 = (_targets[int(hp[0])][0] as Node3D).position + Vector3(0.0, 37.0, 4.0)
-		var dt2: float = float(hp[1])
+		var a: float = TAU * (float(cl[2]) + h01(int(cl[2]) * 7 + hk * 3) * 0.6) / 6.0
+		var reach: float = DOME_R + 8.0 + 26.0 * (s / 0.55)
+		var hgt: float = 34.0 * (s / 0.55) * (1.0 - s / 0.55) * 4.0 * 0.5
+		mi.visible = true
+		mi.position = HOLES[hk] + Vector3(cos(a) * reach, TOP_Y + 3.0 + hgt, sin(a) * reach * 0.8)
+		mi.scale = Vector3.ONE * (1.0 - smoothstep(0.40, 0.55, s))
+	# THE MALLET: over the next target, raised; down on it at the strike; up again, and over to the next
+	var th0: float = float(hn) * HIT_EVERY
+	var u2: float = t - th0                       # since this period's strike
+	var here: Vector3 = HOLES[_target_hole(hn)]
+	var nxt: Vector3 = HOLES[_target_hole(hn + 1)]
+	var travel: float = smoothstep(0.30, HIT_EVERY - 0.30, u2)
+	var over: Vector3 = here.lerp(nxt, travel)
+	var lift: float
+	if u2 < 0.30:
+		lift = smoothstep(0.04, 0.30, u2) * 38.0                     # up after the strike
+	elif u2 > HIT_EVERY - 0.16:
+		lift = 38.0 * (1.0 - smoothstep(HIT_EVERY - 0.16, HIT_EVERY, u2) )   # the swing down onto the next
+	else:
+		lift = 38.0 + 3.0 * sin((u2 - 0.30) * 5.0)
+	var strike_y: float = TOP_Y + 8.0 + DOME_R * 0.72 + DOME_R * RAISE + 26.0
+	var yaw: float = deg_to_rad(-28.0)
+	_mallet.position = over + Vector3(0.0, strike_y, 0.0) + Vector3(135.0, 0.0, 0.0).rotated(Vector3.UP, yaw)
+	_mallet.rotation = Vector3(0.0, yaw, 0.0)
+	_swing.rotation = Vector3(0.0, 0.0, -deg_to_rad(lift))
+	# the stars of the latest strike
+	for sp in _sparks:
+		(sp[0] as MeshInstance3D).visible = false
+	if u2 < 0.5:
+		var center: Vector3 = here + Vector3(0.0, TOP_Y + 22.0, 0.0)
 		for k in _sparks.size():
-			var a: float = TAU * h01(int(hp[2]) * 41 + k)
-			var sp_dir: Vector3 = Vector3(cos(a), sin(a) * 0.8 + 0.3, 0.4 + 0.6 * h01(k + 3))
+			var a2: float = TAU * float(k) / float(_sparks.size()) + h01(hn * 41 + k) * 0.4
 			var spk: Array = _sparks[k]
-			var mi: MeshInstance3D = spk[0]
-			mi.visible = true
-			mi.position = center + sp_dir * (70.0 * dt2) + Vector3(0.0, -90.0 * dt2 * dt2, 0.0)
-			var fade: float = 1.0 - dt2 / 0.6
-			mi.scale = Vector3.ONE * (0.4 + fade)
-			(spk[1] as StandardMaterial3D).albedo_color = Color(1.0, 0.85, 0.40).lerp(Color(1.0, 0.45, 0.15), 1.0 - fade)
+			var mi2: MeshInstance3D = spk[0]
+			mi2.visible = true
+			mi2.position = center + Vector3(cos(a2), 0.35 + 0.3 * h01(k), sin(a2)) * (90.0 * u2) + Vector3(0.0, 30.0 * u2, 0.0)
+			var fade: float = 1.0 - u2 / 0.5
+			mi2.scale = Vector3.ONE * (0.3 + fade)
+			(spk[1] as StandardMaterial3D).albedo_color = Color(1.0, 0.92, 0.50).lerp(Color(1.0, 0.55, 0.20), 1.0 - fade)
 	# the bulbs chase round the header, slowly
 	for k in _bulbs.size():
 		var wave: float = 0.5 + 0.5 * sin(float(k) * 0.6 - t * 3.2)

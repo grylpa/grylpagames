@@ -338,3 +338,17 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
   center dashes inside a junction (asphalt.gdshader `open_sides`).
 - **Lawn**: short dense blades plus a few small things lying about (`scripts/lawn_scatter.gd`).
 - **Board size**: `init_sizes_odd()` and `buttons_height = 0` (see CLAUDE.md, the drawn art layer).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A DEPOT
+YARD IN THE LATE AFTERNOON -- a low sun casting long shadows, a hazy dusk sky, a brick warehouse with three numbered
+loading bays (a steel frame in each bay's color, a canopy, a number board, painted guide lines across the concrete
+apron), a road along the front, pallets, drums, trees. Along the road comes the game's delivery truck: an engine
+pulling three flatbed carts, each with a parcel in its bay's color. As it passes the bays the REAR cart peels off,
+curves across the apron into its bay (its ROLL-UP door rolls up for it -- drawn shorter from its top edge, as a
+roll-up door does), the bay's number lights, the door rolls down behind it: bay 1, then 2, then 3, in order; the
+engine drives on and out (`CYCLE` 15 s). The warehouse's main block stands BEHIND the bays, so an open door shows its
+dark bay (in front, it showed brick). The yard is baked, one picture per platform (`menu_yard.webp`,
+`menu_yard_d.webp`); the truck, doors and numbers are live; a cart is gone only behind its closed door. Made up, never
+the board.

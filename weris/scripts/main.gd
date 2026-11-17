@@ -53,6 +53,10 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
 
+# the main menu's poster (main_menu.gd asks the game for one): a wall of portraits searched with a magnifying glass
+func menu_backdrop() -> Control:
+	return preload("res://weris/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	game.stop_sound("amb_card")
 	game.stop_sound("amb_crowd")

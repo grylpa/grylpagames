@@ -1,246 +1,256 @@
-extends "res://scripts/menu_poster.gd"
+extends "res://scripts/menu_poster3d.gd"
 
-# MIND PALACE'S OPENING POSTER (main.gd menu_backdrop(); see scripts/menu_poster.gd): a palace of the mind
-# floating in the game's night sky (palace_sky.gdshader) on an island of rock, with two small islets
-# beside it, each with a turret, and glowing stepping stones floating up to its gate; its windows light
-# one after another, each in a room's color -- remembered one by one -- until the whole palace glows,
-# then they go dark and it begins again.
-#
-# STILL WHERE IT IS HARD-EDGED (the user: "jitter and flicker in the movement"): the palace, the rock and
-# the islets are drawn ONCE on a layer that is never redrawn, and nothing with a hard edge moves -- only
-# soft things do (mist, slow twinkles, the windows' light, the flags). Made up, never the board.
+# MIND PALACE'S OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): A PALACE OF
+# THE MIND floating in the game's night sky (palace_sky.gdshader, in 2-D behind, with slow stars, a moon and a violet
+# glow) -- REAL 3-D now (the front-on drawing was "flat"): a keep of stone blocks with a tall central tower, four
+# round corner towers under conical roofs, crenellated curtain walls and an arched gate, on an island of rock with
+# roots hanging under it; two islets beside it, each with a turret; glowing stepping stones floating up to the gate.
+# Its windows light one after another, each in a room's color -- remembered one by one -- until the whole palace
+# glows, then go dark and it begins again (`CYCLE` 11 s). The palace is baked with a CLEAR sky (`_bake_alpha`:
+# `menu_palace.webp`, `menu_palace_d.webp`); the windows, the stones and the flags are live, the mist 2-D in front.
+# Nothing with a hard edge moves except the flags (the first version bobbed, "jitter and flicker"). Made up, never
+# the board.
 
 const SKY: Shader = preload("res://mmm/scripts/palace_sky.gdshader")
 const ROOM_COLORS: Array = [Color(0.95, 0.32, 0.32), Color(0.32, 0.64, 0.98), Color(0.42, 0.88, 0.46),
 	Color(0.99, 0.80, 0.30), Color(0.78, 0.48, 0.98), Color(0.32, 0.88, 0.88), Color(1.0, 0.58, 0.26)]
-const STONE: Color = Color(0.33, 0.31, 0.45)
-const STONE_LIT: Color = Color(0.47, 0.45, 0.62)
-const STONE_DARK: Color = Color(0.22, 0.20, 0.31)
-const ROOF: Color = Color(0.22, 0.17, 0.36)
-const ROOF_LIT: Color = Color(0.34, 0.27, 0.52)
-const ROCK: Color = Color(0.17, 0.14, 0.23)
 const CYCLE: float = 11.0
+const DARK_WIN: Color = Color(0.07, 0.05, 0.12)
+const TOWERS: Array = [Vector3(-150.0, 0.0, 70.0), Vector3(150.0, 0.0, 70.0), Vector3(-130.0, 0.0, -70.0), Vector3(130.0, 0.0, -70.0)]
+const ISLETS: Array = [Vector3(-340.0, 40.0, 40.0), Vector3(330.0, 10.0, -10.0)]
 
 var _sky: ColorRect = null
-var _still: Control = null      # the palace, drawn once
-var _live: Control = null       # the lights and the mist, every frame
-var _windows: Array = []        # Rect2 in screen px, filled when the still layer is drawn
-var _flags: Array = []          # Vector2: the top of each flagpole
-var _stones: Array = []         # Vector2: the stepping stones' centers
-var _laid_for: Vector2 = Vector2.ZERO
+var _back: Control = null
+var _wins: Array = []                  # StandardMaterial3D per window
+var _stones: Array = []                # [StandardMaterial3D, index]
+var _flags: Array = []                 # Node3D per flag
+
+func _baked_path() -> String:
+	return "res://mmm/art/menu_palace.webp" if mobile else "res://mmm/art/menu_palace_d.webp"
+
+func _bake_alpha() -> bool:
+	return true
+
+func _eye() -> Vector3:
+	return Vector3(40.0, 260.0, 900.0) if mobile else Vector3(40.0, 260.0, 1150.0)
+
+func _aim() -> Vector3:
+	return Vector3(0.0, 150.0, 0.0) if mobile else Vector3(0.0, 175.0, 0.0)
+
+func _fov() -> float:
+	return 50.0
+
+func _frame_frac() -> float:
+	return 0.52
+
+func _environment(env: Environment) -> void:
+	env.background_color = Color(0.05, 0.04, 0.10)
+	env.ambient_light_color = Color(0.55, 0.52, 0.70)
+	env.ambient_light_energy = 0.34
 
 func _setup() -> void:
+	# the 2-D sky under everything: the game's sky shader, then stars, the moon, the violet glow (not when baking: the
+	# picture keeps a clear sky)
+	if bake_mode:
+		super._setup()
+		return
 	_sky = ColorRect.new()
 	_sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var m: ShaderMaterial = ShaderMaterial.new()
 	m.shader = SKY
 	_sky.material = m
 	add_child(_sky)
-	var back: Control = Control.new()
-	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	back.set_anchors_preset(Control.PRESET_FULL_RECT)
-	back.draw.connect(func() -> void: _draw_back(back))
-	add_child(back)
-	_still = Control.new()
-	_still.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_still.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_still.draw.connect(_draw_still)
-	add_child(_still)
-	_live = Control.new()
-	_live.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_live.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_live.draw.connect(_draw_live)
-	add_child(_live)
-	set_meta("back", back)
+	_back = Control.new()
+	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_back.draw.connect(func() -> void: _draw_back(_back))
+	add_child(_back)
+	super._setup()
 
-func _tick(_delta: float) -> void:
+func _build_lights() -> void:
+	# the moon from the upper right, pale violet; a cool fill from the front
+	var moon: DirectionalLight3D = DirectionalLight3D.new()
+	moon.light_color = Color(0.82, 0.80, 1.0)
+	moon.light_energy = 0.85
+	moon.shadow_enabled = true
+	moon.directional_shadow_max_distance = 30.0
+	root.add_child(moon)
+	moon.rotation_degrees = Vector3(-35.0, 40.0, 0.0)
+	light(Vector3(-200.0, 200.0, 500.0), Color(0.55, 0.50, 0.95), 0.8, 1000.0)
+
+# --- the palace, the rock, the islets: baked ---------------------------------------------------------------------
+
+func _stone_m(base: Color, uv: Vector3) -> StandardMaterial3D:
+	return mat(Color.WHITE, 0.85, 0.0, tex_speckle(128, base, 0.10, 21, 8, base.darkened(0.45)), uv)
+
+func _cone_roof(c: Vector3, r: float, h: float) -> void:
+	cyl(0.0, r, h, mat(Color(0.25, 0.19, 0.40), 0.55), c + Vector3(0.0, h * 0.5, 0.0), Vector3.ZERO, null, 28)
+	cyl(r + 2.0, r + 2.0, 4.0, mat(Color(0.22, 0.16, 0.36), 0.6), c + Vector3(0.0, 1.0, 0.0), Vector3.ZERO, null, 28)
+
+func _crenels(c: Vector3, w: float, d: float, along_x: bool) -> void:
+	var stone: StandardMaterial3D = mat(Color(0.47, 0.45, 0.52), 0.85)
+	var n: int = int(w / 18.0)
+	for k in n:
+		if k % 2 == 0:
+			var off: float = -w * 0.5 + (float(k) + 0.5) * w / float(n)
+			box(Vector3(w / float(n), 10.0, d) if along_x else Vector3(d, 10.0, w / float(n)), stone, c + (Vector3(off, 5.0, 0.0) if along_x else Vector3(0.0, 5.0, off)))
+
+func _build_still() -> void:
+	var rock: StandardMaterial3D = mat(Color.WHITE, 0.95, 0.0, tex_speckle(128, Color(0.20, 0.16, 0.26), 0.25, 5), Vector3(4, 2, 1))
+	var stone: StandardMaterial3D = _stone_m(Color(0.47, 0.45, 0.52), Vector3(1.5, 1.5, 1))
+	var tower_m: StandardMaterial3D = _stone_m(Color(0.50, 0.48, 0.55), Vector3(2, 2.5, 1))
+	var root_m: StandardMaterial3D = mat(Color(0.18, 0.14, 0.12), 0.9)
+	# THE ISLAND: a rough inverted cone of rock, a ring of boulders round its rim, the top flat, roots hanging under it
+	cyl(240.0, 26.0, 230.0, rock, Vector3(0.0, -118.0, 0.0), Vector3.ZERO, null, 18)
+	cyl(250.0, 240.0, 10.0, mat(Color(0.26, 0.24, 0.32), 0.9), Vector3(0.0, -4.0, 0.0), Vector3.ZERO, null, 18)
+	for k in 16:
+		var a: float = TAU * float(k) / 16.0
+		var bp: Vector3 = Vector3(cos(a) * 230.0, -14.0 - 20.0 * h01(k), sin(a) * 230.0)
+		var bm: MeshInstance3D = sphere(26.0 + 14.0 * h01(k + 3), rock, bp)
+		bm.scale = Vector3(1.3, 0.7, 1.0)
+	for k2 in 7:
+		var rx: float = (h01(k2 + 30) - 0.5) * 200.0
+		var rz: float = 60.0 + (h01(k2 + 40) - 0.5) * 80.0
+		var top: Vector3 = Vector3(rx, -110.0, rz)
+		put(tube_mesh(PackedVector3Array([top, top + Vector3(10.0, -70.0, 6.0), top + Vector3(-6.0, -150.0 - 60.0 * h01(k2), 10.0)]), 3.0, 6), root_m, Vector3.ZERO)
+	# THE CURTAIN WALLS between the towers, crenellated
+	box(Vector3(300.0, 90.0, 18.0), stone, Vector3(0.0, 45.0, 70.0))
+	box(Vector3(260.0, 90.0, 18.0), stone, Vector3(0.0, 45.0, -70.0))
+	for sx in [-1.0, 1.0]:
+		box(Vector3(18.0, 90.0, 140.0), stone, Vector3(sx * 140.0, 45.0, 0.0))
+	_crenels(Vector3(0.0, 90.0, 70.0), 300.0, 18.0, true)
+	_crenels(Vector3(0.0, 90.0, -70.0), 260.0, 18.0, true)
+	# the gate: an arched dark opening with a stone surround
+	box(Vector3(48.0, 52.0, 2.0), mat(Color(0.04, 0.03, 0.06), 1.0), Vector3(0.0, 26.0, 79.5))
+	cyl(24.0, 24.0, 2.0, mat(Color(0.04, 0.03, 0.06), 1.0), Vector3(0.0, 52.0, 79.5), Vector3(90.0, 0.0, 0.0), null, 24)
+	# its surround: straight jambs and a half-round of wedge stones over them (a full ring read as a porthole)
+	var dressed: StandardMaterial3D = mat(Color(0.58, 0.56, 0.62), 0.8)
+	for jx in [-1.0, 1.0]:
+		box(Vector3(9.0, 54.0, 6.0), dressed, Vector3(jx * 28.5, 27.0, 80.5))
+	for v in 9:
+		var va: float = PI * float(v) / 8.0
+		box(Vector3(9.0, 11.0, 6.0), dressed, Vector3(cos(va) * 28.5, 52.0 + sin(va) * 28.5, 80.5), Vector3(0.0, 0.0, rad_to_deg(va) - 90.0))
+	# THE KEEP and its tall central tower
+	box(Vector3(160.0, 170.0, 100.0), stone, Vector3(0.0, 85.0, -10.0))
+	_crenels(Vector3(0.0, 170.0, 40.0), 160.0, 12.0, true)
+	cyl(36.0, 38.0, 300.0, tower_m, Vector3(0.0, 150.0, -10.0), Vector3.ZERO, null, 28)
+	_cone_roof(Vector3(0.0, 300.0, -10.0), 46.0, 110.0)
+	# THE CORNER TOWERS, round, under conical roofs
+	for k3 in TOWERS.size():
+		var tp: Vector3 = TOWERS[k3]
+		var th: float = 190.0 if k3 < 2 else 220.0
+		cyl(30.0, 32.0, th, tower_m, tp + Vector3(0.0, th * 0.5, 0.0), Vector3.ZERO, null, 24)
+		_cone_roof(tp + Vector3(0.0, th, 0.0), 40.0, 80.0)
+	# THE ISLETS, each a small rock with a turret
+	for k4 in ISLETS.size():
+		var ip: Vector3 = ISLETS[k4]
+		cyl(60.0, 8.0, 80.0, rock, ip + Vector3(0.0, -40.0, 0.0), Vector3.ZERO, null, 14)
+		cyl(18.0, 20.0, 90.0, tower_m, ip + Vector3(0.0, 45.0, 0.0), Vector3.ZERO, null, 18)
+		_cone_roof(ip + Vector3(0.0, 90.0, 0.0), 26.0, 50.0)
+
+# --- live: the windows, the stones, the flags ----------------------------------------------------------------------
+
+func _win(c: Vector3, w: float, h: float, yaw: float) -> void:
+	var node: Node3D = Node3D.new()
+	root.add_child(node)
+	node.position = c
+	node.rotation = Vector3(0.0, yaw, 0.0)
+	var gm: StandardMaterial3D = glow(DARK_WIN)
+	box(Vector3(w, h, 1.0), gm, Vector3(0.0, 0.0, 0.0), Vector3.ZERO, node)
+	cyl(w * 0.5, w * 0.5, 1.0, gm, Vector3(0.0, h * 0.5, 0.0), Vector3(90.0, 0.0, 0.0), node, 16)
+	_wins.append(gm)
+
+func _build_live() -> void:
+	# windows on what faces you: the keep (two rows), the central tower (up its height), the front towers, the islets
+	for row in 2:
+		for col in 3:
+			_win(Vector3(-50.0 + float(col) * 50.0, 110.0 + float(row) * 34.0, 40.6), 12.0, 18.0, 0.0)
+	for k in 4:
+		_win(Vector3(0.0, 200.0 + float(k) * 22.0, 27.0), 9.0, 13.0, 0.0)
+	for k2 in 2:
+		var tp: Vector3 = TOWERS[k2]
+		for r in 3:
+			_win(tp + Vector3(0.0, 60.0 + float(r) * 42.0, 31.5), 10.0, 15.0, 0.0)
+	for k3 in 2:
+		var tp2: Vector3 = TOWERS[2 + k3]
+		_win(tp2 + Vector3(0.0, 170.0, 31.0), 10.0, 14.0, 0.0)
+	for ip in ISLETS:
+		_win((ip as Vector3) + Vector3(0.0, 60.0, 19.5), 8.0, 12.0, 0.0)
+	# the stepping stones, floating down from the gate toward you
+	for s in 7:
+		var sm: StandardMaterial3D = glow(Color(0.72, 0.64, 1.0))
+		var st: MeshInstance3D = cyl(16.0, 14.0, 4.0, sm, Vector3(8.0 * sin(float(s) * 1.3), -6.0 - float(s) * 16.0, 110.0 + float(s) * 46.0))
+		st.scale = Vector3(1.0, 1.0, 0.7)
+		_stones.append([sm, s])
+	# flags on the towers' points, in the rooms' colors
+	var tops: Array = [Vector3(0.0, 410.0, -10.0)]
+	for k4 in TOWERS.size():
+		tops.append((TOWERS[k4] as Vector3) + Vector3(0.0, (190.0 if k4 < 2 else 220.0) + 80.0, 0.0))
+	for k5 in tops.size():
+		var tp3: Vector3 = tops[k5]
+		cyl(1.2, 1.2, 30.0, mat(Color(0.2, 0.2, 0.2), 0.5), tp3 + Vector3(0.0, 15.0, 0.0))
+		var f: Node3D = Node3D.new()
+		root.add_child(f)
+		f.position = tp3 + Vector3(0.0, 26.0, 0.0)
+		box(Vector3(22.0, 12.0, 0.6), mat(ROOM_COLORS[k5 % ROOM_COLORS.size()], 0.6), Vector3(11.0, 0.0, 0.0), Vector3.ZERO, f)
+		_flags.append(f)
+
+func _animate(_delta: float) -> void:
+	var u: float = fmod(t, CYCLE) / CYCLE
+	var n: int = _wins.size()
+	var fade: float = 1.0 - smoothstep(0.86, 0.98, u)
+	for k in n:
+		# each window eases on in its turn, in a room's color; all go dark together at the end
+		var on_at: float = 0.04 + 0.70 * float(k) / float(maxi(1, n))
+		var a: float = smoothstep(on_at, on_at + 0.04, u) * fade
+		var idx: int = (k * 7) % n
+		var c: Color = ROOM_COLORS[k % ROOM_COLORS.size()]
+		(_wins[idx] as StandardMaterial3D).albedo_color = DARK_WIN.lerp(c, a)
+	for st in _stones:
+		var glow_v: float = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 1.2 - float(st[1]) * 0.7))
+		(st[0] as StandardMaterial3D).albedo_color = Color(0.40, 0.34, 0.62).lerp(Color(0.86, 0.80, 1.0), glow_v)
+	for k2 in _flags.size():
+		(_flags[k2] as Node3D).rotation = Vector3(0.0, 0.35 * sin(t * 2.2 + float(k2)), 0.0)
+
+# --- the sky behind (2-D) and the mist in front ----------------------------------------------------------------------
+
+func _tick(delta: float) -> void:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var key: Vector2 = Vector2(full.x, scene_bottom)
-	if key != _laid_for:
-		_laid_for = key
+	if _sky != null and _back != null:
 		_sky.position = Vector2.ZERO
 		_sky.size = full
-		_still.queue_redraw()
-	(get_meta("back") as Control).queue_redraw()
-	_live.queue_redraw()
-
-func _box() -> Rect2:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
-	var top: float = 250.0 if mobile else 160.0
-	var h: float = maxf(120.0, bottom - top - 110.0)
-	var w: float = minf(full.x * 0.70, h * 1.05)
-	return Rect2((full.x - w) * 0.5, top, w, h)
-
-func _p(b: Rect2, x: float, y: float) -> Vector2:
-	return (b.position + Vector2(b.size.x * x, b.size.y * y)).round()
-
-# --- behind the palace: stars (slow twinkle), the moon, a violet glow ----------------------------------
+		_back.queue_redraw()
+	super._tick(delta)
 
 func _draw_back(d: Control) -> void:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var b: Rect2 = _box()
 	for k in 110:
 		var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * full.y * 0.80)
 		var tw: float = 0.5 + 0.5 * sin(t * (0.25 + 0.5 * h01(k + 9)) + float(k) * 1.7)
 		d.draw_circle(sp, 0.8 + 1.3 * h01(k * 5 + 3), Color(0.92, 0.90, 1.0, 0.30 + 0.45 * tw * h01(k * 5 + 4)))
-	var moon: Vector2 = Vector2(full.x * 0.83, b.position.y - 40.0)
+	if _cam3 == null:
+		return
+	var top: Vector2 = screen_of(Vector3(0.0, 300.0, -10.0))
+	var moon: Vector2 = Vector2(full.x * 0.87, top.y + 30.0)
 	for g in 7:
 		d.draw_circle(moon, 90.0 - float(g) * 11.0, Color(0.85, 0.82, 1.0, 0.035))
 	d.draw_circle(moon, 28.0, Color(0.96, 0.94, 1.0))
 	d.draw_circle(moon + Vector2(10.0, -6.0), 24.0, Color(0.09, 0.07, 0.17, 0.94))
-	for g in 9:
-		_ell(d, b.get_center() + Vector2(0.0, b.size.y * 0.05), b.size.x * (0.95 - 0.08 * float(g)), b.size.y * (0.70 - 0.06 * float(g)),
-			Color(0.55, 0.40, 0.95, 0.032))
-
-# --- the palace, once ---------------------------------------------------------------------------------
-
-func _draw_still() -> void:
-	var b: Rect2 = _box()
-	var d: Control = _still
-	_windows.clear()
-	_flags.clear()
-	_stones.clear()
-	# two islets, each with a turret and roots hanging under it
-	for side in [-1.0, 1.0]:
-		var c: Vector2 = Vector2(b.get_center().x + side * b.size.x * 0.60, b.position.y + b.size.y * (0.66 if side < 0.0 else 0.52))
-		var iw: float = b.size.x * 0.13
-		_rock(d, c, iw, iw * 0.55)
-		var turret: Rect2 = Rect2((c + Vector2(-iw * 0.18, -iw * 0.62)).round(), Vector2(iw * 0.36, iw * 0.62).round())
-		_tower(d, turret, iw * 0.30, 1)
-	# the main rock
-	_rock(d, _p(b, 0.5, 0.88), b.size.x * 0.56, b.size.y * 0.34)
-	# the towers, back to front: two outer, two inner, the keep, the spire
-	_tower(d, Rect2(_p(b, 0.02, 0.36), Vector2(b.size.x * 0.15, b.size.y * 0.52)), b.size.x * 0.20, 2)
-	_tower(d, Rect2(_p(b, 0.83, 0.36), Vector2(b.size.x * 0.15, b.size.y * 0.52)), b.size.x * 0.20, 2)
-	_tower(d, Rect2(_p(b, 0.16, 0.24), Vector2(b.size.x * 0.13, b.size.y * 0.64)), b.size.x * 0.17, 3)
-	_tower(d, Rect2(_p(b, 0.71, 0.24), Vector2(b.size.x * 0.13, b.size.y * 0.64)), b.size.x * 0.17, 3)
-	var keep: Rect2 = Rect2(_p(b, 0.27, 0.42), Vector2(b.size.x * 0.46, b.size.y * 0.46))
-	_wall(d, keep)
-	_battlements(d, keep)
-	for r in 2:
-		for c in 4:
-			_window(d, Rect2(_p(b, 0.315 + 0.11 * float(c), 0.50 + 0.15 * float(r)), Vector2(b.size.x * 0.045, b.size.y * 0.085)))
-	_tower(d, Rect2(_p(b, 0.42, 0.06), Vector2(b.size.x * 0.16, b.size.y * 0.38)), b.size.x * 0.22, 2)
-	# the gate, and the stepping stones floating down from it
-	var g: Rect2 = Rect2(_p(b, 0.45, 0.74), Vector2(b.size.x * 0.10, b.size.y * 0.14))
-	d.draw_rect(g, Color(0.08, 0.06, 0.13))
-	d.draw_circle(Vector2(g.get_center().x, g.position.y), g.size.x * 0.5, Color(0.08, 0.06, 0.13))
-	for k in 6:
-		var u: float = float(k) / 5.0
-		_stones.append((_p(b, 0.5, 0.90) + Vector2(sin(u * 3.2) * b.size.x * 0.22, u * b.size.y * 0.42)).round())
-
-func _rock(d: Control, c: Vector2, w: float, h: float) -> void:
-	var pts: PackedVector2Array = PackedVector2Array()
-	pts.append(c + Vector2(-w, 0.0))
-	pts.append(c + Vector2(w, 0.0))
-	var n: int = 9
-	for k in n:
-		var u: float = 1.0 - float(k) / float(n - 1)
-		var x: float = lerpf(-w, w, u) * (1.0 - 0.15 * float(k % 2))
-		var y: float = h * sin(u * PI) * (0.75 + 0.35 * h01(int(c.x) + k))
-		pts.append(c + Vector2(x * (0.92 - 0.25 * sin(u * PI)), y))
-	d.draw_colored_polygon(pts, ROCK)
-	d.draw_line(c + Vector2(-w, 0.0), c + Vector2(w, 0.0), Color(0.42, 0.37, 0.56), 3.0)
-	# strata, and roots hanging
-	for k in 3:
-		var yy: float = h * (0.18 + 0.2 * float(k))
-		d.draw_line(c + Vector2(-w * (0.8 - 0.2 * float(k)), yy), c + Vector2(w * (0.7 - 0.2 * float(k)), yy + 4.0), Color(0.10, 0.08, 0.15), 2.0)
-	for k in 5:
-		var x0: float = lerpf(-w * 0.5, w * 0.5, float(k) / 4.0)
-		var y0: float = h * 0.6 * sin((x0 / w * 0.5 + 0.5) * PI)
-		d.draw_polyline(PackedVector2Array([c + Vector2(x0, y0), c + Vector2(x0 + 6.0, y0 + 16.0), c + Vector2(x0 - 3.0, y0 + 30.0)]), Color(0.13, 0.11, 0.18), 2.0)
-
-func _wall(d: Control, r: Rect2) -> void:
-	d.draw_rect(r, STONE)
-	d.draw_rect(Rect2(r.position, Vector2(r.size.x * 0.30, r.size.y)), STONE_LIT)
-	d.draw_rect(Rect2(r.end.x - r.size.x * 0.18, r.position.y, r.size.x * 0.18, r.size.y), STONE_DARK)
-	# stone courses
-	var y: float = r.position.y + 12.0
-	var row: int = 0
-	while y < r.end.y:
-		d.draw_line(Vector2(r.position.x, y), Vector2(r.end.x, y), Color(0.12, 0.10, 0.18, 0.35), 1.0)
-		var x: float = r.position.x + (9.0 if row % 2 == 0 else 0.0)
-		while x < r.end.x:
-			d.draw_line(Vector2(x, y), Vector2(x, y - 12.0), Color(0.12, 0.10, 0.18, 0.25), 1.0)
-			x += 18.0
-		y += 12.0
-		row += 1
-
-func _battlements(d: Control, r: Rect2) -> void:
-	var n: int = maxi(3, int(r.size.x / 14.0)) | 1
-	for k in n:
-		if k % 2 == 0:
-			d.draw_rect(Rect2(r.position.x + r.size.x * float(k) / float(n), r.position.y - 8.0, r.size.x / float(n), 8.0),
-				STONE_LIT if k < n / 3 else STONE)
-
-func _tower(d: Control, r: Rect2, roof_w: float, windows: int) -> void:
-	r = Rect2(r.position.round(), r.size.round())
-	_wall(d, r)
-	# a conical roof, lit on its left
-	var cx: float = r.get_center().x
-	var base_y: float = r.position.y + 2.0
-	var tip: Vector2 = Vector2(cx, r.position.y - roof_w * 1.15).round()
-	d.draw_colored_polygon(PackedVector2Array([Vector2(cx - roof_w * 0.5, base_y), Vector2(cx + roof_w * 0.5, base_y), tip]), ROOF)
-	d.draw_colored_polygon(PackedVector2Array([Vector2(cx - roof_w * 0.5, base_y), Vector2(cx - roof_w * 0.1, base_y), tip]), ROOF_LIT)
-	d.draw_line(Vector2(cx - roof_w * 0.5, base_y), Vector2(cx + roof_w * 0.5, base_y), Color(0.10, 0.08, 0.16), 3.0)
-	d.draw_line(tip, tip + Vector2(0.0, -16.0), Color(0.85, 0.80, 0.95), 2.0)
-	_flags.append(tip + Vector2(0.0, -16.0))
-	for k in windows:
-		var wh: float = minf(r.size.y * 0.14, r.size.x * 0.55)
-		var ww: float = wh * 0.55
-		_window(d, Rect2(Vector2(cx - ww * 0.5, r.position.y + r.size.y * (0.16 + 0.28 * float(k))), Vector2(ww, wh)))
-
-func _window(d: Control, r: Rect2) -> void:
-	r = Rect2(r.position.round(), r.size.round())
-	d.draw_rect(r.grow(2.0), STONE_DARK)
-	d.draw_rect(r, Color(0.07, 0.06, 0.12))
-	d.draw_circle(Vector2(r.get_center().x, r.position.y), r.size.x * 0.5, Color(0.07, 0.06, 0.12))
-	_windows.append(r)
-
-func _ell(d: CanvasItem, c: Vector2, rx: float, ry: float, col: Color) -> void:
-	d.draw_set_transform(c, 0.0, Vector2(1.0, ry / rx))
-	d.draw_circle(Vector2.ZERO, rx, col)
+	var c: Vector2 = screen_of(Vector3(0.0, 120.0, 0.0))
+	var r: float = screen_of(Vector3(300.0, 120.0, 0.0)).distance_to(c)
+	for g2 in 9:
+		d.draw_set_transform(c, 0.0, Vector2(1.0, 0.75))
+		d.draw_circle(Vector2.ZERO, r * (1.2 - 0.1 * float(g2)), Color(0.55, 0.40, 0.95, 0.03))
 	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-# --- what moves: the windows' light, the stones' glow, the flags, the mist ------------------------------
-
-func _draw_live() -> void:
-	var d: Control = _live
-	var b: Rect2 = _box()
-	var u: float = fmod(t, CYCLE) / CYCLE
-	var n: int = _windows.size()
-	var fade: float = 1.0 - smoothstep(0.86, 0.98, u)
-	for k in n:
-		# each window eases on over half a second, in its turn
-		var on_at: float = 0.04 + 0.70 * float(k) / float(maxi(1, n))
-		var a: float = smoothstep(on_at, on_at + 0.04, u) * fade
-		if a <= 0.0:
-			continue
-		var r: Rect2 = _windows[(k * 7) % n]
-		var c: Color = ROOM_COLORS[k % ROOM_COLORS.size()]
-		for g in 5:
-			d.draw_rect(r.grow(12.0 - float(g) * 2.5), Color(c, 0.05 * a))
-		d.draw_rect(r, Color(c, a))
-		d.draw_circle(Vector2(r.get_center().x, r.position.y), r.size.x * 0.5, Color(c, a))
-		d.draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * 0.35)), Color(1, 1, 1, 0.22 * a))
-	# the stepping stones, glowing softly in turn up to the gate
-	for k in _stones.size():
-		var sp: Vector2 = _stones[_stones.size() - 1 - k]
-		var glow: float = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 1.2 - float(k) * 0.7))
-		for g in 4:
-			_ell(d, sp, 30.0 - float(g) * 6.0, 10.0 - float(g) * 2.0, Color(0.70, 0.60, 1.0, 0.07 * glow))
-		_ell(d, sp, 18.0, 6.0, Color(0.82, 0.76, 1.0, 0.55 + 0.35 * glow))
-	# the flags
-	for k in _flags.size():
-		var top: Vector2 = _flags[k]
-		var w1: float = sin(t * 2.2 + float(k)) * 3.0
-		d.draw_colored_polygon(PackedVector2Array([top, top + Vector2(18.0, 4.0 + w1), top + Vector2(0.0, 9.0)]), ROOM_COLORS[k % ROOM_COLORS.size()])
-	# mist drifting under the island
-	for k in 6:
-		var mx: float = fmod(t * (8.0 + float(k) * 3.0) + float(k) * 110.0, b.size.x * 1.8) - b.size.x * 0.4
-		_ell(d, Vector2(b.position.x + mx, b.end.y + 20.0 + float(k) * 12.0), 110.0, 14.0, Color(0.72, 0.68, 0.92, 0.07))
-
 func _paint_top(_full: Vector2, _bottom: float) -> void:
+	# mist drifting under the island
+	if _cam3 != null:
+		var c: Vector2 = screen_of(Vector3(0.0, -160.0, 60.0))
+		var w: float = screen_of(Vector3(260.0, -160.0, 60.0)).distance_to(c)
+		for k in 6:
+			var mx: float = fmod(t * (8.0 + float(k) * 3.0) + float(k) * 110.0, w * 3.6) - w * 1.8
+			cv.draw_set_transform(c + Vector2(mx, float(k) * 12.0 - 30.0), 0.0, Vector2(1.0, 0.13))
+			cv.draw_circle(Vector2.ZERO, 110.0, Color(0.72, 0.68, 0.92, 0.07))
+		cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	title("Mind Palace", "Explore and remember the room colors", Color(0.90, 0.84, 1.0), Color(0.10, 0.06, 0.20),
 		Color(0.60, 0.45, 1.0, 0.30))

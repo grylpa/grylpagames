@@ -65,6 +65,10 @@ func _ready() -> void:
 	$Level.sig_session_done.connect(_on_level_session_done)
 	$Level.sig_show_main_menu.connect(_on_level_show_main_menu)
 
+# the main menu's poster (main_menu.gd asks the game for one): a typewriter on a desk at night, a line being typed
+func menu_backdrop() -> Control:
+	return preload("res://typit/scripts/menu_world.gd").new()
+
 func show_main_menu() -> void:
 	game.stop_sound("ambient")
 	main_menu.show_continue_and_start_new(false)

@@ -27,6 +27,9 @@ var _vpc: SubViewportContainer = null
 var _vp3: SubViewport = null
 var _cy3: float = 0.0
 var _bottom3: float = -2.0
+var _cam3: Camera3D = null
+var _dark: ColorRect = null
+var _glow_rect: ColorRect = null
 
 # --- for the poster to fill in -----------------------------------------------------------------------------
 
@@ -41,6 +44,15 @@ func _aim() -> Vector3:
 
 func _fov() -> float:
 	return 50.0                    # horizontal (the width is kept)
+
+# how far ABOVE its center the scene's topmost feature reaches, in screen units (0: no limit)
+func _scene_top() -> float:
+	return 0.0
+
+# a poster whose sky is drawn in 2-D behind the scene bakes it with a CLEAR sky (devtools/make_menu_bake.gd keeps the
+# alpha): Storm's clouds drift and its lightning strikes behind the house
+func _bake_alpha() -> bool:
+	return false
 
 func _frame_frac() -> float:
 	return 0.5                     # where between the title's foot and the panel the scene's center sits
@@ -80,6 +92,7 @@ func _setup() -> void:
 	_vp3.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	if bake_mode:
 		_vp3.size = Vector2i(BAKE_W * 2, BAKE_H * 2)
+		_vp3.transparent_bg = _bake_alpha()
 		add_child(_vp3)
 		var pic: Control = Control.new()
 		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -100,7 +113,7 @@ func _setup() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	_environment(env)
-	if _live_only:
+	if _live_only or (bake_mode and _bake_alpha()):
 		env.background_mode = Environment.BG_CLEAR_COLOR
 		env.glow_enabled = false
 	var we: WorldEnvironment = WorldEnvironment.new()
@@ -114,6 +127,7 @@ func _setup() -> void:
 	world.add_child(cam)
 	cam.look_at_from_position(_eye() * 0.01, _aim() * 0.01, Vector3.UP)
 	cam.current = true
+	_cam3 = cam
 	root = Node3D.new()
 	world.add_child(root)
 	root.scale = Vector3.ONE * 0.01
@@ -137,12 +151,77 @@ func _tick(delta: float) -> void:
 		var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
 		var top: float = 230.0 if mobile else 150.0
 		_cy3 = top + (bottom - top) * _frame_frac()
+		# a scene whose top would run up behind the title (a short desktop menu) is lowered under it, and the
+		# foot of the scene goes behind the panel instead
+		_cy3 = maxf(_cy3, top + _scene_top())
 		var half_h: float = maxf(_cy3, full.y - _cy3)
 		_vpc.position = Vector2(0.0, _cy3 - half_h)
 		_vpc.size = Vector2(full.x, half_h * 2.0)
 		if _bg_layer != null:
 			_bg_layer.queue_redraw()
 	_animate(delta)
+
+# --- the dark, and where a 3-D point is on the screen -------------------------------------------------------------
+
+# A VEIL OF DARK over the 3-D view (scripts/menu_darkness.gdshader), with holes the poster opens each frame where light
+# falls (`set_darkness`): lanterns going out (Lights Out), headlights sweeping (Headlights). Under the title.
+func add_darkness() -> void:
+	if bake_mode:
+		return
+	_dark = ColorRect.new()
+	_dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dark.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var sm: ShaderMaterial = ShaderMaterial.new()
+	sm.shader = preload("res://scripts/menu_darkness.gdshader")
+	_dark.material = sm
+	add_child(_dark)
+	# and the light ADDED where it falls (scripts/menu_light.gdshader), warm, over the dark
+	_glow_rect = ColorRect.new()
+	_glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lm: ShaderMaterial = ShaderMaterial.new()
+	lm.shader = preload("res://scripts/menu_light.gdshader")
+	_glow_rect.material = lm
+	add_child(_glow_rect)
+
+# dark: how dark (0..1); lamps: up to 12 Vector4 (screen x, y, radius, strength); cones: up to 2 Vector4 (screen x, y,
+# heading, reach) with their strengths
+func set_darkness(dark: float, col: Color, lamps: Array, cones: Array = [], cone_ws: Array = [], cone_half: float = 0.42,
+		light_gain: float = 0.0, light_col: Color = Color(1.0, 0.85, 0.55)) -> void:
+	if _dark == null:
+		return
+	# sized to the screen outright: the poster itself is never laid out (its layers just draw), so anchors gave it 0
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	_dark.position = Vector2.ZERO
+	_dark.size = full
+	var sm: ShaderMaterial = _dark.material
+	sm.set_shader_parameter("size", full)
+	sm.set_shader_parameter("dark", dark)
+	sm.set_shader_parameter("dark_col", col)
+	var lp: Array = []
+	for i in 12:
+		lp.append(lamps[i] if i < lamps.size() else Vector4(0, 0, 1, 0))
+	sm.set_shader_parameter("lamps", lp)
+	var cp: Array = []
+	for j in 2:
+		cp.append(cones[j] if j < cones.size() else Vector4(0, 0, 0, 1))
+	sm.set_shader_parameter("cones", cp)
+	sm.set_shader_parameter("cone_w", Vector2(float(cone_ws[0]) if cone_ws.size() > 0 else 0.0, float(cone_ws[1]) if cone_ws.size() > 1 else 0.0))
+	sm.set_shader_parameter("cone_half", cone_half)
+	# the added light: the same pools and cones
+	_glow_rect.position = Vector2.ZERO
+	_glow_rect.size = full
+	_glow_rect.visible = light_gain > 0.0
+	var lm: ShaderMaterial = _glow_rect.material
+	for key in ["size", "lamps", "cones", "cone_w", "cone_half"]:
+		lm.set_shader_parameter(key, sm.get_shader_parameter(key))
+	lm.set_shader_parameter("gain", light_gain)
+	lm.set_shader_parameter("light_col", light_col)
+
+# where a point of the scene (in units) is on the poster
+func screen_of(p: Vector3) -> Vector2:
+	if _cam3 == null or _vpc == null:
+		return Vector2.ZERO
+	return _vpc.position + _cam3.unproject_position(p * 0.01)
 
 # --- builders ----------------------------------------------------------------------------------------------------
 

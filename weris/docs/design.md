@@ -376,3 +376,15 @@ is studied, a few slow electric-piano notes over a soft pad (`weris_card_ambient
 crowd is searched, a room of people talking, glasses clinking, a laugh (`weris_crowd_ambient.ogg`,
 -9 dB). The other one is PAUSED, not stopped, so each resumes where it was; both stop at the main menu.
 The game had no ambient before.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): A WALL OF
+PORTRAITS AND A MAGNIFYING GLASS. A museum wall in deep green damask under a gallery light, hung SALON-STYLE with
+the game's people (frames of mixed sizes, every other row shifted, gilt, walnut or black, a cream mat, a third of
+the portraits oval -- a regular grid of faces read like the game's board). A brass-rimmed magnifying glass glides
+over it, the faces under it truly enlarged (the wall drawn again inside the lens at 1.9x, clipped to the glass by a
+`clip_children` circle, damask and all), searching by way of somewhere else, and comes to rest on the person on the
+card pinned at the corner (FIND, the photo-style card with their first name); the rim glows green, then the card
+changes (faded out between searches) and the search goes on (`CYCLE` 7 s). The wall is a still layer (baked); the
+lens and card are live, their photos loaded on threads (the lens fades in when they are). Made up, never the board.

@@ -273,3 +273,18 @@ Declares its own `score_columns`: its array is not the generic shape, and withou
   `typit`), a laid-back lo-fi beat at 78 bpm -- a soft kick and brushes, ticking hats, warm
   electric-piano chords in A minor, a round bass -- at -6 dB while the board is up, stopped at the menu;
   the key clicks sit on top of it.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A
+TYPEWRITER ON A DESK AT NIGHT -- a black enamel machine (gold pinstripes, TYPIT on its housing) with chrome-ringed
+round keys and a chrome space bar, on a varnished desk under a brass lamp, a mug and a pencil beside it, typed
+sheets. A pangram is typed three lines long: each key goes down in turn, its letter appears on the paper at the
+typing point (the strike first, then the carriage steps on, `CPS` 7.5), the carriage moving left a step a letter;
+at a line's end it slides back while the paper feeds up a line; the finished page is held, fades, and the
+carriage and paper glide home before the next page (nothing jumps). The type is a mono face (JetBrains Mono), so
+the carriage's step is one character's advance. The desk, lamp, mug and the machine's body are baked, ONE PICTURE
+PER PLATFORM (`menu_desk.webp`, `menu_desk_d.webp`: on a desktop's short band the camera stands back so the
+whole machine shows); the keys and the carriage (platen, paper, text) are live. The lines lie ON the tilted sheet
+(lower is nearer): with the offset the other way they sank behind the paper. Made up, never the board.
+

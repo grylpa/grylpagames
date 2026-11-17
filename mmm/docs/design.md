@@ -587,6 +587,13 @@ size: it still reads as four colored towers.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): a palace floating in the game's night sky (palace_sky.gdshader) on a rock with roots hanging, two islets with turrets beside it, five towers with stone courses and arched windows, glowing stepping stones floating up to the gate; behind it slowly twinkling stars, a moon and a violet glow. Its windows light one by one in the rooms' colors until the whole palace glows, then go dark (11 s). THE PALACE IS DRAWN ONCE and never moves -- only soft things do (mist, the window light, the stones' glow, the flags): the first version bobbed the whole palace and twinkled fast, which the user saw as jitter and flicker.
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
+2026-11-17 (the front-on drawing was "flat"): a palace of the mind floating in the game's night sky. Behind it in
+2-D: the sky shader (palace_sky.gdshader), slowly twinkling stars, a moon beside the central tower and a violet glow.
+The palace: a keep of grey-violet stone blocks with a tall central tower, four round corner towers under deep violet
+conical roofs, crenellated curtain walls, an arched gate (straight jambs, a half-round of wedge stones -- a full ring
+read as a porthole), on an island of rock with a ring of boulders and roots hanging under it; two islets with
+turrets. Live in 3-D: its windows light one after another, each in a room's color, until the whole palace glows, then
+go dark (11 s); the stepping stones floating down from the gate glow in turn; the flags wave. The mist drifts under the
+island in 2-D. Baked with a CLEAR sky, one picture per platform (`menu_palace.webp`, `menu_palace_d.webp`). Nothing
+with a hard edge moves except the flags (the first version bobbed, "jitter and flicker"). Made up, never the board.

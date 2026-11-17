@@ -119,6 +119,10 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
 
+# the main menu's poster (main_menu.gd asks the game for one): an old arcade cabinet, marbles lofted into cups by their colored tools
+func menu_backdrop() -> Control:
+	return preload("res://ptbits/scripts/menu_world.gd").new()
+
 func show_main_menu() -> void:
 	game.stop_sound("ambient")
 	main_menu.show_continue_and_start_new(false)

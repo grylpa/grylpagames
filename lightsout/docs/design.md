@@ -328,3 +328,15 @@ lights on; with the fix, at full light.)
 - Paths: rounded corners (`scripts/road_corners.gd`), flagstones and a stone edging (see "A garden at
   night"); the lawn at night with garden things on it (`scripts/lawn_scatter.gd`). Board:
   `init_sizes_odd()`, `buttons_height = 0`.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A COAL
+MINE GALLERY (the game's own coal mine look), seen from inside it: dark grey rock with broken coal seams, timber
+sets every few paces, rails on sleepers running away into the dark, a cart of coal down the gallery, lanterns hung
+on the posts, a side opening with a TNT crate at its mouth (the obstacle), and far off a green lamp by the way out
+(the goal). Then, as in the game, THE LIGHTS GO OUT: lantern by lantern from the far end toward you, the dark closing
+in, until only the goal's faint green is left -- then they come on again from the near end, flickering as they
+catch (`CYCLE` 9 s). The gallery is baked (`menu_mine.webp`, lit by its lanterns; floor, walls and roof in pieces a
+timber set long, since the renderer lights an object with at most eight lights); the dark is the base's veil
+(`add_darkness`, a hole round each lit lantern) and the flames are drawn over it. Made up, never the board.

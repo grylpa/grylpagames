@@ -435,3 +435,16 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
   center dashes inside a junction (asphalt.gdshader `open_sides`).
 - **Lawn**: short dense blades plus a few small things lying about (`scripts/lawn_scatter.gd`).
 - **Board size**: `init_sizes_odd()` and `buttons_height = 0` (see CLAUDE.md, the drawn art layer).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A COUNTRY
+ROAD AT NIGHT -- a road winding in a loop through dark fields and trees (a Catmull-Rom loop, sampled, the road a
+ribbon along it with a dashed line), a farmhouse with a lit window inside the loop, three small numbered DEPOTS on
+its outside, each under its own lamp and facing the road -- and the game's delivery truck (an engine and three
+carts with their parcels) driving round, seen by its HEADLIGHTS: two cones that follow the road a little ahead as it
+turns, warm light added where they fall, the tail lamps glowing red. As it passes each depot, in order, the depot's
+number badge (drawn over the dark, always facing you -- a board read mirrored from behind) lights in its color. The
+country is baked BRIGHT, one picture per platform (`menu_road.webp`, `menu_road_d.webp`): the night is the base's
+veil over it (`add_darkness`, holes for the cones, the depot lamps, a faint glow round the truck and the window) with
+the light layer adding warmth. Made up, never the board.

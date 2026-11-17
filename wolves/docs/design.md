@@ -514,3 +514,5 @@ turns every frame near the flock's edge: it stood on the spot turning left and r
 phone), measured as a heading flipping by 3.2 rad/s every frame for seconds at a time.
 The first version stood in the game's forest shader, whose square clearing read like a board. The glade shows
 at once; the animals fade in when their atlases exist (the menu never holds up). Made up, never the board: the menu also opens mid-game.
+
+FAST ON A PHONE (2026-11-17): the lawn and the woods are still layers, baked (`menu_still_<0|1>_<m|d>.webp`, `devtools/make_menu_stills.gd`), and the animals' atlases are SHIPPED (`wolves/art/beast_sheep|dog|wolf.webp`, lossless, `devtools/make_wolves_atlases.gd`; `beast_art.gd` `_bake_atlas` loads them, rendering them at every start took a third of a second, seconds on a phone): first frame 326 -> 49 ms. THE DOG HAS ONE CONTINUOUS GOAL -- its own angle round the flock, going on round while circling and turning toward the first wolf's side while dashing, never inside the flock's edge; a "keep out" goal and a "circle" goal took turns every frame near the edge and it stood turning left and right on the spot (the jitter seen on a phone).
