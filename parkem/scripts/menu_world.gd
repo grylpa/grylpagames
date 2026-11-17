@@ -46,7 +46,8 @@ var _s_open: float = 0.0             # and opens once it is past here
 
 func _setup() -> void:
 	_build_way()
-	_room = _mk(func(d: Control) -> void: _draw_room(d))
+	# the corridor never moves: a still layer, baked (menu_poster.gd `add_still`)
+	_room = add_still(func(d: Control) -> void: _draw_room(d))
 	_life = _mk(func(d: Control) -> void: _draw_life(d))
 
 func _mk(fn: Callable) -> Control:

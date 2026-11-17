@@ -12,6 +12,17 @@ extends Control
 # MADE UP, NEVER THE BOARD: the menu also opens mid-game, so a poster must show nothing of the game in play.
 
 var scene_bottom: float = -1.0
+# BAKING (devtools): set before the poster enters the tree by a baking tool
+var bake_mode: bool = false
+# STILL LAYERS, BAKED: a layer that never moves is registered with `add_still(fn)` (fn draws it onto the Control it
+# is given). devtools/make_menu_stills.gd draws each into a picture shipped in the game's art/ --
+# menu_still_<i>_<m|d>.webp, with menu_still.tres recording the layout it was made for (the panel's top on a phone,
+# `bottom_m`, and on a desktop, `bottom_d`). While the layout is the baked one, the layer draws its picture at once;
+# otherwise (the settings open, the card taller) it draws itself. Slow posters held the menu up: Wolves took a long
+# time to show on a phone (the user).
+var _stills: Array = []          # [Control, Callable]
+var _still_info: Resource = null
+var _still_tex: Dictionary = {}
 var t: float = 0.0             # seconds since the poster appeared, for its motion
 var mobile: bool = false
 var cv: CanvasItem = null      # what the helpers draw on: this poster, or its TOP layer in _paint_top
@@ -29,6 +40,9 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mobile = MainGlobals.is_mobile()
 	cv = self
+	var info_path: String = _art_dir() + "menu_still.tres"
+	if not bake_mode and ResourceLoader.exists(info_path):
+		_still_info = load(info_path)
 	_setup()
 	# the TOP layer, over any child nodes a poster adds (coins, sprites): the name goes there
 	_top = Control.new()
@@ -51,6 +65,17 @@ static func fade_in(part_ready: bool, current: float, delta: float) -> float:
 		return minf(1.0, current + delta * 4.0)
 	return 0.0
 
+# SHOWN OR HIDDEN: the menu is hidden, not freed, while the game is played, and its poster with it. A poster's
+# drawing stops by itself then (`_process` below), but anything that runs on its own -- a 3-D view rendering every
+# frame -- must be stopped by the poster: it is told here (the user: "everything is slower now ... can it be that the
+# main menu animation never stops but keeps running in the bk?" -- it was: the 3-D views kept rendering)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED:
+		_shown_changed(is_visible_in_tree())
+
+func _shown_changed(_shown: bool) -> void:
+	pass
+
 func _process(delta: float) -> void:
 	if is_visible_in_tree():
 		t += delta
@@ -66,6 +91,41 @@ func _draw() -> void:
 	_paint(full, bottom)
 
 # --- for the poster to fill in ----------------------------------------------------------------------
+
+func _art_dir() -> String:
+	return str(get_script().resource_path).get_base_dir().get_base_dir() + "/art/"
+
+func _plat() -> String:
+	return "m" if mobile else "d"
+
+func add_still(fn: Callable) -> Control:
+	var c: Control = Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var idx: int = _stills.size()
+	_stills.append([c, fn])
+	c.draw.connect(func() -> void:
+		var tex: Texture2D = _still_picture(idx)
+		if tex != null:
+			c.draw_texture(tex, Vector2.ZERO)
+		else:
+			fn.call(c))
+	add_child(c)
+	return c
+
+# the baked picture of still layer i, while the layout is the one it was baked for (before the menu has told the
+# poster where its panel is, the baked layout is assumed: it is the usual one)
+func _still_picture(i: int) -> Texture2D:
+	if _still_info == null or not _still_info.has_meta("bottom_" + _plat()):
+		return null
+	var baked_bottom: float = float(_still_info.get_meta("bottom_" + _plat()))
+	if scene_bottom > 0.0 and absf(scene_bottom - baked_bottom) > 1.5:
+		return null
+	var key: String = "%d_%s" % [i, _plat()]
+	if not _still_tex.has(key):
+		var path: String = _art_dir() + "menu_still_%s.webp" % key
+		_still_tex[key] = load(path) if ResourceLoader.exists(path) else null
+	return _still_tex[key]
 
 func _setup() -> void:
 	pass

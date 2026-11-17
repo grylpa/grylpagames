@@ -29,11 +29,9 @@ var _baked: bool = false
 var _cam: Dictionary = {}
 
 func _setup() -> void:
-	_room = Control.new()
-	_room.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_room.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_room.draw.connect(func() -> void: _draw_room(_room))
-	add_child(_room)
+	# THE ROOM IS STILL, and baked (menu_poster.gd `add_still`): redrawn every frame for its curtains it made the
+	# cards slow and jittery on a phone (the user: "keep the background static and stored, too")
+	_room = add_still(func(d: Control) -> void: _draw_room(d))
 	_cards_layer = Control.new()
 	_cards_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_cards_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -103,16 +101,20 @@ func _quad(d: CanvasItem, pts: Array, col: Color) -> void:
 	if Geometry2D.triangulate_polygon(q).size() > 0:
 		d.draw_colored_polygon(q, col)
 
+var _room_for: float = -2.0
+
 func _tick(_delta: float) -> void:
 	_cam = _camera()
-	_room.queue_redraw()
+	if absf(scene_bottom - _room_for) > 0.5:
+		_room_for = scene_bottom
+		_room.queue_redraw()
 	_cards_layer.queue_redraw()
 
 # --- the room --------------------------------------------------------------------------------------------
 
 func _wind(y: float, x: float) -> float:
-	# the breeze through the open window: a slow swell with gusts running down the cloth
-	return (0.5 + 0.5 * sin(t * 0.6)) * (0.6 + 0.4 * sin(t * 2.1 - y * 0.012 + x * 0.02))
+	# the curtains stirred by a breeze, held still (the room is a baked picture): a gentle billow down the cloth
+	return 0.55 * (0.6 + 0.4 * sin(1.3 - y * 0.012 + x * 0.02))
 
 func _draw_room(d: Control) -> void:
 	if _cam.is_empty():
@@ -246,10 +248,7 @@ func _draw_room(d: Control) -> void:
 	for k in 6:
 		_ell_proj(d, Vector3.ZERO, TABLE_R * (0.92 - 0.14 * float(k)), Color(0.42, 0.24, 0.11, 0.22))
 	_ell_proj(d, Vector3(80.0, 0.0, -40.0), 90.0, Color(1.0, 0.88, 0.62, 0.08))
-	# the cards' shadows on the tabletop, under each card
-	for k in N:
-		var a5: float = t * SPEED + TAU * float(k) / float(N)
-		_ell_proj(d, Vector3(sin(a5) * RING_R, 0.0, cos(a5) * RING_R), 34.0, Color(0.12, 0.06, 0.02, 0.18))
+	# (the cards' shadows on the tabletop move with them: they are drawn with the cards)
 
 # a horizontal disc in the world, projected
 func _ell_proj(d: CanvasItem, c: Vector3, r: float, col: Color) -> void:
@@ -267,7 +266,13 @@ func _safe(d: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
 # --- the cards: thin boxes riding the ring, their faces and backs mapped from the baked tiles ---------------
 
 func _draw_cards(d: Control) -> void:
-	if _cam.is_empty() or not _baked:
+	if _cam.is_empty():
+		return
+	# the cards' shadows on the tabletop, under each card
+	for k in N:
+		var a5: float = t * SPEED + TAU * float(k) / float(N)
+		_ell_proj(d, Vector3(sin(a5) * RING_R, 0.0, cos(a5) * RING_R), 34.0, Color(0.12, 0.06, 0.02, 0.18))
+	if not _baked:
 		return
 	var items: Array = []
 	for k in N:

@@ -21,14 +21,40 @@ var _bg: TextureRect = null
 var _layer: Node2D = null
 var _cards: Array = []
 
+var _pending: Dictionary = {}       # photo path -> the card it is for (-1: the backdrop)
+var _bg_a: float = 0.0
+
+# photos that have arrived go onto their cards (or the backdrop); everything fades in as it comes
+func _take_photos(delta: float) -> void:
+	for path in _pending.keys():
+		var st: int = ResourceLoader.load_threaded_get_status(path)
+		if st == ResourceLoader.THREAD_LOAD_LOADED:
+			var tex: Texture2D = ResourceLoader.load_threaded_get(path)
+			var k: int = _pending[path]
+			_pending.erase(path)
+			if k < 0:
+				_bg.texture = tex
+			else:
+				(_cards[k] as Node2D).call("setup", tex, Color(1, 1, 1))
+				(_cards[k] as Node2D).set_meta("photo", true)
+		elif st == ResourceLoader.THREAD_LOAD_FAILED or st == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			_pending.erase(path)
+	if _bg.texture != null and _bg_a < 1.0:
+		_bg_a = fade_in(true, _bg_a, delta)
+		_bg.modulate.a = _bg_a
+
 func _setup() -> void:
 	_bg = TextureRect.new()
 	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_bg.modulate = Color(0.42, 0.39, 0.37)
+	# THE PHOTOS LOAD ON THREADS (loading them one by one held the menu up for a tenth of a second -- more on a
+	# phone): the backdrop and each card fade in as their photo arrives
 	if ResourceLoader.exists(BG):
-		_bg.texture = load(BG)
+		ResourceLoader.load_threaded_request(BG)
+		_pending[BG] = -1
+	_bg.modulate.a = 0.0
 	add_child(_bg)
 	var shade: Control = Control.new()
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -37,12 +63,21 @@ func _setup() -> void:
 	add_child(shade)
 	_layer = Node2D.new()
 	add_child(_layer)
-	for k in CARDS.size():
+
+# the cards are made a few a frame (fifteen at once held the first frame up), each fading in with its photo
+func _make_cards(n: int) -> void:
+	for _i in n:
+		if _cards.size() >= CARDS.size():
+			return
+		var k: int = _cards.size()
 		var c: Node2D = CARD.new()
 		_layer.add_child(c)
 		c.call("set_frame", 8, 8)
 		var p: String = "res://art/dinos/dino%d.jpg" % int(CARDS[k])
-		c.call("setup", load(p) if ResourceLoader.exists(p) else null, Color(1, 1, 1))
+		if ResourceLoader.exists(p):
+			ResourceLoader.load_threaded_request(p)
+			_pending[p] = k
+		c.visible = false
 		_cards.append(c)
 
 # a vignette, and a warm spotlight behind the fan
@@ -61,7 +96,9 @@ func _draw_shade(d: Control) -> void:
 		d.draw_polygon(PackedVector2Array([Vector2(x0, 0), Vector2(x1, 0), Vector2(x1, f.y), Vector2(x0, f.y)]),
 			PackedColorArray([Color(0, 0, 0, 0.5), Color(0, 0, 0, 0), Color(0, 0, 0, 0), Color(0, 0, 0, 0.5)]))
 
-func _tick(_delta: float) -> void:
+func _tick(delta: float) -> void:
+	_make_cards(3)
+	_take_photos(delta)
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
 	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
 	_bg.position = Vector2.ZERO
@@ -85,7 +122,7 @@ func _tick(_delta: float) -> void:
 		c.position = center - Vector2(0.0, half_h).rotated(rot)
 		c.rotation = rot
 		c.scale = Vector2.ONE * sc
-		c.visible = absf(a) < 1.6
+		c.visible = absf(a) < 1.6 and c.has_meta("photo")
 		c.modulate = Color(0.72, 0.70, 0.68).lerp(Color(1, 1, 1), near_top)
 	# no reordering: no two cards overlap
 

@@ -39,7 +39,6 @@ const BAKED_CITY: String = "res://taxi/art/menu_city.webp"
 const BAKE_W: int = 680
 const BAKE_H: int = 1500
 const BAKE_CY: float = 750.0
-var bake_mode: bool = false            # set by the baking tool: draw only the blocks, centered on BAKE_CY
 var _city_tex: Texture2D = null
 var _city_img_layer: Control = null
 # THE WHOLE STILL SCENE IS THE PICTURE: sky, road, blocks, lamp posts -- and the cab station, built in real 3-D
