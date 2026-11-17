@@ -147,6 +147,10 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
+# the main menu's poster (main_menu.gd asks the game for one): the garden floor at an ant's height, a trail of ants carrying crumbs home
+func menu_backdrop() -> Control:
+	return preload("res://ants/scripts/menu_world.gd").new()
+
 func show_main_menu() -> void:
 	main_menu.show_continue_and_start_new(false)
 	# The level list is re-read EVERY time the menu shows. It was set once, when the game opened, so

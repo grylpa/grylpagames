@@ -1508,3 +1508,9 @@ advertises. The superseded `devtools/make_ants_thumb.py` is gone.
 
 Ants has no entry in `docs/the-nomizo-games.md`, so unlike every other game it has a tile and no
 published thumbnail; `build_games_doc.py` prints a warning saying exactly that.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): THE GARDEN FLOOR AT AN ANT'S HEIGHT, all in 3-D through one low camera (`_proj`): a trail of ants carries green crumbs from the food heap toward us, swings round a pebble the colony has learned to go round, and climbs into the nest mound, while others go back empty. Every ant is a model -- head, thorax and abdomen as ellipsoids, six legs in a TRIPOD GAIT with their feet planted while they push, waving antennae, a shadow. The pebble is a low, lumpy dome mesh shaded per facet (a smooth ellipsoid read as "a big egg"), bedded in the soil; a fallen leaf lies on the trail; a twig; dappled sunlight, motes, the garden out of focus beyond, grass at the sides. The game's palette (`AntsArt`).
+Made up, never the board: the menu also opens mid-game.

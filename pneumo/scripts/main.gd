@@ -104,6 +104,10 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
+# the main menu's poster (main_menu.gd asks the game for one): the pneumatic post room: glass tubes, a junction's dial, capsules to their receivers
+func menu_backdrop() -> Control:
+	return preload("res://pneumo/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()

@@ -149,6 +149,10 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 	
+# the main menu's poster (main_menu.gd asks the game for one): a city avenue at night and the taxi station, cabs coming and going
+func menu_backdrop() -> Control:
+	return preload("res://taxi/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	var _saved_level_state = load_game_state()
 	main_menu.show_continue_and_start_new(_saved_level_state != null and _saved_level_state.size() > 0)

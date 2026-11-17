@@ -569,3 +569,9 @@ draws glass tubes on steel, so the tile does too, with one tube, not a network.
 - **Docks** are beacon pads (`scripts/dock_art.gd`); live senders/receivers never get orange or
   brown (`skip_color_idxs` + `DOCK_LOOKALIKE_COLOR_IDXS`), which looked like the idle docks.
 - **Board size**: `init_sizes_odd()` and `buttons_height = 0`.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): THE PNEUMATIC POST ROOM: glass tubes with brass collars across a teal tiled wall, a feed in from the edge to a brass JUNCTION whose dial turns (eased) to the next capsule's receiver before it arrives; the capsule (steel caps, a rolling label band) takes that branch and drops into its receiver, whose lamp flashes. Everything round is shaded SMOOTHLY (strips at even angles, colors blended at their edges -- stepped strips were "noticeable stripes"): the tubes, the collars, the capsules, the receivers' bodies, bells and feet, the torus of the valve wheel, the domed knobs. The receivers are split round the tubes -- the far half of the bell's lip and its dark mouth UNDER the tubes and capsules, the body with the near lip OVER them -- so a tube goes into the mouth and a capsule drops in. Every level ring opens by one rule (`_ring_k`: more the lower below the junction's eye level). The layout follows the height there is (`_lay`): every branch drops into its receiver (on the short desktop menu a branch once came up into a receiver and its capsule went on up out of it). The tube's side offsets keep one side through a bend (`_side`; flipping it twisted the tube); highlights follow the light round (`_lit_side`). The silver air pipe runs in from the right past its red valve wheel into the junction's housing; the gauge sits over the feed only where there is room under the title.
+Made up, never the board: the menu also opens mid-game.

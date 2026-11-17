@@ -381,3 +381,9 @@ derived from it by the games-doc build and must not be written by hand.
   stud. **Bricks** are `BlockArt`, the type picked per cell. **Board** 17x17 on desktop
   (`buttons_height = 0`, `init_sizes_odd()`). The HUD counter wears `art/monster_head_icon.png`
   (`make_thumbs.py monster_icon`).
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): A DUNGEON CORRIDOR in 3-D at a walker's eye height (`_proj`): flagstones and block walls on MORTAR BEDS with grit (open gaps once showed what lay behind them), a barrel vault of stones, torches in 3-D holders (a riveted plate, an arm, an iron cup, the wooden torch; flames of wavering tongues), all lit per corner by the torches and the gold. Near us on the right a shallow ALCOVE with an open chest and a heap of gold, seen only THROUGH ITS DOORWAY (clipped to it: a deep room behind a wall could not be seen into from the corridor); its door hangs at the doorway's far side on iron hinges and lies back along the wall beyond while a creature is far off. Each creature (MonsterArt's armored bug, a 3-D model with stepping legs) comes down the corridor toward the gold; the door swings FORWARD through the corridor and shuts the alcove before the creature is within its sweep; the creature stops, turns (by angle) to face it, turns away and crosses into the arched SIDE PASSAGE on the left -- whose inside (floor, wall courses, a torch) is seen through the arch and into which it fades before the wall beyond would hide it -- and only then does the door fold back. Creatures and torches beyond the door's plane are drawn under it (`_door_plane`). Only the FAR jambs are drawn: the near ones face away. (A diorama from above was tried and was "a poor man's replacement".)
+Made up, never the board: the menu also opens mid-game.
