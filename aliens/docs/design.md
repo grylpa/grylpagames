@@ -981,6 +981,12 @@ sized to `screen_size` it stopped there and left a band of the clear color (2026
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): an alien night (violet to teal, stars twinkling slowly, a ringed planet and two moons shaded as lit spheres to match the 3-D saucer -- flat circles did not); a flying saucer hangs high, lights chasing round its rim, letting the game's own aliens (alien.gd, each different) drift down a beam of light, turning gently, to a gate's glowing boarding pad on a dark deck, where two larger aliens wait.
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
+2026-11-17 (it was a drawn picture; kept in the private repo's `tmp/aliens_2d_backup.gd`): A SPACEPORT GATE ON AN
+ALIEN WORLD AT NIGHT. In 2-D behind: the violet-to-teal sky, twinkling stars, a ringed planet and two moons. The world,
+baked with a CLEAR sky (`_bake_alpha`; `menu_port.webp`, `menu_port_d.webp`): dark violet-teal rocky ground with
+craters, rock spires on the horizon, GATE 7 (two pylons with light strips and a crossbar of bulbs), the round boarding
+pad with a glowing ring and chevrons, antenna masts with red lamps, cargo crates. Live in 3-D: a FLYING SAUCER of
+brushed metal under a glass dome, hovering and turning, its rim lights chasing, and a translucent beam down to the pad.
+The game's own aliens (alien.gd, 2-D) drift down the beam, placed from its 3-D path (`screen_of`), and two wait on the
+pad; rings of light run down the beam. Made up, never the board.

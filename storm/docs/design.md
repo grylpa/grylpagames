@@ -988,16 +988,14 @@ clip-art furniture in them. Now:
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`; the
-shared `main_menu.gd` keeps only a slim panel at the foot): the house at night in the storm, in depth --
-storm-blue sky with three layers of soft clouds drifting (lit underneath in a flash), a far curtain of
-fainter rain, rolling hills; THE HOUSE large (sized from the room between the name and the ground -- from
-the strip below the horizon it came out a squat bungalow), two storeys lit on the left by the porch lamp
-and shaded to the right, a shingled roof with an overflowing gutter dripping, a round attic window, three
-curtained windows lit warm (a figure passing behind one), a loose shutter swinging in the wind, a porch
-on posts with steps, a downspout gushing into a bucket, the chimney's smoke torn sideways; a bending
-tree, a picket fence open at the path, stepping stones, the windows' reflections in the wet ground,
-puddles rippling, rain splashing, leaves blowing across; lightning every 4.5-8 s (the first at 1.4 s) with
-a forked bolt behind the roof, the scene whitened. Glows are many faint discs (`_soft_glow`), never visible
-rings. "STORM" in storm-blue light, white in a flash. The first version (one storey, plain) was "a perfect
-concept but too plain" (the user). Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
+2026-11-17 (the front-on 2-D drawing was "flat"; it is kept in the private repo's `tmp/storm_2d_backup.gd`): THE
+HOUSE AT NIGHT IN THE STORM. Two storeys of painted clapboard under a shingled gable roof with a brick chimney, white
+trim, curtained windows lit warm, a porch on posts with steps and its lamp, a gutter and a downspout to a bucket,
+stepping stones, a picket fence, a bare tree bent by the wind, puddles. Live in 3-D: a loose shutter swinging in the
+gusts (eased) and a figure passing behind a curtain. The SKY is 2-D BEHIND the house (`_paint`): storm blue, layered
+clouds drifting and lit beneath in a flash, a forked bolt behind the roof, a far curtain of rain, hills -- possible
+because the house is baked with a CLEAR sky (`_bake_alpha`; `make_menu_bake.gd` keeps the alpha). Over it, 2-D
+(`_paint_top`, placed by `screen_of` from the house's real points): the near rain, the gutter dripping, the downspout
+gushing, the chimney's smoke torn sideways, rings in the puddles, leaves blowing, and in a flash the whole scene
+whitened. One picture per platform (`menu_house.webp`, `menu_house_d.webp`). Made up, never the board.

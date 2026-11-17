@@ -191,3 +191,13 @@ staircase as Pinpoint's flash (`_adapt_pace` in `level.gd`, its own copy).
 Because the staircase settles a player near 80% right wherever the time limit is what holds them back,
 every level's `pass_pct` is AT MOST 75: a bar at 80% or more would fail a player for playing exactly where
 the game puts them.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): A CARD TABLE UNDER
+A LAMP -- green felt with a fine nap, a pool of warm light, the padded rim at the sides -- and the game's dino cards
+(the shared zig card) lying scattered on it at easy angles (`LAYOUT`, not a grid), each breathing a little; among
+them, far apart, two that are the same. Every 7 s the couple finds itself: both glow, rise off the felt (a longer,
+softer shadow), slide together side by side to the middle, hold under a gold ring, and settle back to where they
+lay. The felt is a still layer (baked: `menu_still_0_<m|d>.webp`, `devtools/make_menu_stills.gd`); the cards are
+made three a frame and their photos load on threads, each fading in as it arrives. Made up, never the board.

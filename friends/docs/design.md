@@ -306,3 +306,15 @@ for Witness, Pinpoint, Lineup, Glimpse, Friends and Moving Cards, each in its ow
 answer (a rising two-note chime), `swoosh` = a wrong one (a soft low note), and `ambient_audios` holds
 one STEADY loop (`friends_ambient.ogg`: an EVENING STROLL -- a far town murmur, cars passing now and then, a mellow horn far off, blackbirds answering across the street, a breeze in the leaves; made by `devtools/make_ambient_sounds.py`. It was a pad on hiss, which the user found bad). They replaced a heavy bell, an
 arcade coin, a swoosh and three stock ocean-wave loops picked at random.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): AN EVENING STROLL
+IN THE PARK -- a dusk sky (deep blue, violet, a warm band at the horizon, the low sun's glow), a far skyline with a
+few lit windows, a gravel path running away between lawns, trees along both sides and lamps just lit, each with a
+pool of light on the path. Up the path toward you come the game's people on their PHOTO cards (the shared card's
+photo style): small and dim in the distance, growing as they come (the game's arrivals grow too), a walking bob,
+veering off to the side as they pass; three on the path at once (`WALK_S` 9 s). A FRIEND has a first name under the
+photo, and as they come near a "Hi, Name!" bubble rises beside their head; a stranger walks by unnamed and
+unhailed (`FRIEND_OF`). The park is a still layer (baked); the walkers are live, their photos loaded on threads.
+Made up, never the board.

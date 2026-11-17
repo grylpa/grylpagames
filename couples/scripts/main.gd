@@ -120,6 +120,10 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
 
+# the main menu's poster (main_menu.gd asks the game for one): dino cards on a card table, the identical pair finding each other
+func menu_backdrop() -> Control:
+	return preload("res://couples/scripts/menu_world.gd").new()
+
 func show_main_menu() -> void:
 	game.stop_sound("ambient")
 	main_menu.show_continue_and_start_new(false)

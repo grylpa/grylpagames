@@ -111,6 +111,10 @@ func _restore_tutorial_globals() -> void:
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
 
+# the main menu's poster (main_menu.gd asks the game for one): a country road at night, a truck seen by its headlights
+func menu_backdrop() -> Control:
+	return preload("res://delemfp/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	main_menu.show()
 	$Level.hide()

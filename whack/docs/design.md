@@ -169,6 +169,25 @@ One slider entry:
 
 ---
 
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: a
+WHACK-A-MOLE STALL at a fair at night -- the game's own board is a fairground whack-a-mole box, so the poster is
+the stall it stands in (a shooting gallery came first: "why display a shooting range when whack is actually a
+whack-a-mole?", the user). A booth with red-and-white striped sides and posts, a striped awning with a scalloped
+valance, WIN A PRIZE on the header in a frame of chasing bulbs, a back wall of deep blue with gold stars and a
+shelf of plush prizes, bears hung on the sides' fronts. In it THE TABLE: a turf top inside a striped rail, six
+burrows ringed with soil, a varnished body with striped panels and a lit strip. The game's own DOMED BUTTONS pop
+out of the burrows throwing clods of soil -- the real ones red with the white center dot, the decoys blue
+without it -- and a big wooden MALLET (brass-banded head, dark grip) swings down on each real one (a burst of
+stars, the button knocked down), lifts and travels to the next, never touching a decoy, which sinks back on its
+own (`HIT_EVERY` 1.35 s). The neighbor stalls and strings of bulbs show at the sides.
+The booth, the table's body and the fair are baked; the turf top (the buttons come up THROUGH it), burrows,
+buttons, soil, mallet, stars, bulbs, the sides and the bears are live. ONE PICTURE PER PLATFORM
+(`menu_booth.webp` for a phone, `menu_booth_d.webp` for a desktop; `devtools/make_menu_bake.gd ... mobile|desktop`):
+a desktop's menu leaves the poster a short band, so its camera stands further back and sees the whole stall --
+with the phone's camera the panel hid the table. Made up, never the board.
+
 ## Shared System Notes
 
 See `docs/scores_and_charts.md` for details on:

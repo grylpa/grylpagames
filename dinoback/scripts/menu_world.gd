@@ -1,21 +1,19 @@
 extends "res://scripts/menu_poster.gd"
 
 # DINO N-BACK'S OPENING POSTER (main.gd menu_backdrop(); see scripts/menu_poster.gd): a TRAIL of the game's
-# own cards (the shared zig-framed card) winding back into the distance over the darkened dino backdrop --
+# own cards (the shared zig-framed card) winding back into the distance along a trail through a valley at sunset --
 # the newest large at the front, each one before it smaller and dimmer, further along the trail. Every few
 # seconds a new card arrives at the front and the whole trail steps back one place; and when the new card
 # is the same as the one N back, a golden thread of light joins the two, both glowing -- "is this the card
 # from N back?". Made up, never the board.
 
 const CARD: GDScript = preload("res://shared/scripts/card.gd")
-const BG: String = "res://art/dinos/bk1.jpg"
 const N_BACK: int = 2
 const STEP: float = 1.1          # a card every 1.1 s (2.6 and then 1.6 were "too long" a pause, the user)
 const SHOWN: int = 6
 # the stream of pictures; where a card repeats the one two before it, the thread shows
 const STREAM: Array = [3, 14, 3, 21, 8, 21, 11, 27, 11, 19, 5, 19]
 
-var _bg: TextureRect = null
 var _layer: Node2D = null
 var _cards: Array = []          # one node per slot, re-dressed as the trail steps
 var _fx: Control = null
@@ -23,14 +21,9 @@ var _under: Control = null
 var _dressed: int = -1
 
 func _setup() -> void:
-	_bg = TextureRect.new()
-	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_bg.modulate = Color(0.26, 0.25, 0.30)
-	if ResourceLoader.exists(BG):
-		_bg.texture = load(BG)
-	add_child(_bg)
+	# THE VALLEY (a still layer, baked): the trail of cards stands in a world now, not on a darkened backdrop
+	# (the user saw this poster as sparse and dull)
+	add_still(func(d: Control) -> void: _draw_valley(d))
 	# the link between a matching pair is drawn UNDER the cards: it rises from behind one and sinks behind
 	# the other, so it never lies across a picture
 	_under = Control.new()
@@ -59,6 +52,14 @@ func _tex(n: int) -> Texture2D:
 	var p: String = "res://art/dinos/dino%d.jpg" % n
 	return load(p) if ResourceLoader.exists(p) else null
 
+# a card's width at the front: a share of the screen's width, and no more than the band's height allows (a desktop's
+# short band made them crowd each other)
+func _card_w() -> float:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
+	var top: float = 240.0 if mobile else 160.0
+	return minf(full.x * 0.19, (bottom - top) * 0.30)
+
 # a place along the trail: 0 the front, 1 one back, ... (fractions between), on screen
 func _trail(pos: float) -> Dictionary:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
@@ -68,18 +69,16 @@ func _trail(pos: float) -> Dictionary:
 	var depth: float = pow(0.72, pos)                    # each card back is 72% the size of the one in front
 	# an S across the screen: the front at the lower left, round to the right, back toward the left far off
 	var x: float = full.x * (0.5 + 0.27 * sin(pos * 0.95 - 0.9))
-	var front_y: float = bottom - full.x * 0.19 * 1.42 * 0.75
+	var front_y: float = bottom - _card_w() * 1.42 * 0.75
 	var y: float = lerpf(front_y, top + 40.0, 1.0 - pow(1.0 - u, 1.8))
 	return {"p": Vector2(x, y), "s": depth, "a": clampf(1.0 - u * 0.85, 0.0, 1.0)}
 
 func _tick(_delta: float) -> void:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	_bg.position = Vector2.ZERO
-	_bg.size = full
 	var n: int = int(t / STEP)
 	var u: float = fmod(t, STEP) / STEP
 	var shift: float = smoothstep(0.0, 0.40, u)        # the trail steps back in the first part of a beat
-	var w: float = full.x * 0.19
+	var w: float = _card_w()
 	for k in _cards.size():
 		var c: Node2D = _cards[k]
 		var idx: int = n - k + 1                           # the picture this slot shows
@@ -117,6 +116,20 @@ func _draw_fx(d: Control) -> void:
 # it -- fading in as the new card settles and out before the next (the user: the link was the right idea,
 # drawn badly as a flat line; a gold frame round the two instead was "super ugly")
 func _draw_link(d: Control) -> void:
+	# each card on its little wooden post, planted at the trail's edge (drawn under the card)
+	for k in _cards.size():
+		var c: Node2D = _cards[k]
+		if c.modulate.a <= 0.02:
+			continue
+		var h: float = float(c.call("card_height")) * c.scale.y
+		var foot: Vector2 = c.position + Vector2(0.0, h).rotated(c.rotation)
+		var post_l: float = 26.0 * c.scale.y
+		var pw: float = maxf(2.0, 7.0 * c.scale.y)
+		d.draw_set_transform(foot + Vector2(0.0, post_l), 0.0, Vector2(1.0, 0.3))
+		d.draw_circle(Vector2.ZERO, pw * 2.2, Color(0, 0, 0, 0.35 * c.modulate.a))
+		d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		d.draw_rect(Rect2(foot + Vector2(-pw * 0.5, -h * 0.4), Vector2(pw, post_l + h * 0.4)), Color(0.36, 0.24, 0.14, c.modulate.a))
+		d.draw_rect(Rect2(foot + Vector2(-pw * 0.5, -h * 0.4), Vector2(pw * 0.35, post_l + h * 0.4)), Color(0.50, 0.36, 0.22, c.modulate.a))
 	var n: int = int(t / STEP)
 	var u: float = fmod(t, STEP) / STEP
 	var front_idx: int = n + 1
@@ -156,6 +169,126 @@ func _draw_link(d: Control) -> void:
 		for g in 4:
 			d.draw_circle(sp, (9.0 - 2.0 * float(g)) * tw, Color(1.0, 0.95, 0.80, 0.10 * a))
 		d.draw_circle(sp, 2.0 * tw, Color(1, 1, 1, a))
+
+# THE VALLEY at sunset: a warm sky with the low sun, three ranges of hazy hills, a smoking volcano, a long-necked
+# dinosaur on the far ridge, palms and cycads, the grassy floor, and the dirt trail winding back along the cards' way,
+# ferns framing the foot
+func _draw_valley(d: Control) -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
+	var far_p: Vector2 = Vector2(_trail(float(SHOWN))["p"])
+	var horizon: float = far_p.y + 6.0
+	# the sky
+	var bands: Array = [[0.0, Color(0.20, 0.12, 0.30)], [0.5, Color(0.60, 0.28, 0.30)], [0.85, Color(0.98, 0.58, 0.30)], [1.0, Color(1.0, 0.82, 0.50)]]
+	for k in bands.size() - 1:
+		var y0: float = horizon * float(bands[k][0])
+		var y1: float = horizon * float(bands[k + 1][0])
+		d.draw_polygon(PackedVector2Array([Vector2(0, y0), Vector2(full.x, y0), Vector2(full.x, y1), Vector2(0, y1)]),
+			PackedColorArray([bands[k][1], bands[k][1], bands[k + 1][1], bands[k + 1][1]]))
+	var sun: Vector2 = Vector2(full.x * 0.30, horizon - 26.0)
+	for g in 14:
+		d.draw_circle(sun, 150.0 - float(g) * 10.0, Color(1.0, 0.80, 0.45, 0.035))
+	d.draw_circle(sun, 30.0, Color(1.0, 0.92, 0.70))
+	# the volcano at the right, its smoke leaning away, a glow at its mouth
+	var vb: float = horizon + 6.0
+	var vx: float = full.x * 0.84
+	d.draw_colored_polygon(PackedVector2Array([Vector2(vx - 150.0, vb), Vector2(vx - 22.0, vb - 104.0), Vector2(vx + 18.0, vb - 104.0), Vector2(vx + 160.0, vb)]), Color(0.32, 0.18, 0.22))
+	d.draw_colored_polygon(PackedVector2Array([Vector2(vx - 22.0, vb - 104.0), Vector2(vx + 18.0, vb - 104.0), Vector2(vx + 8.0, vb - 94.0), Vector2(vx - 12.0, vb - 95.0)]), Color(1.0, 0.45, 0.20, 0.8))
+	for k2 in 9:
+		var su: float = float(k2) / 8.0
+		d.draw_circle(Vector2(vx - 2.0 + su * su * 80.0, vb - 112.0 - su * 70.0), 10.0 + su * 20.0, Color(0.40, 0.30, 0.34, 0.45 * (1.0 - su * 0.6)))
+	# three ranges of hills, nearer ones darker and greener
+	for r in 3:
+		var col: Color = [Color(0.48, 0.30, 0.36), Color(0.30, 0.26, 0.24), Color(0.18, 0.22, 0.14)][r]
+		var base_y: float = horizon + float(r) * 18.0
+		var pts: PackedVector2Array = PackedVector2Array([Vector2(0.0, full.y)])
+		for k3 in 33:
+			var x: float = full.x * float(k3) / 32.0
+			pts.append(Vector2(x, base_y - (20.0 + 14.0 * float(2 - r)) * (0.5 + 0.5 * sin(float(k3) * (0.45 + 0.2 * float(r)) + float(r) * 2.0))))
+		pts.append(Vector2(full.x, full.y))
+		d.draw_colored_polygon(pts, col)
+	# a long-necked dinosaur on the far ridge, grazing, in silhouette
+	var dn: Vector2 = Vector2(full.x * 0.58, horizon + 4.0)
+	var dk: Color = Color(0.22, 0.14, 0.18)
+	d.draw_set_transform(dn + Vector2(0.0, -14.0), 0.0, Vector2(1.6, 0.8))
+	d.draw_circle(Vector2.ZERO, 16.0, dk)
+	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var neck: PackedVector2Array = PackedVector2Array()
+	for k4 in 9:
+		var nu: float = float(k4) / 8.0
+		neck.append(dn + Vector2(16.0 + nu * 40.0, -18.0 - sin(nu * 2.2) * 46.0))
+	d.draw_polyline(neck, dk, 6.0, true)
+	d.draw_circle(neck[8] + Vector2(4.0, 2.0), 5.0, dk)
+	d.draw_polyline(PackedVector2Array([dn + Vector2(-24.0, -12.0), dn + Vector2(-60.0, -4.0), dn + Vector2(-80.0, 0.0)]), dk, 4.0, true)
+	for lx in [-14.0, -4.0, 10.0, 20.0]:
+		d.draw_line(dn + Vector2(lx, -8.0), dn + Vector2(lx, 4.0), dk, 5.0)
+	# the valley floor, darkening toward you
+	var floor_top: float = horizon + 40.0
+	d.draw_polygon(PackedVector2Array([Vector2(0, floor_top), Vector2(full.x, floor_top), Vector2(full.x, full.y), Vector2(0, full.y)]),
+		PackedColorArray([Color(0.26, 0.30, 0.14), Color(0.26, 0.30, 0.14), Color(0.10, 0.13, 0.06), Color(0.10, 0.13, 0.06)]))
+	for k5 in 700:
+		var gx: float = h01(k5 + 50) * full.x
+		var gy: float = floor_top + h01(k5 + 60) * (full.y - floor_top)
+		var depth: float = (gy - floor_top) / maxf(1.0, full.y - floor_top)
+		d.draw_line(Vector2(gx, gy), Vector2(gx + (h01(k5 + 70) - 0.5) * 6.0, gy - 3.0 - 12.0 * depth), Color(0.36, 0.44, 0.18, 0.35), 1.0)
+	# THE TRAIL along the cards' way: one smooth strip from far to near, wider as it comes, a darker verge, a few
+	# stones (drawn as overlapping ovals it read as a caterpillar)
+	var steps: int = 48
+	var left: PackedVector2Array = PackedVector2Array()
+	var right: PackedVector2Array = PackedVector2Array()
+	var left_v: PackedVector2Array = PackedVector2Array()
+	var right_v: PackedVector2Array = PackedVector2Array()
+	var wpx: float = _card_w()
+	for k6 in steps:
+		var pos: float = float(SHOWN) * (1.0 - float(k6) / float(steps - 1))
+		var tr_: Dictionary = _trail(pos)
+		var sc: float = float(tr_["s"])
+		var gp: Vector2 = Vector2(tr_["p"]) + Vector2(0.0, wpx * 0.68 * sc + 26.0 * sc)
+		var rw: float = 64.0 * sc + 5.0
+		left.append(gp - Vector2(rw, 0.0))
+		right.append(gp + Vector2(rw, 0.0))
+		left_v.append(gp - Vector2(rw + 3.0 + 4.0 * sc, 0.0))
+		right_v.append(gp + Vector2(rw + 3.0 + 4.0 * sc, 0.0))
+		if k6 % 6 == 3:
+			d.set_meta("stone_%d" % k6, gp + Vector2((h01(k6) - 0.5) * rw * 1.4, 0.0))
+	for pair in [[left_v, right_v, Color(0.26, 0.20, 0.12)], [left, right, Color(0.60, 0.47, 0.30)]]:
+		var l: PackedVector2Array = pair[0]
+		var r: PackedVector2Array = pair[1]
+		# as quads, segment by segment (the strip bends, so one polygon could fold over itself)
+		for k7 in steps - 1:
+			d.draw_colored_polygon(PackedVector2Array([l[k7], l[k7 + 1], r[k7 + 1], r[k7]]), pair[2])
+	for k8 in steps:
+		if d.has_meta("stone_%d" % k8):
+			var sp: Vector2 = d.get_meta("stone_%d" % k8)
+			var ss: float = float(_trail(float(SHOWN) * (1.0 - float(k8) / float(steps - 1)))["s"])
+			d.draw_circle(sp, 3.0 * ss + 1.0, Color(0.50, 0.46, 0.42))
+	# palms and cycads on the slopes, smaller far off
+	for k9 in 7:
+		var px: float = full.x * (0.06 + 0.88 * h01(k9 + 80))
+		var py: float = floor_top + (bottom - floor_top) * (0.10 + 0.35 * h01(k9 + 90))
+		var ps: float = 0.4 + 0.8 * (py - floor_top) / maxf(1.0, bottom - floor_top)
+		var trunk_top: Vector2 = Vector2(px + 10.0 * ps, py - 90.0 * ps)
+		d.draw_line(Vector2(px, py), trunk_top, Color(0.24, 0.16, 0.10), 6.0 * ps)
+		for f in 7:
+			var fa: float = -PI * 0.5 + (float(f) - 3.0) * 0.48
+			var tip: Vector2 = trunk_top + Vector2.from_angle(fa) * 52.0 * ps + Vector2(0.0, 18.0 * ps * absf(float(f) - 3.0) / 3.0)
+			d.draw_line(trunk_top, trunk_top.lerp(tip, 0.5) + Vector2(0.0, -6.0 * ps), Color(0.16, 0.30, 0.12), 5.0 * ps)
+			d.draw_line(trunk_top.lerp(tip, 0.5) + Vector2(0.0, -6.0 * ps), tip, Color(0.16, 0.30, 0.12), 3.5 * ps)
+	# FERNS at the foot, framing
+	for k8 in 10:
+		var side: float = -1.0 if k8 < 5 else 1.0
+		var fx: float = (full.x * 0.06 if side < 0.0 else full.x * 0.94) + side * 30.0 * h01(k8 + 100) - side * float(k8 % 5) * 26.0
+		var fy: float = bottom + 20.0
+		var fl: float = 90.0 + 60.0 * h01(k8 + 110)
+		var lean: float = -side * (0.35 + 0.4 * h01(k8 + 120))
+		var stem_end: Vector2 = Vector2(fx, fy) + Vector2.from_angle(-PI * 0.5 + lean) * fl
+		d.draw_line(Vector2(fx, fy), stem_end, Color(0.10, 0.22, 0.08), 3.0)
+		for lf in 10:
+			var lu: float = float(lf + 1) / 11.0
+			var lp: Vector2 = Vector2(fx, fy).lerp(stem_end, lu)
+			var ll: float = (1.0 - lu) * 26.0 + 6.0
+			for sgn in [-1.0, 1.0]:
+				d.draw_line(lp, lp + Vector2.from_angle(-PI * 0.5 + lean + sgn * 1.1) * ll, Color(0.14, 0.30, 0.10), 2.4)
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	title("Dino N-Back", "Does this card match the one N cards back?", Color(0.66, 0.92, 0.36), Color(0.08, 0.14, 0.04),

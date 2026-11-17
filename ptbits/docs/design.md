@@ -203,3 +203,19 @@ games): a wooden chime for a ball in the right basket, a low wooden note for wro
 The dark cup interior (`arena_art.gd` `basket_parts` "cavity") starts AT the mouth. It was carried 30 px
 above it "so the cup is open at the top", which stood a black upside-down trapezoid up out of every
 basket into the arena; the dark interior and the shade under the rim already read as an open cup.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: AN OLD
+ARCADE CABINET in a dim arcade at night -- a varnished wooden case on turned legs, a lit marquee (PLAY 5¢) with
+bulbs, a brass coin plate and slot, a checkered floor, a neighbor cabinet's glow at each side. Behind its glass
+(soft streaks of light), the game in the cabinet's own world: the game's deep violet field with faint seams and
+guide arcs, steel side walls, a warm orange bumper in each lower corner, a brass funnel at the top dropping glass
+marbles one at a time, four glazed cups in the game's colors on brackets on the side walls, and at the foot the
+four TOOLS -- a colored disc (turned a little so it reads as a disc, with a brass ring) on a neck to its loop and a
+rod into the slot. As each marble falls, the tool of its color rises to meet it, lofts it up and over into its
+cup (the marble goes INTO the cup, which is open at the top), the cup's rim lights, and the tool sinks back
+(`PERIOD` 2.7 s). The case, room and field are baked (`ptbits/art/menu_cabinet.webp`); the marbles, tools, cups,
+funnel, glass and the panel under the glass (the rods vanish into it) are live. Made up, never the board: a
+physical cabinet, not the arena.
+

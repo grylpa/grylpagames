@@ -381,3 +381,13 @@ staircase as Pinpoint's flash (`_adapt_pace` in `level.gd`, its own copy).
 Because the staircase settles a player near 80% right wherever the time limit is what holds them back,
 every level's `pass_pct` is AT MOST 75: a bar at 80% or more would fail a player for playing exactly where
 the game puts them.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): FIREFLIES IN A
+MEADOW AT NIGHT -- a deep blue sky with stars and a low moon's halo, a dark tree line in two rows, mist along its
+foot, moonlight lying on the meadow, tall grass and seed heads black at the foot. 44 fireflies drift and blink round
+their own places; every 8 s they gather (each at its own pace) onto points spread along a CHARACTER's strokes
+(`GLYPHS`: A, 7, K, 4, R, E, Z, slightly irregular), hold it glowing together, and drift apart; the next forms
+somewhere else. Dots that make a character, which is the game. The meadow is a still layer (baked); the fireflies
+are live, each a small glow picture. Made up, never the board.

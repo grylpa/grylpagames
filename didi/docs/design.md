@@ -313,6 +313,15 @@ and nothing in the background should pull it.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): a STAKEOUT from a high window at night, through glass streaming with rain (drops sliding down with trails, a dark frame and cross bar round the view): a street corner below -- a brick building with two upper windows over the old building only (stone sills and lintels, glazing bars, one dark with the sky in its glass, one lit with red curtains -- they were flat black boxes, two of them behind the sign), a deep doorway (a stone surround, a panelled door standing open into the dark, a step), the HOTEL'S LOBBY seen through its glass front (`_hotel_front`: a warm back wall under a chandelier, a reception desk with a lamp and a clerk, a potted palm, a doorway to the stairs, a checked floor; dark mullions, a pair of glass doors with brass bars, rain streaks on the glass, a striped green awning with a scalloped edge, its light spilling on the pavement -- it was one flat orange slab) under a steady neon HOTEL sign (a slow breath, never a flicker), a lamp pouring a cone of light, a wet pavement, the road mirroring the lamp and the sign in soft streaks, fine rain falling; the game's own people under umbrellas (`agent.gd`, clipped to the glass) walking along it, evenly spaced, each at its own easy pace that surges a little, their FEET stepping (`agent.gd` `step_phase` / `step_dir`, unused in the game: the legs scissor and the forward foot lifts, the pace matched to the foot's travel so a planted foot does not slide), every step lifting the umbrella a touch and swaying it, the canopy turning in the hand (they slid at first, "as if on conveyor belts", then stepped without moving their feet); and every 6 s (the first at 1.4 s) lightning, in which the LOOKOUT stands out in the doorway, yellow coat under the clear umbrella, INVISIBLE between flashes (faintly shown, it read as a phantom umbrella). Not the game's square.
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
+2026-11-17 (it was a drawn picture; kept in the private repo's `tmp/didi_2d_backup.gd`): a STAKEOUT from a high window
+at night. The street below, baked, one picture per platform (`menu_street.webp`, `menu_street_d.webp`): an old brick
+building with a deep doorway (a stone surround, a door standing open into the dark) and two upper windows (one lit,
+curtained), the HOTEL beside it -- its lobby lit behind tall glass with mullions and brass handles (a warm back wall,
+a chandelier, the desk, a palm), a striped awning with puffed scallops, the neon HOTEL sign -- stone pavement, the
+kerb, the wet road, a lamp post pouring light. In 2-D over it: the game's own people under umbrellas (agent.gd)
+walking along the pavement, each keeping its own easy pace, their feet stepping (placed from the 3-D pavement); the
+lamp and the sign mirrored in the wet road; fine rain falling; then the glass streaming with rain inside the window's
+dark frame and cross bar, the dark room round it. Every 6 s (the first at 1.4 s) lightning whitens the street, and in
+its flash the LOOKOUT stands out in the doorway, yellow coat under the clear umbrella, INVISIBLE between flashes. Not
+the game's square. Made up, never the board: the menu also opens mid-game.
