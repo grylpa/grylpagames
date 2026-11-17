@@ -310,3 +310,9 @@ one loop (`didi_ambient.ogg`, -6 dB: harp arpeggios in D lydian, a glass bell ph
 arcade coin, a swoosh and three stock ocean-wave loops picked at random.
 The ambient is calm for the same reason the backdrop is featureless: this game measures attention,
 and nothing in the background should pull it.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): a STAKEOUT from a high window at night, through glass streaming with rain (drops sliding down with trails, a dark frame and cross bar round the view): a street corner below -- a brick building with upper windows (a few lit), a doorway, a shop window glowing under a steady neon HOTEL sign (a slow breath, never a flicker), a lamp pouring a cone of light, a wet pavement, the road mirroring the lamp and the sign in soft streaks, fine rain falling; the game's own people under umbrellas (`agent.gd`, clipped to the glass) walking along it, evenly spaced, each at its own easy pace that surges a little, their FEET stepping (`agent.gd` `step_phase` / `step_dir`, unused in the game: the legs scissor and the forward foot lifts, the pace matched to the foot's travel so a planted foot does not slide), every step lifting the umbrella a touch and swaying it, the canopy turning in the hand (they slid at first, "as if on conveyor belts", then stepped without moving their feet); and every 6 s (the first at 1.4 s) lightning, in which the LOOKOUT stands out in the doorway, yellow coat under the clear umbrella, near invisible between flashes. Not the game's square.
+Made up, never the board: the menu also opens mid-game.

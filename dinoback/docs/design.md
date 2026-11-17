@@ -342,3 +342,9 @@ staircase as Pinpoint's flash (`_adapt_pace` in `level.gd`, its own copy).
 Because the staircase settles a player near 80% right wherever the time limit is what holds them back,
 every level's `pass_pct` is AT MOST 75: a bar at 80% or more would fail a player for playing exactly where
 the game puts them.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): a TRAIL of the game's own cards (the shared zig-framed card, small: 19% of the width) winding in an S back into the distance over the dino backdrop darkened under a vignette, each card 72% the size of the one in front; every 1.6 s a new card slides in at the front and the trail steps back (at 2.6 s the pause was too long); when the new card is the same as the one N (2) back, a LUMINOUS ARC joins them (`_draw_link`, drawn UNDER the cards so it rises from behind one and sinks behind the other): a quadratic curve bowing out to the side, a wide soft glow and a bright fine core both tapering to nothing at the ends, sparkles running along it both ways, fading in as the new card settles and out before the next. (A flat yellow line was the right idea drawn badly; a gold frame round the two instead was "super ugly".) The stream starts on a match, so it shows at once.
+Made up, never the board: the menu also opens mid-game.

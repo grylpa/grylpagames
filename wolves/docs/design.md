@@ -493,6 +493,21 @@ shows more than one screen of world and the lawn stopped short of the foot (2026
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): the clearing seen from above -- a lawn drawn ONCE on its own layer (lit from the top left, soft patches, ~4200 blades in three greens, clover, small flowers: the user asked for better grass under the sheep), forest.gdshader's woods closing in round it (tile 15) -- with the game's own animals (beast_art.gd, under a Node2D scaled 2.2): a flock grazing, the collie circling (every turn eased, `_turn`, at most 2.6 rad/s), two wolves creeping out of the trees until the dog dashes at them and they slink back (a 9 s cycle).
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`; the
+shared `main_menu.gd` keeps only a slim panel at the foot): a GLADE seen from above in evening light --
+a lawn drawn once (lit from the top left, soft patches, ~4200 blades in three greens, clover, small
+flowers) and THE WOODS drawn once round an irregular glade (`_draw_woods`: broadleaf crowns built of many small LEAF CLUMPS lit by their place in the crown, and every
+fourth tree a CONIFER from above, a spiky star in three tiers -- smooth discs were "green balls"; shadows cast to the bottom right; an old dry-stone wall along
+part of the edge; a warm-to-cool light over all) -- with the game's own animals (beast_art.gd, under a
+Node2D scaled 2.2): a flock GRAZING IN STEPS (a sheep stands, then takes a few quick steps forward along its heading, which
+turns a little with every walk, so it moves only the way it faces and traces a small loop; each with a firm
+contact shadow -- drifting smoothly they floated "like clouds", steered like the dog they turned on the spot), the collie circling, two wolves creeping out of the trees until the dog dashes at them, stops short and BARKS (its head
+jerking with each bark, arcs of sound going out ahead of it) and they BOLT back into the trees, fast,
+kicking up dust (a 9 s cycle; the first version did not look like the dog scared them). The dog and the
+wolves at their NATURAL proportions: the game's girth (`BEAST_GIRTH`, stockier for a phone's small board)
+is taken off with a uniform scale. THE ANIMALS STEER (`_steer`): each turns toward the point it wants (at most 3.2 rad/s)
+and walks forward along its own heading, slowing almost to a stop while facing away -- moved along a path
+with their turns eased separately, they crabbed sideways through turns. The dog never goes through the
+flock (its goal is pushed out to the flock's edge).
+The first version stood in the game's forest shader, whose square clearing read like a board. The glade shows
+at once; the animals fade in when their atlases exist (the menu never holds up). Made up, never the board: the menu also opens mid-game.

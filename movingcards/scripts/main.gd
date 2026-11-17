@@ -39,6 +39,10 @@ func _ready() -> void:
 		game.show_instructions(self)
 		MovingCardsG.save_settings()
 
+# the main menu's poster (main_menu.gd asks the game for one): a carousel of cards
+func menu_backdrop() -> Control:
+	return preload("res://movingcards/scripts/menu_world.gd").new()
+
 func show_main_menu() -> void:
 	main_menu.show()
 	$Level.hide()

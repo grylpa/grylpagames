@@ -41,18 +41,17 @@ func _ready() -> void:
 		cv = self)
 	add_child(_top)
 
-# SHOWN ONLY ONCE IT IS WHOLE: a poster whose art is rendered after it appears (baked pictures, atlases)
-# says so in `_is_ready()`; until then it is hidden, and then it fades in -- drawn half-made, things popped
-# in or were replaced in front of the player (Tip the Scales' "strange flicker").
-var reveal: float = 0.0
-
-func _is_ready() -> bool:
-	return true
+# SHOWN AT ONCE (the user: "dont allow the initial menu screen to hold up before showing it" -- Wolves,
+# hidden until its animals' pictures were rendered, took a noticeable time to appear): the poster is on
+# screen from its first frame. A PART whose art is rendered after it appears (baked pictures, atlases) is
+# held back and fades in on its own when ready -- drawn half-made it popped or was swapped in front of the
+# player (Tip the Scales' "strange flicker") -- with `fade_in(part_ready, current, delta)`.
+static func fade_in(part_ready: bool, current: float, delta: float) -> float:
+	if part_ready or current > 0.0:
+		return minf(1.0, current + delta * 4.0)
+	return 0.0
 
 func _process(delta: float) -> void:
-	if reveal < 1.0 and (reveal > 0.0 or _is_ready()):
-		reveal = minf(1.0, reveal + delta * 4.0)
-	modulate.a = reveal
 	if is_visible_in_tree():
 		t += delta
 		_tick(delta)

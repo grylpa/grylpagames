@@ -110,6 +110,10 @@ func _restore_tutorial_globals() -> void:
 
 func _exit_tree() -> void:
 	_restore_tutorial_globals()
+# the main menu's poster (main_menu.gd asks the game for one): the rainforest, the silverback and the baby
+func menu_backdrop() -> Control:
+	return preload("res://gorilla/scripts/menu_world.gd").new()
+
 func show_main_menu():
 	game.stop_sound("ambient")
 	main_menu.show()

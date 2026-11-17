@@ -755,3 +755,9 @@ The room is closed by `level.gd` `_draw_rim` along every edge where floor meets 
 floor: since 2026-11-12 the same mossy stone wall as the inner ones, at their thickness, centered on
 the edge (see "Inner walls" / "Outer wall" above). The soft inward shadow (`_draw_wall_shade`) stays
 under it.
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): deep rainforest at dawn from the side, drawn once on a still layer: three layers of foliage built from clusters of pointed leaves (circles read as blobs), each nearer one darker and less hazed, trunks, undergrowth, the forest floor, a mossy log, a soft shade behind the name; over it the game's own silverback (`peripheral_gorilla.gd`, side view; its own clock stopped and its walk cycle driven here, 4.2 rad/s, moving 0.8 body heights per cycle -- its side-view hands and feet swing +-0.2, so that is the pace at which a planted one does not slide (at its game cadence, then at 1.15, it glided) -- its weight rising and settling with each step and its body tilting with the slope; walked round off-screen) on a ROLLING floor (`_ground_at`: a rise and a dip, a mossy lit lip, roots, stones, leaf litter; it was flat) and baby (`baby_gorilla.gd`) sitting on the log beside a bunch of bananas (`banana_art.gd`, its clock set long past arrival -- at age 0 it is transparent); on top shafts of light slanting and breathing, motes, two butterflies, vines swaying, great fronds framing the corners.
+Made up, never the board: the menu also opens mid-game.

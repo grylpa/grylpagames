@@ -9,8 +9,13 @@ extends "res://scripts/menu_poster.gd"
 
 const CARD: GDScript = preload("res://shared/scripts/card.gd")
 const BG: String = "res://art/dinos/bk1.jpg"
-const CARDS: Array = [3, 14, 21, 8, 27, 11, 19]
-const STEP: float = 3.2          # one card rising and settling
+const CARDS: Array = [3, 14, 21, 8, 27, 11, 19, 5, 24, 16, 9, 30, 12, 26, 7]
+# A TURNING WHEEL (the user: the rising card made "disturbing jumps", and the poster was "too slow and
+# boring"): the cards ride round a great wheel whose hub is below the screen, its upper arc showing, turning
+# steadily; the card passing the top grows, lifts and brightens as it goes by. They are spaced so that no
+# two ever overlap, so their stacking never has to change -- nothing can pop.
+const SPACING: float = 0.42       # radians between cards on the wheel
+const SPEED: float = 0.32          # radians a second
 
 var _bg: TextureRect = null
 var _layer: Node2D = null
@@ -21,7 +26,7 @@ func _setup() -> void:
 	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_bg.modulate = Color(0.55, 0.50, 0.46)
+	_bg.modulate = Color(0.42, 0.39, 0.37)
 	if ResourceLoader.exists(BG):
 		_bg.texture = load(BG)
 	add_child(_bg)
@@ -63,34 +68,26 @@ func _tick(_delta: float) -> void:
 	_bg.size = full
 	var top: float = 230.0 if mobile else 150.0
 	var room: float = maxf(120.0, bottom - top)
-	var w: float = minf(full.x * 0.25, room * 0.30)
-	# the hand: the fan's pivot below the cards, the cards spread round it
-	var pivot: Vector2 = Vector2(full.x * 0.5, top + room * 1.05)
-	var radius: float = room * 0.55
+	var w: float = minf(full.x * 0.24, room * 0.26)
+	var radius: float = (w * 1.35) / SPACING * 1.05        # the cards' arc spacing a little over their width
+	var hub: Vector2 = Vector2(full.x * 0.5, top + room * 0.42 + radius)
 	var n: int = _cards.size()
-	var spread: float = deg_to_rad(50.0) + deg_to_rad(3.0) * sin(t * 0.6)
-	var i: int = int(t / STEP) % n
-	var u: float = fmod(t, STEP) / STEP
-	var rise: float = sin(clampf(u / 0.85, 0.0, 1.0) * PI)
 	for k in n:
 		var c: Node2D = _cards[k]
 		c.call("set_width", w)
-		var a: float = lerpf(-spread * 0.5, spread * 0.5, float(k) / float(n - 1))
-		var lift: float = rise if k == i else 0.0
+		var a: float = wrapf(t * SPEED + float(k) * SPACING, -PI, PI)
+		var near_top: float = exp(-pow(a / 0.30, 2.0))
+		var sc: float = 0.82 + 0.48 * near_top
 		var dir: Vector2 = Vector2(sin(a), -cos(a))
-		# a card's origin is its TOP-CENTER, so it is placed to turn about its center
-		var rot: float = a * (1.0 - 0.75 * lift)
-		var sc: float = 1.0 + 0.22 * lift
+		var center: Vector2 = hub + dir * (radius + 26.0 * near_top)
 		var half_h: float = float(c.call("card_height")) * 0.5 * sc
-		var center: Vector2 = pivot + dir * (radius + lift * room * 0.14)
+		var rot: float = a * (1.0 - 0.6 * near_top)
 		c.position = center - Vector2(0.0, half_h).rotated(rot)
 		c.rotation = rot
 		c.scale = Vector2.ONE * sc
-		c.modulate = Color(1, 1, 1).lerp(Color(0.80, 0.78, 0.74), 1.0 - lift) if k != i else Color(1, 1, 1)
-	# the rising card in front of the others, the rest in fan order
-	for k in n:
-		_layer.move_child(_cards[k], k)
-	_layer.move_child(_cards[i], n - 1)
+		c.visible = absf(a) < 1.6
+		c.modulate = Color(0.72, 0.70, 0.68).lerp(Color(1, 1, 1), near_top)
+	# no reordering: no two cards overlap
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	title("Dino", "Swipe to say if you've seen the card already", Color(0.66, 0.92, 0.36), Color(0.08, 0.14, 0.04),
