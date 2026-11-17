@@ -507,7 +507,10 @@ kicking up dust (a 9 s cycle; the first version did not look like the dog scared
 wolves at their NATURAL proportions: the game's girth (`BEAST_GIRTH`, stockier for a phone's small board)
 is taken off with a uniform scale. THE ANIMALS STEER (`_steer`): each turns toward the point it wants (at most 3.2 rad/s)
 and walks forward along its own heading, slowing almost to a stop while facing away -- moved along a path
-with their turns eased separately, they crabbed sideways through turns. The dog never goes through the
-flock (its goal is pushed out to the flock's edge).
+with their turns eased separately, they crabbed sideways through turns. THE DOG HAS ONE CONTINUOUS GOAL (2026-11-17): its own angle round the flock, going on round while circling and
+turning toward the first wolf's side while dashing, at a distance from the ring out to just short of the wolf,
+never inside the flock's edge. It used to have a "keep out of the flock" goal and a "circle" goal that took
+turns every frame near the flock's edge: it stood on the spot turning left and right (the jitter seen on a
+phone), measured as a heading flipping by 3.2 rad/s every frame for seconds at a time.
 The first version stood in the game's forest shader, whose square clearing read like a board. The glade shows
 at once; the animals fade in when their atlases exist (the menu never holds up). Made up, never the board: the menu also opens mid-game.

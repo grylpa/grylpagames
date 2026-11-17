@@ -161,6 +161,11 @@ chalk, knocks or brass. A first version was music (slow harp arpeggios): "not re
 soundscape, a piano trio, chamber music or silence, the user chose the soundscape. Started with the level,
 stopped at the menu (`main.gd`).
 
+**One highlight at a time** (2026-11-17, the user): a picked crate marks the papers naming it, and a tapped
+paper marks its crates, but never both at once. Picking a crate lets a focused paper go; tapping a paper puts a
+picked crate down (`_on_view_input`, `_tap_ticket`). Both used to stay up together, so the board's highlight
+frames contradicted each other.
+
 ## The tutorial (`scripts/tutorial.gd`, in `MainCfg.tutorials`)
 
 The real game on the smallest board (2 colors of 4), its puzzles FIXED (seeded from `TUTORIAL_SEED` in
@@ -179,7 +184,9 @@ The shared menu (`main_menu.gd`, "THE POSTER") gives the screen to `scripts/menu
 `menu_backdrop()`), with only a slim panel at the foot: "Tip the Scales" in cast brass at the top, the pitch
 between two short rules, and THE BALANCE -- a big brass weigh-house scale on the counter (plinth, column,
 a dial whose needle stands up from the beam, pans on chains), two crates on one pan and a crate and a "2"
-weight on the other, rocking as if a crate had just been set down: a damped swing to one side, then to the
+weight on the other, rocking as if a crate had just been set down (drawn HEAVY -- a broad plinth, a thick column and
+beam, big alternating chain links, each part edged in dark (`EDGE`): thinner, it was lost on a phone against
+the engravings and the paneling): a damped swing to one side, then to the
 other (`_beam_angle`, 7 s; each swing starts exactly where the last came to rest -- it jumped at first).
 Behind it THE WALL, in three layers under the balance (`_draw_wall_layer`; the papered wall and the
 dressing drawn once, the view every frame): olive-striped wallpaper with a small gilt motif, aged toward
