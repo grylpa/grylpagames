@@ -26,7 +26,7 @@ func _geom() -> Dictionary:
 	var near_y: float = bottom - (60.0 if mobile else 30.0)
 	return {"full": full, "far": far_y, "near": near_y, "pocket": Vector2(full.x * 0.5, near_y + 6.0)}
 
-func _tick(_delta: float) -> void:
+func _tick(delta: float) -> void:
 	var g: Dictionary = _geom()
 	var full: Vector2 = g["full"]
 	var cycle: float = ROLL + DROP
@@ -69,8 +69,12 @@ func _tick(_delta: float) -> void:
 	for k in 4:
 		if _bottles[k] == null:
 			_bottles[k] = BottleArt.texture(self, k, 256)
+	_bottles_a = fade_in(_bottles_ready(), _bottles_a, delta)
 
-func _is_ready() -> bool:
+# the bottles are rendered a moment in: the room shows at once and they fade in when ready
+var _bottles_a: float = 0.0
+
+func _bottles_ready() -> bool:
 	for b in _bottles:
 		if b == null:
 			return false
@@ -102,11 +106,11 @@ func _paint(full: Vector2, _bottom: float) -> void:
 	var bh: float = 110.0 if mobile else 80.0
 	for k in 4:
 		var tex: Texture2D = _bottles[k]
-		if tex == null:
+		if tex == null or _bottles_a <= 0.0:
 			continue
 		var bx: float = full.x * 0.5 + fw * (-0.9 + 0.55 * float(k)) + (30.0 if k >= 2 else 0.0)
 		var w: float = bh * BottleArt.ASPECT
-		cv.draw_texture_rect(tex, Rect2(bx - w * 0.5, far_y - 14.0 - bh * 0.92, w, bh), false, Color(0.62, 0.58, 0.55))
+		cv.draw_texture_rect(tex, Rect2(bx - w * 0.5, far_y - 14.0 - bh * 0.92, w, bh), false, Color(0.62, 0.58, 0.55, _bottles_a))
 	# the near rail and its pocket: dark leather, its lip catching the light
 	cv.draw_rect(Rect2(0.0, near_y + 14.0, full.x, full.y - near_y), Color(0.24, 0.12, 0.06))
 	cv.draw_line(Vector2(0.0, near_y + 14.0), Vector2(full.x, near_y + 14.0), Color(0.55, 0.32, 0.16), 3.0)

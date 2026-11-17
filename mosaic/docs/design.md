@@ -200,3 +200,9 @@ games): `swap` a tile sliding into place, `solved` a full chime arpeggio for the
 The card before a level is its facts only (rounds, pieces, picture, time per round, rotation, pass
 mark). It used to end with a paragraph on how to play, repeated on every level; that is the
 instructions screen's, which also gained "To pass a level, rebuild it in the last round too."
+
+## The main menu's poster
+
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
+the shared `main_menu.gd` keeps only a slim panel at the foot): A WALL MOSAIC by candlelight: one of the game's own pictures (`MosaicPicture.make("scenery", 4, 4, ...)`) laid in small TESSERAE (`GRID` across; each a slightly uneven square a shade off its neighbor, lit on its upper edges, set in dark grout) inside a border of gold, lapis and terracotta tiles, in an arched stone niche (voussoirs) between two fluted columns, in a wall of stone courses. The sides ("pretty empty", the user): a long banner each side (red and lapis, gold edge and woven diamonds, folds), a candle in an iron sconce below it, an urn with trailing ivy. All of that is drawn once; what moves (`_draw_live`): the FLAMES -- three nested tongues each, their height, width and lean wavering with quick and slow terms, the glow on the wall breathing with them (a flame that only swayed did not "move and flicker like a real flame"); a slow sweep of light across the mosaic with the gold border tiles glinting as it passes; a RIPPLE of light every 3.5 s spreading from a random point through the tesserae; and `LOOSE` (14) tesserae at a time drifting out of the wall, growing as they come toward us, turning, and settling back, their empty places showing the grout. (A puzzle in a gilt frame on a table, its squares swapping, was "do better. much better"; all the pieces flying out and in with long pauses was turned down before that.)
+Made up, never the board: the menu also opens mid-game.

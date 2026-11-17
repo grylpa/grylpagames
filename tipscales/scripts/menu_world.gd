@@ -73,10 +73,9 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_layout.call_deferred()
 
-# SHOWN ONLY ONCE IT IS WHOLE (the user saw "a strange flicker when first seeing the menu"): the crates'
-# painted pictures render a frame or two after the poster appears, and until then the crates on the pans
-# were drawn flat and then replaced. The poster stays hidden until the pictures exist, then fades in.
-var _shown: float = 0.0
+# ON SCREEN AT ONCE (the user: no menu may hold up before it shows): the crates' painted pictures render
+# a frame or two in; until then the crates on the pans are simply not drawn (drawn flat and then swapped,
+# they flickered), so they appear with the screen's first moments
 var _wall_layers: Array = []
 
 func _process(delta: float) -> void:
@@ -85,9 +84,6 @@ func _process(delta: float) -> void:
 		_fg.queue_redraw()
 		if _wall_layers.size() == 3:
 			(_wall_layers[1] as Control).queue_redraw()
-	if not _crate_tex.is_empty() and _shown < 1.0:
-		_shown = minf(1.0, _shown + delta * 4.0)
-	modulate.a = _shown
 
 func _layout() -> void:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
@@ -129,10 +125,36 @@ func _bake() -> void:
 	if _baked_for == _cell or not is_inside_tree():
 		return
 	_baked_for = _cell
-	var crates: Array = []
+	# ALL SIX AT ONCE, in one frame (one after another, a frame each, the crates appeared late)
+	var vps: Array = []
+	var px: Vector2i = Vector2i(maxi(4, int(_cell.x * BAKE_SCALE)), maxi(4, int(_cell.y * BAKE_SCALE)))
 	for r in 3:
 		for variant in 2:
-			crates.append(await _bake_one(CRATE_SHADER, _cell, {"paint": ART.set_color(r), "seed": float(r * 7 + variant * 3 + 1)}))
+			var vp: SubViewport = SubViewport.new()
+			vp.size = px
+			vp.transparent_bg = true
+			vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+			var cr: ColorRect = ColorRect.new()
+			cr.size = Vector2(px)
+			var mat: ShaderMaterial = ShaderMaterial.new()
+			mat.shader = CRATE_SHADER
+			mat.set_shader_parameter("size", _cell)
+			mat.set_shader_parameter("paint", ART.set_color(r))
+			mat.set_shader_parameter("seed", float(r * 7 + variant * 3 + 1))
+			cr.material = mat
+			vp.add_child(cr)
+			add_child(vp)
+			vps.append(vp)
+	await RenderingServer.frame_post_draw
+	var crates: Array = []
+	for vp in vps:
+		var img: Image = (vp as SubViewport).get_texture().get_image()
+		(vp as SubViewport).queue_free()
+		if img != null:
+			img.generate_mipmaps()
+			crates.append(ImageTexture.create_from_image(img))
+		else:
+			crates.append(null)
 	_crate_tex = crates
 	_fg.queue_redraw()
 
@@ -665,4 +687,6 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 	_fg.draw_line(rim + Vector2(-pw * 0.5, 0.0), rim + Vector2(pw * 0.5, 0.0), BRASS_LIGHT, 3.0)
 
 func _crate_on_pan(r: Rect2, row: int, col: int, mask: int, placed: int) -> void:
+	if _crate_tex.is_empty():
+		return
 	ART.draw_crate(_fg, r, _tex(row, col), row, col, COLS, mask if placed == 0 else PUZZLE.bit(placed), 0, placed, 0, 1.0, _serif)

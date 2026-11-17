@@ -65,7 +65,7 @@ func _lay(full: Vector2, bottom: float) -> void:
 	_street.setup(full.x, top + 0.27 * a, float(_lane_y[0]), top + 0.58 * a, top + 0.67 * a, full.y)
 	_street.queue_redraw()
 	# the table NEAR: laid out at 1/ZOOM and drawn at ZOOM, so its cups, hands and lantern are large
-	var zoom: float = 1.75
+	var zoom: float = 2.05
 	var cup_h: float = clampf(0.07 * a, 34.0, 64.0)
 	_table.layout(full.x / zoom, (top + 0.90 * a) / zoom, cup_h, 0.06 * a / zoom, 3)
 	_table.scale = Vector2(zoom, zoom)
@@ -87,20 +87,18 @@ func _tick(delta: float) -> void:
 	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
 	_lay(full, bottom)
 	var now: float = t * 1000.0
-	# the hustler at work: a swap, another, now and then a feint, now and then the ball shown
+	# THE HUSTLER AT WORK, unhurried, and THE BALL NEVER SHOWN (the user: the poster "still feels like a
+	# game" -- the ball revealed and a brisk shuffle were the game's round): a slow swap, a pause, a feint,
+	# hands resting over the cups between
 	if t >= _next_move and not _table.busy():
 		_moves += 1
-		if _moves % 7 == 0:
-			_table.start_reveal(int(_table.ball_cup), now, 380.0)
-			_next_move = t + 1.6
-		elif _moves % 7 == 1:
-			_table.lower_all()
-			_next_move = t + 0.5
+		if _moves % 4 == 0:
+			_next_move = t + 1.4          # a pause, hands over the cups
 		else:
 			var a: int = _rng.randi() % 3
 			var b: int = (a + 1 + _rng.randi() % 2) % 3
-			_table.start_swap(a, b, now, 420.0, _rng.randf() < 0.2)
-			_next_move = t + 0.55
+			_table.start_swap(a, b, now, 900.0, _moves % 4 == 2)
+			_next_move = t + 1.1
 	_table.update(now)
 	# the walkers: across and out, back in from the other side
 	for p in _people:
@@ -123,6 +121,14 @@ func _tick(delta: float) -> void:
 	_thief.reach = clampf(sin(clampf((u - 2.0) / 1.6, 0.0, 1.0) * PI) * 1.2, 0.0, 1.0)
 	_thief.reach_at = _mark.pocket_point() - _thief.position     # pocket_point is in the street's space
 
-func _paint_top(_full: Vector2, _bottom: float) -> void:
+func _paint_top(full: Vector2, bottom: float) -> void:
+	# a vignette closing in round the hustler, and the lantern's warm light on him
+	for side in [0.0, 1.0]:
+		var x0: float = side * full.x
+		var x1: float = x0 + (full.x * 0.30 if side == 0.0 else -full.x * 0.30)
+		cv.draw_polygon(PackedVector2Array([Vector2(x0, 0), Vector2(x1, 0), Vector2(x1, bottom), Vector2(x0, bottom)]),
+			PackedColorArray([Color(0.02, 0.01, 0.04, 0.70), Color(0.02, 0.01, 0.04, 0.0), Color(0.02, 0.01, 0.04, 0.0), Color(0.02, 0.01, 0.04, 0.70)]))
+	for k in 12:
+		cv.draw_circle(Vector2(full.x * 0.30, bottom * 0.78), full.x * (0.55 - 0.04 * float(k)), Color(1.0, 0.75, 0.40, 0.012))
 	title("Pickpocket", "Follow the ball and catch the pickpocket", Color(1.0, 0.86, 0.55), Color(0.10, 0.06, 0.12),
 		Color(1.0, 0.65, 0.35, 0.22))

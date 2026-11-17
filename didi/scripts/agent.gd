@@ -45,6 +45,10 @@ var spin: float = 0.0                     # the canopy's turn (the level matches
 var mark: int = 0                         # 0 none, 1 right, 2 wrong, 3 "it was here"
 var light: Color = Color(1, 1, 1)         # the light on the figure (strong cold flash, warm lamps)
 var coat: Color = COATS[0]
+# WALKING FEET, from outside (the menu poster, menu_world.gd): when >= 0, the legs scissor with this phase
+# along `step_dir` and the foot coming forward lifts; in the game (-1) the figure stands, as it always has
+var step_phase: float = -1.0
+var step_dir: float = 1.0
 
 var game: GenericGameUtil = null
 
@@ -148,9 +152,15 @@ func _draw() -> void:
 func _draw_legs() -> void:
 	for side in [-1.0, 1.0]:
 		var x: float = side * 7.0
+		var foot_dx: float = 0.0
+		var lift: float = 0.0
+		if step_phase >= 0.0:
+			var ph: float = step_phase + (0.0 if side < 0.0 else PI)
+			foot_dx = step_dir * 8.0 * sin(ph)
+			lift = maxf(0.0, cos(ph)) * 3.0          # the foot swinging forward is off the ground
 		draw_colored_polygon(PackedVector2Array([Vector2(x - 5.0, -18.0), Vector2(x + 5.0, -18.0),
-			Vector2(x + 4.5, -3.0), Vector2(x - 4.5, -3.0)]), _l(Color(0.13, 0.14, 0.18)))
-		draw_colored_polygon(_ellipse(Vector2(x, -2.0), 6.0, 3.5), _l(Color(0.08, 0.08, 0.09)))
+			Vector2(x + foot_dx + 4.5, -3.0 - lift), Vector2(x + foot_dx - 4.5, -3.0 - lift)]), _l(Color(0.13, 0.14, 0.18)))
+		draw_colored_polygon(_ellipse(Vector2(x + foot_dx, -2.0 - lift), 6.0, 3.5), _l(Color(0.08, 0.08, 0.09)))
 
 # The coat from the shoulders (`top`) down to the hem, seen from above and in front: wider at the
 # shoulders, lit on its upper side.
