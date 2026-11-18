@@ -9,15 +9,16 @@ extends "res://scripts/menu_poster3d.gd"
 # are live. One clock (`t`); nothing pops. Made up, never the board.
 
 const LINES: Array = ["The quick brown fox", "jumps over the lazy", "dog. Fast and true!"]
-const CPS: float = 7.5                    # characters a second
-const RETURN_S: float = 0.7               # the carriage's return and the line feed
-const HOLD_S: float = 1.6                 # the finished page, before it fades
-const FADE_S: float = 0.7
+const CPS: float = 9.0                    # characters a second
+const RETURN_S: float = 0.5               # the carriage's return and the line feed
+const HOLD_S: float = 0.8                 # the finished page, before it fades
+const FADE_S: float = 0.5
 const ROWS_KEYS: Array = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
 const KEY_PITCH: float = 31.0
 const TEXT_SIZE: float = 21.0             # the type's size on the paper
 const LINE_H: float = 27.0
 const PAPER_W: float = 300.0
+const LAMP_C: Vector3 = Vector3(-320.0, 48.0, -220.0)   # the banker's lamp, on a stack of books at the machine's left
 const TYPE_POINT: Vector3 = Vector3(0.0, 146.0, -61.0)   # where a letter is struck, on the paper over the platen
 
 var _keys: Dictionary = {}                # char -> [Node3D, rest y]
@@ -35,10 +36,10 @@ func _baked_path() -> String:
 	return "res://typit/art/menu_desk.webp" if mobile else "res://typit/art/menu_desk_d.webp"
 
 func _eye() -> Vector3:
-	return Vector3(0.0, 330.0, 470.0) if mobile else Vector3(0.0, 380.0, 640.0)
+	return Vector3(-120.0, 330.0, 480.0) if mobile else Vector3(0.0, 380.0, 640.0)
 
 func _aim() -> Vector3:
-	return Vector3(0.0, 118.0, -10.0) if mobile else Vector3(0.0, 105.0, -10.0)
+	return Vector3(-100.0, 118.0, -30.0) if mobile else Vector3(0.0, 105.0, -10.0)
 
 func _fov() -> float:
 	return 52.0
@@ -56,20 +57,100 @@ func _environment(env: Environment) -> void:
 
 func _build_lights() -> void:
 	# the desk lamp's warm pool from the left, a soft fill from the front, a cool rim from behind
-	spot(Vector3(-240.0, 320.0, 45.0), Vector3(-10.0, 40.0, 40.0), Color(1.0, 0.84, 0.60), 22.0, 800.0, 55.0, true)
+	spot(LAMP_C + Vector3(0.0, 104.0, 40.0), Vector3(40.0, 40.0, 60.0), Color(1.0, 0.86, 0.62), 1.4, 600.0, 70.0, true)
+	light(LAMP_C + Vector3(30.0, 96.0, 50.0), Color(1.0, 0.86, 0.62), 1.2, 300.0)
+	# the page catches the lamp: a soft warm light from the left front, at its height
+	light(Vector3(-150.0, 230.0, 80.0), Color(1.0, 0.84, 0.62), 0.9, 300.0)
 	light(Vector3(60.0, 260.0, 380.0), Color(1.0, 0.86, 0.70), 0.7, 600.0)
 	light(Vector3(200.0, 260.0, -300.0), Color(0.75, 0.80, 0.95), 0.35, 500.0)
 
 func _paper_tex(n: int) -> ImageTexture:
+	# good bond paper: warm white, a fine laid texture (faint lines across), long fibers, a tooth of speckle, the
+	# edges a shade darker; a printed rule and a small embossed seal at the head
 	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
 	for y in n:
 		for x in n:
-			var c: Color = Color(0.96, 0.94, 0.88).darkened(0.04 * h01(x * 13 + y * 7))
+			var laid: float = 0.5 + 0.5 * sin(float(y) * 1.6)
+			var c: Color = Color(0.965, 0.950, 0.900).darkened(0.035 * h01(x * 13 + y * 7) + 0.012 * laid)
+			var ex: float = minf(minf(float(x), float(n - 1 - x)), minf(float(y), float(n - 1 - y))) / float(n)
+			c = c.darkened(0.06 * (1.0 - smoothstep(0.0, 0.06, ex)))
 			img.set_pixel(x, y, c)
+	for k in 160:
+		var fx: float = h01(k * 3 + 1) * float(n)
+		var fy: float = h01(k * 3 + 2) * float(n)
+		var ang: float = h01(k * 3 + 3) * TAU
+		var ln: int = 3 + int(h01(k + 50) * 9.0)
+		for j in ln:
+			var px: int = int(fx + cos(ang) * float(j)) % n
+			var py: int = int(fy + sin(ang) * float(j)) % n
+			img.set_pixel(absi(px), absi(py), img.get_pixel(absi(px), absi(py)).darkened(0.05))
+	# the head: a thin double rule, and a round seal pressed into the paper (a lit rim, a shadowed one)
+	var hy: int = int(float(n) * 0.10)
+	for x2 in range(int(n * 0.12), int(n * 0.88)):
+		img.set_pixel(x2, hy, Color(0.55, 0.20, 0.18))
+		img.set_pixel(x2, hy + 2, Color(0.62, 0.30, 0.26))
+	var sc: Vector2 = Vector2(float(n) * 0.82, float(n) * 0.055)
+	for y3 in range(0, int(n * 0.11)):
+		for x3 in range(int(n * 0.74), int(n * 0.90)):
+			var dd: float = Vector2(float(x3), float(y3)).distance_to(sc)
+			if absf(dd - float(n) * 0.035) < 0.8:
+				var up: bool = float(y3) < sc.y
+				img.set_pixel(x3, y3, img.get_pixel(x3, y3).lightened(0.06) if up else img.get_pixel(x3, y3).darkened(0.08))
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
+# THE SHEET IN THE MACHINE: flat where it is typed on (just over the platen), then curling back over the top as a
+# sheet of paper does, a slight ripple across it -- in the quad's own frame (x across, y up the sheet, z out of it)
+func _sheet_mesh(w: float, h: float) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nu: int = 24
+	var nv: int = 24
+	var grid: Array = []
+	for j in nv + 1:
+		var v: float = -h * 0.5 + h * float(j) / float(nv)
+		var row: Array = []
+		for i in nu + 1:
+			var u: float = -w * 0.5 + w * float(i) / float(nu)
+			var bend: float = maxf(0.0, v - 10.0)
+			var z: float = -0.0075 * bend * bend + 2.2 * sin(u * 0.025 + 0.7) * (v + h * 0.5) / h
+			row.append([Vector3(u, v - 0.0022 * bend * bend, z), Vector2(float(i) / float(nu), 1.0 - float(j) / float(nv))])
+		grid.append(row)
+	for j in nv:
+		for i in nu:
+			for q in [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]:
+				var c: Array = grid[j + q[1]][i + q[0]]
+				st.set_uv(c[1])
+				st.add_vertex(c[0])
+	st.generate_normals()
+	return st.commit()
+
 # --- the desk and the machine's body: baked --------------------------------------------------------------------
+
+# a banker's lamp shade: half a tube, open below, its ends closed, glass of `t` thickness
+func _half_tube(r: float, length: float, th: float) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n: int = 24
+	for side in [0.0, 1.0]:
+		var rr: float = r - th * side
+		for k in n:
+			var a0: float = PI * float(k) / float(n)
+			var a1: float = PI * float(k + 1) / float(n)
+			var p0: Vector3 = Vector3(-length * 0.5, sin(a0) * rr, cos(a0) * rr)
+			var p1: Vector3 = Vector3(length * 0.5, sin(a0) * rr, cos(a0) * rr)
+			var p2: Vector3 = Vector3(length * 0.5, sin(a1) * rr, cos(a1) * rr)
+			var p3: Vector3 = Vector3(-length * 0.5, sin(a1) * rr, cos(a1) * rr)
+			for v in [p0, p1, p2, p0, p2, p3]:
+				st.add_vertex(v)
+	for e in [-1.0, 1.0]:
+		for k2 in n:
+			var b0: float = PI * float(k2) / float(n)
+			var b1: float = PI * float(k2 + 1) / float(n)
+			for v2 in [Vector3(e * length * 0.5, 0.0, 0.0), Vector3(e * length * 0.5, sin(b0) * r, cos(b0) * r), Vector3(e * length * 0.5, sin(b1) * r, cos(b1) * r)]:
+				st.add_vertex(v2)
+	st.generate_normals()
+	return st.commit()
 
 func _build_still() -> void:
 	var desk: StandardMaterial3D = mat(Color.WHITE, 0.35, 0.0, tex_wood(256, Color(0.38, 0.20, 0.10), 11), Vector3(2, 1, 1))
@@ -89,20 +170,73 @@ func _build_still() -> void:
 	put(rbox_mesh(180.0, 62.0, 62.0, 26.0, 10.0), enamel, Vector3(0.0, 30.0, -62.0))
 	box(Vector3(330.0, 1.5, 1.0), gold_line, Vector3(0.0, 24.0, 125.4))
 	box(Vector3(300.0, 1.5, 1.0), gold_line, Vector3(0.0, 86.0, 0.6))
-	label("TYPIT", 16.0, Color(0.90, 0.72, 0.36), Vector3(0.0, 80.0, 1.0), Vector3(0.0, 0.0, 0.0))    # above the top row of keys
 	# the type guide where the letters strike, a little chrome ring over the paper's foot
 	box(Vector3(26.0, 6.0, 6.0), chrome, Vector3(0.0, 96.0, -18.0))
 	# feet
 	for fx in [-160.0, 160.0]:
 		for fz in [-100.0, 100.0]:
 			cyl(10.0, 12.0, 6.0, mat(Color(0.08, 0.08, 0.08), 0.8), Vector3(fx, -1.0, fz))
-	# ON THE DESK: a brass lamp at the left, a mug of coffee at the right, a pencil, typed sheets
-	cyl(46.0, 52.0, 10.0, brass, Vector3(-330.0, 5.0, -60.0))
-	var arm: PackedVector3Array = PackedVector3Array([Vector3(-330.0, 10.0, -60.0), Vector3(-330.0, 200.0, -70.0), Vector3(-300.0, 320.0, -10.0), Vector3(-250.0, 340.0, 40.0)])
-	put(tube_mesh(arm, 4.5, 12), brass, Vector3.ZERO)
-	var shade: MeshInstance3D = cyl(20.0, 62.0, 70.0, brass, Vector3(-240.0, 320.0, 45.0), Vector3(0.0, 0.0, -38.0))
-	(shade.mesh as CylinderMesh).cap_bottom = false
-	sphere(14.0, glow(Color(1.0, 0.92, 0.70)), Vector3(-232.0, 300.0, 47.0))
+	# ON THE DESK: a BANKER'S LAMP at the left (a brass base and stem, a green glass shade lit from inside, the bulb's
+	# glow under it -- the old arm lamp stood mostly out of the picture), a mug of coffee, a pencil, typed sheets
+	var lamp_c: Vector3 = LAMP_C
+	# the books under it: three old cloth bindings, each a little askew, their page edges cream, a gilt band on a spine
+	var book_cols: Array = [Color(0.30, 0.08, 0.07), Color(0.10, 0.18, 0.26), Color(0.20, 0.26, 0.14)]
+	var pages: StandardMaterial3D = mat(Color(0.90, 0.86, 0.74), 0.9)
+	var by: float = 0.0
+	for bk in 3:
+		var bh: float = 15.0 + 2.0 * float(bk % 2)
+		var rot_y: float = [6.0, -4.0, 9.0][bk]
+		var bc: Vector3 = Vector3(LAMP_C.x + [4.0, -6.0, 2.0][bk], by + bh * 0.5, LAMP_C.z)
+		box(Vector3(150.0 - float(bk) * 12.0, bh, 104.0 - float(bk) * 8.0), mat(book_cols[bk], 0.75), bc, Vector3(0.0, rot_y, 0.0))
+		box(Vector3(144.0 - float(bk) * 12.0, bh - 3.0, 100.0 - float(bk) * 8.0), pages, bc + Vector3(-3.0, 0.0, 0.0).rotated(Vector3.UP, deg_to_rad(rot_y)) + Vector3(0.0, 0.0, 0.0), Vector3(0.0, rot_y, 0.0))
+		box(Vector3(2.0, bh - 4.0, 104.0 - float(bk) * 8.0), mat(Color(0.88, 0.68, 0.32), 0.3, 0.7), bc + Vector3(-(150.0 - float(bk) * 12.0) * 0.5 + 10.0, 0.0, 0.0).rotated(Vector3.UP, deg_to_rad(rot_y)), Vector3(0.0, rot_y, 0.0))
+		by += bh
+	put(rbox_mesh(42.0, 28.0, 10.0, 12.0, 4.0), brass, lamp_c)
+	cyl(10.0, 14.0, 8.0, brass, lamp_c + Vector3(0.0, 14.0, 0.0))
+	cyl(3.2, 3.2, 92.0, brass, lamp_c + Vector3(0.0, 62.0, 0.0))
+	cyl(5.0, 5.0, 8.0, brass, lamp_c + Vector3(0.0, 108.0, 0.0))
+	var arm2: PackedVector3Array = PackedVector3Array([lamp_c + Vector3(0.0, 110.0, 0.0), lamp_c + Vector3(0.0, 120.0, 14.0), lamp_c + Vector3(0.0, 116.0, 30.0)])
+	put(tube_mesh(arm2, 2.4, 8), brass, Vector3.ZERO)
+	# THE SHADE: CASED GLASS (the user: "a very good lamp but needs improvement") -- deep green glass outside, glossy,
+	# a little of the light coming through it; inside a layer of warm OPAL, glowing; rolled brass caps at its ends, a
+	# brass ridge along its crown, the bulb under it, a pull chain of beads hanging from it
+	var shade_m: StandardMaterial3D = mat(Color(0.03, 0.26, 0.12), 0.08, 0.05)
+	shade_m.clearcoat_enabled = true
+	shade_m.clearcoat = 1.0
+	shade_m.clearcoat_roughness = 0.05
+	shade_m.emission_enabled = true
+	shade_m.emission = Color(0.06, 0.40, 0.18)
+	shade_m.emission_energy_multiplier = 0.35
+	shade_m.rim_enabled = true
+	shade_m.rim = 0.6
+	shade_m.rim_tint = 0.4
+	var sc: Vector3 = lamp_c + Vector3(0.0, 112.0, 32.0)
+	put(_half_tube(26.0, 120.0, 0.5), shade_m, sc)
+	var opal: StandardMaterial3D = glow(Color(1.0, 0.94, 0.80))
+	opal.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var inner: MeshInstance3D = put(_half_tube(24.6, 118.0, 0.4), opal, sc + Vector3(0.0, -0.3, 0.0))
+	inner.scale = Vector3(1.0, 1.0, 1.0)
+	for ex in [-1.0, 1.0]:
+		var cap: TorusMesh = TorusMesh.new()
+		cap.inner_radius = 24.5
+		cap.outer_radius = 29.0
+		cap.rings = 48
+		var cm: MeshInstance3D = put(cap, brass, sc + Vector3(ex * 60.5, 0.0, 0.0), Vector3(0.0, 0.0, 90.0))
+		cm.scale = Vector3(1.0, 1.0, 1.0)
+		cyl(26.5, 26.5, 2.0, brass, sc + Vector3(ex * 61.5, 0.0, 0.0), Vector3(0.0, 0.0, 90.0), null, 40)
+	cyl(2.2, 2.2, 122.0, brass, sc + Vector3(0.0, 26.0, 0.0), Vector3(0.0, 0.0, 90.0), null, 12)
+	cyl(5.0, 6.0, 6.0, brass, sc + Vector3(0.0, 27.0, 0.0), Vector3.ZERO, null, 16)
+	var bulb: MeshInstance3D = cyl(8.0, 8.0, 80.0, glow(Color(1.0, 0.95, 0.80)), sc + Vector3(0.0, -6.0, 0.0), Vector3(0.0, 0.0, 90.0))
+	bulb.scale = Vector3(1.0, 1.0, 1.0)
+	# the pull chain: a string of small brass beads down to a tassel-bead
+	for bd in 14:
+		sphere(1.3, brass, sc + Vector3(30.0, -4.0 - float(bd) * 2.6, 22.0))
+	cyl(1.6, 3.0, 7.0, brass, sc + Vector3(30.0, -44.0, 22.0), Vector3.ZERO, null, 12)
+	# the base: stepped, a moulded edge, the stem's collar knurled
+	put(rbox_mesh(48.0, 32.0, 5.0, 14.0, 2.0), brass, lamp_c + Vector3(0.0, 10.0, 0.0))
+	for kn in 10:
+		var ka: float = TAU * float(kn) / 10.0
+		box(Vector3(1.2, 7.0, 1.2), brass, lamp_c + Vector3(cos(ka) * 5.4, 108.0, sin(ka) * 5.4))
 	cyl(34.0, 31.0, 70.0, mat(Color(0.90, 0.88, 0.84), 0.3), Vector3(310.0, 35.0, 40.0))
 	cyl(30.0, 30.0, 1.0, mat(Color(0.18, 0.09, 0.04), 0.2), Vector3(310.0, 64.0, 40.0))
 	var handle: TorusMesh = TorusMesh.new()
@@ -166,11 +300,12 @@ func _build_live() -> void:
 	# the paper and its lines feed up together; the sheet is tilted back with the platen's curve
 	_feed = Node3D.new()
 	_carriage.add_child(_feed)
-	var paper_m: StandardMaterial3D = mat(Color.WHITE, 0.85, 0.0, _paper_tex(64))
-	var pq: QuadMesh = QuadMesh.new()
-	pq.size = Vector2(PAPER_W, 190.0)
+	var paper_m: StandardMaterial3D = mat(Color.WHITE, 0.80, 0.0, _paper_tex(256))
+	paper_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	paper_m.backlight_enabled = true                  # thin: the lamp shows through a little where it curls
+	paper_m.backlight = Color(0.30, 0.26, 0.20)
 	var tilt: Vector3 = Vector3(-14.0, 0.0, 0.0)
-	put(pq, paper_m, Vector3(0.0, TYPE_POINT.y + 95.0 - 40.0, TYPE_POINT.z - 8.0 - 14.0), tilt, _feed)
+	put(_sheet_mesh(PAPER_W, 190.0), paper_m, Vector3(0.0, TYPE_POINT.y + 95.0 - 40.0, TYPE_POINT.z - 8.0 - 14.0), tilt, _feed)
 	var mono: Font = load("res://art/fonts/JetBrainsMono.ttf") if ResourceLoader.exists("res://art/fonts/JetBrainsMono.ttf") else MainGlobals.get_text_font()
 	_cw = mono.get_string_size("M", HORIZONTAL_ALIGNMENT_LEFT, -1, 128).x * TEXT_SIZE / 128.0
 	for li in LINES.size():
@@ -184,11 +319,11 @@ func _build_live() -> void:
 		lb.render_priority = 1
 		_line_labels.append(lb)
 	# the timeline: a line typed, the carriage returned; the page held, faded
-	var tt: float = 0.4
+	var tt: float = 0.15
 	for li2 in LINES.size():
 		_line_t0.append(tt)
 		tt += float(str(LINES[li2]).length()) / CPS + RETURN_S
-	_cycle = tt + HOLD_S + FADE_S + 0.3
+	_cycle = tt + HOLD_S + FADE_S + 0.1
 
 # the paper's point for a character `col` of line `li`, before the carriage and the feed move it (on the tilted sheet)
 func _char_pos(li: int, col: float) -> Vector3:

@@ -288,3 +288,4 @@ PER PLATFORM (`menu_desk.webp`, `menu_desk_d.webp`: on a desktop's short band th
 whole machine shows); the keys and the carriage (platen, paper, text) are live. The lines lie ON the tilted sheet
 (lower is nearer): with the offset the other way they sank behind the paper. Made up, never the board.
 
+**2026-11-18:** no TYPIT plate on the machine; a BANKER'S LAMP stands on a stack of three old books at the left (`LAMP_C`) -- a stepped brass base, a knurled collar, a CASED-GLASS shade (deep green glossy glass outside, warm opal glowing inside, rolled brass caps, a crown ridge), a bead pull chain -- its light falling on the page; the PAPER is good bond (laid texture, fibers, a printed head rule and an embossed seal) and CURLS back over the top (`_sheet_mesh`) (the old arm lamp stood mostly out of the picture); typing is quicker (9 a second) with shorter pauses (return 0.5 s, hold 0.8 s, fade 0.5 s).

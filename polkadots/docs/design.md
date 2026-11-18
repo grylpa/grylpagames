@@ -308,7 +308,7 @@ memory of which position held which character.
 
 **The `hidden` flag must come from `_options_hidden`, not from the buttons.** It used to be
 recorded as `not _options_visible()`, and that helper asked whether the option *buttons* were
-still visible — which they always are, because hiding only recolours the glyph Label inside
+still visible — which they always are, because hiding only recolors the glyph Label inside
 them. The flag was therefore `false` in every round ever logged, on every level, and the
 choices-hidden half of the view could not fill at all. Do not reintroduce a check that reads
 the buttons.
@@ -338,7 +338,7 @@ cup it read as a separate object -- and a slight slant, narrower at the foot tha
 drawn in perspective: the eye is above it, so the ellipse at its foot is rounder than the rim's;
 each row of dots runs along the ellipse of its own height at that height's width, every dot narrows
 as it turns away, the shading follows the same width, light comes from the upper left, and the steam
-rises from the middle of the coffee. A bow tie and an umbrella in polka dots, a colour-vision plate
+rises from the middle of the coffee. A bow tie and an umbrella in polka dots, a color-vision plate
 and a letter of dots were tried on the way.
 
 ## Sounds
@@ -384,10 +384,19 @@ the game puts them.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): FIREFLIES IN A
-MEADOW AT NIGHT -- a deep blue sky with stars and a low moon's halo, a dark tree line in two rows, mist along its
-foot, moonlight lying on the meadow, tall grass and seed heads black at the foot. 44 fireflies drift and blink round
-their own places; every 8 s they gather (each at its own pace) onto points spread along a CHARACTER's strokes
-(`GLYPHS`: A, 7, K, 4, R, E, Z, slightly irregular), hold it glowing together, and drift apart; the next forms
-somewhere else. Dots that make a character, which is the game. The meadow is a still layer (baked); the fireflies
-are live, each a small glow picture. Made up, never the board.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A RAILWAY
+STATION AT DUSK AND ITS FLIP-DOT BOARD (2026-11-18; before it a dressmaker's atelier with a polka-dot dress, which the
+user liked but worried was too feminine, and fireflies before that). Under an iron-and-glass shed -- cast-iron columns
+(`_column`), arched ribs, purlins and glass, a lattice girder -- hangs a black steel cabinet, riveted, a DEPARTURES
+header in enamel, holding a 14 x 18 grid of discs, yellow on one face and black on the other (`_disc_material`: a
+shader colors each face by the mesh's normal). The board never rests (the user: no pauses): a wave runs across it left
+to right -- each disc turning over on its axle in a fifth of a second with a small overshoot, the whole board in under
+0.75 s -- from a random CLOUD of polka dots (`_state`, a new one each time, `CLOUD_FILL` of the discs) into the next
+CHARACTER (`GLYPHS`: A, 7, K, 4, R, E, Z, rasterized onto the cells by `_raster`, with `STRAYS` stray dots, as the game
+scatters them), which stands a moment and breaks up into the next cloud (`CLOUD_S` 0.85 s, `GLYPH_S` 1.95 s). The
+SHED's roof is a glazed barrel vault (`_vault`, `_vault_mat`: panes of old glass with the dusk through them, soot and
+putty lines), iron glazing bars along the arch, a louvred lantern on the ridge. Behind: the shed's end wall with a great glazed lunette against the dusk, a green train standing at the
+platform with its windows lit, globe lamps, a station clock on a column bracket, a bench, a floor of honed stone flags.
+The station and every disc (black side out) are baked, one picture per platform (`menu_station.webp`,
+`menu_station_d.webp`); the discs that ever turn are live, one MultiMesh. Made up, never the board.
+

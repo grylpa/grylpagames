@@ -162,6 +162,36 @@ func _draw_ground(d: Control) -> void:
 		var bc: Color = Color(1.0, 0.92, 0.62) if warm else Color(0.62, 0.80, 0.42)
 		for g in 5:
 			d.draw_circle(bp, br * (1.0 - 0.14 * float(g)), Color(bc, 0.035 + 0.01 * float(g)))
+	# THE GARDEN BEYOND, OUT OF FOCUS: tall stems and broad leaves as soft layered silhouettes against the light, a
+	# flower head or two -- each drawn as a few widening translucent copies, so its edges are blurred like a lens's
+	for k in 22:
+		var px: float = full.x * h01(k * 7 + 300)
+		var base_y: float = horizon + 30.0
+		var tall: float = horizon * (0.35 + 0.6 * h01(k * 7 + 301))
+		var lean: float = (h01(k * 7 + 302) - 0.5) * 60.0
+		var dark: Color = Color(0.14, 0.24, 0.10) if h01(k * 7 + 303) > 0.4 else Color(0.22, 0.32, 0.14)
+		for blur in 4:
+			var w: float = 5.0 + float(blur) * 5.0
+			var al: float = 0.20 - float(blur) * 0.04
+			var pts: PackedVector2Array = PackedVector2Array()
+			for sg in 9:
+				var u: float = float(sg) / 8.0
+				pts.append(Vector2(px + lean * u * u, base_y - tall * u))
+			d.draw_polyline(pts, Color(dark, al), w * (1.0 - 0.3 * float(k % 2)), true)
+			if k % 3 == 0:
+				# a broad leaf off the stem
+				var lp2: Vector2 = Vector2(px + lean * 0.3, base_y - tall * 0.55)
+				var side: float = 1.0 if k % 2 == 0 else -1.0
+				var leaf: PackedVector2Array = PackedVector2Array()
+				for lk in 13:
+					var lu: float = float(lk) / 12.0
+					leaf.append(lp2 + Vector2(side * lu * 70.0, -sin(lu * PI) * (14.0 + float(blur) * 3.0) - lu * 30.0))
+				for lk in range(12, -1, -1):
+					var lu2: float = float(lk) / 12.0
+					leaf.append(lp2 + Vector2(side * lu2 * 70.0, sin(lu2 * PI) * (6.0 + float(blur) * 3.0) - lu2 * 30.0))
+				_safe(d, leaf, Color(dark, al * 0.8))
+			if k % 5 == 1:
+				d.draw_circle(Vector2(px + lean, base_y - tall), 10.0 + float(blur) * 5.0, Color(0.95, 0.80, 0.45, al * 0.9))
 	# (the sun's warmth is laid over everything at the end of the life layer)
 	# the soil plane: lighter and hazier with distance, warm close to
 	var near_z: float = 160.0
@@ -176,13 +206,76 @@ func _draw_ground(d: Control) -> void:
 		var c1: Color = AntsArt.SOIL.darkened(0.12).lerp(Color(0.60, 0.58, 0.40), f1 * 0.85)
 		var q: PackedVector2Array = PackedVector2Array([_proj(Vector3(-900, 0, z0)), _proj(Vector3(900, 0, z0)), _proj(Vector3(900, 0, z1)), _proj(Vector3(-900, 0, z1))])
 		d.draw_polygon(q, PackedColorArray([c0, c0, c1, c1]))
+	# THE SOIL'S OWN FACE: damp dark patches and dry pale ones, so the plane is never one color
+	for k in 70:
+		var mp: Vector3 = Vector3(lerpf(-400.0, 400.0, h01(k * 3 + 400)), 0.0, lerpf(150.0, -1200.0, pow(h01(k * 3 + 401), 0.8)))
+		var damp: bool = h01(k * 3 + 402) > 0.5
+		var haze0: float = clampf(-mp.z / 1300.0, 0.0, 0.85)
+		for ring in 4:
+			_ground_disc(d, mp, (30.0 + 70.0 * h01(k + 403)) * (1.0 - 0.2 * float(ring)),
+				Color(0.20, 0.12, 0.06, 0.09 * (1.0 - haze0)) if damp else Color(0.86, 0.74, 0.52, 0.08 * (1.0 - haze0)))
+	# DRYING CRACKS in the open soil: dark hairlines that branch, each with a lit lip on the sun's side
+	for k in 14:
+		var cp: Vector3 = Vector3(lerpf(-300.0, 300.0, h01(k * 5 + 500)), 0.0, lerpf(120.0, -500.0, h01(k * 5 + 501)))
+		if absf(cp.x - lerpf(-60.0, 60.0, (cp.z + 500.0) / 620.0)) < 70.0:
+			continue          # never across the trail
+		var ang: float = h01(k * 5 + 502) * TAU
+		for br in 3:
+			var q0: Vector3 = cp
+			var pts2: PackedVector2Array = PackedVector2Array([_proj(q0)])
+			var a2: float = ang + float(br) * 2.1
+			for sg in 7:
+				a2 += (h01(k * 31 + br * 7 + sg) - 0.5) * 0.9
+				q0 += Vector3(cos(a2), 0.0, sin(a2)) * (5.0 + 4.0 * h01(k + sg + 600))
+				pts2.append(_proj(q0))
+			d.draw_polyline(pts2, Color(0.80, 0.66, 0.46, 0.45), 3.4, true)
+			d.draw_polyline(pts2, Color(0.12, 0.07, 0.03, 0.75), 1.6, true)
+	# MOSS in the damp: tufts of tiny green-gold beads, each lit from the sun's side
+	for k in 9:
+		var mc: Vector3 = Vector3(lerpf(-280.0, 280.0, h01(k * 3 + 700)), 0.0, lerpf(130.0, -420.0, h01(k * 3 + 701)))
+		if absf(mc.x) < 90.0:
+			mc.x += 180.0 * signf(mc.x + 0.01)
+		_ground_disc(d, mc + Vector3(2.0, 0.0, 2.0), 16.0, Color(0.0, 0.0, 0.0, 0.14))
+		for b in 70:
+			var ba: float = h01(k * 97 + b) * TAU
+			var bra: float = 14.0 * sqrt(h01(k * 97 + b + 1))
+			var bp3: Vector3 = mc + Vector3(cos(ba) * bra, 1.2 * (1.0 - bra / 14.0), sin(ba) * bra)
+			var rr: float = 0.9 * _px(bp3)
+			d.draw_circle(_proj(bp3), rr, Color(0.22, 0.36, 0.10))
+			d.draw_circle(_proj(bp3) + Vector2(-rr * 0.3, -rr * 0.35), rr * 0.5, Color(0.58, 0.70, 0.26))
+	# DRY GRASS, PINE NEEDLES AND SEED HUSKS lying on the soil: thin straws in perspective, each with a lit top edge
+	for k in 110:
+		var sp: Vector3 = Vector3(lerpf(-330.0, 330.0, h01(k * 4 + 800)), 0.0, lerpf(140.0, -700.0, pow(h01(k * 4 + 801), 0.8)))
+		var sa: float = h01(k * 4 + 802) * PI
+		var sl: float = 8.0 + 22.0 * h01(k * 4 + 803)
+		var e0: Vector3 = sp - Vector3(cos(sa), 0.0, sin(sa)) * sl * 0.5
+		var e1: Vector3 = sp + Vector3(cos(sa), 0.0, sin(sa)) * sl * 0.5
+		var haze1: float = clampf(-sp.z / 900.0, 0.0, 0.8)
+		var straw: Color = Color(0.74, 0.62, 0.36) if k % 3 != 0 else Color(0.42, 0.26, 0.14)
+		var wpx: float = maxf(0.8, 0.45 * _px(sp))
+		d.draw_line(_proj(e0 + Vector3(0.6, 0.0, 0.6)), _proj(e1 + Vector3(0.6, 0.0, 0.6)), Color(0.0, 0.0, 0.0, 0.18 * (1.0 - haze1)), wpx * 1.4, true)
+		d.draw_line(_proj(e0), _proj(e1), Color(straw, 1.0 - haze1), wpx, true)
+		d.draw_line(_proj(e0) + Vector2(0.0, -wpx * 0.35), _proj(e1) + Vector2(0.0, -wpx * 0.35), Color(straw.lightened(0.35), 0.6 * (1.0 - haze1)), wpx * 0.4, true)
+		if k % 9 == 0:
+			# a seed husk: a little split shell, lit
+			var hp: Vector2 = _proj(sp)
+			var hr: float = 2.2 * _px(sp)
+			_ell(d, hp + Vector2(hr * 0.3, hr * 0.3), hr * 1.6, hr * 0.8, Color(0.0, 0.0, 0.0, 0.2))
+			_ell(d, hp, hr * 1.5, hr * 0.7, Color(0.52, 0.36, 0.20))
+			_ell(d, hp + Vector2(-hr * 0.3, -hr * 0.2), hr * 0.8, hr * 0.3, Color(0.86, 0.70, 0.46))
+	# PEBBLES: real little stones (the same model as the big one) scattered off the trail
+	for k in 26:
+		var pp: Vector3 = Vector3(lerpf(-300.0, 300.0, h01(k * 3 + 900)), 0.0, lerpf(130.0, -650.0, pow(h01(k * 3 + 901), 0.9)))
+		if absf(pp.x - lerpf(-60.0, 60.0, (pp.z + 500.0) / 620.0)) < 45.0 or pp.distance_to(STONE) < 40.0:
+			continue
+		_stone(d, pp, 2.0 + 4.0 * h01(k * 3 + 902))
 	# dappled sunlight through leaves, lying on the soil
 	for k in 14:
 		var lp: Vector3 = Vector3(lerpf(-260.0, 260.0, h01(k * 3 + 50)), 0.0, lerpf(60.0, -700.0, h01(k * 3 + 51)))
 		_ground_disc(d, lp, 20.0 + 40.0 * h01(k * 3 + 52), Color(1.0, 0.90, 0.62, 0.07))
 		_ground_disc(d, lp, 12.0 + 22.0 * h01(k * 3 + 52), Color(1.0, 0.92, 0.66, 0.07))
 	# the grain of the soil: crumbs of earth, little stones, lit on the sun's side
-	for k in 900:
+	for k in 3200:
 		var gp: Vector3 = Vector3(lerpf(-320.0, 320.0, h01(k * 4 + 100)), 0.0, lerpf(150.0, -900.0, pow(h01(k * 4 + 101), 0.7)))
 		var gr: float = 0.5 + 1.6 * h01(k * 4 + 102)
 		var tone: float = h01(k * 4 + 103)
@@ -192,8 +285,27 @@ func _draw_ground(d: Control) -> void:
 		if gr > 1.4 and tone > 0.8:
 			# a small pebble with its own little shadow
 			_ground_disc(d, gp + Vector3(0.6, 0.0, 0.5), gr, Color(0.0, 0.0, 0.0, 0.12 * (1.0 - haze)))
-			d.draw_circle(_proj(gp + Vector3(0, gr * 0.6, 0)), gr * _px(gp) * 0.9, AntsArt.STONE_BODY.darkened(0.15))
-			d.draw_circle(_proj(gp + Vector3(-gr * 0.3, gr * 0.9, 0)), gr * _px(gp) * 0.4, AntsArt.STONE_LIT)
+			# earthy, each its own mineral (pale pearls of one gray read as beads, not stones)
+			var pc: Color = [Color(0.48, 0.40, 0.32), Color(0.56, 0.46, 0.34), Color(0.40, 0.38, 0.36), Color(0.62, 0.50, 0.36)][int(h01(k + 7) * 4.0) % 4]
+			var pr: float = gr * _px(gp) * 0.9
+			var pc2: Vector2 = _proj(gp + Vector3(0, gr * 0.6, 0))
+			_ell(d, pc2, pr * 1.1, pr * 0.85, Color(pc, 1.0 - haze))
+			_ell(d, pc2 + Vector2(pr * 0.2, pr * 0.25), pr * 0.8, pr * 0.5, Color(pc.darkened(0.35), 0.6 * (1.0 - haze)))
+			d.draw_circle(pc2 + Vector2(-pr * 0.35, -pr * 0.3), pr * 0.35, Color(pc.lightened(0.45), 0.8 * (1.0 - haze)))
+	# THE NEAR SOIL'S GRAIN, close enough to see each crumb: a body in one of the soil's tones, its shade toward +x+z,
+	# a lit cap toward the sun
+	for k in 9000:
+		var np2: Vector3 = Vector3(lerpf(-260.0, 260.0, h01(k * 5 + 1100)), 0.0, lerpf(165.0, -260.0, pow(h01(k * 5 + 1101), 1.3)))
+		var nr: float = (0.12 + 0.42 * pow(h01(k * 5 + 1102), 3.0)) * _px(np2)
+		if nr < 0.5:
+			continue
+		var tn: float = h01(k * 5 + 1103)
+		var body: Color = AntsArt.SOIL.darkened(0.22).lerp(AntsArt.SOIL.lightened(0.15), tn)
+		var c2: Vector2 = _proj(np2)
+		var flat: float = 0.55 + 0.25 * h01(k * 5 + 1104)       # crumbs lie on the ground: seen foreshortened
+		_ell(d, c2 + Vector2(nr * 0.4, nr * 0.3), nr * 1.05, nr * flat, Color(0.10, 0.06, 0.03, 0.18))
+		_ell(d, c2, nr, nr * flat, Color(body, 0.85))
+		_ell(d, c2 + Vector2(-nr * 0.3, -nr * flat * 0.35), nr * 0.45, nr * flat * 0.4, Color(body.lightened(0.28), 0.6))
 	# the scent of the trail: a faint darker road worn into the soil
 	for k in 120:
 		var s: float = _len * float(k) / 120.0

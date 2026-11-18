@@ -1776,7 +1776,39 @@ func play_sound(_name, from_start := true):
 
 func stop_sound(_name: String):
 	if sounds.has(_name):
-		sounds[_name].stop()
+		var s = sounds[_name]
+		if is_instance_valid(s) and s.playing:
+			_stopped_at[_name] = s.get_playback_position()
+		s.stop()
+
+# THE GAME'S AMBIENT UNDER ITS MENU (2026-11-18; the user: "maybe we should hear the ambient, too, in the main menus
+# while seeing the posters?"). The poster is the game's front door and its music half the mood, so the menu plays it
+# -- as loud as in play (MENU_AMBIENT_DUCK_DB 0: the user), from where it last stopped. The game's own code still stops it on
+# its way to the menu and starts it at a level; the menu (main_menu.gd `_menu_sound`) brings it back a frame later
+# and gives the volume back when it closes, leaving it playing, so a level that starts it with
+# play_sound(name, false) carries straight on. A game whose loop is not called "ambient" names its own
+# (`menu_ambient_names`: Storm's rain, the lighthouse's sea); engines and footsteps are never played under a menu.
+const MENU_AMBIENT_DUCK_DB: float = 0.0          # (none: the user wants it as loud as in play)
+var menu_ambient_names: Array = ["ambient"]
+var _menu_ducked: Dictionary = {}       # name -> its volume before the menu turned it down
+var _stopped_at: Dictionary = {}        # name -> where it was when it was last stopped
+
+func menu_ambient(on: bool) -> void:
+	for nm in menu_ambient_names:
+		var key: String = str(nm)
+		var s = sounds.get(key, null)
+		if s == null or not is_instance_valid(s) or s.stream == null:
+			continue
+		if on:
+			if not _menu_ducked.has(key):
+				_menu_ducked[key] = s.volume_db
+				s.volume_db = float(_menu_ducked[key]) + MENU_AMBIENT_DUCK_DB
+			if not s.playing:
+				s.play(float(_stopped_at.get(key, 0.0)))
+			s.stream_paused = false
+		elif _menu_ducked.has(key):
+			s.volume_db = float(_menu_ducked[key])
+			_menu_ducked.erase(key)
 
 # Every registered sound, silenced. A tutorial calls this when it ends: several games start an
 # ambient loop from new_game() (gorilla's rumble, storm's rain, taxi's motor), and finishing or

@@ -243,7 +243,7 @@ flashed, and no single umbrella is singled out by standing on that very spot. Tr
 same day: people side by side across the street (at 170 and 190 degrees for a lookout at 180, and the
 sixteen umbrellas formed one even ring with no visible groups); the same round the lamp posts; and a
 queue with one umbrella exactly on the lookout's place. At most 3 per spot (`num_options`), so the groups
-stay on screen. The lamp posts stand at the KERB of each street mouth, clear of the groups. The
+stay on screen. The lamp posts stand at the CURB of each street mouth, clear of the groups. The
 passers-by stand at the OTHER spots first (the research's hardest stage fills the other places with
 look-alikes), then between them. No jitter: the research task's targets are at fixed places too.
 
@@ -289,7 +289,7 @@ direction the player freezes on.
 
 ## The chooser tile
 
-`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `pinpoint()`), not grabbed. The old tile was a screen grab of the eight answer clusters, with one shape recoloured green.
+`art/game_screen_200.png` (200 x 200) is **drawn** (`devtools/make_thumbs.py`, `pinpoint()`), not grabbed. The old tile was a screen grab of the eight answer clusters, with one shape recolored green.
 
 It is now a **radar screen**, not the game's own shapes: a dark scope, one inner ring and a crosshair,
 a bright rim, a sweep, and a single large blip off to one side. "Where did it flash?" is the question
@@ -316,12 +316,22 @@ and nothing in the background should pull it.
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
 2026-11-17 (it was a drawn picture; kept in the private repo's `tmp/didi_2d_backup.gd`): a STAKEOUT from a high window
 at night. The street below, baked, one picture per platform (`menu_street.webp`, `menu_street_d.webp`): an old brick
-building with a deep doorway (a stone surround, a door standing open into the dark) and two upper windows (one lit,
-curtained), the HOTEL beside it -- its lobby lit behind tall glass with mullions and brass handles (a warm back wall,
+building three stories high with a deep doorway (a stone surround, a door standing open into the dark), chimney stacks
+with their pots, and WINDOWS SET INTO THE WALL (`_window3`; the wall is built round their openings): a reveal, a
+painted sash with glazing bars, a stone sill and keystoned lintel, and behind the glass either the dark or a LIT ROOM
+-- a warm wall falling off from a lamp, a picture, curtains hung in folds glowing where the light comes through, a
+pelmet, the light spilling onto the brick (2026-11-18; it was a flat yellow box between two red ones), the HOTEL beside it -- its lobby lit behind tall glass with mullions and brass handles (a warm back wall,
 a chandelier, the desk, a palm), a striped awning with puffed scallops, the neon HOTEL sign -- stone pavement, the
-kerb, the wet road, a lamp post pouring light. In 2-D over it: the game's own people under umbrellas (agent.gd)
+curb, the wet road, a lamp post pouring light (painted deep green with gilt bands: in black it read as one of the window's
+bars, the user). In 2-D over it: the game's own people under umbrellas (agent.gd)
 walking along the pavement, each keeping its own easy pace, their feet stepping (placed from the 3-D pavement); the
-lamp and the sign mirrored in the wet road; fine rain falling; then the glass streaming with rain inside the window's
-dark frame and cross bar, the dark room round it. Every 6 s (the first at 1.4 s) lightning whitens the street, and in
+lamp and the sign mirrored in the wet road; the RAIN outside, fine streaks falling past behind the glass; BEADS of rain on the pane, each a little lens,
+most still, now and then one running down in jerks with a wet trail (2026-11-18; the drops fell down the view "inside
+our apartment"); the window's frame and cross bars of old CREAM-painted wood with grain and bevels (dark, they read as the same thing
+as the lamp post), the deep reveal and sill
+in the wall, the plaster round it (`_frame_fx`). The camera looks less steeply, at the buildings' faces; a hazy city
+sky and skyline behind the roofs. Every 6 s (the first at 1.4 s) lightning whitens the street, and in
 its flash the LOOKOUT stands out in the doorway, yellow coat under the clear umbrella, INVISIBLE between flashes. Not
 the game's square. Made up, never the board: the menu also opens mid-game.
+
+**2026-11-18, draw order:** the agent scene's parts carry their own z (+3, -4), and z adds up through the tree: each walker gets a band of its own by distance (the far lane below the near, walkers 10 apart), and the window frame and title (`_top`) sit at 2000, far above anything else (2026-11-18: umbrellas were seen over the bars again) -- a far walker's umbrella was drawn over the cross bar and over nearer people.

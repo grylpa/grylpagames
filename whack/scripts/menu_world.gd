@@ -16,7 +16,9 @@ extends "res://scripts/menu_poster3d.gd"
 
 const HOLES: Array = [Vector3(-125.0, 0.0, 30.0), Vector3(0.0, 0.0, 30.0), Vector3(125.0, 0.0, 30.0),
 	Vector3(-125.0, 0.0, 115.0), Vector3(0.0, 0.0, 115.0), Vector3(125.0, 0.0, 115.0)]
-const TOP_Y: float = 150.0             # the table's turf
+const TOP_Y: float = 150.0
+const WHEEL_C: Vector3 = Vector3(-560.0, 760.0, -1500.0)
+const WHEEL_R: float = 520.0             # the table's turf
 const DOME_R: float = 27.0
 const HIT_EVERY: float = 1.35
 const RED: Color = Color(0.80, 0.08, 0.08)
@@ -29,6 +31,11 @@ var _domes: Array = []                # [Node3D, body material, rim material, do
 var _clods: Array = []                # [MeshInstance3D, hole, k] -- soil thrown as a button comes up
 var _sparks: Array = []               # [MeshInstance3D, material]
 var _bulbs: Array = []
+var _wheel: Node3D = null
+var _gondolas: Array = []              # [Node3D, its angle on the wheel]
+var _fair_vpc: SubViewportContainer = null
+var _fair_vp: SubViewport = null
+var _score: Label3D = null
 var _mallet: Node3D = null
 var _swing: Node3D = null
 
@@ -38,7 +45,7 @@ func _baked_path() -> String:
 	return "res://whack/art/menu_booth.webp" if mobile else "res://whack/art/menu_booth_d.webp"
 
 func _eye() -> Vector3:
-	return Vector3(0.0, 400.0, 600.0) if mobile else Vector3(0.0, 440.0, 930.0)
+	return Vector3(0.0, 420.0, 700.0) if mobile else Vector3(0.0, 440.0, 930.0)
 
 func _aim() -> Vector3:
 	return Vector3(0.0, 205.0, 0.0) if mobile else Vector3(0.0, 215.0, 0.0)
@@ -53,6 +60,9 @@ func _frame_frac() -> float:
 func _scene_top() -> float:
 	return 250.0 if mobile else 150.0
 
+func _bake_alpha() -> bool:
+	return true
+
 func _environment(env: Environment) -> void:
 	env.background_color = Color(0.015, 0.015, 0.04)
 	env.ambient_light_color = Color(0.45, 0.42, 0.60)
@@ -60,11 +70,13 @@ func _environment(env: Environment) -> void:
 
 func _build_lights() -> void:
 	# the booth's lamps under the header, warm on the table; a glow from the bulbs; a cool night fill
-	spot(Vector3(-110.0, 380.0, 170.0), Vector3(-50.0, TOP_Y, 70.0), Color(1.0, 0.86, 0.62), 9.0, 460.0, 45.0, true)
-	spot(Vector3(110.0, 380.0, 170.0), Vector3(50.0, TOP_Y, 70.0), Color(1.0, 0.86, 0.62), 9.0, 460.0, 45.0)
+	spot(Vector3(-110.0, 380.0, 170.0), Vector3(-50.0, TOP_Y, 70.0), Color(1.0, 0.86, 0.62), 0.9, 460.0, 45.0, true)
+	spot(Vector3(110.0, 380.0, 170.0), Vector3(50.0, TOP_Y, 70.0), Color(1.0, 0.86, 0.62), 0.9, 460.0, 45.0)
 	light(Vector3(0.0, 400.0, 220.0), Color(1.0, 0.80, 0.50), 0.8, 320.0)
 	light(Vector3(0.0, 60.0, 360.0), Color(1.0, 0.70, 0.45), 0.6, 300.0)
 	light(Vector3(-300.0, 300.0, 300.0), Color(0.55, 0.65, 1.0), 0.5, 500.0)
+	# a low key from the front on the table, so the buttons coming up read in their colors
+	spot(Vector3(0.0, 250.0, 420.0), Vector3(0.0, TOP_Y, 60.0), Color(1.0, 0.92, 0.80), 0.5, 520.0, 30.0)
 	# a soft warm light in front, up at the valance
 	light(Vector3(0.0, 300.0, 420.0), Color(1.0, 0.85, 0.65), 1.1, 420.0)
 
@@ -83,23 +95,48 @@ func _stripes(n: int, a: Color, b: Color, bands: int) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 func _stars(n: int) -> ImageTexture:
+	# navy VELVET (a fine weave, the nap darker toward the foot) with painted GOLD-LEAF stars, each with a darker rim
+	# and a lighter heart, and the paint worn a little at the edges
 	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
-	img.fill(Color(0.08, 0.10, 0.30))
-	for k in 70:
-		var cx: int = int(h01(k * 5 + 1) * float(n))
-		var cy: int = int(h01(k * 5 + 2) * float(n))
-		var r: int = 2 + int(h01(k * 5 + 3) * 4.0)
-		for a in 5:
-			var ang: float = TAU * float(a) / 5.0 - PI * 0.5
-			for d in r * 2:
-				var px: int = cx + int(cos(ang) * float(d) * 0.5)
-				var py: int = cy + int(sin(ang) * float(d) * 0.5)
-				if px >= 0 and px < n and py >= 0 and py < n:
-					img.set_pixel(px, py, GOLD)
-		img.fill_rect(Rect2i(cx - r / 2, cy - r / 2, r, r), GOLD)
+	for y in n:
+		for x in n:
+			var weave: float = 0.5 + 0.5 * sin(float(x) * 1.9) * sin(float(y) * 1.9)
+			var c: Color = Color(0.10, 0.12, 0.34).darkened(0.25 * float(y) / float(n) + 0.10 * weave + 0.08 * h01(x * 7 + y * 13))
+			img.set_pixel(x, y, c)
+	for k in 46:
+		var cx: float = h01(k * 5 + 1) * float(n)
+		var cy: float = h01(k * 5 + 2) * float(n)
+		var r: float = 4.0 + h01(k * 5 + 3) * 6.0
+		var rot: float = h01(k * 5 + 4) * TAU
+		for y2 in range(int(cy - r - 2.0), int(cy + r + 3.0)):
+			for x2 in range(int(cx - r - 2.0), int(cx + r + 3.0)):
+				var dx: float = float(x2) - cx
+				var dy: float = float(y2) - cy
+				var ang: float = atan2(dy, dx) + rot
+				var reach: float = r * (0.45 + 0.55 * pow(absf(cos(ang * 2.5)), 6.0))
+				var dist: float = sqrt(dx * dx + dy * dy)
+				if dist > reach or x2 < 0 or y2 < 0 or x2 >= n or y2 >= n:
+					continue
+				var edge: float = clampf((reach - dist) / 1.6, 0.0, 1.0)
+				var gc: Color = Color(0.70, 0.50, 0.18).lerp(Color(1.0, 0.86, 0.42), edge * (1.0 - dist / (r * 1.4)))
+				if h01(x2 * 37 + y2 * 11) > 0.93:
+					gc = gc.darkened(0.4)       # worn leaf
+				img.set_pixel(x2, y2, gc)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
+func _night(n: int) -> ImageTexture:
+	# the sky over the fair: deep blue overhead to a warm violet glow over the rides, stars, a thin cloud
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n:
+			var v: float = float(y) / float(n)
+			var c: Color = Color(0.02, 0.03, 0.10).lerp(Color(0.10, 0.08, 0.24), smoothstep(0.1, 0.7, v)).lerp(Color(0.42, 0.20, 0.30), smoothstep(0.65, 1.0, v))
+			var cloud: float = 0.5 + 0.5 * sin(float(x) * 0.05 + sin(float(y) * 0.11) * 2.0)
+			c = c.lerp(Color(0.24, 0.16, 0.30), 0.18 * cloud * smoothstep(0.3, 0.6, v) * (1.0 - smoothstep(0.6, 0.8, v)))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 # mown turf: green bands, fine speckle
 func _turf(n: int) -> ImageTexture:
@@ -116,7 +153,6 @@ func _turf(n: int) -> ImageTexture:
 # --- the booth and the table's body: baked -------------------------------------------------------------------
 
 func _build_still() -> void:
-	var wood: StandardMaterial3D = mat(Color.WHITE, 0.45, 0.0, tex_wood(256, Color(0.52, 0.28, 0.14), 3), Vector3(3, 1, 1))
 	var dark_wood: StandardMaterial3D = mat(Color.WHITE, 0.35, 0.0, tex_wood(256, Color(0.28, 0.14, 0.07), 5), Vector3(3, 1, 1))
 	var brass: StandardMaterial3D = mat(Color(0.88, 0.68, 0.32), 0.3, 0.4)
 	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(256, RED, Color(0.96, 0.93, 0.86), 8))
@@ -139,6 +175,8 @@ func _build_still() -> void:
 			var by: float = 515.0 - 60.0 * 4.0 * u * (1.0 - u)
 			sphere(3.4, glow([Color(1.0, 0.85, 0.5), Color(1.0, 0.45, 0.4), Color(0.6, 0.8, 1.0)][k % 3]), Vector3(bx, by, 260.0 - 300.0 * u))
 	box(Vector3(2400.0, 6.0, 1400.0), mat(Color.WHITE, 0.7, 0.0, tex_wood(256, Color(0.40, 0.30, 0.22), 9), Vector3(10, 16, 1)), Vector3(0.0, -3.5, 0.0))
+	if bake_mode:
+		pass                      # (the fair is its own live view, behind the booth: its wheel turns)
 	# the back wall of stars, and a shelf of prizes along it
 	box(Vector3(460.0, 350.0, 4.0), mat(Color.WHITE, 0.8, 0.0, _stars(256), Vector3(2, 1.4, 1)), Vector3(0.0, 175.0, -62.0))
 	box(Vector3(440.0, 6.0, 30.0), dark_wood, Vector3(0.0, 262.0, -46.0))
@@ -151,37 +189,337 @@ func _build_still() -> void:
 		for e in [-1.0, 1.0]:
 			sphere(4.0, pm, Vector3(px + e * 7.0, 307.0, -44.0))
 	# (no header board: the user -- "remove the win a prize area to make all else bigger")
-	# the awning: a striped slope out over the table, its valance of scallops
-	box(Vector3(500.0, 3.0, 90.0), stripe, Vector3(0.0, 366.0, 160.0), Vector3(-18.0, 0.0, 0.0))
-	# THE VALANCE: a band along the awning's front edge, and under it PUFFED FABRIC SCALLOPS, each a rounded cushion
-	# lit by the lamps (they were flat discs, the user: "make the white/red circles nicer"), a gold cord along the seam
-	box(Vector3(504.0, 16.0, 10.0), stripe, Vector3(0.0, 349.0, 205.0))
-	for k in 20:
-		var sx: float = -240.0 + float(k) * 25.2 + 12.6
-		var fab: StandardMaterial3D = mat(RED if k % 2 == 0 else Color(0.96, 0.93, 0.86), 0.55, 0.0)
-		fab.clearcoat_enabled = true
-		fab.clearcoat = 0.25
-		var sc: MeshInstance3D = sphere(12.6, fab, Vector3(sx, 341.0, 204.0))
-		sc.scale = Vector3(1.0, 1.05, 0.42)
-	cyl(1.8, 1.8, 506.0, mat(Color(0.95, 0.76, 0.34), 0.3, 0.6), Vector3(0.0, 341.5, 210.5), Vector3(0.0, 0.0, 90.0))
-	for k2 in 21:
-		sphere(2.4, mat(Color(0.95, 0.76, 0.34), 0.3, 0.6), Vector3(-252.0 + float(k2) * 25.2, 341.5, 211.5))
-	# THE TABLE's body: varnished, striped panels in brass frames, a lit strip under its lip
-	box(Vector3(440.0, TOP_Y - 6.0, 200.0), wood, Vector3(0.0, (TOP_Y - 6.0) * 0.5, 70.0))
-	box(Vector3(440.0, 3.0, 2.0), glow(Color(1.0, 0.82, 0.45)), Vector3(0.0, TOP_Y - 18.0, 171.0))
-	var panel_stripe: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 6))
-	for k in 5:
-		var px2: float = -168.0 + float(k) * 84.0
-		box(Vector3(70.0, 80.0, 1.0), brass, Vector3(px2, 66.0, 170.4))
-		box(Vector3(64.0, 74.0, 1.0), panel_stripe, Vector3(px2, 66.0, 171.0))
+	_build_header(false)
+	# THE TABLE's body: a cabinet front in red lacquer framed in gilt beading, a lit SCOREBOARD set in it -- black glass
+	# in a steel bezel, its figures live (the striped panels read as an empty basket, the lit strip on bare
+	# wood as "a brown rect with a yellow line" -- the user)
+	var lacquer: StandardMaterial3D = mat(Color(0.52, 0.06, 0.07), 0.25, 0.1)
+	lacquer.clearcoat_enabled = true
+	lacquer.clearcoat = 0.8
+	box(Vector3(440.0, TOP_Y - 6.0, 200.0), lacquer, Vector3(0.0, (TOP_Y - 6.0) * 0.5, 70.0))
+	for by in [10.0, TOP_Y - 14.0]:
+		cyl(2.2, 2.2, 432.0, brass, Vector3(0.0, by, 171.0), Vector3(0.0, 0.0, 90.0), null, 10)
+	for bx in [-214.0, 214.0]:
+		cyl(2.2, 2.2, TOP_Y - 24.0, brass, Vector3(bx, (TOP_Y - 4.0) * 0.5, 171.0), Vector3.ZERO, null, 10)
+	# the scoreboard SET INTO the cabinet front, higher up (the user: no word, a little higher, and "what does it stand
+	# on?"): a dark steel bezel standing proud of the lacquer, its brass frame, the black glass recessed in it, a brass
+	# screw at each corner
+	var sb_y: float = 84.0
+	var steel_b: StandardMaterial3D = mat(Color(0.10, 0.10, 0.11), 0.35, 0.7)
+	put(rbox_mesh(104.0, 34.0, 5.0, 8.0, 2.0), steel_b, Vector3(0.0, sb_y, 169.5), Vector3(90.0, 0.0, 0.0))
+	for gy in [sb_y - 28.0, sb_y + 28.0]:
+		cyl(2.6, 2.6, 196.0, brass, Vector3(0.0, gy, 174.8), Vector3(0.0, 0.0, 90.0), null, 10)
+	for gx in [-97.0, 97.0]:
+		cyl(2.6, 2.6, 58.0, brass, Vector3(gx, sb_y, 174.8), Vector3.ZERO, null, 10)
+	box(Vector3(184.0, 50.0, 1.0), mat(Color(0.02, 0.02, 0.03), 0.05, 0.4), Vector3(0.0, sb_y, 173.6))
+	for sx in [-100.0, 100.0]:
+		for sy in [-30.0, 30.0]:
+			sphere(2.4, brass, Vector3(sx, sb_y + sy, 175.2))
+	for sr in 2:
+		for rv in 7:
+			sphere(2.6, brass, Vector3(-150.0 + float(rv) * 50.0 + (25.0 if sr == 1 else 0.0), 16.0 + float(sr) * 0.0, 171.5))
 	# the posts at the corners, striped
 	for px3 in [-245.0, 245.0]:
-		cyl(7.0, 7.0, 380.0, stripe, Vector3(px3, 190.0, 118.0))
-		sphere(9.0, brass, Vector3(px3, 384.0, 118.0))
+		cyl(7.0, 7.0, FASCIA_Y0, stripe, Vector3(px3, FASCIA_Y0 * 0.5, 118.0))
+		cyl(9.0, 7.0, 6.0, brass, Vector3(px3, FASCIA_Y0 - 3.0, 118.0))
+
+# THE FAIR BEHIND, at night, filling the sky over the stall (it was an empty black band): the sky, a big Ferris
+# wheel turning its lit rim over the stalls at the left, a carousel's peaked and scalloped roof at the right with its
+# crown of bulbs, the far stalls between (bulb strings in front were tried: near the camera they swam as big
+# blurs behind the title)
+func _build_fair() -> void:
+	var sky: StandardMaterial3D = mat(Color.WHITE, 1.0, 0.0, _night(128))
+	sky.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	box(Vector3(5200.0, 2600.0, 2.0), sky, Vector3(0.0, 900.0, -2400.0))
+	# its stars as real points (stars in the stretched sky texture swam as white smears)
+	for st in 90:
+		var sp3: Vector3 = Vector3(lerpf(-2200.0, 2200.0, h01(st * 3 + 900)), lerpf(700.0, 2100.0, h01(st * 3 + 901)), -2390.0)
+		sphere(2.0 + 3.0 * pow(h01(st * 3 + 902), 3.0), glow(Color(0.95, 0.93, 1.0).darkened(0.4 * h01(st + 903))), sp3)
+	var steel: StandardMaterial3D = mat(Color(0.70, 0.72, 0.78), 0.35, 0.7)
+	var bulb_cols: Array = [Color(1.0, 0.86, 0.52), Color(1.0, 0.50, 0.42), Color(0.60, 0.82, 1.0), Color(0.70, 1.0, 0.60)]
+	# THE FERRIS WHEEL: two rims of steel, spokes, the hub, the A-frame legs, gondolas hanging plumb, bulbs on the rims
+	var wc: Vector3 = WHEEL_C
+	var wr: float = WHEEL_R
+	# what turns hangs from a pivot at the hub (`_wheel`); the gondolas are their own, hanging plumb (`_gondolas`)
+	_wheel = Node3D.new()
+	root.add_child(_wheel)
+	_wheel.position = wc
+	for rim_z in [-30.0, 30.0]:
+		var rim: TorusMesh = TorusMesh.new()
+		rim.inner_radius = wr - 7.0
+		rim.outer_radius = wr + 7.0
+		rim.rings = 96
+		put(rim, steel, Vector3(0.0, 0.0, rim_z), Vector3(90.0, 0.0, 0.0), _wheel)
+	# neon tubes along the rim and round the hub, so the wheel reads at night
+	for neon in [[wr + 9.0, Color(1.0, 0.45, 0.65)]]:
+		var tube: TorusMesh = TorusMesh.new()
+		tube.inner_radius = float(neon[0]) - 2.5
+		tube.outer_radius = float(neon[0]) + 2.5
+		tube.rings = 128
+		put(tube, glow(neon[1]), Vector3(0.0, 0.0, 36.0), Vector3(90.0, 0.0, 0.0), _wheel)
+	for sp in 16:
+		var a: float = TAU * float(sp) / 16.0
+		var tip: Vector3 = Vector3(cos(a), sin(a), 0.0) * wr
+		var spoke: MeshInstance3D = cyl(2.5, 2.5, wr, steel, tip * 0.5, Vector3.ZERO, _wheel)
+		spoke.rotation = Vector3(0.0, 0.0, a - PI * 0.5)
+		# a gondola hanging plumb from the rim: a rounded cabin with a canopy
+		var gon: Node3D = Node3D.new()
+		root.add_child(gon)
+		cyl(2.0, 2.0, 40.0, steel, Vector3(0.0, -20.0, 0.0), Vector3.ZERO, gon, 6)
+		put(rbox_mesh(32.0, 24.0, 40.0, 10.0, 4.0), mat(bulb_cols[sp % 4].darkened(0.35), 0.4, 0.2), Vector3(0.0, -66.0, 0.0), Vector3.ZERO, gon)
+		cyl(8.0, 38.0, 12.0, mat(Color(0.95, 0.93, 0.86), 0.5), Vector3(0.0, -28.0, 0.0), Vector3.ZERO, gon, 16)
+		_gondolas.append([gon, a])
+	for bl in 64:
+		var ab: float = TAU * float(bl) / 64.0
+		sphere(6.0, glow(bulb_cols[bl % 4]), Vector3(cos(ab), sin(ab), 0.0) * wr + Vector3(0.0, 0.0, 34.0), _wheel)
+	for sp2 in 16:
+		var a2: float = TAU * float(sp2) / 16.0
+		for bs in 4:
+			sphere(4.0, glow(Color(1.0, 0.90, 0.62)), Vector3(cos(a2), sin(a2), 0.0) * wr * (0.25 + 0.18 * float(bs)) + Vector3(0.0, 0.0, 34.0), _wheel)
+	cyl(26.0, 26.0, 90.0, steel, wc, Vector3(90.0, 0.0, 0.0), null, 24)
+	sphere(18.0, glow(Color(1.0, 0.86, 0.52)), wc + Vector3(0.0, 0.0, 46.0))
+	for leg in [-1.0, 1.0]:
+		var foot: Vector3 = Vector3(wc.x + leg * 330.0, 0.0, wc.z)
+		var leg_m: MeshInstance3D = cyl(8.0, 12.0, foot.distance_to(wc), steel, (foot + wc) * 0.5)
+		leg_m.rotation = Vector3(0.0, 0.0, atan2(wc.x - foot.x, foot.y - wc.y) + PI)
+	# THE CAROUSEL at the right: a drum of mirrored panels lit from within, a peaked striped roof, its scalloped skirt,
+	# a crown of bulbs, a pennant on top
+	var cc: Vector3 = Vector3(760.0, 0.0, -1300.0)
+	var roof_m: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(128, Color(0.75, 0.12, 0.14), Color(0.96, 0.92, 0.82), 16))
+	cyl(240.0, 240.0, 220.0, mat(Color(0.95, 0.80, 0.50), 0.4, 0.3), cc + Vector3(0.0, 110.0, 0.0), Vector3.ZERO, null, 48)
+	cyl(232.0, 232.0, 120.0, glow(Color(1.0, 0.70, 0.40)), cc + Vector3(0.0, 120.0, 0.0), Vector3.ZERO, null, 48)
+	cyl(20.0, 280.0, 170.0, roof_m, cc + Vector3(0.0, 305.0, 0.0), Vector3.ZERO, null, 32)
+	for sk in 32:
+		var ak: float = TAU * float(sk) / 32.0
+		var scl: MeshInstance3D = sphere(26.0, mat(Color(0.75, 0.12, 0.14) if sk % 2 == 0 else Color(0.96, 0.92, 0.82), 0.6), cc + Vector3(cos(ak) * 282.0, 214.0, sin(ak) * 282.0))
+		scl.scale = Vector3(1.0, 0.8, 1.0)
+		scl.rotation = Vector3(0.0, -ak, 0.0)
+		sphere(5.0, glow(bulb_cols[sk % 4]), cc + Vector3(cos(ak) * 250.0, 232.0, sin(ak) * 250.0))
+	cyl(3.0, 3.0, 90.0, mat(Color(0.88, 0.68, 0.32), 0.3, 0.7), cc + Vector3(0.0, 430.0, 0.0), Vector3.ZERO, null, 8)
+	box(Vector3(50.0, 26.0, 2.0), mat(Color(0.95, 0.75, 0.25), 0.5), cc + Vector3(26.0, 460.0, 0.0))
+	# far stalls between, their warm windows, and their own strings of bulbs
+	for fs in 5:
+		var fx: float = -300.0 + float(fs) * 230.0
+		var fh: float = 160.0 + 60.0 * h01(fs + 60)
+		box(Vector3(180.0, fh, 80.0), mat(Color(0.18, 0.12, 0.16), 0.8), Vector3(fx, fh * 0.5, -1800.0))
+		box(Vector3(120.0, 40.0, 2.0), glow(Color(1.0, 0.70, 0.38).darkened(0.3 * h01(fs + 61))), Vector3(fx, fh * 0.55, -1759.0))
+		cyl(10.0, 130.0, 60.0, mat(Color.WHITE, 0.6, 0.0, _stripes(64, [Color(0.18, 0.36, 0.62), Color(0.62, 0.20, 0.30), Color(0.20, 0.50, 0.30)][fs % 3], Color(0.90, 0.86, 0.74), 8)), Vector3(fx, fh + 30.0, -1800.0), Vector3.ZERO, null, 16)
+
+# THE HEADER (2026-11-18; the user: "what is that string of circles floating in the air ... all other things about the
+# booth's top are not good enough"): a solid lacquered FASCIA across the posts' tops, framed in gilt beading, its row
+# of bulbs set in brass sockets in it (they hung in the air in front of the stall); an ARCHED CREST over its middle,
+# painted with a sunburst, bulbs round its arch; a pitched striped canvas ROOF behind; and under the fascia a cloth
+# VALANCE cut in scallops, red and cream panels with a gold braid along their edge and a tassel at each join.
+# Built into the picture AND into the live view (`live`), where it stands in front of the live sides; the bulbs
+# are live only (they chase).
+const FASCIA_Z: float = 126.0
+const FASCIA_Y0: float = 328.0
+const FASCIA_Y1: float = 384.0
+const CREST_R: float = 80.0
+
+func _sunburst(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	var cx: float = float(n) * 0.5
+	for y in n:
+		for x in n:
+			var dx: float = float(x) - cx
+			var dy: float = float(n) - float(y)
+			var ang: float = atan2(dy, dx)
+			var ray: float = 0.5 + 0.5 * cos(ang * 22.0)
+			var dist: float = sqrt(dx * dx + dy * dy) / float(n)
+			var c: Color = Color(0.62, 0.08, 0.10).lerp(Color(0.96, 0.78, 0.36), smoothstep(0.35, 0.65, ray) * (1.0 - smoothstep(0.75, 1.0, dist)))
+			c = c.lerp(Color(1.0, 0.92, 0.66), (1.0 - smoothstep(0.0, 0.22, dist)) * 0.9)
+			c = c.darkened(0.10 * h01(x * 13 + y * 7))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+# one scalloped cloth panel: top edge straight, bottom a half-round, bulging a little forward in the middle
+func _scallop_mesh(w: float, top_h: float, bulge: float) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segs: int = 10
+	var rows: int = 4
+	var r: float = w * 0.5
+	var grid: Array = []
+	for j in rows + 1:
+		var v: float = float(j) / float(rows)
+		var row: Array = []
+		for i in segs + 1:
+			var u: float = float(i) / float(segs)
+			var x: float = -r + u * w
+			var bottom: float = -top_h - sqrt(maxf(0.0, r * r - x * x))
+			var y: float = lerpf(0.0, bottom, v)
+			var z: float = bulge * sin(u * PI) * v
+			row.append(Vector3(x, y, z))
+		grid.append(row)
+	for j in rows:
+		for i in segs:
+			var p00: Vector3 = grid[j][i]
+			var p10: Vector3 = grid[j][i + 1]
+			var p01: Vector3 = grid[j + 1][i]
+			var p11: Vector3 = grid[j + 1][i + 1]
+			for tri in [[p00, p10, p11], [p00, p11, p01]]:
+				var nrm: Vector3 = ((tri[1] as Vector3) - (tri[0] as Vector3)).cross((tri[2] as Vector3) - (tri[0] as Vector3)).normalized()
+				if nrm.z < 0.0:
+					nrm = -nrm
+				for pt in tri:
+					st.set_normal(nrm)
+					st.add_vertex(pt)
+	return st.commit()
+
+func _build_header(live: bool) -> void:
+	var lacquer: StandardMaterial3D = mat(Color(0.56, 0.06, 0.07), 0.28, 0.1)
+	lacquer.clearcoat_enabled = true
+	lacquer.clearcoat = 0.7
+	var gilt: StandardMaterial3D = mat(Color(0.92, 0.70, 0.30), 0.28, 0.75)
+	var cloth_red: StandardMaterial3D = mat(Color(0.78, 0.08, 0.09), 0.75)
+	cloth_red.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var cloth_cream: StandardMaterial3D = mat(Color(0.95, 0.91, 0.82), 0.75)
+	cloth_cream.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var half: float = 262.0
+	# the fascia board and its gilt beading
+	box(Vector3(half * 2.0, FASCIA_Y1 - FASCIA_Y0, 10.0), lacquer, Vector3(0.0, (FASCIA_Y0 + FASCIA_Y1) * 0.5, FASCIA_Z))
+	for yb in [FASCIA_Y0 + 3.0, FASCIA_Y1 - 3.0]:
+		cyl(2.4, 2.4, half * 2.0 + 4.0, gilt, Vector3(0.0, yb, FASCIA_Z + 5.5), Vector3(0.0, 0.0, 90.0), null, 12)
+	for xb in [-half, half]:
+		cyl(2.4, 2.4, FASCIA_Y1 - FASCIA_Y0, gilt, Vector3(xb, (FASCIA_Y0 + FASCIA_Y1) * 0.5, FASCIA_Z + 5.5), Vector3.ZERO, null, 12)
+	# brass sockets for the bulbs
+	for k in 24:
+		var bx: float = -half + 14.0 + float(k) * ((half * 2.0 - 28.0) / 23.0)
+		cyl(4.6, 4.6, 3.0, gilt, Vector3(bx, (FASCIA_Y0 + FASCIA_Y1) * 0.5, FASCIA_Z + 6.0), Vector3(90.0, 0.0, 0.0), null, 16)
+	# THE CREST: a half-disc board on the fascia's middle, the sunburst painted on it, a gilt rim round its arch
+	var crest_m: StandardMaterial3D = mat(Color.WHITE, 0.4, 0.05, _sunburst(128))
+	var disc: CylinderMesh = CylinderMesh.new()
+	disc.top_radius = CREST_R
+	disc.bottom_radius = CREST_R
+	disc.height = 8.0
+	disc.radial_segments = 48
+	var crest: MeshInstance3D = put(disc, crest_m, Vector3(0.0, FASCIA_Y1 - 2.0, FASCIA_Z - 1.0), Vector3(90.0, 0.0, 0.0))
+	crest.scale = Vector3(1.0, 1.0, 1.0)
+	var arc: PackedVector3Array = PackedVector3Array()
+	for k2 in 33:
+		var a: float = PI * float(k2) / 32.0
+		arc.append(Vector3(cos(a) * (CREST_R + 1.5), FASCIA_Y1 - 2.0 + sin(a) * (CREST_R + 1.5), FASCIA_Z + 3.5))
+	put(tube_mesh(arc, 3.2, 10), gilt, Vector3.ZERO)
+	for k3 in 9:
+		var a3: float = PI * (float(k3) + 0.5) / 9.0
+		cyl(4.0, 4.0, 3.0, gilt, Vector3(cos(a3) * (CREST_R - 9.0), FASCIA_Y1 - 2.0 + sin(a3) * (CREST_R - 9.0), FASCIA_Z + 4.0), Vector3(90.0, 0.0, 0.0), null, 14)
+	sphere(7.0, gilt, Vector3(0.0, FASCIA_Y1 + CREST_R + 6.0, FASCIA_Z + 2.0))
+	# THE ROOF: striped canvas pitched back from the fascia's top to the back wall
+	if not live:
+		var stripe: StandardMaterial3D = mat(Color.WHITE, 0.65, 0.0, _stripes(256, RED, Color(0.96, 0.93, 0.86), 10))
+		var run: float = FASCIA_Z + 62.0
+		var rise: float = 34.0
+		var roof: MeshInstance3D = box(Vector3(half * 2.0, 3.0, sqrt(run * run + rise * rise)), stripe, Vector3(0.0, FASCIA_Y1 + rise * 0.5, (FASCIA_Z - 62.0) * 0.5))
+		roof.rotation = Vector3(-atan2(rise, run), 0.0, 0.0)
+	# THE VALANCE under the fascia: scalloped panels, a gold braid on their edge, tassels at the joins
+	var pw: float = 26.2
+	var n_p: int = 20
+	var x0: float = -pw * float(n_p) * 0.5
+	var sm: ArrayMesh = _scallop_mesh(pw, 10.0, 3.5)
+	for k4 in n_p:
+		var cx: float = x0 + pw * (float(k4) + 0.5)
+		put(sm, cloth_red if k4 % 2 == 0 else cloth_cream, Vector3(cx, FASCIA_Y0 + 1.0, FASCIA_Z + 5.5))
+		var edge: PackedVector3Array = PackedVector3Array()
+		for e in 13:
+			var u: float = float(e) / 12.0
+			var x: float = -pw * 0.5 + u * pw
+			var r2: float = pw * 0.5
+			edge.append(Vector3(cx + x, FASCIA_Y0 + 1.0 - 10.0 - sqrt(maxf(0.0, r2 * r2 - x * x)), FASCIA_Z + 5.5 + 3.5 * sin(u * PI) + 0.6))
+		put(tube_mesh(edge, 0.9, 6), gilt, Vector3.ZERO)
+	for k5 in n_p + 1:
+		var tx: float = x0 + pw * float(k5)
+		cyl(0.5, 0.5, 8.0, gilt, Vector3(tx, FASCIA_Y0 - 9.0, FASCIA_Z + 6.5), Vector3.ZERO, null, 6)
+		cyl(1.0, 2.6, 7.0, gilt, Vector3(tx, FASCIA_Y0 - 16.0, FASCIA_Z + 6.5), Vector3.ZERO, null, 10)
+		sphere(1.6, gilt, Vector3(tx, FASCIA_Y0 - 12.0, FASCIA_Z + 6.5))
+	if live:
+		for k6 in 24:
+			var bx2: float = -half + 14.0 + float(k6) * ((half * 2.0 - 28.0) / 23.0)
+			var bm: StandardMaterial3D = glow(Color(1.0, 0.86, 0.55))
+			sphere(3.4, bm, Vector3(bx2, (FASCIA_Y0 + FASCIA_Y1) * 0.5, FASCIA_Z + 8.0))
+			_bulbs.append(bm)
+		for k7 in 9:
+			var a7: float = PI * (float(k7) + 0.5) / 9.0
+			var bm2: StandardMaterial3D = glow(Color(1.0, 0.86, 0.55))
+			sphere(3.0, bm2, Vector3(cos(a7) * (CREST_R - 9.0), FASCIA_Y1 - 2.0 + sin(a7) * (CREST_R - 9.0), FASCIA_Z + 6.0))
+			_bulbs.append(bm2)
 
 # --- live ---------------------------------------------------------------------------------------------------------
 
+# THE FAIR IS ITS OWN LIVE VIEW, BEHIND THE BOOTH (the user: "can the big wheel turn?"): the booth is baked with a
+# clear sky, and under that picture a second 3-D view with the same camera holds the sky, the stars, the carousel,
+# the far stalls and the FERRIS WHEEL, turning slowly, its gondolas hanging plumb -- so the wheel turns behind
+# everything that stands in front of it
+func _setup() -> void:
+	super._setup()
+	if bake_mode:
+		return
+	_fair_vpc = SubViewportContainer.new()
+	_fair_vpc.stretch = true
+	_fair_vpc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fair_vpc)
+	move_child(_fair_vpc, 0)
+	_fair_vp = SubViewport.new()
+	_fair_vp.own_world_3d = true
+	_fair_vp.msaa_3d = Viewport.MSAA_4X
+	_fair_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_fair_vpc.add_child(_fair_vp)
+	var world: Node3D = Node3D.new()
+	_fair_vp.add_child(world)
+	var env: Environment = Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.02, 0.03, 0.10)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.45, 0.42, 0.60)
+	env.ambient_light_energy = 0.35
+	var we: WorldEnvironment = WorldEnvironment.new()
+	we.environment = env
+	world.add_child(we)
+	var cam: Camera3D = Camera3D.new()
+	cam.keep_aspect = Camera3D.KEEP_WIDTH
+	cam.fov = _fov()
+	cam.near = 0.05
+	cam.far = 60.0
+	world.add_child(cam)
+	cam.look_at_from_position(_eye() * 0.01, _aim() * 0.01, Vector3.UP)
+	cam.current = true
+	var keep: Node3D = root
+	root = Node3D.new()
+	world.add_child(root)
+	root.scale = Vector3.ONE * 0.01
+	var moon: DirectionalLight3D = DirectionalLight3D.new()
+	moon.light_color = Color(0.70, 0.70, 0.95)
+	moon.light_energy = 0.5
+	root.add_child(moon)
+	moon.rotation_degrees = Vector3(-35.0, 30.0, 0.0)
+	_build_fair()
+	root = keep
+
+func _shown_changed(shown: bool) -> void:
+	super._shown_changed(shown)
+	if _fair_vp != null:
+		_fair_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if shown else SubViewport.UPDATE_DISABLED
+
+func _tick(delta: float) -> void:
+	super._tick(delta)
+	if _fair_vpc != null and _vpc != null:
+		_fair_vpc.position = _vpc.position
+		_fair_vpc.size = _vpc.size
+	# the wheel turning, slowly; each gondola hung plumb from its place on the rim
+	if _wheel != null:
+		var turn: float = -t * 0.10
+		_wheel.rotation = Vector3(0.0, 0.0, turn)
+		for g in _gondolas:
+			var a: float = float(g[1]) + turn
+			(g[0] as Node3D).position = WHEEL_C + Vector3(cos(a), sin(a), 0.0) * WHEEL_R + Vector3(0.0, 0.0, 0.0)
+
 func _build_live() -> void:
+	# the scoreboard's figures, amber in its black glass, counting each hit
+	_score = label("0000", 30.0, Color(1.0, 0.70, 0.25), Vector3(0.0, 84.0, 174.4))
+	_score.outline_size = 10
+	_score.outline_modulate = Color(1.0, 0.40, 0.10, 0.45)
+	_score.font = load("res://art/fonts/JetBrainsMono.ttf") if ResourceLoader.exists("res://art/fonts/JetBrainsMono.ttf") else _score.font
 	var brass: StandardMaterial3D = mat(Color(0.88, 0.68, 0.32), 0.3, 0.4)
 	# the striped sides
 	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 8))
@@ -207,9 +545,12 @@ func _build_live() -> void:
 		# THE BUTTON: a dome in its color on a darker rim; the real target's white center dot
 		var d: Node3D = Node3D.new()
 		root.add_child(d)
-		var body_m: StandardMaterial3D = mat(TARGET, 0.25, 0.05)
+		var body_m: StandardMaterial3D = mat(TARGET, 0.22, 0.05)
 		body_m.clearcoat_enabled = true
 		body_m.clearcoat = 0.8
+		body_m.emission_enabled = true                  # the plastic glows a little in its color: they read dark under the stall
+		body_m.emission = TARGET
+		body_m.emission_energy_multiplier = 0.35
 		var rim_m: StandardMaterial3D = mat(TARGET.darkened(0.35), 0.4)
 		var dome: MeshInstance3D = sphere(DOME_R, body_m, Vector3(0.0, 8.0, 0.0), d, true)
 		dome.scale = Vector3(1.0, 0.72, 1.0)
@@ -254,11 +595,7 @@ func _build_live() -> void:
 		sphere(3.0, mat(Color(0.95, 0.88, 0.80), 0.9), Vector3(bx2, by + 8.0, bz + 8.5))
 		for e3 in [-1.0, 1.0]:
 			sphere(1.2, mat(Color(0.05, 0.04, 0.04), 0.3), Vector3(bx2 + e3 * 3.2, by + 12.5, bz + 8.6))
-	# the bulbs along the valance band, chasing
-	for k in 24:
-		var bm: StandardMaterial3D = glow(Color(1.0, 0.86, 0.55))
-		sphere(3.0, bm, Vector3(-236.0 + float(k) * 20.5, 349.0, 210.5))
-		_bulbs.append(bm)
+	_build_header(true)
 
 # --- the motion ---------------------------------------------------------------------------------------------------
 
@@ -286,6 +623,8 @@ const RAISE: float = 0.30             # how far up a button stands out of its bu
 func _animate(_delta: float) -> void:
 	if _mallet == null:
 		return
+	if _score != null:
+		_score.text = "%04d" % (posmod(int(floor((t - 0.05) / HIT_EVERY)) + 1, 1000) * 10)
 	var hn: int = int(floor(t / HIT_EVERY))
 	var up: Array = []
 	up.resize(HOLES.size())
@@ -322,6 +661,7 @@ func _animate(_delta: float) -> void:
 		node.visible = u > 0.01
 		var col: Color = TARGET if int(kind[k]) == 0 else DECOY
 		(dd[1] as StandardMaterial3D).albedo_color = col
+		(dd[1] as StandardMaterial3D).emission = col
 		(dd[2] as StandardMaterial3D).albedo_color = col.darkened(0.35)
 		(dd[3] as Node3D).visible = int(kind[k]) == 0
 	# the soil thrown up as a button comes out: clods flying out of the burrow and falling back on the turf

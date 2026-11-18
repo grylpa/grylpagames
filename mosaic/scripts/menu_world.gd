@@ -1,26 +1,41 @@
-extends "res://scripts/menu_poster.gd"
+extends "res://scripts/menu_poster3d.gd"
 
-# MOSAIC'S OPENING POSTER (main.gd menu_backdrop(); see scripts/menu_poster.gd): A WALL MOSAIC by candlelight.
-# One of the game's own pictures (picture.gd, a scenery) laid in hundreds of small TESSERAE -- each a
-# slightly uneven square of glass or stone, a shade off its neighbor, dark grout between them -- inside a
-# border of gold, lapis and terracotta tiles in a repeating pattern, set in an arched stone niche between two
-# columns, in a dark stone wall lit by two candles in iron sconces. A slow sweep of light crosses the mosaic
-# and the gold tiles glint as it passes; and all the while a few tesserae at a time drift out of the wall,
-# turn in the air and settle back into their places -- the picture taken apart and put back, gently.
-# (A puzzle in a gilt frame on a table, its squares swapping, was not good enough, the user: "do better. much
-# better".) The mosaic is drawn ONCE; only the light and the loose tiles move. Made up, never the board.
+# MOSAIC'S OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): A WALL MOSAIC by
+# candlelight. The hall around it is REAL 3-D now (the flat drawing was "low quality and flat", the user): a wall of
+# dressed stone blocks with real relief; a deep ARCHED NICHE -- side walls, a vault, a ring of wedge stones round its
+# arch, a molded sill; FLUTED COLUMNS either side with bases and carved capitals; heavy BANNERS hanging in folds from
+# brass rods, embroidered, with gold fringes; turned stone URNS on the flagstone floor with 3-D ivy trailing over them;
+# CANDLES of dripping wax in iron sconces on the columns, really lighting the stone. In the niche, drawn over the 3-D
+# exactly where the camera sees its panel (the camera faces it square), one of the game's own pictures (picture.gd)
+# laid in hundreds of small TESSERAE -- each a shade off its neighbor, dark grout between -- inside a border of gold,
+# lapis and terracotta; a slow glint crosses it, a ripple of light runs through it, and a few tesserae at a time
+# drift out, turn in the air and settle back. The hall is baked, one picture per platform (`menu_hall.webp`,
+# `menu_hall_d.webp`); the mosaic, the flames and the loose tiles are live. Made up, never the board.
 
-const GRID: int = 26                 # tesserae across (and the rows follow the picture's shape)
-const LOOSE: int = 14                # tiles out of the wall at any moment
-const DRIFT: float = 2.6             # seconds a loose tile is out
+const GRID: int = 26                 # tesserae across (and the rows follow the panel's shape)
+const LOOSE: int = 14
+const DRIFT: float = 2.6
 const GOLD: Color = Color(0.86, 0.66, 0.26)
 const LAPIS: Color = Color(0.16, 0.24, 0.52)
 const TERRA: Color = Color(0.66, 0.30, 0.20)
+const PANEL_C: Vector3 = Vector3(0.0, 270.0, -60.0)     # the mosaic's panel, at the back of the niche
+const PANEL_HALF: Vector2 = Vector2(150.0, 165.0)
+const NICHE_HALF: float = 190.0
+const ARCH_Y: float = 445.0                              # the arch's springing
+const CANDLE_X: float = 262.0
+const CANDLE_Z: float = 64.0
+const CANDLE_TOP: float = 352.0
 
 var _img: Image = null
 var _img_task: int = -1
 var _made: Image = null
 var _live_a: float = 0.0
+var _pic: Control = null
+var _live: Control = null
+var _rows: int = 26
+var _tiles: Array = []
+var _border: Array = []
+var _laid_for: float = -2.0
 
 func _make_picture() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -29,37 +44,317 @@ func _make_picture() -> void:
 	if img != null and img.is_compressed():
 		img.decompress()
 	_made = img
-var _wall: Control = null
-var _live: Control = null
-var _rows: int = 26
-var _tiles: Array = []               # [Rect2 in screen px, Color, rotation] of the picture's tesserae
-var _border: Array = []              # [Rect2, Color, is_gold]
-var _laid_for: float = -2.0
+
+func _baked_path() -> String:
+	return "res://mosaic/art/menu_hall.webp" if mobile else "res://mosaic/art/menu_hall_d.webp"
+
+func _eye() -> Vector3:
+	return Vector3(0.0, 290.0, 1200.0) if mobile else Vector3(0.0, 320.0, 1700.0)
+
+func _aim() -> Vector3:
+	return Vector3(0.0, 290.0, 0.0)
+
+func _fov() -> float:
+	return 48.0
+
+func _frame_frac() -> float:
+	return 0.54
+
+func _environment(env: Environment) -> void:
+	env.background_color = Color(0.04, 0.03, 0.03)
+	env.ambient_light_color = Color(0.50, 0.44, 0.40)
+	env.ambient_light_energy = 0.22
 
 func _setup() -> void:
-	# THE PICTURE IS MADE OFF THE MAIN THREAD (it took a quarter of a second, holding the menu up), and the wall --
-	# niche, columns, the mosaic itself -- is a still layer, baked (menu_poster.gd `add_still`): it shows at once
-	# from its picture; what moves (the loose tiles, the light, the flames) fades in when the picture is ready
-	_img_task = WorkerThreadPool.add_task(_make_picture)
-	_wall = add_still(func(d: Control) -> void: _draw_wall(d))
+	super._setup()
+	if bake_mode:
+		return
+	# THE PICTURE is always the same one (seed 404): made once and shipped small (`art/menu_mosaic.png`, 128 x 128), so
+	# the mosaic is there from the first frame (made on a thread each time, it was slow to appear -- the user)
+	var tex: Texture2D = load("res://mosaic/art/menu_mosaic.png")
+	if tex != null:
+		_img = tex.get_image()
+		if _img.is_compressed():
+			_img.decompress()
+		_laid_for = -2.0
+	else:
+		_img_task = WorkerThreadPool.add_task(_make_picture)
+	_pic = Control.new()
+	_pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pic.draw.connect(func() -> void: _draw_pic(_pic))
+	add_child(_pic)
 	_live = Control.new()
 	_live.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_live.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_live.draw.connect(func() -> void: _draw_live(_live))
 	add_child(_live)
+	if _top != null:
+		move_child(_top, get_child_count() - 1)
 
-# the picture's rectangle on the wall
+func _build_lights() -> void:
+	# the two candles, warm and close, lighting the stone round them; a faint cool light from high in the hall
+	for side in [-1.0, 1.0]:
+		light(Vector3(side * CANDLE_X, CANDLE_TOP + 10.0, CANDLE_Z + 10.0), Color(1.0, 0.70, 0.40), 3.2, 520.0, true)
+	var high: DirectionalLight3D = DirectionalLight3D.new()
+	high.light_color = Color(0.55, 0.60, 0.80)
+	high.light_energy = 0.25
+	root.add_child(high)
+	high.rotation_degrees = Vector3(-50.0, -20.0, 0.0)
+
+# the mosaic's rectangle on the screen: the panel's corners as the camera sees them
 func _pic_rect() -> Rect2:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
-	var top: float = 270.0 if mobile else 175.0
-	var room: float = bottom - top - 60.0
-	var w: float = minf(full.x * 0.58, room * 0.72)
-	var aspect: float = float(_img.get_height()) / float(_img.get_width()) if _img != null else 1.0
-	var h: float = w * aspect
-	return Rect2((full.x - w) * 0.5, top + 46.0 + (room - 46.0 - h) * 0.5, w, h)
+	var a: Vector2 = screen_of(PANEL_C + Vector3(-PANEL_HALF.x, PANEL_HALF.y, 0.0))
+	var b: Vector2 = screen_of(PANEL_C + Vector3(PANEL_HALF.x, -PANEL_HALF.y, 0.0))
+	return Rect2(a, b - a)
+
+# --- textures ---------------------------------------------------------------------------------------------------
+
+func _ashlar(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	img.fill(Color(0.16, 0.13, 0.11))
+	var rows: int = 6
+	var rh: int = n / rows
+	for r in rows:
+		var bw: int = n / 3
+		var off: int = (bw / 2) if r % 2 == 1 else 0
+		for c in 4:
+			var x0: int = c * bw - off
+			var base: Color = Color(0.44, 0.38, 0.32).lerp(Color(0.52, 0.46, 0.38), h01(r * 13 + c))
+			for y in rh - 3:
+				for x in bw - 3:
+					var px: int = x0 + 2 + x
+					if px < 0 or px >= n:
+						continue
+					var edge: float = minf(minf(float(x), float(bw - 4 - x)), minf(float(y), float(rh - 4 - y)))
+					var c2: Color = base.darkened(0.12 * h01(px * 7 + (r * rh + y) * 13)).lightened(0.10 * clampf(1.0 - edge / 3.0, 0.0, 1.0) * (1.0 if y < 3 or x < 3 else -1.0))
+					img.set_pixel(px, r * rh + 2 + y, c2)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _flutes(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, 4, false, Image.FORMAT_RGB8)
+	for x in n:
+		var v: float = 0.5 + 0.5 * cos(float(x) / float(n) * TAU * 12.0)
+		img.fill_rect(Rect2i(x, 0, 1, 4), Color(0.40, 0.35, 0.30).lerp(Color(0.62, 0.56, 0.48), v))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _banner_tex(n: int, base: Color) -> ImageTexture:
+	var img: Image = Image.create(n, n * 2, false, Image.FORMAT_RGB8)
+	for y in n * 2:
+		for x in n:
+			var c: Color = base.darkened(0.06 * h01(x * 3 + y * 7))
+			# a gold border, and a column of embroidered gold lozenges
+			if x < 5 or x > n - 6:
+				c = Color(0.82, 0.62, 0.24)
+			var cy: int = y % (n / 2)
+			var dx: int = absi(x - n / 2)
+			var dy: int = absi(cy - n / 4)
+			if dx + dy < n / 7 and dx + dy > n / 7 - 4:
+				c = Color(0.90, 0.72, 0.30)
+			if dx + dy < n / 14:
+				c = Color(0.85, 0.66, 0.26)
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _flags(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	img.fill(Color(0.12, 0.10, 0.09))
+	var cs: int = n / 4
+	for r in 4:
+		for c in 4:
+			var col: Color = Color(0.34, 0.31, 0.28).lerp(Color(0.42, 0.38, 0.33), h01(r * 5 + c))
+			img.fill_rect(Rect2i(c * cs + 2, r * cs + 2, cs - 4, cs - 4), col)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+# --- the hall: baked ----------------------------------------------------------------------------------------------
+
+# a block of the wall, with a slight relief (each block its own small box, proud of the mortar)
+func _wall_span(x0: float, x1: float, y0: float, y1: float, ashlar: StandardMaterial3D) -> void:
+	if x1 - x0 < 1.0 or y1 - y0 < 1.0:
+		return
+	box(Vector3(x1 - x0, y1 - y0, 30.0), ashlar, Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, -15.0))
+
+func _build_still() -> void:
+	var ashlar: StandardMaterial3D = mat(Color.WHITE, 0.85, 0.0, _ashlar(256), Vector3(5.0, 5.0, 1))
+	var dressed: StandardMaterial3D = mat(Color(0.56, 0.50, 0.42), 0.75)
+	var iron: StandardMaterial3D = mat(Color(0.12, 0.11, 0.11), 0.45, 0.6)
+	var brass: StandardMaterial3D = mat(Color(0.86, 0.66, 0.30), 0.3, 0.8)
+	# THE FLOOR of flagstones, the WALL round the niche: full beside it, below it, above the arch, and the
+	# spandrels between the arch and its square
+	box(Vector3(2600.0, 4.0, 1400.0), mat(Color.WHITE, 0.7, 0.0, _flags(128), Vector3(16, 9, 1)), Vector3(0.0, -2.0, 300.0))
+	var r_arch: float = NICHE_HALF
+	_wall_span(-1300.0, -NICHE_HALF - 30.0, 0.0, 1300.0, ashlar)
+	_wall_span(NICHE_HALF + 30.0, 1300.0, 0.0, 1300.0, ashlar)
+	_wall_span(-NICHE_HALF - 30.0, NICHE_HALF + 30.0, 0.0, 70.0, ashlar)
+	_wall_span(-NICHE_HALF - 30.0, NICHE_HALF + 30.0, ARCH_Y + r_arch + 30.0, 1300.0, ashlar)
+	for row in 24:
+		var y0: float = ARCH_Y + (r_arch + 30.0) * float(row) / 24.0
+		var y1: float = ARCH_Y + (r_arch + 30.0) * float(row + 1) / 24.0
+		var ym: float = (y0 + y1) * 0.5 - ARCH_Y
+		var half: float = sqrt(maxf(0.0, (r_arch + 30.0) * (r_arch + 30.0) - ym * ym))
+		_wall_span(-NICHE_HALF - 30.0, -half, y0, y1, ashlar)
+		_wall_span(half, NICHE_HALF + 30.0, y0, y1, ashlar)
+	# THE NICHE: its back (dark grout behind the tesserae), its side walls, its vault, the ring of wedge stones round
+	# its arch, the molded sill
+	box(Vector3(NICHE_HALF * 2.0, ARCH_Y + r_arch, 4.0), mat(Color(0.20, 0.17, 0.15), 0.9), Vector3(0.0, (ARCH_Y + r_arch) * 0.5, PANEL_C.z - 4.0))
+	for sx in [-1.0, 1.0]:
+		box(Vector3(4.0, ARCH_Y - 70.0, 64.0), ashlar, Vector3(sx * NICHE_HALF, 70.0 + (ARCH_Y - 70.0) * 0.5, -32.0))
+	for v in 16:
+		var a0: float = PI * float(v) / 16.0
+		var a1: float = PI * float(v + 1) / 16.0
+		var am: float = (a0 + a1) * 0.5
+		box(Vector3(4.0, r_arch * (a1 - a0) + 1.0, 64.0), ashlar, Vector3(cos(am) * r_arch, ARCH_Y + sin(am) * r_arch, -32.0), Vector3(0.0, 0.0, rad_to_deg(am)))
+	for w in 15:
+		var wa: float = PI * (float(w) + 0.5) / 15.0
+		box(Vector3(30.0, r_arch * PI / 15.0 - 3.0, 36.0), dressed, Vector3(cos(wa) * (r_arch + 15.0), ARCH_Y + sin(wa) * (r_arch + 15.0), 2.0), Vector3(0.0, 0.0, rad_to_deg(wa)))
+	box(Vector3(34.0, 44.0, 38.0), dressed, Vector3(0.0, ARCH_Y + r_arch + 18.0, 4.0))
+	for jx in [-1.0, 1.0]:
+		box(Vector3(30.0, ARCH_Y - 70.0, 36.0), dressed, Vector3(jx * (NICHE_HALF + 15.0), 70.0 + (ARCH_Y - 70.0) * 0.5, 2.0))
+	box(Vector3(NICHE_HALF * 2.0 + 80.0, 14.0, 60.0), dressed, Vector3(0.0, 63.0, 0.0))
+	box(Vector3(NICHE_HALF * 2.0 + 90.0, 6.0, 66.0), dressed, Vector3(0.0, 72.0, 0.0))
+	# THE COLUMNS: a square plinth, a torus at the foot, a fluted shaft tapering a little, a carved capital
+	var flute: StandardMaterial3D = mat(Color.WHITE, 0.7, 0.0, _flutes(128))
+	for sx2 in [-1.0, 1.0]:
+		var cx: float = sx2 * 300.0
+		box(Vector3(70.0, 30.0, 70.0), dressed, Vector3(cx, 15.0, 50.0))
+		var tor: TorusMesh = TorusMesh.new()
+		tor.inner_radius = 18.0
+		tor.outer_radius = 32.0
+		put(tor, dressed, Vector3(cx, 36.0, 50.0))
+		cyl(22.0, 26.0, 560.0, flute, Vector3(cx, 320.0, 50.0), Vector3.ZERO, null, 32)
+		var neck: TorusMesh = TorusMesh.new()
+		neck.inner_radius = 16.0
+		neck.outer_radius = 26.0
+		put(neck, dressed, Vector3(cx, 600.0, 50.0))
+		cyl(38.0, 24.0, 34.0, dressed, Vector3(cx, 618.0, 50.0), Vector3.ZERO, null, 32)
+		for vl in [-1.0, 1.0]:
+			cyl(9.0, 9.0, 60.0, dressed, Vector3(cx + vl * 36.0, 622.0, 50.0), Vector3(90.0, 0.0, 0.0), null, 16)
+		box(Vector3(86.0, 14.0, 86.0), dressed, Vector3(cx, 642.0, 50.0))
+		# THE SCONCE on the column: an iron arm, a drip pan, the candle (wax with drips down it)
+		var sc: Vector3 = Vector3(sx2 * CANDLE_X, CANDLE_TOP - 70.0, CANDLE_Z)
+		put(tube_mesh(PackedVector3Array([Vector3(cx, sc.y - 30.0, 74.0), Vector3(cx - sx2 * 18.0, sc.y - 14.0, CANDLE_Z + 4.0), sc + Vector3(0.0, -8.0, 0.0)]), 2.6, 8), iron, Vector3.ZERO)
+		cyl(14.0, 9.0, 5.0, iron, sc + Vector3(0.0, -4.0, 0.0), Vector3.ZERO, null, 20)
+		var wax: StandardMaterial3D = mat(Color(0.95, 0.90, 0.78), 0.45)
+		cyl(7.5, 8.0, 66.0, wax, sc + Vector3(0.0, 33.0, 0.0), Vector3.ZERO, null, 20)
+		for dr in 5:
+			var da: float = TAU * h01(dr + int(sx2 * 5.0) + 30)
+			var drip: MeshInstance3D = sphere(2.4, wax, sc + Vector3(cos(da) * 7.6, 66.0 - 8.0 - 18.0 * h01(dr + 40), sin(da) * 7.6))
+			drip.scale = Vector3(1.0, 2.4, 1.0)
+		cyl(1.0, 1.0, 6.0, mat(Color(0.10, 0.08, 0.06), 0.8), sc + Vector3(0.0, 69.0, 0.0))
+	# THE BANNERS: cloth hanging in soft folds from a brass rod with finials, a V at the foot with a gold fringe
+	for sx3 in [-1.0, 1.0]:
+		var bx: float = sx3 * 420.0
+		var col: Color = Color(0.52, 0.10, 0.10) if sx3 < 0.0 else Color(0.14, 0.20, 0.46)
+		var bm: StandardMaterial3D = mat(Color.WHITE, 0.8, 0.0, _banner_tex(64, col))
+		_banner(Vector3(bx, 690.0, 18.0), 120.0, 340.0, bm)
+		cyl(3.0, 3.0, 150.0, brass, Vector3(bx, 696.0, 18.0), Vector3(0.0, 0.0, 90.0))
+		for fn in [-1.0, 1.0]:
+			sphere(6.0, brass, Vector3(bx + fn * 78.0, 696.0, 18.0))
+		for cord in [-1.0, 1.0]:
+			cyl(0.8, 0.8, 60.0, brass, Vector3(bx + cord * 40.0, 726.0, 18.0), Vector3(0.0, 0.0, cord * -34.0))
+	# THE URNS on the floor before the banners: turned stone, and ivy trailing over their lips
+	for sx4 in [-1.0, 1.0]:
+		var uc: Vector3 = Vector3(sx4 * 400.0, 0.0, 160.0)
+		var prof: Array = [[0.0, 22.0], [10.0, 26.0], [14.0, 18.0], [30.0, 22.0], [62.0, 42.0], [92.0, 40.0], [110.0, 30.0], [118.0, 34.0], [126.0, 38.0]]
+		for pi in prof.size() - 1:
+			var a2: Array = prof[pi]
+			var b2: Array = prof[pi + 1]
+			cyl(float(b2[1]), float(a2[1]), float(b2[0]) - float(a2[0]), dressed, uc + Vector3(0.0, (float(a2[0]) + float(b2[0])) * 0.5, 0.0), Vector3.ZERO, null, 32)
+		cyl(34.0, 34.0, 2.0, mat(Color(0.14, 0.10, 0.07), 0.9), uc + Vector3(0.0, 125.0, 0.0), Vector3.ZERO, null, 32)
+		_ivy(uc + Vector3(0.0, 124.0, 0.0), sx4)
+
+func _banner(top_c: Vector3, w: float, h: float, m: StandardMaterial3D) -> void:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nx: int = 16
+	var ny: int = 12
+	var grid: Array = []
+	for j in ny + 1:
+		var v: float = float(j) / float(ny)
+		var row: Array = []
+		for i in nx + 1:
+			var u: float = float(i) / float(nx)
+			var x: float = (u - 0.5) * w
+			var point_drop: float = (1.0 - absf(u - 0.5) * 2.0) * w * 0.35 if v > 0.999 else 0.0
+			var y: float = -v * h - (1.0 - absf(u - 0.5) * 2.0) * w * 0.35 * v * v * (1.0 if j == ny else 0.6)
+			var z: float = sin(u * TAU * 3.0) * 6.0 * (0.4 + 0.6 * v)
+			row.append([Vector3(x, y - point_drop * 0.0, z), Vector2(u, v)])
+		grid.append(row)
+	for j2 in ny:
+		for i2 in nx:
+			var q: Array = [grid[j2][i2], grid[j2 + 1][i2], grid[j2 + 1][i2 + 1], grid[j2][i2], grid[j2 + 1][i2 + 1], grid[j2][i2 + 1]]
+			for vv in q:
+				st.set_uv(vv[1])
+				st.add_vertex(top_c + (vv[0] as Vector3))
+	st.generate_normals()
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = m
+	root.add_child(mi)
+	# the gold fringe along the V at the foot
+	var gold: StandardMaterial3D = mat(Color(0.88, 0.68, 0.28), 0.35, 0.7)
+	for f in 17:
+		var u2: float = float(f) / 16.0
+		var last: Vector3 = (grid[ny][int(round(u2 * float(nx)))][0] as Vector3)
+		cyl(1.0, 0.6, 14.0, gold, top_c + last + Vector3(0.0, -7.0, 0.0), Vector3.ZERO, null, 6)
+
+# ivy over an urn's lip: vines curving down its sides, pointed leaves along them, each turned its own way
+func _ivy(lip: Vector3, side: float) -> void:
+	var vine: StandardMaterial3D = mat(Color(0.20, 0.24, 0.12), 0.8)
+	var leaf_a: StandardMaterial3D = mat(Color(0.20, 0.42, 0.16), 0.6)
+	var leaf_b: StandardMaterial3D = mat(Color(0.14, 0.32, 0.12), 0.6)
+	for k in 7:
+		var a: float = TAU * float(k) / 7.0 + 0.4
+		var start: Vector3 = lip + Vector3(cos(a) * 32.0, 2.0, sin(a) * 32.0)
+		var pts: PackedVector3Array = PackedVector3Array([start])
+		var length: float = 50.0 + 60.0 * h01(k + int(side * 7.0) + 20)
+		for s in 5:
+			var f: float = float(s + 1) / 5.0
+			pts.append(start + Vector3(cos(a) * 18.0 * f, -length * f, sin(a) * 18.0 * f) + Vector3(sin(f * 4.0 + float(k)) * 6.0, 0.0, 0.0))
+		put(tube_mesh(pts, 1.1, 6), vine, Vector3.ZERO)
+		for lf in 6:
+			var p: Vector3 = pts[1 + lf % 5]
+			var leaf: MeshInstance3D = sphere(5.5, leaf_a if (lf + k) % 2 == 0 else leaf_b, p + Vector3(cos(a + float(lf)) * 4.0, -float(lf) * 3.0, sin(a + float(lf)) * 4.0))
+			leaf.scale = Vector3(1.0, 0.25, 1.6)
+			leaf.rotation = Vector3(h01(k * 9 + lf) * 1.6 - 0.8, a + h01(k * 5 + lf) * 2.0, h01(k * 3 + lf) * 1.2 - 0.6)
+
+# --- the mosaic, the flames, the light, the loose tiles (2-D, over the 3-D) ------------------------------------------
+
+func _tick(delta: float) -> void:
+	super._tick(delta)
+	if bake_mode or _pic == null:
+		return
+	if _img == null and _img_task >= 0 and WorkerThreadPool.is_task_completed(_img_task):
+		WorkerThreadPool.wait_for_task_completion(_img_task)
+		_img_task = -1
+		_img = _made
+		_laid_for = -2.0
+	if _img == null:
+		return
+	_live_a = 1.0 if _img_task < 0 else fade_in(true, _live_a, delta)
+	_pic.modulate = Color(1, 1, 1, _live_a)
+	_live.modulate = Color(1, 1, 1, _live_a)
+	if absf(scene_bottom - _laid_for) > 0.5:
+		_laid_for = scene_bottom
+		_lay()
+		_pic.queue_redraw()
+	_live.queue_redraw()
+
+func _draw_pic(d: Control) -> void:
+	if _tiles.is_empty():
+		return
+	var pr: Rect2 = _pic_rect()
+	d.draw_rect(pr.grow(pr.size.x / float(GRID) * 2.4), Color(0.20, 0.17, 0.15))
+	for b in _border:
+		_tessera(d, b[0], b[1], 0.0)
+	d.draw_rect(pr, Color(0.22, 0.19, 0.17))
+	for tile in _tiles:
+		_tessera(d, tile[0], tile[1], tile[2])
 
 func _lay() -> void:
+	# the tesserae fill the niche's panel as the camera sees it
 	_tiles.clear()
 	_border.clear()
 	if _img == null:
@@ -100,126 +395,6 @@ func _border_col(ring: int, k: int) -> Color:
 		return GOLD.lightened(0.10 * h01(k + 77))
 	return [LAPIS, TERRA, LAPIS, GOLD][k % 4]
 
-func _tick(delta: float) -> void:
-	if _img == null and _img_task >= 0 and WorkerThreadPool.is_task_completed(_img_task):
-		WorkerThreadPool.wait_for_task_completion(_img_task)
-		_img_task = -1
-		_img = _made
-		_laid_for = -2.0
-	if _img == null:
-		return
-	_live_a = fade_in(true, _live_a, delta)
-	_live.modulate = Color(1, 1, 1, _live_a)
-	if absf(scene_bottom - _laid_for) > 0.5:
-		_laid_for = scene_bottom
-		_lay()
-		_wall.queue_redraw()
-	_live.queue_redraw()
-
-# --- the wall, the niche, the columns, the mosaic itself: once --------------------------------------------
-
-func _draw_wall(d: Control) -> void:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var pr: Rect2 = _pic_rect()
-	# the stone wall: blocks in courses, lit warm by the candles, darker high up
-	_rect_grad(d, Rect2(Vector2.ZERO, full), Color(0.10, 0.08, 0.07), Color(0.20, 0.15, 0.11))
-	var row: int = 0
-	var y: float = 0.0
-	while y < full.y:
-		var bh: float = 38.0
-		var x: float = -30.0 * float(row % 2)
-		var k: int = 0
-		while x < full.x:
-			var bw: float = 70.0 + 30.0 * h01(row * 31 + k)
-			var tone: float = 0.85 + 0.25 * h01(row * 17 + k * 3)
-			d.draw_rect(Rect2(x + 2.0, y + 2.0, bw - 4.0, bh - 4.0), Color(0.24 * tone, 0.19 * tone, 0.15 * tone, 0.55))
-			d.draw_line(Vector2(x + 2.0, y + 2.0), Vector2(x + bw - 2.0, y + 2.0), Color(1.0, 0.85, 0.65, 0.06), 1.0)
-			x += bw
-			k += 1
-		y += bh
-		row += 1
-	# the niche: an arch cut into the wall, deep and shadowed, the mosaic set in its back
-	var nr: Rect2 = pr.grow(pr.size.x / float(GRID) * 3.6)
-	var arch_c: Vector2 = Vector2(nr.get_center().x, nr.position.y)
-	var niche: PackedVector2Array = PackedVector2Array([Vector2(nr.position.x, nr.end.y)])
-	for k in 25:
-		var a: float = PI + PI * float(k) / 24.0
-		niche.append(arch_c + Vector2(cos(a) * nr.size.x * 0.5, sin(a) * nr.size.x * 0.32))
-	niche.append(nr.end)
-	d.draw_colored_polygon(niche, Color(0.07, 0.05, 0.05))
-	# the arch's voussoirs round its top
-	for k in 13:
-		var a0: float = PI + PI * float(k) / 13.0
-		var a1: float = PI + PI * float(k + 1) / 13.0
-		var r0: Vector2 = Vector2(nr.size.x * 0.5, nr.size.x * 0.32)
-		var r1: Vector2 = r0 + Vector2(26.0, 22.0)
-		var q: PackedVector2Array = PackedVector2Array([arch_c + Vector2(cos(a0) * r0.x, sin(a0) * r0.y), arch_c + Vector2(cos(a1) * r0.x, sin(a1) * r0.y),
-			arch_c + Vector2(cos(a1) * r1.x, sin(a1) * r1.y), arch_c + Vector2(cos(a0) * r1.x, sin(a0) * r1.y)])
-		d.draw_colored_polygon(q, Color(0.42, 0.34, 0.26).darkened(0.25 * h01(k + 90)))
-		d.draw_polyline(q + PackedVector2Array([q[0]]), Color(0.12, 0.09, 0.07), 1.5)
-	# the columns either side: shafts lit on their inner side, capitals and bases
-	for side in [-1.0, 1.0]:
-		var cx: float = nr.get_center().x + side * (nr.size.x * 0.5 + 18.0)
-		var shaft: Rect2 = Rect2(cx - 14.0, nr.position.y + 10.0, 28.0, nr.size.y - 10.0)
-		var lit: Color = Color(0.62, 0.52, 0.40)
-		var dark: Color = Color(0.26, 0.20, 0.15)
-		d.draw_polygon(PackedVector2Array([shaft.position, Vector2(shaft.end.x, shaft.position.y), shaft.end, Vector2(shaft.position.x, shaft.end.y)]),
-			PackedColorArray([lit if side > 0.0 else dark, dark if side > 0.0 else lit, dark if side > 0.0 else lit, lit if side > 0.0 else dark]))
-		for f in 3:
-			var fx: float = shaft.position.x + 7.0 + 7.0 * float(f)
-			d.draw_line(Vector2(fx, shaft.position.y), Vector2(fx, shaft.end.y), Color(0, 0, 0, 0.18), 1.5)
-		d.draw_rect(Rect2(cx - 22.0, shaft.position.y - 16.0, 44.0, 16.0), Color(0.52, 0.42, 0.32))
-		d.draw_rect(Rect2(cx - 22.0, shaft.end.y, 44.0, 14.0), Color(0.44, 0.35, 0.27))
-	# the grout bed, then the border, then the tesserae
-	d.draw_rect(pr.grow(pr.size.x / float(GRID) * 2.3), Color(0.30, 0.27, 0.24))
-	for b in _border:
-		var br: Rect2 = b[0]
-		var bc: Color = b[1]
-		d.draw_rect(br, bc)
-		d.draw_rect(Rect2(br.position, Vector2(br.size.x, br.size.y * 0.35)), Color(1, 1, 1, 0.12 if not bool(b[2]) else 0.25))
-	d.draw_rect(pr.grow(2.0), Color(0.22, 0.20, 0.18))
-	for k in _tiles.size():
-		_tessera(d, _tiles[k][0], _tiles[k][1], float(_tiles[k][2]))
-	# THE SIDES (the user: "pretty empty"): a long banner hanging each side of the niche, deep red and lapis
-	# with a gold border and a woven pattern of diamonds, and a stone urn below with ivy trailing from it
-	for side in [-1.0, 1.0]:
-		var bx: float = full.x * 0.5 + side * full.x * 0.43
-		var bw: float = full.x * 0.10
-		var by0: float = (250.0 if mobile else 160.0)
-		var by1: float = pr.position.y + pr.size.y * 0.36     # short: the candle hangs below its tip, then the urn
-		var cloth: Color = Color(0.46, 0.08, 0.10) if side < 0.0 else Color(0.12, 0.18, 0.42)
-		d.draw_line(Vector2(bx - bw * 0.7, by0), Vector2(bx + bw * 0.7, by0), Color(0.30, 0.22, 0.12), 4.0)
-		var ban: PackedVector2Array = PackedVector2Array([Vector2(bx - bw * 0.5, by0), Vector2(bx + bw * 0.5, by0), Vector2(bx + bw * 0.5, by1), Vector2(bx, by1 + bw * 0.5), Vector2(bx - bw * 0.5, by1)])
-		d.draw_colored_polygon(ban, cloth)
-		d.draw_polyline(ban + PackedVector2Array([ban[0]]), Color(0.86, 0.66, 0.26), 3.0, true)
-		var dy: float = by0 + 26.0
-		while dy < by1 - 20.0:
-			d.draw_colored_polygon(PackedVector2Array([Vector2(bx, dy - 10.0), Vector2(bx + 8.0, dy), Vector2(bx, dy + 10.0), Vector2(bx - 8.0, dy)]), Color(0.86, 0.66, 0.26, 0.85))
-			d.draw_circle(Vector2(bx, dy), 2.5, cloth.lightened(0.3))
-			dy += 34.0
-		# folds of the cloth
-		for f in 2:
-			var fx: float = bx + (float(f) - 0.5) * bw * 0.5
-			d.draw_line(Vector2(fx, by0 + 6.0), Vector2(fx, by1), Color(0, 0, 0, 0.18), 3.0)
-		# the urn, and ivy over its lip
-		var uc: Vector2 = Vector2(bx, pr.end.y - 26.0)        # on the floor of the wall's foot, below the candle
-		d.draw_colored_polygon(PackedVector2Array([uc + Vector2(-26, -30), uc + Vector2(26, -30), uc + Vector2(20, 10), uc + Vector2(12, 26), uc + Vector2(-12, 26), uc + Vector2(-20, 10)]), Color(0.46, 0.38, 0.30))
-		d.draw_rect(Rect2(uc + Vector2(-30, -36), Vector2(60, 8)), Color(0.56, 0.46, 0.36))
-		for k in 7:
-			var vx: float = uc.x + (float(k) - 3.0) * 8.0
-			var pts: PackedVector2Array = PackedVector2Array()
-			for j in 6:
-				pts.append(Vector2(vx + sin(float(j + k)) * 5.0, uc.y - 32.0 + float(j) * (8.0 + float(k % 3) * 4.0)))
-			d.draw_polyline(pts, Color(0.16, 0.32, 0.14), 2.0, true)
-			for j in 5:
-				d.draw_circle(pts[j], 4.0, Color(0.20, 0.42, 0.18))
-	# the candles in their sconces either side
-	for side in [-1.0, 1.0]:
-		var sc: Vector2 = Vector2(full.x * 0.5 + side * full.x * 0.43, pr.position.y + pr.size.y * 0.66)
-		d.draw_line(sc + Vector2(0, 26), sc + Vector2(-side * 14.0, 40), Color(0.12, 0.10, 0.10), 4.0)
-		d.draw_rect(Rect2(sc + Vector2(-12, 22), Vector2(24, 6)), Color(0.16, 0.13, 0.12))
-		d.draw_rect(Rect2(sc + Vector2(-6, -6), Vector2(12, 28)), Color(0.92, 0.88, 0.78))
-
 func _tessera(d: CanvasItem, r: Rect2, col: Color, rot: float) -> void:
 	var c: Vector2 = r.get_center()
 	var h: Vector2 = r.size * 0.5
@@ -231,14 +406,7 @@ func _tessera(d: CanvasItem, r: Rect2, col: Color, rot: float) -> void:
 	d.draw_line(pts[0], pts[3], Color(1, 1, 1, 0.14), 1.0)
 	d.draw_line(pts[1], pts[2], Color(0, 0, 0, 0.25), 1.0)
 
-func _rect_grad(d: CanvasItem, r: Rect2, top_c: Color, bot: Color) -> void:
-	d.draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]),
-		PackedColorArray([top_c, top_c, bot, bot]))
-
-# --- what moves: the candle flames and their light, the sweep of light and the glints, the loose tiles -----
-
 func _draw_live(d: Control) -> void:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
 	var pr: Rect2 = _pic_rect()
 	if _tiles.is_empty():
 		return
@@ -246,18 +414,20 @@ func _draw_live(d: Control) -> void:
 	# whose height, width and tip sway with a mix of quick and slow wavering, the glow on the wall breathing
 	# with them a little
 	for side in [-1.0, 1.0]:
-		var sc: Vector2 = Vector2(full.x * 0.5 + side * full.x * 0.43, pr.position.y + pr.size.y * 0.66)
+		var tip3: Vector3 = Vector3(side * CANDLE_X, CANDLE_TOP, CANDLE_Z)
+		var sc: Vector2 = screen_of(tip3) + Vector2(0.0, 6.0)
+		var fs: float = screen_of(tip3 + Vector3(0.0, 10.0, 0.0)).distance_to(screen_of(tip3)) / 10.0
 		var tt: float = t + side * 3.7
 		var flick: float = 0.5 * sin(tt * 11.0) + 0.3 * sin(tt * 17.3 + 1.0) + 0.2 * sin(tt * 4.1)
-		var glow: float = 0.88 + 0.12 * flick
-		for k in 18:
-			d.draw_circle(sc + Vector2(0, -16), 175.0 * (1.0 - float(k) / 18.0), Color(1.0, 0.70, 0.36, 0.017 * glow))
-		var sway: float = 2.6 * sin(tt * 3.1) + 1.4 * sin(tt * 9.7)
-		var hgt: float = 26.0 + 5.0 * flick + 2.0 * sin(tt * 23.0)
+		var glow_k: float = 0.88 + 0.12 * flick
+		for k in 8:
+			d.draw_circle(sc + Vector2(0, -20.0 * fs), 62.0 * fs * (1.0 - float(k) / 8.0), Color(1.0, 0.72, 0.38, 0.032 * glow_k))
+		var sway: float = (3.6 * sin(tt * 3.1) + 1.9 * sin(tt * 9.7)) * fs
+		var hgt: float = (26.0 + 5.0 * flick + 2.0 * sin(tt * 23.0)) * fs * 1.25
 		for layer_i in 3:
 			var k2: float = 1.0 - 0.28 * float(layer_i)
 			var col: Color = [Color(1.0, 0.50, 0.12, 0.85), Color(1.0, 0.80, 0.30), Color(1.0, 0.97, 0.86)][layer_i]
-			var w: float = 6.0 * k2
+			var w: float = 6.0 * k2 * fs * 1.2
 			var base: Vector2 = sc + Vector2(0, -6)
 			var tip: Vector2 = base + Vector2(sway * k2, -hgt * k2)
 			var pts2: PackedVector2Array = PackedVector2Array()
@@ -292,8 +462,14 @@ func _draw_live(d: Control) -> void:
 	# THE SWEEP OF LIGHT across the mosaic, slow, and the gold tiles glinting in it
 	var sweep: float = fmod(t * 0.10, 1.4) - 0.2
 	var sx: float = pr.position.x + pr.size.x * sweep
-	d.draw_polygon(PackedVector2Array([Vector2(sx - 40.0, pr.position.y), Vector2(sx + 40.0, pr.position.y), Vector2(sx - 10.0, pr.end.y), Vector2(sx - 90.0, pr.end.y)]),
-		PackedColorArray([Color(1.0, 0.92, 0.75, 0.10), Color(1.0, 0.92, 0.75, 0.0), Color(1.0, 0.92, 0.75, 0.0), Color(1.0, 0.92, 0.75, 0.10)]))
+	# lighting only the tiles it crosses (a polygon sliding in and out ran off the picture as a big triangle)
+	for tile3 in _tiles:
+		var tr3: Rect2 = tile3[0]
+		var tc: Vector2 = tr3.get_center()
+		var line_x: float = sx - 40.0 * (tc.y - pr.position.y) / maxf(1.0, pr.size.y)
+		var dx: float = absf(tc.x - line_x)
+		if dx < 46.0:
+			d.draw_rect(tr3, Color(1.0, 0.92, 0.75, 0.16 * (1.0 - dx / 46.0)))
 	for b in _border:
 		if bool(b[2]):
 			var bp: Vector2 = (b[0] as Rect2).get_center()

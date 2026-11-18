@@ -275,8 +275,29 @@ stimulus and are untouched.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): A CAROUSEL IN A ROOM, ALL IN 3-D (one camera, `_proj`; the user: "make sure to do everything in correct 3d"). The cards are glazed memory tiles (`scripts/menu_card.gd`: a pastel each; the face a number in a colored disc ringed with dots, the back the pastel with soft arcs and a five-petal flower; playing cards with gilt and indices looked like a gambling game), each face and back baked ONCE into a texture (all in one frame, `flat` drawing) and laid on a real 3-D TILE: the rounded outline front and back, a thickness (`CARD_T`) running all round it, each piece of the edge lit by the way it faces (a square box behind a rounded face read as "printed on a square glass box"). The tiles ride a ring above a round oak table, each facing out from the ring, so a tile turns its face to us as it comes round the front and its back going round behind; which face shows, and which edge pieces, are tested from the eye to THAT face or piece (tested from the tile's center they flipped a frame early or late at the sides of the ring -- a jump); a face exactly edge-on, with no area, is left out. Shadows on the tabletop. The room, in the same 3-D: papered wall with a dado, floorboards running away, an open window at dusk (sky, rooftops, reveal, sill, frame), CURTAINS hanging in shaded folds from a rod and billowing into the room in the breeze (lower more than higher, gusts running down the cloth), the window's light on the floor, a floor lamp -- weighted base, pole, a conical fabric shade drawn as strips lit by their angle with a bright lower rim and the bulb glowing under it, its pool of light on the floor (a flat shade was "flat").
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` (the
+shared `main_menu.gd` keeps only a slim panel at the foot): A CAROUSEL IN A ROOM (the user: "make sure to do
+everything in correct 3d"). The cards are glazed memory tiles (`scripts/menu_card.gd`: a pastel each; the face a
+number in a colored disc ringed with dots, the back the pastel with soft arcs and a five-petal flower; playing cards
+with gilt and indices looked like a gambling game), each face and back baked ONCE into a texture (all in one frame,
+`flat` drawing) and laid on a 3-D TILE projected by the scene's own camera (`screen_of`): the rounded outline front
+and back, a thickness (`CARD_T`) running all round it, each piece of the edge lit by the way it faces (a square box
+behind a rounded face read as "printed on a square glass box"). The tiles ride a ring above the table, each facing
+out from the ring, so a tile turns its face to us as it comes round the front and its back going round behind;
+which face shows, and which edge pieces, are tested from the eye to THAT face or piece (tested from the tile's
+center they flipped a frame early or late at the sides of the ring -- a jump); a face exactly edge-on, with no area,
+is left out. Their shadows lie on the tabletop. The tiles and shadows are the only live parts.
 
-THE ROOM IS A STILL LAYER (2026-11-17): wall, window, curtains (held still now, a gentle billow), lamp, floor and table are baked (`menu_still_0_<m|d>.webp`); only the cards and their shadows on the tabletop are live -- redrawn every frame for the curtains' wind, the room made the cards slow and jittery on a phone.
+THE ROOM IS REAL 3-D, BAKED (2026-11-18; the hand-projected room read flat): a wall papered in a figured stripe
+(dusty rose and sand, a gold pinstripe, a sprig) over raised wainscot panels, a molded dado rail and a skirting; a
+window at dusk cut through the wall -- its reveal, sill, sashes and glazing bars, the sky and low roofs with a lit
+window or two beyond; velvet curtains hanging in folds from a brass rod with finials; a framed OIL PAINTING in a gilt
+molding (2026-11-18; a dusk sky over three lumps of hill read as a window or "a bit empty"): a summer landscape painted
+in dabs (`_painting`) -- soft clouds, blue hills, a river winding down between meadows, stands of trees, a farmhouse
+with a red roof, a path with a little figure -- under yellowed varnish with a craquelure, on a flat canvas (a box
+spread the texture over six faces and showed a strip of sky), lit by a brass picture light; a FLOOR LAMP (2026-11-18; the user: "the standing lamp is bad") -- turned aged brass (`_lathe`: a heavy stepped
+base, a stem with knuckles and collars), a harp to a finial, a LINEN DRUM SHADE lit from within (brightest at the bulb,
+the weave showing, trim bands at its rims), its light thrown up and down the wall in two scallops, its cord on the
+floor; a round patterned rug on oak boards; and the table -- a round oak
+top with a rounded edge and an apron on a turned pedestal with three feet. One picture per platform
+(`art/menu_room.webp`, `art/menu_room_d.webp`). Made up, never the board: the menu also opens mid-game.

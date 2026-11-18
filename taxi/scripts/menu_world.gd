@@ -46,6 +46,10 @@ var _city_img_layer: Control = null
 # perfect" and saved with the rest) and rendered at twice the size for clean edges. At run time only what moves is
 # drawn: the cabs, the lamps' glow, the neon's breath.
 const STATION3D: String = "res://taxi/scripts/menu_station3d.gd"
+const CARS3D: Script = preload("res://taxi/scripts/menu_cars3d.gd")
+var _cars3d: RefCounted = null
+var _glow: Control = null
+var _lane0_skip: Array = []          # the residues (mod 5) of lane-0 cars that would meet the station's cab
 var _station_vp: SubViewport = null
 var _blocks_root: Control = null
 var _city_alpha: float = 0.0
@@ -59,6 +63,11 @@ func _setup() -> void:
 			if _city_tex != null and not _cam.is_empty():
 				d.draw_texture(_city_tex, Vector2(0.0, Vector2(_cam["center"]).y - BAKE_CY)))
 		_life = _mk(func(d: Control) -> void: _draw_life(d))
+		_cam = _camera()
+		_cars3d = CARS3D.new()
+		_cars3d.call("build", self, _lights, Vector3(-40.0, 78.0, 340.0), Vector3(130.0, 44.0, -700.0), 0.95)
+		_glow = _mk(func(d: Control) -> void: _draw_car_glow(d))
+		_lane0_skip = _merge_conflicts()
 		return
 	if bake_mode:
 		_cam = _camera()
@@ -154,6 +163,10 @@ func _tick(delta: float) -> void:
 			_for_bottom = scene_bottom
 			_city_img_layer.queue_redraw()
 		_life.queue_redraw()
+		if _cars3d != null:
+			_cars3d.call("place", Vector2(_cam["center"]), Vector2(MainGlobals.full_screen_size))
+			_cars3d.call("set_cars", _car_list())
+			_glow.queue_redraw()
 		return
 	if absf(scene_bottom - _for_bottom) > 0.5:
 		_for_bottom = scene_bottom
@@ -653,40 +666,121 @@ func _draw_life(d: Control) -> void:
 				continue
 			_ground_glow(d, Vector3(head.x, 0.2, head.z), 90.0, Color(1.0, 0.76, 0.42, 0.05))
 			_streak(d, head, Color(1.0, 0.76, 0.42), 0.35)
-			var hp: Vector2 = _proj(head)
-			var pr: float = _px(head)
-			for g in 8:
-				d.draw_circle(hp, 40.0 * pr * (1.0 - float(g) / 8.0), Color(1.0, 0.78, 0.45, 0.05))
+			_soft(d, _proj(head), 42.0 * _px(head), Color(1.0, 0.78, 0.45, 0.40))
 	# THE NEON on the canopy's fascia: TAXI in yellow, breathing slowly
 	var sign_c: Vector3 = Vector3(ROAD + WALK + 30.0 - 0.5, 129.0, -230.0)
 	var breathe: float = 0.85 + 0.15 * sin(t * 1.6)
 	var sp: Vector2 = _proj(sign_c)
 	var spx: float = _px(sign_c)
-	for g in 10:
-		d.draw_circle(sp, 120.0 * spx * (1.0 - float(g) / 10.0), Color(1.0, 0.80, 0.20, 0.03 * breathe))
+	_soft(d, sp, 120.0 * spx, Color(1.0, 0.80, 0.20, 0.30 * breathe))
 	_streak(d, sign_c, Color(1.0, 0.80, 0.25), 0.5 * breathe)
-	# THE CABS, far to near: the lanes' traffic and the station's own cab
-	var cars: Array = []
+	# the cars' lamps' reflections on the wet road, under the cars (the cars themselves are 3-D: menu_cars3d.gd)
+	for c in _car_list():
+		var p: Vector3 = c[0]
+		var f: Vector3 = Vector3((c[1] as Vector3).x, 0.0, (c[1] as Vector3).z).normalized()
+		var s2: Vector3 = f.cross(Vector3.UP).normalized()
+		var fade: float = _haze(p)
+		for sd in [-1.0, 1.0]:
+			var front: Vector3 = p + f * 23.5 + s2 * sd * 6.8 + Vector3.UP * 9.6
+			var back: Vector3 = p - f * 23.6 + s2 * sd * 6.8 + Vector3.UP * 10.2
+			if f.dot(Vector3(_cam["eye"]) - front) > 0.0:
+				_streak(d, front, Color(1.0, 0.95, 0.80), 0.4 * fade)
+			else:
+				_streak(d, back, Color(1.0, 0.22, 0.16), 0.35 * fade)
+
+# A SOFT GLOW: one smooth radial falloff texture, tinted (stacked circles showed their rings)
+var _glow_tex: Texture2D = null
+
+func _soft(d: CanvasItem, at: Vector2, r: float, col: Color) -> void:
+	if _glow_tex == null:
+		var gt: GradientTexture2D = GradientTexture2D.new()
+		gt.width = 128
+		gt.height = 128
+		gt.fill = GradientTexture2D.FILL_RADIAL
+		gt.fill_from = Vector2(0.5, 0.5)
+		gt.fill_to = Vector2(1.0, 0.5)
+		var g: Gradient = Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.25, Color(1, 1, 1, 0.55))
+		g.add_point(0.55, Color(1, 1, 1, 0.16))
+		gt.gradient = g
+		_glow_tex = gt
+	d.draw_texture_rect(_glow_tex, Rect2(at - Vector2(r, r), Vector2(r, r) * 2.0), false, col)
+
+# how much of a car the haze leaves, far down the avenue (as the 3-D view's fog)
+func _haze(p: Vector3) -> float:
+	var dd: float = _depth(p) * 0.01
+	return 1.0 - smoothstep(16.0, 34.0, dd)
+
+# THE TRAFFIC: both lanes and the station's cab, each [position, heading, taxi?, busy?, paint]. The lanes' cars come
+# from behind us (out of the bottom of the picture) and from far down the avenue, beyond the haze -- never appearing
+# inside the picture; one in three is a private car
+func _car_list() -> Array:
+	var out: Array = []
 	for lane in 2:
 		var dir_z: float = -1.0 if lane == 0 else 1.0
 		var lx: float = 55.0 if lane == 0 else -55.0
-		var n0: int = int(floor(t / LANE_GAP)) - 14
-		for i in range(n0, n0 + 16):
+		var n0: int = int(floor(t / LANE_GAP)) - 20
+		for i in range(n0, n0 + 22):
 			if h01(i * 7 + lane * 101) < 0.35:
 				continue                       # gaps in the traffic, not a parade
+			if lane == 0 and _lane0_skip.has(posmod(i, 5)):
+				continue                       # where the station's cab turns in and out
 			var along: float = (t - float(i) * LANE_GAP) * LANE_SPEED
-			var zc: float = (300.0 - along) if lane == 0 else (FAR + 200.0 + along)
-			if zc < FAR + 100.0 or zc > 420.0:
+			var zc: float = (700.0 - along) if lane == 0 else (FAR - 900.0 + along)
+			if zc < FAR - 900.0 or zc > 700.0:
 				continue
-			# leave the station's cab its lane where it turns in and out
-			var p: Vector3 = Vector3(lx, 0.0, zc)
-			cars.append([_depth(p), p, Vector3(0, 0, dir_z), true])
-	var st: Array = _station_cab()
-	if not st.is_empty():
-		cars.append([_depth(st[0]), st[0], st[1], st[2]])
-	cars.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
-	for c in cars:
-		_car(d, c[1], c[2], bool(c[3]), 1.0)
+			var taxi: bool = h01(i * 13 + lane * 7 + 3) > 0.33
+			out.append([Vector3(lx, 0.0, zc), Vector3(0, 0, dir_z), taxi, h01(i * 11 + lane) > 0.5, i])
+	for cyc in [0, 1]:
+		var st: Array = _station_cab(cyc)
+		if not st.is_empty():
+			out.append([st[0], st[1], true, st[2], 0])
+	return out
+
+# the lane-0 cars (mod 5: the station's period is five lane gaps) that would drive through the station's cab where
+# it shares their lane, coming in or going out
+func _merge_conflicts() -> Array:
+	var skip: Array = []
+	for r in 5:
+		var clash: bool = false
+		var tt: float = 0.0
+		while tt < STATION_PERIOD * 2.0 and not clash:
+			for cyc in [0, 1]:
+				var st: Array = _station_cab_at(tt, cyc)
+				if st.is_empty() or (st[0] as Vector3).x > 75.0:
+					continue
+				for i in range(r - 40, r + 40, 5):
+					var zc: float = 700.0 - (tt - float(i) * LANE_GAP) * LANE_SPEED
+					if absf(zc - (st[0] as Vector3).z) < 85.0:
+						clash = true
+			tt += 0.05
+		if clash:
+			skip.append(r)
+	return skip
+
+# the glow round the cars' lamps, over them: headlamps toward us, tail lamps away, the cab's free sign
+func _draw_car_glow(d: Control) -> void:
+	if _cam.is_empty():
+		return
+	for c in _car_list():
+		var p: Vector3 = c[0]
+		var f: Vector3 = Vector3((c[1] as Vector3).x, 0.0, (c[1] as Vector3).z).normalized()
+		var s2: Vector3 = f.cross(Vector3.UP).normalized()
+		var fade: float = _haze(p)
+		if fade <= 0.01 or not _visible(p):
+			continue
+		for sd in [-1.0, 1.0]:
+			var front: Vector3 = p + f * 23.8 + s2 * sd * 6.8 + Vector3.UP * 9.7
+			var back: Vector3 = p - f * 23.9 + s2 * sd * 6.8 + Vector3.UP * 10.2
+			if f.dot(Vector3(_cam["eye"]) - front) > 0.0:
+				_soft(d, _proj(front), 22.0 * _px(front), Color(1.0, 0.95, 0.80, 0.42 * fade))
+			else:
+				_soft(d, _proj(back), 14.0 * _px(back), Color(1.0, 0.22, 0.16, 0.36 * fade))
+		if bool(c[2]) and not bool(c[3]):
+			var rs: Vector3 = p - f * 1.0 + Vector3.UP * 23.0
+			_soft(d, _proj(rs), 14.0 * _px(rs), Color(1.0, 0.85, 0.40, 0.30 * fade))
 
 # THE STATION'S CAB: up from behind us in the near lane, round into the forecourt and straight up to the pump
 # (it never turns where it stands), a wait with its roof sign lit, then on ahead past the pump and back out into
@@ -709,30 +803,65 @@ func _cab_path(pts: Array) -> Array:
 		cum.append(cum[i - 1] + out[i].distance_to(out[i - 1]))
 	return [out, cum]
 
-func _cab_at(pa: Array, u: float) -> Array:
+# the point at arc length sv along a path, and its heading taken over a stretch round it (a heading from one path
+# segment to the next jumped -- the jitter as the cab pulled out)
+func _cab_at_s(pa: Array, sv: float) -> Array:
+	var p: Vector3 = _path_point(pa, sv)
+	var dv: Vector3 = _path_point(pa, sv + 6.0) - _path_point(pa, sv - 6.0)
+	if dv.length() < 0.01:
+		dv = _path_point(pa, sv + 12.0) - _path_point(pa, sv - 12.0)
+	return [p, dv.normalized()]
+
+func _path_point(pa: Array, sv: float) -> Vector3:
 	var pts: PackedVector3Array = pa[0]
 	var cum: PackedFloat32Array = pa[1]
-	var sv: float = clampf(u, 0.0, 1.0) * cum[cum.size() - 1]
+	var total: float = cum[cum.size() - 1]
+	if sv <= 0.0:
+		return pts[0] + (pts[1] - pts[0]).normalized() * sv
+	if sv >= total:
+		return pts[pts.size() - 1] + (pts[pts.size() - 1] - pts[pts.size() - 2]).normalized() * (sv - total)
 	for i in range(1, pts.size()):
-		if cum[i] >= sv or i == pts.size() - 1:
+		if cum[i] >= sv:
 			var seg: float = maxf(cum[i] - cum[i - 1], 0.001)
-			return [pts[i - 1].lerp(pts[i], (sv - cum[i - 1]) / seg), (pts[i] - pts[i - 1]).normalized()]
-	return [pts[pts.size() - 1], Vector3(0, 0, -1)]
+			return pts[i - 1].lerp(pts[i], (sv - cum[i - 1]) / seg)
+	return pts[pts.size() - 1]
 
-func _station_cab() -> Array:
-	var u: float = fposmod(t + 3.0, STATION_PERIOD)
+var _p_in: Array = []
+var _p_out: Array = []
+
+# the station's cab of the current cycle (cyc 0) or the one before it (cyc 1, still driving off down the avenue)
+func _station_cab(cyc: int) -> Array:
+	return _station_cab_at(t, cyc)
+
+func _station_cab_at(tt: float, cyc: int) -> Array:
 	var stop_x: float = ISLAND_X - 34.0
 	var stop_z: float = PUMP_Z + 10.0
-	var p_in: Array = _cab_path([Vector2(55, 460), Vector2(55, 200), Vector2(90, 60), Vector2(stop_x, -40.0), Vector2(stop_x, stop_z)])
-	var p_out: Array = _cab_path([Vector2(stop_x, stop_z), Vector2(stop_x, -360.0), Vector2(110, -470.0), Vector2(55, -620.0), Vector2(55, -2400.0)])
+	if _p_in.is_empty():
+		_p_in = _cab_path([Vector2(55, 700), Vector2(55, 200), Vector2(90, 60), Vector2(stop_x, -40.0), Vector2(stop_x, stop_z)])
+		_p_out = _cab_path([Vector2(stop_x, stop_z), Vector2(stop_x, -360.0), Vector2(110, -470.0), Vector2(55, -620.0), Vector2(55, -760.0)])
+	var u: float = fposmod(tt + 3.0, STATION_PERIOD) + float(cyc) * STATION_PERIOD
+	var cum_in: PackedFloat32Array = _p_in[1]
+	var len_in: float = cum_in[cum_in.size() - 1]
 	var at: Array = []
-	if u < 3.6:
-		at = _cab_at(p_in, smoothstep(0.0, 1.0, u / 3.6) * 0.6 + (u / 3.6) * 0.4)
+	if u < 4.2:
+		# in at the lane's speed, braking evenly to a stop at the pump: s = L (1 - (1 - k)^2)
+		var k: float = u / 4.2
+		at = _cab_at_s(_p_in, len_in * (1.0 - (1.0 - k) * (1.0 - k)))
 	elif u < 8.0:
-		at = _cab_at(p_in, 1.0)
+		at = _cab_at_s(_p_in, len_in)
+		at[1] = Vector3(0.0, 0.0, -1.0)
 	else:
-		var k: float = (u - 8.0) / (STATION_PERIOD - 8.0)
-		at = _cab_at(p_out, k * k)
+		# off again: gathering speed evenly up to the lane's, then on at it, down the avenue and into the haze
+		var tau: float = u - 8.0
+		var acc_t: float = 2.4
+		var sv: float = 0.0
+		if tau < acc_t:
+			sv = 0.5 * (LANE_SPEED / acc_t) * tau * tau
+		else:
+			sv = 0.5 * LANE_SPEED * acc_t + LANE_SPEED * (tau - acc_t)
+		at = _cab_at_s(_p_out, sv)
+		if (at[0] as Vector3).z < FAR - 900.0:
+			return []
 	var p: Vector3 = at[0]
 	if p.x > ROAD:
 		p.y = 4.0
@@ -928,3 +1057,8 @@ func _neon_text(d: CanvasItem, c: Vector3, txt: String, hgt: float, col: Color) 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	title("Taxi", "Be a station manager and owner", Color(1.0, 0.86, 0.30), Color(0.10, 0.06, 0.0),
 		Color(1.0, 0.8, 0.3, 0.25))
+
+# the 3-D cars render only while the poster is on screen
+func _shown_changed(shown: bool) -> void:
+	if _cars3d != null:
+		_cars3d.call("set_shown", shown)

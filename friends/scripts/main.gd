@@ -54,7 +54,7 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
 
-# the main menu's poster (main_menu.gd asks the game for one): an evening stroll in the park, friends greeted as they pass
+# the main menu's poster (main_menu.gd asks the game for one): friends' photos pegged on a string, turning over one by one
 func menu_backdrop() -> Control:
 	return preload("res://friends/scripts/menu_world.gd").new()
 

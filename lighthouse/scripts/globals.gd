@@ -65,3 +65,6 @@ func buoy_icon() -> Texture2D:
 			img.set_pixel(x, y, col)
 	_buoy_icon = ImageTexture.create_from_image(img)
 	return _buoy_icon
+
+func _ready() -> void:
+	game.menu_ambient_names = ["sea", "waves"]   # its loop under the menu (GenericGameUtil.menu_ambient)

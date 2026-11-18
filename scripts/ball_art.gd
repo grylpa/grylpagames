@@ -101,7 +101,9 @@ func _draw() -> void:
 		if tk >= 1.0:
 			continue
 		var roll: float = clampf(tk / 0.72, 0.0, 1.0)
-		var e: float = roll * roll * (3.0 - 2.0 * roll)
+		# it arrives ROLLING: full speed at the start, easing only as it reaches the hole (a smoothstep started it from
+		# rest, which read as a pause before the pocket -- the user, 2026-11-18)
+		var e: float = 1.0 - (1.0 - roll) * (1.0 - roll)
 		var rr: float = lerpf(r, minf(r, _hole * 0.92), e)
 		var fall: float = clampf((tk - 0.72) / 0.28, 0.0, 1.0)
 		_draw_ball(c.lerp(_sink_to, e), rr * (1.0 - 0.7 * fall), tex, k, fall)

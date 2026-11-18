@@ -1,12 +1,14 @@
-extends "res://scripts/menu_poster.gd"
+extends "res://scripts/menu_poster3d.gd"
 
-# POLKA DOTS' OPENING POSTER (main.gd menu_backdrop(); see scripts/menu_poster.gd): FIREFLIES IN A MEADOW AT NIGHT.
-# A deep blue sky with a few stars and a low moon's glow, a dark tree line, the meadow falling away under it, tall
-# grass and seed heads black against it at the foot. The fireflies drift and blink, each round its own place; every
-# few seconds they gather -- a scatter of dots that turns out to be the outline of a LETTER (or a digit), held a
-# moment, glowing steadily, then they drift apart again and the next one forms somewhere else. Dots that make a
-# character, which is the game. The meadow is a still layer (baked: menu_still_0_<m|d>.webp); the fireflies are
-# live, each a small glow picture. Made up, never the board.
+# POLKA DOTS' OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): A RAILWAY
+# STATION AT DUSK AND ITS FLIP-DOT BOARD (2026-11-18; the user liked the dressmaker's dotted dress but worried its
+# femininity would put people off, and found its spools too simple). Under the iron-and-glass shed, hung from a lattice
+# girder between cast-iron columns, a black steel cabinet holds a grid of round discs, yellow on one face and black on
+# the other: every couple of seconds a wave runs across them, each disc turning over with a snap, and a new LETTER (or
+# digit) stands in yellow dots with a few stray dots scattered round it -- dots that make a character, which is the
+# game. Behind: the shed's glazed end against the dusk sky, a train standing at the platform with its windows lit,
+# globe lamps, a station clock, a bench. The station is the baked picture (`menu_station.webp`, `menu_station_d.webp`);
+# the discs that turn are live, one MultiMesh. Made up, never the board.
 
 # the characters, as strokes in a box 1 wide and 1.4 tall (y down)
 const GLYPHS: Dictionary = {
@@ -19,192 +21,479 @@ const GLYPHS: Dictionary = {
 	"Z": [[Vector2(0.08, 0.0), Vector2(0.92, 0.0), Vector2(0.08, 1.4), Vector2(0.92, 1.4)]],
 }
 const ORDER: Array = ["A", "7", "K", "4", "R", "E", "Z"]
-const N: int = 44
-const CYCLE: float = 8.0
-const FLY: Color = Color(0.85, 1.0, 0.45)
+const CLOUD_S: float = 0.85              # a random cloud of polka dots, already turning into the next character
+const GLYPH_S: float = 1.95              # the character: the wave turns it in from the cloud, it stands a moment
+const CYCLE: float = CLOUD_S + GLYPH_S   # (no pauses, the user: the board is always on its way somewhere)
+const CLOUD_FILL: float = 0.30
+const COLS: int = 14
+const ROWS: int = 18
+const PITCH: float = 21.0
+const DOT_R: float = 8.6
+const PANEL_C: Vector3 = Vector3(0.0, 450.0, 0.0)  # the grid's center, on the cabinet's face
+const STRAYS: int = 3                    # stray dots round each character, as the game scatters them
 
-var _glow: Texture2D = null
-var _flies: Control = null
-var _home: Array = []          # each firefly's place (0..1 in the meadow box)
-var _phase: Array = []
-var _letter_pts: Dictionary = {}   # glyph -> its N points, in the unit box, matched to the fireflies
+var _lit: Dictionary = {}                # character -> {cell index: true}
+var _live_cells: Array = []              # the cells that ever turn
+var _mm: MultiMesh = null
+
+func _baked_path() -> String:
+	return "res://polkadots/art/menu_station.webp" if mobile else "res://polkadots/art/menu_station_d.webp"
+
+func _eye() -> Vector3:
+	return Vector3(0.0, 330.0, 1050.0) if mobile else Vector3(0.0, 360.0, 1400.0)
+
+func _aim() -> Vector3:
+	return Vector3(0.0, 520.0, 0.0) if mobile else Vector3(0.0, 500.0, 0.0)
+
+func _fov() -> float:
+	return 50.0
+
+func _frame_frac() -> float:
+	return 0.48
+
+func _environment(env: Environment) -> void:
+	env.background_color = Color(0.05, 0.05, 0.08)
+	env.ambient_light_color = Color(0.55, 0.58, 0.72)
+	env.ambient_light_energy = 0.30
+
+func _build_lights() -> void:
+	# the globes' warm light on the board and the floor, the dusk through the glass, a lamp over the platform
+	spot(Vector3(0.0, 980.0, 520.0), PANEL_C, Color(1.0, 0.90, 0.74), 2.4, 1400.0, 26.0, true)
+	light(Vector3(-260.0, 740.0, 70.0), Color(1.0, 0.84, 0.62), 1.4, 700.0)
+	light(Vector3(260.0, 740.0, 70.0), Color(1.0, 0.84, 0.62), 1.4, 700.0)
+	light(Vector3(0.0, 900.0, -1300.0), Color(0.60, 0.66, 1.0), 2.0, 1600.0)
+	light(Vector3(620.0, 420.0, -300.0), Color(1.0, 0.80, 0.55), 1.2, 700.0)
+	light(Vector3(-500.0, 300.0, 500.0), Color(0.75, 0.80, 1.0), 0.6, 900.0)
+
+# --- the characters on the grid ---------------------------------------------------------------------------------
 
 func _setup() -> void:
-	add_still(func(d: Control) -> void: _draw_meadow(d))
-	var gt: GradientTexture2D = GradientTexture2D.new()
-	gt.width = 64
-	gt.height = 64
-	gt.fill = GradientTexture2D.FILL_RADIAL
-	gt.fill_from = Vector2(0.5, 0.5)
-	gt.fill_to = Vector2(1.0, 0.5)
-	var g: Gradient = Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(1, 1, 1, 0))
-	g.add_point(0.18, Color(1, 1, 1, 0.85))
-	g.add_point(0.45, Color(1, 1, 1, 0.22))
-	gt.gradient = g
-	_glow = gt
-	for i in N:
-		_home.append(Vector2(h01(i * 3 + 1), h01(i * 3 + 2)))
-		_phase.append(h01(i * 3 + 3) * TAU)
-	for key in GLYPHS.keys():
-		_letter_pts[key] = _sample(GLYPHS[key])
-	_flies = Control.new()
-	_flies.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_flies.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_flies.draw.connect(func() -> void: _draw_flies(_flies))
-	add_child(_flies)
+	_raster()
+	super._setup()
 
-# N points spread evenly along a glyph's strokes, a little irregular (a scatter, not a font), each matched to the
-# firefly whose own place is nearest the same side, so they cross as little as possible on the way in
-func _sample(strokes: Array) -> Array:
-	var segs: Array = []
-	var total: float = 0.0
-	for st in strokes:
-		var pts: Array = st
-		for k in pts.size() - 1:
-			var a: Vector2 = pts[k]
-			var b: Vector2 = pts[k + 1]
-			segs.append([a, b, total])
-			total += a.distance_to(b)
-	var out: Array = []
-	for i in N:
-		var s: float = (float(i) + 0.5) / float(N) * total
-		var p: Vector2 = Vector2.ZERO
-		for sg in segs:
-			var a2: Vector2 = sg[0]
-			var b2: Vector2 = sg[1]
-			var l0: float = float(sg[2])
-			var ln: float = a2.distance_to(b2)
-			if s >= l0 and s <= l0 + ln + 0.0001:
-				p = a2.lerp(b2, (s - l0) / maxf(ln, 0.0001))
-				break
-		p += Vector2(h01(i * 7 + 5) - 0.5, h01(i * 7 + 6) - 0.5) * 0.07
-		out.append(p)
-	# match: both sorted left to right
-	var order_f: Array = range(N)
-	order_f.sort_custom(func(x: int, y: int) -> bool: return (_home[x] as Vector2).x < (_home[y] as Vector2).x)
-	var order_p: Array = range(N)
-	order_p.sort_custom(func(x: int, y: int) -> bool: return (out[x] as Vector2).x < (out[y] as Vector2).x)
-	var matched: Array = []
-	matched.resize(N)
-	for k in N:
-		matched[order_f[k]] = out[order_p[k]]
-	return matched
+func _cell_pos(i: int) -> Vector3:
+	var c: int = i % COLS
+	var r: int = i / COLS
+	return PANEL_C + Vector3((float(c) - float(COLS - 1) * 0.5) * PITCH, (float(ROWS - 1) * 0.5 - float(r)) * PITCH, 6.0)
 
-# the meadow's box on screen: under the name, above the panel
-func _box(full: Vector2, bottom: float) -> Rect2:
-	var top: float = 230.0 if mobile else 140.0
-	return Rect2(Vector2(0.0, top), Vector2(full.x, bottom - top))
+func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab: Vector2 = b - a
+	var k: float = clampf((p - a).dot(ab) / maxf(0.0001, ab.length_squared()), 0.0, 1.0)
+	return p.distance_to(a + ab * k)
 
-func _tick(_delta: float) -> void:
-	_flies.queue_redraw()
+# each character set into the grid: a cell is lit where its center lies on a stroke (the glyph 10 cells wide, 14 tall,
+# two cells in from the top left), and a few strays scattered round it
+func _raster() -> void:
+	var union: Dictionary = {}
+	for gi in ORDER.size():
+		var ch: String = ORDER[gi]
+		var on: Dictionary = {}
+		for i in COLS * ROWS:
+			var g: Vector2 = Vector2((float(i % COLS) - 2.0) / 10.0, (float(i / COLS) - 2.0) / 10.0)
+			var best: float = 9.0
+			for stroke in GLYPHS[ch]:
+				var pts: Array = stroke
+				for k in pts.size() - 1:
+					best = minf(best, _seg_dist(g, pts[k], pts[k + 1]))
+			if best < 0.062:
+				on[i] = true
+		var placed: int = 0
+		var seed_i: int = gi * 31
+		while placed < STRAYS and seed_i < gi * 31 + 400:
+			var cand: int = int(h01(seed_i) * float(COLS * ROWS)) % (COLS * ROWS)
+			seed_i += 1
+			var near_any: bool = false
+			for dc in [-1, 0, 1]:
+				for dr in [-COLS, 0, COLS]:
+					if on.has(cand + int(dc) + int(dr)):
+						near_any = true
+			if not near_any:
+				on[cand] = true
+				placed += 1
+		_lit[ch] = on
+		for key in on.keys():
+			union[key] = true
+	# every disc turns now: the clouds between characters use the whole board
+	_live_cells = range(COLS * ROWS)
 
-func _draw_flies(d: Control) -> void:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
-	var box: Rect2 = _box(full, bottom)
-	var cyc: int = int(floor(t / CYCLE))
+var _disc_sh: Shader = null
+
+# a disc: its +y face the bright yellow, its -y face matte black, its rim dark; the yellow a touch luminous, as the
+# painted discs catch the light
+func _disc_material() -> ShaderMaterial:
+	if _disc_sh == null:
+		_disc_sh = Shader.new()
+		_disc_sh.code = """shader_type spatial;
+render_mode cull_disabled;
+varying float face;
+varying vec2 local_xz;
+void vertex() {
+	face = NORMAL.y;
+	local_xz = VERTEX.xz;
+}
+void fragment() {
+	float yel = step(0.5, face);
+	float blk = step(0.5, -face);
+	float r = length(local_xz) / 8.6;
+	vec3 y_col = mix(vec3(1.0, 0.84, 0.16), vec3(0.92, 0.66, 0.06), smoothstep(0.55, 1.0, r));
+	vec3 b_col = vec3(0.035, 0.035, 0.04) + vec3(0.03) * smoothstep(0.80, 0.95, r);
+	ALBEDO = mix(vec3(0.06, 0.06, 0.07), mix(b_col, y_col, yel), max(yel, blk));
+	ROUGHNESS = mix(0.55, 0.38, yel);
+	SPECULAR = 0.4;
+	EMISSION = y_col * 0.30 * yel;
+}"""
+	var m: ShaderMaterial = ShaderMaterial.new()
+	m.shader = _disc_sh
+	return m
+
+func _disc_mesh() -> CylinderMesh:
+	var disc: CylinderMesh = CylinderMesh.new()
+	disc.top_radius = DOT_R
+	disc.bottom_radius = DOT_R
+	disc.height = 1.2
+	disc.radial_segments = 24
+	return disc
+
+# a disc's place and its turn (0 yellow toward you, PI black), about its own horizontal axle
+func _disc_xf(i: int, ang: float) -> Transform3D:
+	return Transform3D(Basis(Vector3.RIGHT, PI * 0.5 + ang), _cell_pos(i))
+
+# --- the station: real 3-D, baked ---------------------------------------------------------------------------------
+
+func _stone(n: int) -> ImageTexture:
+	# big floor flags, two stones laid in a check, honed, with fine joints
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	var half: int = n / 2
+	for y in n:
+		for x in n:
+			var cell: int = (x / half + y / half) % 2
+			var base: Color = Color(0.62, 0.60, 0.56) if cell == 0 else Color(0.40, 0.40, 0.42)
+			var v: float = (h01(x * 7 + y * 131) - 0.5) * 0.06 + 0.04 * sin(float(x) * 0.21 + float(y) * 0.13)
+			var c: Color = base.lightened(v) if v > 0.0 else base.darkened(-v)
+			if x % half == 0 or y % half == 0:
+				c = c.darkened(0.45)
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _bricks(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	var bh: int = n / 8
+	var bw: int = n / 4
+	for y in n:
+		var row: int = y / bh
+		for x in n:
+			var xo: int = (x + (bw / 2 if row % 2 == 1 else 0)) % n
+			var brick: int = row * 7 + xo / bw
+			var c: Color = Color(0.46, 0.22, 0.15).lerp(Color(0.56, 0.30, 0.20), h01(brick * 13)).darkened(0.12 * h01(x * 3 + y * 57))
+			if y % bh < 2 or xo % bw < 2:
+				c = Color(0.55, 0.52, 0.48).darkened(0.2)
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _dusk(n: int) -> ImageTexture:
+	var img: Image = Image.create(4, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		var v: float = float(y) / float(n - 1)
+		var c: Color = Color(0.16, 0.20, 0.42).lerp(Color(0.55, 0.42, 0.62), smoothstep(0.2, 0.75, v)).lerp(Color(1.0, 0.66, 0.40), smoothstep(0.72, 1.0, v))
+		for x in 4:
+			img.set_pixel(x, y, c)
+	return ImageTexture.create_from_image(img)
+
+# a barrel vault: the arch (from just above the springing to just below on the far side) swept along z, its UVs
+# counting panes (one pane: 1 x 1), its normals facing down into the shed
+func _vault(r: float, spring: float, rise: float, z0: float, z1: float) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var na: int = 32
+	var nz: int = 40
+	var across: float = 16.0
+	var along: float = (z1 - z0) / 56.0
+	for i in na:
+		for j in nz:
+			var q: Array = []
+			for c in [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]]:
+				var a: float = PI * (0.08 + 0.84 * float(c[0]) / float(na))
+				var z: float = lerpf(z0, z1, float(c[1]) / float(nz))
+				q.append([Vector3(-cos(a) * r, spring + sin(a) * rise, z), Vector2(float(c[0]) / float(na) * across, float(c[1]) / float(nz) * along), Vector3(cos(a), -sin(a), 0.0)])
+			for vi in [0, 1, 2, 0, 2, 3]:
+				st.set_normal(q[vi][2])
+				st.set_uv(q[vi][1])
+				st.add_vertex(q[vi][0])
+	return st.commit()
+
+func _vault_mat() -> StandardMaterial3D:
+	# one pane, tiled: the dusk seen through old glass, a soft gradient top to bottom, a grimy rim, a dark putty edge,
+	# soot streaks running down it
+	var n: int = 64
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n:
+			var sky: Color = Color(0.28, 0.28, 0.48).lerp(Color(0.52, 0.40, 0.52), float(y) / float(n))
+			var ex: float = minf(minf(float(x), float(n - 1 - x)), minf(float(y), float(n - 1 - y))) / float(n)
+			var c: Color = sky.darkened(0.35 * (1.0 - smoothstep(0.0, 0.18, ex)))
+			if ex < 0.03:
+				c = Color(0.08, 0.08, 0.09)
+			# streaks of soot running down the glass
+			c = c.darkened(0.10 * h01(x * 13) * (float(y) / float(n)))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	var m: StandardMaterial3D = StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return m
+
+# a cast-iron column: a square plinth, a molded base, the shaft, a flared capital and its abacus
+func _column(at: Vector3, iron: StandardMaterial3D, h: float) -> void:
+	box(Vector3(56.0, 34.0, 56.0), iron, at + Vector3(0.0, 17.0, 0.0))
+	cyl(22.0, 27.0, 20.0, iron, at + Vector3(0.0, 44.0, 0.0), Vector3.ZERO, null, 24)
+	var torus_b: MeshInstance3D = sphere(21.0, iron, at + Vector3(0.0, 56.0, 0.0))
+	torus_b.scale = Vector3(1.0, 0.35, 1.0)
+	cyl(13.0, 16.0, h - 140.0, iron, at + Vector3(0.0, 60.0 + (h - 140.0) * 0.5, 0.0), Vector3.ZERO, null, 16)
+	cyl(15.0, 15.0, 8.0, iron, at + Vector3(0.0, h - 76.0, 0.0), Vector3.ZERO, null, 20)
+	cyl(36.0, 15.0, 52.0, iron, at + Vector3(0.0, h - 46.0, 0.0), Vector3.ZERO, null, 24)
+	box(Vector3(80.0, 14.0, 80.0), iron, at + Vector3(0.0, h - 13.0, 0.0))
+
+func _build_still() -> void:
+	var iron: StandardMaterial3D = mat(Color(0.12, 0.22, 0.18), 0.45, 0.55)
+	var black_steel: StandardMaterial3D = mat(Color(0.06, 0.06, 0.07), 0.35, 0.7)
+	var brass: StandardMaterial3D = mat(Color(0.86, 0.66, 0.32), 0.3, 0.8)
+	var oak: StandardMaterial3D = mat(Color.WHITE, 0.45, 0.0, tex_wood(128, Color(0.48, 0.30, 0.16), 5), Vector3(3, 1, 1))
+	# THE FLOOR: honed stone flags in a check, faintly glossy
+	box(Vector3(3200.0, 4.0, 3600.0), mat(Color.WHITE, 0.32, 0.0, _stone(256), Vector3(16, 18, 1)), Vector3(0.0, -2.0, -600.0))
+	# THE SHED'S END: a brick wall with a great glazed lunette against the dusk, radial glazing bars
+	var end_z: float = -2000.0
+	box(Vector3(3200.0, 2400.0, 20.0), mat(Color.WHITE, 0.9, 0.0, _bricks(256), Vector3(14, 10, 1)), Vector3(0.0, 1200.0, end_z))
+	var sky: StandardMaterial3D = mat(Color.WHITE, 1.0, 0.0, _dusk(128))
+	sky.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var arch_r: float = 900.0
+	var lun: CylinderMesh = CylinderMesh.new()
+	lun.top_radius = arch_r
+	lun.bottom_radius = arch_r
+	lun.height = 4.0
+	lun.radial_segments = 64
+	put(lun, sky, Vector3(0.0, 300.0, end_z + 12.0), Vector3(90.0, 0.0, 0.0))
+	box(Vector3(arch_r * 2.0, 300.0, 4.0), sky, Vector3(0.0, 150.0, end_z + 12.0))
+	for spoke in 13:
+		var a: float = PI * float(spoke) / 12.0
+		var tip: Vector3 = Vector3(cos(a) * arch_r, 300.0 + sin(a) * arch_r, end_z + 18.0)
+		var bar: MeshInstance3D = cyl(4.0, 4.0, arch_r, black_steel, (Vector3(0.0, 300.0, end_z + 18.0) + tip) * 0.5)
+		bar.rotation = Vector3(0.0, 0.0, a - PI * 0.5)
+	for ring_r in [arch_r * 0.35, arch_r * 0.68, arch_r]:
+		var tr2: TorusMesh = TorusMesh.new()
+		tr2.inner_radius = ring_r - 5.0
+		tr2.outer_radius = ring_r + 5.0
+		tr2.rings = 96
+		put(tr2, black_steel, Vector3(0.0, 300.0, end_z + 18.0), Vector3(90.0, 0.0, 0.0))
+	for hb in 4:
+		box(Vector3(arch_r * 2.0, 6.0, 6.0), black_steel, Vector3(0.0, 40.0 + float(hb) * 85.0, end_z + 18.0))
+	# THE COLUMNS down both sides and the SHED's arched iron ribs on them, purlins along, glass between
+	var col_x: float = 470.0
+	var col_h: float = 860.0
+	for cz in [120.0, -500.0, -1120.0, -1740.0]:
+		for sx in [-1.0, 1.0]:
+			_column(Vector3(sx * col_x, 0.0, cz), iron, col_h)
+		var rib: PackedVector3Array = PackedVector3Array()
+		for rk in 25:
+			var ra: float = PI * float(rk) / 24.0
+			rib.append(Vector3(-cos(ra) * col_x, col_h + sin(ra) * 360.0, cz))
+		put(tube_mesh(rib, 9.0, 10), iron, Vector3.ZERO)
+		# the spandrel's ironwork: rings between the rib and the tie
+		for sp in [-1.0, 1.0]:
+			var rr: TorusMesh = TorusMesh.new()
+			rr.inner_radius = 40.0
+			rr.outer_radius = 46.0
+			put(rr, iron, Vector3(sp * 330.0, col_h + 70.0, cz), Vector3(90.0, 0.0, 0.0))
+		box(Vector3(col_x * 2.0, 10.0, 10.0), iron, Vector3(0.0, col_h, cz))
+	for pk in 9:
+		var pa: float = PI * (0.1 + 0.8 * float(pk) / 8.0)
+		box(Vector3(8.0, 8.0, 2000.0), iron, Vector3(-cos(pa) * col_x, col_h + sin(pa) * 360.0, -820.0))
+	# THE GLASS: a barrel vault of panes over the ribs -- each pane its own shade of the twilight seen through it,
+	# soot gathered toward its edges, the putty lines dark -- with IRON GLAZING BARS following the arch every pane's
+	# width, and a louvred LANTERN along the ridge (the glass was one blue shell, the user: "improve the canopy")
+	put(_vault(col_x, col_h, 360.0, -1950.0, 260.0), _vault_mat(), Vector3.ZERO)
+	var z_bar: float = -1950.0
+	while z_bar <= 260.0:
+		var bar: PackedVector3Array = PackedVector3Array()
+		for bk in 21:
+			var ba: float = PI * (0.08 + 0.84 * float(bk) / 20.0)
+			bar.append(Vector3(-cos(ba) * (col_x - 3.0), col_h + sin(ba) * 357.0, z_bar))
+		put(tube_mesh(bar, 2.2, 5), iron, Vector3.ZERO)
+		z_bar += 56.0
+	box(Vector3(120.0, 12.0, 2210.0), iron, Vector3(0.0, col_h + 372.0, -845.0))
+	for lv in 2:
+		var lside: float = -1.0 if lv == 0 else 1.0
+		box(Vector3(4.0, 46.0, 2210.0), mat(Color(0.20, 0.22, 0.26), 0.5, 0.4), Vector3(lside * 56.0, col_h + 396.0, -845.0))
+	put(_vault(70.0, col_h + 410.0, 30.0, -1950.0, 260.0), iron, Vector3.ZERO)
+	# THE GIRDER the board hangs from: a lattice beam between the front columns
+	var gy: float = 820.0
+	box(Vector3(col_x * 2.0, 10.0, 18.0), iron, Vector3(0.0, gy + 30.0, 0.0))
+	box(Vector3(col_x * 2.0, 10.0, 18.0), iron, Vector3(0.0, gy - 30.0, 0.0))
+	for lk in 18:
+		var lx: float = -col_x + 26.0 + float(lk) * (col_x * 2.0 - 52.0) / 17.0
+		var dia: MeshInstance3D = box(Vector3(5.0, 72.0, 5.0), iron, Vector3(lx, gy, 0.0))
+		dia.rotation = Vector3(0.0, 0.0, 0.6 if lk % 2 == 0 else -0.6)
+	# THE BOARD: a black steel cabinet with a rolled bevel, riveted round its face, a header strip with DEPARTURES in
+	# cream enamel, the grid recessed in it, every disc set in its own shallow socket; hung on two rods with turnbuckles
+	var hx: float = float(COLS) * PITCH * 0.5 + 26.0
+	var dots_h: float = float(ROWS) * PITCH
+	var cab_h: float = dots_h + 26.0 * 2.0 + 52.0
+	var cab_cy: float = PANEL_C.y + 26.0
+	put(rbox_mesh(hx, cab_h * 0.5, 34.0, 12.0, 5.0), black_steel, Vector3(0.0, cab_cy, -34.0), Vector3(90.0, 0.0, 0.0))
+	box(Vector3(float(COLS) * PITCH + 8.0, dots_h + 8.0, 2.0), mat(Color(0.02, 0.02, 0.025), 0.9), Vector3(PANEL_C.x, PANEL_C.y, 0.5))
+	var rv_m: StandardMaterial3D = mat(Color(0.20, 0.20, 0.22), 0.3, 0.8)
+	var top_y: float = cab_cy + cab_h * 0.5
+	var bot_y: float = cab_cy - cab_h * 0.5
+	for rv in 13:
+		var rx: float = -hx + 12.0 + float(rv) * (hx * 2.0 - 24.0) / 12.0
+		sphere(2.6, rv_m, Vector3(rx, top_y - 9.0, 1.0))
+		sphere(2.6, rv_m, Vector3(rx, bot_y + 9.0, 1.0))
+	for rv2 in 17:
+		var ry: float = bot_y + 12.0 + float(rv2) * (cab_h - 24.0) / 16.0
+		sphere(2.6, rv_m, Vector3(-hx + 9.0, ry, 1.0))
+		sphere(2.6, rv_m, Vector3(hx - 9.0, ry, 1.0))
+	var head_y: float = PANEL_C.y + dots_h * 0.5 + 34.0
+	box(Vector3(hx * 2.0 - 40.0, 34.0, 2.0), mat(Color(0.08, 0.14, 0.24), 0.35, 0.2), Vector3(0.0, head_y, 1.0))
+	var word: Label3D = label("DEPARTURES", 24.0, Color(0.96, 0.92, 0.80), Vector3(0.0, head_y, 2.6))
+	word.outline_size = 0
+	var sockets: MultiMesh = MultiMesh.new()
+	sockets.transform_format = MultiMesh.TRANSFORM_3D
+	var sock: CylinderMesh = CylinderMesh.new()
+	sock.top_radius = DOT_R + 1.4
+	sock.bottom_radius = DOT_R + 1.4
+	sock.height = 1.0
+	sock.radial_segments = 20
+	sockets.mesh = sock
+	sockets.instance_count = COLS * ROWS
+	for si in COLS * ROWS:
+		sockets.set_instance_transform(si, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), _cell_pos(si) - Vector3(0.0, 0.0, 4.0)))
+	var smi: MultiMeshInstance3D = MultiMeshInstance3D.new()
+	smi.multimesh = sockets
+	smi.material_override = mat(Color(0.10, 0.10, 0.11), 0.6, 0.4)
+	root.add_child(smi)
+	# every disc, black side out (those that turn stand again in the live view)
+	var still: MultiMesh = MultiMesh.new()
+	still.transform_format = MultiMesh.TRANSFORM_3D
+	still.mesh = _disc_mesh()
+	still.instance_count = COLS * ROWS
+	for di in COLS * ROWS:
+		still.set_instance_transform(di, _disc_xf(di, PI))
+	var dmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
+	dmi.multimesh = still
+	dmi.material_override = _disc_material()
+	root.add_child(dmi)
+	for hr in [-hx + 40.0, hx - 40.0]:
+		cyl(2.6, 2.6, gy - 30.0 - top_y, black_steel, Vector3(hr, (gy - 30.0 + top_y) * 0.5, -17.0), Vector3.ZERO, null, 8)
+		cyl(4.2, 4.2, 22.0, brass, Vector3(hr, top_y + (gy - 30.0 - top_y) * 0.45, -17.0), Vector3.ZERO, null, 10)
+		box(Vector3(14.0, 10.0, 14.0), black_steel, Vector3(hr, top_y + 4.0, -17.0))
+	# GLOBE LAMPS hung from the girder either side, milk glass glowing, brass galleries
+	for gl in [-260.0, 260.0]:
+		var lc: Vector3 = Vector3(gl, 720.0, 60.0)
+		cyl(1.6, 1.6, gy - 30.0 - lc.y - 20.0, brass, Vector3(gl, (gy - 30.0 + lc.y + 20.0) * 0.5, 30.0), Vector3(-8.0, 0.0, 0.0), null, 6)
+		sphere(26.0, glow(Color(1.0, 0.92, 0.76)), lc)
+		cyl(12.0, 16.0, 12.0, brass, lc + Vector3(0.0, 28.0, 0.0), Vector3.ZERO, null, 16)
+		var gal: TorusMesh = TorusMesh.new()
+		gal.inner_radius = 14.0
+		gal.outer_radius = 17.0
+		put(gal, brass, lc + Vector3(0.0, 22.0, 0.0))
+	# THE STATION CLOCK on a bracket from the right column: two faces back to back, a brass case, the hands at ten to
+	var ck: Vector3 = Vector3(col_x - 110.0, 600.0, 120.0)
+	box(Vector3(90.0, 8.0, 8.0), iron, Vector3(col_x - 50.0, 660.0, 120.0))
+	cyl(2.0, 2.0, 30.0, iron, ck + Vector3(0.0, 46.0, 0.0), Vector3.ZERO, null, 6)
+	cyl(44.0, 44.0, 20.0, brass, ck, Vector3(90.0, 0.0, 0.0), null, 40)
+	cyl(39.0, 39.0, 21.0, mat(Color(0.96, 0.94, 0.88), 0.5), ck, Vector3(90.0, 0.0, 0.0), null, 40)
+	for tk in 12:
+		var ta: float = TAU * float(tk) / 12.0
+		var tick: MeshInstance3D = box(Vector3(2.4, 7.0 if tk % 3 == 0 else 4.5, 1.0), black_steel, ck + Vector3(sin(ta) * 33.0, cos(ta) * 33.0, 11.0))
+		tick.rotation = Vector3(0.0, 0.0, -ta)
+	var hand_h: MeshInstance3D = box(Vector3(3.4, 22.0, 1.0), black_steel, ck + Vector3(0.0, 0.0, 12.0) + Vector3(sin(-0.52), cos(-0.52), 0.0) * 10.0)
+	hand_h.rotation = Vector3(0.0, 0.0, 0.52)
+	var hand_m: MeshInstance3D = box(Vector3(2.4, 32.0, 1.0), black_steel, ck + Vector3(0.0, 0.0, 12.6) + Vector3(sin(-1.05), cos(-1.05), 0.0) * 15.0)
+	hand_m.rotation = Vector3(0.0, 0.0, 1.05)
+	sphere(3.0, brass, ck + Vector3(0.0, 0.0, 13.0))
+	# THE PLATFORM at the right: its stone edge with the yellow line, and A TRAIN standing at it, windows lit
+	var plat_x: float = 600.0
+	box(Vector3(40.0, 40.0, 2600.0), mat(Color(0.58, 0.56, 0.52), 0.6), Vector3(plat_x, -20.0 + 22.0, -800.0))
+	box(Vector3(10.0, 1.0, 2600.0), mat(Color(0.95, 0.80, 0.20), 0.6), Vector3(plat_x - 6.0, 3.0, -800.0))
+	var paint: StandardMaterial3D = mat(Color(0.10, 0.26, 0.20), 0.3, 0.3)
+	paint.clearcoat_enabled = true
+	var tx: float = plat_x + 120.0
+	for car in 2:
+		var cz0: float = -260.0 - float(car) * 760.0
+		box(Vector3(160.0, 190.0, 720.0), paint, Vector3(tx, 150.0, cz0 - 360.0))
+		var roof: MeshInstance3D = cyl(86.0, 86.0, 720.0, mat(Color(0.22, 0.22, 0.24), 0.6, 0.3), Vector3(tx, 240.0, cz0 - 360.0), Vector3(90.0, 0.0, 0.0), null, 24)
+		roof.scale = Vector3(1.0, 1.0, 0.36)
+		box(Vector3(2.0, 8.0, 720.0), brass, Vector3(tx - 81.0, 108.0, cz0 - 360.0))
+		for w in 9:
+			var wz: float = cz0 - 40.0 - float(w) * 76.0
+			box(Vector3(2.0, 58.0, 50.0), glow(Color(1.0, 0.84, 0.56)), Vector3(tx - 81.0, 180.0, wz))
+			box(Vector3(3.0, 64.0, 4.0), paint, Vector3(tx - 81.5, 180.0, wz + 27.0))
+		for bg in 2:
+			box(Vector3(140.0, 40.0, 140.0), black_steel, Vector3(tx, 38.0, cz0 - 110.0 - float(bg) * 500.0))
+	# A BENCH under the board's left: oak slats on cast-iron ends
+	var bc: Vector3 = Vector3(-300.0, 0.0, 240.0)
+	for se in [-1.0, 1.0]:
+		var end_p: PackedVector3Array = PackedVector3Array([bc + Vector3(se * 90.0, 0.0, 22.0), bc + Vector3(se * 90.0, 46.0, 18.0), bc + Vector3(se * 90.0, 50.0, -16.0), bc + Vector3(se * 90.0, 104.0, -30.0)])
+		put(tube_mesh(end_p, 3.6, 8), iron, Vector3.ZERO)
+		box(Vector3(5.0, 4.0, 40.0), iron, bc + Vector3(se * 90.0, 2.0, 0.0))
+	for sl in 4:
+		box(Vector3(200.0, 3.0, 8.0), oak, bc + Vector3(0.0, 48.0, 16.0 - float(sl) * 10.0))
+	for bs in 3:
+		var back: MeshInstance3D = box(Vector3(200.0, 8.0, 3.0), oak, bc + Vector3(0.0, 66.0 + float(bs) * 13.0, -20.0 - float(bs) * 3.0))
+		back.rotation = Vector3(-0.25, 0.0, 0.0)
+
+# --- live: the discs that turn ----------------------------------------------------------------------------------
+
+func _build_live() -> void:
+	_mm = MultiMesh.new()
+	_mm.transform_format = MultiMesh.TRANSFORM_3D
+	_mm.mesh = _disc_mesh()
+	_mm.instance_count = _live_cells.size()
+	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
+	mmi.multimesh = _mm
+	mmi.material_override = _disc_material()
+	root.add_child(mmi)
+	_animate(0.0)
+
+# what the board shows in phase p: even phases a CLOUD of polka dots scattered at random (a new one each time), odd
+# phases the next CHARACTER with its few strays
+func _state(p: int) -> Dictionary:
+	if posmod(p, 2) == 0:
+		var cloud: Dictionary = {}
+		var m: int = p / 2
+		for i in COLS * ROWS:
+			if h01(i * 7 + m * 131 + 11) < CLOUD_FILL:
+				cloud[i] = true
+		return cloud
+	return _lit[ORDER[posmod((p - 1) / 2, ORDER.size())]]
+
+func _animate(_delta: float) -> void:
+	if _mm == null:
+		return
+	var c: int = int(floor(t / CYCLE))
 	var u: float = fmod(t, CYCLE)
-	var glyph: String = ORDER[posmod(cyc, ORDER.size())]
-	var pts: Array = _letter_pts[glyph]
-	# the letter's place: its own spot each time, inside the meadow box
-	var lh: float = minf(box.size.y * 0.62, 300.0)
-	var lw: float = lh / 1.4
-	var cx: float = box.position.x + box.size.x * (0.30 + 0.40 * h01(cyc * 5 + 1))
-	var cy: float = box.position.y + box.size.y * (0.42 + 0.10 * h01(cyc * 5 + 2))
-	var origin: Vector2 = Vector2(cx - lw * 0.5, cy - lh * 0.5)
-	var gather: float = smoothstep(1.6, 3.6, u) * (1.0 - smoothstep(6.0, 7.8, u))
-	for i in N:
-		var hm: Vector2 = _home[i]
-		var ph: float = float(_phase[i])
-		# drifting round its place: slow loops, a little lift
-		var wander: Vector2 = box.position + Vector2(hm.x * box.size.x, (0.12 + hm.y * 0.80) * box.size.y)
-		wander += Vector2(sin(t * 0.37 + ph) * 26.0 + sin(t * 0.91 + ph * 2.0) * 9.0, cos(t * 0.29 + ph) * 18.0 + sin(t * 1.3 + ph) * 6.0)
-		var target: Vector2 = origin + (pts[i] as Vector2) * lw + Vector2(sin(t * 1.7 + ph) * 1.5, cos(t * 1.4 + ph) * 1.5)
-		# each comes in at its own pace, so the shape gathers rather than snaps
-		var own: float = clampf(gather * 1.25 - 0.25 * h01(i + 90), 0.0, 1.0)
-		own = own * own * (3.0 - 2.0 * own)
-		var p: Vector2 = wander.lerp(target, own)
-		# the blink: wandering, each glows and dims on its own rhythm; in the letter, they glow together
-		var blink: float = 0.35 + 0.65 * maxf(0.0, sin(t * (1.1 + 0.5 * h01(i + 40)) + ph)) ** 2
-		var a: float = lerpf(blink, 0.95, own)
-		var r: float = (11.0 if mobile else 9.0) * (0.8 + 0.4 * a)
-		d.draw_texture_rect(_glow, Rect2(p - Vector2(r, r) * 2.2, Vector2(r, r) * 4.4), false, Color(FLY, 0.55 * a))
-		d.draw_circle(p, 2.2 if mobile else 1.8, Color(1.0, 1.0, 0.85, a))
-
-# --- the meadow (a still layer) -------------------------------------------------------------------------------------
-
-func _draw_meadow(d: Control) -> void:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
-	var box: Rect2 = _box(full, bottom)
-	var horizon: float = box.position.y + box.size.y * 0.30
-	# the sky: deep blue to a faint green-blue glow at the horizon, a few stars, the moon's halo low at the right
-	d.draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(full.x, 0.0), Vector2(full.x, horizon), Vector2(0.0, horizon)]),
-		PackedColorArray([Color(0.02, 0.03, 0.08), Color(0.02, 0.03, 0.08), Color(0.08, 0.13, 0.20), Color(0.08, 0.13, 0.20)]))
-	for k in 70:
-		var sp: Vector2 = Vector2(h01(k + 300) * full.x, h01(k + 400) * horizon * 0.95)
-		d.draw_circle(sp, 0.6 + 1.0 * h01(k + 500), Color(1, 1, 1, 0.25 + 0.5 * h01(k + 600)))
-	var moon: Vector2 = Vector2(full.x * 0.80, horizon - box.size.y * 0.12)
-	for k in 12:
-		d.draw_circle(moon, 90.0 - float(k) * 6.5, Color(0.70, 0.80, 1.0, 0.025))
-	d.draw_circle(moon, 22.0, Color(0.92, 0.94, 0.88))
-	d.draw_circle(moon + Vector2(-6, -5), 5.0, Color(0.82, 0.84, 0.80))
-	d.draw_circle(moon + Vector2(7, 6), 3.5, Color(0.84, 0.86, 0.82))
-	# the meadow under it, falling away from the tree line into the dark at the foot
-	d.draw_polygon(PackedVector2Array([Vector2(0.0, horizon), Vector2(full.x, horizon), Vector2(full.x, full.y), Vector2(0.0, full.y)]),
-		PackedColorArray([Color(0.09, 0.16, 0.14), Color(0.09, 0.16, 0.14), Color(0.01, 0.03, 0.02), Color(0.01, 0.03, 0.02)]))
-	# moonlight lying on the meadow below the moon, soft
-	for k in 10:
-		d.draw_set_transform(Vector2(moon.x - 40.0, horizon + box.size.y * 0.30), 0.0, Vector2(1.0, 0.30))
-		d.draw_circle(Vector2.ZERO, 300.0 - float(k) * 26.0, Color(0.55, 0.70, 0.75, 0.018))
-	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# the tree line: crowns of different sizes, a far row hazed and a near one black
-	for row in 2:
-		var col: Color = Color(0.05, 0.09, 0.11) if row == 0 else Color(0.015, 0.03, 0.03)
-		var base_y: float = horizon + (6.0 if row == 0 else 20.0)
-		var x: float = -30.0
-		var k: int = row * 100
-		while x < full.x + 40.0:
-			var r: float = (26.0 if row == 0 else 34.0) * (0.7 + 0.6 * h01(k + 700))
-			var cyy: float = base_y - r * (0.8 + 0.8 * h01(k + 800))
-			d.draw_circle(Vector2(x, cyy), r, col)
-			d.draw_rect(Rect2(x - r, cyy, r * 2.0, base_y - cyy + 4.0), col)
-			x += r * 1.1
-			k += 1
-	# MIST lying along the foot of the trees, so the meadow runs into them without an edge
-	for k in 26:
-		var mx: float = h01(k + 900) * full.x
-		var my: float = horizon + 22.0 + 18.0 * h01(k + 950)
-		d.draw_set_transform(Vector2(mx, my), 0.0, Vector2(1.0, 0.22))
-		for j in 5:
-			d.draw_circle(Vector2.ZERO, (120.0 + 80.0 * h01(k + 980)) * (1.0 - float(j) * 0.18), Color(0.45, 0.58, 0.62, 0.024))
-	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# far grass texture: faint strokes over the meadow
-	for k in 500:
-		var gx: float = h01(k + 1000) * full.x
-		var gy: float = horizon + 24.0 + h01(k + 1100) * (full.y - horizon - 24.0)
-		var depth: float = (gy - horizon) / maxf(1.0, full.y - horizon)
-		var hgt: float = 3.0 + 14.0 * depth
-		d.draw_line(Vector2(gx, gy), Vector2(gx + 2.0 * (h01(k + 1200) - 0.5) * hgt, gy - hgt), Color(0.16, 0.28, 0.20, 0.45 * (1.0 - depth * 0.5)), 1.0)
-	# THE NEAR GRASS at the foot: tall curving blades and seed heads, black against the meadow
-	var foot: float = bottom + 10.0
-	for k in 160:
-		var bx: float = h01(k + 1300) * full.x
-		var hgt2: float = 50.0 + 140.0 * h01(k + 1400)
-		var lean: float = (h01(k + 1500) - 0.5) * hgt2 * 0.5
-		var pts: PackedVector2Array = PackedVector2Array()
-		for j in 7:
-			var v: float = float(j) / 6.0
-			pts.append(Vector2(bx + lean * v * v, foot - hgt2 * v))
-		d.draw_polyline(pts, Color(0.0, 0.015, 0.01), 2.6 - 1.4 * h01(k + 1600), true)
-		if k % 9 == 0:
-			d.draw_set_transform(pts[6], atan2(lean, hgt2), Vector2(1.0, 2.4))
-			d.draw_circle(Vector2.ZERO, 3.2, Color(0.0, 0.015, 0.01))
-			d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	d.draw_rect(Rect2(0.0, foot, full.x, full.y - foot), Color(0.0, 0.015, 0.01))
+	var phase: int = c * 2 if u < CLOUD_S else c * 2 + 1
+	var local: float = u if u < CLOUD_S else u - CLOUD_S
+	var now: Dictionary = _state(phase)
+	var was: Dictionary = _state(phase - 1)
+	for k in _live_cells.size():
+		var i: int = _live_cells[k]
+		var a0: float = 0.0 if was.has(i) else PI
+		var a1: float = 0.0 if now.has(i) else PI
+		var ang: float = a1
+		if a0 != a1:
+			# THE WAVE: left to right, a touch down the rows, each disc turning over in a fifth of a second and
+			# snapping home with a small overshoot, as the magnet catches it -- across the board in under 0.75 s
+			var delay: float = 0.028 * float(i % COLS) + 0.008 * float(i / COLS) + 0.02 * h01(i + 5)
+			var f: float = clampf((local - delay) / 0.20, 0.0, 1.0)
+			var c1: float = 2.2
+			var e: float = 1.0 + (c1 + 1.0) * pow(f - 1.0, 3.0) + c1 * pow(f - 1.0, 2.0)
+			ang = lerpf(a0, a1, e)
+		_mm.set_instance_transform(k, _disc_xf(i, ang))
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
-	title("Polka Dots", "Identify the scatter of dots", Color(0.90, 1.0, 0.60), Color(0.04, 0.08, 0.06),
-		Color(0.85, 1.0, 0.45, 0.25))
+	title("Polka Dots", "Identify the scatter of dots", Color(1.0, 0.86, 0.30), Color(0.06, 0.06, 0.10),
+		Color(1.0, 0.80, 0.30, 0.22))

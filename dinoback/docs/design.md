@@ -32,8 +32,8 @@ dinoback/
 └── docs/{design.md,make_thumbnail.py}
 ```
 
-Shared assets only: the card is `res://shared/scripts/card.gd` (unmodified) with the
-`res://art/zig1.png` border, images come from `res://art/dinos/` and `res://art/people/`, the
+Shared assets only: the card is `res://shared/scripts/card.gd` as an old print (`set_photo(true)`; the zigzag
+until 2026-11-18), images come from `res://art/dinos/` and `res://art/people/`, the
 background is `res://art/dinos/bk1.jpg`, sounds from `res://art/sounds/`. No file references
 another game.
 
@@ -138,9 +138,7 @@ did not mean what it documented. With the explicit split it measures 0.41–0.44
   of them rather than special-casing. Measured centering error after the fix: 0.00 px on all six
   polygon shapes.
 - **No diamond** — a rotated square is not a distinct shape (project rule).
-- **Frame color**: white is reserved for dino photos (as in Dino); people and all three drawn
-  categories get the yellow zigzag. On a drawn face — a dark plate with one bright symbol — a white
-  frame reads as a second bright element competing with it. The frame never encodes the card's own
+- **Frame**: every card is an old print (the color passed to `setup` is no longer shown). The frame never encodes the card's own
   color, or the color rule would be readable off the frame instead of the symbol.
 
 ## Chooser tile
@@ -345,13 +343,20 @@ the game puts them.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): a TRAIL of the game's own cards (the shared zig-framed card, small: 19% of the width) winding in an S back into the distance along a dirt trail through a prehistoric valley at sunset (see THE VALLEY below), each card 72% the size of the one in front; every 1.6 s a new card slides in at the front and the trail steps back (at 2.6 s the pause was too long); when the new card is the same as the one N (2) back, a LUMINOUS ARC joins them (`_draw_link`, drawn UNDER the cards so it rises from behind one and sinks behind the other): a quadratic curve bowing out to the side, a wide soft glow and a bright fine core both tapering to nothing at the ends, sparkles running along it both ways, fading in as the new card settles and out before the next. (A flat yellow line was the right idea drawn badly; a gold frame round the two instead was "super ugly".) The stream starts on a match, so it shows at once.
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A
+PALEONTOLOGIST'S DESK AT NIGHT (2026-11-18; before it a valley at sunset -- cone mountains, stick palms, cards on
+posts -- "wrong and ugly"; only the cards moving along a winding way were kept). An old expedition map (`_map_tex`:
+parchment with stains and creases, sepia coasts and contour lines, a compass rose, the ROUTE dotted in red-brown) lies
+on a walnut desk with a green leather inlay, under an oil lamp (its glass and flame cast no shadow, or the whole desk
+sat in a ring of shade); round it a brass magnifying glass, an ammonite (a planispiral of shrinking whorls), a brass
+compass, a cut-glass inkwell and a quill, books at the back. Along the route (`ROUTE`, `_along`) the game's cards lie
+flat as old prints, laid in the map's perspective by the 3-D camera (`_card_xform`), each turned a little: every `STEP`
+1.1 s a new card slides on from the near edge and the whole line moves one place along the route, the oldest fading
+as it leaves -- `SHOWN` 8 cards, enough to fill the route to the map's far edge (six stopped two-thirds of the way); when
+the new card is the same as the one `N_BACK` back, a GILT CORD tied to a brass PIN on each card's top edge (`_draw_cord`,
+over the cards: shadow, deep-gold body, bright top line, sparkles) bows out between the two, drawn on from the new
+card, and both glow on the paper; it stays through the beat and fades through the next as the pair moves on
+(`_prev_match_a`) -- a brief glow under the cards went unnoticed. The desk is baked, one
+picture per platform (`menu_desk.webp`, `menu_desk_d.webp`); the cards, their soft shadows and the cord are live 2-D.
+Made up, never the board.
 
-THE VALLEY (2026-11-17; the user saw the poster as sparse and dull over the darkened backdrop): the trail of cards now
-stands in a prehistoric valley at sunset -- a warm sky with the low sun, three ranges of hazy hills, a smoking volcano,
-a long-necked dinosaur grazing on the far ridge, palms on the slopes, ferns framing the foot -- and a DIRT TRAIL winds
-back along the cards' own way (one smooth strip with a darker verge; ovals read as a caterpillar), each card on a
-little wooden post planted beside it. The valley is a still layer, baked (`menu_still_0_<m|d>.webp`). A card's width
-is capped by the band's height too (`_card_w`): on a desktop they crowded each other.

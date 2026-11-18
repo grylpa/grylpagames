@@ -15,3 +15,6 @@ func load_settings():
 	var settings = game.read_settings()
 	if settings.size() > 0:
 		starting_level = settings[0]
+
+func _ready() -> void:
+	game.menu_ambient_names = ["rain"]   # its loop under the menu (GenericGameUtil.menu_ambient)

@@ -47,6 +47,9 @@ signal update_score(score: int)
 
 func _ready() -> void:
 	game = MovingCardsG.game
+	# the ambient registered at once, so the main menu can play it under the poster (GenericGameUtil.menu_ambient)
+	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	MovingCardsG.init_globals()
 	level = MovingCardsG.starting_level
 	_dress_table()

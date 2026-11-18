@@ -280,6 +280,7 @@ func _finish_card() -> void:
 		ground2.move_child(_world, 1)
 		_to_poster()
 	_setup_fold()
+	_menu_sound.call_deferred()
 
 # THE POSTER (a world that draws its own title, `menu_draws_title()`): the scene is the screen -- the
 # game's name set in its own style, and what the game is about -- and the card shrinks to a slim panel
@@ -299,8 +300,12 @@ func _to_poster() -> void:
 	center.offset_bottom = -foot
 	center.offset_top = -foot
 	center.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	# NO SLAB (the user: "maybe we don't need that big slab of opaque background and gold frame"): the controls stand
+	# on the scene itself, over a deep soft gradient rising from the foot (`_foot_fade`), their words outlined
 	var sb: StyleBoxFlat = _card_style()
-	sb.bg_color = Color(0.05, 0.035, 0.025, 0.80)
+	sb.draw_center = false
+	sb.set_border_width_all(0)
+	sb.shadow_size = 0
 	sb.content_margin_top = CARD_PAD * 0.7
 	sb.content_margin_bottom = CARD_PAD * 0.7
 	_card.add_theme_stylebox_override("panel", sb)
@@ -321,8 +326,183 @@ func _to_poster() -> void:
 	if not mobile:
 		sb.content_margin_top = 12.0
 		sb.content_margin_bottom = 12.0
+	# THE PANEL HOLDS ONLY THE LEVEL AND PLAY (2026-11-18; the user: the scenes "occupy too little of the screen", their
+	# foot hidden behind the panel -- on a desktop it took half the screen; then: "the play button should always be
+	# alone and centered"). PLAY stands alone, centered, a step smaller; a Continue (Taxi, mid-game) stands BESIDE it,
+	# smaller still. "How to play" moves down into the bottom button bar, centered on its icons' line, and "Settings"
+	# becomes a small frameless COG at the end of the level row. The links' row is kept, hidden, as their state.
+	var play_row: HBoxContainer = HBoxContainer.new()
+	play_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	play_row.add_theme_constant_override("separation", 16 if mobile else 12)
+	var vb: VBoxContainer = %MarginStartNewGame.get_parent() as VBoxContainer
+	vb.add_child(play_row)
+	vb.move_child(play_row, %MarginStartNewGame.get_index())
+	play_row.owner = self
+	%MarginStartNewGame.reparent(play_row, false)
+	%MarginContinue.reparent(play_row, false)
+	%MarginContinue.add_theme_constant_override("margin_top", 14 if mobile else 8)
+	var play: Button = %StartNewGameButton
+	play.custom_minimum_size = Vector2(MainGlobals.screen_size.x * (0.40 if mobile else 0.30), 88.0 if mobile else 58.0)
+	play.add_theme_font_size_override("font_size", 48 if mobile else 34)
+	var cont: Button = %ContinueGameButton
+	cont.custom_minimum_size = Vector2(MainGlobals.screen_size.x * (0.26 if mobile else 0.20), 66.0 if mobile else 44.0)
+	cont.add_theme_font_size_override("font_size", 32 if mobile else 24)
+	if _links != null:
+		(_links.get_parent() as Control).hide()
+	# the cog, at the end of the level row
+	_cog = Button.new()
+	_cog.flat = true
+	_cog.focus_mode = Control.FOCUS_NONE
+	_cog.custom_minimum_size = Vector2.ONE * _cog_size()
+	_cog.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_cog.tooltip_text = "Settings"
+	_cog.draw.connect(func() -> void: _draw_cog(_cog))
+	_cog.pressed.connect(func() -> void:
+		if _settings_btn != null:
+			_settings_btn.pressed.emit()
+		_cog.queue_redraw())
+	# at the PLAY row's right end, a twin of its size at the left end so PLAY stays centered (at the level row's end it
+	# took room from the level list -- the user)
+	_cog.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var cog_holder: MarginContainer = MarginContainer.new()
+	cog_holder.add_theme_constant_override("margin_top", 14 if mobile else 8)
+	cog_holder.add_child(_cog)
+	play_row.add_child(cog_holder)
+	_cog_twin = Control.new()
+	_cog_twin.custom_minimum_size = Vector2.ONE * _cog_size()
+	_cog_twin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	play_row.add_child(_cog_twin)
+	play_row.move_child(_cog_twin, 0)
+	# the row spans the panel (the level list's width), PLAY centered between two equal stretches: the cog sits at the
+	# bottom right, its right edge on the list's
+	play_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for k in 2:
+		var stretch: Control = Control.new()
+		stretch.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stretch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		play_row.add_child(stretch)
+		play_row.move_child(stretch, 1 if k == 0 else cog_holder.get_index())
+	# a soft dark fade at the foot, behind the bottom bar, so its icons read over a bright scene (Dispatch's lawn)
+	var foot_fade: TextureRect = TextureRect.new()
+	var fg: GradientTexture2D = GradientTexture2D.new()
+	fg.fill_from = Vector2(0.0, 0.0)
+	fg.fill_to = Vector2(0.0, 1.0)
+	fg.width = 4
+	fg.height = 64
+	var grad: Gradient = Gradient.new()
+	grad.set_color(0, Color(0.0, 0.0, 0.0, 0.0))
+	grad.add_point(0.30, Color(0.02, 0.015, 0.01, 0.50))
+	grad.set_color(grad.get_point_count() - 1, Color(0.02, 0.015, 0.01, 0.86))
+	fg.gradient = grad
+	foot_fade.texture = fg
+	foot_fade.stretch_mode = TextureRect.STRETCH_SCALE
+	foot_fade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	foot_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	foot_fade.z_index = 1
+	foot_fade.anchor_left = 0.0
+	foot_fade.anchor_right = 1.0
+	foot_fade.anchor_top = 1.0
+	foot_fade.anchor_bottom = 1.0
+	foot_fade.offset_top = -(420.0 if mobile else 300.0)
+	add_child(foot_fade)
+	_foot_fade = foot_fade
+	move_child(foot_fade, $ColorRect.get_index() + 1)
+	# "How to play", down in the bottom bar: a small outlined link centered on the icons' line
+	_bar_howto = _link_button("How to play")
+	_bar_howto.custom_minimum_size = Vector2(0.0, 52.0 if mobile else 32.0)
+	_bar_howto.add_theme_font_size_override("font_size", 26 if mobile else 18)
+	# a dark backing, as the panel's, so it reads over any scene (over Dispatch's bright lawn it did not)
+	for st_name in ["normal", "hover", "pressed", "focus"]:
+		var bsb: StyleBoxFlat = (_bar_howto.get_theme_stylebox(st_name) as StyleBoxFlat).duplicate() as StyleBoxFlat
+		if bsb != null:
+			bsb.draw_center = true
+			bsb.bg_color = Color(0.05, 0.035, 0.025, 0.80 if st_name == "normal" else 0.92)
+			_bar_howto.add_theme_stylebox_override(st_name, bsb)
+	_bar_howto.pressed.connect(_on_tutorial_button_pressed)
+	add_child(_bar_howto)
+	_bar_howto.z_index = 2              # over the backdrop (its ColorRect stands at z 1)
+	var bar_mid: float = 35.0 if mobile else 21.0
+	_bar_howto.anchor_left = 0.5
+	_bar_howto.anchor_right = 0.5
+	_bar_howto.anchor_top = 1.0
+	_bar_howto.anchor_bottom = 1.0
+	_bar_howto.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_bar_howto.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_bar_howto.offset_top = -bar_mid
+	_bar_howto.offset_bottom = -bar_mid
+	_sync_poster_links()
+	for n2 in %OptionsFrame.find_children("*", "Label", true, false):
+		(n2 as Label).add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+		(n2 as Label).add_theme_constant_override("outline_size", 8 if mobile else 6)
+		(n2 as Label).add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.6))
+		(n2 as Label).add_theme_constant_override("shadow_offset_y", 2)
+	# and the level row a step smaller on a desktop, where the scenes were authored for a phone's sizes
+	if not mobile:
+		for n in %OptionsFrame.find_children("*", "", true, false):
+			if n is Label or n is OptionButton:
+				(n as Control).add_theme_font_size_override("font_size", 24)
 	_card.resized.connect(func() -> void: _tell_scene_bottom.call_deferred())
 	_tell_scene_bottom.call_deferred()
+
+# "How to play" centered on the bottom bar's icons, wherever the bar's layout put them
+func _place_bar_link() -> void:
+	if _bar_howto == null:
+		return
+	var bar: Node = get_tree().root.find_child("BottomOptionButtons", true, false)
+	if bar == null:
+		return
+	var hb: Control = bar.get_node_or_null("%HBoxContainer") as Control
+	if hb == null:
+		return
+	var mid: float = -1.0
+	for c in hb.get_children():
+		if c is Button and (c as Button).visible:
+			mid = (c as Button).get_global_rect().get_center().y
+			break
+	if mid < 0.0:
+		return
+	var full_h: float = get_viewport().get_visible_rect().size.y
+	var off: float = mid - full_h
+	_bar_howto.offset_top = off
+	_bar_howto.offset_bottom = off
+
+var _cog: Button = null
+var _cog_twin: Control = null
+var _foot_fade: TextureRect = null
+var _bar_howto: Button = null
+
+func _cog_size() -> float:
+	return 52.0 if MainGlobals.is_mobile() else 34.0
+
+# the poster's cog and bar link follow the hidden links they stand for
+func _sync_poster_links() -> void:
+	if not _poster:
+		return
+	if _bar_howto != null:
+		_bar_howto.visible = _howto_added
+	if _cog != null:
+		_cog.visible = _settings_btn != null and _settings_btn.visible
+		_cog.get_parent().visible = _cog.visible
+		_cog_twin.visible = _cog.visible
+		_cog.queue_redraw()
+	_ensure_full_width()
+
+# a gear: a ring of eight square-cut teeth round a wheel with a hole, gold, brighter while the settings are open
+func _draw_cog(btn: Button) -> void:
+	var c: Vector2 = btn.size * 0.5
+	var r: float = minf(btn.size.x, btn.size.y) * 0.5 * 0.86
+	var col: Color = Color(ACCENT, 1.0 if _settings_open else 0.80)
+	if btn.is_hovered():
+		col = col.lightened(0.15)
+	var pts: PackedVector2Array = PackedVector2Array()
+	var teeth: int = 8
+	for k in teeth * 4:
+		var a: float = TAU * (float(k) - 0.5) / float(teeth * 4)
+		var outer: bool = (k % 4) == 1 or (k % 4) == 2
+		pts.append(c + Vector2(cos(a), sin(a)) * (r if outer else r * 0.74))
+	btn.draw_colored_polygon(pts, col)
+	btn.draw_circle(c, r * 0.30, Color(0.05, 0.035, 0.025, 1.0))
+	btn.draw_arc(c, r * 0.30, 0.0, TAU, 24, col.darkened(0.25), 1.5, true)
 
 # the panel's new size settles a frame after a fold; the poster re-lays itself above it then
 func _tell_scene_bottom_later() -> void:
@@ -331,6 +511,10 @@ func _tell_scene_bottom_later() -> void:
 	_tell_scene_bottom()
 
 func _tell_scene_bottom() -> void:
+	_place_bar_link()
+	if _foot_fade != null and _card != null:
+		var full_h: float = get_viewport().get_visible_rect().size.y
+		_foot_fade.offset_top = -(full_h - _card.get_global_rect().position.y) - (150.0 if MainGlobals.is_mobile() else 90.0)
 	if _world != null and is_instance_valid(_world) and _world.has_method("set_scene_bottom"):
 		_world.call("set_scene_bottom", _card.get_global_rect().position.y - $ColorRect.get_global_rect().position.y)
 
@@ -394,6 +578,7 @@ func _apply_fold() -> void:
 	if _settings_btn != null:
 		_settings_btn.text = "Hide settings" if _settings_open else "Settings"
 	if _poster:
+		_sync_poster_links()
 		_tell_scene_bottom_later()
 
 func _link_button(text: String) -> Button:
@@ -444,6 +629,7 @@ func _maybe_add_tutorial_button() -> void:
 	_links.add_child(btn)
 	_links.move_child(btn, 0)
 	_howto_added = true
+	_sync_poster_links()
 
 func _on_tutorial_button_pressed() -> void:
 	var host: Node = get_parent()
@@ -514,6 +700,13 @@ func _on_visibility_changed() -> void:
 	# the tutorial ends a frame later.
 	if visible and game != null:
 		game.call_deferred("abort_tutorial")
+	_menu_sound.call_deferred()
+
+# the game's ambient, softly, while its menu is up (GenericGameUtil.menu_ambient); a frame late, after the game's own
+# way to the menu has stopped it
+func _menu_sound() -> void:
+	if game != null and is_instance_valid(game):
+		game.menu_ambient(visible)
 
 func add_entry(_id, _name, _min_val, _max_val, _is_bool):
 	var lbl = entry_label_scene.instantiate()
@@ -697,6 +890,7 @@ func hide_frame():
 	%OptionsFrame.hide()
 	if _settings_btn != null:
 		_settings_btn.hide()
+	_sync_poster_links()
 
 func _on_start_new_game_button_pressed() -> void:
 	sig_start_game.emit(true)

@@ -160,6 +160,9 @@ var _rollback_score_on_next_level: bool = false
 
 func _ready() -> void:
 	game = DidiG.game
+	# the ambient registered at once, so the main menu can play it under the poster (GenericGameUtil.menu_ambient)
+	game.add_sound(self, "ambient", ambient_audios[0], true)
+	game.set_sound_volume("ambient", -6.0)
 	game.sig_time_over.connect(on_time_over)
 	level = DidiG.starting_level
 	_load_cfg(false)

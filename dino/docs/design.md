@@ -8,8 +8,7 @@ round** (swipe RIGHT / "Seen" button) or whether it is **new this round** (swipe
 runs for a fixed duration and then completes, advancing to the next level.
 
 The cards are photographs drawn from one or more image folders (`dinos`, `people`).
-Every card has a zigzag ("non-definitive") border — **white for dinos, yellow for
-people** — exactly like the weris card border.
+Every card has the shared card's OLD-PRINT frame (`set_photo(true)`: aged card stock with a deckled, nicked edge and a scorched stretch, each card's wear its own random draw; it was a zigzag border until 2026-11-18, the user), as Weris and Friends.
 
 ## File structure
 ```
@@ -28,7 +27,7 @@ dino/
 ```
 Backgrounds are **shared** assets: `res://art/dinos/bk1.jpg` (used only when a level's
 source includes `dinos`) and `res://art/grass.png` (the weris background, used otherwise).
-Card border texture is the shared `res://art/zig1.png`.
+The card is the shared `res://shared/scripts/card.gd` in its photo style.
 
 ## Autoloads
 - `DinoG` (`dino/scripts/globals.gd`) — owns `game := GenericGameUtil.new("Dino","dino",0,2,0)`,
@@ -138,7 +137,7 @@ on the game chooser. Implemented in `scripts/bottom_option_buttons.gd` (`reverse
   (`card.setup` reads `tex.get_size()`), and the image uses `STRETCH_SCALE` — so the whole
   image fills the frame with no cropping. `level._show_next_card` fits the card into the
   available area using that aspect and the level's size fraction (small/med/big = 0.56/0.78/0.98
-  of the largest fittable card, so they differ clearly). Frame = 8px zig nine-patch.
+  of the largest fittable card, so they differ clearly). Frame: the print's margin (`set_frame(8, 8)`).
 - Image sources must be probed with `ResourceLoader.exists` (export-safe), never DirAccess.
 - **No ghost answers across rounds**: a swipe must BEGIN during the current card, so press
   state (`_pressing`/`_press_index`) is reset in `_show_next_card`, `new_game`, and
@@ -266,8 +265,23 @@ the game puts them.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): A TURNING WHEEL of the game's own dinosaur cards (`shared/scripts/card.gd`, 15 of them) round a great hub below the screen, its upper arc showing over the game's background darkened under a vignette, turning steadily (0.32 rad/s); the card passing the top grows, lifts and brightens as it goes by. The cards are spaced (0.42 rad) so that no two ever overlap, so their stacking never changes and nothing pops -- a fan whose rising card snapped back under its neighbor made "disturbing jumps" and was "too slow and boring"; earlier a dealt-and-swiped card looked playable.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` (the
+shared `main_menu.gd` keeps only a slim panel at the foot): A TURNING WHEEL of the game's own dinosaur cards
+(`shared/scripts/card.gd`, 15 of them) round a great hub below the screen, its upper arc showing, turning steadily
+(0.32 rad/s); the card passing the top grows, lifts and brightens as it goes by. The cards are spaced (0.42 rad) so
+that no two ever overlap, so their stacking never changes and nothing pops -- a fan whose rising card snapped back
+under its neighbor made "disturbing jumps" and was "too slow and boring"; earlier a dealt-and-swiped card looked
+playable.
+
+Behind them, A PREHISTORIC LAGOON AT SUNSET (2026-11-18; the darkened backdrop photo, then a painted 2-D lagoon,
+read flat): dark water rippled by a normal map, the low sun's glint path running down it toward you off its
+specular (the sun light and the sun painted in the sky line up); a volcano with a glowing crater, lava down its
+flank and a soft plume of many faint smoke puffs (a few big ones showed their edges); hazy ranges, each with a
+shoulder so the ridgeline is broken; a long-necked dinosaur wading in the shallows with ripple rings round it;
+palms with ringed, curving trunks and drooping V-section fronds; ferns framing the foot; warm depth fog. The sky's
+own top color is the background, so the sky panel's edge never shows. The lagoon is baked, one picture per platform
+(`art/menu_lagoon.webp`, `art/menu_lagoon_d.webp`); a light vignette and the cards are live.
 Made up, never the board: the menu also opens mid-game.
 
-FAST TO OPEN (2026-11-17): the photos load on threads and the cards are made three a frame (each card cost ~7 ms to create); each card and the backdrop fade in as their photo arrives. First frame 117 -> 30 ms.
+FAST TO OPEN (2026-11-17): the photos load on threads and the cards are made three a frame (each card cost ~7 ms to
+create); each card fades in as its photo arrives. First frame ~38 ms.
