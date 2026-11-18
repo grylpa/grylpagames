@@ -988,14 +988,23 @@ clip-art furniture in them. Now:
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
-2026-11-17 (the front-on 2-D drawing was "flat"; it is kept in the private repo's `tmp/storm_2d_backup.gd`): THE
-HOUSE AT NIGHT IN THE STORM. Two storeys of painted clapboard under a shingled gable roof with a brick chimney, white
-trim, curtained windows lit warm, a porch on posts with steps and its lamp, a gutter and a downspout to a bucket,
-stepping stones, a picket fence, a bare tree bent by the wind, puddles. Live in 3-D: a loose shutter swinging in the
-gusts (eased) and a figure passing behind a curtain. The SKY is 2-D BEHIND the house (`_paint`): storm blue, layered
-clouds drifting and lit beneath in a flash, a forked bolt behind the roof, a far curtain of rain, hills -- possible
-because the house is baked with a CLEAR sky (`_bake_alpha`; `make_menu_bake.gd` keeps the alpha). Over it, 2-D
-(`_paint_top`, placed by `screen_of` from the house's real points): the near rain, the gutter dripping, the downspout
-gushing, the chimney's smoke torn sideways, rings in the puddles, leaves blowing, and in a flash the whole scene
-whitened. One picture per platform (`menu_house.webp`, `menu_house_d.webp`). Made up, never the board.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: THE HOUSE AT NIGHT
+IN THE STORM, seen THREE-QUARTER from the front left (2026-11-18; front-on it was "completely flat"). Two stories of
+clapboard on a stone foundation under a shingled roof, white trim, windows on the front and the side wall (curtains lit
+warm, shutters), a porch with its lamp, a loose shutter swinging; the downspout at the right corner turns onto a
+concrete splash block that runs the water into a round cast-iron YARD DRAIN; a bucket catches the porch roof's drips;
+a rain barrel; stepping stones; a PICKET FENCE that closes the yard all the way round (`_fence_run`: front, both sides
+and the back, posts every 120 or so, two rails, a gate on the path -- a run across the front alone "meant nothing", the
+user); a bare tree bent by the wind. In 2-D:
+the sky -- banks of soft cloud (`_soft`) lit from inside round the bolt -- and the LIGHTNING: a channel split again and
+again (midpoint displacement, `_bolt_path`) with forking branches, two or three return strokes re-lighting it
+(`_strokes`); the rain outside, gutter drips, the water pouring onto the splash block and swirling into the drain,
+rings in the puddles, chimney smoke, leaves; DRIPS off the porch roof into the bucket -- a bead swelling at the eave,
+letting go, falling ever faster as a streak, landing with a ring and a crown of droplets, at uneven beats (they read as
+water spilling unnaturally); someone's SHADOW crossing the lower right window's lit curtain (`_shadow_figure`, soft, cut
+to the four PANES, so the cross bars and the frame stay in front of it -- cut only at the frame, it walked in front of
+the window; degenerate slivers are skipped) WALKING, not gliding (2026-11-18): a constant pace with eased starts and stops and a pause midway
+(`_walk_x`), the bob, sway and lean taken from the distance walked, and the BUCKET (an arm and a pail with its bail,
+drawn apart) swinging from the shoulder as a pendulum lagging the steps. Baked with a clear sky (`menu_house.webp`,
+`menu_house_d.webp`). Made up, never the board.
+

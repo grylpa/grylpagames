@@ -154,6 +154,10 @@ func _tick(delta: float) -> void:
 		# a scene whose top would run up behind the title (a short desktop menu) is lowered under it, and the
 		# foot of the scene goes behind the panel instead
 		_cy3 = maxf(_cy3, top + _scene_top())
+		# and never so low that the baked picture (BAKE_H tall about its center) leaves the top of the screen bare: with
+		# the slimmer panel (2026-11-18) Change's scene slid down and a black band showed over it
+		if _live_only:
+			_cy3 = minf(_cy3, BAKE_CY)
 		var half_h: float = maxf(_cy3, full.y - _cy3)
 		_vpc.position = Vector2(0.0, _cy3 - half_h)
 		_vpc.size = Vector2(full.x, half_h * 2.0)
@@ -299,7 +303,9 @@ func spot(pos: Vector3, aim_at: Vector3, col: Color, energy: float, range_units:
 	l.spot_angle = angle
 	l.shadow_enabled = shadow
 	root.add_child(l)
-	l.look_at_from_position(pos, aim_at, Vector3.UP if absf((aim_at - pos).normalized().y) < 0.99 else Vector3.FORWARD)
+	# placed and turned in the ROOT's own space (look_at_from_position takes GLOBAL coordinates: under the 1:100 root it
+	# put every spot a hundred times too far away, and until 2026-11-18 no poster's spot lit anything)
+	l.transform = Transform3D(Basis.looking_at(aim_at - pos, Vector3.UP if absf((aim_at - pos).normalized().y) < 0.99 else Vector3.FORWARD), pos)
 	return l
 
 func label(txt: String, size_units: float, col: Color, pos: Vector3, rot: Vector3 = Vector3.ZERO, parent: Node3D = null, lit: bool = false) -> Label3D:

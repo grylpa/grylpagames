@@ -174,19 +174,38 @@ One slider entry:
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: a
 WHACK-A-MOLE STALL at a fair at night -- the game's own board is a fairground whack-a-mole box, so the poster is
 the stall it stands in (a shooting gallery came first: "why display a shooting range when whack is actually a
-whack-a-mole?", the user). A booth with red-and-white striped sides and posts, a striped awning with a scalloped
-valance, WIN A PRIZE on the header in a frame of chasing bulbs, a back wall of deep blue with gold stars and a
-shelf of plush prizes, bears hung on the sides' fronts. In it THE TABLE: a turf top inside a striped rail, six
-burrows ringed with soil, a varnished body with striped panels and a lit strip. The game's own DOMED BUTTONS pop
-out of the burrows throwing clods of soil -- the real ones red with the white center dot, the decoys blue
-without it -- and a big wooden MALLET (brass-banded head, dark grip) swings down on each real one (a burst of
-stars, the button knocked down), lifts and travels to the next, never touching a decoy, which sinks back on its
-own (`HIT_EVERY` 1.35 s). The neighbor stalls and strings of bulbs show at the sides.
-The booth, the table's body and the fair are baked; the turf top (the buttons come up THROUGH it), burrows,
-buttons, soil, mallet, stars, bulbs, the sides and the bears are live. ONE PICTURE PER PLATFORM
-(`menu_booth.webp` for a phone, `menu_booth_d.webp` for a desktop; `devtools/make_menu_bake.gd ... mobile|desktop`):
-a desktop's menu leaves the poster a short band, so its camera stands further back and sees the whole stall --
-with the phone's camera the panel hid the table. Made up, never the board.
+whack-a-mole?", the user). A booth with red-and-white striped sides and posts, a HEADER (2026-11-18; the bulbs had
+hung in the air in front of the stall, "what is that string of circles"): a lacquered fascia across the posts' tops
+in gilt beading, its bulbs chasing in brass sockets set into it; an arched CREST over its middle painted with a
+sunburst, bulbs round its arch; a pitched striped roof behind; a cloth VALANCE cut in scallops, red and cream, a gold
+braid along their edges and a tassel at each join (`_build_header`, built into the live view too, in front of the
+live sides); a back
+wall of navy VELVET with painted gold-leaf stars (a weave, darker toward the foot, the leaf worn at the edges) and a
+shelf of plush prizes. No header board (the user: "remove the win a prize area to make all else bigger"). In it
+THE TABLE: a turf top inside a striped rail, six burrows ringed with soil, a cabinet front in clearcoated red lacquer
+framed in gilt beading with a SCOREBOARD set in it -- black glass recessed in a steel bezel with brass screws, set into the front, its amber figures live,
+counting up ten a hit (2026-11-18; the striped panels read as an empty basket, the lit strip on bare wood as "a brown
+rect with a yellow line", the user). The game's own DOMED BUTTONS (their plastic glowing a little in its color, a low key light on the table: they read
+dark) pop out of the burrows throwing clods of soil -- the real
+ones red with the white center dot, the decoys blue without it -- and a big wooden MALLET (brass-banded head, dark
+grip) swings down on each real one (a burst of stars, the button knocked down), lifts and travels to the next,
+never touching a decoy, which sinks back on its own (`HIT_EVERY` 1.35 s).
+
+THE FAIR BEHIND fills the sky over the stall (2026-11-18; it was an empty black band): a night sky (deep blue to a
+warm violet glow over the rides) with its stars as real points (stars in the stretched sky texture swam as smears),
+a big FERRIS WHEEL at the left -- steel rims, spokes, a hub, A-frame legs, gondolas hanging plumb, bulbs, and a neon
+tube along its rim (the inner neon rings read as flat circles) -- TURNING slowly (2026-11-18, "can the big wheel
+turn?"), its gondolas kept plumb as they go round (`_wheel`, `_gondolas`) -- a CAROUSEL at the right with a peaked striped roof, a
+scalloped skirt, a crown of bulbs and a lit drum, far stalls with lit windows and striped tops, and the neighbor
+stalls with their strings of bulbs at the sides. (Strings of bulbs across the sky were tried: near the camera they
+swam as big blurs behind the title.)
+The booth and the table's body are baked WITH A CLEAR SKY (`_bake_alpha`); THE FAIR IS ITS OWN LIVE 3-D VIEW BEHIND
+THE PICTURE (`_fair_vp`, the same camera, stopped while the menu is hidden), so the wheel turns behind everything that
+stands in front of it; the turf top (the buttons come up THROUGH it), burrows, buttons, soil, mallet, stars and the
+scoreboard's figures are live. ONE PICTURE PER PLATFORM (`menu_booth.webp` for a phone,
+`menu_booth_d.webp` for a desktop; `devtools/make_menu_bake.gd ... mobile|desktop`): a desktop's menu leaves the
+poster a short band, so its camera stands further back and sees the whole stall -- with the phone's camera the
+panel hid the table. Made up, never the board.
 
 ## Shared System Notes
 

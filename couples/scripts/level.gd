@@ -291,12 +291,24 @@ func _build_board() -> void:
 		card.fixed_aspect = CARD_ASPECT
 		add_child(card)
 		card.setup(CouplesG.dino_texture(img_idx), WHITE)
+		card.set_photo(true)                   # an old print's frame, not the white zigzag (2026-11-18)
 		var idx: int = _cards.size()
 		var hit: Control = Control.new()
 		hit.mouse_filter = Control.MOUSE_FILTER_STOP
 		hit.gui_input.connect(_on_card_gui_input.bind(idx))
 		add_child(hit)
 		_cards.append({"node": card, "hit": hit, "img_idx": img_idx, "cell": cell, "pos": Vector2.ZERO, "rect": Rect2()})
+	# THE COUPLE NEVER SHARE A FRAME (the user: the same frame -- "especially the burn marks" -- would give them away):
+	# every print's wear is its own random draw already; the two copies' scorches also go on OPPOSITE edges
+	var first_of: Dictionary = {}
+	for c in _cards:
+		var im: int = int(c["img_idx"])
+		if first_of.has(im):
+			var side0: int = randi_range(0, 3)
+			(first_of[im] as Node2D).set("burn_side", side0)
+			(c["node"] as Node2D).set("burn_side", (side0 + 2) % 4)
+		else:
+			first_of[im] = c["node"]
 	_position_cards()
 
 func _position_cards() -> void:

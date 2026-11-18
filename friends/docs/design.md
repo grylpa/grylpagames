@@ -309,12 +309,16 @@ arcade coin, a swoosh and three stock ocean-wave loops picked at random.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): AN EVENING STROLL
-IN THE PARK -- a dusk sky (deep blue, violet, a warm band at the horizon, the low sun's glow), a far skyline with a
-few lit windows, a gravel path running away between lawns, trees along both sides and lamps just lit, each with a
-pool of light on the path. Up the path toward you come the game's people on their PHOTO cards (the shared card's
-photo style): small and dim in the distance, growing as they come (the game's arrivals grow too), a walking bob,
-veering off to the side as they pass; three on the path at once (`WALK_S` 9 s). A FRIEND has a first name under the
-photo, and as they come near a "Hi, Name!" bubble rises beside their head; a stranger walks by unnamed and
-unhailed (`FRIEND_OF`). The park is a still layer (baked); the walkers are live, their photos loaded on threads.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: FRIENDS'
+PHOTOS ON A STRING IN A WARM ROOM AT EVENING (2026-11-18; before it an evening park where photo cards and 3-D walkers
+appeared together -- "both cards and funny people?" -- and the park itself was poor). A whitewashed brick wall
+(`_painted_brick`) lit by a table lamp with a pleated shade and a swag of fairy lights; a length of jute twine sags
+between two nails (`_twine_at`), and on it five of the game's people hang as old prints (the shared card, photo style),
+each gripped by a wooden peg with its steel spring (`_draw_peg`, 2-D, over the print) and swaying a little on its own
+beat. Every `TURN_EVERY` 2.2 s the next print along turns over on its peg (narrowing to its edge, `TURN_S` 0.7 s) and
+comes round as someone else: a FRIEND has a first name written under the photo in ink, a stranger has none. Below, an
+oak sideboard with the lamp, a stack of cloth-bound books, a mug with steam rising off it (`_draw_steam`, live), a fern
+in a terracotta pot; a window at the right onto the evening street. The room is baked, one picture per platform
+(`menu_room.webp`, `menu_room_d.webp`); the prints, the pegs and the steam are live, the photos loaded on threads.
 Made up, never the board.
+

@@ -654,6 +654,7 @@ func _show_next_card() -> void:
 			asp = ts.y / ts.x
 		_card.set_frame(8, CARD_INSET)
 		_card.setup(tex, item["border"])
+		_card.set_photo(true)  # an old print's frame, not the zigzag (2026-11-18)
 		w = maxf(minf(_card_avail_w, _card_avail_h / asp) * _card_frac, 60.0)
 		_card.set_width(w)
 	else:
@@ -662,6 +663,7 @@ func _show_next_card() -> void:
 		_card.fixed_aspect = DRAWN_ASPECT
 		_card.set_frame(8, CARD_INSET)
 		_card.setup(null, item["border"])
+		_card.set_photo(true)
 		w = maxf(minf(_card_avail_w, _card_avail_h / DRAWN_ASPECT) * _card_frac, 60.0)
 		_card.set_width(w)
 		# child of the CARD, so the deal/swipe tweens carry it without knowing it exists

@@ -207,11 +207,16 @@ basket into the arena; the dark interior and the shade under the rim already rea
 ## The main menu's poster
 
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: AN OLD
-ARCADE CABINET in a dim arcade at night -- a varnished wooden case on turned legs, a lit marquee (PLAY 5¢) with
-bulbs, a brass coin plate and slot, a checkered floor, a neighbor cabinet's glow at each side. Behind its glass
+ARCADE CABINET in an arcade at night -- a varnished wooden case on turned legs, a brass coin plate and slot -- among
+its NEIGHBORS (2026-11-18; the scene "occupies too little of the screen ... empty"): a CLAW MACHINE at the left (red
+lacquer, a lit glass box full of plush toys, the gantry and claw, chasing bulbs, PRIZES) and an upright at the right
+with its glowing backglass of rays and stars (its emission texture MULTIPLIES: added, it washed white); an arcade
+CARPET of neon shapes on navy, a plum damask wall, NEON SIGNS on brackets (ARCADE, PLAY; on a desktop only -- on a
+phone they ran into the title, their glow stays). The phone's camera stands closer. Behind its glass
 (soft streaks of light), the game in the cabinet's own world: the game's deep violet field with faint seams and
-guide arcs, steel side walls, a warm orange bumper in each lower corner, a brass funnel at the top dropping glass
-marbles one at a time, four glazed cups in the game's colors on brackets on the side walls, and at the foot the
+guide arcs, steel side walls, a BUMPER in each lower corner as in the game (`_bumper`: a chamfered brushed-steel wedge, a red rubber ring round two chrome posts along its slope, an amber lamp; it was a flat red box, "what are those flat red things?"), a brass funnel at the top dropping glass
+marbles one at a time -- each starts INSIDE it, hidden by its walls, and drops out of its open spout's foot (the spout
+is wider than a marble: narrower, the marble showed through it, in front of it and too early, the user) -- four glazed cups in the game's colors on brackets on the side walls, and at the foot the
 four TOOLS -- a colored disc (turned a little so it reads as a disc, with a brass ring) on a neck to its loop and a
 rod into the slot. As each marble falls, the tool of its color rises to meet it, lofts it up and over into its
 cup (the marble goes INTO the cup, which is open at the top), the cup's rim lights, and the tool sinks back
@@ -219,3 +224,4 @@ cup (the marble goes INTO the cup, which is open at the top), the cup's rim ligh
 funnel, glass and the panel under the glass (the rods vanish into it) are live. Made up, never the board: a
 physical cabinet, not the arena.
 
+**2026-11-18:** the whole glass fits above the menu card; the paddles' brass rims on BOTH faces (the back had none); each cup stands on a wooden SHELF with a rounded lip on brass gusset brackets screwed to the wall (plain brass slabs before); brass rivets down the steel walls; the field printed with gold stars and a cream pinstripe border.

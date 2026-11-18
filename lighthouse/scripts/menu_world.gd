@@ -365,11 +365,11 @@ func _draw_land(d: Control) -> void:
 			d.draw_circle(Vector2(tx, ty), 1.5 + 2.0 * h01(k + 804), Color(0.0, 0.0, 0.02, 0.35))
 	for k in 6:
 		var dy: float = float(k) / 6.0
-		var band: PackedVector2Array = PackedVector2Array()
+		var band_k: PackedVector2Array = PackedVector2Array()
 		for j in 25:
 			var bx: float = lerpf(full.x * 0.44, full.x, float(j) / 24.0)
-			band.append(Vector2(bx, lerpf(_rock_top(rock, bx), water + 10.0, 0.55 + 0.075 * float(k))))
-		d.draw_polyline(band, Color(0.0, 0.0, 0.03, 0.10 + 0.02 * dy), 26.0, true)
+			band_k.append(Vector2(bx, lerpf(_rock_top(rock, bx), water + 10.0, 0.55 + 0.075 * float(k))))
+		d.draw_polyline(band_k, Color(0.0, 0.0, 0.03, 0.10 + 0.02 * dy), 26.0, true)
 	var plateau: PackedVector2Array = PackedVector2Array()
 	var plateau_b: PackedVector2Array = PackedVector2Array()
 	for j in 31:

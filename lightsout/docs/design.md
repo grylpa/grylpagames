@@ -340,3 +340,5 @@ in, until only the goal's faint green is left -- then they come on again from th
 catch (`CYCLE` 9 s). The gallery is baked (`menu_mine.webp`, lit by its lanterns; floor, walls and roof in pieces a
 timber set long, since the renderer lights an object with at most eight lights); the dark is the base's veil
 (`add_darkness`, a hole round each lit lantern) and the flames are drawn over it. Made up, never the board.
+
+**2026-11-18:** short pauses (the user): out from 0.6 s, a half-second dark, back from 3 s; `CYCLE` 5 s. REAL RELIEF: the walls and roof are displaced rock faces (`_rock_face`, layered value noise, smooth normals) over a gravel bed with glossy puddles; rails with head and foot; HURRICANE LANTERNS (bail, cap, glass globe, wire guards, base) and flames as flickering teardrops with a halo (flat discs before); a tapered iron coal cart with bands, rivets, spoked wheels and faceted lumps; a slatted TNT crate with dynamite and a fuse, round black bombs with lit fuses; the way out a signal lamp (housing, hood, green lens) with an EXIT sign.

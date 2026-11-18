@@ -4,7 +4,7 @@
 Couples is a **spot-the-pair** game. Each board is an **NC × NR grid** of dino cards.
 Exactly **one image appears twice**; every other cell is a unique image. The player finds
 the matching pair and **taps both cards**. Modeled on the Dino game — same dino pictures,
-white zigzag card frame, dino background (`bk1.jpg`), phase machine, scoring and level flow.
+old-print card frames (`set_photo`), dino background (`bk1.jpg`), phase machine, scoring and level flow.
 
 ## File structure
 ```
@@ -20,8 +20,7 @@ couples/
 └── art/
     └── game_screen_200.png   # chooser tile: 3x3 mosaic of dino images
 ```
-Couples uses the **shared** `res://shared/scripts/card.gd` (zig NinePatch frame + image, thin
-frame by default) in **FILL fit**: every card frame has a single uniform aspect
+Couples uses the **shared** `res://shared/scripts/card.gd` as an old print (`set_photo(true)`; the white zigzag until 2026-11-18) in **FILL fit**: every card frame has a single uniform aspect
 (`CARD_ASPECT = 566/374`, the max dino image height / max width) and the image is stretched to
 fill it. The dino JPGs vary in aspect (~1.47–1.59), so ASPECT fit gave visibly different card
 heights; FILL makes a tidy uniform grid with the whole image shown and no crop (the tiny
@@ -29,8 +28,8 @@ stretch is identical on both copies of the duplicate, so it's invisible for matc
 its own dino-image loader in `CouplesG` (no cross-*game* refs; the shared card is framework
 code, not another game). Images
 come from `CouplesG.dino_texture(idx)`, loaded from the **shared** `res://art/dinos` set
-(dino1..N). Background is always the shared `res://art/dinos/bk1.jpg`. The zig frame texture
-`res://art/zig1.png` is shared art too.
+(dino1..N). Background is always the shared `res://art/dinos/bk1.jpg`. THE COUPLE NEVER SHARE A FRAME (the user): every card's wear is its own random draw, and the two copies' scorches are
+put on opposite edges (`burn_side`), so the frames give nothing away.
 
 ## Autoloads
 - `CouplesG` — `game := GenericGameUtil.new("Couples","couples",0,2,0)`, dino image accessors
@@ -194,10 +193,16 @@ the game puts them.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, on the shared `scripts/menu_poster.gd`): A CARD TABLE UNDER
-A LAMP -- green felt with a fine nap, a pool of warm light, the padded rim at the sides -- and the game's dino cards
-(the shared zig card) lying scattered on it at easy angles (`LAYOUT`, not a grid), each breathing a little; among
-them, far apart, two that are the same. Every 7 s the couple finds itself: both glow, rise off the felt (a longer,
-softer shadow), slide together side by side to the middle, hold under a gold ring, and settle back to where they
-lay. The felt is a still layer (baked: `menu_still_0_<m|d>.webp`, `devtools/make_menu_stills.gd`); the cards are
-made three a frame and their photos load on threads, each fading in as it arrives. Made up, never the board.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A CARD TABLE IN
+A PARLOR AT NIGHT, seen across it (2026-11-18; the top-down scatter was "boring" and ran under the menu). Green baize
+in a padded leather rail and a polished rim under a lamp; chips and a card box; beyond it a paneled wall under a deep
+red, a sideboard with a decanter and glasses, a mirror in a gilt frame, brass sconces. On the baize the game's own dino
+cards (the shared card as old prints) in a 4 x 4 GRID, each lying flat in the table's perspective (`_card_xform`: an
+affine map taken from the 3-D camera at its center); among them THREE COUPLES (`PAIRS`), found one after another
+(2026-11-18, the user: more couples, and hardly a moment with none picked out): every `ROUND` 2.6 s a quick pool of
+light glances at a card (`GLANCE`) and comes to the couple's first and second, both glow, rise off the baize and stand
+up toward you side by side for most of the round, and lie back down as the next couple rises. A couple's two prints
+are scorched on opposite sides here too. Baked (`menu_table.webp`, `menu_table_d.webp`); the cards load on threads. In the game the two copies' prints
+never share a frame: each card's wear is its own random draw and their scorches go on opposite edges (`burn_side`).
+Made up, never the board.
+

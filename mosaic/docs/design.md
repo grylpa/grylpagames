@@ -73,7 +73,7 @@ be rebuilt by matching edges, like a jigsaw, without remembering anything:
 - **poster** -- a diagonal-gradient ground and a few large flat shapes (discs, rings, bands,
   triangles, half discs) with a scatter of dots. Fewer edge cues.
 - **quilt** -- every piece its own swatch (stripes, dots, checks, rings, chevrons, a big dot) in its
-  own colour, nothing crossing an edge. Pure memory of where each piece was.
+  own color, nothing crossing an edge. Pure memory of where each piece was.
 - **dino** -- one of the shared dino cards, **whole, never cropped**: scaled to the board's width, its
   height following the card's own proportions (rounded to whole rows), so the board takes the card's
   shape and its pieces are a little taller than wide. Finite, so it shares its levels with other kinds.
@@ -86,7 +86,7 @@ quarter of the piece (`TURN_SAME_BELOW`), since one dot in a corner is enough fo
 moves an average. Three things make that pass:
 
 - a soft **light falloff** across the whole picture (`_light`): a big flat shape can cover whole
-  pieces in one colour, identical and the same whichever way up, and this gives each a lighter and a
+  pieces in one color, identical and the same whichever way up, and this gives each a lighter and a
   darker side (scenery and poster);
 - **`busy`** drawing on rotation levels: more, smaller shapes and denser dots on a poster; more
   clouds, a flock of birds, more trees and houses on a scenery picture;
@@ -203,8 +203,18 @@ instructions screen's, which also gained "To pass a level, rebuild it in the las
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): A WALL MOSAIC by candlelight: one of the game's own pictures (`MosaicPicture.make("scenery", 4, 4, ...)`) laid in small TESSERAE (`GRID` across; each a slightly uneven square a shade off its neighbor, lit on its upper edges, set in dark grout) inside a border of gold, lapis and terracotta tiles, in an arched stone niche (voussoirs) between two fluted columns, in a wall of stone courses. The sides ("pretty empty", the user): a long banner each side (red and lapis, gold edge and woven diamonds, folds), a candle in an iron sconce below it, an urn with trailing ivy. All of that is drawn once; what moves (`_draw_live`): the FLAMES -- three nested tongues each, their height, width and lean wavering with quick and slow terms, the glow on the wall breathing with them (a flame that only swayed did not "move and flicker like a real flame"); a slow sweep of light across the mosaic with the gold border tiles glinting as it passes; a RIPPLE of light every 3.5 s spreading from a random point through the tesserae; and `LOOSE` (14) tesserae at a time drifting out of the wall, growing as they come toward us, turning, and settling back, their empty places showing the grout. (A puzzle in a gilt frame on a table, its squares swapping, was "do better. much better"; all the pieces flying out and in with long pauses was turned down before that.)
-Made up, never the board: the menu also opens mid-game.
-
-FAST TO OPEN (2026-11-17): the picture is made on a worker thread (`MosaicPicture.make` took a quarter of a second) and the wall -- niche, columns, the mosaic -- is a still layer, baked (`menu_still_0_<m|d>.webp`); the loose tiles, the light and the flames fade in when the picture is ready. First frame 296 -> 17 ms.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
+2026-11-18 (the drawn hall was "low quality and flat"; kept in the private repo's `tmp/mosaic_2d_backup.gd`): A WALL
+MOSAIC by candlelight. The hall, baked, one picture per platform (`menu_hall.webp`, `menu_hall_d.webp`): a wall of
+dressed stone blocks (`_ashlar`, each block bevelled and shaded); a deep ARCHED NICHE -- its back, side walls, a vault,
+a ring of wedge stones round the arch with a keystone, jambs, a molded sill; FLUTED COLUMNS (a plinth, a torus, a
+tapering shaft, a necking, a carved capital with volutes); BANNERS hanging in soft folds (a displaced cloth mesh,
+embroidered lozenges, a gold border, a V at the foot with a gold fringe) from brass rods with finials and cords;
+turned stone URNS on the flagstone floor with 3-D IVY trailing over their lips; CANDLES of dripping wax in iron sconces
+on the columns -- real lights, so the stone is lit by them. Live in 2-D over it, in the niche's panel exactly as the
+camera sees it (`_pic_rect`, the camera square to it): the game's own picture -- always the same one (seed 404), so it is
+made once and shipped small, `art/menu_mosaic.png` (128 x 128), and the mosaic is there from the first frame (made on a
+worker thread each time, it was slow to appear on a desktop's GPU, the user); the thread is only a fallback -- laid in
+tesserae inside a gold, lapis and terracotta border; the flames flickering at the candles' wicks (`screen_of`; half again as big since 2026-11-18, the user);
+a ripple of light; a glint lighting only the tiles it crosses; a few tesserae drifting out, turning and settling back.
+Made up, never the board.

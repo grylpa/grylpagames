@@ -1,534 +1,532 @@
 extends "res://scripts/menu_poster3d.gd"
 
-# PICKPOCKET'S OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): A CLOSE-UP OF
-# THE HUSTLER'S TABLE at dusk -- REAL 3-D now (it was a drawn picture), in the game's own colors (shell_table.gd):
-# a small folding table under a red cloth with a gold fringe and green baize on top, the lantern on its pole beside
-# it, and the hustler behind -- plum vest, white shirt, the red neckerchief, a flat cap, a mustache -- his hands on the
-# copper cups, SHUFFLING them: two at a time swap places along arcs, his arms bending at the elbow to follow; after
-# six swaps he lifts the cup with the red ball under it, sets it down, and goes on. Behind, the dusk street (cobbles,
-# shopfronts with lit windows, a lamp post), and two people passing: someone, and the thief a step behind with a hand
-# drifting to their pocket. The street, the table and the hustler's body are baked, one picture per platform
-# (`menu_table.webp`, `menu_table_d.webp`); the cups, the ball, his arms and hands, and the passers-by are live. Made
-# up, never the board (the game's wide street is not shown: the first version looked "too much like something that
-# is playable").
+# PICKPOCKET'S OPENING POSTER (main.gd menu_backdrop(); a real 3-D world, see scripts/menu_poster3d.gd): THE
+# PICKPOCKET'S HAUL, BY CANDLELIGHT (2026-11-18; a new concept -- the shell game at the table, tried several ways, kept
+# failing, the user: "think of another concept completely"). A night's takings tipped out on an old oak table: a
+# leather purse on its side spilling gold and silver coins, wallets of different leathers -- one open on its banknotes
+# --, pocket watches in gold and silver with their chains, a string of pearls, a lady's ring; a tallow candle in a
+# brass stick lights it all from the back, its flame alive, and over the table's front edge ONE WATCH HANGS BY ITS
+# CHAIN, caught under a wallet, swinging slowly, its second hand ticking. No people: the pickpocket is only what he
+# took. The table and its haul are baked, one picture per platform (`menu_haul.webp`, `menu_haul_d.webp`); the
+# candle's flame and the hanging watch are live. Made up, never the board.
 
-const COPPER: Color = Color(0.78, 0.45, 0.24)
-const BALL_COLOR: Color = Color(0.82, 0.12, 0.12)
-const BAIZE: Color = Color(0.10, 0.30, 0.20)
-const CLOTH: Color = Color(0.40, 0.08, 0.11)
-const FRINGE: Color = Color(0.86, 0.68, 0.30)
-const SKIN: Color = Color(0.95, 0.78, 0.65)
-const SHIRT: Color = Color(0.86, 0.83, 0.76)
-const VEST: Color = Color(0.20, 0.13, 0.16)
-const CAP: Color = Color(0.36, 0.31, 0.26)
-const KERCHIEF: Color = Color(0.72, 0.13, 0.14)
-const LAMP_C: Color = Color(1.0, 0.78, 0.45)
-const TOP_Y: float = 95.0
-const CUP_Z: float = 0.0
-const SHOULDERS: Array = [Vector3(-56.0, 188.0, -100.0), Vector3(56.0, 188.0, -100.0)]
-const BEAT: float = 1.25
-const SWAPS: int = 6
-const REVEAL: float = 2.2
+const CANDLE: Vector3 = Vector3(-300.0, 0.0, -300.0)
+const STAND: Vector3 = Vector3(270.0, 0.0, -110.0)    # the brass watch stand the swinging watch hangs from
+const HANG: Vector3 = Vector3(270.0, 238.0, -78.0)    # its hook
+const CHAIN_L: float = 46.0
 
-var _cups: Array = []                 # Node3D per cup
-var _ball: Node3D = null
-var _hands: Array = []                # Node3D per hand
-var _walkers: Array = []              # Node3D: the mark, the thief
-var _thief_arm: MeshInstance3D = null
+var _flame: MeshInstance3D = null
+var _halo: MeshInstance3D = null
+var _swing: Node3D = null
+var _second: Node3D = null
+var _root_flame: MeshInstance3D = null
+var _flame_pivot: Node3D = null         # at the wick: the flame bends from its root, never leaves it
+var _flame_light: OmniLight3D = null
 
 func _baked_path() -> String:
-	return "res://pickpocket/art/menu_table.webp" if mobile else "res://pickpocket/art/menu_table_d.webp"
+	return "res://pickpocket/art/menu_haul.webp" if mobile else "res://pickpocket/art/menu_haul_d.webp"
 
 func _eye() -> Vector3:
-	return Vector3(0.0, 215.0, 400.0) if mobile else Vector3(0.0, 235.0, 560.0)
+	return Vector3(30.0, 520.0, 690.0) if mobile else Vector3(30.0, 520.0, 900.0)
 
 func _aim() -> Vector3:
-	return Vector3(0.0, 140.0, -50.0) if mobile else Vector3(0.0, 160.0, -60.0)
+	return Vector3(20.0, -30.0, 10.0) if mobile else Vector3(20.0, 0.0, -20.0)
 
 func _fov() -> float:
-	return 58.0
+	return 44.0
+
+func _frame_frac() -> float:
+	return 0.5
 
 func _environment(env: Environment) -> void:
-	env.background_color = Color(0.10, 0.08, 0.14)
-	env.ambient_light_color = Color(0.55, 0.50, 0.65)
-	env.ambient_light_energy = 0.35
+	env.background_color = Color(0.02, 0.015, 0.012)
+	env.ambient_light_color = Color(0.55, 0.45, 0.38)
+	env.ambient_light_energy = 0.16
 
 func _build_lights() -> void:
-	# the lantern's warm light on the table and the hustler; the dusk sky's cool light from behind
-	light(Vector3(150.0, 200.0, 20.0), LAMP_C, 2.6, 360.0, true)
-	var dusk: DirectionalLight3D = DirectionalLight3D.new()
-	dusk.light_color = Color(0.55, 0.55, 0.85)
-	dusk.light_energy = 0.45
-	root.add_child(dusk)
-	dusk.rotation_degrees = Vector3(-25.0, 160.0, 0.0)
-	light(Vector3(-260.0, 220.0, -420.0), Color(1.0, 0.80, 0.50), 1.4, 300.0)
+	# the candle: warm, low, from the back left, its shadows running toward you; a cold glint of moonlight from the
+	# right so the silver reads; a faint warm bounce off the table
+	light(CANDLE + Vector3(0.0, 250.0, 0.0), Color(1.0, 0.74, 0.42), 5.0, 2200.0, true)
+	var moon: DirectionalLight3D = DirectionalLight3D.new()
+	moon.light_color = Color(0.62, 0.70, 1.0)
+	moon.light_energy = 0.35
+	moon.rotation_degrees = Vector3(-40.0, 60.0, 0.0)
+	root.add_child(moon)
+	light(Vector3(100.0, 200.0, 650.0), Color(1.0, 0.80, 0.60), 0.9, 1400.0)
 
-func _sky(n: int) -> ImageTexture:
-	var img: Image = Image.create(4, n, false, Image.FORMAT_RGB8)
-	for y in n:
-		var v: float = float(y) / float(n - 1)
-		img.fill_rect(Rect2i(0, y, 4, 1), Color(0.14, 0.12, 0.30).lerp(Color(0.85, 0.48, 0.38), pow(v, 1.5)))
-	return ImageTexture.create_from_image(img)
+# --- the haul: real 3-D, baked ------------------------------------------------------------------------------------
 
-# --- baked: the street, the table, the hustler, the lantern ---------------------------------------------------------
-
-func _build_still() -> void:
-	var stone: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, tex_speckle(128, Color(0.30, 0.27, 0.28), 0.10, 3, 8, Color(0.16, 0.14, 0.15)), Vector3(18, 12, 1))
-	var wood: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, tex_wood(128, Color(0.36, 0.21, 0.11), 4))
-	var iron: StandardMaterial3D = mat(Color(0.12, 0.12, 0.13), 0.4, 0.6)
-	# THE STREET: cobbles, the shopfronts across it, a lamp post, the dusk sky over the roofs
-	box(Vector3(3000.0, 4.0, 2000.0), stone, Vector3(0.0, -2.0, -400.0))
-	var sky: QuadMesh = QuadMesh.new()
-	sky.size = Vector2(4000.0, 1600.0)
-	var sky_m: StandardMaterial3D = mat(Color.WHITE, 1.0, 0.0, _sky(64))
-	sky_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	put(sky, sky_m, Vector3(0.0, 400.0, -1400.0))
-	for k in 7:
-		var sx: float = -900.0 + float(k) * 290.0
-		var h: float = 300.0 + 120.0 * h01(k + 3)
-		var col: Color = [Color(0.38, 0.26, 0.24), Color(0.30, 0.30, 0.36), Color(0.42, 0.36, 0.28), Color(0.28, 0.24, 0.30)][k % 4]
-		box(Vector3(280.0, h, 30.0), mat(col, 0.85), Vector3(sx, h * 0.5, -620.0))
-		box(Vector3(290.0, 12.0, 40.0), mat(col.darkened(0.3), 0.8), Vector3(sx, h + 6.0, -615.0))
-		# a shop window below, lit, and windows above, some lit
-		box(Vector3(180.0, 100.0, 2.0), glow(Color(1.0, 0.76, 0.42) if k % 2 == 0 else Color(0.85, 0.62, 0.38)), Vector3(sx, 70.0, -604.0))
-		box(Vector3(200.0, 12.0, 30.0), mat([Color(0.20, 0.35, 0.25), Color(0.50, 0.15, 0.15)][k % 2], 0.6), Vector3(sx, 130.0, -592.0), Vector3(-20.0, 0.0, 0.0))
-		for w in 2:
-			var lit: bool = h01(k * 5 + w) > 0.5
-			box(Vector3(46.0, 60.0, 2.0), glow(Color(1.0, 0.82, 0.50)) if lit else mat(Color(0.10, 0.10, 0.14), 0.2), Vector3(sx - 60.0 + float(w) * 120.0, 220.0, -604.0))
-	cyl(5.0, 7.0, 260.0, iron, Vector3(-260.0, 130.0, -440.0))
-	sphere(10.0, glow(Color(1.0, 0.86, 0.55)), Vector3(-260.0, 266.0, -440.0))
-	# THE TABLE: legs, a red cloth draped to the ground with a gold fringe, green baize on top
-	for lx in [-120.0, 120.0]:
-		for lz in [-55.0, 55.0]:
-			box(Vector3(8.0, TOP_Y, 8.0), wood, Vector3(lx, TOP_Y * 0.5, lz))
-	box(Vector3(280.0, 6.0, 150.0), wood, Vector3(0.0, TOP_Y - 3.0, 0.0))
-	box(Vector3(250.0, 1.0, 126.0), mat(BAIZE, 0.9), Vector3(0.0, TOP_Y + 0.5, 0.0))
-	var cloth: StandardMaterial3D = mat(CLOTH, 0.85)
-	box(Vector3(284.0, 60.0, 2.0), cloth, Vector3(0.0, TOP_Y - 30.0, 76.0))
-	for sx2 in [-1.0, 1.0]:
-		box(Vector3(2.0, 60.0, 152.0), cloth, Vector3(sx2 * 142.0, TOP_Y - 30.0, 0.0))
-	for f in 40:
-		cyl(1.6, 1.0, 14.0, mat(FRINGE, 0.5, 0.3), Vector3(-138.0 + float(f) * 7.0, TOP_Y - 66.0, 77.0))
-	box(Vector3(286.0, 3.0, 3.0), mat(FRINGE, 0.5, 0.3), Vector3(0.0, TOP_Y - 59.0, 77.5))
-	# THE HUSTLER's body behind it (his head and arms are live): a lathed torso -- narrow at the waist, broad at the
-	# chest, the shoulders sloping to the neck -- in a striped shirt, the wool vest over it with a real V at the front,
-	# its brass buttons, welt pockets and a watch chain; the red neckerchief, the neck
-	var shirt: StandardMaterial3D = mat(Color.WHITE, 0.75, 0.0, _shirting(128), Vector3(3, 3, 1))
-	var vest: StandardMaterial3D = mat(Color.WHITE, 0.85, 0.0, _wool(128, VEST), Vector3(3, 3, 1))
-	var brass: StandardMaterial3D = mat(Color(0.92, 0.74, 0.34), 0.3, 0.8)
-	var body_c: Vector3 = Vector3(0.0, 0.0, -104.0)
-	put(_lathe(TORSO, 0.0, 1.0), shirt, body_c)
-	put(_lathe(VEST_PROFILE, 1.0, 1.0), vest, body_c)
-	# the shoulders: round caps in the shirt where the sleeves meet the body (without them the arms began at an edge)
-	for sh in SHOULDERS:
-		var cap: MeshInstance3D = sphere(15.0, shirt, Vector3((sh as Vector3).x * 0.96, (sh as Vector3).y - 2.0, body_c.z))
-		cap.scale = Vector3(1.0, 0.85, 1.1)
-	for b in 4:
-		var by: float = 112.0 + float(b) * 15.0
-		var gap: float = _v_gap(by)
-		var zf: float = _front_z(by) + 1.5
-		sphere(2.6, brass, body_c + Vector3(gap * 0.9 * _rx(by), by, zf))
-	for px in [-1.0, 1.0]:
-		box(Vector3(18.0, 2.0, 2.0), mat(VEST.darkened(0.4), 0.8), body_c + Vector3(px * 26.0, 125.0, _front_z(125.0) - 2.0), Vector3(0.0, px * -22.0, 0.0))
-	var chain: PackedVector3Array = PackedVector3Array()
-	for k in 9:
-		var cu: float = float(k) / 8.0
-		chain.append(body_c + Vector3(lerpf(8.0, 26.0, cu), 118.0 - 6.0 * sin(cu * PI), _front_z(118.0) + 2.0))
-	put(tube_mesh(chain, 0.9, 6), brass, Vector3.ZERO)
-	cyl(12.0, 13.5, 26.0, mat(Color.WHITE, 0.6, 0.0, _skin_tex(64)), body_c + Vector3(0.0, 204.0, 2.0))
-	var kerch: TorusMesh = TorusMesh.new()
-	kerch.inner_radius = 11.0
-	kerch.outer_radius = 18.0
-	put(kerch, mat(Color.WHITE, 0.8, 0.0, _wool(64, KERCHIEF)), body_c + Vector3(0.0, 197.0, 2.0))
-	for kx in [-1.0, 1.0]:
-		var tail: MeshInstance3D = sphere(7.0, mat(KERCHIEF, 0.8), body_c + Vector3(kx * 5.0, 188.0, 30.0))
-		tail.scale = Vector3(0.8, 1.5, 0.5)
-		tail.rotation_degrees = Vector3(0.0, 0.0, kx * 18.0)
-	# THE LANTERN on its pole at the table's right, lit
-	cyl(3.0, 3.0, 230.0, iron, Vector3(160.0, 115.0, -40.0))
-	box(Vector3(40.0, 3.0, 3.0), iron, Vector3(145.0, 228.0, -40.0))
-	cyl(10.0, 12.0, 26.0, mat(Color(1.0, 0.86, 0.55, 0.55), 0.1), Vector3(130.0, 200.0, -40.0))
-	sphere(6.0, glow(LAMP_C), Vector3(130.0, 200.0, -40.0))
-	cyl(0.0, 14.0, 10.0, iron, Vector3(130.0, 218.0, -40.0))
-	cyl(13.0, 13.0, 3.0, iron, Vector3(130.0, 186.0, -40.0))
-
-# --- live: the cups, the ball, the arms and hands, the passers-by ---------------------------------------------------
-
-func _cup_mesh() -> Node3D:
-	var cup: Node3D = Node3D.new()
-	root.add_child(cup)
-	var cm: StandardMaterial3D = mat(COPPER, 0.32, 0.75)
-	cyl(13.0, 21.0, 36.0, cm, Vector3(0.0, 18.0, 0.0), Vector3.ZERO, cup, 32)
-	var rim: TorusMesh = TorusMesh.new()
-	rim.inner_radius = 19.5
-	rim.outer_radius = 23.0
-	put(rim, cm, Vector3(0.0, 1.5, 0.0), Vector3.ZERO, cup)
-	cyl(9.0, 13.0, 4.0, cm, Vector3(0.0, 37.0, 0.0), Vector3.ZERO, cup, 24)
-	return cup
-
-func _limb(r: float, m: StandardMaterial3D) -> MeshInstance3D:
-	var cm: CylinderMesh = CylinderMesh.new()
-	cm.top_radius = r
-	cm.bottom_radius = r
-	cm.height = 1.0
-	cm.radial_segments = 14
-	var mi: MeshInstance3D = MeshInstance3D.new()
-	mi.mesh = cm
-	mi.material_override = m
-	root.add_child(mi)
-	return mi
-
-# set a unit cylinder to run from a to b
-func _span(mi: MeshInstance3D, a: Vector3, b: Vector3) -> void:
-	var d: Vector3 = b - a
-	var l: float = maxf(0.01, d.length())
-	var y: Vector3 = d / l
-	var x: Vector3 = y.cross(Vector3.FORWARD)
-	if x.length() < 0.01:
-		x = y.cross(Vector3.RIGHT)
-	x = x.normalized()
-	var z: Vector3 = x.cross(y).normalized()
-	mi.transform = Transform3D(Basis(x, y * l, z), (a + b) * 0.5)
-
-func _build_live() -> void:
-	for k in 3:
-		_cups.append(_cup_mesh())
-	_ball = Node3D.new()
-	root.add_child(_ball)
-	sphere(7.5, mat(BALL_COLOR, 0.35), Vector3(0.0, 7.5, 0.0), _ball)
-	_build_arms()
-	_build_head()
-	# the passers-by in the street behind: the mark, and the thief a step behind
-	for w in 2:
-		var p: Node3D = Node3D.new()
-		root.add_child(p)
-		var coat: StandardMaterial3D = mat([Color(0.30, 0.32, 0.45), Color(0.16, 0.14, 0.16)][w], 0.8)
-		var body: CapsuleMesh = CapsuleMesh.new()
-		body.radius = 18.0
-		body.height = 120.0
-		put(body, coat, Vector3(0.0, 70.0, 0.0), Vector3.ZERO, p)
-		sphere(13.0, mat(SKIN.darkened(0.35), 0.6), Vector3(0.0, 142.0, 0.0), p)
-		cyl(16.0, 16.0, 4.0, coat, Vector3(0.0, 152.0, 0.0), Vector3.ZERO, p)
-		cyl(10.0, 11.0, 12.0, coat, Vector3(0.0, 159.0, 0.0), Vector3.ZERO, p)
-		_walkers.append(p)
-	_thief_arm = _limb(5.0, mat(Color(0.16, 0.14, 0.16), 0.8))
-
-# which slot each cup is in at the start of beat n, and where the ball's cup is: the swaps replayed from the start
-# FOUR PLACES, THREE CUPS (2026-11-17, the user: the arms crossed, "make it physically correct"): each beat ONE hand
-# slides ONE cup to the empty place, along an arc in front of the others; the hand is the one on that side of the
-# table, so neither ever crosses to the other side. `MOVES`: which cup moves, beat by beat.
-const PLACES: Array = [-96.0, -32.0, 32.0, 96.0]
-const MOVES: Array = [1, 0, 2, 1, 0, 2]
-
-# the place of each cup at the start of beat n (cups start in places 0, 1, 2; 3 is empty)
-func _places_at(n: int) -> Array:
-	var at: Array = [0, 1, 2]
-	for i in n:
-		var used: Array = [false, false, false, false]
-		for c in 3:
-			used[at[c]] = true
-		at[MOVES[i % MOVES.size()]] = used.find(false)
-	return at
-
-func _empty(at: Array) -> int:
-	for pl in 4:
-		if not at.has(pl):
-			return pl
-	return 3
-
-func _animate(_delta: float) -> void:
-	if _cups.is_empty():
-		return
-	# the time line: SWAPS moves, then the reveal, then again
-	var cycle: float = float(SWAPS) * BEAT + REVEAL
-	var cyc: int = int(floor(t / cycle))
-	var u: float = t - float(cyc) * cycle
-	var beat: int = int(floor(u / BEAT))
-	var bu: float = fmod(u, BEAT) / BEAT
-	var shuffling: bool = beat < SWAPS
-	var n_done: int = cyc * SWAPS + mini(beat, SWAPS)
-	var at: Array = _places_at(n_done)
-	var mover: int = MOVES[n_done % MOVES.size()] if shuffling else -1
-	var move: float = smoothstep(0.10, 0.80, bu) if shuffling else 0.0
-	var rest: Array = [Vector3(-98.0, TOP_Y + 13.0, -24.0), Vector3(98.0, TOP_Y + 13.0, -24.0)]
-	var hand_at: Array = rest.duplicate()
-	for c in 3:
-		var x0: float = PLACES[at[c]]
-		var p: Vector3 = Vector3(x0, TOP_Y, CUP_Z)
-		var tilt: float = 0.0
-		if c == mover:
-			var x1: float = PLACES[_empty(at)]
-			# slid along an arc out in front of the others, the hand on that side of the table over it; the hand
-			# reaches it before the move and leaves it after
-			p = Vector3(lerpf(x0, x1, move), TOP_Y, CUP_Z + 24.0 * sin(move * PI))
-			var k: int = 0 if (x0 + x1) < 0.0 else 1
-			var grip: Vector3 = p + Vector3(0.0, 40.0, 0.0)
-			var on: float = smoothstep(0.0, 0.12, bu) * (1.0 - smoothstep(0.84, 1.0, bu))
-			hand_at[k] = (rest[k] as Vector3).lerp(grip, on)
-		if not shuffling and c == 0:
-			# THE REVEAL: the ball's cup lifted and tipped back by the hand on its side, set down again
-			var ru: float = (u - float(SWAPS) * BEAT) / REVEAL
-			var lift: float = smoothstep(0.08, 0.32, ru) * (1.0 - smoothstep(0.68, 0.92, ru))
-			p += Vector3(0.0, 46.0 * lift, -10.0 * lift)
-			tilt = -0.5 * lift
-			var k2: int = 0 if x0 < 0.0 else 1
-			var reach: float = smoothstep(0.0, 0.10, ru) * (1.0 - smoothstep(0.92, 1.0, ru))
-			hand_at[k2] = (rest[k2] as Vector3).lerp(p + Vector3(0.0, 40.0, 0.0), reach)
-		(_cups[c] as Node3D).position = p
-		(_cups[c] as Node3D).rotation = Vector3(tilt, 0.0, 0.0)
-	# the ball rides under its cup (cup 0), on the baize, seen only when that cup is lifted
-	var c0: Vector3 = (_cups[0] as Node3D).position
-	_ball.position = Vector3(c0.x, TOP_Y, c0.z if shuffling else CUP_Z)
-	# THE ARMS (fixed lengths, a two-bone solve): shoulder to elbow to wrist, each elbow out, down and a little back;
-	# the hands on the cups, turned along the forearm
-	for k in 2:
-		var hand: Node3D = _hands[k]
-		var target: Vector3 = hand_at[k]
-		hand.position = target if _hand_init < 2 else hand.position.lerp(target, 0.45)
-		_pose_arm(k)
-	_hand_init = 2
-	# the head follows the cups: toward the one moving in front, back to the middle between shuffles
-	var look_x: float = 0.0
-	for c2 in 3:
-		var cp: Vector3 = (_cups[c2] as Node3D).position
-		if cp.z > CUP_Z + 3.0 or cp.y > TOP_Y + 3.0:
-			look_x = cp.x
-	_head.rotation.y = lerp_angle(_head.rotation.y, clampf(-look_x / 300.0, -0.35, 0.35), 0.08)
-	_head.rotation.x = 0.22
-	# THE PASSERS-BY: across the street behind, the thief a step behind the mark, his hand drifting to their pocket
-	var span: float = 1300.0
-	var x: float = fmod(t * 55.0, span) - span * 0.5
-	var bob: float = absf(sin(t * 5.0)) * 4.0
-	(_walkers[0] as Node3D).position = Vector3(x, bob, -380.0)
-	(_walkers[1] as Node3D).position = Vector3(x - 70.0, absf(sin(t * 5.0 + 1.3)) * 4.0, -370.0)
-	var reach_t: float = 0.5 + 0.5 * sin(t * 0.9)
-	var th: Vector3 = (_walkers[1] as Node3D).position + Vector3(14.0, 92.0, 6.0)
-	var pocket: Vector3 = (_walkers[0] as Node3D).position + Vector3(-14.0, 70.0, 8.0)
-	_span(_thief_arm, th, th.lerp(pocket, 0.55 + 0.45 * reach_t))
-
-# --- the hustler, made properly ----------------------------------------------------------------------------------
-
-# the torso's sections: [height, half width, half depth] from the waist up to the base of the neck
-const TORSO: Array = [[78.0, 40.0, 26.0], [100.0, 42.0, 27.0], [130.0, 48.0, 30.0], [160.0, 52.0, 31.0], [178.0, 54.0, 30.0],
-	[190.0, 46.0, 27.0], [198.0, 30.0, 22.0], [204.0, 16.0, 15.0]]
-const VEST_PROFILE: Array = [[78.0, 41.5, 27.5], [100.0, 43.5, 28.5], [130.0, 49.5, 31.5], [160.0, 53.5, 32.5], [178.0, 54.5, 31.0],
-	[186.0, 48.0, 28.0]]
-const UPPER: float = 64.0
-const FORE: float = 62.0
-
-var _hand_init: int = 0
-var _head: Node3D = null
-var _upper: Array = []
-var _cuff: Array = []
-var _fore: Array = []
-var _fingers: Array = []              # per hand: [Node3D joint, ...]
-
-func _rx(y: float) -> float:
-	for i in TORSO.size() - 1:
-		if y <= float(TORSO[i + 1][0]):
-			var u: float = (y - float(TORSO[i][0])) / (float(TORSO[i + 1][0]) - float(TORSO[i][0]))
-			return lerpf(float(TORSO[i][1]), float(TORSO[i + 1][1]), u)
-	return 16.0
-
-func _front_z(y: float) -> float:
-	for i in VEST_PROFILE.size() - 1:
-		if y <= float(VEST_PROFILE[i + 1][0]):
-			var u: float = (y - float(VEST_PROFILE[i][0])) / (float(VEST_PROFILE[i + 1][0]) - float(VEST_PROFILE[i][0]))
-			return lerpf(float(VEST_PROFILE[i][2]), float(VEST_PROFILE[i + 1][2]), u)
-	return 30.0
-
-# the vest's opening at the front, as a share of the half width: closed at the waist, a V widening to the shoulders
-func _v_gap(y: float) -> float:
-	return lerpf(0.10, 0.62, smoothstep(105.0, 186.0, y))
-
-# A LATHED BODY: elliptical sections stacked, smooth normals; `open` > 0 leaves the vest's V open at the front
-func _lathe(prof: Array, open: float, _k: float) -> ArrayMesh:
+func _lathe(profile: Array, m: Material, at: Vector3, segs: int = 32, rot: Vector3 = Vector3.ZERO, parent: Node3D = null) -> MeshInstance3D:
 	var st: SurfaceTool = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var seg: int = 40
-	var rings: Array = []
-	for sec in prof:
-		var y: float = sec[0]
-		var ring: PackedVector3Array = PackedVector3Array()
-		var gap: float = asin(clampf(_v_gap(y), 0.0, 0.99)) * open
-		for j in seg + 1:
-			# from just right of the front round the back to just left of it (or all the way round)
-			var a: float = PI * 0.5 + gap + (TAU - 2.0 * gap) * float(j) / float(seg)
-			ring.append(Vector3(cos(a) * float(sec[1]), y, sin(a) * float(sec[2])))
-		rings.append(ring)
-	for r in rings.size() - 1:
-		var a0: PackedVector3Array = rings[r]
-		var a1: PackedVector3Array = rings[r + 1]
-		for j in seg:
-			for v in [a0[j], a1[j], a1[j + 1], a0[j], a1[j + 1], a0[j + 1]]:
-				st.set_uv(Vector2(float(j) / float(seg) * 4.0, (v as Vector3).y / 40.0))
-				st.add_vertex(v)
+	for i in profile.size() - 1:
+		var a: Vector2 = profile[i]
+		var b: Vector2 = profile[i + 1]
+		for s in segs:
+			var t0: float = TAU * float(s) / float(segs)
+			var t1: float = TAU * float(s + 1) / float(segs)
+			var q: Array = [Vector3(cos(t0) * a.x, a.y, sin(t0) * a.x), Vector3(cos(t1) * a.x, a.y, sin(t1) * a.x),
+				Vector3(cos(t1) * b.x, b.y, sin(t1) * b.x), Vector3(cos(t0) * b.x, b.y, sin(t0) * b.x)]
+			for vi in [0, 1, 2, 0, 2, 3]:
+				st.add_vertex(q[vi])
+	st.generate_normals()
+	return put(st.commit(), m, at, rot, parent)
+
+func _leather(n: int, base: Color, seed_i: int) -> ImageTexture:
+	# grained leather: a fine pebble, creases, worn paler along the edges
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.seed = seed_i
+	noise.frequency = 0.25
+	var crease: FastNoiseLite = FastNoiseLite.new()
+	crease.seed = seed_i + 7
+	crease.frequency = 0.03
+	for y in n:
+		for x in n:
+			var g: float = noise.get_noise_2d(float(x), float(y)) * 0.08
+			var cr: float = absf(crease.get_noise_2d(float(x), float(y)))
+			var c: Color = base.lightened(g) if g > 0.0 else base.darkened(-g)
+			if cr < 0.03:
+				c = c.darkened(0.25)
+			var ex: float = minf(minf(float(x), float(n - 1 - x)), minf(float(y), float(n - 1 - y))) / float(n)
+			c = c.lightened(0.18 * (1.0 - smoothstep(0.0, 0.06, ex)))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _banknote(n: int, tint: Color) -> ImageTexture:
+	# an engraved note: a pale ground, a frame of fine lines, an oval with a portrait's shading, the denomination's corners
+	var img: Image = Image.create(n * 2, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n * 2:
+			var c: Color = Color(0.86, 0.84, 0.74).lerp(tint, 0.35)
+			var ex: int = mini(mini(x, n * 2 - 1 - x), mini(y, n - 1 - y))
+			if ex == 4 or ex == 6:
+				c = tint.darkened(0.45)
+			elif ex > 6 and ex < 12 and (x + y) % 3 == 0:
+				c = tint.darkened(0.3)
+			var o: Vector2 = Vector2(float(x) - float(n) * 1.25, (float(y) - float(n) * 0.5) * 1.3)
+			if o.length() < float(n) * 0.30:
+				if (x * 3 + y) % 4 == 0 or o.length() > float(n) * 0.27:
+					c = tint.darkened(0.5)
+			if (x < n / 3 or x > n * 5 / 3) and (y < n / 3 or y > n * 2 / 3) and ex > 12 and (x / 3 + y / 3) % 2 == 0:
+				c = tint.darkened(0.4)
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+func _watch_face(n: int, roman: bool) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var ctr: Vector2 = Vector2(float(n), float(n)) * 0.5
+	for y in n:
+		for x in n:
+			var p: Vector2 = Vector2(float(x) + 0.5, float(y) + 0.5) - ctr
+			var r: float = p.length() / (float(n) * 0.5)
+			var c: Color = Color(0.95, 0.93, 0.86) if roman else Color(0.92, 0.90, 0.84)
+			c = c.darkened(0.08 * r * r)
+			var a: float = atan2(p.y, p.x)
+			# the minute track, the hour marks, the small seconds dial at six
+			if r > 0.84 and r < 0.86:
+				c = Color(0.12, 0.10, 0.08)
+			var tick: float = fposmod(a / TAU * 60.0, 1.0)
+			if r > 0.86 and r < 0.92 and (tick < 0.06 or tick > 0.94):
+				c = Color(0.12, 0.10, 0.08)
+			var hr: float = fposmod(a / TAU * 12.0, 1.0)
+			if r > 0.62 and r < 0.82 and (hr < 0.035 or hr > 0.965):
+				c = Color(0.10, 0.08, 0.06)
+			var sd: float = (p - Vector2(0.0, float(n) * 0.24)).length() / (float(n) * 0.5)
+			if absf(sd - 0.20) < 0.012:
+				c = Color(0.20, 0.16, 0.12)
+			img.set_pixel(x, y, Color(c, 1.0 if r < 1.0 else 0.0))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+# a pocket watch lying (or hanging) in `parent`'s frame, its face toward +y: case, bezel, crystal, the face, hands, the
+# crown and bow at twelve (toward -z)
+func _watch(at: Vector3, gold: bool, roman: bool, hands: float, parent: Node3D = null, rot: Vector3 = Vector3.ZERO) -> Node3D:
+	var w: Node3D = Node3D.new()
+	(parent if parent != null else root).add_child(w)
+	w.position = at
+	w.rotation_degrees = rot
+	var metal: StandardMaterial3D = mat(Color(0.92, 0.72, 0.36) if gold else Color(0.80, 0.82, 0.86), 0.18, 0.95)
+	_lathe([Vector2(0.0, 0.0), Vector2(30.0, 0.0), Vector2(36.0, 4.0), Vector2(38.0, 9.0), Vector2(37.0, 13.0), Vector2(33.0, 15.0), Vector2(31.0, 16.0)], metal, Vector3.ZERO, 48, Vector3.ZERO, w)
+	var face_m: StandardMaterial3D = mat(Color.WHITE, 0.5, 0.0, _watch_face(128, roman))
+	face_m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	var fq: PlaneMesh = PlaneMesh.new()
+	fq.size = Vector2(62.0, 62.0)
+	put(fq, face_m, Vector3(0.0, 13.5, 0.0), Vector3.ZERO, w)
+	var hand_m: StandardMaterial3D = mat(Color(0.06, 0.06, 0.10), 0.3, 0.6)
+	var hh: MeshInstance3D = box(Vector3(2.4, 0.6, 16.0), hand_m, Vector3(0.0, 14.2, 0.0), Vector3.ZERO, w)
+	hh.rotation = Vector3(0.0, -hands, 0.0)
+	hh.position = Vector3(sin(hands) * -8.0, 14.2, -cos(hands) * 8.0)
+	var mh: MeshInstance3D = box(Vector3(1.6, 0.6, 24.0), hand_m, Vector3(0.0, 14.4, 0.0), Vector3.ZERO, w)
+	mh.rotation = Vector3(0.0, -hands * 7.3, 0.0)
+	mh.position = Vector3(sin(hands * 7.3) * -12.0, 14.4, -cos(hands * 7.3) * 12.0)
+	sphere(1.8, metal, Vector3(0.0, 14.8, 0.0), w)
+	var crystal: CylinderMesh = CylinderMesh.new()
+	crystal.top_radius = 30.0
+	crystal.bottom_radius = 31.0
+	crystal.height = 1.2
+	crystal.radial_segments = 40
+	var glass: StandardMaterial3D = mat(Color(0.9, 0.95, 1.0, 0.12), 0.02, 0.3)
+	put(crystal, glass, Vector3(0.0, 15.6, 0.0), Vector3.ZERO, w).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# the pendant, the crown (knurled) and the bow
+	cyl(4.0, 4.0, 8.0, metal, Vector3(0.0, 8.0, -40.0), Vector3(90.0, 0.0, 0.0), w, 12)
+	cyl(5.5, 5.5, 6.0, metal, Vector3(0.0, 8.0, -46.0), Vector3(90.0, 0.0, 0.0), w, 16)
+	var bow: TorusMesh = TorusMesh.new()
+	bow.inner_radius = 9.0
+	bow.outer_radius = 11.5
+	put(bow, metal, Vector3(0.0, 8.0, -56.0), Vector3(0.0, 0.0, 90.0), w)
+	return w
+
+# a chain of oval links along a path, each turned a quarter from the last
+func _chain(path: PackedVector3Array, gold: bool, parent: Node3D = null) -> void:
+	var metal: StandardMaterial3D = mat(Color(0.92, 0.72, 0.36) if gold else Color(0.80, 0.82, 0.86), 0.2, 0.95)
+	var link: TorusMesh = TorusMesh.new()
+	link.inner_radius = 2.4
+	link.outer_radius = 3.6
+	link.rings = 10
+	link.ring_segments = 6
+	var total: float = 0.0
+	for i in path.size() - 1:
+		total += path[i].distance_to(path[i + 1])
+	var step: float = 5.6
+	var d: float = 0.0
+	var k: int = 0
+	var seg_i: int = 0
+	var seg_d: float = 0.0
+	while d < total and seg_i < path.size() - 1:
+		var seg_len: float = path[seg_i].distance_to(path[seg_i + 1])
+		if d - seg_d > seg_len:
+			seg_d += seg_len
+			seg_i += 1
+			continue
+		var f: float = (d - seg_d) / maxf(0.001, seg_len)
+		var p: Vector3 = path[seg_i].lerp(path[seg_i + 1], f)
+		var dir: Vector3 = (path[seg_i + 1] - path[seg_i]).normalized()
+		var mi: MeshInstance3D = put(link, metal, p, Vector3.ZERO, parent)
+		# the link's long axis along the chain, its ring's axis across it -- turned a quarter from the last link's
+		var n1: Vector3 = dir.cross(Vector3.UP)
+		if n1.length() < 0.1:
+			n1 = dir.cross(Vector3.RIGHT)
+		n1 = n1.normalized()
+		var axis: Vector3 = n1 if k % 2 == 0 else dir.cross(n1).normalized()
+		mi.basis = Basis(dir * 1.6, axis, dir.cross(axis))
+		d += step
+		k += 1
+
+# THE PURSE: a soft leather sack slumped on its side -- a squashed body, crumpled (its skin pushed in and out by a
+# noise), its mouth toward you drawn into a short neck gathered into folds by the string, the lip flaring out past it
+func _sack() -> ArrayMesh:
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.seed = 5
+	noise.frequency = 0.035
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rings: int = 28
+	var segs: int = 40
+	var grid: Array = []
+	for i in rings + 1:
+		var v: float = float(i) / float(rings)            # 0 at the back, 1 at the mouth
+		var row: Array = []
+		for j in segs + 1:
+			var th: float = TAU * float(j) / float(segs)
+			var r: float
+			var z: float
+			if v < 0.72:
+				var ph: float = v / 0.72 * PI
+				r = 100.0 * sin(ph) + 30.0 * smoothstep(0.5, 1.0, v / 0.72)
+				z = -95.0 * cos(ph) - 10.0
+			elif v < 0.88:
+				var nv: float = (v - 0.72) / 0.16
+				r = lerpf(30.0, 22.0, nv) * (1.0 + 0.16 * sin(th * 9.0))
+				z = lerpf(85.0, 118.0, nv)
+			else:
+				var lv: float = (v - 0.88) / 0.12
+				r = lerpf(22.0, 42.0, lv) * (1.0 + 0.22 * sin(th * 9.0))
+				z = lerpf(118.0, 136.0, lv)
+			var p: Vector3 = Vector3(cos(th) * r * 1.15, sin(th) * r * 0.62, z)
+			var bump: float = noise.get_noise_3d(p.x, p.y, p.z) * 12.0 * (1.0 if v < 0.72 else 0.3)
+			p += Vector3(cos(th), sin(th), 0.0) * bump
+			p.y += 62.0
+			# the body sags onto the table: nothing below it
+			p.y = maxf(p.y, 2.0 + 0.02 * absf(p.x))
+			row.append(p)
+		grid.append(row)
+	for i in rings:
+		for j in segs:
+			var q: Array = [grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j]]
+			for vi in [0, 2, 1, 0, 3, 2]:
+				st.set_uv(Vector2(float(j) / float(segs), float(i) / float(rings)))
+				st.add_vertex(q[vi])
 	st.generate_normals()
 	return st.commit()
 
-func _wool(n: int, base: Color) -> ImageTexture:
-	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
-	for y in n:
+func _coin(at: Vector3, r: float, gold: bool, tilt: Vector3 = Vector3.ZERO) -> void:
+	var m: StandardMaterial3D = mat(Color(0.94, 0.74, 0.34) if gold else Color(0.78, 0.78, 0.80), 0.25, 0.95)
+	_lathe([Vector2(0.0, 0.0), Vector2(r - 0.6, 0.0), Vector2(r, 0.6), Vector2(r, 2.4), Vector2(r - 0.6, 3.0), Vector2(r - 2.0, 3.0),
+		Vector2(r - 2.4, 2.2), Vector2(r * 0.55, 2.4), Vector2(r * 0.5, 2.9), Vector2(0.0, 2.9)], m, at, 28, tilt)
+
+func _wallet(at: Vector3, w: float, d: float, h: float, base: Color, yaw: float, seed_i: int) -> void:
+	var m: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.0, _leather(64, base, seed_i))
+	put(rbox_mesh(w * 0.5, d * 0.5, h, 6.0, 2.5), m, at, Vector3(0.0, yaw, 0.0))
+	# the stitching round its edge
+	var stitch: StandardMaterial3D = mat(base.lightened(0.45), 0.8)
+	var yr: float = deg_to_rad(yaw)
+	for sk in 24:
+		var f: float = float(sk) / 24.0
+		var p: Vector3
+		if f < 0.5:
+			p = Vector3(lerpf(-w * 0.44, w * 0.44, f * 2.0), h + 0.2, -d * 0.44)
+		else:
+			p = Vector3(lerpf(-w * 0.44, w * 0.44, (f - 0.5) * 2.0), h + 0.2, d * 0.44)
+		box(Vector3(3.0, 0.4, 0.8), stitch, at + p.rotated(Vector3.UP, yr), Vector3(0.0, yaw, 0.0))
+
+func _build_still() -> void:
+	var oak: StandardMaterial3D = mat(Color.WHITE, 0.45, 0.0, tex_wood(256, Color(0.30, 0.18, 0.10), 6), Vector3(2, 3, 1))
+	# THE TABLE: thick planks, their joints, a worn rounded front edge; the dark room behind
+	for pl in 6:
+		var pz: float = -700.0 + float(pl) * 160.0
+		box(Vector3(1800.0, 30.0, 156.0), oak, Vector3(0.0, -15.0, pz + 80.0))
+	cyl(15.0, 15.0, 1800.0, oak, Vector3(0.0, -15.0, 262.0), Vector3(0.0, 0.0, 90.0), null, 20)
+	box(Vector3(1800.0, 200.0, 30.0), oak, Vector3(0.0, -130.0, 250.0))
+	box(Vector3(4000.0, 3000.0, 20.0), mat(Color.WHITE, 0.9, 0.0, tex_speckle(64, Color(0.10, 0.08, 0.07), 0.12, 3)), Vector3(0.0, 800.0, -900.0))
+	# THE CANDLE in a brass chamberstick: the dish, the socket, a tallow candle with its drips
+	var brass: StandardMaterial3D = mat(Color(0.86, 0.66, 0.32), 0.25, 0.85)
+	_lathe([Vector2(0.0, 0.0), Vector2(70.0, 0.0), Vector2(74.0, 6.0), Vector2(70.0, 12.0), Vector2(30.0, 14.0), Vector2(22.0, 20.0), Vector2(20.0, 48.0), Vector2(26.0, 54.0), Vector2(0.0, 54.0)], brass, CANDLE, 48)
+	var tallow: StandardMaterial3D = mat(Color(0.94, 0.88, 0.72), 0.6)
+	tallow.subsurf_scatter_enabled = true
+	tallow.subsurf_scatter_strength = 0.6
+	_lathe([Vector2(0.0, 52.0), Vector2(17.0, 52.0), Vector2(17.0, 190.0), Vector2(15.0, 196.0), Vector2(10.0, 192.0), Vector2(0.0, 194.0)], tallow, CANDLE, 32)
+	for dr in 5:
+		var da: float = TAU * float(dr) / 5.0 + 0.4
+		var drip: PackedVector3Array = PackedVector3Array()
+		var dl: float = 30.0 + 60.0 * h01(dr + 3)
+		for dk in 6:
+			var f: float = float(dk) / 5.0
+			drip.append(CANDLE + Vector3(cos(da) * 17.6, 194.0 - dl * f, sin(da) * 17.6))
+		put(tube_mesh(drip, 2.6, 6), tallow, Vector3.ZERO)
+	cyl(1.0, 1.4, 12.0, mat(Color(0.05, 0.04, 0.04), 0.9), CANDLE + Vector3(0.0, 200.0, 0.0), Vector3(8.0, 0.0, 0.0), null, 6)
+	# THE PURSE on its side at the back, mouth toward you, spilling coins: soft leather gathered at a drawstring
+	var purse_c: Vector3 = Vector3(-80.0, 0.0, -260.0)
+	var purse_m: StandardMaterial3D = mat(Color.WHITE, 0.62, 0.0, _leather(128, Color(0.22, 0.12, 0.06), 3), Vector3(2, 2, 1))
+	put(_sack(), purse_m, purse_c)
+	# the drawstring round the gathered neck, tied, its ends trailing on the table
+	var cord: PackedVector3Array = PackedVector3Array()
+	for ck in 40:
+		var ca: float = TAU * float(ck) / 39.0
+		cord.append(purse_c + Vector3(cos(ca) * 30.0, 50.0 + sin(ca) * 28.0, 118.0))
+	put(tube_mesh(cord, 3.0, 8), mat(Color(0.62, 0.48, 0.26), 0.8), Vector3.ZERO)
+	var tail: PackedVector3Array = PackedVector3Array([purse_c + Vector3(28.0, 40.0, 122.0), purse_c + Vector3(50.0, 16.0, 150.0), purse_c + Vector3(100.0, 3.0, 176.0), purse_c + Vector3(150.0, 3.0, 196.0)])
+	put(tube_mesh(tail, 3.0, 8), mat(Color(0.62, 0.48, 0.26), 0.8), Vector3.ZERO)
+	# THE COINS: a spill fanning out of the purse's mouth, stacks, a few on edge against things
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 77
+	for cn in 46:
+		var spread: float = rng.randf()
+		var ang: float = rng.randf_range(-0.9, 0.9)
+		var dist: float = 40.0 + 260.0 * spread * spread
+		var pos: Vector3 = purse_c + Vector3(sin(ang) * dist, 0.0, 130.0 + cos(ang) * dist * 0.7)
+		var gold: bool = rng.randf() < 0.55
+		# none on the newspaper: its headline must read whole
+		if pos.x > -60.0 and pos.z > -100.0:
+			continue
+		var r: float = rng.randf_range(19.0, 25.0) if gold else rng.randf_range(22.0, 29.0)
+		var lean: Vector3 = Vector3(rng.randf_range(-6.0, 6.0), rng.randf_range(0.0, 360.0), rng.randf_range(-6.0, 6.0))
+		if cn % 9 == 0:
+			lean.x = 24.0
+		_coin(pos + Vector3(0.0, 0.5 + (4.0 if cn % 9 == 0 else 0.0), 0.0), r, gold, lean)
+	for stack in 2:
+		var sp: Vector3 = Vector3(-280.0 + float(stack) * 70.0, 0.0, -40.0 + float(stack) * 40.0)
+		for sc in 6 + stack * 3:
+			_coin(sp + Vector3(rng.randf_range(-1.5, 1.5), float(sc) * 3.0, rng.randf_range(-1.5, 1.5)), 18.0, stack == 0, Vector3(0.0, rng.randf_range(0.0, 360.0), 0.0))
+	# THE WALLETS: black, oxblood and tan, one OPEN on its banknotes
+	_wallet(Vector3(120.0, 0.0, -270.0), 210.0, 130.0, 18.0, Color(0.10, 0.09, 0.09), -18.0, 4)
+	_wallet(Vector3(150.0, 18.0, -260.0), 200.0, 120.0, 16.0, Color(0.38, 0.08, 0.08), 8.0, 9)
+	_wallet(Vector3(130.0, 0.0, 200.0), 190.0, 120.0, 16.0, Color(0.50, 0.32, 0.16), 14.0, 12)
+	var open_c: Vector3 = Vector3(-280.0, 0.0, 120.0)
+	var tan_m: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.0, _leather(64, Color(0.24, 0.14, 0.08), 21))
+	put(rbox_mesh(110.0, 70.0, 6.0, 6.0, 2.0), tan_m, open_c, Vector3(0.0, 24.0, 0.0))
+	var notes: Array = [Color(0.40, 0.55, 0.40), Color(0.55, 0.40, 0.55), Color(0.62, 0.50, 0.30)]
+	for nt in 3:
+		var nq: PlaneMesh = PlaneMesh.new()
+		nq.size = Vector2(196.0, 98.0)
+		var nm: StandardMaterial3D = mat(Color.WHITE, 0.8, 0.0, _banknote(64, notes[nt]))
+		put(nq, nm, open_c + Vector3(-6.0 + float(nt) * 10.0, 7.0 + float(nt) * 0.8, -10.0 + float(nt) * 12.0), Vector3(0.0, 24.0 + float(nt) * 9.0 - 9.0, 0.0))
+	# THE WATCHES lying: gold with Roman numerals, silver with a plain dial, each with its chain trailing
+	_watch(Vector3(-110.0, 0.0, 60.0), true, true, 1.2, null, Vector3(0.0, -30.0, 0.0))
+	var ch1: PackedVector3Array = PackedVector3Array()
+	for c1 in 12:
+		var f1: float = float(c1) / 11.0
+		ch1.append(Vector3(-110.0 + 30.0 - 120.0 * f1, 2.5, 60.0 - 50.0 - 60.0 * sin(f1 * 2.4)))
+	_chain(ch1, true)
+	_watch(Vector3(400.0, 0.0, 60.0), false, false, 4.0, null, Vector3(0.0, 40.0, 0.0))
+	var ch2: PackedVector3Array = PackedVector3Array()
+	for c2 in 12:
+		var f2: float = float(c2) / 11.0
+		ch2.append(Vector3(400.0 + 40.0 + 90.0 * f2, 2.5, 60.0 - 40.0 + 70.0 * sin(f2 * 3.0)))
+	_chain(ch2, false)
+	# A STRING OF PEARLS looping across the front, their luster; a lady's ring with its stone
+	var pearl: StandardMaterial3D = mat(Color(0.96, 0.94, 0.90), 0.15, 0.1)
+	pearl.clearcoat_enabled = true
+	pearl.rim_enabled = true
+	pearl.rim = 0.4
+	# (lying on a clear patch of the table, each pearl resting on the wood -- across the wallet they hovered, the user)
+	for pk in 44:
+		var pa: float = TAU * float(pk) / 44.0
+		var pp: Vector3 = Vector3(-60.0 + cos(pa) * 74.0 + 12.0 * sin(pa * 3.0), 6.0, 196.0 + sin(pa) * 30.0 + 6.0 * cos(pa * 2.0))
+		sphere(6.0, pearl, pp)
+	box(Vector3(10.0, 5.0, 6.0), mat(Color(0.92, 0.74, 0.40), 0.2, 0.95), Vector3(-60.0 + 74.0 + 12.0 * sin(0.0), 3.0, 196.0 + 6.0), Vector3(0.0, 80.0, 0.0))
+	var ring_c: Vector3 = Vector3(250.0, 0.0, 100.0)
+	var band: TorusMesh = TorusMesh.new()
+	band.inner_radius = 12.0
+	band.outer_radius = 16.0
+	put(band, mat(Color(0.94, 0.76, 0.40), 0.2, 0.95), ring_c + Vector3(0.0, 4.0, 0.0))
+	var stone_m: StandardMaterial3D = mat(Color(0.70, 0.05, 0.12), 0.05, 0.1)
+	stone_m.emission_enabled = true
+	stone_m.emission = Color(0.4, 0.0, 0.05)
+	sphere(7.0, stone_m, ring_c + Vector3(0.0, 8.0, -16.0))
+	# THE WATCH STAND the swinging watch hangs from: a turned brass foot, a slender column, a curved arm with a hook
+	_lathe([Vector2(0.0, 0.0), Vector2(46.0, 0.0), Vector2(48.0, 5.0), Vector2(40.0, 10.0), Vector2(16.0, 16.0), Vector2(10.0, 24.0), Vector2(0.0, 24.0)], mat(Color(0.86, 0.66, 0.32), 0.25, 0.85), STAND, 40)
+	var stand_m: StandardMaterial3D = mat(Color(0.86, 0.66, 0.32), 0.25, 0.85)
+	cyl(3.6, 4.6, 210.0, stand_m, STAND + Vector3(0.0, 128.0, 0.0), Vector3.ZERO, null, 14)
+	sphere(6.0, stand_m, STAND + Vector3(0.0, 236.0, 0.0))
+	var arm: PackedVector3Array = PackedVector3Array()
+	for ak in 10:
+		var af: float = float(ak) / 9.0
+		arm.append(STAND + Vector3(0.0, 236.0 + 14.0 * sin(af * PI * 0.8), 32.0 * af))
+	put(tube_mesh(arm, 2.6, 8), stand_m, Vector3.ZERO)
+	var hook: TorusMesh = TorusMesh.new()
+	hook.inner_radius = 3.0
+	hook.outer_radius = 5.0
+	put(hook, stand_m, HANG + Vector3(0.0, -2.0, 0.0), Vector3(0.0, 90.0, 90.0))
+	# THE NEWSPAPER the haul lies on, folded: its masthead and the headline that says what this is -- and the thief's
+	# own flat cap beside it (the user: "what does it represent? things stolen?")
+	var paper_c: Vector3 = Vector3(110.0, 0.6, 30.0)
+	var npm: PlaneMesh = PlaneMesh.new()
+	npm.size = Vector2(300.0, 210.0)
+	put(npm, mat(Color.WHITE, 0.9, 0.0, _newsprint(256)), paper_c, Vector3(0.0, -8.0, 0.0))
+	var mast: Label3D = label("THE EVENING COURIER", 15.0, Color(0.10, 0.09, 0.08), paper_c + Vector3(-8.0, 0.8, -84.0), Vector3(-90.0, -8.0, 0.0))
+	mast.outline_size = 0
+	var head: Label3D = label("PICKPOCKET STRIKES AGAIN", 21.0, Color(0.06, 0.05, 0.05), paper_c + Vector3(-4.0, 0.8, -56.0), Vector3(-90.0, -8.0, 0.0))
+	head.outline_size = 0
+	var sub: Label3D = label("Seven purses and a gold watch taken at the market", 8.5, Color(0.18, 0.16, 0.14), paper_c + Vector3(-2.0, 0.8, -36.0), Vector3(-90.0, -8.0, 0.0))
+	sub.outline_size = 0
+	_cap(Vector3(-330.0, 0.0, -40.0))
+
+func _newsprint(n: int) -> ImageTexture:
+	# yellowed newsprint: columns of fine text lines, a rule under the masthead, a fold across the middle
+	var img: Image = Image.create(n, n * 7 / 10, false, Image.FORMAT_RGB8)
+	var h: int = n * 7 / 10
+	for y in h:
 		for x in n:
-			var v: float = 0.5 * h01(x * 7 + y * 13) + 0.5 * h01((x + y) / 2 * 5)
-			img.set_pixel(x, y, base.darkened(0.18).lerp(base.lightened(0.12), v))
+			var c: Color = Color(0.84, 0.81, 0.72).darkened(0.05 * h01(x * 5 + y * 31))
+			var col_i: int = x / (n / 4)
+			var inc: int = x % (n / 4)
+			var row_y: int = y - int(float(h) * 0.42)
+			if row_y > 0 and inc > 4 and inc < n / 4 - 4 and row_y % 4 == 0 and h01(col_i * 97 + row_y / 4 * 13) > 0.08:
+				c = c.darkened(0.30 + 0.15 * h01(x / 3 + y * 7))
+			if absi(y - int(float(h) * 0.08)) < 1 or absi(y - int(float(h) * 0.40)) < 1:
+				c = Color(0.20, 0.18, 0.16)
+			if absi(y - h / 2) < 2:
+				c = c.darkened(0.12)
+			img.set_pixel(x, y, c)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
-func _shirting(n: int) -> ImageTexture:
-	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
-	for y in n:
-		for x in n:
-			var stripe: bool = (x / 6) % 4 == 0
-			var c: Color = Color(0.88, 0.86, 0.80) if not stripe else Color(0.62, 0.66, 0.78)
-			img.set_pixel(x, y, c.darkened(0.06 * h01(x * 31 + y * 17)))
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+# THE THIEF'S FLAT CAP: a tweed crown, soft and a little slumped, its peak snapped down at the front
+func _cap(at: Vector3) -> void:
+	var tweed_img: Image = Image.create(64, 64, false, Image.FORMAT_RGB8)
+	for y in 64:
+		for x in 64:
+			var hb: bool = ((x + (y / 4) * 2) % 8) < 4 if (y / 8) % 2 == 0 else ((x - (y / 4) * 2 + 64) % 8) < 4
+			var c: Color = Color(0.34, 0.30, 0.24) if hb else Color(0.24, 0.21, 0.17)
+			_img_speck(tweed_img, x, y, c)
+	tweed_img.generate_mipmaps()
+	var tweed: StandardMaterial3D = mat(Color.WHITE, 0.95, 0.0, ImageTexture.create_from_image(tweed_img), Vector3(3, 3, 1))
+	var crown: MeshInstance3D = sphere(78.0, tweed, at + Vector3(0.0, 10.0, -12.0), null, true)
+	crown.scale = Vector3(1.0, 0.36, 1.1)
+	crown.rotation = Vector3(0.10, 0.4, 0.0)
+	var peak: MeshInstance3D = sphere(64.0, tweed, at + Vector3(sin(0.4) * 60.0, 6.0, cos(0.4) * 60.0), null, true)
+	peak.scale = Vector3(0.9, 0.10, 0.45)
+	peak.rotation = Vector3(0.0, 0.4, 0.0)
+	sphere(5.0, tweed, at + Vector3(0.0, 38.0, -10.0))
 
-func _skin_tex(n: int) -> ImageTexture:
-	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
-	for y in n:
-		for x in n:
-			img.set_pixel(x, y, SKIN.darkened(0.05 * h01(x * 13 + y * 7)).lerp(Color(0.92, 0.66, 0.58), 0.12 * h01(x / 8 + y / 8 * 9)))
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+func _img_speck(img: Image, x: int, y: int, c: Color) -> void:
+	img.set_pixel(x, y, c.darkened(0.12 * h01(x * 13 + y * 7)))
 
-func _tapered(r0: float, r1: float, m: StandardMaterial3D) -> MeshInstance3D:
-	var cm: CylinderMesh = CylinderMesh.new()
-	cm.top_radius = r1
-	cm.bottom_radius = r0
-	cm.height = 1.0
-	cm.radial_segments = 20
-	cm.rings = 3
-	var mi: MeshInstance3D = MeshInstance3D.new()
-	mi.mesh = cm
-	mi.material_override = m
-	root.add_child(mi)
-	return mi
+# --- live: the candle's flame and the hanging watch ---------------------------------------------------------------
 
-func _build_arms() -> void:
-	var shirt: StandardMaterial3D = mat(Color.WHITE, 0.75, 0.0, _shirting(64), Vector3(1, 2, 1))
-	var skin: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.0, _skin_tex(64))
-	for k in 2:
-		# the upper arm in its sleeve (full at the shoulder), the sleeve ROLLED at the elbow (a thick fold), the bare
-		# forearm tapering to the wrist
-		_upper.append(_tapered(12.5, 10.0, shirt))
-		var cuff: Node3D = Node3D.new()
-		root.add_child(cuff)
-		var roll: TorusMesh = TorusMesh.new()
-		roll.inner_radius = 8.0
-		roll.outer_radius = 13.5
-		put(roll, shirt, Vector3.ZERO, Vector3(90.0, 0.0, 0.0), cuff)
-		_cuff.append(cuff)
-		_fore.append(_tapered(9.0, 6.5, skin))
-		# THE HAND: a palm, a thumb, four fingers of two joints each curling down over the cup's top
-		var hand: Node3D = Node3D.new()
-		root.add_child(hand)
-		var palm: MeshInstance3D = sphere(10.5, skin, Vector3(0.0, 0.0, 0.0), hand)
-		palm.scale = Vector3(1.05, 0.55, 1.15)
-		var joints: Array = []
-		for fg in 4:
-			var j1: Node3D = Node3D.new()
-			hand.add_child(j1)
-			j1.position = Vector3(-7.5 + float(fg) * 5.0, -1.0, 10.0)
-			var ph1: MeshInstance3D = cyl(2.6, 2.8, 9.0, skin, Vector3(0.0, 0.0, 4.5), Vector3(90.0, 0.0, 0.0), j1, 10)
-			ph1.name = "p1"
-			var j2: Node3D = Node3D.new()
-			j1.add_child(j2)
-			j2.position = Vector3(0.0, 0.0, 9.0)
-			cyl(2.3, 2.6, 7.0, skin, Vector3(0.0, 0.0, 3.5), Vector3(90.0, 0.0, 0.0), j2, 10)
-			sphere(2.3, skin, Vector3(0.0, 0.0, 7.0), j2)
-			joints.append([j1, j2])
-		var side: float = 1.0 if k == 0 else -1.0
-		var th: Node3D = Node3D.new()
-		hand.add_child(th)
-		th.position = Vector3(side * 9.0, -1.0, 2.0)
-		th.rotation = Vector3(0.0, side * 0.9, side * -0.4)
-		cyl(3.0, 3.4, 12.0, skin, Vector3(0.0, 0.0, 6.0), Vector3(90.0, 0.0, 0.0), th, 10)
-		_fingers.append(joints)
-		_hands.append(hand)
+func _build_live() -> void:
+	# THE FLAME: a bright core in a soft teardrop, and a halo in the air round it
+	var fm: StandardMaterial3D = glow(Color(1.0, 0.78, 0.36))
+	_flame_pivot = Node3D.new()
+	root.add_child(_flame_pivot)
+	_flame_pivot.position = CANDLE + Vector3(0.0, 205.0, 0.0)
+	_flame = sphere(9.0, fm, Vector3(0.0, 17.0, 0.0), _flame_pivot)
+	_flame.scale = Vector3(0.6, 2.0, 0.6)
+	# its blue root at the wick, and the flame's own light, flickering on the live watch
+	_root_flame = sphere(4.0, glow(Color(0.35, 0.50, 1.0, 0.7)), Vector3(0.0, 2.0, 0.0), _flame_pivot)
+	_flame_light = light(CANDLE + Vector3(0.0, 236.0, 0.0), Color(1.0, 0.72, 0.40), 2.0, 1600.0)
+	sphere(4.0, glow(Color(1.0, 0.98, 0.90)), Vector3(0.0, 7.0, 0.0), _flame_pivot)
+	var hm: StandardMaterial3D = StandardMaterial3D.new()
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	hm.billboard_keep_scale = true
+	var gt: GradientTexture2D = GradientTexture2D.new()
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	var g: Gradient = Gradient.new()
+	g.set_color(0, Color(1.0, 0.85, 0.55, 0.55))
+	g.set_color(1, Color(1.0, 0.6, 0.3, 0.0))
+	gt.gradient = g
+	hm.albedo_texture = gt
+	var hq: QuadMesh = QuadMesh.new()
+	hq.size = Vector2(150.0, 150.0)
+	_halo = put(hq, hm, CANDLE + Vector3(0.0, 222.0, 4.0))
+	# THE HANGING WATCH: a pivot at the table's edge, the chain hanging from it, the watch at its end, face toward you
+	_swing = Node3D.new()
+	root.add_child(_swing)
+	_swing.position = HANG
+	var hang_path: PackedVector3Array = PackedVector3Array()
+	for hk in 8:
+		hang_path.append(Vector3(0.0, -CHAIN_L * float(hk) / 7.0, 0.0))
+	_chain(hang_path, true, _swing)
+	var w: Node3D = _watch(Vector3(0.0, -CHAIN_L - 56.0, 0.0), true, true, 2.1, _swing, Vector3(90.0, 0.0, 0.0))
+	# its seconds hand on the small dial, ticking
+	_second = Node3D.new()
+	w.add_child(_second)
+	_second.position = Vector3(0.0, 14.6, 15.4)
+	box(Vector3(0.8, 0.4, 9.0), mat(Color(0.5, 0.05, 0.05), 0.4), Vector3(0.0, 0.0, -3.5), Vector3.ZERO, _second)
 
-# the two-bone solve: the elbow where both bones keep their lengths, bent toward the pole (out, down, a little back)
-func _pose_arm(k: int) -> void:
-	var sh: Vector3 = SHOULDERS[k]
-	var hand: Node3D = _hands[k]
-	var wrist: Vector3 = hand.position + Vector3(0.0, 4.0, -12.0)
-	var to: Vector3 = wrist - sh
-	var d: float = clampf(to.length(), 10.0, UPPER + FORE - 0.5)
-	var dir: Vector3 = to.normalized()
-	wrist = sh + dir * d
-	# out of reach, the hand stops at the wrist (it never comes off the arm)
-	hand.position = wrist - Vector3(0.0, 4.0, -12.0)
-	var a: float = (UPPER * UPPER - FORE * FORE + d * d) / (2.0 * d)
-	var h: float = sqrt(maxf(0.0, UPPER * UPPER - a * a))
-	var side: float = -1.0 if k == 0 else 1.0
-	var pole: Vector3 = Vector3(side * 1.0, -0.8, -0.35)
-	var perp: Vector3 = (pole - dir * pole.dot(dir)).normalized()
-	var elbow: Vector3 = sh + dir * a + perp * h
-	_span(_upper[k], sh, elbow)
-	_span(_fore[k], elbow, wrist)
-	var cuff: Node3D = _cuff[k]
-	var fdir: Vector3 = (wrist - elbow).normalized()
-	cuff.position = elbow + fdir * 6.0
-	cuff.basis = _basis_along(fdir)
-	# the hand turned along the forearm, flat over the cup, the fingers curled down round its top
-	var yaw: float = atan2(fdir.x, fdir.z)
-	hand.rotation = Vector3(0.18, yaw, 0.0)
-	for jt in _fingers[k]:
-		(jt[0] as Node3D).rotation = Vector3(0.55, 0.0, 0.0)
-		(jt[1] as Node3D).rotation = Vector3(0.75, 0.0, 0.0)
-
-func _basis_along(y: Vector3) -> Basis:
-	var x: Vector3 = y.cross(Vector3.FORWARD)
-	if x.length() < 0.01:
-		x = y.cross(Vector3.RIGHT)
-	x = x.normalized()
-	return Basis(x, y, x.cross(y).normalized())
-
-# THE HEAD, live (it turns with the cups): a skull a little longer than wide, ears, a jaw, brows, eyes with whites,
-# irises and lids, a shaped nose, a full mustache, the tweed cap with its crown, brim and button
-func _build_head() -> void:
-	var skin: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.0, _skin_tex(64))
-	var hair: StandardMaterial3D = mat(Color(0.22, 0.14, 0.10), 0.85)
-	var tweed: StandardMaterial3D = mat(Color.WHITE, 0.95, 0.0, _wool(64, CAP), Vector3(2, 2, 1))
-	_head = Node3D.new()
-	root.add_child(_head)
-	_head.position = Vector3(0.0, 212.0, -100.0)
-	var skull: MeshInstance3D = sphere(27.0, skin, Vector3(0.0, 24.0, 0.0), _head)
-	skull.scale = Vector3(0.92, 1.08, 1.0)
-	var jaw: MeshInstance3D = sphere(20.0, skin, Vector3(0.0, 8.0, 6.0), _head)
-	jaw.scale = Vector3(1.05, 0.8, 0.95)
-	for ex in [-1.0, 1.0]:
-		var ear: MeshInstance3D = sphere(6.5, skin, Vector3(ex * 25.0, 22.0, -2.0), _head)
-		ear.scale = Vector3(0.45, 1.0, 0.75)
-		# the eye: white, iris, a lid over the top; the brow above
-		var eye_c: Vector3 = Vector3(ex * 10.0, 28.0, 22.5)
-		var white: MeshInstance3D = sphere(4.2, mat(Color(0.96, 0.95, 0.92), 0.2), eye_c, _head)
-		white.scale = Vector3(1.2, 0.85, 0.6)
-		sphere(2.3, mat(Color(0.20, 0.12, 0.08), 0.1), eye_c + Vector3(0.0, -0.3, 2.2), _head)
-		var lid: MeshInstance3D = sphere(4.6, skin, eye_c + Vector3(0.0, 1.8, 0.2), _head, true)
-		lid.scale = Vector3(1.25, 0.7, 0.7)
-		var brow: MeshInstance3D = sphere(5.0, hair, eye_c + Vector3(ex * 0.5, 6.5, 0.4), _head)
-		brow.scale = Vector3(1.8, 0.45, 0.6)
-		brow.rotation_degrees = Vector3(0.0, 0.0, ex * -10.0)
-		# the mustache: a full sweep each side
-		var mus: MeshInstance3D = sphere(8.0, hair, Vector3(ex * 7.5, 14.5, 25.0), _head)
-		mus.scale = Vector3(1.35, 0.5, 0.65)
-		mus.rotation_degrees = Vector3(0.0, ex * -15.0, ex * -18.0)
-		# the side hair under the cap
-		var side_h: MeshInstance3D = sphere(9.0, hair, Vector3(ex * 22.0, 30.0, -8.0), _head)
-		side_h.scale = Vector3(0.5, 0.9, 1.2)
-	# the nose: a bridge and a rounded tip
-	var bridge: MeshInstance3D = sphere(4.5, skin, Vector3(0.0, 24.0, 25.0), _head)
-	bridge.scale = Vector3(0.8, 1.6, 0.9)
-	sphere(5.2, skin, Vector3(0.0, 19.5, 27.5), _head)
-	# the cap: a soft crown, a band, a peaked brim, a button on top
-	var crown: MeshInstance3D = sphere(29.5, tweed, Vector3(0.0, 40.0, -2.0), _head, true)
-	crown.scale = Vector3(1.05, 0.55, 1.12)
-	cyl(28.0, 28.5, 8.0, tweed, Vector3(0.0, 40.0, -1.0), Vector3.ZERO, _head, 32)
-	var brim: MeshInstance3D = cyl(20.0, 22.0, 3.0, mat(CAP.darkened(0.25), 0.9), Vector3(0.0, 38.0, 24.0), Vector3(-10.0, 0.0, 0.0), _head, 28)
-	brim.scale = Vector3(1.1, 1.0, 0.65)
-	sphere(3.2, tweed, Vector3(0.0, 56.0, -2.0), _head)
+func _animate(_delta: float) -> void:
+	if _flame == null:
+		return
+	# the flame breathing and leaning in the draft, never jumping
+	# ALIVE (the user: "much more active"): it stretches and squats quickly, dances side to side, and every few
+	# seconds a draft bends it hard over and lets it spring back; the halo and the light breathe with it
+	var fl: float = 0.45 * sin(t * 9.3) + 0.30 * sin(t * 15.1 + 1.0) + 0.25 * sin(t * 4.7 + 2.0)
+	var gust: float = pow(maxf(0.0, sin(t * 0.9) * sin(t * 0.37 + 1.0)), 3.0)
+	var dance: float = 0.16 * sin(t * 5.3) + 0.08 * sin(t * 11.0 + 0.5)
+	var stretch: float = 2.0 + 0.55 * fl - 0.5 * gust
+	_flame.scale = Vector3(0.62 - 0.08 * fl, stretch, 0.62 - 0.08 * fl)
+	_flame.position = Vector3(0.0, 8.5 * stretch, 0.0)      # its root stays at the wick as it stretches
+	_flame_pivot.rotation = Vector3(0.10 * sin(t * 6.1), 0.0, dance + 0.7 * gust)
+	_root_flame.scale = Vector3.ONE * (1.0 + 0.15 * fl)
+	_halo.scale = Vector3.ONE * (1.0 + 0.16 * fl - 0.2 * gust)
+	_flame_light.light_energy = 2.0 + 0.6 * fl - 0.8 * gust
+	# the watch swinging, a slow pendulum, its swing very slowly dying and being renewed (a draft)
+	var amp: float = 0.22 + 0.06 * sin(t * 0.21)
+	_swing.rotation = Vector3(0.0, 0.0, amp * sin(t * TAU / 2.6))
+	# and turning a little on its chain
+	_swing.rotation.y = 0.25 * sin(t * 0.37)
+	# the seconds hand, a tick each second with a small settle
+	var s: float = floor(t)
+	var ft: float = t - s
+	var settle: float = 1.0 - pow(1.0 - clampf(ft / 0.12, 0.0, 1.0), 3.0)
+	_second.rotation = Vector3(0.0, -(s + settle) * TAU / 60.0, 0.0)
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	title("Pickpocket", "Follow the ball and catch the pickpocket", Color(1.0, 0.86, 0.55), Color(0.10, 0.06, 0.12),

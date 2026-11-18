@@ -132,7 +132,7 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
 
-# the main menu's poster (main_menu.gd asks the game for one): a trail of cards running back into the distance
+# the main menu's poster (main_menu.gd asks the game for one): a paleontologist's desk, the cards moving along a route on a map
 func menu_backdrop() -> Control:
 	return preload("res://dinoback/scripts/menu_world.gd").new()
 

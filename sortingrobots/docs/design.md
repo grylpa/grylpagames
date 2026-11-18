@@ -424,8 +424,18 @@ games): a soft latch and machine chime for an item sorted right, a low note for 
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): night in the parcel depot: a dark ribbed wall, a hanging lamp's cone, an amber beacon turning, hazard stripes along the floor; a crane's cable to a yellow spreader bar whose two straps run down to the lid corners of one of the game's own parcels (scripts/parcel_art.gd), swinging it (the straps turn with the box: a claw drawn over its top did not reach it), over a PILE of four more -- two on the floor, one across them, one on top, each resting on those below (a column with gaps read as shelves); the boxes are hidden until every picture is rendered, then fade in together (they appeared one by one), and every 3.4 s the inspector's seal stamping the swinging box, green or red, then lifting.
-Made up, never the board: the menu also opens mid-game.
-
-THE DEPOT IS ONE BAKED PICTURE (2026-11-17, `bake_whole`: `devtools/make_menu_stills.gd` captures a copy of the poster in `bake_mode`): the wall, the lamp, the floor and a BIG PILE of the game's parcels (`PILE`: two stacks at the right, a smaller one at the left -- more than could be rendered at each start); live are only the beacon, the swinging parcel (made a moment in, fading in) and its stamp. First frame 51 -> 27 ms.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A ROBOT
+SORTING STATION (2026-11-18, a new concept: the crane swinging one parcel over a pile was "a bit boring"). In a lit
+depot -- pendant lamps, a tall corrugated wall with windows, pipes, BAY 3 painted on it, floor markings, a steel drain
+grate -- parcels come out through a strip curtain on a running belt (its surface's texture slides; rollers and bolts
+along its edge), each a taped cardboard box with a shipping label and two of the game's shapes on its lid in Sleek's
+colors; they pass under a SCANNER ARCH (hazard-striped posts, a lit scan window, status lights) whose red laser sweeps
+them; at the belt's end a ROBOT ARM picks each one up -- a turning base bolted to its plinth, two tapered links solved
+to fixed lengths (`_reach`, a two-bone solve), motor housings with end caps and bolt rings at the joints, cable hoses,
+an SR-7 plate, a wrist that keeps the suction gripper pointing down -- swings it round and sets it on one of two
+chutes side by side at its right, the green or the red, by a rule (a red shape on it goes green); it slides away down
+the chute (gathering speed, tilted with it) and through a HATCH in a low steel SORTING WALL -- hazard-striped frames, a
+lamp over each -- pushing the hatch's STRIP CURTAIN aside, the strips swinging and settling after it, and that chute's
+lamp flashes (2026-11-18: before, the parcels slid sideways off the chutes into the air). The chutes and the wall are
+built into the live view too, so a parcel passes behind their rails and the wall. Baked, one picture per platform (`menu_depot.webp`, `menu_depot_d.webp`);
+the belt surface, parcels, arm, laser and lamps are live. Made up, never the board.

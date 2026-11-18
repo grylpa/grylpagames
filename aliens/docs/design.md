@@ -981,12 +981,18 @@ sized to `screen_size` it stopped there and left a band of the clear color (2026
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
-2026-11-17 (it was a drawn picture; kept in the private repo's `tmp/aliens_2d_backup.gd`): A SPACEPORT GATE ON AN
-ALIEN WORLD AT NIGHT. In 2-D behind: the violet-to-teal sky, twinkling stars, a ringed planet and two moons. The world,
-baked with a CLEAR sky (`_bake_alpha`; `menu_port.webp`, `menu_port_d.webp`): dark violet-teal rocky ground with
-craters, rock spires on the horizon, GATE 7 (two pylons with light strips and a crossbar of bulbs), the round boarding
-pad with a glowing ring and chevrons, antenna masts with red lamps, cargo crates. Live in 3-D: a FLYING SAUCER of
-brushed metal under a glass dome, hovering and turning, its rim lights chasing, and a translucent beam down to the pad.
-The game's own aliens (alien.gd, 2-D) drift down the beam, placed from its 3-D path (`screen_of`), and two wait on the
-pad; rings of light run down the beam. Made up, never the board.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: THE SPACEPORT AT
+NIGHT, AT WORK (2026-11-18; the user: "one of the most important games ... make this much more engaging"; the gate arch
+did not work). A big SAUCER (paneled hull, a band of chasing rim lights, the engine ring glowing under it, a lit dome)
+hangs over a landing deck of HEX PLATES with glowing seams (`_hex_tex`; the emission texture MULTIPLIES -- added, it lit
+every plate white) and lets its passengers down its RAY onto the ARRIVALS PAD (the user liked the ray; it had faded to a
+ghost: now a shader cone and an inner cone, brightest along the rim and the core, strongest at the saucer, a shimmer
+running down it, a pool of its light on the pad): the game's own aliens (alien.gd, 2-D,
+placed by the 3-D camera). Each hops across the deck to the BOARDING PAD whose pass it fits -- a hologram over each
+(`_draw_holo`: "BLUE" with a blue alien, "3 EYES" with three eyes) -- and is lifted aboard in a soft shaft of light
+(`_columns`); one that fits neither wanders off into the field. Round the deck: boulders, a rock arch, banded buttes (the
+crystal clusters read as "strange colored paper flowers" and the beacon masts as gray poles with a carrot on top -- both
+removed, 2026-11-18); in 2-D behind, the sky with the ringed planet and two moons and TWINKLING STARS, each its own
+size, hue and pace, the bright ones flaring now and then with four fine glints. Baked with a clear sky
+(`menu_port.webp`, `menu_port_d.webp`). Made up, never the board.
+

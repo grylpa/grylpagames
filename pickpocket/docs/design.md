@@ -399,23 +399,20 @@ now also says that later levels sometimes ask for the pickpocket instead.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
-2026-11-17 (it was a drawn picture; kept in the private repo's `tmp/pickpocket_2d_backup.gd`): A CLOSE-UP OF THE
-HUSTLER'S TABLE at dusk, in the game's own colors (shell_table.gd). Baked, one picture per platform (`menu_table.webp`,
-`menu_table_d.webp`): the dusk street behind (cobbles, shopfronts with lit windows and awnings, a lamp post, the sky
-over the roofs); the small folding table under a red cloth with a gold fringe and green baize; the lantern on its pole; the hustler's
-BODY -- a LATHED torso (`_lathe`: elliptical sections, narrow at the waist, broad at the chest, the shoulders sloping
-to the neck, round shoulder caps) in a STRIPED shirt (`_shirting`), the WOOL vest over it with a real V at the front
-(`_v_gap`), brass buttons, welt pockets, a watch chain, the red neckerchief with its tails. Live: his HEAD (it turns to
-follow the cup that moves): a skull, jaw, ears, eyes with whites, irises and lids, brows, a shaped nose, a full
-mustache, side hair, a TWEED cap with its crown, band, brim and button; his ARMS, FIXED LENGTHS solved each frame
-(`_pose_arm`, a two-bone solve, each elbow bent out, down and a little back): the sleeve rolled to the elbow (a thick
-fold), the bare forearm tapering to the wrist, a HAND with a palm, a thumb and four two-jointed fingers curled over the
-cup's top; and the three COPPER CUPS on FOUR PLACES (`PLACES`, `MOVES`): each beat ONE hand slides ONE cup to the empty
-place along an arc out in front of the others, the hand on that side of the table, so neither ever crosses to the
-other side (with two-handed swaps the arms crossed, "make it physically correct", the user); a hand out of reach stops
-at its wrist, never leaving the arm. After six moves he lifts the cup with the red ball (it rides under its cup, seen
-only then), sets it down and goes on. Behind,
-two people pass across the street: someone, and the thief a step behind, a hand drifting to their pocket. Made up,
-never the board (the game's wide street is not shown: the first version looked "too much like something that is
-playable").
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: THE
+PICKPOCKET'S HAUL, BY CANDLELIGHT (2026-11-18; a new concept -- the shell game at the table was tried several ways and
+kept failing, the user: "think of another concept completely"). A night's takings tipped out on an old oak table of
+thick planks: a soft leather purse slumped on its side (`_sack`: a crumpled body, its neck gathered into folds by the
+drawstring) spilling gold and silver coins (`_coin`, rimmed, some stacked, some leaning), wallets in black, oxblood and
+tan with their stitching, one OPEN on three engraved banknotes (`_banknote`), pocket watches in gold and silver
+(`_watch`: case, dial with its minute track and small seconds, hands, crystal, crown and bow) with their chains
+(`_chain`: oval links, each a quarter turn from the last), a string of pearls, a ring with a red stone. A tallow candle
+in a brass chamberstick lights it from the back left, its long shadows running toward you. No people: the pickpocket
+is only what he took -- and to say so (the user: "what does it represent?"), the haul lies on a folded newspaper, THE
+EVENING COURIER, headlined PICKPOCKET STRIKES AGAIN (`_newsprint`, Label3D; no coin falls on it), with the thief's tweed
+flat cap beside it (`_cap`). The pearls lie on a clear patch of the table (across the wallet they hovered). LIVE: the
+candle's flame, ALIVE -- stretching and squatting, dancing, every few seconds bent hard over by a draft and springing
+back, always from the wick (`_flame_pivot`), a blue root, its halo and its own flickering light; and ONE WATCH HANGING
+BY ITS CHAIN from a brass WATCH STAND on the table (over the front edge it was hidden behind the level list), swinging
+slowly and turning a little, its second hand ticking. The table and the haul are baked, one picture per platform (`menu_haul.webp`, `menu_haul_d.webp`).
+Made up, never the board.

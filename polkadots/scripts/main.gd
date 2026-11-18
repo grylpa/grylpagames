@@ -73,7 +73,7 @@ func _ready() -> void:
 	game.progress_pct_label = "% Correct"
 	game.progress_pct_format = "%d"
 
-# the main menu's poster (main_menu.gd asks the game for one): fireflies in a night meadow gathering into a letter
+# the main menu's poster (main_menu.gd asks the game for one): a station's flip-dot board turning its discs into a letter
 func menu_backdrop() -> Control:
 	return preload("res://polkadots/scripts/menu_world.gd").new()
 

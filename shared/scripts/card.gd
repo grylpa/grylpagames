@@ -1,6 +1,6 @@
 extends Node2D
 
-# Shared zigzag-framed image card, used by dino, couples, weris and friends.
+# Shared image card, used by dino, dino n-back, couples, weris and friends -- all now as old prints (set_photo).
 #
 # A NinePatch zig border (res://art/zig1.png — shared art, tinted via self_modulate) around
 # an image, optionally with a name label below it (friends-style) and optional tap handling.
@@ -18,7 +18,7 @@ extends Node2D
 #   tappable / press_dim       emit card_pressed(meta) on click; optional press dim
 #   meta                       payload passed with card_pressed
 # Label: set_label(text) + show_label(bool). The card grows/shrinks to include the label.
-# set_photo(true) (friends, weris): instead of the zig border, an OLD PRINTED PHOTO -- a frame of aged
+# set_photo(true) (every game that uses it, since 2026-11-18): instead of the zig border, an OLD PRINTED PHOTO -- a frame of aged
 # card stock (cream, yellowing toward its edges, a stain or two) with a deckled, slightly uneven cut
 # edge, a nick or two out of it, a scorched stretch along one edge, a soft shadow, and the print itself
 # faintly warmed and darkened at its corners; the name in dark ink on the bottom margin rather than on
@@ -61,6 +61,9 @@ var photo: bool = false
 var _photo_bg: Control = null
 var _photo_fx: Control = null
 var _paper_seed: int = 0
+# which edge the scorch runs along (0..3), or -1 for the card's own random one: Couples puts its two copies' burns on
+# opposite edges, so the frames give nothing away
+var burn_side: int = -1
 const _PAPER: Color = Color(0.94, 0.91, 0.83)
 const _PAPER_EDGE: Color = Color(0.84, 0.76, 0.60)
 const _INK: Color = Color(0.20, 0.16, 0.13)
@@ -312,6 +315,8 @@ func _draw_paper() -> void:
 	# from the rect's straight edge, a thin bright line of stock showed under it, which shimmered as a
 	# card changed size.
 	var side: int = rng.randi_range(0, 3)
+	if burn_side >= 0:
+		side = burn_side
 	var u0: float = rng.randf_range(0.05, 0.40)
 	var u1: float = u0 + rng.randf_range(0.35, 0.55)
 	var inward: Array = [Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 0)]

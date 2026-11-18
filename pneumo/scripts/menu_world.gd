@@ -423,14 +423,7 @@ func _draw_front(d: Control) -> void:
 		d.draw_line(gc + Vector2.from_angle(ta) * 15.0, gc + Vector2.from_angle(ta) * 19.0, Color(0.2, 0.2, 0.2), 1.2)
 	d.draw_arc(gc, 17.0, PI * 0.8 + PI * 1.4 * 0.78, PI * 2.2, 8, Color(0.85, 0.2, 0.15), 2.5)
 	# (the needle is live: _draw_over)
-	# the steam pipe's VALVE WHEEL: a cast rim of round section, four spokes, a domed hub -- each shaded round
-	var vw: Vector2 = Vector2(full.x * 0.86, _feed[0].y)
-	var red: Color = Color(0.70, 0.16, 0.12)
-	for k in 4:
-		var sa: float = TAU * float(k) / 4.0 + 0.4
-		_cyl(d, vw + Vector2.from_angle(sa) * 3.0, vw + Vector2.from_angle(sa) * 15.0, 2.2, red.darkened(0.6), red, red.lightened(0.5))
-	_torus(d, vw, 15.5, 3.0, red.darkened(0.65), red, red.lightened(0.55))
-	_knob(d, vw, 5.0, BRASS)
+	# (the steam pipe's valve wheel is live: _draw_over turns it)
 
 # WHAT MOVES, over the baked front: the dial's pointer, the gauge's needle (and the glass over each), a receiver's
 # lamp when it flashes, the vent's steam
@@ -445,6 +438,19 @@ func _draw_over(d: Control) -> void:
 	d.draw_colored_polygon(PackedVector2Array([_junction + tipv * jr * 0.46, _junction + tipv.orthogonal() * 4.0, _junction - tipv * jr * 0.16, _junction - tipv.orthogonal() * 4.0]), Color(0.12, 0.10, 0.10))
 	_knob(d, _junction, 5.0, BRASS)
 	d.draw_arc(_junction, jr * 0.70, PI * 1.05, PI * 1.55, 16, Color(1, 1, 1, 0.45), 3.0, true)
+	# the steam pipe's VALVE WHEEL: a cast rim of round section, four spokes, a domed hub -- each shaded round. A
+	# hand is working it: a turn one way, a pause, back the other way, a pause
+	var vw: Vector2 = Vector2(full.x * 0.86, _feed[0].y)
+	var red: Color = Color(0.70, 0.16, 0.12)
+	var cu: float = fmod(t, 7.0)
+	var turn: float = 2.2 * (smoothstep(0.0, 2.2, cu) - smoothstep(3.5, 5.7, cu))
+	for k in 4:
+		var sa: float = TAU * float(k) / 4.0 + 0.4 + turn
+		_cyl(d, vw + Vector2.from_angle(sa) * 3.0, vw + Vector2.from_angle(sa) * 15.0, 2.2, red.darkened(0.6), red, red.lightened(0.5))
+	_torus(d, vw, 15.5, 3.0, red.darkened(0.65), red, red.lightened(0.55))
+	_knob(d, vw, 5.0, BRASS)
+	# a mark cast on the rim, so the turn reads
+	d.draw_circle(vw + Vector2.from_angle(turn - 0.6) * 15.5, 1.4, red.lightened(0.7))
 	var fy: float = _feed[0].y
 	if counter_y - fy >= 300.0:
 		var gc: Vector2 = Vector2(full.x * 0.27, fy - R - 36.0)

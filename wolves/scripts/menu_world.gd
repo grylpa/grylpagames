@@ -139,10 +139,10 @@ func _tick(delta: float) -> void:
 		var from: Vector2 = _center + sides[k] * Vector2(full.x / ZOOM * 0.44, spread * 2.2)
 		var to: Vector2 = _center + sides[k] * Vector2(spread * 1.9, spread * 0.8)
 		var fleeing: bool = u > 0.60 and u < 0.86
-		var goal: Vector2 = from.lerp(to, creep)
+		var goal_k: Vector2 = from.lerp(to, creep)
 		if fleeing:
-			goal = from + (from - _center).normalized() * 30.0     # back into the trees, and beyond
-		_steer(_wolves[k], goal, 95.0 if fleeing else 30.0, delta)
+			goal_k = from + (from - _center).normalized() * 30.0     # back into the trees, and beyond
+		_steer(_wolves[k], goal_k, 95.0 if fleeing else 30.0, delta)
 		if fleeing and fmod(t, 0.09) < delta:
 			_dust.append([_wolves[k].position * ZOOM, t])
 	# THE DOG circles the flock, and in the middle of the cycle swings round to the first wolf's side and runs

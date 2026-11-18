@@ -348,7 +348,36 @@ apron), a road along the front, pallets, drums, trees. Along the road comes the 
 pulling three flatbed carts, each with a parcel in its bay's color. As it passes the bays the REAR cart peels off,
 curves across the apron into its bay (its ROLL-UP door rolls up for it -- drawn shorter from its top edge, as a
 roll-up door does), the bay's number lights, the door rolls down behind it: bay 1, then 2, then 3, in order; the
-engine drives on and out (`CYCLE` 15 s). The warehouse's main block stands BEHIND the bays, so an open door shows its
+engine drives on and out (the cycle is taken from the camera, see below). The warehouse's main block stands BEHIND the bays, so an open door shows its
 dark bay (in front, it showed brick). The yard is baked, one picture per platform (`menu_yard.webp`,
 `menu_yard_d.webp`); the truck, doors and numbers are live; a cart is gone only behind its closed door. Made up, never
 the board.
+
+**2026-11-18:** the truck is at the lane's edge from the first frame (no wait). Detail pass: a corrugated roof, high windows, gooseneck lamps over the bays, downspouts, expansion joints and oil stains on the apron, trees of several clumps; the cab's grille, chrome bumper, mirrors, door line and handle, exhaust stack; carts with planks and slatted side rails, parcels with labels.
+
+**2026-11-18, the user's second round** ("numbers unreadable when their backgrounds are colored ... door frames are
+flat ... the shadow cast by the roofs does not affect the numbers ... the bottom"): the lit plates' figures turn to DARK
+INK as the plate lights (white on a lit plate could not be read), outlined; shadow-only copies of the canopies in the
+live view throw their shadows on the signs; each bay's FRAME a painted steel channel (a bevelled flange bolted to the
+wall, its return lining the opening, worn paint, a black rubber seal, guide tracks, a drum housing) with rubber dock
+bumpers on steel plates; the verge mown grass (`_grass`).
+
+**2026-11-18, a full quality pass** (the user: "cars still have no proper lighting and textures, the target numbers are
+3d wrong"): a stronger, warmer low sun and less flat fill; each BAY lit warm inside with racking and stock; canopies
+raised high on brackets, clear of the NUMBER SIGNS -- enamel plates flat on the brick (a white border, the figure, four
+screws), lit live (a live sign drew over the baked canopy in front of it); the TRUCK rebuilt -- a rounded clear-coated
+cab, a raked windscreen and side windows, a pinstripe, door seams and handles, steps, arched fenders over treaded tires
+on chrome rims with wheel nuts, chrome grille and bumper, headlamps in bezels, marker lamps, mirrors, a fuel tank, an
+exhaust stack; the CARTS steel-framed with plank decks and stake sides; the PARCELS cardboard with a band in their bay's
+color and the bay's NUMBER on a label; the ROAD textured asphalt with repair patches, worn wheel tracks, and a footpath.
+
+**2026-11-18, the third round** ("the shadow cast by the canopies over the numbers does not seem to affect the numbers";
+"after all carts entered and the puller has left, immediately enter a new one. no pause"): the NUMBER SIGNS are BAKED --
+white plate, the bay's color darkened, the figure, screws -- so the canopies' baked shadows fall on them; the live view
+only lays a lit plate and dark ink over a sign once its parcel is in -- a PAINTED plate in the bay's bright color lit by
+the sun (only a faint glow), with shadow-only copies of each canopy and its brackets in the live view, so the shade
+lies on it as on the brick (glowing, it looked unshaded; an unlit sign's inset is grayed so the change reads). THE CYCLE IS TAKEN FROM THE CAMERA
+(`_cyc`, `_enter_x`, on the first frame): the engine comes in with its nose just off the left edge and the next truck
+comes in the moment the last one's engine leaves the right edge (never before the last door is down); the doors open
+and close quicker, and last round's signs fade as the new truck comes in.
+

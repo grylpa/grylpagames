@@ -106,7 +106,7 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	_did_per_level_save = true
 	game.save_score(get_game_score(_didwin, false))
 
-# the main menu's poster (main_menu.gd asks the game for one): the street, the cups and the pickpocket
+# the main menu's poster (main_menu.gd asks the game for one): the pickpocket's haul on a table by candlelight
 func menu_backdrop() -> Control:
 	return preload("res://pickpocket/scripts/menu_world.gd").new()
 

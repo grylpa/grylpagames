@@ -438,13 +438,22 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A COUNTRY
-ROAD AT NIGHT -- a road winding in a loop through dark fields and trees (a Catmull-Rom loop, sampled, the road a
-ribbon along it with a dashed line), a farmhouse with a lit window inside the loop, three small numbered DEPOTS on
-its outside, each under its own lamp and facing the road -- and the game's delivery truck (an engine and three
-carts with their parcels) driving round, seen by its HEADLIGHTS: two cones that follow the road a little ahead as it
-turns, warm light added where they fall, the tail lamps glowing red. As it passes each depot, in order, the depot's
-number badge (drawn over the dark, always facing you -- a board read mirrored from behind) lights in its color. The
-country is baked BRIGHT, one picture per platform (`menu_road.webp`, `menu_road_d.webp`): the night is the base's
-veil over it (`add_darkness`, holes for the cones, the depot lamps, a faint glow round the truck and the window) with
-the light layer adding warmth. Made up, never the board.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`, RENDERED LIVE
+(no picture, `_baked_path` empty): A WAREHOUSE LANE AT NIGHT at street level. A lane of wet cobbles (a ribbon along a
+Catmull-Rom path, in lengths -- a mesh takes at most 8 lights -- stone curbs, faint puddle films that catch the lights'
+shine) curving away between brick warehouses (string courses, cornices, windows -- a few lit -- drainpipes, wall lamps
+on goosenecks, each a real dim warm light, a fire escape), three loading doors on the left wall (steel frames, ribbed
+roll-up doors in their colors, hazard-striped steps, canopies) each with an ENAMEL NUMBER SIGN over it. Up the lane
+comes the game's truck: a cab-over tractor (green enamel, windscreen, mudguards, chrome grille and bumper, roof lamp)
+pulling three wooden flatbeds, each with a taped carton labelled in its door's color; its two HEADLAMPS are real spot
+lights (one casting shadows) that sweep the brick and the cobbles as it rounds the bend, with a soft additive beam in
+the damp air before each and a flare at each lens (a billboard that keeps the 1:100 scale and is hidden by whatever
+stands in front of it); red tail lamps and their glow behind. Each door's sign lights in its color as the truck passes
+(`_sign_mats`), its figure turning to dark ink. THE LANE IS NEVER EMPTY (2026-11-18, the user: never a time without a
+car, and it vanished at the front instead of going all the way down): each truck starts just behind the far bend
+(`ENTER_D`), where the walls still hide it and its light is already on the brick, drives all the way down past the end
+of the lane and under the camera (`_at` runs straight on past the path's end) until its last cart is out of the foot of
+the picture, and the next comes round the bend at that moment. Depth fog in the night's blue. 2026-11-18: rebuilt live -- the night had
+been a 2-D veil with holes cut for the beams, and the beams, glare and door badges were drawn over everything ("many
+many 3d ordering bugs"). First frame ~250 ms (the lane is built and its shaders compiled then). Made up, never the board.
+

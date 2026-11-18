@@ -5,16 +5,14 @@ extends "res://scripts/menu_poster3d.gd"
 # glow) -- REAL 3-D now (the front-on drawing was "flat"): a keep of stone blocks with a tall central tower, four
 # round corner towers under conical roofs, crenellated curtain walls and an arched gate, on an island of rock with
 # roots hanging under it; two islets beside it, each with a turret; glowing stepping stones floating up to the gate.
-# Its windows light one after another, each in a room's color -- remembered one by one -- until the whole palace
-# glows, then go dark and it begins again (`CYCLE` 11 s). The palace is baked with a CLEAR sky (`_bake_alpha`:
-# `menu_palace.webp`, `menu_palace_d.webp`); the windows, the stones and the flags are live, the mist 2-D in front.
+# Its windows light and go dark each at its own rhythm, in the rooms' colors -- rooms remembered and forgotten. The palace is baked with a CLEAR sky (`_bake_alpha`:
+# `menu_palace.webp`, `menu_palace_d.webp`); the windows, the stones and the pennants are live, the mist 2-D in front.
 # Nothing with a hard edge moves except the flags (the first version bobbed, "jitter and flicker"). Made up, never
 # the board.
 
 const SKY: Shader = preload("res://mmm/scripts/palace_sky.gdshader")
 const ROOM_COLORS: Array = [Color(0.95, 0.32, 0.32), Color(0.32, 0.64, 0.98), Color(0.42, 0.88, 0.46),
 	Color(0.99, 0.80, 0.30), Color(0.78, 0.48, 0.98), Color(0.32, 0.88, 0.88), Color(1.0, 0.58, 0.26)]
-const CYCLE: float = 11.0
 const DARK_WIN: Color = Color(0.07, 0.05, 0.12)
 const TOWERS: Array = [Vector3(-150.0, 0.0, 70.0), Vector3(150.0, 0.0, 70.0), Vector3(-130.0, 0.0, -70.0), Vector3(130.0, 0.0, -70.0)]
 const ISLETS: Array = [Vector3(-340.0, 40.0, 40.0), Vector3(330.0, 10.0, -10.0)]
@@ -23,7 +21,6 @@ var _sky: ColorRect = null
 var _back: Control = null
 var _wins: Array = []                  # StandardMaterial3D per window
 var _stones: Array = []                # [StandardMaterial3D, index]
-var _flags: Array = []                 # Node3D per flag
 
 func _baked_path() -> String:
 	return "res://mmm/art/menu_palace.webp" if mobile else "res://mmm/art/menu_palace_d.webp"
@@ -32,7 +29,7 @@ func _bake_alpha() -> bool:
 	return true
 
 func _eye() -> Vector3:
-	return Vector3(40.0, 260.0, 900.0) if mobile else Vector3(40.0, 260.0, 1150.0)
+	return Vector3(40.0, 240.0, 1080.0) if mobile else Vector3(40.0, 260.0, 1450.0)
 
 func _aim() -> Vector3:
 	return Vector3(0.0, 150.0, 0.0) if mobile else Vector3(0.0, 175.0, 0.0)
@@ -41,7 +38,7 @@ func _fov() -> float:
 	return 50.0
 
 func _frame_frac() -> float:
-	return 0.52
+	return 0.40 if mobile else 0.50
 
 func _environment(env: Environment) -> void:
 	env.background_color = Color(0.05, 0.04, 0.10)
@@ -58,6 +55,7 @@ func _setup() -> void:
 	_sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var m: ShaderMaterial = ShaderMaterial.new()
 	m.shader = SKY
+	m.set_shader_parameter("style", 0)       # the STARRY SKY: the game's dark hall (style 3) read as a grid of squares
 	_sky.material = m
 	add_child(_sky)
 	_back = Control.new()
@@ -170,9 +168,7 @@ func _build_live() -> void:
 		var tp: Vector3 = TOWERS[k2]
 		for r in 3:
 			_win(tp + Vector3(0.0, 60.0 + float(r) * 42.0, 31.5), 10.0, 15.0, 0.0)
-	for k3 in 2:
-		var tp2: Vector3 = TOWERS[2 + k3]
-		_win(tp2 + Vector3(0.0, 170.0, 31.0), 10.0, 14.0, 0.0)
+	# (none on the back towers: a live window draws over the baked keep that hides it, and floated in the air)
 	for ip in ISLETS:
 		_win((ip as Vector3) + Vector3(0.0, 60.0, 19.5), 8.0, 12.0, 0.0)
 	# the stepping stones, floating down from the gate toward you
@@ -187,29 +183,70 @@ func _build_live() -> void:
 		tops.append((TOWERS[k4] as Vector3) + Vector3(0.0, (190.0 if k4 < 2 else 220.0) + 80.0, 0.0))
 	for k5 in tops.size():
 		var tp3: Vector3 = tops[k5]
-		cyl(1.2, 1.2, 30.0, mat(Color(0.2, 0.2, 0.2), 0.5), tp3 + Vector3(0.0, 15.0, 0.0))
-		var f: Node3D = Node3D.new()
-		root.add_child(f)
-		f.position = tp3 + Vector3(0.0, 26.0, 0.0)
-		box(Vector3(22.0, 12.0, 0.6), mat(ROOM_COLORS[k5 % ROOM_COLORS.size()], 0.6), Vector3(11.0, 0.0, 0.0), Vector3.ZERO, f)
-		_flags.append(f)
+		# a pole thick enough to see (thin, the flags read as color rects floating in the air), a gilt finial
+		cyl(2.6, 2.6, 34.0, mat(Color(0.62, 0.60, 0.66), 0.4, 0.6), tp3 + Vector3(0.0, 15.0, 0.0))
+		sphere(3.6, mat(Color(0.92, 0.74, 0.34), 0.3, 0.8), tp3 + Vector3(0.0, 33.0, 0.0))
+		# A PENNANT OF CLOTH (they were stiff colored boxes turning on their poles): long and tapering, rippling in
+		# the wind (palace pennant shader: a wave running out along it, growing toward the tip, and shaded by its folds)
+		var pm: ShaderMaterial = ShaderMaterial.new()
+		pm.shader = _pennant_shader()
+		pm.set_shader_parameter("col", ROOM_COLORS[k5 % ROOM_COLORS.size()])
+		pm.set_shader_parameter("phase", float(k5) * 1.7)
+		var pq: PlaneMesh = PlaneMesh.new()
+		pq.size = Vector2(44.0, 14.0)
+		pq.subdivide_width = 22
+		pq.subdivide_depth = 2
+		pq.orientation = PlaneMesh.FACE_Z
+		put(pq, pm, tp3 + Vector3(22.0, 26.0, 0.0))
+
+var _pennant: Shader = null
+
+func _pennant_shader() -> Shader:
+	if _pennant != null:
+		return _pennant
+	_pennant = Shader.new()
+	_pennant.code = """shader_type spatial;
+render_mode cull_disabled;
+uniform vec3 col = vec3(1.0, 0.3, 0.3);
+uniform float phase = 0.0;
+varying float along;
+void vertex() {
+	float u = (VERTEX.x + 22.0) / 44.0;           // 0 at the pole, 1 at the tip
+	along = u;
+	VERTEX.y *= mix(1.0, 0.12, u);                // tapering to a point
+	VERTEX.y -= u * u * 3.0;                      // the tip droops a little
+	float w = TIME * 5.5 + phase;
+	float k = 7.0;
+	float amp = 4.5 * u;
+	VERTEX.z += amp * sin(u * k - w) + 1.2 * u * sin(u * 17.0 - w * 1.9);
+	float dz = 4.5 * (sin(u * k - w) / 44.0 + u * k / 44.0 * cos(u * k - w));
+	NORMAL = normalize(vec3(-dz * 3.0, 0.0, 1.0));
+}
+void fragment() {
+	float edge = smoothstep(0.0, 0.04, along);
+	ALBEDO = col * (0.75 + 0.25 * edge);
+	ROUGHNESS = 0.85;
+	SPECULAR = 0.2;
+	EMISSION = col * 0.18;
+	BACKLIGHT = col * 0.4;
+}"""
+	return _pennant
 
 func _animate(_delta: float) -> void:
-	var u: float = fmod(t, CYCLE) / CYCLE
-	var n: int = _wins.size()
-	var fade: float = 1.0 - smoothstep(0.86, 0.98, u)
-	for k in n:
-		# each window eases on in its turn, in a room's color; all go dark together at the end
-		var on_at: float = 0.04 + 0.70 * float(k) / float(maxi(1, n))
-		var a: float = smoothstep(on_at, on_at + 0.04, u) * fade
-		var idx: int = (k * 7) % n
+	# EACH WINDOW ON ITS OWN: lit and dark by turns at its own rhythm, easing over a moment (the user: not all off at once)
+	for k in _wins.size():
+		var period: float = 1.8 + 2.6 * h01(k + 300)
+		var tk: float = t + h01(k + 400) * period
+		var seg: int = int(floor(tk / period))
+		var fu: float = fmod(tk, period)
+		var now_on: float = 1.0 if h01(k * 97 + seg) > 0.42 else 0.0
+		var was_on: float = 1.0 if h01(k * 97 + seg - 1) > 0.42 else 0.0
+		var a: float = lerpf(was_on, now_on, smoothstep(0.0, 0.35, fu))
 		var c: Color = ROOM_COLORS[k % ROOM_COLORS.size()]
-		(_wins[idx] as StandardMaterial3D).albedo_color = DARK_WIN.lerp(c, a)
+		(_wins[k] as StandardMaterial3D).albedo_color = DARK_WIN.lerp(c, a)
 	for st in _stones:
 		var glow_v: float = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 1.2 - float(st[1]) * 0.7))
 		(st[0] as StandardMaterial3D).albedo_color = Color(0.40, 0.34, 0.62).lerp(Color(0.86, 0.80, 1.0), glow_v)
-	for k2 in _flags.size():
-		(_flags[k2] as Node3D).rotation = Vector3(0.0, 0.35 * sin(t * 2.2 + float(k2)), 0.0)
 
 # --- the sky behind (2-D) and the mist in front ----------------------------------------------------------------------
 
@@ -227,14 +264,43 @@ func _draw_back(d: Control) -> void:
 		var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * full.y * 0.80)
 		var tw: float = 0.5 + 0.5 * sin(t * (0.25 + 0.5 * h01(k + 9)) + float(k) * 1.7)
 		d.draw_circle(sp, 0.8 + 1.3 * h01(k * 5 + 3), Color(0.92, 0.90, 1.0, 0.30 + 0.45 * tw * h01(k * 5 + 4)))
+	# A FEW BRIGHT STARS THAT TWINKLE: each now and then flares, its four rays reaching out and drawing back
+	for k3 in 14:
+		var bp: Vector2 = Vector2(h01(k3 * 7 + 500) * full.x, (0.04 + 0.6 * h01(k3 * 7 + 501)) * full.y)
+		var per: float = 2.5 + 3.5 * h01(k3 + 502)
+		var u: float = fmod(t + h01(k3 + 503) * per, per) / per
+		var flare: float = pow(maxf(0.0, sin(u * PI)), 6.0)
+		var base_a: float = 0.55 + 0.25 * sin(t * 3.1 + float(k3))
+		var hue: Color = Color(0.85, 0.90, 1.0).lerp(Color(1.0, 0.92, 0.78), h01(k3 + 504))
+		d.draw_circle(bp, 6.0 + 8.0 * flare, Color(hue, 0.05 + 0.10 * flare))
+		d.draw_circle(bp, 1.5 + 0.8 * flare, Color(hue, base_a + 0.4 * flare))
+		var ray: float = 4.0 + 16.0 * flare
+		for ra in 4:
+			var dv: Vector2 = Vector2.from_angle(PI * 0.5 * float(ra) + 0.1) * ray
+			d.draw_line(bp, bp + dv, Color(hue, 0.15 + 0.6 * flare), 1.2, true)
+			d.draw_line(bp, bp + dv * 0.45, Color(1, 1, 1, 0.2 + 0.6 * flare), 1.6, true)
 	if _cam3 == null:
 		return
 	var top: Vector2 = screen_of(Vector3(0.0, 300.0, -10.0))
 	var moon: Vector2 = Vector2(full.x * 0.87, top.y + 30.0)
-	for g in 7:
-		d.draw_circle(moon, 90.0 - float(g) * 11.0, Color(0.85, 0.82, 1.0, 0.035))
-	d.draw_circle(moon, 28.0, Color(0.96, 0.94, 1.0))
-	d.draw_circle(moon + Vector2(10.0, -6.0), 24.0, Color(0.09, 0.07, 0.17, 0.94))
+	# THE MOON: a soft halo, then a sphere shaded from its lit upper left to a dim limb, with its seas and craters
+	# (it was a flat crescent)
+	var mr: float = 30.0
+	for g in 10:
+		d.draw_circle(moon, mr * (3.2 - 0.22 * float(g)), Color(0.85, 0.82, 1.0, 0.022))
+	d.draw_circle(moon, mr, Color(0.50, 0.48, 0.58))
+	for k in 20:
+		var f: float = float(k + 1) / 20.0
+		d.draw_circle(moon + Vector2(-mr, -mr) * 0.28 * f, mr * (1.0 - 0.60 * f), Color(0.50, 0.48, 0.58).lerp(Color(0.98, 0.96, 1.0), f))
+	for sea in [[Vector2(-8.0, -6.0), 9.0], [Vector2(7.0, 4.0), 7.0], [Vector2(-2.0, 12.0), 5.0]]:
+		d.draw_set_transform(moon + (sea[0] as Vector2), 0.3, Vector2(1.0, 0.75))
+		d.draw_circle(Vector2.ZERO, float(sea[1]), Color(0.55, 0.53, 0.66, 0.45))
+		d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	for cr in [[Vector2(12.0, -10.0), 3.0], [Vector2(-14.0, 8.0), 2.4], [Vector2(4.0, -16.0), 2.0], [Vector2(16.0, 10.0), 2.2]]:
+		var cp: Vector2 = moon + (cr[0] as Vector2)
+		d.draw_circle(cp, float(cr[1]), Color(0.60, 0.58, 0.70, 0.7))
+		d.draw_arc(cp, float(cr[1]), PI * 1.1, PI * 1.9, 8, Color(1, 1, 1, 0.45), 1.0, true)
+	d.draw_arc(moon, mr - 0.5, deg_to_rad(110.0), deg_to_rad(340.0), 40, Color(1.0, 1.0, 1.0, 0.25), 1.5, true)
 	var c: Vector2 = screen_of(Vector3(0.0, 120.0, 0.0))
 	var r: float = screen_of(Vector3(300.0, 120.0, 0.0)).distance_to(c)
 	for g2 in 9:

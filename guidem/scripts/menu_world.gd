@@ -216,11 +216,37 @@ func _speckle_tex(w: int, h: int, base: Color, amount: float, seed_i: int) -> Im
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
+# asphalt you can see: dark binder, pale and dark aggregate at two sizes, faint tar seams, patches of newer surface
+func _asphalt_tex(n: int) -> ImageTexture:
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n:
+			var patch: float = 0.5 + 0.5 * sin(float(x) * 0.021 + sin(float(y) * 0.017) * 2.0) * sin(float(y) * 0.013)
+			var c: Color = Color(0.17, 0.16, 0.17).lerp(Color(0.22, 0.21, 0.21), patch)
+			var g: float = h01(x * 131 + y * 71)
+			if g > 0.93:
+				c = c.lightened(0.30 * h01(x + y * 7))
+			elif g < 0.06:
+				c = c.darkened(0.35)
+			img.set_pixel(x, y, c)
+	for k in 260:
+		var cx: int = int(h01(k * 3 + 5000) * float(n))
+		var cy: int = int(h01(k * 3 + 5001) * float(n))
+		var stone: Color = [Color(0.36, 0.34, 0.32), Color(0.26, 0.25, 0.26), Color(0.44, 0.40, 0.36)][k % 3]
+		img.fill_rect(Rect2i(cx, cy, 2 + k % 2, 2), stone)
+	for sm in 3:
+		var sy: int = int(h01(sm + 5100) * float(n))
+		for x2 in n:
+			var yy: int = (sy + int(3.0 * sin(float(x2) * 0.05))) % n
+			img.set_pixel(x2, yy, Color(0.08, 0.08, 0.09))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
 func _ground() -> void:
 	# the forecourt's asphalt and the street beyond, fine grit in it, a little sheen
 	var asphalt: StandardMaterial3D = _mat(Color(1, 1, 1), 0.55)
-	asphalt.albedo_texture = _speckle_tex(256, 256, Color(0.20, 0.19, 0.20), 0.16, 3)
-	asphalt.uv1_scale = Vector3(8, 8, 1)
+	asphalt.albedo_texture = _asphalt_tex(512)
+	asphalt.uv1_scale = Vector3(5, 3, 1)
 	var pm: PlaneMesh = PlaneMesh.new()
 	pm.size = Vector2(2400.0, 1400.0)
 	_put(pm, asphalt, Vector3(0.0, 0.0, -100.0))
@@ -236,6 +262,45 @@ func _ground() -> void:
 	while lx < 1200.0:
 		_box(Vector3(40.0, 0.3, 4.0), paint, Vector3(lx + 20.0, 0.15, 190.0))
 		lx += 90.0
+	# THE FORECOURT'S WEAR (2026-11-18: an empty plane of one tone read flat): glossy puddles from the evening's rain,
+	# each catching the lamps; oil stains in the bays; a manhole cover; a drain grate by the kerb; painted arrows
+	# (translucent: this renderer reflects nothing, so an opaque puddle was a black hole; the sheen is the lamps'
+	# highlights on a darker, smoother film)
+	var wet: StandardMaterial3D = _mat(Color(0.04, 0.05, 0.07, 0.14), 0.03, 0.0)
+	wet.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wet.metallic_specular = 1.0
+	for pd in [[Vector3(-60.0, 0.12, -40.0), 70.0, 0.4], [Vector3(60.0, 0.12, 60.0), 44.0, 0.3], [Vector3(-380.0, 0.12, -20.0), 58.0, 0.5], [Vector3(330.0, 0.12, 90.0), 36.0, 0.35], [Vector3(-170.0, 0.12, 80.0), 30.0, 0.6]]:
+		# an irregular film: a few overlapping lobes, smaller toward its edges
+		for lb in 4:
+			var lr: float = float(pd[1]) * (0.75 - 0.15 * float(lb))
+			var lo: Vector3 = Vector3(cos(float(lb) * 2.3 + float(pd[2]) * 5.0), 0.0, sin(float(lb) * 2.3 + float(pd[2]) * 5.0)) * float(pd[1]) * 0.35 * float(mini(lb, 1) + lb) * 0.5
+			var pm2: MeshInstance3D = _cyl(lr, lr, 0.2, wet, Vector3(pd[0]) + lo + Vector3(0.0, 0.01 * float(lb), 0.0), null, 32)
+			pm2.scale = Vector3(1.0, 1.0, float(pd[2]) + 0.3)
+			pm2.rotation.y = float(pd[2]) * 2.0 + float(lb)
+	var stain: StandardMaterial3D = _mat(Color(0.06, 0.05, 0.06, 0.55), 0.25)
+	stain.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for k2 in BAYS:
+		var sm2: MeshInstance3D = _cyl(10.0 + 6.0 * h01(k2 + 40), 10.0 + 6.0 * h01(k2 + 40), 0.2, stain, Vector3(BAY_X0 + float(k2) * BAY_DX + 4.0 * (h01(k2) - 0.5), 0.14, -30.0), null, 24)
+		sm2.scale = Vector3(1.0, 1.0, 1.5)
+	var iron: StandardMaterial3D = _mat(Color(0.16, 0.15, 0.15), 0.5, 0.6)
+	_cyl(20.0, 20.0, 0.8, iron, Vector3(-200.0, 0.4, 10.0), null, 40)
+	for ring in 3:
+		var tr2: TorusMesh = TorusMesh.new()
+		tr2.inner_radius = 5.0 + float(ring) * 5.0
+		tr2.outer_radius = 6.2 + float(ring) * 5.0
+		_put(tr2, iron, Vector3(-200.0, 0.7, 10.0))
+	_box(Vector3(36.0, 0.8, 14.0), iron, Vector3(70.0, 0.4, 112.0))
+	for gb in 8:
+		_box(Vector3(2.0, 0.6, 12.0), _mat(Color(0.02, 0.02, 0.02), 0.9), Vector3(56.0 + float(gb) * 4.0, 0.85, 112.0))
+	var arrow_paint: StandardMaterial3D = _mat(Color(0.90, 0.88, 0.80), 0.6)
+	for ar in 2:
+		var ac: Vector3 = Vector3(-10.0 + float(ar) * 70.0, 0.16, 70.0)
+		_box(Vector3(34.0, 0.3, 5.0), arrow_paint, ac)
+		# the head: two strokes meeting at the tip, pointing on to the bays
+		var tip: Vector3 = ac + Vector3(19.0, 0.0, 0.0)
+		for hs in [-1.0, 1.0]:
+			var hd: MeshInstance3D = _box(Vector3(14.0, 0.3, 5.0), arrow_paint, tip - Vector3(5.7, 0.0, hs * 4.0))
+			hd.rotation.y = -hs * 0.61
 	# the bays' white lines
 	var white: StandardMaterial3D = _mat(Color(0.92, 0.92, 0.90), 0.6)
 	for k in BAYS + 1:
@@ -245,7 +310,7 @@ func _ground() -> void:
 
 # THE HOTEL: a stone face (its texture drawn in code: courses of dressed stone, rusticated at the ground floor,
 # the windows -- dark glass in its color, lit rooms in its emission), pilasters, string course and cornice
-# standing out as real boxes
+# standing out as real boxes, and the face's relief (`_relief`): architraves, lintels, keystones, balconies
 func _hotel() -> void:
 	var w: int = 1040
 	var h: int = 520
@@ -327,6 +392,54 @@ func _hotel() -> void:
 			if absf(wx2 - 17.0 + 18.0) < 70.0 and fl < 1:
 				continue
 			_box(Vector3(40.0, 3.0, 5.0), trim, Vector3(wx2, wy2 - 1.5, FACADE_Z + 2.5))
+	_relief(trim)
+
+# THE FACE IN RELIEF (2026-11-18: a painted quad with a few strips on it read flat): every window in a raised
+# architrave with a lintel cornice over it and, on alternate floors, a keystone; iron balconies on two floors; the
+# pilasters given bases and capitals; a row of dentils under the main cornice. Each piece catches the lamps' light
+# and casts its own little shadow
+func _relief(trim: StandardMaterial3D) -> void:
+	var stone_lit: StandardMaterial3D = _mat(Color(0.74, 0.68, 0.60), 0.75)
+	var iron: StandardMaterial3D = _mat(Color(0.08, 0.08, 0.09), 0.4, 0.6)
+	for fl in 9:
+		for b in 16:
+			var wx: float = -490.0 + float(b) * 62.0
+			var wy: float = 110.0 + float(fl) * 46.0
+			if absf(wx + 18.0) < 70.0 and fl < 1:
+				continue
+			var cx: float = wx + 17.0
+			# the architrave: jambs and head standing 3 proud of the face
+			_box(Vector3(3.0, 33.0, 3.0), stone_lit, Vector3(wx - 1.5, wy + 15.0, FACADE_Z + 1.5))
+			_box(Vector3(3.0, 33.0, 3.0), stone_lit, Vector3(wx + 35.5, wy + 15.0, FACADE_Z + 1.5))
+			_box(Vector3(40.0, 3.0, 3.0), stone_lit, Vector3(cx, wy + 31.5, FACADE_Z + 1.5))
+			if fl < 8:
+				# the lintel's little cornice, and its keystone on alternate floors
+				_box(Vector3(46.0, 3.0, 6.0), trim, Vector3(cx, wy + 35.5, FACADE_Z + 3.0))
+				if fl % 2 == 0:
+					_box(Vector3(7.0, 9.0, 5.0), stone_lit, Vector3(cx, wy + 33.0, FACADE_Z + 2.5))
+			# THE BALCONIES: floors 3 and 6, every fourth bay -- a slab on two corbels, an iron railing on balusters
+			if (fl == 2 or fl == 5) and b % 4 == 1:
+				_box(Vector3(52.0, 4.0, 18.0), trim, Vector3(cx, wy - 3.0, FACADE_Z + 9.0))
+				for cb in [-1.0, 1.0]:
+					_box(Vector3(5.0, 8.0, 14.0), trim, Vector3(cx + cb * 20.0, wy - 9.0, FACADE_Z + 7.0))
+				_box(Vector3(52.0, 2.0, 2.0), iron, Vector3(cx, wy + 13.0, FACADE_Z + 17.0))
+				_box(Vector3(2.0, 2.0, 16.0), iron, Vector3(cx - 25.0, wy + 13.0, FACADE_Z + 9.0))
+				_box(Vector3(2.0, 2.0, 16.0), iron, Vector3(cx + 25.0, wy + 13.0, FACADE_Z + 9.0))
+				for bl in 11:
+					_cyl(0.7, 0.7, 14.0, iron, Vector3(cx - 25.0 + float(bl) * 5.0, wy + 6.0, FACADE_Z + 17.0), null, 6)
+	# the pilasters' bases and capitals
+	for k in 9:
+		var px: float = -520.0 + float(k) * 130.0
+		if absf(px) < 70.0:
+			continue
+		_box(Vector3(22.0, 10.0, 12.0), trim, Vector3(px, 107.0, FACADE_Z + 6.0))
+		_box(Vector3(24.0, 8.0, 14.0), trim, Vector3(px, 500.0, FACADE_Z + 7.0))
+		_box(Vector3(20.0, 4.0, 11.0), stone_lit, Vector3(px, 494.0, FACADE_Z + 5.5))
+	# dentils under the cornice
+	var dx: float = -520.0
+	while dx < 520.0:
+		_box(Vector3(5.0, 6.0, 6.0), stone_lit, Vector3(dx + 2.5, 501.0, FACADE_Z + 3.0))
+		dx += 10.0
 
 func _lit_windows() -> void:
 	var st: SurfaceTool = SurfaceTool.new()
@@ -392,11 +505,11 @@ func _entrance() -> void:
 	for px in [-48.0, 48.0]:
 		_cyl(4.0, 3.0, 10.0, _mat(Color(0.20, 0.20, 0.22), 0.4, 0.3), Vector3(px, ph + 5.0, lz0 + 8.0))
 		for fr in 5:
-			var leaf: SphereMesh = SphereMesh.new()
-			leaf.radius = 5.0
-			leaf.height = 4.0
+			var leaf_m: SphereMesh = SphereMesh.new()
+			leaf_m.radius = 5.0
+			leaf_m.height = 4.0
 			var la: float = TAU * float(fr) / 5.0
-			_put(leaf, _mat(Color(0.12, 0.32, 0.12), 0.8), Vector3(px + cos(la) * 5.0, ph + 18.0 + float(fr % 2) * 3.0, lz0 + 8.0 + sin(la) * 5.0))
+			_put(leaf_m, _mat(Color(0.12, 0.32, 0.12), 0.8), Vector3(px + cos(la) * 5.0, ph + 18.0 + float(fr % 2) * 3.0, lz0 + 8.0 + sin(la) * 5.0))
 	var chand: SphereMesh = SphereMesh.new()
 	chand.radius = 6.0
 	chand.height = 9.0
@@ -583,7 +696,19 @@ func _static_lights() -> void:
 # THE LAMP POSTS: dark posts with a lantern, each a real light on the forecourt
 func _lamps() -> void:
 	var iron: StandardMaterial3D = _mat(Color(0.10, 0.10, 0.11), 0.5, 0.6)
-	var globe: StandardMaterial3D = _glow_mat(Color(1.0, 0.86, 0.62), 3.5)
+	# the globe is FROSTED GLASS lit from within, warm (it was a flat disc of white): bright amber at the middle,
+	# deeper toward its rim, where the light crosses more glass
+	var globe: ShaderMaterial = ShaderMaterial.new()
+	var gsh: Shader = Shader.new()
+	gsh.code = """shader_type spatial;
+render_mode unshaded;
+void fragment() {
+	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+	vec3 core = vec3(1.0, 0.86, 0.58);
+	vec3 rim = vec3(0.86, 0.46, 0.16);
+	ALBEDO = mix(rim, core, pow(facing, 1.6)) * (0.80 + 0.25 * facing);
+}"""
+	globe.shader = gsh
 	for lp in LAMPS:
 		var b: Vector3 = lp
 		_cyl(2.0, 3.2, 86.0, iron, b + Vector3(0, 43.0, 0))
@@ -871,5 +996,40 @@ func _car_state(i: int) -> Array:
 	return []
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
+	_lamp_life()
 	title("Valet", "Help your players reach their targets", Color(1.0, 0.88, 0.60), Color(0.12, 0.06, 0.04),
 		Color(1.0, 0.8, 0.45, 0.25))
+
+# LIFE ROUND THE LAMPS (2026-11-18; the user: the lamp "somewhat disturbing to the eye ... add some life to it"): a
+# soft halo breathing round each globe and MOTHS circling it -- each on its own looping, wavering course, now
+# in front of the glass and now behind it (dimmer, half hidden), wings a quick flicker
+func _lamp_life() -> void:
+	if _cam3 == null or _box_vc == null or bake_mode:
+		return
+	for li in LAMPS.size():
+		var g3: Vector3 = (LAMPS[li] as Vector3) + Vector3(0.0, 93.0, 0.0)
+		if _cam3.is_position_behind(g3 * 0.01):
+			continue
+		var g: Vector2 = _box_vc.position + _cam3.unproject_position(g3 * 0.01)
+		var px: float = (_box_vc.position + _cam3.unproject_position((g3 + Vector3(7.0, 0.0, 0.0)) * 0.01)).distance_to(g) / 7.0
+		var breathe: float = 0.92 + 0.05 * sin(t * 1.7 + float(li)) + 0.03 * sin(t * 5.3 + float(li) * 2.0)
+		for k in 7:
+			cv.draw_circle(g, (34.0 - float(k) * 4.0) * px * breathe, Color(1.0, 0.70, 0.36, 0.022))
+		for m in 3:
+			var ph: float = h01(li * 7 + m) * TAU
+			var sp: float = 2.2 + 1.3 * h01(li * 7 + m + 30)
+			var ang: float = t * sp + ph + 0.6 * sin(t * 3.7 + ph)
+			var rad: float = (11.0 + 5.0 * sin(t * 1.9 + ph * 2.0) + 3.0 * sin(t * 6.1 + ph)) * px
+			var depth: float = sin(ang)                   # > 0: in front of the globe
+			var pos: Vector2 = g + Vector2(cos(ang) * rad, -2.0 * px + (sin(t * 4.3 + ph) * 4.0 - depth * 2.0) * px)
+			var behind: bool = depth < 0.0 and pos.distance_to(g) < 7.0 * px
+			var a: float = 0.35 if behind else 0.85
+			var wing: float = absf(sin(t * 38.0 + ph * 5.0))
+			var body: Color = Color(0.30, 0.24, 0.18, a)
+			var lit: Color = Color(1.0, 0.85, 0.62, a * 0.9)
+			var ws: float = maxf(1.4, 1.7 * px)
+			cv.draw_set_transform(pos, cos(ang) * 0.5, Vector2.ONE)
+			cv.draw_colored_polygon(PackedVector2Array([Vector2.ZERO, Vector2(-1.6, -1.8 * wing - 0.4) * ws, Vector2(-0.4, -0.2) * ws]), lit)
+			cv.draw_colored_polygon(PackedVector2Array([Vector2.ZERO, Vector2(1.6, -1.8 * wing - 0.4) * ws, Vector2(0.4, -0.2) * ws]), lit)
+			cv.draw_circle(Vector2.ZERO, 0.6 * ws, body)
+			cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -439,6 +439,37 @@ games): a soft latch and machine chime for an item sorted right, a low note for 
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): a billiard room seen low over the table: the felt running away in perspective under a green-shaded lamp's cone, beer bottles (scripts/bottle_art.gd) dim on the far rail, a cue across the near corner, and the game's own ball pair (scripts/ball_art.gd) ROLLING up the felt from a speck at the far end -- in perspective (its depth z gives both its size and its place on a ground plane), decelerating as a struck ball does (s = 1 - (1-p)^2), its labels turned by the distance rolled over the radius (`ball_art.gd` `roll_angle`, unused in the game; the first version glided) -- and dropping into the big leather pocket in the near rail (sink_into), then the next pair (4.2 s).
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` (the
+shared `main_menu.gd` keeps only a slim panel at the foot): A BILLIARD ROOM AT NIGHT, seen down the length of the
+table (2026-11-18; the drawn table and bare room were "flat"). The camera stands back and above the near end so the WHOLE table shows -- both rails, the near pocket, the body under
+them (2026-11-18; the user could not see the pocket, the table's foot or its sides). The felt (a nap texture) on its
+slate bed, rubber wedge cushions along the rails, clear-coated rails inlaid with pearl diamond sights, a deep
+mahogany apron with carved panels and a brass bead, the table at a true table's height (`TABLE_Y` 165; at 80 it sat on
+the floor on stubs, the user) on long turned legs -- a block under the apron, a collar, a bulb, a taper to a brass shoe
+-- on a PALE hand-knotted rug (`_rug`, on a plane: an ivory field under a lattice with rosettes, a lobed rust medallion,
+small corner pieces, a rust border with a running vine between indigo and gold guards, the pile's mottling, abrash and
+wear, its edges and fringes in 3-D; a deep red rug and dark floor had swallowed the dark mahogany, the user), the floor and wall panels a lighter honey oak, and a low light from the front so the carving,
+the beads and the turned legs catch highlights; a leather pocket in the
+near rail under a brass-bound mouth; a long green billiard lamp on chains with three bulbs -- five spot lights pour
+light down the WHOLE table (unlit, its far end vanished and the balls there seemed to float); paneled walls, and
+on the far wall, lit by picture lights, a rack of cues, a bead scoreboard and a framed print; bottles of beer
+(glass, labels, caps) on the far rail; TWO CUES lying on the felt along the left cushion, one a little across the other,
+with their wraps, butt caps, ferrules and chalked tips, and a cube of chalk on the rail (one cue lay half off the table at
+a slant that read as the table standing on the floor, the user).
+THE HALL round it (more going on, the user): a BAR along the back wall at the right -- counter, brass foot rail,
+backlit shelves of bottles, stools, a BILLIARDS / cold beer neon over it -- a second table under its own lamp at the
+back left, a window with a red neon outside, a jukebox in the corner, a high round table with stools and beer, a cue
+stand, framed prints and sconces down the side walls. The balls are sized by the camera (`ref_px`). The lamp hangs
+higher on a desktop, whose short band put it behind the title. The room is baked, one picture per
+platform (`art/menu_room.webp`, `art/menu_room_d.webp`).
+
+Live: the game's own ball pair (`scripts/ball_art.gd`) ROLLING up the felt from the far end, placed by the 3-D
+camera (`screen_of`: its size is the screen length of 100 units where it is, against the same at the near end),
+losing speed but never stopping (s = p (1.55 - 0.55 p): it reaches the lip still rolling; decelerating to a stop there,
+it paused before the pocket -- the user), its labels turned by the distance rolled over the radius
+(`ball_art.gd` `roll_angle`, unused in the game; the first version glided) -- and dropping into the pocket
+(`sink_into`, which now starts at full speed and eases only into the hole -- also in the game; the near rail's face is
+drawn again from the baked picture OVER the balls with the mouth's near half cut out of it, `_rail_cover`, so a ball
+drops down behind the rail into the hole -- drawn over the rail, it seemed to fall into the wood), then the next pair
+(4.2 s). Nothing is made before the screen has a size (zero-sized labels).
 Made up, never the board: the menu also opens mid-game.

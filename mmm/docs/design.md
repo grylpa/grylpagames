@@ -589,7 +589,10 @@ size: it still reads as four colored towers.
 
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` since
 2026-11-17 (the front-on drawing was "flat"): a palace of the mind floating in the game's night sky. Behind it in
-2-D: the sky shader (palace_sky.gdshader), slowly twinkling stars, a moon beside the central tower and a violet glow.
+2-D: the sky shader (palace_sky.gdshader) in its STARRY style (`style` 0; the game's dark hall, style 3, read as a
+grid of squares), slowly twinkling stars and a few bright ones that FLARE now and then, their four rays reaching out
+and drawing back, a moon beside the central tower and a violet glow. Its flags are cloth PENNANTS rippling in the wind
+(a vertex shader: tapering, a wave running out along them, shaded by their folds; 2026-11-18, stiff boxes before).
 The palace: a keep of grey-violet stone blocks with a tall central tower, four round corner towers under deep violet
 conical roofs, crenellated curtain walls, an arched gate (straight jambs, a half-round of wedge stones -- a full ring
 read as a porthole), on an island of rock with a ring of boulders and roots hanging under it; two islets with
@@ -597,3 +600,5 @@ turrets. Live in 3-D: its windows light one after another, each in a room's colo
 go dark (11 s); the stepping stones floating down from the gate glow in turn; the flags wave. The mist drifts under the
 island in 2-D. Baked with a CLEAR sky, one picture per platform (`menu_palace.webp`, `menu_palace_d.webp`). Nothing
 with a hard edge moves except the flags (the first version bobbed, "jitter and flicker"). Made up, never the board.
+
+**2026-11-18:** the windows light and go dark EACH AT ITS OWN RHYTHM (never all off at once); no windows on the back towers (a live window draws over the baked keep that hides it and floated in the air); flag poles thick enough to see, with gilt finials; the moon a shaded sphere with seas and rimmed craters under a soft halo; the phone's camera farther back so the island's foot and the stones clear the card.

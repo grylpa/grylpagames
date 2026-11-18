@@ -609,6 +609,7 @@ func _show_next_card() -> void:
 	add_child(_card)
 	_card.set_frame(8, 8)  # dino uses a thicker frame than the shared default
 	_card.setup(tex, entry["color"])
+	_card.set_photo(true)  # an old print's frame, not the zigzag (the user, 2026-11-18)
 	_card.set_width(w)
 	# centered in the card area (its center is a fixed point, so the layout is stable and
 	# the text above always stays in the same place regardless of card size).

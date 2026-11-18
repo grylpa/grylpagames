@@ -220,6 +220,23 @@ bar (it stopped 40 units short, at the footer, and the clear color showed there)
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): the game's own coins in a slow-motion SHOWER through a pool of lamplight over the darkened felt, in three depths (small and dim far back, big and sharp in front), each turning as it falls (never edge-on), past a large shop PRICE TAG hanging in the foreground -- manila, cut to a point at a brass-ringed eyelet, a twisted red-and-white string, shaded paper with a ruled border, "PAY EXACTLY" over $2.85 in deep red ink -- a touch askew and barely stirring (a plain cream card swinging on a white thread was "a bit ugly", the user). Restaged on 2026-11-17: a tray with coins dropping into it looked "too much like something that is playable" (the user).
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` (the
+shared `main_menu.gd` keeps only a slim panel at the foot): AT A CORNER SHOP'S COUNTER (2026-11-18; the plain felt
+behind the coins was "flat"). A mahogany counter with moulded panels, a rounded clear-coated top and a brass foot
+rail; a National-style brass CASH REGISTER (2026-11-18; the first was "very poorly executed", `_register`): a mahogany
+cash drawer on ball feet with a brass pull and keyhole, a brass case with beaded edges and scrolled relief on its
+flanks, a stepped keyboard of enamel-faced keys on stems with their figures, a display tower with the sale's tabs
+($ 2 . 8 5) in a glass window under an arched crest (AMOUNT PURCHASED) and a finial, the crank on its side, lit by
+its own spot; a glass jar of coins, a bell, a receipt spike; behind, a wall papered in a deep green DAMASK (a mirrored medallion with a gold line, a fine weave, foxing) over a
+wainscot under a dado rail, brass SCONCES throwing scallops of light up and down it, and shelves on
+brass brackets carrying jars of sweets, tins, boxes with labels and bottles, under the warm light of a pendant lamp
+hanging out of frame and a cool fill from the shop's window. The shop is baked, one picture per platform
+(`art/menu_shop.webp`, `art/menu_shop_d.webp`; `devtools/make_menu_bake.gd ... mobile|desktop`).
+
+In front of it, live: the game's own coins in a slow-motion SHOWER in three depths (small and dim far back, big and
+sharp in front), each turning as it falls (never edge-on), past a large shop PRICE TAG hanging in the foreground --
+manila, cut to a point at a brass-ringed eyelet, a twisted red-and-white string running on up from the knot and
+fading into the dark, shaded paper with a ruled border, "PAY EXACTLY" over $2.85 in deep red ink -- a touch askew
+and barely stirring. The name is drawn after the tag, so the string passes behind it. A tray with coins dropping
+into it was "too much like something that is playable" (the user); a plain cream card swinging on a white thread
+was "a bit ugly". Made up, never the board: the menu also opens mid-game.
