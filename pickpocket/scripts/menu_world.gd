@@ -371,12 +371,67 @@ func _build_still() -> void:
 	pearl.clearcoat_enabled = true
 	pearl.rim_enabled = true
 	pearl.rim = 0.4
-	# (lying on a clear patch of the table, each pearl resting on the wood -- across the wallet they hovered, the user)
-	for pk in 44:
-		var pa: float = TAU * float(pk) / 44.0
-		var pp: Vector3 = Vector3(-60.0 + cos(pa) * 74.0 + 12.0 * sin(pa * 3.0), 6.0, 196.0 + sin(pa) * 30.0 + 6.0 * cos(pa * 2.0))
-		sphere(6.0, pearl, pp)
-	box(Vector3(10.0, 5.0, 6.0), mat(Color(0.92, 0.74, 0.40), 0.2, 0.95), Vector3(-60.0 + 74.0 + 12.0 * sin(0.0), 3.0, 196.0 + 6.0), Vector3(0.0, 80.0, 0.0))
+	# (lying on a clear patch of the table, each pearl resting on the wood -- across the wallet they hovered, the user;
+	# then a perfect ring of them with no shadow still looked afloat): a strand DROPPED -- an open, slack loop folding back
+	# on itself, one end trailing to the clasp, the pearls touching along a silk thread, each sitting ON the wood, and a
+	# soft contact shadow under the whole strand (the lamp's own shadow of pearls this small is lost in the bias)
+	var dense: PackedVector3Array = PackedVector3Array()
+	for dk in 400:
+		var u: float = float(dk) / 399.0
+		var pa: float = lerpf(-0.35, TAU * 1.08, u)
+		var pr: float = 66.0 + 16.0 * sin(pa * 2.0 + 0.7) + 7.0 * sin(pa * 3.0 + 2.0) - 22.0 * u * u
+		dense.append(Vector3(-85.0 + cos(pa) * pr * 1.1, 0.0, 192.0 + sin(pa) * pr * 0.42 + 10.0 * u))
+	var strand: PackedVector3Array = PackedVector3Array()
+	strand.append(dense[0])
+	var run: float = 0.0
+	for dk2 in range(1, dense.size()):
+		run += dense[dk2].distance_to(dense[dk2 - 1])
+		if run >= 11.6:
+			strand.append(dense[dk2])
+			run = 0.0
+	var pearl_r: float = 5.6
+	var thread: PackedVector3Array = PackedVector3Array()
+	for pk in strand.size():
+		var pp: Vector3 = strand[pk]
+		# where the strand crosses itself the upper pearls ride on the lower ones
+		var lift: float = 0.0
+		for qk in pk - 3:
+			if strand[qk].distance_to(pp) < pearl_r * 1.6:
+				lift = pearl_r * 1.3
+		var sz: float = pearl_r * (0.94 + 0.10 * h01(pk + 300))
+		sphere(sz, pearl, Vector3(pp.x, sz + lift, pp.z))
+		thread.append(Vector3(pp.x, sz + lift, pp.z))
+	put(tube_mesh(thread, 0.7, 4), mat(Color(0.80, 0.76, 0.66), 0.8), Vector3.ZERO)
+	var last: Vector3 = strand[strand.size() - 1]
+	box(Vector3(10.0, 5.0, 6.0), mat(Color(0.92, 0.74, 0.40), 0.2, 0.95), Vector3(last.x + 8.0, 2.6, last.z + 2.0), Vector3(0.0, 20.0, 0.0))
+	# the contact shadow: a soft dark trace of the strand on the wood
+	var sh_min: Vector2 = Vector2(1e9, 1e9)
+	var sh_max: Vector2 = Vector2(-1e9, -1e9)
+	for sp in strand:
+		sh_min = Vector2(minf(sh_min.x, sp.x), minf(sh_min.y, sp.z))
+		sh_max = Vector2(maxf(sh_max.x, sp.x), maxf(sh_max.y, sp.z))
+	sh_min -= Vector2(24.0, 24.0)
+	sh_max += Vector2(24.0, 24.0)
+	var sw: int = 256
+	var shh: int = int(256.0 * (sh_max.y - sh_min.y) / (sh_max.x - sh_min.x)) + 1
+	var sh_img: Image = Image.create(sw, shh, false, Image.FORMAT_RGBA8)
+	var per: float = float(sw) / (sh_max.x - sh_min.x)
+	for sy in shh:
+		for sx in sw:
+			var wpt: Vector2 = sh_min + Vector2(float(sx), float(sy)) / per
+			var dark: float = 0.0
+			for sp2 in strand:
+				var dd: float = wpt.distance_to(Vector2(sp2.x + 3.0, sp2.z + 2.5))
+				dark = maxf(dark, 1.0 - smoothstep(pearl_r * 0.4, pearl_r * 1.9, dd))
+			sh_img.set_pixel(sx, sy, Color(0.02, 0.01, 0.0, 0.72 * dark))
+	var sh_m: StandardMaterial3D = StandardMaterial3D.new()
+	sh_m.albedo_texture = ImageTexture.create_from_image(sh_img)
+	sh_m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sh_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var sh_q: PlaneMesh = PlaneMesh.new()
+	sh_q.size = sh_max - sh_min
+	var sh_mi: MeshInstance3D = put(sh_q, sh_m, Vector3((sh_min.x + sh_max.x) * 0.5, 0.3, (sh_min.y + sh_max.y) * 0.5))
+	sh_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var ring_c: Vector3 = Vector3(250.0, 0.0, 100.0)
 	var band: TorusMesh = TorusMesh.new()
 	band.inner_radius = 12.0

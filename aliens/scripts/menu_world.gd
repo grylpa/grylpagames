@@ -13,9 +13,21 @@ extends "res://scripts/menu_poster3d.gd"
 
 const ALIEN = preload("res://aliens/scripts/alien.gd")
 const SHIP: Vector3 = Vector3(0.0, 430.0, -200.0)
+const EMIT_R: float = 46.0                                  # the emitter lens under the saucer = the beam's top
 const PAD: Vector3 = Vector3(0.0, 6.0, -120.0)            # the arrivals pad under the beam
 const GATES: Array = [Vector3(-250.0, 6.0, 150.0), Vector3(250.0, 6.0, 150.0)]   # the boarding pads: BLUE, 3 EYES
 const PERIOD: float = 7.0
+# THE SHUTTLES (the user, 2026-11-19: the matching aliens rose up their columns into empty sky -- boarding WHAT?): over
+# each gate a departure shuttle in the gate's color hovers; its column of light runs up into its hatch, a boarding
+# alien rises into it and the hatch closes; once a cycle, after the gate's last boarding, it lifts off and a fresh one
+# comes down into its place
+const HOVER_Y: float = 265.0               # the shuttles' hull center: low, under the saucer's line (at 400 they rivaled it -- the user)
+const HATCH_DROP: float = 26.0             # the hatch, under the hull's center
+const HATCH_R: float = 20.0
+const SHUTTLE_SCALE: float = 1.15
+const DEPART_S: float = 1.0                # lifting off and away
+const ARRIVE_S: float = 1.3                # the fresh one coming down
+const LIFT: float = 700.0                  # how far above the hover they go
 const RIDERS: int = 5
 # each rider's traits [eyes, color, fat, antennae, spots] -- and so where it goes: 0 BLUE, 1 3 EYES, -1 neither
 const TRAITS: Array = [[2, 0, false, 1, false], [3, 1, true, 2, false], [1, 2, false, 0, true], [3, 4, false, 1, true], [2, 3, true, 2, false]]
@@ -26,6 +38,8 @@ var _holo: Control = null
 var _saucer: Node3D = null
 var _rim: Array = []
 var _columns: Array = []                 # the boarding pads' columns of light (materials)
+var _shuttles: Array = []                # per gate: [Node3D, hatch lens material, iris door node]
+var _glass_shader: Shader = null
 
 func _dest(k: int) -> int:
 	var trt: Array = TRAITS[k % TRAITS.size()]
@@ -97,13 +111,19 @@ func _build_lights() -> void:
 
 # --- textures ---------------------------------------------------------------------------------------------------
 
-# THE DECK: hexagonal plates of dark alloy, each its own tone, worn, the seams between them a glowing cyan
+# THE DECK: hexagonal plates of dark alloy, each its own tone, worn, the seams between them a glowing cyan. The tile
+# holds EXACTLY 4 hexes across and 4 rows down (a hex row repeats every sqrt(3) units across, every 3 units down two
+# rows): the grid was laid at n/4 pixels a unit in a square, which does not divide either, and every repeat of the
+# texture broke the hexes along a line (the user, 2026-11-19: "a vertical line breaking it")
+const HEX_A: int = 4                      # hexes across the tile
+const HEX_B: int = 2                      # pairs of rows down it
 func _hex_tex(n: int, glow_seams: bool) -> ImageTexture:
-	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
-	var s: float = float(n) / 4.0
-	for y in n:
-		for x in n:
-			var p: Vector2 = Vector2(float(x), float(y)) / s
+	var w: int = n
+	var h: int = int(round(float(n) * 3.0 * float(HEX_B) / (sqrt(3.0) * float(HEX_A))))
+	var img: Image = Image.create(w, h, false, Image.FORMAT_RGB8)
+	for y in h:
+		for x in w:
+			var p: Vector2 = Vector2(float(x) / float(w) * sqrt(3.0) * float(HEX_A), float(y) / float(h) * 3.0 * float(HEX_B))
 			# axial hex coordinates of the cell
 			var q: float = (sqrt(3.0) / 3.0 * p.x - 1.0 / 3.0 * p.y)
 			var r: float = 2.0 / 3.0 * p.y
@@ -127,7 +147,10 @@ func _hex_tex(n: int, glow_seams: bool) -> ImageTexture:
 			var v: Vector2 = Vector2(absf(p.x - pc.x), absf(p.y - pc.y))
 			var edge: float = maxf(v.x, v.x * 0.5 + v.y * 0.866)
 			var seam: float = smoothstep(0.78, 0.84, edge)
-			var tone: float = h01(int(rx * 31.0 + rz * 17.0) + 400)
+			# (each plate's tone from its place WITHIN the tile, so the tone repeats with it too)
+			var row: int = int(rz)
+			var col: int = int(rx) + (row - posmod(row, 2)) / 2
+			var tone: float = h01(posmod(col, HEX_A) * 31 + posmod(row, 2 * HEX_B) * 17 + 400)
 			var c: Color
 			if glow_seams:
 				c = Color(0.0, 0.0, 0.0).lerp(Color(0.30, 0.95, 1.0), seam)
@@ -164,7 +187,7 @@ func _build_still() -> void:
 	var metal: StandardMaterial3D = mat(Color(0.55, 0.60, 0.68), 0.35, 0.7)
 	box(Vector3(9000.0, 4.0, 7000.0), ground, Vector3(0.0, -2.0, -2000.0))
 	# THE DECK: a broad platform of hex plates, its seams glowing, a raised rim with a light strip
-	var deck: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.4, _hex_tex(256, false), Vector3(5, 5, 1))
+	var deck: StandardMaterial3D = mat(Color.WHITE, 0.55, 0.4, _hex_tex(256, false), Vector3(5.0, 5.0 * sqrt(3.0) * float(HEX_A) / (3.0 * float(HEX_B)), 1.0))   # (the tile is wider than tall: repeated more down, so the hexes stay regular)
 	deck.emission_enabled = true
 	deck.emission_texture = _hex_tex(256, true)
 	deck.emission = Color(1, 1, 1)
@@ -242,29 +265,34 @@ void fragment() {
 	float rim = pow(1.0 - facing, 2.0);
 	float core = pow(facing, 6.0);
 	float down = UV.y;
-	float fade = mix(1.0, 0.45, down) * smoothstep(0.0, 0.06, down) * (1.0 - smoothstep(0.93, 1.0, down));
+	float fade = mix(1.0, 0.45, down) * (1.0 - smoothstep(0.93, 1.0, down)) * (1.0 + 0.8 * (1.0 - smoothstep(0.0, 0.10, down)));
 	float shimmer = 0.80 + 0.20 * sin(down * 38.0 - time * 5.0 + UV.x * 6.2832 * 3.0);
 	ALBEDO = mix(vec3(0.55, 1.0, 0.92), vec3(0.95, 1.0, 1.0), core);
 	ALPHA = clamp((0.10 + 0.45 * rim + 0.30 * core) * fade * shimmer, 0.0, 0.85);
 }"""
 	_ray = ShaderMaterial.new()
 	_ray.shader = rsh
+	# (the beam POURS OUT OF THE SAUCER: it starts inside the engine ring, as wide as the emitter, brightest there, and
+	# rides with the saucer's bob -- it stopped short under it, faded in, narrower, and stood still while the saucer
+	# moved: the user, 2026-11-19, "the light below it doesn't connect to it")
 	var cone: CylinderMesh = CylinderMesh.new()
-	cone.top_radius = 46.0
+	cone.top_radius = EMIT_R
 	cone.bottom_radius = 118.0
-	cone.height = SHIP.y - PAD.y - 40.0
+	cone.height = SHIP.y - PAD.y - 34.0
 	cone.cap_top = false
 	cone.cap_bottom = false
 	cone.radial_segments = 48
-	put(cone, _ray, (SHIP + PAD) * 0.5 + Vector3(0.0, -20.0, 0.0))
+	_beam = Node3D.new()
+	root.add_child(_beam)
+	put(cone, _ray, Vector3(0.0, -34.0 - cone.height * 0.5, 0.0), Vector3.ZERO, _beam)
 	var inner: CylinderMesh = CylinderMesh.new()
-	inner.top_radius = 20.0
+	inner.top_radius = 30.0
 	inner.bottom_radius = 60.0
 	inner.height = cone.height
 	inner.cap_top = false
 	inner.cap_bottom = false
 	inner.radial_segments = 32
-	put(inner, _ray, (SHIP + PAD) * 0.5 + Vector3(0.0, -20.0, 0.0))
+	put(inner, _ray, Vector3(0.0, -34.0 - cone.height * 0.5, 0.0), Vector3.ZERO, _beam)
 	var pool: StandardMaterial3D = StandardMaterial3D.new()
 	pool.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	pool.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -281,10 +309,11 @@ void fragment() {
 render_mode unshaded, cull_disabled, depth_draw_never;
 uniform vec4 col = vec4(1.0);
 void fragment() {
-	float edge = pow(clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0), 1.4);
-	float rise = 1.0 - smoothstep(0.0, 1.0, 1.0 - UV.y);
-	ALBEDO = col.rgb;
-	ALPHA = col.a * edge * (0.15 + 0.85 * rise);
+	// (whole up to the hatch it now reaches -- it faded out upward, into the empty sky it used to rise into)
+	float facing = clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0);
+	float rim = pow(1.0 - facing, 2.0);
+	ALBEDO = mix(col.rgb, vec3(1.0), 0.35 * pow(facing, 4.0));
+	ALPHA = col.a * (0.25 + 0.45 * rim + 0.30 * pow(facing, 4.0)) * (0.75 + 0.25 * UV.y);
 }"""
 	for g in 2:
 		var cmat: ShaderMaterial = ShaderMaterial.new()
@@ -293,10 +322,11 @@ void fragment() {
 		var tube: CylinderMesh = CylinderMesh.new()
 		tube.top_radius = 46.0
 		tube.bottom_radius = 62.0
-		tube.height = 520.0
+		tube.top_radius = HATCH_R
+		tube.height = HOVER_Y - HATCH_DROP - (GATES[g] as Vector3).y
 		tube.cap_top = false
 		tube.cap_bottom = false
-		put(tube, cmat, (GATES[g] as Vector3) + Vector3(0.0, 266.0, 0.0))
+		put(tube, cmat, (GATES[g] as Vector3) + Vector3(0.0, tube.height * 0.5, 0.0))
 		_columns.append(cmat)
 	# THE SAUCER: a broad hull of paneled metal, a darker band with its rim lights, the underside's engine ring, the
 	# glass dome lit from inside
@@ -313,25 +343,61 @@ void fragment() {
 	var under: MeshInstance3D = sphere(130.0, mat(Color(0.28, 0.32, 0.40), 0.4, 0.7), Vector3(0.0, -10.0, 0.0), _saucer)
 	under.scale = Vector3(1.0, 0.22, 1.0)
 	var eng: TorusMesh = TorusMesh.new()
-	eng.inner_radius = 52.0
-	eng.outer_radius = 64.0
+	eng.inner_radius = EMIT_R - 2.0
+	eng.outer_radius = EMIT_R + 10.0
 	eng.rings = 48
-	put(eng, glow(Color(0.70, 1.0, 0.95)), Vector3(0.0, -36.0, 0.0), Vector3.ZERO, _saucer)
-	cyl(50.0, 50.0, 3.0, glow(Color(0.90, 1.0, 0.98)), Vector3(0.0, -37.0, 0.0), Vector3.ZERO, _saucer, 32)
-	var dome_m: StandardMaterial3D = mat(Color(0.55, 0.95, 1.0, 0.50), 0.05, 0.2)
-	dome_m.clearcoat_enabled = true
-	dome_m.emission_enabled = true
-	dome_m.emission = Color(0.30, 0.70, 0.70)
-	dome_m.emission_energy_multiplier = 0.5
-	sphere(84.0, dome_m, Vector3(0.0, 26.0, 0.0), _saucer, true)
+	# THE EMITTER: a metal ring round a glowing LENS exactly as wide as the beam's top, so the light visibly comes out of
+	# it (a glowing ring and disc, wider than the beam and seen edge-on, read as a strange bar of light under the hull)
+	put(eng, mat(Color(0.40, 0.44, 0.52), 0.3, 0.85), Vector3(0.0, -34.0, 0.0), Vector3.ZERO, _saucer)
+	var lens: MeshInstance3D = sphere(EMIT_R, glow(Color(0.88, 1.0, 0.97)), Vector3(0.0, -34.0, 0.0), _saucer)
+	lens.scale = Vector3(1.0, 0.22, 1.0)
+	lens.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# THE DOME (it was a half-see-through sphere with a flat glow: a pasted teal disc -- the user): GLASS with depth --
+	# the cabin inside lit warm-teal from below, darkening up into the crown, the glass bright where it is seen
+	# edge-on, a highlight of the key light -- seated in a metal COLLAR with small lights round the hull's top
+	var dsh: Shader = Shader.new()
+	dsh.code = """shader_type spatial;
+render_mode unshaded;
+uniform float rad = 84.0;
+varying vec3 lp;
+void vertex() {
+	lp = VERTEX;
+}
+void fragment() {
+	float f = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+	float fres = pow(1.0 - f, 2.2);
+	float h = clamp(lp.y / rad, 0.0, 1.0);
+	vec3 inside = mix(vec3(0.30, 0.78, 0.74), vec3(0.03, 0.14, 0.20), smoothstep(0.0, 0.9, h));
+	vec3 c = inside + vec3(0.55, 0.95, 1.0) * fres * 0.85;
+	float spec = pow(clamp(dot(NORMAL, normalize(vec3(-0.45, 0.55, 0.70))), 0.0, 1.0), 48.0);
+	float spec2 = pow(clamp(dot(NORMAL, normalize(vec3(0.55, 0.25, 0.80))), 0.0, 1.0), 90.0);
+	ALBEDO = c + vec3(1.0) * spec * 0.85 + vec3(0.7, 1.0, 1.0) * spec2 * 0.35;
+}"""
+	_glass_shader = dsh
+	var dome_m: ShaderMaterial = ShaderMaterial.new()
+	dome_m.shader = dsh
+	var dome: MeshInstance3D = sphere(84.0, dome_m, Vector3(0.0, 30.0, 0.0), _saucer, true)
+	dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var collar: TorusMesh = TorusMesh.new()
+	collar.inner_radius = 80.0
+	collar.outer_radius = 94.0
+	collar.rings = 64
+	var cm: MeshInstance3D = put(collar, mat(Color(0.62, 0.66, 0.74), 0.25, 0.9), Vector3(0.0, 39.0, 0.0), Vector3.ZERO, _saucer)
+	cm.scale = Vector3(1.0, 0.75, 1.0)
+	for ck in 12:
+		var ca: float = TAU * (float(ck) + 0.5) / 12.0
+		sphere(2.6, glow(Color(0.60, 1.0, 0.95)), Vector3(cos(ca) * 93.0, 40.0, sin(ca) * 93.0), _saucer)
 	for k in 24:
 		var a: float = TAU * float(k) / 24.0
 		var lm: StandardMaterial3D = glow(Color(1.0, 0.85, 0.35))
 		sphere(7.0, lm, Vector3(cos(a) * 212.0, 0.0, sin(a) * 212.0), _saucer)
 		_rim.append(lm)
+	for g2 in 2:
+		_shuttles.append(_build_shuttle([Color(0.45, 0.65, 1.0), Color(1.0, 0.50, 0.85)][g2], g2))
 
 # where rider k is: [3-D position, size factor, alpha], for its time in its cycle
 var _ray: ShaderMaterial = null
+var _beam: Node3D = null
 
 func _pool_tex() -> Texture2D:
 	var gt: GradientTexture2D = GradientTexture2D.new()
@@ -345,16 +411,101 @@ func _pool_tex() -> Texture2D:
 	gt.gradient = g
 	return gt
 
+# a departure shuttle: a squat hull of the saucer's metal, a band in the gate's color with its window lights, a small
+# glass canopy, and under it the HATCH -- a ring, a glowing lens, and an iris door that opens for each boarding
+func _build_shuttle(col: Color, seed_i: int) -> Array:
+	var sh_n: Node3D = Node3D.new()
+	root.add_child(sh_n)
+	var hull: StandardMaterial3D = mat(Color.WHITE, 0.30, 0.85, _rock_tex(64, Color(0.80, 0.82, 0.88)), Vector3(4, 1, 1))
+	var body: MeshInstance3D = sphere(64.0, hull, Vector3.ZERO, sh_n)
+	body.scale = Vector3(1.0, 0.36, 1.0)
+	var band_m: StandardMaterial3D = mat(col.darkened(0.35), 0.3, 0.6)
+	band_m.emission_enabled = true
+	band_m.emission = col
+	band_m.emission_energy_multiplier = 0.25
+	var band: TorusMesh = TorusMesh.new()
+	band.inner_radius = 58.0
+	band.outer_radius = 68.0
+	band.rings = 64
+	var bm: MeshInstance3D = put(band, band_m, Vector3(0.0, 2.0, 0.0), Vector3.ZERO, sh_n)
+	bm.scale = Vector3(1.0, 0.7, 1.0)
+	for w in 10:
+		var wa: float = TAU * (float(w) + 0.25 * float(seed_i)) / 10.0
+		sphere(3.4, glow(col.lightened(0.45)), Vector3(cos(wa) * 67.0, 3.0, sin(wa) * 67.0), sh_n)
+	var cm: ShaderMaterial = ShaderMaterial.new()
+	cm.shader = _glass_shader
+	cm.set_shader_parameter("rad", 26.0)
+	var canopy: MeshInstance3D = sphere(26.0, cm, Vector3(0.0, 16.0, 0.0), sh_n, true)
+	canopy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var metal: StandardMaterial3D = mat(Color(0.50, 0.54, 0.62), 0.3, 0.85)
+	var ring: TorusMesh = TorusMesh.new()
+	ring.inner_radius = HATCH_R - 1.0
+	ring.outer_radius = HATCH_R + 6.0
+	put(ring, metal, Vector3(0.0, -HATCH_DROP + 4.0, 0.0), Vector3.ZERO, sh_n)
+	var lens_m: StandardMaterial3D = glow(col.lightened(0.6))
+	var lens: MeshInstance3D = sphere(HATCH_R, lens_m, Vector3(0.0, -HATCH_DROP + 4.0, 0.0), sh_n)
+	lens.scale = Vector3(1.0, 0.25, 1.0)
+	var door: MeshInstance3D = cyl(HATCH_R + 0.5, HATCH_R + 0.5, 2.0, metal, Vector3(0.0, -HATCH_DROP + 2.5, 0.0), Vector3.ZERO, sh_n, 24)
+	return [sh_n, lens_m, door, col]
+
+# rider k's boarding at gate g: its time in the cycle when it starts up the column, and when it is aboard
+func _board_window(k: int) -> Vector2:
+	var t0: float = fposmod((0.74 - float(k) / float(RIDERS)) * PERIOD, PERIOD)
+	return Vector2(t0, t0 + 0.26 * PERIOD)
+
+# when (in the cycle) gate g's shuttle lifts off: just after the boarding followed by the longest quiet stretch
+func _depart_at(g: int) -> float:
+	var wins: Array = []
+	for k in RIDERS:
+		if _dest(k) == g:
+			wins.append(_board_window(k))
+	if wins.is_empty():
+		return 0.0
+	var best: float = 0.0
+	var best_gap: float = -1.0
+	for wv in wins:
+		var w: Vector2 = wv
+		var gap: float = PERIOD
+		for ov in wins:
+			var o: Vector2 = ov
+			var d: float = fposmod(o.x - w.y, PERIOD)
+			if d < gap:
+				gap = d
+		if gap > best_gap:
+			best_gap = gap
+			best = w.y
+	return best + 0.15
+
+# the shuttle's height over its hover for the time in its cycle (0 while it waits), and how open its hatch is
+func _shuttle_state(g: int) -> Vector2:
+	var ph: float = fposmod(t - _depart_at(g), PERIOD)
+	var lift: float = 0.0
+	if ph < DEPART_S:
+		lift = LIFT * pow(ph / DEPART_S, 2.2)
+	elif ph < DEPART_S + ARRIVE_S:
+		lift = LIFT * pow(1.0 - (ph - DEPART_S) / ARRIVE_S, 3.0)
+	var open: float = 0.0
+	for k in RIDERS:
+		if _dest(k) == g:
+			var u: float = fmod(t / PERIOD + float(k) / float(RIDERS), 1.0)
+			if u > 0.74:
+				var f3: float = (u - 0.74) / 0.26
+				open = maxf(open, smoothstep(0.0, 0.25, f3) * (1.0 - smoothstep(0.92, 1.0, f3)))
+	return Vector2(lift, open)
+
 func _rider_at(k: int) -> Array:
 	var u: float = fmod(t / PERIOD + float(k) / float(RIDERS), 1.0)
-	var top: Vector3 = SHIP + Vector3(0.0, -50.0, 0.0)
+	# out of the EMITTER: just under its lens, riding the saucer's bob, centered in the beam, fading in in its light (they
+	# started 50 under the saucer's rest height, drifting 20 aside, a 2-D figure over the hull: "they sometimes seem to come
+	# out of the saucer's edge")
+	var top: Vector3 = SHIP + Vector3(0.0, 6.0 * sin(t * 1.1) - 82.0, 0.0)
 	var land: Vector3 = PAD + Vector3((float(k % 3) - 1.0) * 30.0, 8.0, 0.0)
 	var dest: int = _dest(k)
 	if u < 0.34:
 		# down the beam, drifting a little
 		var f: float = smoothstep(0.0, 0.34, u)
-		var p: Vector3 = top.lerp(land, f) + Vector3(sin(t * 0.9 + float(k) * 1.9) * 20.0 * (1.0 - f), 0.0, 0.0)
-		return [p, 0.8 + 0.2 * f, clampf(u / 0.04, 0.0, 1.0)]
+		var p: Vector3 = top.lerp(land, f) + Vector3(sin(t * 0.9 + float(k) * 1.9) * 40.0 * f * (1.0 - f), 0.0, 0.0)
+		return [p, 0.8 + 0.2 * f, smoothstep(0.0, 0.05, u)]
 	if u < 0.42:
 		return [land + Vector3(0.0, 6.0 * absf(sin((u - 0.34) * 40.0)) * (0.42 - u) * 12.0, 0.0), 1.0, 1.0]
 	# across the deck in hops to its pad -- or off into the field
@@ -366,9 +517,11 @@ func _rider_at(k: int) -> Array:
 		return [p2, 1.0, 1.0 if dest >= 0 else 1.0 - smoothstep(0.85, 1.0, f2)]
 	if dest < 0:
 		return [goal, 1.0, 0.0]
-	# up the column and aboard
+	# up the column and INTO THE SHUTTLE'S HATCH, gone as it passes in
 	var f3: float = (u - 0.74) / 0.26
-	return [goal + Vector3(0.0, 420.0 * f3 * f3, 0.0), 1.0 - 0.3 * f3, 1.0 - smoothstep(0.6, 1.0, f3)]
+	var hatch_y: float = HOVER_Y - HATCH_DROP - 14.0
+	var rise: float = (hatch_y - goal.y) * smoothstep(0.0, 1.0, f3)
+	return [goal + Vector3(0.0, rise, 0.0), 1.0 - 0.35 * f3, 1.0 - smoothstep(0.80, 0.97, f3)]
 
 func _animate(_delta: float) -> void:
 	if _ray != null:
@@ -376,10 +529,25 @@ func _animate(_delta: float) -> void:
 	if _saucer == null:
 		return
 	_saucer.position = SHIP + Vector3(0.0, 6.0 * sin(t * 1.1), 0.0)
+	if _beam != null:
+		_beam.position = _saucer.position
 	_saucer.rotation = Vector3(deg_to_rad(3.0), t * 0.35, 0.0)
+	# the rim lights BREATHE TOGETHER (a chase running round them looked like a second rotation, out of step with the
+	# hull and the collar's lights -- the user)
 	for k in _rim.size():
-		var on: float = 0.5 + 0.5 * sin(t * 4.0 - float(k) * 0.6)
+		var on: float = 0.55 + 0.45 * sin(t * 2.2)
 		(_rim[k] as StandardMaterial3D).albedo_color = Color(0.55, 0.42, 0.18).lerp(Color(1.0, 0.92, 0.55), on)
+	for g3 in _shuttles.size():
+		var shv: Array = _shuttles[g3]
+		var st: Vector2 = _shuttle_state(g3)
+		var gp: Vector3 = GATES[g3]
+		var node: Node3D = shv[0]
+		node.position = Vector3(gp.x, HOVER_Y + st.x + 4.0 * sin(t * 1.3 + float(g3) * 2.0), gp.z)
+		node.rotation = Vector3(0.0, t * 0.5 * (1.0 if g3 == 0 else -1.0), deg_to_rad(4.0) * sin(t * 0.9 + float(g3)))
+		node.scale = Vector3.ONE * SHUTTLE_SCALE
+		var lc: Color = shv[3]
+		(shv[1] as StandardMaterial3D).albedo_color = lc.darkened(0.55).lerp(lc.lightened(0.7), st.y)
+		(shv[2] as Node3D).scale = Vector3(maxf(0.02, 1.0 - st.y), 1.0, maxf(0.02, 1.0 - st.y))
 	var column_boost: Array = [0.0, 0.0]
 	for k2 in _riders.size():
 		var a2: Node2D = _riders[k2]
@@ -404,7 +572,7 @@ func _animate(_delta: float) -> void:
 	for g in 2:
 		var cm: ShaderMaterial = _columns[g]
 		var base: Color = [Color(0.45, 0.65, 1.0), Color(1.0, 0.50, 0.85)][g]
-		cm.set_shader_parameter("col", Color(base, 0.45 * float(column_boost[g])))
+		cm.set_shader_parameter("col", Color(base, 0.85 * float(column_boost[g])))
 	if _holo != null:
 		_holo.queue_redraw()
 
@@ -491,9 +659,10 @@ func _paint_top(_full: Vector2, _bottom: float) -> void:
 	if _cam3 != null:
 		for k in 6:
 			var u: float = fmod(t * 0.25 + float(k) / 6.0, 1.0)
-			var p: Vector3 = (SHIP + Vector3(0.0, -50.0, 0.0)).lerp(PAD + Vector3(0.0, 8.0, 0.0), u)
+			var src: Vector3 = _saucer.position if _saucer != null else SHIP
+			var p: Vector3 = (src + Vector3(0.0, -40.0, 0.0)).lerp(PAD + Vector3(0.0, 8.0, 0.0), u)
 			var c: Vector2 = screen_of(p)
-			var rx: float = screen_of(p + Vector3(lerpf(56.0, 112.0, u), 0.0, 0.0)).distance_to(c)
+			var rx: float = screen_of(p + Vector3(lerpf(54.0, 112.0, u), 0.0, 0.0)).distance_to(c)
 			ellipse(c, rx, rx * 0.22, Color(0.85, 1.0, 0.95, 0.12 * sin(u * PI)))
 	title("Aliens", "Work the spaceport gates", Color(0.70, 1.0, 0.85), Color(0.04, 0.10, 0.10), Color(0.4, 1.0, 0.8, 0.30))
 

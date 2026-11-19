@@ -19,6 +19,7 @@ func _ready() -> void:
 	main_menu.add_entry(1, "Level", 1, DeliveremLevelConfig.LEVELS.size(), false)
 	# the theme: a list (Day, Night, Rain, Random)
 	main_menu.add_option_entry(2, "Theme", DeliveremLevelConfig.theme_names())
+	main_menu.show_all_options(true)        # every option on show, no cog; the scene moves up above them
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	refresh_menu()
 

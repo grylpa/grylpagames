@@ -18,8 +18,10 @@ const ROLL: float = 3.2          # seconds up the felt
 const DROP: float = 1.0          # then into the pocket
 const TABLE_Y: float = 165.0     # (a table's height off the floor: at 80 it sat on the floor with stubs for legs -- the user)
 const FAR_Z: float = -1500.0
-const POCKET: Vector3 = Vector3(0.0, TABLE_Y, 10.0)
+const POCKET: Vector3 = Vector3(0.0, TABLE_Y, 16.0)   # the hole's center, on the felt's plane, half in the near rail
 const BALL_R: float = 26.0
+const HOLE_R: float = BALL_R * 1.5
+const RAIL_IN_Z: float = 10.0     # the near rail's inner face: the felt ends here, the rail runs on to z 66
 
 var _balls: BallArt = null
 var _pair: int = -1
@@ -86,106 +88,166 @@ func _panels(n: int) -> ImageTexture:
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
-# THE RUG, hand-knotted (2026-11-18; the user: "improve the rug texture" -- it was pixel diamonds): a PALE ivory field
-# (so the dark mahogany stands out against it) under an all-over lattice of fine indigo lines with a small rosette at
-# each crossing, a lobed CENTRAL MEDALLION in rust ringed in indigo with a gold heart, quarter medallions in the
-# corners (small, rust ringed in indigo: solid indigo ones were dark blots at the near end); a BORDER of guard stripes (indigo, gold) round a rust band with a running vine and its flowers; the wool's
-# pile mottling it, the abrash (bands where a new dye lot came in) along its length, and the middle worn paler
+# A HAND-KNOTTED PERSIAN RUG (2026-11-18; the pale lattice before it "looked like floor tiles" -- the user): an IVORY
+# field (pale, so the dark mahogany legs stand out on it -- the user found the contrast poor) with an all-over HERATI pattern -- a lattice of diamonds, a rosette in each, lancet leaves curling round
+# it, small palmettes at the crossings -- a navy medallion, a navy border with a running vine of flowers between guard
+# stripes. Drawn KNOT BY KNOT (the color is sampled at each knot's center, so the edges step as a real rug's do), each
+# knot its own shade, ABRASH (each dye lot a slightly different hue, in bands across the rug), the pile worn thin in the
+# middle where the foundation's pale warp shows through; and its PILE as a normal map (`_rug_nrm`): every knot a little
+# dome, the rows of knots a fine ridging, so the lamp's light catches it
+var _rug_nrm: ImageTexture = null
+
+func _rug_motif(px: float, py: float, w: float, h: float) -> Color:
+	var madder: Color = Color(0.50, 0.11, 0.09)
+	var navy: Color = Color(0.10, 0.12, 0.26)
+	var ivory: Color = Color(0.88, 0.80, 0.64)
+	var gold: Color = Color(0.80, 0.58, 0.22)
+	var green: Color = Color(0.20, 0.34, 0.24)
+	var sky: Color = Color(0.40, 0.55, 0.66)
+	var ex: float = minf(px, w - px)
+	var ey: float = minf(py, h - py)
+	var e: float = minf(ex, ey)
+	var bw: float = w * 0.12
+	if e < bw:
+		var t1: float = e / bw
+		var along: float = py if ex < ey else px
+		if t1 < 0.07 or (t1 > 0.20 and t1 < 0.24) or (t1 > 0.80 and t1 < 0.84) or t1 > 0.95:
+			return madder.darkened(0.25)
+		if t1 < 0.20 or (t1 > 0.84 and t1 <= 0.95):
+			# the guards: a reciprocal row of little trefoils, gold on madder
+			var gp: float = fposmod(along / (bw * 0.22), 1.0)
+			var gq: float = ((t1 - 0.07) / 0.13) if t1 < 0.20 else ((t1 - 0.84) / 0.11)
+			return gold if absf(gp - 0.5) < 0.30 * (1.0 - gq) + 0.05 else madder
+		# the main border: navy, a vine waving along it, flowers on alternate sides, leaves between
+		var across: float = (t1 - 0.24) / 0.56 * 2.0 - 1.0
+		var period: float = bw * 1.6
+		var ph: float = along / period * TAU
+		var wave: float = 0.45 * sin(ph)
+		if absf(across - wave) < 0.07:
+			return gold
+		var fl_i: float = floor(along / (period * 0.5))
+		var fl_c: Vector2 = Vector2((fl_i + 0.5) * period * 0.5, (-0.45 if int(fl_i) % 2 == 0 else 0.45))
+		var dfl: Vector2 = Vector2((along - fl_c.x) / (bw * 0.56), (across - fl_c.y) * 0.5)
+		var rr: float = dfl.length() / 0.30
+		var petal: float = 1.0 + 0.35 * cos(atan2(dfl.y, dfl.x) * 6.0)
+		if rr < 0.95 * petal:
+			if rr < 0.25:
+				return gold
+			return ivory if rr < 0.55 * petal else madder.lightened(0.08)
+		var lf: Vector2 = Vector2((along - fl_c.x - period * 0.25) / (bw * 0.56), (across + fl_c.y * 0.3) * 0.5)
+		if absf(lf.x) < 0.26 and absf(lf.y) < 0.10 * (1.0 - absf(lf.x) / 0.26) + 0.02:
+			return green
+		return navy
+	var cx: float = px - w * 0.5
+	var cy: float = py - h * 0.5
+	# THE MEDALLION: lobed navy, an ivory ring, a madder heart with a gold star
+	var mr: float = Vector2(cx, cy * 0.55).length() / (w * 0.26)
+	var ang: float = atan2(cy * 0.55, cx)
+	var lobe: float = 1.0 + 0.12 * cos(ang * 8.0) + 0.05 * cos(ang * 24.0)
+	if mr < lobe:
+		if mr > lobe - 0.06:
+			return ivory
+		if mr < 0.40:
+			var star: float = 0.30 + 0.08 * cos(ang * 8.0)
+			if mr < star:
+				return gold if mr > 0.12 else navy
+			return madder
+		# the medallion's own little flowers, scattered on its navy
+		var mfx: float = fposmod(cx / (w * 0.07), 1.0) - 0.5
+		var mfy: float = fposmod(cy / (w * 0.07), 1.0) - 0.5
+		if Vector2(mfx, mfy).length() < 0.16:
+			return sky if (int(floor(cx / (w * 0.07))) + int(floor(cy / (w * 0.07)))) % 2 == 0 else gold
+		return navy
+	# THE FIELD: the herati lattice
+	var cell: float = w * 0.11
+	var u: float = (cx + cy) / cell
+	var v: float = (cx - cy) / cell
+	var fu: float = fposmod(u, 1.0) - 0.5
+	var fv: float = fposmod(v, 1.0) - 0.5
+	# the diamonds' ivory outline
+	if absf(fu) > 0.455 or absf(fv) > 0.455:
+		return madder.lightened(0.10)
+	var r2: float = Vector2(fu, fv).length()
+	var a2: float = atan2(fv, fu)
+	# the rosette: eight petals, navy, a gold eye
+	var rp: float = 0.17 * (1.0 + 0.30 * cos(a2 * 8.0))
+	if r2 < rp:
+		return gold if r2 < 0.06 else navy
+	# four lancet leaves round it, curling (each a crescent, sky-blue with a green rib)
+	for lk in 4:
+		var la: float = PI * 0.5 * float(lk) + PI * 0.25
+		var lc: Vector2 = Vector2(cos(la), sin(la)) * 0.30
+		var d: Vector2 = Vector2(fu, fv) - lc
+		var dl: Vector2 = d.rotated(-la - 0.6)
+		var leaf: float = (dl.x * dl.x) / (0.14 * 0.14) + (dl.y * dl.y) / (0.045 * 0.045)
+		if leaf < 1.0:
+			return green if absf(dl.y) < 0.010 else sky
+	# small palmettes where the diamonds meet (half of each falls in the next cell)
+	for pk in 4:
+		var pa: float = PI * 0.5 * float(pk)
+		var pc: Vector2 = Vector2(cos(pa), sin(pa)) * 0.5
+		var dp: Vector2 = Vector2(fu, fv) - pc
+		var pr: float = dp.length()
+		if pr < 0.11 * (1.0 + 0.25 * cos(atan2(dp.y, dp.x) * 5.0)):
+			return madder if pr > 0.05 else gold
+	return ivory
+
 func _rug(w: int, h: int) -> ImageTexture:
 	var img: Image = Image.create(w, h, false, Image.FORMAT_RGB8)
-	var ivory: Color = Color(0.86, 0.80, 0.68)
-	var rust: Color = Color(0.62, 0.24, 0.16)
-	var indigo: Color = Color(0.18, 0.22, 0.36)
-	var gold: Color = Color(0.82, 0.62, 0.30)
-	var noise: FastNoiseLite = FastNoiseLite.new()
-	noise.seed = 9
-	noise.frequency = 0.9
+	var hgt: PackedFloat32Array = PackedFloat32Array()
+	hgt.resize(w * h)
+	var knot: int = 2                       # texels per knot
 	var abrash: FastNoiseLite = FastNoiseLite.new()
 	abrash.seed = 3
-	abrash.frequency = 0.012
-	var bw: float = float(w) * 0.11           # the border's width
-	for y in h:
-		for x in w:
-			var fx: float = float(x)
-			var fy: float = float(y)
-			var ex: float = minf(fx, float(w - 1) - fx)
-			var ey: float = minf(fy, float(h - 1) - fy)
-			var e: float = minf(ex, ey)
-			var c: Color = ivory
-			if e < bw:
-				# the border: outer guard, main band, inner guard
-				var t1: float = e / bw
-				if t1 < 0.10:
-					c = indigo
-				elif t1 < 0.16 or t1 > 0.90:
-					c = gold if t1 > 0.90 else ivory
-				elif t1 > 0.84:
-					c = indigo
-				else:
-					c = rust
-					# the running vine: a wave along the band, its flowers in the troughs and crests
-					var along: float = fy if ex < ey else fx
-					var across: float = (t1 - 0.16) / 0.68 * 2.0 - 1.0
-					var wave: float = 0.55 * sin(along / bw * 2.4)
-					if absf(across - wave) < 0.09:
-						c = ivory
-					var ph: float = fposmod(along / bw * 2.4 / PI, 2.0)
-					var flower_at: float = 0.55 if ph < 1.0 else -0.55
-					var dfl: Vector2 = Vector2(fposmod(along, bw * PI / 2.4) - bw * PI / 4.8, (across - flower_at) * bw * 0.34)
-					var rr: float = dfl.length() / (bw * 0.20)
-					var petal: float = 1.0 + 0.30 * cos(atan2(dfl.y, dfl.x) * 6.0)
-					if rr < 0.45 * petal:
-						c = gold if rr < 0.20 else indigo
-			else:
-				# the field: a lattice of fine indigo lines, a rosette at each crossing
-				var cx: float = fx - float(w) * 0.5
-				var cy: float = fy - float(h) * 0.5
-				var cell: float = bw * 0.9
-				var la: float = fposmod((cx + cy) / cell, 1.0)
-				var lb: float = fposmod((cx - cy) / cell, 1.0)
-				if la < 0.035 or lb < 0.035:
-					c = indigo.lerp(ivory, 0.35)
-				var ra: float = minf(la, 1.0 - la) * cell
-				var rb: float = minf(lb, 1.0 - lb) * cell
-				var rose: float = sqrt(ra * ra + rb * rb) / (cell * 0.16)
-				if rose < 1.0:
-					c = rust if rose > 0.45 else gold
-				# the medallion: lobed, in rust ringed indigo, its heart gold
-				var mr: float = Vector2(cx, cy * 0.62).length() / (float(w) * 0.30)
-				var ang: float = atan2(cy * 0.62, cx)
-				var lobe: float = 1.0 + 0.10 * cos(ang * 8.0) + 0.05 * cos(ang * 16.0)
-				if mr < lobe:
-					c = rust
-					if mr > lobe - 0.06:
-						c = indigo
-					elif mr < 0.42 * lobe:
-						c = gold if mr > 0.32 * lobe else indigo
-						if mr < 0.16:
-							c = rust
-					elif absf(mr - 0.70 * lobe) < 0.025:
-						c = ivory
-				# the corner pieces: quarter medallions in indigo
-				var qx: float = ex - bw
-				var qy: float = ey - bw
-				var qr: float = Vector2(qx, qy).length() / (float(w) * 0.12)
-				var qlobe: float = 1.0 + 0.10 * cos(atan2(qy, qx) * 10.0)
-				if qr < qlobe:
-					c = rust.lerp(ivory, 0.15)
-					if qr > qlobe - 0.12:
-						c = indigo
-					elif qr < 0.30:
-						c = gold if qr > 0.16 else indigo
-				# the middle worn a little paler
-				var wear: float = 1.0 - clampf(Vector2(cx / float(w), cy / float(h)).length() * 2.4, 0.0, 1.0)
-				c = c.lerp(ivory.lightened(0.1), 0.18 * wear)
-			# the pile and the abrash
-			var nz: float = noise.get_noise_2d(fx, fy) * 0.06
-			c = c.lightened(nz) if nz > 0.0 else c.darkened(-nz)
-			c = c.darkened(0.05 + 0.05 * abrash.get_noise_1d(fy))
-			if (x + y * 3) % 7 == 0:
-				c = c.darkened(0.04)
-			img.set_pixel(x, y, c)
+	abrash.frequency = 0.02
+	var fuzz: FastNoiseLite = FastNoiseLite.new()
+	fuzz.seed = 11
+	fuzz.frequency = 0.35
+	var wear_n: FastNoiseLite = FastNoiseLite.new()
+	wear_n.seed = 5
+	wear_n.frequency = 0.03
+	var row_col: Array = []
+	for ky in h / knot + 1:
+		row_col.append(abrash.get_noise_1d(float(ky)))
+	for ky2 in h / knot:
+		for kx in w / knot:
+			# the knot's color, from the design at its center, a touch of wool fuzz jittering the sample
+			var sx: float = (float(kx) + 0.5) * float(knot) + fuzz.get_noise_2d(float(kx), float(ky2)) * 1.6
+			var sy: float = (float(ky2) + 0.5) * float(knot) + fuzz.get_noise_2d(float(kx) + 99.0, float(ky2)) * 1.6
+			var c: Color = _rug_motif(sx, sy, float(w), float(h))
+			# abrash: each row's dye lot, shifting the hue and value a little
+			var ab: float = float(row_col[ky2])
+			c = Color(c.r * (1.0 + 0.10 * ab), c.g * (1.0 + 0.04 * ab), c.b * (1.0 - 0.06 * ab))
+			# each knot its own shade
+			c = c.darkened(0.10 * h01(kx * 7 + ky2 * 9173)) if h01(kx * 3 + ky2 * 31) > 0.5 else c.lightened(0.05 * h01(kx * 11 + ky2 * 7))
+			# the pile worn in the middle: thinner, paler, the warp showing in places
+			var cx: float = (float(kx * knot) - float(w) * 0.5) / float(w)
+			var cy: float = (float(ky2 * knot) - float(h) * 0.5) / float(h)
+			var wear: float = clampf(0.9 - Vector2(cx * 1.6, cy * 2.2).length() * 1.8 + 0.4 * wear_n.get_noise_2d(float(kx), float(ky2)), 0.0, 1.0)
+			c = c.lerp(Color(0.80, 0.72, 0.58), 0.22 * wear)
+			var bare: bool = wear > 0.75 and h01(kx * 5 + ky2 * 3) > 0.7
+			for dy in knot:
+				for dx in knot:
+					var x: int = kx * knot + dx
+					var y: int = ky2 * knot + dy
+					# the knot's dome: brighter at its crown, a dark seam between rows
+					var dome: float = 1.0 - (absf(float(dx) - 0.5) + absf(float(dy) - 0.5)) * 0.5
+					var col: Color = c.darkened(0.12 * (1.0 - dome))
+					if bare and dx == 0:
+						col = Color(0.84, 0.78, 0.66).darkened(0.1)
+					img.set_pixel(x, y, col)
+					hgt[y * w + x] = (dome * 0.6 + 0.4) * (1.0 - 0.6 * wear)
 	img.generate_mipmaps()
+	# the pile's normal map from the knot heights
+	var nimg: Image = Image.create(w, h, false, Image.FORMAT_RGB8)
+	for y2 in h:
+		for x2 in w:
+			var hx: float = hgt[y2 * w + mini(x2 + 1, w - 1)] - hgt[y2 * w + maxi(x2 - 1, 0)]
+			var hy: float = hgt[mini(y2 + 1, h - 1) * w + x2] - hgt[maxi(y2 - 1, 0) * w + x2]
+			var nrm: Vector3 = Vector3(-hx * 1.4, -hy * 1.4, 1.0).normalized()
+			nimg.set_pixel(x2, y2, Color(nrm.x * 0.5 + 0.5, nrm.y * 0.5 + 0.5, nrm.z * 0.5 + 0.5))
+	nimg.generate_mipmaps()
+	_rug_nrm = ImageTexture.create_from_image(nimg)
 	return ImageTexture.create_from_image(img)
 
 func _labels(n: int, base: Color) -> ImageTexture:
@@ -200,7 +262,6 @@ func _labels(n: int, base: Color) -> ImageTexture:
 # --- the room and the table: baked --------------------------------------------------------------------------------
 
 func _build_still() -> void:
-	var felt: StandardMaterial3D = mat(Color.WHITE, 0.95, 0.0, _felt(128), Vector3(4, 12, 1))
 	var rail_wood: StandardMaterial3D = mat(Color.WHITE, 0.2, 0.0, tex_wood(128, Color(0.36, 0.15, 0.06), 4), Vector3(1, 14, 1))
 	rail_wood.clearcoat_enabled = true
 	rail_wood.clearcoat = 1.0
@@ -218,8 +279,10 @@ func _build_still() -> void:
 		# along the table already (turned 90 degrees, one stood ACROSS the room and hid the far end)
 		box(Vector3(10.0, 1200.0, 4000.0), panels, Vector3(sx * 1150.0, 600.0, -800.0))
 	# THE TABLE: the slate bed under the felt, the cushions along its edges, the rails with their diamonds, the legs
-	box(Vector3(600.0, 20.0, length), mat(Color(0.12, 0.10, 0.09), 0.7), Vector3(0.0, TABLE_Y - 12.0, zc))
-	box(Vector3(600.0, 2.0, length), felt, Vector3(0.0, TABLE_Y - 1.0, zc))
+	# (the bed, the felt and the near rail are cut round the pocket -- `_notched_slab`: the hole was a disc under solid
+	# felt and rail, the balls shrank into the wood -- the user, twice)
+	_notched_slab(-300.0, 300.0, FAR_Z - 10.0, RAIL_IN_Z, TABLE_Y - 22.0, TABLE_Y - 2.0, true, mat(Color(0.12, 0.10, 0.09), 0.7), 0.0)
+	_notched_slab(-300.0, 300.0, FAR_Z - 10.0, RAIL_IN_Z, TABLE_Y - 2.0, TABLE_Y, true, mat(Color.WHITE, 0.95, 0.0, _felt(128)), 150.0)
 	for sx2 in [-1.0, 1.0]:
 		# the cushion: a rubber wedge along the rail, its face sloping to the felt (a tilted cylinder lay across the table)
 		box(Vector3(13.0, 13.0, length), cushion, Vector3(sx2 * 296.0, TABLE_Y + 2.0, zc), Vector3(0.0, 0.0, 45.0))
@@ -244,7 +307,7 @@ func _build_still() -> void:
 			cyl(12.0, 13.0, 10.0, brass, lp + Vector3(0.0, 5.0, 0.0), Vector3.ZERO, null, 16)
 			cyl(10.0, 10.0, 4.0, brass, lp + Vector3(0.0, 1.0, 0.0), Vector3.ZERO, null, 16)
 	box(Vector3(712.0, 22.0, 56.0), rail_wood, Vector3(0.0, TABLE_Y + 4.0, FAR_Z - 28.0))
-	box(Vector3(712.0, 22.0, 56.0), rail_wood, Vector3(0.0, TABLE_Y + 4.0, 38.0))
+	_notched_slab(-356.0, 356.0, RAIL_IN_Z, 66.0, TABLE_Y - 7.0, TABLE_Y + 15.0, false, mat(Color.WHITE, 0.2, 0.0, tex_wood(128, Color(0.36, 0.15, 0.06), 4)), 180.0, true)
 	# the near end's apron, its carved panels framed in beads, the brass bead along its top
 	box(Vector3(712.0, 46.0, 20.0), rail_wood, Vector3(0.0, TABLE_Y - 30.0, 66.0))
 	cyl(3.0, 3.0, 712.0, brass, Vector3(0.0, TABLE_Y - 9.0, 77.0), Vector3(0.0, 0.0, 90.0), null, 10)
@@ -255,7 +318,11 @@ func _build_still() -> void:
 	var rug_l: float = length + 500.0
 	var rug_pm: PlaneMesh = PlaneMesh.new()        # (a box spread the texture over six faces)
 	rug_pm.size = Vector2(1100.0, rug_l)
-	put(rug_pm, mat(Color.WHITE, 0.95, 0.0, _rug(512, 1024)), Vector3(0.0, 1.2, zc))
+	var rug_m: StandardMaterial3D = mat(Color.WHITE, 0.95, 0.0, _rug(512, 1024))
+	rug_m.normal_enabled = true
+	rug_m.normal_texture = _rug_nrm
+	rug_m.normal_scale = 1.0
+	put(rug_pm, rug_m, Vector3(0.0, 1.2, zc))
 	# the rug's thickness at its edges, and its FRINGES at both ends: cream warp threads in little knotted bunches
 	var wool_edge: StandardMaterial3D = mat(Color(0.20, 0.22, 0.34), 0.95)
 	for es in [-1.0, 1.0]:
@@ -270,13 +337,51 @@ func _build_still() -> void:
 			var fringe: MeshInstance3D = box(Vector3(2.4, 1.0, flen), warp, Vector3(fx + 3.0 * (h01(fk * 3) - 0.5), 0.5, fz + fe * flen * 0.5), Vector3(0.0, (h01(fk * 7) - 0.5) * 14.0, 0.0))
 			fringe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	box(Vector3(600.0, 13.0, 13.0), cushion, Vector3(0.0, TABLE_Y + 2.0, FAR_Z + 4.0), Vector3(45.0, 0.0, 0.0))
-	# THE POCKET in the near rail: a leather cup under a brass-bound mouth, dark inside
-	cyl(BALL_R * 1.6, BALL_R * 1.2, 50.0, leather, POCKET + Vector3(0.0, -20.0, 0.0), Vector3.ZERO, null, 32)
-	cyl(BALL_R * 1.45, BALL_R * 1.45, 2.0, mat(Color(0.02, 0.02, 0.02), 1.0), POCKET + Vector3(0.0, 6.0, 0.0), Vector3.ZERO, null, 32)
-	var lip: TorusMesh = TorusMesh.new()
-	lip.inner_radius = BALL_R * 1.45
-	lip.outer_radius = BALL_R * 1.75
-	put(lip, brass, POCKET + Vector3(0.0, 7.0, 0.0))
+	# THE POCKET: a real hole through the felt and the rail -- under it a deep leather cup, open at the top, its walls
+	# going down into the dark; the rail's cut edge bound in a brass POCKET IRON, a crescent plate lying on the rail
+	# round it with a bead at its rim
+	var cup: SurfaceTool = SurfaceTool.new()
+	cup.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cup_y0: float = TABLE_Y - 46.0          # (above the apron's foot: deeper, it hung out under the table)
+	for cs in 40:
+		var ca0: float = TAU * float(cs) / 40.0
+		var ca1: float = TAU * float(cs + 1) / 40.0
+		var q: Array = [Vector3(cos(ca0) * HOLE_R, TABLE_Y + 14.0, sin(ca0) * HOLE_R), Vector3(cos(ca1) * HOLE_R, TABLE_Y + 14.0, sin(ca1) * HOLE_R),
+			Vector3(cos(ca1) * HOLE_R * 0.8, cup_y0, sin(ca1) * HOLE_R * 0.8), Vector3(cos(ca0) * HOLE_R * 0.8, cup_y0, sin(ca0) * HOLE_R * 0.8)]
+		for vi in [0, 1, 2, 0, 2, 3]:
+			var qv: Vector3 = q[vi]
+			cup.set_normal(-Vector3(qv.x, 0.0, qv.z).normalized())
+			cup.set_uv(Vector2(float(cs + (1 if vi in [1, 2] else 0)) / 10.0, (TABLE_Y + 14.0 - qv.y) / 40.0))
+			cup.add_vertex(qv)
+	var cup_m: StandardMaterial3D = mat(Color.WHITE, 0.7, 0.0, tex_speckle(64, Color(0.13, 0.07, 0.04), 0.2, 9))
+	cup_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	put(cup.commit(), cup_m, POCKET * Vector3(1.0, 0.0, 1.0))
+	cyl(HOLE_R * 0.8, HOLE_R * 0.8, 2.0, mat(Color(0.03, 0.02, 0.015), 1.0), Vector3(POCKET.x, cup_y0, POCKET.z), Vector3.ZERO, null, 32)
+	# the pocket iron: the crescent of brass on the rail's top round the cut, its bead
+	var dz0: float = RAIL_IN_Z - POCKET.z
+	var iron_pts: PackedVector2Array = PackedVector2Array()
+	for ring_k in 2:
+		var ring_r: float = HOLE_R if ring_k == 0 else HOLE_R + 12.0
+		var half_w: float = sqrt(ring_r * ring_r - dz0 * dz0)
+		var a_left: float = atan2(dz0, -half_w) + TAU         # round the rail's side of the hole, through +z
+		var a_right: float = atan2(dz0, half_w)
+		for ik in 25:
+			var f: float = float(ik) / 24.0
+			var ia: float = lerpf(a_left, a_right, f) if ring_k == 0 else lerpf(a_right, a_left, f)
+			iron_pts.append(Vector2(cos(ia), sin(ia)) * ring_r)
+	var iron_st: SurfaceTool = SurfaceTool.new()
+	iron_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var iron_idx: PackedInt32Array = Geometry2D.triangulate_polygon(iron_pts)
+	for ii in iron_idx:
+		iron_st.set_normal(Vector3.UP)
+		iron_st.add_vertex(Vector3(iron_pts[ii].x, TABLE_Y + 16.2, iron_pts[ii].y))
+	var iron_m: StandardMaterial3D = brass.duplicate()
+	iron_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	put(iron_st.commit(), iron_m, POCKET * Vector3(1.0, 0.0, 1.0))
+	var iron_bead: PackedVector3Array = PackedVector3Array()
+	for bk2 in 25:
+		iron_bead.append(POCKET * Vector3(1.0, 0.0, 1.0) + Vector3(iron_pts[bk2].x, TABLE_Y + 16.0, iron_pts[bk2].y))
+	put(tube_mesh(iron_bead, 2.2, 8), brass, Vector3.ZERO)
 	# THE LAMP: a long green shade over the table on two chains, its three bulbs
 	var lamp_z: float = -680.0
 	var shade: StandardMaterial3D = mat(Color(0.10, 0.36, 0.22), 0.25, 0.3)
@@ -440,6 +545,73 @@ func _hall(wood: StandardMaterial3D, brass: StandardMaterial3D, leather: Standar
 			sphere(9.0, glow(Color(1.0, 0.86, 0.60)), scp + Vector3(-sw * 14.0, 6.0, 0.0))
 			light(scp + Vector3(-sw * 30.0, 10.0, 0.0), Color(1.0, 0.80, 0.55), 1.4, 260.0)
 
+# A SLAB with a round bite out of one long edge (the pocket): its top and bottom faces triangulated from the outline,
+# its outer walls and the bite's curved wall; `bite_far` takes the bite out of its z1 (far from the viewer: the felt's
+# near edge) side, else out of its z0 side (the rail's inner edge). uv_per: the top's texture repeat in units (0: one
+# texture over the whole top). grain_x: the wood's grain along x
+func _notched_slab(x0: float, x1: float, z0: float, z1: float, y0: float, y1: float, bite_far: bool, m: StandardMaterial3D, uv_per: float, grain_x: bool = false) -> void:
+	var ze: float = z1 if bite_far else z0
+	var dz: float = ze - POCKET.z
+	var dx: float = sqrt(maxf(0.0, HOLE_R * HOLE_R - dz * dz))
+	var outline: PackedVector2Array = PackedVector2Array()
+	var arc: Array = []
+	var a_r: float = atan2(dz, dx)
+	var a_l: float = atan2(dz, -dx)
+	if bite_far:
+		# the felt: round the near edge, the bite reaching back into it (through -z)
+		if a_l > 0.0:
+			a_l -= TAU
+		for k in 25:
+			arc.append(Vector2(POCKET.x, POCKET.z) + Vector2(cos(lerpf(a_r, a_l, float(k) / 24.0)), sin(lerpf(a_r, a_l, float(k) / 24.0))) * HOLE_R)
+		outline.append_array(PackedVector2Array([Vector2(x0, z0), Vector2(x1, z0), Vector2(x1, z1)]))
+		outline.append_array(PackedVector2Array(arc))
+		outline.append(Vector2(x0, z1))
+	else:
+		if a_l < a_r:
+			a_l += TAU
+		for k2 in 25:
+			arc.append(Vector2(POCKET.x, POCKET.z) + Vector2(cos(lerpf(a_l, a_r, float(k2) / 24.0)), sin(lerpf(a_l, a_r, float(k2) / 24.0))) * HOLE_R)
+		outline.append(Vector2(x0, z0))
+		outline.append_array(PackedVector2Array(arc))
+		outline.append_array(PackedVector2Array([Vector2(x1, z0), Vector2(x1, z1), Vector2(x0, z1)]))
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var idx: PackedInt32Array = Geometry2D.triangulate_polygon(outline)
+	var span: Vector2 = Vector2(x1 - x0, z1 - z0)
+	for face in 2:
+		var fy: float = y1 if face == 0 else y0
+		for i in idx:
+			var o: Vector2 = outline[i]
+			st.set_normal(Vector3.UP if face == 0 else Vector3.DOWN)
+			var uv: Vector2 = (o - Vector2(x0, z0)) / (Vector2(uv_per, uv_per) if uv_per > 0.0 else span)
+			st.set_uv(Vector2(uv.y, uv.x) if not grain_x else uv)
+			st.add_vertex(Vector3(o.x, fy, o.y))
+	# the walls: every outline edge, its normal pointing out of the slab (into the hole on the bite)
+	var ccw: bool = _signed_area(outline) > 0.0
+	for e in outline.size():
+		var a: Vector2 = outline[e]
+		var b: Vector2 = outline[(e + 1) % outline.size()]
+		var dir: Vector2 = (b - a).normalized()
+		var n2: Vector2 = Vector2(dir.y, -dir.x) if ccw else Vector2(-dir.y, dir.x)
+		var run: float = a.distance_to(b)
+		var quad: Array = [Vector3(a.x, y1, a.y), Vector3(b.x, y1, b.y), Vector3(b.x, y0, b.y), Vector3(a.x, y0, a.y)]
+		var quv: Array = [Vector2(0.0, 0.0), Vector2(run / 120.0, 0.0), Vector2(run / 120.0, (y1 - y0) / 120.0), Vector2(0.0, (y1 - y0) / 120.0)]
+		for vi in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(Vector3(n2.x, 0.0, n2.y))
+			st.set_uv(quv[vi])
+			st.add_vertex(quad[vi])
+	var mm: StandardMaterial3D = m.duplicate()
+	mm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	put(st.commit(), mm, Vector3.ZERO)
+
+func _signed_area(poly: PackedVector2Array) -> float:
+	var area: float = 0.0
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % poly.size()]
+		area += a.x * b.y - b.x * a.y
+	return area * 0.5
+
 # --- live: the pair of balls rolling up the felt into the pocket ---------------------------------------------------
 
 # THE NEAR RAIL OVER THE SINKING BALL: the balls are 2-D over the baked table, so one going into the pocket was drawn
@@ -451,14 +623,18 @@ func _rail_cover() -> void:
 		return
 	var off: Vector2 = Vector2(0.0, _cy3 - BAKE_CY)
 	var ts: Vector2 = _bg_tex.get_size()
-	var left: Vector2 = screen_of(Vector3(-260.0, TABLE_Y + 15.0, POCKET.z))
-	var right: Vector2 = screen_of(Vector3(260.0, TABLE_Y + 15.0, POCKET.z))
+	var left: Vector2 = screen_of(Vector3(-260.0, TABLE_Y + 15.0, RAIL_IN_Z))
+	var right: Vector2 = screen_of(Vector3(260.0, TABLE_Y + 15.0, RAIL_IN_Z))
 	var pts: PackedVector2Array = PackedVector2Array([left])
-	var rr: float = BALL_R * 1.42
+	# the cut's NEAR edge along the rail's top, left to right, round the far side of the hole from us
+	var dz: float = RAIL_IN_Z - POCKET.z
+	var a_l: float = atan2(dz, -sqrt(HOLE_R * HOLE_R - dz * dz))
+	var a_r: float = atan2(dz, sqrt(HOLE_R * HOLE_R - dz * dz))
+	if a_l < a_r:
+		a_l += TAU
 	for k in 25:
-		# the mouth's near half, from its left to its right, at the lip's height
-		var a: float = PI - PI * float(k) / 24.0
-		pts.append(screen_of(POCKET + Vector3(cos(a) * rr, 7.0, sin(a) * rr)))
+		var a: float = lerpf(a_l, a_r, float(k) / 24.0)
+		pts.append(screen_of(POCKET + Vector3(cos(a) * HOLE_R, 15.0, sin(a) * HOLE_R)))
 	pts.append(right)
 	var depth: float = 140.0
 	pts.append(right + Vector2(0.0, depth))
@@ -507,7 +683,7 @@ func _tick(delta: float) -> void:
 	_balls.position = ctr - _bsize * 0.5 * sc
 	if u >= ROLL and not _balls.has_meta("sinking"):
 		_balls.set_meta("sinking", true)
-		var pocket_px: Vector2 = screen_of(POCKET + Vector3(0.0, 6.0, 0.0))
+		var pocket_px: Vector2 = screen_of(POCKET + Vector3(0.0, -BALL_R * 0.6, 0.0))   # its center goes down into the cup
 		_balls.sink_into((pocket_px - _balls.position) / sc, 46.0 / sc)
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:

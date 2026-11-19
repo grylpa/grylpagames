@@ -409,7 +409,10 @@ func _to_poster() -> void:
 	move_child(foot_fade, $ColorRect.get_index() + 1)
 	# "How to play", down in the bottom bar: a small outlined link centered on the icons' line
 	_bar_howto = _link_button("How to play")
-	_bar_howto.custom_minimum_size = Vector2(0.0, 52.0 if mobile else 32.0)
+	# SLIM (the user, 2026-11-19: its frame ran below the screen's foot): little padding above and below the words, the
+	# height set by the text; it stays centered on the icons' line (`_place_bar_link`: both offsets on that line, growing
+	# both ways)
+	_bar_howto.custom_minimum_size = Vector2(0.0, 0.0)
 	_bar_howto.add_theme_font_size_override("font_size", 26 if mobile else 18)
 	# a dark backing, as the panel's, so it reads over any scene (over Dispatch's bright lawn it did not)
 	for st_name in ["normal", "hover", "pressed", "focus"]:
@@ -417,6 +420,8 @@ func _to_poster() -> void:
 		if bsb != null:
 			bsb.draw_center = true
 			bsb.bg_color = Color(0.05, 0.035, 0.025, 0.80 if st_name == "normal" else 0.92)
+			bsb.content_margin_top = 3.0 if mobile else 2.0
+			bsb.content_margin_bottom = 3.0 if mobile else 2.0
 			_bar_howto.add_theme_stylebox_override(st_name, bsb)
 	_bar_howto.pressed.connect(_on_tutorial_button_pressed)
 	add_child(_bar_howto)
@@ -516,7 +521,13 @@ func _tell_scene_bottom() -> void:
 		var full_h: float = get_viewport().get_visible_rect().size.y
 		_foot_fade.offset_top = -(full_h - _card.get_global_rect().position.y) - (150.0 if MainGlobals.is_mobile() else 90.0)
 	if _world != null and is_instance_valid(_world) and _world.has_method("set_scene_bottom"):
-		_world.call("set_scene_bottom", _card.get_global_rect().position.y - $ColorRect.get_global_rect().position.y)
+		var top_y: float = _card.get_global_rect().position.y - $ColorRect.get_global_rect().position.y
+		if not _fold_options and (not _scene_follows_options or _world.has_method("set_scene_lift")):
+			top_y += _unfolded_extra()
+		if _world.has_method("set_scene_lift"):
+			# a 3-D poster rises by the whole of the rows' height instead (see menu_poster3d.gd THE LIFT)
+			_world.call("set_scene_lift", _unfolded_extra() if not _fold_options and _scene_follows_options else 0.0)
+		_world.call("set_scene_bottom", top_y)
 
 # THE FOLD: a row naming the level stays on the card; every other option goes under "Settings".
 func _is_level_row(row: Node) -> bool:
@@ -542,10 +553,51 @@ func _foldable() -> Array:
 			k += 2
 	return out
 
+# PER GAME: SHOW EVERY OPTION, NO COG (the user, 2026-11-19: with no opaque slab behind the controls, a theme list or a
+# switch can stand on the scene beside the level row). Called by the game after adding its entries. `move_scene`:
+# true -- the poster is told the panel's real top and lays its scene out above the taller panel; false -- it is told
+# the top the panel WOULD have with its options folded away, so the picture stays exactly where it was and the extra
+# rows simply stand over its foot
+func show_all_options(move_scene: bool) -> void:
+	_fold_options = false
+	_scene_follows_options = move_scene
+	_setup_fold()
+
+var _fold_options: bool = true
+var _scene_follows_options: bool = true
+
+# how much taller the shown options make the panel than it would be folded (each unfolded row and its gap)
+func _unfolded_extra() -> float:
+	var extra: float = 0.0
+	var vsep: float = float(_option_rows_vbox.get_theme_constant("separation"))
+	var any_level: bool = false
+	for row in _option_rows_vbox.get_children():
+		if _is_level_row(row):
+			any_level = true
+	for row in _option_rows_vbox.get_children():
+		if not _is_level_row(row) and (row as Control).visible:
+			extra += (row as Control).size.y + (vsep if any_level else 0.0)
+	if grid != null:
+		var gsep: float = float(grid.get_theme_constant("v_separation"))
+		var kids: Array = grid.get_children()
+		var k: int = 0
+		while k + 1 < kids.size():
+			var lbl: Control = kids[k]
+			if lbl.visible and not (lbl is Label and str((lbl as Label).text).to_lower().contains("level")):
+				extra += maxf(lbl.size.y, (kids[k + 1] as Control).size.y) + gsep
+			k += 2
+	return extra
+
 func _setup_fold() -> void:
 	if _links == null:
 		return
 	var rows: Array = _foldable()
+	if not _fold_options:
+		if _settings_btn != null:
+			_settings_btn.hide()
+		_settings_open = true
+		_apply_fold()
+		return
 	if rows.is_empty():
 		if _settings_btn != null:
 			_settings_btn.hide()

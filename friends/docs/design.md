@@ -309,16 +309,48 @@ arcade coin, a swoosh and three stock ocean-wave loops picked at random.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: FRIENDS'
-PHOTOS ON A STRING IN A WARM ROOM AT EVENING (2026-11-18; before it an evening park where photo cards and 3-D walkers
-appeared together -- "both cards and funny people?" -- and the park itself was poor). A whitewashed brick wall
-(`_painted_brick`) lit by a table lamp with a pleated shade and a swag of fairy lights; a length of jute twine sags
-between two nails (`_twine_at`), and on it five of the game's people hang as old prints (the shared card, photo style),
-each gripped by a wooden peg with its steel spring (`_draw_peg`, 2-D, over the print) and swaying a little on its own
-beat. Every `TURN_EVERY` 2.2 s the next print along turns over on its peg (narrowing to its edge, `TURN_S` 0.7 s) and
-comes round as someone else: a FRIEND has a first name written under the photo in ink, a stranger has none. Below, an
-oak sideboard with the lamp, a stack of cloth-bound books, a mug with steam rising off it (`_draw_steam`, live), a fern
-in a terracotta pot; a window at the right onto the evening street. The room is baked, one picture per platform
-(`menu_room.webp`, `menu_room_d.webp`); the prints, the pegs and the steam are live, the photos loaded on threads.
-Made up, never the board.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: AN EVENING
+STROLL DOWN A STREET OF TOWNHOUSES, the game's people at their lit windows (2026-11-18, round 3; before it the people's
+photos hung on a string in a room -- the user: "the concept is stark. you hang people pictures to remember them", it read
+as a memorial wall; and before that an evening park of photo cards and 3-D walkers, "both cards and funny people?").
 
+THE STREET (baked, one picture per platform, `menu_houses.webp`, `menu_houses_d.webp`): a row of narrow townhouses at
+dusk -- red brick (`_brick`), cream stucco with a rusticated ground floor and sage-green stucco (`_stucco`), an ochre one
+and another of brick at the ends for a desktop's wider picture -- every face a texture with a normal map, laid as quads
+at a fixed scale (`_face`); stone string courses, a frieze, a row of dentils and a jutting crown cornice, parapets,
+chimney stacks with clay pots; each window (`_window`) a painted sash in a stone surround standing proud (`FRAME_Z`) with a
+molded hood, a keystone and a bracketed sill -- drawn curtains glowing (`lit`), an unlit room holding the dusk (`dark`),
+or a box of red geraniums (`box`). The cream house's front door (`_door`): deep-blue panels, a brass knocker and knob, a
+glowing fanlight with its spokes, a pilastered doorcase and arch, up three stone steps between iron railings with spear
+heads, a clipped bay tree in a planter either side. A cast-iron street lamp at the left, its LANTERN (`_lantern`, 2026-11-19; it was a glowing four-sided block) a
+Victorian one: a cast collar and a ladder bar with ball ends, four frosted panes (`_pane_tex`: warm white round the
+mantle, amber to the corners) in an iron frame, a crown with lit vents, a hood and a finial, and a soft 2-D halo round it
+in `_paint_top` (kept clear
+of every window with a person in it: those are live and would be drawn over it), flagstones (`_flags`), a granite curb,
+a bicycle with a wicker basket leaning on the right-hand railing, downpipes between the houses; the evening sky with its
+first stars and a crescent moon. Light: the last of the daylight (a cool, low directional light with shadows), the
+street lamp (shadows), warm spill from each lit window and the fanlight.
+
+THE PEOPLE (live 2-D): five windows (`FACES`) hold the game's people -- ONLY WOMEN (`WOMEN`, named by hand: the photos
+carry no gender; with men's faces staring out of the dark houses the user found it "a bit scary"), each CUT OUT of her
+studio backdrop, hair and all (`devtools/make_friends_cutouts.py` -> `art/menu_women/*.webp`, lossy with alpha: the
+backdrop fitted as a smooth surface from the photo's edges, flooded in from them while the color changes gently, a soft
+matte at the hair; a fixed feathered ellipse round the head had cut into everyone's hair -- "why do all those women look
+like you shaved their heads?"; five photos whose backdrop matched their hair or clothes were left out). `_person` steps
+through the list by a stride sharing no factor with its length (7 through 21 showed three women, one in three windows), each in a lit ROOM (`_draw_rooms`: a warm wall shaded
+from a hanging lamp's glow, a framed picture on the far wall) -- the photo standing up to the sill (`_draw_people`,
+`PERSON_W`, `PERSON_U`), warmed and shaded like the room, so the person stands in the room (filling the glass, the photos
+read as portraits hung in windows);
+over them (`_draw_fronts`) the head's shadow on the glass, a pair of CURTAINS on a brass rod (`_draw_curtains`: a run of
+folds shaded strip by strip), a faint sheen and the
+street lamp's glint. Everything in a window is clipped to the part of its glass seen past the surround's soffit and sill
+(`_visible_poly`: the glass's outline intersected with the opening's front edge; `_uv_of` maps back onto the glass).
+ONE WINDOW AT A TIME (2026-11-19, the user: "spread them out more, and only reveal one at a time"; five at once filled
+the middle row): the six `FACES` windows, spread over both floors of all three houses and listed in TURN ORDER so each turn
+jumps across the street, take turns of `TURN_S` 1.22 s -- curtains opening (`OPEN_S` 0.6) on the next woman, held only `HOLD_S` 0.12 s
+(the user: the pause while open "to almost zero"), closing (`CLOSE_S` 0.5) -- and the next window starts opening `LEAD_S` before they quite meet (the two eases' slow ends
+had made a still moment between turns: "much less pauses after the curtain close"); a shut window has nobody behind it,
+the next photo loads during the turn before, and a window whose photo is late keeps its curtains shut (the photos load on
+threads). EVERY CURTAIN IS OPAQUE cloth -- teal, mustard, velvet, rose, moss, navy: two were lace, and closing they still
+showed the woman, who then vanished at once. Made up, never
+the board.

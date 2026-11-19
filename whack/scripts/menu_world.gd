@@ -17,6 +17,7 @@ extends "res://scripts/menu_poster3d.gd"
 const HOLES: Array = [Vector3(-125.0, 0.0, 30.0), Vector3(0.0, 0.0, 30.0), Vector3(125.0, 0.0, 30.0),
 	Vector3(-125.0, 0.0, 115.0), Vector3(0.0, 0.0, 115.0), Vector3(125.0, 0.0, 115.0)]
 const TOP_Y: float = 150.0
+const SIDE_CUT: float = TOP_Y - 14.0     # the striped sides are baked below this, live above
 const WHEEL_C: Vector3 = Vector3(-560.0, 760.0, -1500.0)
 const WHEEL_R: float = 520.0             # the table's turf
 const DOME_R: float = 27.0
@@ -79,6 +80,8 @@ func _build_lights() -> void:
 	spot(Vector3(0.0, 250.0, 420.0), Vector3(0.0, TOP_Y, 60.0), Color(1.0, 0.92, 0.80), 0.5, 520.0, 30.0)
 	# a soft warm light in front, up at the valance
 	light(Vector3(0.0, 300.0, 420.0), Color(1.0, 0.85, 0.65), 1.1, 420.0)
+	# and a wash down the cabinet's front, so the enameled body reads as standing furniture, apart from the boards
+	spot(Vector3(0.0, 230.0, 560.0), Vector3(0.0, 70.0, 170.0), Color(1.0, 0.90, 0.74), 1.1, 700.0, 26.0)
 
 # --- textures ---------------------------------------------------------------------------------------------------
 
@@ -150,14 +153,68 @@ func _turf(n: int) -> ImageTexture:
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
+# the boardwalk's planks (one tile: 8 planks across, the grain running along them): weathered silver-brown, each its own
+# tone, dark gaps, staggered butt joints, a pair of nail heads over each joist; with a normal map from its height
+func _deck_tex() -> Array:
+	var n: int = 256
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	var hgt: PackedFloat32Array = PackedFloat32Array()
+	hgt.resize(n * n)
+	for y in n:
+		for x in n:
+			var pk: int = x / 32
+			var px: int = x % 32
+			var joint: int = int(h01(pk * 17 + 3) * float(n))
+			var base: Color = Color(0.46, 0.38, 0.30).lerp(Color(0.56, 0.52, 0.46), h01(pk * 7 + 1)).darkened(0.12 * h01(pk * 11 + 2))
+			var grain: float = sin(float(x) * 1.7 + sin(float(y) * 0.05 + float(pk)) * 3.0) * 0.5 + 0.5
+			var c: Color = base.darkened(0.10 * grain + 0.06 * h01(x * 131 + y * 7))
+			var hh: float = 1.0 - 0.15 * grain
+			var edge: int = mini(px, 31 - px)
+			if edge < 2:
+				c = Color(0.06, 0.05, 0.04)
+				hh = 0.0
+			elif edge < 4:
+				c = c.darkened(0.25)
+				hh = 0.6
+			var dj: int = absi(y - joint)
+			if dj < 2 or dj > n - 2:
+				c = Color(0.10, 0.08, 0.06)
+				hh = 0.1
+			# the nails, over joists every 64 rows
+			for jy in [32, 96, 160, 224]:
+				for nx in [9, 23]:
+					if Vector2(px - nx, y - jy).length() < 1.8:
+						c = Color(0.20, 0.20, 0.22)
+						hh = 0.8
+			img.set_pixel(x, y, c)
+			hgt[y * n + x] = hh
+	img.generate_mipmaps()
+	var nimg: Image = Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y2 in n:
+		for x2 in n:
+			var hx: float = hgt[y2 * n + (x2 + 1) % n] - hgt[y2 * n + (x2 - 1 + n) % n]
+			var hy: float = hgt[((y2 + 1) % n) * n + x2] - hgt[((y2 - 1 + n) % n) * n + x2]
+			var nrm: Vector3 = Vector3(-hx * 2.0, -hy * 2.0, 1.0).normalized()
+			nimg.set_pixel(x2, y2, Color(nrm.x * 0.5 + 0.5, nrm.y * 0.5 + 0.5, nrm.z * 0.5 + 0.5))
+	nimg.generate_mipmaps()
+	return [ImageTexture.create_from_image(img), ImageTexture.create_from_image(nimg)]
+
 # --- the booth and the table's body: baked -------------------------------------------------------------------
 
 func _build_still() -> void:
 	var dark_wood: StandardMaterial3D = mat(Color.WHITE, 0.35, 0.0, tex_wood(256, Color(0.28, 0.14, 0.07), 5), Vector3(3, 1, 1))
 	var brass: StandardMaterial3D = mat(Color(0.88, 0.68, 0.32), 0.3, 0.4)
 	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(256, RED, Color(0.96, 0.93, 0.86), 8))
-	# the boardwalk in front, planks
-	box(Vector3(1000.0, 6.0, 700.0), mat(Color.WHITE, 0.7, 0.0, tex_wood(256, Color(0.40, 0.30, 0.22), 9), Vector3(4, 8, 1)), Vector3(0.0, -3.0, 300.0))
+	# THE BOARDWALK: ONE deck of weathered planks running AWAY from us, gaps between them, butt joints and nail heads
+	# (the user, 2026-11-19: "what is all the brown at the bottom ... two brown surfaces ... with the exact same color"
+	# -- two overlapping dark boxes of differently scaled grain, plainer than the planks they stood for)
+	var deck: Array = _deck_tex()
+	var deck_m: StandardMaterial3D = mat(Color.WHITE, 0.62, 0.0, deck[0], Vector3(14.0, 7.0, 1.0))
+	deck_m.normal_enabled = true
+	deck_m.normal_texture = deck[1]
+	var deck_q: PlaneMesh = PlaneMesh.new()
+	deck_q.size = Vector2(2800.0, 1400.0)
+	put(deck_q, deck_m, Vector3(0.0, 0.0, 0.0))
 	# THE FAIR AROUND IT (seen at the sides, more on a desktop): the neighbor stalls, dim, under their own awnings,
 	# and strings of bulbs looping between poles
 	for side in [-1.0, 1.0]:
@@ -174,7 +231,6 @@ func _build_still() -> void:
 			var bx: float = lerpf(side * 360.0, side * 760.0, u)
 			var by: float = 515.0 - 60.0 * 4.0 * u * (1.0 - u)
 			sphere(3.4, glow([Color(1.0, 0.85, 0.5), Color(1.0, 0.45, 0.4), Color(0.6, 0.8, 1.0)][k % 3]), Vector3(bx, by, 260.0 - 300.0 * u))
-	box(Vector3(2400.0, 6.0, 1400.0), mat(Color.WHITE, 0.7, 0.0, tex_wood(256, Color(0.40, 0.30, 0.22), 9), Vector3(10, 16, 1)), Vector3(0.0, -3.5, 0.0))
 	if bake_mode:
 		pass                      # (the fair is its own live view, behind the booth: its wheel turns)
 	# the back wall of stars, and a shelf of prizes along it
@@ -193,14 +249,33 @@ func _build_still() -> void:
 	# THE TABLE's body: a cabinet front in red lacquer framed in gilt beading, a lit SCOREBOARD set in it -- black glass
 	# in a steel bezel, its figures live (the striped panels read as an empty basket, the lit strip on bare
 	# wood as "a brown rect with a yellow line" -- the user)
-	var lacquer: StandardMaterial3D = mat(Color(0.52, 0.06, 0.07), 0.25, 0.1)
+	# (2026-11-18, the user: "what does that scoreboard stand on? ... it has the exact same color as the floor" -- the
+	# dark red front read as more boardwalk): a CREAM-ENAMELED cabinet, plainly a piece of furniture standing on the
+	# boards -- a black plinth set back under it (a dark shadow line at the floor), red fielded panels in gilt beading
+	# either side of the scoreboard, a gilt rail along its top and foot
+	var enamel: StandardMaterial3D = mat(Color.WHITE, 0.3, 0.0, tex_wood(256, Color(0.88, 0.80, 0.64), 21), Vector3(2, 1, 1))
+	enamel.clearcoat_enabled = true
+	enamel.clearcoat = 0.7
+	var lacquer: StandardMaterial3D = mat(Color(0.62, 0.07, 0.08), 0.22, 0.1)
 	lacquer.clearcoat_enabled = true
-	lacquer.clearcoat = 0.8
-	box(Vector3(440.0, TOP_Y - 6.0, 200.0), lacquer, Vector3(0.0, (TOP_Y - 6.0) * 0.5, 70.0))
-	for by in [10.0, TOP_Y - 14.0]:
-		cyl(2.2, 2.2, 432.0, brass, Vector3(0.0, by, 171.0), Vector3(0.0, 0.0, 90.0), null, 10)
-	for bx in [-214.0, 214.0]:
-		cyl(2.2, 2.2, TOP_Y - 24.0, brass, Vector3(bx, (TOP_Y - 4.0) * 0.5, 171.0), Vector3.ZERO, null, 10)
+	lacquer.clearcoat = 0.9
+	box(Vector3(424.0, 18.0, 186.0), mat(Color(0.05, 0.04, 0.04), 0.5), Vector3(0.0, 9.0, 62.0))
+	box(Vector3(440.0, TOP_Y - 24.0, 200.0), enamel, Vector3(0.0, 18.0 + (TOP_Y - 24.0) * 0.5, 70.0))
+	for by in [21.0, TOP_Y - 10.0]:
+		cyl(2.6, 2.6, 438.0, brass, Vector3(0.0, by, 171.0), Vector3(0.0, 0.0, 90.0), null, 10)
+	for bx in [-218.0, 218.0]:
+		cyl(2.6, 2.6, TOP_Y - 31.0, brass, Vector3(bx, (TOP_Y + 11.0) * 0.5, 171.0), Vector3.ZERO, null, 10)
+	for side_p in [-1.0, 1.0]:
+		var pc: Vector3 = Vector3(side_p * 150.0, 84.0, 170.0)
+		put(rbox_mesh(40.0, 44.0, 4.0, 6.0, 2.5), lacquer, pc, Vector3(90.0, 0.0, 0.0))
+		put(rbox_mesh(28.0, 32.0, 6.5, 4.0, 3.0), lacquer, pc, Vector3(90.0, 0.0, 0.0))
+		for gy2 in [-48.0, 48.0]:
+			cyl(1.8, 1.8, 88.0, brass, pc + Vector3(0.0, gy2, 4.6), Vector3(0.0, 0.0, 90.0), null, 8)
+		for gx2 in [-44.0, 44.0]:
+			cyl(1.8, 1.8, 98.0, brass, pc + Vector3(gx2, 0.0, 4.6), Vector3.ZERO, null, 8)
+	# the striped sides' feet, beside the cabinet (their upper part is live)
+	for side_s in [-1.0, 1.0]:
+		box(Vector3(30.0, SIDE_CUT, 170.0), stripe, Vector3(side_s * 238.0, SIDE_CUT * 0.5, 30.0))
 	# the scoreboard SET INTO the cabinet front, higher up (the user: no word, a little higher, and "what does it stand
 	# on?"): a dark steel bezel standing proud of the lacquer, its brass frame, the black glass recessed in it, a brass
 	# screw at each corner
@@ -215,9 +290,6 @@ func _build_still() -> void:
 	for sx in [-100.0, 100.0]:
 		for sy in [-30.0, 30.0]:
 			sphere(2.4, brass, Vector3(sx, sb_y + sy, 175.2))
-	for sr in 2:
-		for rv in 7:
-			sphere(2.6, brass, Vector3(-150.0 + float(rv) * 50.0 + (25.0 if sr == 1 else 0.0), 16.0 + float(sr) * 0.0, 171.5))
 	# the posts at the corners, striped
 	for px3 in [-245.0, 245.0]:
 		cyl(7.0, 7.0, FASCIA_Y0, stripe, Vector3(px3, FASCIA_Y0 * 0.5, 118.0))
@@ -514,6 +586,46 @@ func _tick(delta: float) -> void:
 			var a: float = float(g[1]) + turn
 			(g[0] as Node3D).position = WHEEL_C + Vector3(cos(a), sin(a), 0.0) * WHEEL_R + Vector3(0.0, 0.0, 0.0)
 
+# a button's plastic, lit like the rest, but DISCARDED below the turf's top (in the world: the root is at 1:100), so the
+# part of a button still down in its burrow never shows -- through the baked cabinet front, live meshes drawing over it
+const BUTTON: String = """
+shader_type spatial;
+uniform vec4 col : source_color = vec4(1.0);
+uniform float rough = 0.3;
+uniform float coat = 0.0;
+uniform float glow = 0.0;
+uniform float clip_y = 0.0;
+varying float wy;
+void vertex() {
+	wy = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y;
+}
+void fragment() {
+	if (wy < clip_y) {
+		discard;
+	}
+	ALBEDO = col.rgb;
+	ROUGHNESS = rough;
+	METALLIC = 0.05;
+	CLEARCOAT = coat;
+	CLEARCOAT_ROUGHNESS = 0.15;
+	EMISSION = col.rgb * glow;
+}
+"""
+var _button_shader: Shader = null
+
+func _button_mat(col: Color, rough: float, coat: float, glow_e: float) -> ShaderMaterial:
+	if _button_shader == null:
+		_button_shader = Shader.new()
+		_button_shader.code = BUTTON
+	var m: ShaderMaterial = ShaderMaterial.new()
+	m.shader = _button_shader
+	m.set_shader_parameter("col", col)
+	m.set_shader_parameter("rough", rough)
+	m.set_shader_parameter("coat", coat)
+	m.set_shader_parameter("glow", glow_e)
+	m.set_shader_parameter("clip_y", (TOP_Y - 0.5) * 0.01)
+	return m
+
 func _build_live() -> void:
 	# the scoreboard's figures, amber in its black glass, counting each hit
 	_score = label("0000", 30.0, Color(1.0, 0.70, 0.25), Vector3(0.0, 84.0, 174.4))
@@ -521,10 +633,12 @@ func _build_live() -> void:
 	_score.outline_modulate = Color(1.0, 0.40, 0.10, 0.45)
 	_score.font = load("res://art/fonts/JetBrainsMono.ttf") if ResourceLoader.exists("res://art/fonts/JetBrainsMono.ttf") else _score.font
 	var brass: StandardMaterial3D = mat(Color(0.88, 0.68, 0.32), 0.3, 0.4)
-	# the striped sides
+	# the striped sides, ABOVE THE TABLE ONLY (they hide the live turf and mallet there). Below, they are baked
+	# (`_build_still`): live meshes always draw over the picture, and the sides' inner faces, which the cabinet hides,
+	# were drawn over its front -- two maroon wedges connected to nothing (the user, 2026-11-19, twice)
 	var stripe: StandardMaterial3D = mat(Color.WHITE, 0.6, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 8))
 	for side in [-1.0, 1.0]:
-		box(Vector3(30.0, 380.0, 170.0), stripe, Vector3(side * 238.0, 190.0, 30.0))
+		box(Vector3(30.0, 380.0 - SIDE_CUT, 170.0), stripe, Vector3(side * 238.0, (380.0 + SIDE_CUT) * 0.5, 30.0))
 	# THE TURF TOP (live: the buttons come up through it) inside a striped rail, the burrows ringed with soil
 	box(Vector3(436.0, 8.0, 196.0), mat(Color.WHITE, 0.9, 0.0, _turf(64), Vector3(3, 1.4, 1)), Vector3(0.0, TOP_Y - 4.0, 70.0))
 	var rail: StandardMaterial3D = mat(Color.WHITE, 0.5, 0.0, _stripes(128, RED, Color(0.96, 0.93, 0.86), 16))
@@ -545,17 +659,14 @@ func _build_live() -> void:
 		# THE BUTTON: a dome in its color on a darker rim; the real target's white center dot
 		var d: Node3D = Node3D.new()
 		root.add_child(d)
-		var body_m: StandardMaterial3D = mat(TARGET, 0.22, 0.05)
-		body_m.clearcoat_enabled = true
-		body_m.clearcoat = 0.8
-		body_m.emission_enabled = true                  # the plastic glows a little in its color: they read dark under the stall
-		body_m.emission = TARGET
-		body_m.emission_energy_multiplier = 0.35
-		var rim_m: StandardMaterial3D = mat(TARGET.darkened(0.35), 0.4)
+		# (the plastic glows a little in its color: they read dark under the stall). CUT OFF AT THE TURF (`_button_mat`):
+		# a button rising in a front hole was seen through the cabinet's front -- live meshes draw over the picture
+		var body_m: ShaderMaterial = _button_mat(TARGET, 0.22, 0.8, 0.35)
+		var rim_m: ShaderMaterial = _button_mat(TARGET.darkened(0.35), 0.4, 0.0, 0.0)
 		var dome: MeshInstance3D = sphere(DOME_R, body_m, Vector3(0.0, 8.0, 0.0), d, true)
 		dome.scale = Vector3(1.0, 0.72, 1.0)
 		cyl(DOME_R + 1.0, DOME_R + 1.0, 16.0, rim_m, Vector3(0.0, 0.0, 0.0), Vector3.ZERO, d, 40)
-		var dot: MeshInstance3D = cyl(6.0, 6.0, 1.2, mat(Color(1, 1, 1), 0.3), Vector3(0.0, 8.0 + DOME_R * 0.72 + 0.2, 0.0), Vector3.ZERO, d, 24)
+		var dot: MeshInstance3D = cyl(6.0, 6.0, 1.2, _button_mat(Color(1, 1, 1), 0.3, 0.0, 0.0), Vector3(0.0, 8.0 + DOME_R * 0.72 + 0.2, 0.0), Vector3.ZERO, d, 24)
 		_domes.append([d, body_m, rim_m, dot])
 		for c in 6:
 			var cm: MeshInstance3D = sphere(3.2 + 1.6 * h01(k * 9 + c), soil, Vector3.ZERO)
@@ -660,9 +771,8 @@ func _animate(_delta: float) -> void:
 		node.position = HOLES[k] + Vector3(0.0, TOP_Y - 24.0 + 24.0 * u + DOME_R * RAISE * u, 0.0)
 		node.visible = u > 0.01
 		var col: Color = TARGET if int(kind[k]) == 0 else DECOY
-		(dd[1] as StandardMaterial3D).albedo_color = col
-		(dd[1] as StandardMaterial3D).emission = col
-		(dd[2] as StandardMaterial3D).albedo_color = col.darkened(0.35)
+		(dd[1] as ShaderMaterial).set_shader_parameter("col", col)
+		(dd[2] as ShaderMaterial).set_shader_parameter("col", col.darkened(0.35))
 		(dd[3] as Node3D).visible = int(kind[k]) == 0
 	# the soil thrown up as a button comes out: clods flying out of the burrow and falling back on the turf
 	for cl in _clods:

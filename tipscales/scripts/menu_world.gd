@@ -103,8 +103,9 @@ func _layout() -> void:
 	_cell = Vector2(cw, cw * 0.80)
 	var rack_top: float = _title_y + float(_pitch_fs) * 2.4 + (26.0 if mobile else 14.0)
 	_board = Rect2(side, rack_top, full.x - side * 2.0, float(ROWS) * _cell.y + float(ROWS - 1) * _gap)
-	# the counter the balance stands on: low enough for the balance, above the panel
-	_counter_y = maxf(_board.end.y + 20.0, bottom - (70.0 if mobile else 34.0))
+	# the counter the balance stands on: just above the panel (it stood 70 / 34 above, an empty band the user asked to use,
+	# 2026-11-19), so the balance grows down into the room
+	_counter_y = maxf(_board.end.y + 20.0, bottom - (18.0 if mobile else 10.0))
 	var m: ShaderMaterial = _bg.material as ShaderMaterial
 	m.set_shader_parameter("size", full)
 	# the wall alone: no rack of crates behind the balance (the board is put out of sight)

@@ -341,6 +341,8 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
 
 ## The main menu's poster
 
+**Options on show (2026-11-19):** the menu shows this game's extra options beside the level row, with no settings cog (`main_menu.show_all_options(true)` in `main.gd`); the scene MOVES up to clear them -- the road the trucks run on was under the level row on a desktop.
+
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A DEPOT
 YARD IN THE LATE AFTERNOON -- a low sun casting long shadows, a hazy dusk sky, a brick warehouse with three numbered
 loading bays (a steel frame in each bay's color, a canopy, a number board, painted guide lines across the concrete
@@ -381,3 +383,32 @@ lies on it as on the brick (glowing, it looked unshaded; an unlit sign's inset i
 comes in the moment the last one's engine leaves the right edge (never before the last door is down); the doors open
 and close quicker, and last round's signs fade as the new truck comes in.
 
+**2026-11-18, round 4 -- REAL MATERIALS** (the user: "this poster does not follow the rule. you were lazy here and did
+not bother with proper 3d, texture, effects etc. its all still just a cartoon"; and "STILL the shadows do not affect the
+big numbers below them correctly when colored"):
+- **The numbers**: the sign's inset and figure are LIVE AND OPAQUE -- the inset a painted plate whose color changes in
+  place (`_unlit_col`, muted, to the bay's bright color) when its parcel is in, the figure a raised `TextMesh` (white to
+  dark ink). They were faded in with alpha over a baked sign, and a `Label3D` figure -- see-through things that did not
+  take the live view's shadow as the brick round them takes the baked one. Opaque and lit by the sun, with the
+  shadow-only canopy copies, the shade now lies across them exactly (one half-lit, two in shade, as the brick shows).
+  The baked sign is only the white plate and its screws.
+- **Every surface a texture with a NORMAL MAP** (`_normal_map` from a height field, `_tmat`): old red BRICK in stretcher
+  bond (`_brick`: each brick its own fired tone, over-fired headers, pits, chipped arrises, raked mortar), laid as quads
+  at a fixed brick size (`_brick_face`, `BRICK_TILE`: a box spread its texture over six faces, every stretch at its own
+  scale) with GRIME over them (`_grime`: splash at the foot, streaks from the coping); CONCRETE (`_concrete`: a mottle,
+  aggregate, hairline cracks) for the apron, plinth, coping, curbstones and footpath slabs; ASPHALT (`_asphalt`: grayed
+  tar, aggregate, sealed cracks); corrugated galvanized ROOFING (`_corrugated`); mown GRASS; BARK and clumps of LEAVES
+  (`_bark`, `_leaves`) for the trees.
+- **The building and yard**: a concrete plinth with a chamfered top, steel lintels over the openings, a precast coping
+  with its drip line, downspouts on brackets with hopper heads and shoes, yellow BOLLARDS with black bands beside each
+  bay, TIRE MARKS curving in from the road into each bay (traced from `_cart_pose`), pallets of boards with wrapped loads,
+  ribbed oil drums, curbstones each their own gray, footpath slabs.
+- **The ROLL-UP DOORS**: ribbed steel in a weathered tone of the bay's color (`_door_tex`: ribs painted in, grime and
+  rust toward the foot, scuffs -- a normal map there cost the first frame a shader compile), a bottom rail with its
+  seal and handle; the door ROLLS UP as a curtain does -- its visible height shrinking from the bottom while its texture
+  slides (`uv1_scale` / `uv1_offset`), so the ribs keep their spacing and the bottom rail rides up with it (it used to
+  be squashed).
+- **The sky and distance**: a late-afternoon sky with cumulus lit warm on their sunward sides and the sun's glow
+  (`_sky`; its texture does not repeat -- repeating, the bottom rows' mipmaps bled into the top, a line across the sky),
+  a hazy band of trees and roofs beyond (`_distance`), and DEPTH FOG in the picture only (in the live view it made every
+  live material compile again on the first frame).

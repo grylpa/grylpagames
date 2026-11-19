@@ -21,16 +21,37 @@ const GLYPHS: Dictionary = {
 	"Z": [[Vector2(0.08, 0.0), Vector2(0.92, 0.0), Vector2(0.08, 1.4), Vector2(0.92, 1.4)]],
 }
 const ORDER: Array = ["A", "7", "K", "4", "R", "E", "Z"]
-const CLOUD_S: float = 0.85              # a random cloud of polka dots, already turning into the next character
-const GLYPH_S: float = 1.95              # the character: the wave turns it in from the cloud, it stands a moment
-const CYCLE: float = CLOUD_S + GLYPH_S   # (no pauses, the user: the board is always on its way somewhere)
+const CLOUD_S: float = 0.9               # a random cloud of polka dots, its wave crossing the board
+const GLYPH_S: float = 1.8               # the character: a slower wave turns it in from the cloud, left to right
+const CYCLE: float = CLOUD_S + GLYPH_S   # (no pauses at all, the user: each wave fills its phase, never a still board)
 const CLOUD_FILL: float = 0.30
 const COLS: int = 14
 const ROWS: int = 18
 const PITCH: float = 21.0
 const DOT_R: float = 8.6
 const PANEL_C: Vector3 = Vector3(0.0, 450.0, 0.0)  # the grid's center, on the cabinet's face
-const STRAYS: int = 3                    # stray dots round each character, as the game scatters them
+const GLOBE_Y: float = 720.0
+const GLOBE_Z: float = 60.0
+const OPAL: String = """
+shader_type spatial;
+render_mode unshaded;
+varying float oy;
+void vertex() {
+	oy = VERTEX.y;
+}
+void fragment() {
+	float f = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+	vec3 rim = vec3(0.62, 0.34, 0.14);
+	vec3 mid = vec3(1.0, 0.78, 0.50);
+	vec3 core = vec3(1.0, 0.96, 0.86);
+	vec3 c = mix(rim, mid, smoothstep(0.05, 0.65, f));
+	c = mix(c, core, pow(f, 5.0));
+	c *= 0.93 + 0.07 * sin(oy * 0.75);
+	c *= 0.90 + 0.10 * smoothstep(-26.0, 10.0, oy);
+	ALBEDO = c;
+}
+"""
+const STRAYS: int = 0                    # no strays: the character shows clean (the user, 2026-11-18)
 
 var _lit: Dictionary = {}                # character -> {cell index: true}
 var _live_cells: Array = []              # the cells that ever turn
@@ -82,7 +103,7 @@ func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
 	return p.distance_to(a + ab * k)
 
 # each character set into the grid: a cell is lit where its center lies on a stroke (the glyph 10 cells wide, 14 tall,
-# two cells in from the top left), and a few strays scattered round it
+# two cells in from the top left) (no strays)
 func _raster() -> void:
 	var union: Dictionary = {}
 	for gi in ORDER.size():
@@ -313,7 +334,7 @@ func _build_still() -> void:
 		box(Vector3(8.0, 8.0, 2000.0), iron, Vector3(-cos(pa) * col_x, col_h + sin(pa) * 360.0, -820.0))
 	# THE GLASS: a barrel vault of panes over the ribs -- each pane its own shade of the twilight seen through it,
 	# soot gathered toward its edges, the putty lines dark -- with IRON GLAZING BARS following the arch every pane's
-	# width, and a louvred LANTERN along the ridge (the glass was one blue shell, the user: "improve the canopy")
+	# width, and a louvered LANTERN along the ridge (the glass was one blue shell, the user: "improve the canopy")
 	put(_vault(col_x, col_h, 360.0, -1950.0, 260.0), _vault_mat(), Vector3.ZERO)
 	var z_bar: float = -1950.0
 	while z_bar <= 260.0:
@@ -389,16 +410,25 @@ func _build_still() -> void:
 		cyl(2.6, 2.6, gy - 30.0 - top_y, black_steel, Vector3(hr, (gy - 30.0 + top_y) * 0.5, -17.0), Vector3.ZERO, null, 8)
 		cyl(4.2, 4.2, 22.0, brass, Vector3(hr, top_y + (gy - 30.0 - top_y) * 0.45, -17.0), Vector3.ZERO, null, 10)
 		box(Vector3(14.0, 10.0, 14.0), black_steel, Vector3(hr, top_y + 4.0, -17.0))
-	# GLOBE LAMPS hung from the girder either side, milk glass glowing, brass galleries
+	# GLOBE LAMPS hung from the girder either side: OPAL GLASS lit from within -- a hot core where the lamp shows
+	# through, warm cream round it, deepening to amber at the rim where the glass is seen edge-on, faint molded ribs --
+	# under a brass fitter and gallery, a small brass finial below (they were flat white discs: the user, 2026-11-19)
+	var opal: ShaderMaterial = ShaderMaterial.new()
+	opal.shader = Shader.new()
+	opal.shader.code = OPAL
 	for gl in [-260.0, 260.0]:
-		var lc: Vector3 = Vector3(gl, 720.0, 60.0)
-		cyl(1.6, 1.6, gy - 30.0 - lc.y - 20.0, brass, Vector3(gl, (gy - 30.0 + lc.y + 20.0) * 0.5, 30.0), Vector3(-8.0, 0.0, 0.0), null, 6)
-		sphere(26.0, glow(Color(1.0, 0.92, 0.76)), lc)
-		cyl(12.0, 16.0, 12.0, brass, lc + Vector3(0.0, 28.0, 0.0), Vector3.ZERO, null, 16)
+		var lc: Vector3 = Vector3(gl, GLOBE_Y, GLOBE_Z)
+		cyl(1.6, 1.6, gy - 30.0 - lc.y - 34.0, brass, Vector3(gl, (gy - 30.0 + lc.y + 34.0) * 0.5, 30.0), Vector3(-8.0, 0.0, 0.0), null, 6)
+		var gm: MeshInstance3D = sphere(26.0, opal, lc)
+		gm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cyl(9.0, 13.0, 7.0, brass, lc + Vector3(0.0, 25.0, 0.0), Vector3.ZERO, null, 16)
+		cyl(5.0, 8.0, 8.0, brass, lc + Vector3(0.0, 32.0, 0.0), Vector3.ZERO, null, 16)
 		var gal: TorusMesh = TorusMesh.new()
-		gal.inner_radius = 14.0
-		gal.outer_radius = 17.0
+		gal.inner_radius = 12.5
+		gal.outer_radius = 15.0
 		put(gal, brass, lc + Vector3(0.0, 22.0, 0.0))
+		sphere(3.4, brass, lc + Vector3(0.0, -27.0, 0.0))
+		cyl(0.4, 2.0, 6.0, brass, lc + Vector3(0.0, -32.0, 0.0), Vector3.ZERO, null, 8)
 	# THE STATION CLOCK on a bracket from the right column: two faces back to back, a brass case, the hands at ten to
 	var ck: Vector3 = Vector3(col_x - 110.0, 600.0, 120.0)
 	box(Vector3(90.0, 8.0, 8.0), iron, Vector3(col_x - 50.0, 660.0, 120.0))
@@ -459,7 +489,7 @@ func _build_live() -> void:
 	_animate(0.0)
 
 # what the board shows in phase p: even phases a CLOUD of polka dots scattered at random (a new one each time), odd
-# phases the next CHARACTER with its few strays
+# phases the next CHARACTER, clean
 func _state(p: int) -> Dictionary:
 	if posmod(p, 2) == 0:
 		var cloud: Dictionary = {}
@@ -484,16 +514,29 @@ func _animate(_delta: float) -> void:
 		var a0: float = 0.0 if was.has(i) else PI
 		var a1: float = 0.0 if now.has(i) else PI
 		var ang: float = a1
+		# THE WAVE: left to right, a touch down the rows, each disc turning over in a fifth of a second and snapping
+		# home with a small overshoot, as the magnet catches it. NEVER STILL (the user, 2026-11-19: "no pauses. at
+		# all"): each wave is spread over its whole phase, so the next sets off from the left as this one reaches the
+		# right; and the magnets' pulse ROCKS the discs it does not turn, a small nod as the front passes, so the sweep
+		# shows even across a stretch where little changes
+		var span: float = (CLOUD_S if posmod(phase, 2) == 0 else GLYPH_S) - 0.20
+		var delay: float = span * (0.028 * float(i % COLS) + 0.008 * float(i / COLS) + 0.02 * h01(i + 5)) / 0.52
+		var f: float = clampf((local - delay) / 0.20, 0.0, 1.0)
 		if a0 != a1:
-			# THE WAVE: left to right, a touch down the rows, each disc turning over in a fifth of a second and
-			# snapping home with a small overshoot, as the magnet catches it -- across the board in under 0.75 s
-			var delay: float = 0.028 * float(i % COLS) + 0.008 * float(i / COLS) + 0.02 * h01(i + 5)
-			var f: float = clampf((local - delay) / 0.20, 0.0, 1.0)
 			var c1: float = 2.2
 			var e: float = 1.0 + (c1 + 1.0) * pow(f - 1.0, 3.0) + c1 * pow(f - 1.0, 2.0)
 			ang = lerpf(a0, a1, e)
+		else:
+			ang = a1 + 0.30 * sin(PI * f) * (1.0 - f)
 		_mm.set_instance_transform(k, _disc_xf(i, ang))
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
+	# the globes' glow in the air round them
+	if _cam3 != null:
+		for gl in [-260.0, 260.0]:
+			var gc: Vector2 = screen_of(Vector3(gl, GLOBE_Y, GLOBE_Z))
+			var pu: float = screen_of(Vector3(gl + 100.0, GLOBE_Y, GLOBE_Z)).distance_to(gc) / 100.0
+			glow_at(gc, 90.0 * pu, Color(1.0, 0.74, 0.42, 0.10), 10)
+			glow_at(gc, 40.0 * pu, Color(1.0, 0.86, 0.62, 0.16), 6)
 	title("Polka Dots", "Identify the scatter of dots", Color(1.0, 0.86, 0.30), Color(0.06, 0.06, 0.10),
 		Color(1.0, 0.80, 0.30, 0.22))

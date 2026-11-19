@@ -47,6 +47,12 @@ func _setup() -> void:
 	super._setup()
 	if bake_mode:
 		return
+	# DRAW ORDER WITHOUT Z (the user, 2026-11-19): a z of their own put the far walkers' umbrellas over the window's
+	# center bar; lifting the frame's TOP layer to z 2000 then buried the menu's controls under its wall of plaster
+	# ("where is the menu?"); sinking the street below zero put it under the menu's own backdrop. So every walker is at
+	# z 0 (the agent scene's root carries 3; its only other part, the old sprite, is hidden) and the ORDER is the tree's:
+	# the lookout first, then the walkers far to near (re-sorted as they pass), and the top layer, the poster's last
+	# child, over them all
 	# the people are clipped to the glass: walking in and out, they passed over the window frame
 	_clip = Control.new()
 	_clip.clip_contents = true
@@ -62,13 +68,6 @@ func _setup() -> void:
 	rng.seed = 21
 	for _i in 120:
 		_drops.append([rng.randf(), rng.randf(), rng.randf_range(2.5, 6.0), pow(rng.randf(), 2.2) * 0.12])
-	if _top != null:
-		move_child(_top, get_child_count() - 1)
-		# DRAW ORDER: the agent scene's parts carry their own z (+3, -4), and z adds up through the tree -- so each
-		# walker gets a band of its own, by distance (the far one below the near), the people above the 3-D street,
-		# and the window frame and the title above them all (a far walker's umbrella was drawn over the cross bar, and
-		# over people nearer than it)
-		_top.z_index = 2000          # far above every walker and its parts (umbrellas were seen over the bars again)
 
 func _agent(kind: int, print_i: int, col: Color) -> Node2D:
 	var a: Node2D = AGENT.instantiate()
@@ -177,12 +176,13 @@ func _build_still() -> void:
 		var fa: float = TAU * float(f) / 6.0
 		var leaf: MeshInstance3D = sphere(14.0, mat(Color(0.16, 0.34, 0.14), 0.7), Vector3(lobby_x + 110.0 + cos(fa) * 14.0, 46.0, FACADE_Z - 40.0 + sin(fa) * 14.0))
 		leaf.scale = Vector3(1.4, 0.4, 0.6)
-	# the glass: mullions and a pair of doors, faintly reflecting
+	# the glass: ONE PLATE in its outer frame, faintly reflecting, a pair of brass push bars where the doors are (it had
+	# glazing bars across it, and the people walking in front of the lobby -- drawn over it, rightly, as they are
+	# nearer -- read as umbrellas passing IN FRONT OF THE WINDOW BARS, a draw-order error: the user, three times)
 	var glass_m: StandardMaterial3D = mat(Color(0.55, 0.60, 0.75, 0.14), 0.05, 0.3)
 	box(Vector3(290.0, 160.0, 1.0), glass_m, Vector3(lobby_x, 80.0, FACADE_Z + 0.5))
-	for mx in [-145.0, -72.0, -22.0, 22.0, 72.0, 145.0]:
-		box(Vector3(5.0, 160.0, 5.0), iron, Vector3(lobby_x + mx, 80.0, FACADE_Z + 1.0))
-	box(Vector3(290.0, 6.0, 6.0), iron, Vector3(lobby_x, 120.0, FACADE_Z + 1.0))
+	for mx in [-145.0, 145.0]:
+		box(Vector3(6.0, 160.0, 6.0), mat(Color(0.30, 0.24, 0.16), 0.4, 0.6), Vector3(lobby_x + mx, 80.0, FACADE_Z + 1.0))
 	for hx in [-8.0, 8.0]:
 		box(Vector3(3.0, 30.0, 3.0), mat(Color(0.92, 0.74, 0.36), 0.3, 0.8), Vector3(lobby_x + hx, 60.0, FACADE_Z + 4.0))
 	# the awning: striped, sloping out over the pavement
@@ -344,6 +344,7 @@ func _tick(delta: float) -> void:
 	_layer.position = -view.position
 	# WALKING, not carried (the user: "as if on conveyor belts"): each keeps its own easy pace along the pavement,
 	# a little faster and slower by turns; every step lifts the umbrella a touch and sways it
+	var depth: Array = []
 	for k in _walkers.size():
 		var a: Node2D = _walkers[k]
 		var dirx: float = 1.0 if k % 2 == 0 else -1.0
@@ -351,7 +352,10 @@ func _tick(delta: float) -> void:
 		var pace: float = 30.0 + 10.0 * h01(k + 5)
 		var walked: float = pace * t + pace * 0.9 * sin(t * 0.35 + float(k)) / 0.35 * 0.15
 		var along: float = fmod(float(k) / float(WALKERS) * span + walked, span) - span * 0.5
-		var wp: Vector3 = Vector3(along * dirx, 0.0, -110.0 if k % 2 == 0 else -65.0)
+		# both lanes out on the open pavement, in front of the hotel's awning (its edge at z -96): the far lane ran
+		# UNDER it, at -110, and its umbrellas were drawn over the awning and the lobby's glazing bars (the user,
+		# 2026-11-18, three times)
+		var wp: Vector3 = Vector3(along * dirx, 0.0, -82.0 if k % 2 == 0 else -50.0)
 		var sp: Vector2 = screen_of(wp)
 		var ppu: float = screen_of(wp + Vector3(100.0, 0.0, 0.0)).distance_to(sp) / 100.0
 		var sc: float = ppu * 0.95
@@ -365,24 +369,32 @@ func _tick(delta: float) -> void:
 		a.set("spin", h01(k + 9) * TAU + sin(t * 0.4 + float(k)) * 0.35)
 		# the farther lane below the nearer, and each walker its own band within its lane (10 apart, clear of its
 		# parts' own +3 / -4)
-		a.z_index = 20 + (60 if wp.z > -90.0 else 0) + k * 10
+		a.z_index = 0
+		depth.append([wp.z + float(k) * 0.01, a])     # (the index breaks a tie in a lane: no swapping)
 		a.call("set_light", Color(0.62, 0.60, 0.66).lerp(Color(1.6, 1.6, 1.8), fl))
 		a.queue_redraw()
 	# the lookout in the doorway: seen ONLY in the flash (between flashes, faint, it read as a phantom umbrella)
 	var lp: Vector2 = screen_of(DOOR + Vector3(0.0, 0.0, 14.0))
 	var lppu: float = screen_of(DOOR + Vector3(100.0, 0.0, 14.0)).distance_to(lp) / 100.0
 	_lookout.position = lp
-	_lookout.z_index = 10
+	_lookout.z_index = 0
+	depth.sort_custom(func(p: Array, q: Array) -> bool: return float(p[0]) < float(q[0]))
+	for di in depth.size():
+		var w: Node2D = depth[di][1]
+		if w.get_index() != di + 1:
+			_layer.move_child(w, di + 1)
+	if _lookout.get_index() != 0:
+		_layer.move_child(_lookout, 0)
 	_lookout.scale = Vector2.ONE * lppu * 0.9
 	_lookout.modulate.a = clampf(fl * 1.6, 0.0, 1.0)
 	_lookout.call("set_light", Color(0.5, 0.5, 0.55).lerp(Color(1.7, 1.7, 1.9), fl))
 	_lookout.queue_redraw()
 
 # the lamp and the sign mirrored in the wet road, broken by the rain; and the rain falling outside
-func _paint(full: Vector2, _bottom: float) -> void:
+func _paint(_full: Vector2, _bottom: float) -> void:
 	if bake_mode:
 		return
-	cv.draw_rect(Rect2(Vector2.ZERO, full), Color(0.03, 0.03, 0.05))
+	cv.draw_rect(Rect2(Vector2.ZERO, _full), Color(0.03, 0.03, 0.05))
 
 func _street_fx(view: Rect2, fl: float) -> void:
 	if _cam3 == null:

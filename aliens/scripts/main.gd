@@ -24,6 +24,7 @@ func _ready() -> void:
 	main_menu.add_option_entry(1, "Starting level", AliensLevelConfig.level_names())
 	if not MainGlobals.is_mobile():
 		main_menu.add_switch_entry(2, "Left / right click")
+		main_menu.show_all_options(false)       # every option on show, no cog; the scene stays put (the saucer clear of the title)
 	refresh_menu()
 	show_main_menu()
 

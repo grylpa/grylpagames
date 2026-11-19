@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dhxwju7bvpjnb"
-path="res://.godot/imported/menu_room_d.webp-7749d8abb0daf788eb810ed8067f0426.ctex"
+uid="uid://l8k3owcqpiiw"
+path="res://.godot/imported/menu_houses_d.webp-bf8c63c65d88a4ab6bd4488cb89375af.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://friends/art/menu_room_d.webp"
-dest_files=["res://.godot/imported/menu_room_d.webp-7749d8abb0daf788eb810ed8067f0426.ctex"]
+source_file="res://friends/art/menu_houses_d.webp"
+dest_files=["res://.godot/imported/menu_houses_d.webp-bf8c63c65d88a4ab6bd4488cb89375af.ctex"]
 
 [params]
 

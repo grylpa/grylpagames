@@ -142,12 +142,22 @@ func _shown_changed(shown: bool) -> void:
 	if _vp3 != null and not bake_mode:
 		_vp3.render_target_update_mode = SubViewport.UPDATE_ALWAYS if shown else SubViewport.UPDATE_DISABLED
 
+# THE LIFT (main_menu.gd `show_all_options(true)`): a game showing extra option rows under its poster tells the scene
+# where the panel's top WOULD be with them folded (`set_scene_bottom`) and how much taller they make it; the whole
+# scene rises by exactly that, so its foot clears the rows (re-centering on the taller panel moved it only half as far)
+var scene_lift: float = 0.0
+var _lift3: float = 0.0
+
+func set_scene_lift(lift: float) -> void:
+	scene_lift = lift
+
 func _tick(delta: float) -> void:
 	if bake_mode:
 		return
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	if absf(scene_bottom - _bottom3) > 0.5:
+	if absf(scene_bottom - _bottom3) > 0.5 or absf(scene_lift - _lift3) > 0.5:
 		_bottom3 = scene_bottom
+		_lift3 = scene_lift
 		var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
 		var top: float = 230.0 if mobile else 150.0
 		_cy3 = top + (bottom - top) * _frame_frac()
@@ -158,6 +168,7 @@ func _tick(delta: float) -> void:
 		# the slimmer panel (2026-11-18) Change's scene slid down and a black band showed over it
 		if _live_only:
 			_cy3 = minf(_cy3, BAKE_CY)
+		_cy3 -= scene_lift
 		var half_h: float = maxf(_cy3, full.y - _cy3)
 		_vpc.position = Vector2(0.0, _cy3 - half_h)
 		_vpc.size = Vector2(full.x, half_h * 2.0)

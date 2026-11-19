@@ -331,6 +331,8 @@ lights on; with the fix, at full light.)
 
 ## The main menu's poster
 
+**Options on show (2026-11-19):** the menu shows this game's extra options beside the level row, with no settings cog (`main_menu.show_all_options(false)` in `main.gd`); the scene STAYS where it was -- only the rails lie under the rows.
+
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A COAL
 MINE GALLERY (the game's own coal mine look), seen from inside it: dark grey rock with broken coal seams, timber
 sets every few paces, rails on sleepers running away into the dark, a cart of coal down the gallery, lanterns hung

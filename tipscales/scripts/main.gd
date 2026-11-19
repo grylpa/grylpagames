@@ -23,6 +23,7 @@ func _ready() -> void:
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	main_menu.add_option_entry(1, "Level", TipscalesLevelConfig.level_names())
 	main_menu.add_switch_entry(2, "Show rules")
+	main_menu.show_all_options(true)        # every option on show, no cog; the scene moves up above them
 	refresh_menu()
 	show_main_menu()
 

@@ -182,8 +182,20 @@ braid along their edges and a tassel at each join (`_build_header`, built into t
 live sides); a back
 wall of navy VELVET with painted gold-leaf stars (a weave, darker toward the foot, the leaf worn at the edges) and a
 shelf of plush prizes. No header board (the user: "remove the win a prize area to make all else bigger"). In it
-THE TABLE: a turf top inside a striped rail, six burrows ringed with soil, a cabinet front in clearcoated red lacquer
-framed in gilt beading with a SCOREBOARD set in it -- black glass recessed in a steel bezel with brass screws, set into the front, its amber figures live,
+THE TABLE: a turf top inside a striped rail, six burrows ringed with soil, its CABINET a piece of furniture standing on
+the boards (2026-11-18, round 3: "what does that scoreboard stand on? ... it has the exact same color as the floor" --
+the red lacquer front read as more boardwalk): CREAM ENAMEL over grained wood, clear-coated, a black plinth set back
+under it (a dark line at the floor), on ONE BOARDWALK (`_deck_tex`, 2026-11-19: weathered silver-brown planks running
+away from us, dark gaps, staggered butt joints, nail heads over the joists, a normal map from its height, on a single
+`PlaneMesh` -- it had been two overlapping dark boxes with differently scaled grain, which the user saw as "two brown
+surfaces ... at orthogonal angles"). The STRIPED SIDES are live only ABOVE THE TABLE (`SIDE_CUT`: they hide the live turf
+and mallet there) and baked below it: whole in the live view, their inner faces -- hidden by the cabinet, but live meshes
+draw over the picture -- lay over the cabinet front as two maroon wedges connected to nothing (the user's "brown stuff
+below the table", 2026-11-19). For the same reason the BUTTONS (dome, rim, target dot) are drawn through `_button_mat` (the
+`BUTTON` shader: lit plastic with clearcoat and a faint glow, DISCARDED below the turf's top): a button rising in a front
+hole showed through the cabinet front, red lacquered fielded panels in gilt beading either side, gilt rails along its top
+and foot, washed by its own spot from the front -- with the SCOREBOARD set in it between the panels -- black glass
+recessed in a steel bezel with brass screws, its amber figures live,
 counting up ten a hit (2026-11-18; the striped panels read as an empty basket, the lit strip on bare wood as "a brown
 rect with a yellow line", the user). The game's own DOMED BUTTONS (their plastic glowing a little in its color, a low key light on the table: they read
 dark) pop out of the burrows throwing clods of soil -- the real

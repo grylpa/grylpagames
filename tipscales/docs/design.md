@@ -180,6 +180,8 @@ tipscales` drives it through (`_act_tipscales`).
 
 ## The main menu's poster
 
+**Options on show (2026-11-19):** the menu shows this game's extra option beside the level row, with no settings cog (`main_menu.show_all_options(true)` in `main.gd`); the scene MOVES up to clear them -- the level list covered the weights under the right pan on a desktop. The COUNTER the balance stands on is just above the panel (`_counter_y`: 18 / 10 above it, was 70 / 34 -- an empty band the user asked to use), so the balance is taller.
+
 The shared menu (`main_menu.gd`, "THE POSTER") gives the screen to `scripts/menu_world.gd` (`main.gd`
 `menu_backdrop()`), with only a slim panel at the foot: "Tip the Scales" in cast brass at the top, the pitch
 between two short rules, and THE BALANCE -- a big brass weigh-house scale on the counter (plinth, column,
