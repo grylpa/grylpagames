@@ -585,3 +585,5 @@ its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now
 ## Menu poster frame rate (2026-11-19)
 
 To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the over layer is three: `_over` (the dial's pointer, the wheel's spokes, the gauge's needle -- live), `_over_still` (the brass knobs, the dial's and gauge's glass, the wheel's rim -- drawn once), `_over2` (the rim's mark, the lamps' flashes, the steam -- live); `_draw_over(d, part)`.
+
+The junction dial's marks and pointer use a FIXED FAN (`_branch_angle`: the leftmost receiver's branch at seven o'clock, the middle at six, the rightmost at five, by the receivers' x). It took each branch's heading 60 units out of the junction; on the phone's taller layout all three still run straight down there, so the marks overlapped and the pointer barely moved (2026-11-19). The marks are in the still layer: re-bake the stills (`make_menu_stills.gd`) after changing them.

@@ -412,7 +412,7 @@ func _draw_front(d: Control) -> void:
 	_brass_disc(d, _junction, jr)
 	d.draw_circle(_junction, jr * 0.70, Color(0.95, 0.92, 0.82))
 	for k in 3:
-		var dir_k: Vector2 = (_at(_branches[k], 60.0)[1] as Vector2)
+		var dir_k: Vector2 = Vector2.from_angle(_branch_angle(k))
 		d.draw_circle(_junction + dir_k * jr * 0.52, 4.0, HUES[k])
 	# (the pointer is live: _draw_over)
 	# THE RECEIVERS: a brass bell over each mouth, a body down to the counter, a lamp that flashes on arrival
@@ -503,8 +503,16 @@ func _dial_angle() -> float:
 	var turn: float = smoothstep(0.35, 0.95, since)
 	return lerp_angle(prev_a, next_a, turn)
 
+# where the dial points for branch b: a fan below the hub -- the leftmost receiver's branch at seven o'clock, the
+# middle one at six, the rightmost at five. (It took each branch's heading 60 units out of the junction; on a phone's
+# taller layout all three still run straight down there, so the three marks sat on top of each other and the pointer
+# barely moved -- the user, 2026-11-19.)
 func _branch_angle(b: int) -> float:
-	return (_at(_branches[b], 60.0)[1] as Vector2).angle()
+	var rank: int = 0
+	for o in 3:
+		if o != b and (_recv[o] as Vector2).x < (_recv[b] as Vector2).x:
+			rank += 1
+	return PI * 0.5 + (1.0 - float(rank)) * 0.75
 
 # a receiver's lamp: bright the moment a capsule goes in, fading over a second
 func _flash(b: int) -> float:
