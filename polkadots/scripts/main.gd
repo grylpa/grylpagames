@@ -56,6 +56,7 @@ func _ready() -> void:
 	# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
 	game.add_sound(self, "correct", preload("res://art/sounds/polkadots_right.ogg"))
 	game.add_sound(self, "wrong", preload("res://art/sounds/polkadots_wrong.ogg"))
+	game.add_sound(self, "dots", preload("res://art/sounds/polkadots_dots.ogg"))   # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
 	game.set_instructions("Polka Dots",
 		"Look at the dot pattern\n\n" +
 		"The dots outline a letter or number\n\n" +

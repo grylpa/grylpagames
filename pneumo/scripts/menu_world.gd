@@ -48,7 +48,14 @@ func _setup() -> void:
 	_back = add_still(func(d: Control) -> void: _draw_back(d))
 	_caps = _mk(func(d: Control) -> void: _draw_capsules(d))
 	_front = add_still(func(d: Control) -> void: _draw_front(d))
-	_over = _mk(func(d: Control) -> void: _draw_over(d))
+	# over everything: in three parts (2026-11-19, redrawn whole every frame it cost a phone ~12 ms) -- what turns and
+	# points (live), the brass and the wheel's rim (drawn once), what flashes and drifts (live)
+	_over = _mk(func(d: Control) -> void: _draw_over(d, 0))
+	_over_still = cached_layer(func(d: Control) -> void: _draw_over(d, 1))
+	_over2 = _mk(func(d: Control) -> void: _draw_over(d, 2))
+
+var _over_still: Control = null
+var _over2: Control = null
 
 func _mk(fn: Callable) -> Control:
 	var c: Control = Control.new()
@@ -135,8 +142,10 @@ func _tick(_delta: float) -> void:
 		_wall.queue_redraw()
 		_back.queue_redraw()
 		_front.queue_redraw()
+		_over_still.queue_redraw()
 	_caps.queue_redraw()
 	_over.queue_redraw()
+	_over2.queue_redraw()
 
 # --- the wall: tiles, the lamp's light, the counter, decorative pipework: drawn once ------------------------
 
@@ -427,37 +436,45 @@ func _draw_front(d: Control) -> void:
 
 # WHAT MOVES, over the baked front: the dial's pointer, the gauge's needle (and the glass over each), a receiver's
 # lamp when it flashes, the vent's steam
-func _draw_over(d: Control) -> void:
+# `part` 0: the dial's pointer, the wheel's spokes, the gauge's needle (live); 1: the brass knobs and the gauge's and
+# dial's glass, the wheel's rim (still); 2: the mark on the rim, the receivers' lamps flashing, the steam (live)
+func _draw_over(d: Control, part: int) -> void:
 	if _feed.is_empty():
 		return
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
 	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
 	var counter_y: float = bottom - 26.0
 	var jr: float = R * 2.3
-	var tipv: Vector2 = Vector2.from_angle(_dial_angle())
-	d.draw_colored_polygon(PackedVector2Array([_junction + tipv * jr * 0.46, _junction + tipv.orthogonal() * 4.0, _junction - tipv * jr * 0.16, _junction - tipv.orthogonal() * 4.0]), Color(0.12, 0.10, 0.10))
-	_knob(d, _junction, 5.0, BRASS)
-	d.draw_arc(_junction, jr * 0.70, PI * 1.05, PI * 1.55, 16, Color(1, 1, 1, 0.45), 3.0, true)
-	# the steam pipe's VALVE WHEEL: a cast rim of round section, four spokes, a domed hub -- each shaded round. A
-	# hand is working it: a turn one way, a pause, back the other way, a pause
 	var vw: Vector2 = Vector2(full.x * 0.86, _feed[0].y)
 	var red: Color = Color(0.70, 0.16, 0.12)
 	var cu: float = fmod(t, 7.0)
 	var turn: float = 2.2 * (smoothstep(0.0, 2.2, cu) - smoothstep(3.5, 5.7, cu))
-	for k in 4:
-		var sa: float = TAU * float(k) / 4.0 + 0.4 + turn
-		_cyl(d, vw + Vector2.from_angle(sa) * 3.0, vw + Vector2.from_angle(sa) * 15.0, 2.2, red.darkened(0.6), red, red.lightened(0.5))
-	_torus(d, vw, 15.5, 3.0, red.darkened(0.65), red, red.lightened(0.55))
-	_knob(d, vw, 5.0, BRASS)
+	var fy: float = _feed[0].y
+	var gauge: bool = counter_y - fy >= 300.0
+	var gc: Vector2 = Vector2(full.x * 0.27, fy - R - 36.0)
+	if part == 0:
+		var tipv: Vector2 = Vector2.from_angle(_dial_angle())
+		d.draw_colored_polygon(PackedVector2Array([_junction + tipv * jr * 0.46, _junction + tipv.orthogonal() * 4.0, _junction - tipv * jr * 0.16, _junction - tipv.orthogonal() * 4.0]), Color(0.12, 0.10, 0.10))
+		# the steam pipe's VALVE WHEEL: a cast rim of round section, four spokes, a domed hub -- each shaded round. A
+		# hand is working it: a turn one way, a pause, back the other way, a pause
+		for k in 4:
+			var sa: float = TAU * float(k) / 4.0 + 0.4 + turn
+			_cyl(d, vw + Vector2.from_angle(sa) * 3.0, vw + Vector2.from_angle(sa) * 15.0, 2.2, red.darkened(0.6), red, red.lightened(0.5))
+		if gauge:
+			var na: float = PI * 0.8 + PI * 1.4 * (0.58 + 0.03 * sin(t * 2.3) + 0.015 * sin(t * 7.1))
+			d.draw_line(gc, gc + Vector2.from_angle(na) * 17.0, Color(0.12, 0.10, 0.10), 2.0, true)
+		return
+	if part == 1:
+		_knob(d, _junction, 5.0, BRASS)
+		d.draw_arc(_junction, jr * 0.70, PI * 1.05, PI * 1.55, 16, Color(1, 1, 1, 0.45), 3.0, true)
+		_torus(d, vw, 15.5, 3.0, red.darkened(0.65), red, red.lightened(0.55))
+		_knob(d, vw, 5.0, BRASS)
+		if gauge:
+			_knob(d, gc, 2.8, BRASS)
+			d.draw_arc(gc, 21.0, PI * 1.05, PI * 1.5, 12, Color(1, 1, 1, 0.5), 2.5, true)
+		return
 	# a mark cast on the rim, so the turn reads
 	d.draw_circle(vw + Vector2.from_angle(turn - 0.6) * 15.5, 1.4, red.lightened(0.7))
-	var fy: float = _feed[0].y
-	if counter_y - fy >= 300.0:
-		var gc: Vector2 = Vector2(full.x * 0.27, fy - R - 36.0)
-		var na: float = PI * 0.8 + PI * 1.4 * (0.58 + 0.03 * sin(t * 2.3) + 0.015 * sin(t * 7.1))
-		d.draw_line(gc, gc + Vector2.from_angle(na) * 17.0, Color(0.12, 0.10, 0.10), 2.0, true)
-		_knob(d, gc, 2.8, BRASS)
-		d.draw_arc(gc, 21.0, PI * 1.05, PI * 1.5, 12, Color(1, 1, 1, 0.5), 2.5, true)
 	for b in 3:
 		var fl: float = _flash(b)
 		if fl <= 0.0:

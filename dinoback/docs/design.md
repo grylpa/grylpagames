@@ -360,3 +360,6 @@ card, and both glow on the paper; it stays through the beat and fades through th
 picture per platform (`menu_desk.webp`, `menu_desk_d.webp`); the cards, their soft shadows and the cord are live 2-D.
 Made up, never the board.
 
+## Audio (2026-11-19)
+
+new action sounds (`devtools/make_game_sounds.py`): `swipe` as a card is thrown off, `deal` as the next lands.

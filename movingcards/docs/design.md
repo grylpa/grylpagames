@@ -301,3 +301,7 @@ the weave showing, trim bands at its rims), its light thrown up and down the wal
 floor; a round patterned rug on oak boards; and the table -- a round oak
 top with a rounded edge and an apron on a turned pedestal with three feet. One picture per platform
 (`art/menu_room.webp`, `art/menu_room_d.webp`). Made up, never the board: the menu also opens mid-game.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/movingcards_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `movingcards_menu`): the game's music with the poster's world in front -- riffle shuffles, cards dealt, chips; new action sounds (`devtools/make_game_sounds.py`): `flip` as cards turn (card.gd `_flip_to`).

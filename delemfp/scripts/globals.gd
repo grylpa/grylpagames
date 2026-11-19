@@ -34,3 +34,8 @@ func load_settings():
 		starting_level = settings[1]
 	if settings.size() > 2:
 		theme = int(settings[2])
+
+# the loop the menu plays under it (GenericGameUtil.menu_ambient looks for "ambient" by default): its music, registered as "motor" (delemfp_ambient.ogg) --
+# without this the menu was silent (2026-11-19)
+func _ready() -> void:
+	game.menu_ambient_names = ["motor"]

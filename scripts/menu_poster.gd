@@ -80,6 +80,8 @@ func _process(delta: float) -> void:
 	if is_visible_in_tree():
 		t += delta
 		_tick(delta)
+		if not _sprinkles.is_empty():
+			_sprinkle_clock()
 		queue_redraw()
 		if _top != null:
 			_top.queue_redraw()
@@ -99,19 +101,82 @@ func _plat() -> String:
 	return "m" if mobile else "d"
 
 func add_still(fn: Callable) -> Control:
-	var c: Control = Control.new()
-	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var idx: int = _stills.size()
+	# its baked picture when that fits the layout; otherwise drawn ONCE into a picture of the screen's own pixels
+	# (DrawnOnce) -- drawn live, a still layer cost hundreds of draw calls EVERY frame (Ants fell to 12 fps on a desktop)
+	var c: DrawnOnce = DrawnOnce.make(fn)
+	c.picture = func() -> Texture2D: return _still_picture(idx)
 	_stills.append([c, fn])
-	c.draw.connect(func() -> void:
-		var tex: Texture2D = _still_picture(idx)
-		if tex != null:
-			c.draw_texture(tex, Vector2.ZERO)
-		else:
-			fn.call(c))
 	add_child(c)
 	return c
+
+# A LAYER DRAWN ONCE (2026-11-19: posters redrew their still parts every frame -- 14-25 fps on a mid-range phone):
+# `fn(d)` drawn into a picture once (DrawnOnce, drawn_once.gd), and that shown. Call queue_redraw() on it only when the
+# layout changes.
+func cached_layer(fn: Callable) -> Control:
+	var c: DrawnOnce = DrawnOnce.make(fn)
+	add_child(c)
+	return c
+
+# MANY SMALL TWINKLING DISCS IN ONE DRAW (2026-11-19): stars, motes, glints -- a poster drew each with draw_circle every
+# frame, and on a phone each small shape costs: Lighthouse's 170 stars took 10 ms a frame. Here they are one MultiMesh:
+# each disc keeps its own place, radius and color, and its alpha twinkles on the GPU exactly as the poster's code did,
+#     alpha = a0 + a1 * (0.5 + 0.5 * sin(t * speed + phase))
+# with `t` the poster's own clock. Its place in the drawing order is where it is added, like a layer.
+# `discs`: [[center, radius, color, speed, phase, a0, a1], ...] (color's alpha ignored). Returns the node.
+const _SPRINKLE: String = """shader_type canvas_item;
+uniform float t = 0.0;
+varying float v_alpha;
+varying float v_edge;
+void vertex() {
+	v_alpha = INSTANCE_CUSTOM.z + INSTANCE_CUSTOM.w * (0.5 + 0.5 * sin(t * INSTANCE_CUSTOM.x + INSTANCE_CUSTOM.y));
+	v_edge = COLOR.a;            // the disc's radius over the quad's half-size
+	COLOR.a = 1.0;
+}
+void fragment() {
+	float d = length(UV * 2.0 - 1.0);
+	float aa = max(fwidth(d), 1e-4);
+	COLOR.a = v_alpha * clamp((v_edge - d) / aa + 0.5, 0.0, 1.0);
+}
+"""
+var _sprinkles: Array = []
+
+func sprinkle(discs: Array) -> MultiMeshInstance2D:
+	var mesh: QuadMesh = QuadMesh.new()
+	mesh.size = Vector2(2.0, 2.0)
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	mm.mesh = mesh
+	var node: MultiMeshInstance2D = MultiMeshInstance2D.new()
+	node.multimesh = mm
+	sprinkle_set(node, discs)
+	var sh: Shader = Shader.new()
+	sh.code = _SPRINKLE
+	var mat: ShaderMaterial = ShaderMaterial.new()
+	mat.shader = sh
+	node.material = mat
+	add_child(node)
+	_sprinkles.append(mat)
+	return node
+
+# the discs again (a new layout): same form as `sprinkle`
+func sprinkle_set(node: MultiMeshInstance2D, discs: Array) -> void:
+	var mm: MultiMesh = node.multimesh
+	mm.instance_count = discs.size()
+	for i in discs.size():
+		var dsc: Array = discs[i]
+		var r: float = float(dsc[1])
+		var half: float = r + 1.0                  # a unit of margin for the soft edge
+		mm.set_instance_transform_2d(i, Transform2D(0.0, Vector2(half, half), 0.0, Vector2(dsc[0])))
+		var col: Color = dsc[2]
+		mm.set_instance_color(i, Color(col.r, col.g, col.b, r / half))
+		mm.set_instance_custom_data(i, Color(float(dsc[3]), float(dsc[4]), float(dsc[5]), float(dsc[6])))
+
+func _sprinkle_clock() -> void:
+	for m in _sprinkles:
+		(m as ShaderMaterial).set_shader_parameter("t", t)
 
 # the baked picture of still layer i, while the layout is the one it was baked for (before the menu has told the
 # poster where its panel is, the baked layout is assumed: it is the usual one)
@@ -145,8 +210,44 @@ func _paint_top(_full: Vector2, _bottom: float) -> void:
 # The name, centered near the top, and the pitch under it. `face` its color, `edge` a dark outline,
 # `glow` a soft halo (alpha 0 for none), `font` the face (the player's display font by default).
 # Returns the y under the pitch, where the scene may start.
+# THE NAME IS DRAWN ONCE (2026-11-19): called from _paint_top, the title goes into a picture on top of the poster
+# (DrawnOnce, a child of the top layer -- so over everything _paint_top draws: call it LAST there), redrawn only when
+# its text, colors or the screen change; drawn every frame, its glow, outlines and wrapped pitch cost a phone several
+# ms. A poster whose title changes as it plays (Storm's brightens with the lightning) sets `live_title`.
+var live_title: bool = false
+var _title_layer: DrawnOnce = null
+var _title_key: String = ""
+var _title_args: Array = []
+var _title_y: float = 0.0
+
 func title(text: String, pitch: String, face: Color, edge: Color, glow: Color = Color(0, 0, 0, 0),
 		font: Font = null, size_mobile: int = 80, pitch_col: Color = Color(0.96, 0.93, 0.86)) -> float:
+	if live_title or cv != _top or _top == null or bake_mode:
+		return _title_draw(text, pitch, face, edge, glow, font, size_mobile, pitch_col)
+	var key: String = "%s|%s|%s|%s|%s|%s|%d|%s|%s|%s" % [text, pitch, face, edge, glow, font, size_mobile, pitch_col,
+		MainGlobals.full_screen_size, mobile]
+	if key != _title_key:
+		_title_key = key
+		_title_args = [text, pitch, face, edge, glow, font, size_mobile, pitch_col]
+		if _title_layer == null:
+			_title_layer = DrawnOnce.make(func(d: Control) -> void:
+				var keep: CanvasItem = cv
+				cv = d
+				_title_y = _title_draw(_title_args[0], _title_args[1], _title_args[2], _title_args[3], _title_args[4],
+					_title_args[5], _title_args[6], _title_args[7])
+				cv = keep)
+			_top.add_child(_title_layer)
+		else:
+			_title_layer.queue_redraw()
+		# the y under the pitch, for the caller (measured: nothing is drawn on a null canvas)
+		var keep2: CanvasItem = cv
+		cv = null
+		_title_y = _title_draw(text, pitch, face, edge, glow, font, size_mobile, pitch_col)
+		cv = keep2
+	return _title_y
+
+func _title_draw(text: String, pitch: String, face: Color, edge: Color, glow: Color, font: Font, size_mobile: int,
+		pitch_col: Color) -> float:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
 	var f: Font = font if font != null else get_theme_default_font()
 	var fs: int = size_mobile if mobile else int(float(size_mobile) * 0.72)
@@ -156,6 +257,12 @@ func title(text: String, pitch: String, face: Color, edge: Color, glow: Color = 
 		tw = f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var y: float = (74.0 if mobile else 46.0) + float(fs) * 0.8
 	var p: Vector2 = Vector2((full.x - tw) * 0.5, y)
+	if cv == null:
+		var pf0: Font = MainGlobals.get_text_font()
+		var pfs0: int = 23 if mobile else 17
+		if pitch == "":
+			return y + 20.0
+		return y + float(pfs0) * 2.0 + float(pfs0) * 1.35 * float(wrap_text(pf0, pitch, pfs0, full.x - 60.0).size())
 	if glow.a > 0.0:
 		for g in 3:
 			cv.draw_string_outline(f, p, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 20 - g * 6, Color(glow, glow.a * (0.35 + 0.3 * float(g))))

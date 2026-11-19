@@ -509,6 +509,7 @@ func _generate_and_show_dots(rid: int, force: bool = false) -> bool:
 
 	var tex: Texture2D = $CharViewport.get_texture()
 	%DotsDisplay.set_dots(positions, dot_radius, tex, Rect2(Vector2.ZERO, display_size), _dots_color)
+	PolkadotsG.game.play_sound("dots")
 	return true
 
 # THE CLOTH (2026-11-12, the dressmaker's table: polka_cloth.gd): the dot panel is a square of fabric

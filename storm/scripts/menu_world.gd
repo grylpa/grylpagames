@@ -61,6 +61,7 @@ func _environment(env: Environment) -> void:
 	env.ambient_light_energy = 0.28
 
 func _setup() -> void:
+	live_title = true          # the name brightens with the lightning, and the rain is drawn over it
 	_rng.seed = 7
 	for _i in NEAR_DROPS:
 		_near.append([_rng.randf(), _rng.randf(), _rng.randf_range(0.9, 1.4), _rng.randf_range(0.7, 1.2)])
@@ -309,11 +310,48 @@ func _animate(_delta: float) -> void:
 		_bolt_at = t
 		_next_bolt = t + _rng.randf_range(4.5, 8.0)
 		_make_bolt()
+		_thunder_at = t + _rng.randf_range(0.1, 0.5)
+	if _thunder_at > 0.0 and t >= _thunder_at:
+		_thunder_at = -1.0
+		_thunder()
 	# the shutter: blown open and banged back, eased (never a jump)
 	var gust: float = _wind()
 	_shutter.rotation_degrees = Vector3(0.0, -(35.0 + 40.0 * gust) * (0.5 + 0.5 * sin(t * 1.3 + sin(t * 0.7) * 1.5)), 0.0)
 
 # --- the weather, in 2-D ----------------------------------------------------------------------------------------------
+
+# THE THUNDER after each bolt (the user, 2026-11-19): the game's own recorded rolls, 0.1-0.5 s after the flash (the
+# user: "max 0.5s"), exactly as loud as in the game (the user: menu sounds are never quieter); through the game's sound
+# registry (mute, focus, stop_all_sounds), two players in turn so a new roll never cuts one still rumbling. Only from
+# the menu on the screen -- never from the off-screen copy that prepares a poster's shaders (prep_card.gd), nor a
+# bake -- and a roll still rumbling stops when the menu closes.
+var _thunder_at: float = -1.0
+var _thunder_turn: bool = false
+var _thunder_ready: bool = false
+
+func _thunder() -> void:
+	if bake_mode or not is_visible_in_tree() or get_viewport().get_parent() is ShaderWarmer:
+		return
+	var g: GenericGameUtil = StormG.game
+	if g == null:
+		return
+	if not _thunder_ready:
+		_thunder_ready = true
+		# (not thunder_3: 24 s long, its player would be taken for the next roll but one -- a bolt every 4.5-8 s, two
+		# players in turn -- and cut off mid-rumble; these three, 6.3-8.1 s, always end first)
+		var rolls: Array = [load("res://art/sounds/thunder_1.ogg"), load("res://art/sounds/thunder_2.ogg"),
+			load("res://art/sounds/thunder_4.ogg")]
+		for nm in ["menu_thunder", "menu_thunder2"]:
+			g.add_sound(self, nm, rolls)
+	_thunder_turn = not _thunder_turn
+	g.play_sound("menu_thunder2" if _thunder_turn else "menu_thunder")
+
+func _shown_changed(shown: bool) -> void:
+	super._shown_changed(shown)
+	if not shown and _thunder_ready and StormG.game != null:
+		StormG.game.stop_sound("menu_thunder")
+		StormG.game.stop_sound("menu_thunder2")
+	_thunder_at = -1.0
 
 func _flash() -> float:
 	var u: float = t - _bolt_at

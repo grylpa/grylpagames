@@ -81,13 +81,37 @@ static func fit(parent: Node, tiled_ground: CanvasItem, game, seed_i: int = 1, c
 		return f
 	if tiled_ground != null and is_instance_valid(tiled_ground):
 		tiled_ground.hide()
-	if f.position == tl and f.size == want:
+	if f.position == tl and f.size == want and not f.has_meta("gf_pending"):
 		return f
+	# NOT WHILE THE GAME IS STILL STARTING (2026-11-19): every grass game fits its lawn in its level's _ready "so the
+	# lawn is there before the first board" -- but the game opens on its MENU, which covers it, and sowing cost 100-650
+	# ms of the menu's opening on a phone (Storm, Mind Palace, Detour, Valet, Taxi ...). While the game's own _ready has
+	# not run yet (its children's run first), the fit is only noted: create_board() fits again when play starts, and
+	# the note is sown then -- or when the menu closes, whichever is first.
+	var g: Node = MainGlobals.active_game
+	if g != null and is_instance_valid(g) and not g.is_node_ready():
+		f.set_meta("gf_pending", [tl, want, seed_i])
+		if not MainGlobals.sig_main_menu_hidden.is_connected(_sow_pending.bind(f)):
+			MainGlobals.sig_main_menu_hidden.connect(_sow_pending.bind(f), CONNECT_ONE_SHOT)
+		return f
+	_apply(f, tl, want, seed_i)
+	return f
+
+static func _apply(f: Control, tl: Vector2, want: Vector2, seed_i: int) -> void:
+	f.remove_meta("gf_pending")
 	f.position = tl
 	f.size = want
 	f.queue_redraw()
 	sow(f, seed_i)
-	return f
+
+# (`f` untyped: the game may have been left, and its lawn freed, before the menu ever closed -- a typed parameter then
+# failed in the signal call itself, "Cannot convert argument 1 from Object to Object")
+static func _sow_pending(f) -> void:
+	if not is_instance_valid(f) or not (f as Object).has_meta("gf_pending"):
+		return
+	var fc: Control = f as Control
+	var p: Array = fc.get_meta("gf_pending")
+	_apply(fc, p[0], p[1], int(p[2]))
 
 static func attach(parent: Node) -> Control:
 	var bg: Control = parent.get_node_or_null("GrassField") as Control

@@ -73,19 +73,64 @@ func _camera() -> Dictionary:
 	return {"eye": eye, "f": f, "r": r, "u": u, "focal": full.x * 0.95, "full": full, "bottom": bottom,
 		"center": Vector2(full.x * 0.5, top + (bottom - top) * 0.46)}
 
+# the camera's parts as plain fields, for _proj (called thousands of times a frame: reading them from the dictionary
+# each time cost a phone several ms a frame)
+var _c_eye: Vector3 = Vector3.ZERO
+var _c_f: Vector3 = Vector3.FORWARD
+var _c_r: Vector3 = Vector3.RIGHT
+var _c_u: Vector3 = Vector3.UP
+var _c_center: Vector2 = Vector2.ZERO
+var _c_focal: float = 1.0
+
+func _set_cam(c: Dictionary) -> void:
+	_cam = c
+	_c_eye = c["eye"]
+	_c_f = c["f"]
+	_c_r = c["r"]
+	_c_u = c["u"]
+	_c_center = c["center"]
+	_c_focal = c["focal"]
+
 func _proj(p: Vector3) -> Vector2:
-	var v: Vector3 = p - _cam["eye"]
-	var z: float = maxf(v.dot(_cam["f"]), 1.0)
-	return Vector2(_cam["center"]) + Vector2(v.dot(_cam["r"]), -v.dot(_cam["u"])) * float(_cam["focal"]) / z
+	var v: Vector3 = p - _c_eye
+	var z: float = maxf(v.dot(_c_f), 1.0)
+	return _c_center + Vector2(v.dot(_c_r), -v.dot(_c_u)) * _c_focal / z
 
 func _px(p: Vector3) -> float:
-	return float(_cam["focal"]) / maxf((p - _cam["eye"]).dot(_cam["f"]), 1.0)
+	return _c_focal / maxf((p - _c_eye).dot(_c_f), 1.0)
 
 func _depth(p: Vector3) -> float:
-	return (p - _cam["eye"]).dot(_cam["f"])
+	return (p - _c_eye).dot(_c_f)
+
+# THE GOLD GLOW OUT OF THE DOORWAY on the GPU: it was 16 discs, each 2.5% (less as the door shuts), the largest a
+# good part of the screen -- here one square computing the same stack, 1 - (1 - a)^n for the n discs over a pixel
+const GOLD_GLOW: String = """shader_type canvas_item;
+uniform float a = 0.025;
+void fragment() {
+	float d = length(UV * 2.0 - 1.0);
+	float n = clamp(ceil(16.0 * (1.0 - d)), 0.0, 16.0);
+	COLOR = vec4(1.0, 0.76, 0.30, 1.0 - pow(1.0 - a, n));
+}
+"""
+var _gold: ColorRect = null
 
 func _tick(_delta: float) -> void:
-	_cam = _camera()
+	_set_cam(_camera())
+	if _gold == null:
+		_gold = ColorRect.new()
+		_gold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var gm: ShaderMaterial = ShaderMaterial.new()
+		var gsh: Shader = Shader.new()
+		gsh.code = GOLD_GLOW
+		gm.shader = gsh
+		_gold.material = gm
+		add_child(_gold)
+		move_child(_gold, _life.get_index())
+	var gold_c: Vector2 = _proj(Vector3(W - 20.0, 30.0, (DOOR_Z0 + DOOR_Z1) * 0.5))
+	var gr: float = 170.0 * _px(Vector3(W, 0, DOOR_Z1))
+	_gold.position = gold_c - Vector2(gr, gr)
+	_gold.size = Vector2(gr, gr) * 2.0
+	(_gold.material as ShaderMaterial).set_shader_parameter("a", 0.025 * (1.0 - _door_shut() * 0.7))
 	if absf(scene_bottom - _for_bottom) > 0.5:
 		_for_bottom = scene_bottom
 		_room.queue_redraw()
@@ -131,7 +176,7 @@ func _quad(d: CanvasItem, pts: Array, base: Color) -> void:
 
 func _draw_room(d: Control) -> void:
 	if _cam.is_empty():
-		_cam = _camera()
+		_set_cam(_camera())
 	var full: Vector2 = _cam["full"]
 	d.draw_rect(Rect2(Vector2.ZERO, full), Color(0.02, 0.02, 0.04))
 	# the far end: a dark opening going on
@@ -561,11 +606,8 @@ func _draw_life(d: Control) -> void:
 	if _cam.is_empty():
 		return
 	var full: Vector2 = _cam["full"]
-	# the gold glow out of the doorway, as open as the door is
+	# the gold glow out of the doorway, as open as the door is: _gold, under this layer
 	var shut: float = _door_shut()
-	var gold_c: Vector2 = _proj(Vector3(W - 20.0, 30.0, (DOOR_Z0 + DOOR_Z1) * 0.5))
-	for k in 16:
-		d.draw_circle(gold_c, 170.0 * (1.0 - float(k) / 16.0) * _px(Vector3(W, 0, DOOR_Z1)), Color(1.0, 0.76, 0.30, 0.025 * (1.0 - shut * 0.7)))
 	# collect what has depth -- the door, the creatures, the flames -- and draw far to near
 	var items: Array = []
 	# the gold lies behind the door always. A creature is drawn before the door when it is on the door's FAR

@@ -344,3 +344,7 @@ timber set long, since the renderer lights an object with at most eight lights);
 (`add_darkness`, a hole round each lit lantern) and the flames are drawn over it. Made up, never the board.
 
 **2026-11-18:** short pauses (the user): out from 0.6 s, a half-second dark, back from 3 s; `CYCLE` 5 s. REAL RELIEF: the walls and roof are displaced rock faces (`_rock_face`, layered value noise, smooth normals) over a gravel bed with glossy puddles; rails with head and foot; HURRICANE LANTERNS (bail, cap, glass globe, wire guards, base) and flames as flickering teardrops with a halo (flat discs before); a tapered iron coal cart with bands, rivets, spoked wheels and faceted lumps; a slatted TNT crate with dynamite and a fuse, round black bombs with lit fuses; the way out a signal lamp (housing, hood, green lens) with an EXIT sign.
+
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/lightsout_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `lightsout_menu`): the game's music with the poster's world in front -- an owl, a pick far off in the mine, drips; the GAME loop carries its world too, gentler (`GAME_WORLDS`): drips, an owl.

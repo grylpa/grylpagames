@@ -763,3 +763,7 @@ the shared `main_menu.gd` keeps only a slim panel at the foot): deep rainforest 
 Made up, never the board: the menu also opens mid-game.
 
 The forest floor is a still layer, baked (`menu_still_0_<m|d>.webp`, 2026-11-17): first frame 63 -> 11 ms.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/gorilla_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `gorilla_menu`): the game's music with the poster's world in front -- chest-beats and hoots far off, parrots, monkeys; the GAME loop carries its world too, gentler (`GAME_WORLDS`): birds and monkeys far off.

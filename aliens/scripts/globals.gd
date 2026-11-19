@@ -99,3 +99,8 @@ func load_settings() -> void:
 		starting_level_id = int(settings[0])
 	if settings.size() > 1:
 		click_mode = int(settings[1]) != 0
+
+# the loop the menu plays under it (GenericGameUtil.menu_ambient looks for "ambient" by default): its hall music (aliens_ambient.ogg) --
+# without this the menu was silent (2026-11-19)
+func _ready() -> void:
+	game.menu_ambient_names = ["hall"]

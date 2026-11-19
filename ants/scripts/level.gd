@@ -621,6 +621,10 @@ func _keep_garden() -> void:
 	var player: Node = game.sounds.get("garden", null)
 	if player == null:
 		return
+	# (while the MAIN MENU is up, the menu plays it -- GenericGameUtil.menu_ambient -- and it is left alone here: pausing
+	# it whenever the level was hidden kept the menu silent, 2026-11-19)
+	if not is_visible_in_tree() and MainGlobals.is_screen_visible("main_menu") and game.in_focus:
+		return
 	var hush: bool = not is_visible_in_tree() or game._pause or not game.in_focus
 	if hush:
 		player.set("stream_paused", true)

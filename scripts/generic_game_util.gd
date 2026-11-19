@@ -1793,7 +1793,34 @@ var menu_ambient_names: Array = ["ambient"]
 var _menu_ducked: Dictionary = {}       # name -> its volume before the menu turned it down
 var _stopped_at: Dictionary = {}        # name -> where it was when it was last stopped
 
-func menu_ambient(on: bool) -> void:
+# A POSTER'S OWN LOOP (2026-11-19, the user: the menus and the games may have different ambients): a game with
+# art/sounds/<prefix>_menu_ambient.ogg plays THAT under its menu -- the poster's world (Polka Dots' station, Typit's
+# desk...) -- registered here on the menu's first showing (`host`: the menu), as loud as the game's own loop, and the
+# game's loops are stopped meanwhile (each remembering its place); the menu's loop stops, remembering its own, when
+# the menu closes, and the game starts its own as it always did. A game without one keeps the old way below.
+func menu_ambient(on: bool, host: Node = null) -> void:
+	var own: String = "res://art/sounds/%s_menu_ambient.ogg" % file_names_prefix
+	if ResourceLoader.exists(own):
+		var m = sounds.get("menu_ambient", null)
+		if (m == null or not is_instance_valid(m)) and host != null:
+			add_sound(host, "menu_ambient", load(own), true)
+			m = sounds.get("menu_ambient", null)
+			for nm in menu_ambient_names:
+				var g = sounds.get(str(nm), null)
+				if g != null and is_instance_valid(g):
+					m.volume_db = g.volume_db
+					break
+		if m == null or not is_instance_valid(m):
+			return
+		if on:
+			for nm2 in menu_ambient_names:
+				stop_sound(str(nm2))
+			if not m.playing:
+				m.play(float(_stopped_at.get("menu_ambient", 0.0)))
+			m.stream_paused = false
+		else:
+			stop_sound("menu_ambient")
+		return
 	for nm in menu_ambient_names:
 		var key: String = str(nm)
 		var s = sounds.get(key, null)

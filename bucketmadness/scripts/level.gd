@@ -166,6 +166,8 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	game.add_sound(self, "roll", preload("res://art/sounds/pockets_roll.ogg"))     # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
+	game.add_sound(self, "drop", preload("res://art/sounds/pockets_drop.ogg"))
 	var layout: MarginContainer = $MainLayout
 	layout.offset_top = 100.0 if MainGlobals.is_mobile() else 150.0
 	layout.offset_bottom = -(MainGlobals.footer_height + 15.0)
@@ -700,6 +702,7 @@ func _next_round() -> void:
 	_forget_when_done(fall_tween, "fall")
 	fall_tween.tween_property(fall_item_node, "position:y", h - item_h - 30.0, fall_duration)
 	fall_tween.tween_callback(_on_fall_reached_bottom)
+	game.play_sound("roll")                    # the ball sets off down the felt
 
 	round_start_ms = game.game_time
 	waiting_for_input = true
@@ -780,6 +783,7 @@ func _evaluate_answer(bucket: int) -> void:
 		%FeedbackLabel.modulate = Color.RED
 
 	%FeedbackLabel.modulate.a = 1.0
+	game.play_sound("drop")                    # into the pocket's leather
 	_open_one(bucket)
 	_bucket_react(bucket, is_right)
 	_shut_buckets_after()

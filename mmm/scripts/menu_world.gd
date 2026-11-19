@@ -45,6 +45,10 @@ func _environment(env: Environment) -> void:
 	env.ambient_light_color = Color(0.55, 0.52, 0.70)
 	env.ambient_light_energy = 0.34
 
+var _star_discs: MultiMeshInstance2D = null
+var _moon_glow: Control = null
+var _drawn_for: String = ""
+
 func _setup() -> void:
 	# the 2-D sky under everything: the game's sky shader, then stars, the moon, the violet glow (not when baking: the
 	# picture keeps a clear sky)
@@ -58,10 +62,15 @@ func _setup() -> void:
 	m.set_shader_parameter("style", 0)       # the STARRY SKY: the game's dark hall (style 3) read as a grid of squares
 	_sky.material = m
 	add_child(_sky)
+	# (2026-11-19: all drawn every frame, the sky cost a phone ~15 ms) the faint stars are one batched draw
+	# (menu_poster.gd `sprinkle`), the bright ones live, the moon and the glow drawn once
+	_star_discs = sprinkle(_star_list())
 	_back = Control.new()
 	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_back.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_back.draw.connect(func() -> void: _draw_back(_back))
 	add_child(_back)
+	_moon_glow = cached_layer(func(d: Control) -> void: _draw_moon(d))
 	super._setup()
 
 func _build_lights() -> void:
@@ -256,14 +265,24 @@ func _tick(delta: float) -> void:
 		_sky.position = Vector2.ZERO
 		_sky.size = full
 		_back.queue_redraw()
+		var key: String = "%s %s" % [full, screen_of(Vector3.ZERO) if _cam3 != null else Vector2(-1, -1)]
+		if key != _drawn_for:
+			_drawn_for = key
+			sprinkle_set(_star_discs, _star_list())
+			_moon_glow.queue_redraw()
 	super._tick(delta)
+
+# the faint stars: [center, radius, color, speed, phase, a0, a1] for `sprinkle` -- alpha 0.30 + 0.45 * tw * h
+func _star_list() -> Array:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var out: Array = []
+	for k in 110:
+		var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * full.y * 0.80)
+		out.append([sp, 0.8 + 1.3 * h01(k * 5 + 3), Color(0.92, 0.90, 1.0), 0.25 + 0.5 * h01(k + 9), float(k) * 1.7, 0.30, 0.45 * h01(k * 5 + 4)])
+	return out
 
 func _draw_back(d: Control) -> void:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
-	for k in 110:
-		var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * full.y * 0.80)
-		var tw: float = 0.5 + 0.5 * sin(t * (0.25 + 0.5 * h01(k + 9)) + float(k) * 1.7)
-		d.draw_circle(sp, 0.8 + 1.3 * h01(k * 5 + 3), Color(0.92, 0.90, 1.0, 0.30 + 0.45 * tw * h01(k * 5 + 4)))
 	# A FEW BRIGHT STARS THAT TWINKLE: each now and then flares, its four rays reaching out and drawing back
 	for k3 in 14:
 		var bp: Vector2 = Vector2(h01(k3 * 7 + 500) * full.x, (0.04 + 0.6 * h01(k3 * 7 + 501)) * full.y)
@@ -279,6 +298,10 @@ func _draw_back(d: Control) -> void:
 			var dv: Vector2 = Vector2.from_angle(PI * 0.5 * float(ra) + 0.1) * ray
 			d.draw_line(bp, bp + dv, Color(hue, 0.15 + 0.6 * flare), 1.2, true)
 			d.draw_line(bp, bp + dv * 0.45, Color(1, 1, 1, 0.2 + 0.6 * flare), 1.6, true)
+
+# the moon and the violet glow over the castle (still)
+func _draw_moon(d: Control) -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
 	if _cam3 == null:
 		return
 	var top: Vector2 = screen_of(Vector3(0.0, 300.0, -10.0))

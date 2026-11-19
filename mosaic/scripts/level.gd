@@ -94,6 +94,8 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 func _ready() -> void:
 	game = MosaicG.game
 	game.add_sound(self, "swap", swap_audio)
+	game.add_sound(self, "pick", preload("res://art/sounds/mosaic_pick.ogg"))      # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
+	game.add_sound(self, "flip", preload("res://art/sounds/card_flip.ogg"))
 	game.add_sound(self, "solved", solved_audio)
 	_rng.randomize()
 	_build_ui()
@@ -409,6 +411,7 @@ func shuffled_layout() -> Array:
 # places (and turns); then every piece flips up again, staggered. Nothing slides, so there is no
 # path to follow back.
 func _flip_to(cells: Array, turned: Array, on_done: Callable) -> void:
+	game.play_sound("flip")
 	var latest: float = 0.0
 	var delays: Array = []
 	for i in pieces.size():
@@ -607,6 +610,7 @@ func _input(event: InputEvent) -> void:
 			_press_at = mb.position
 			_dragging = false
 			if _press_piece >= 0:
+				game.play_sound("pick")
 				_grab_offset = (pieces[_press_piece]["node"] as Control).position - mb.position
 				get_viewport().set_input_as_handled()
 		elif _press_piece >= 0:

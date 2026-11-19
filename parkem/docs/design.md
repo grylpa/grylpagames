@@ -391,3 +391,11 @@ the shared `main_menu.gd` keeps only a slim panel at the foot): A DUNGEON CORRID
 Made up, never the board: the menu also opens mid-game.
 
 The corridor is a still layer, baked (`menu_still_0_<m|d>.webp`, 2026-11-17): first frame 74 -> 13 ms.
+
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/parkem_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `parkem_menu`): the game's music with the poster's world in front -- growls far off, drips, a chain; the GAME loop carries its world too, gentler (`GAME_WORLDS`): drips, a chain far off.
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): `_proj` reads the camera from plain fields (`_set_cam`); the gold glow out of the doorway is one ColorRect under the live layer whose shader (`GOLD_GLOW`) computes the 16 discs' stack, 1 - (1 - a)^n, with `a` following the door.

@@ -388,3 +388,13 @@ over it, the faces under it truly enlarged (the wall drawn again inside the lens
 card pinned at the corner (FIND, the photo-style card with their first name); the rim glows green, then the card
 changes (faded out between searches) and the search goes on (`CYCLE` 7 s). The wall is a still layer (baked); the
 lens and card are live, their photos loaded on threads (the lens fades in when they are). Made up, never the board.
+
+**Never the same person twice running (2026-11-19):** the study card's person is compared by NAME with the last one
+(`WerisG.last_target`, kept across games) -- a new game reshuffles which person an index is, so the old index check let
+the last face of one game come back as the first of the next. The poster's search does the same (`_target`, worked out
+cycle by cycle; the wall hangs some people twice), and its phone layout asks for the photos of the rows it grows once the
+menu lays out (the lens waited for them forever, unseen on a phone).
+
+## Audio (2026-11-19)
+
+new action sounds (`devtools/make_game_sounds.py`): `deal` as the study card appears, `spread` as the crowd's cards are laid out.

@@ -206,3 +206,6 @@ are scorched on opposite sides here too. Baked (`menu_table.webp`, `menu_table_d
 never share a frame: each card's wear is its own random draw and their scorches go on opposite edges (`burn_side`).
 Made up, never the board.
 
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/couples_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `couples_menu`): the game's music with the poster's world in front -- a clock ticking, cards turned; the GAME loop carries its world too, gentler (`GAME_WORLDS`): a clock ticking softly; new action sounds (`devtools/make_game_sounds.py`): `flip` on a tapped card.

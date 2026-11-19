@@ -245,3 +245,11 @@ tipscales/
     ├── leather.gdshader    (the workbench, baked)
     └── weighhouse.gdshader (the wall, the rack and its shelves, the counter)
 ```
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/tipscales_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `tipscales_menu`): the game's music with the poster's world in front -- the beam creaking, weights, the clock.
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the weighhouse backdrop shader (no TIME) is rendered once (a DrawnOnce with `inner_material`); the papered wall and the window dressing with the pictures are drawn once; the foreground is three layers -- the standard weights (once), the balance (live, `_cv = _fg`), the name (once). Only the view through the window and the balance are drawn every frame.

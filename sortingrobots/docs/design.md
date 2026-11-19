@@ -439,3 +439,7 @@ lamp over each -- pushing the hatch's STRIP CURTAIN aside, the strips swinging a
 lamp flashes (2026-11-18: before, the parcels slid sideways off the chutes into the air). The chutes and the wall are
 built into the live view too, so a parcel passes behind their rails and the wall. Baked, one picture per platform (`menu_depot.webp`, `menu_depot_d.webp`);
 the belt surface, parcels, arm, laser and lamps are live. Made up, never the board.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/sortingrobots_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `sortingrobots_menu`): the game's music with the poster's world in front -- servos, scanner beeps, air hisses, the conveyor; the GAME loop carries its world too, gentler (`GAME_WORLDS`): the conveyor, air hisses far off (no servos: the arm's "grab"); new action sounds (`devtools/make_game_sounds.py`): `stamp` on a parcel stamped wrong.

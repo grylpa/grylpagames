@@ -412,3 +412,7 @@ big numbers below them correctly when colored"):
   (`_sky`; its texture does not repeat -- repeating, the bottom rows' mipmaps bled into the top, a line across the sky),
   a hazy band of trees and roofs beyond (`_distance`), and DEPTH FOG in the picture only (in the live view it made every
   live material compile again on the first frame).
+
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/deliverem_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `deliverem_menu`): the game's music with the poster's world in front -- a forklift reversing, a roller door, pallets, a truck; the GAME loop carries its world too, gentler (`GAME_WORLDS`): a forklift far off, pallets far off (no doors).

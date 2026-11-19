@@ -402,3 +402,6 @@ brass fitter, gallery and finial; a 2-D halo round each in `_paint_top` -- they 
 The station and every disc (black side out) are baked, one picture per platform (`menu_station.webp`,
 `menu_station_d.webp`); the discs that ever turn are live, one MultiMesh. Made up, never the board.
 
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/polkadots_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `polkadots_menu`): the game's music with the poster's world in front -- the flip-dot board clattering, a departure chime, a train passing; new action sounds (`devtools/make_game_sounds.py`): `dots` as the dots appear.

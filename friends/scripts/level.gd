@@ -69,6 +69,8 @@ func _ready() -> void:
 	game.add_sound(self, "dispatch", dispatch_audio)
 	game.add_sound(self, "delivery", delivery_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
+	game.add_sound(self, "steps", preload("res://art/sounds/friends_steps.ogg"))   # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
+	game.add_sound(self, "deal", preload("res://art/sounds/card_deal.ogg"))
 
 	FriendsG.board_top = %Instructions.position.y + %Instructions.size.y + 30
 
@@ -303,6 +305,7 @@ func create_board() -> void:
 			top_of_bottom_card = max(top_of_bottom_card, newcard.position.y)
 	bottom = top_of_bottom_card + card_size.y
 	max_id_used = id - 1
+	game.play_sound("deal")                    # the friends' cards laid out
 
 	$ReadyButton.show()
 	var p = FriendsG.board_to_px(Vector2(0,0))
@@ -560,6 +563,7 @@ func display_new_person():
 	while new_idx == new_person_card.meta:
 		new_idx = get_rand_person_id()
 	set_new_person_id(new_idx)
+	game.play_sound("steps")                   # a stranger walking up
 	new_person_card.show()
 
 func _is_person_friend():

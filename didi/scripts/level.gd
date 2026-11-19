@@ -167,6 +167,12 @@ func _ready() -> void:
 	level = DidiG.starting_level
 	_load_cfg(false)
 	game.add_sound(self, "dispatch", dispatch_audio)
+	# THUNDER after each lightning (2026-11-19): Storm's recordings, 0.1-0.5 s after the flash comes on, two players in
+	# turn so a new round's roll never cuts one off (not the 24-s thunder_3)
+	var rolls: Array = [preload("res://art/sounds/thunder_1.ogg"), preload("res://art/sounds/thunder_2.ogg"),
+		preload("res://art/sounds/thunder_4.ogg")]
+	game.add_sound(self, "thunder", rolls)
+	game.add_sound(self, "thunder2", rolls)
 	game.add_sound(self, "delivery", delivery_audio)
 	game.add_sound(self, "swoosh", swoosh_audio)
 	if not MainGlobals.sig_game_popup_closed.is_connected(_on_game_popup_closed):
@@ -483,12 +489,23 @@ func _show_feedback(tapped) -> void:
 # The plaza's three lights, every frame: LIGHTNING while the flash is up (held, with the figures,
 # while a tutorial caption pauses the game), the MASK until it runs out, the LAMPS eased on for the
 # answer and off again.
+var _flash_was: bool = false
+var _thunder_at: float = -1.0
+var _thunder_turn: bool = false
+
 func _light_plaza(delta: float) -> void:
 	if _plaza_mat == null:
 		return
 	var flash_on: bool = (_model_agent != null and is_instance_valid(_model_agent) and _model_agent.visible) \
 		or (_periph_agent != null and is_instance_valid(_periph_agent) and _periph_agent.visible)
 	_plaza_mat.set_shader_parameter("flash", 1.0 if flash_on else 0.0)
+	if flash_on and not _flash_was:
+		_thunder_at = game.game_time + randf_range(100.0, 500.0)
+	_flash_was = flash_on
+	if _thunder_at >= 0.0 and game.game_time >= _thunder_at:
+		_thunder_at = -1.0
+		_thunder_turn = not _thunder_turn
+		game.play_sound("thunder2" if _thunder_turn else "thunder")
 	var masking: bool = _mask_until_ms >= 0.0 and game.game_time < _mask_until_ms
 	_plaza_mat.set_shader_parameter("mask", 1.0 if masking else 0.0)
 	var lamps_to: float = 1.0 if (_answer_active or _clear_at_ms >= 0.0) else 0.0

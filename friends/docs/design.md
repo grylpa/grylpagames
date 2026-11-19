@@ -354,3 +354,11 @@ the next photo loads during the turn before, and a window whose photo is late ke
 threads). EVERY CURTAIN IS OPAQUE cloth -- teal, mustard, velvet, rose, moss, navy: two were lace, and closing they still
 showed the woman, who then vanished at once. Made up, never
 the board.
+
+## Audio (2026-11-19)
+
+new action sounds (`devtools/make_game_sounds.py`): `steps` as a stranger walks up, `deal` as the friends' cards are laid out.
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the rooms are drawn once (`_layer` is a DrawnOnce); the fronts of the SHUT windows are drawn once (`_shut_fronts`, a child of `_front`, redrawn only when a window opens or shuts); `_draw_fronts(d, live)` draws the shut or the open ones.

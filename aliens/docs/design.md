@@ -1017,3 +1017,10 @@ removed, 2026-11-18); in 2-D behind, the sky with the ringed planet and two moon
 size, hue and pace, the bright ones flaring now and then with four fine glints. Baked with a clear sky
 (`menu_port.webp`, `menu_port_d.webp`). Made up, never the board.
 
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "hall", which `globals.gd` now names in `menu_ambient_names` (and the level no longer pauses/stops it every frame while the menu is up); the MENU has its own loop (`art/sounds/aliens_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `aliens_menu`): the game's music with the poster's world in front -- the announcement chime and an alien voice, saucers, gate whooshes, chirps; the GAME loop carries its world too, gentler (`GAME_WORLDS`): saucers passing high above.
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the sky is three layers under the scene: the gradient (drawn once), the 170 stars with their glows and flares as ONE MultiMesh whose shader (`STARS`) computes each star's twinkle, disc, four-ring glow and flare lines from the same formulas, and the ringed planet with the moons (drawn once, `_draw_planet`); `_paint` draws nothing.
