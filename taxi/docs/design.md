@@ -258,3 +258,7 @@ Made up, never the board: the menu also opens mid-game.
 ## Audio (2026-11-19)
 
 its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/taxi_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `taxi_menu`): the game's music with the poster's world in front -- horns, a siren, a taxi whistle, traffic; the GAME loop carries its world too, gentler (`GAME_WORLDS`): traffic, a siren far off (no horns: the "honk").
+
+## The city round the square (2026-11-19)
+
+`city_surround.gd` draws the blocks round the sidewalk IN PERSPECTIVE from a camera over the square's center (`_proj`, `eye_h` 30 tiles): rows of lots out to the view's edge (`_lay_lots`), far rows first and the lower first in a row; each building shows the walls facing the camera (from the top of whatever stands against it) with floors of windows, a shop front with a striped awning on a street front and neon on some (`_wall`), and a roof with a lit parapet cap, gravel / tar / ribbed metal, moonlight, stains, a drain, and 3-D fixtures with moon shadows -- AC units, stair bulkheads, water tanks on legs, skylights, vents (`_roof`). It was flat colored slabs ("strange big panels", the user) and stopped at the lawn's edge, so with the camera zoomed out on a big board the lawn showed above and below. It is ONE DrawnOnce (`cover_view`): drawn once per level, covering whatever the camera shows.
