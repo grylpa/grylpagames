@@ -602,3 +602,11 @@ island in 2-D. Baked with a CLEAR sky, one picture per platform (`menu_palace.we
 with a hard edge moves except the flags (the first version bobbed, "jitter and flicker"). Made up, never the board.
 
 **2026-11-18:** the windows light and go dark EACH AT ITS OWN RHYTHM (never all off at once); no windows on the back towers (a live window draws over the baked keep that hides it and floated in the air); flag poles thick enough to see, with gilt finials; the moon a shaded sphere with seas and rimmed craters under a soft halo; the phone's camera farther back so the island's foot and the stones clear the card.
+
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/mmm_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `mmm_menu`): the game's music with the poster's world in front -- torches, a door creaking, echoing steps, a crow; the GAME loop carries its world too, gentler (`GAME_WORLDS`): torches, a crow (no growls: the monster's).
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the 110 faint stars are one batched draw (`sprinkle`); the 14 flaring stars stay live (`_draw_back`); the moon and the violet glow are drawn once (`_moon_glow`, `_draw_moon`).

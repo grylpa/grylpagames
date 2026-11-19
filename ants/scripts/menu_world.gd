@@ -25,6 +25,8 @@ const PATH: Array = [Vector2(-125, -372), Vector2(-112, -270), Vector2(-80, -150
 	Vector2(4, 72), Vector2(24, 62), Vector2(44, 6), Vector2(76, -100), Vector2(114, -230), Vector2(134, -380), Vector2(150, -515)]
 
 var _ground: Control = null
+var _warm: Control = null
+var _motes: Control = null
 var _life: Control = null
 var _front: Control = null
 var _cam: Dictionary = {}
@@ -39,6 +41,9 @@ func _setup() -> void:
 	# the ground never moves: a still layer, baked (menu_poster.gd `add_still`)
 	_ground = add_still(func(d: Control) -> void: _draw_ground(d))
 	_life = _mk(func(d: Control) -> void: _draw_life(d))
+	# the sun's warmth over the ants, drawn once (14 discs the size of the screen: 14 full-screen passes a frame)
+	_warm = cached_layer(func(d: Control) -> void: _draw_warmth(d))
+	_motes = _mk(func(d: Control) -> void: _draw_motes(d))
 	_front = _mk(func(d: Control) -> void: _draw_front(d))
 	_build_trail()
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -75,24 +80,44 @@ func _camera() -> Dictionary:
 	return {"eye": eye, "f": f, "r": r, "u": u, "focal": full.x * 1.25, "full": full, "bottom": bottom,
 		"center": Vector2(full.x * 0.5, top + (bottom - top) * 0.34)}
 
+# the camera's parts as plain fields, for _proj (called thousands of times a frame: reading them from the
+# dictionary each time cost a phone several ms a frame)
+var _c_eye: Vector3 = Vector3.ZERO
+var _c_f: Vector3 = Vector3.FORWARD
+var _c_r: Vector3 = Vector3.RIGHT
+var _c_u: Vector3 = Vector3.UP
+var _c_center: Vector2 = Vector2.ZERO
+var _c_focal: float = 1.0
+
+func _set_cam(c: Dictionary) -> void:
+	_cam = c
+	_c_eye = c["eye"]
+	_c_f = c["f"]
+	_c_r = c["r"]
+	_c_u = c["u"]
+	_c_center = c["center"]
+	_c_focal = c["focal"]
+
 func _proj(p: Vector3) -> Vector2:
-	var v: Vector3 = p - _cam["eye"]
-	var z: float = maxf(v.dot(_cam["f"]), 1.0)
-	return Vector2(_cam["center"]) + Vector2(v.dot(_cam["r"]), -v.dot(_cam["u"])) * float(_cam["focal"]) / z
+	var v: Vector3 = p - _c_eye
+	var z: float = maxf(v.dot(_c_f), 1.0)
+	return _c_center + Vector2(v.dot(_c_r), -v.dot(_c_u)) * _c_focal / z
 
 # screen pixels per world unit at a point
 func _px(p: Vector3) -> float:
-	return float(_cam["focal"]) / maxf((p - _cam["eye"]).dot(_cam["f"]), 1.0)
+	return _c_focal / maxf((p - _c_eye).dot(_c_f), 1.0)
 
 func _depth(p: Vector3) -> float:
-	return (p - _cam["eye"]).dot(_cam["f"])
+	return (p - _c_eye).dot(_c_f)
 
 func _tick(_delta: float) -> void:
-	_cam = _camera()
+	_set_cam(_camera())
 	if absf(scene_bottom - _for_bottom) > 0.5:
 		_for_bottom = scene_bottom
 		_ground.queue_redraw()
+		_warm.queue_redraw()
 	_life.queue_redraw()
+	_motes.queue_redraw()
 	_front.queue_redraw()
 
 # --- the trail ------------------------------------------------------------------------------------------
@@ -149,7 +174,7 @@ func _ground_h(p: Vector3) -> float:
 
 func _draw_ground(d: Control) -> void:
 	if _cam.is_empty():
-		_cam = _camera()
+		_set_cam(_camera())
 	var full: Vector2 = _cam["full"]
 	# the garden beyond, out of focus: a warm green gradient and soft discs of light
 	var horizon: float = _proj(Vector3(0.0, 0.0, -6000.0)).y
@@ -537,11 +562,17 @@ func _draw_life(d: Control) -> void:
 	ants.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
 	for an in ants:
 		_ant(d, an[1], an[2], an[3], an[4], an[5], int(an[6]))
-	# the sun's warmth from the upper left, over everything below the title
-	var full: Vector2 = _cam["full"]
+
+# the sun's warmth from the upper left, over everything below the title (still)
+func _draw_warmth(d: Control) -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
 	for k in 14:
 		d.draw_circle(Vector2(full.x * 0.12, full.y * 0.18), full.x * (1.1 - 0.07 * float(k)), Color(1.0, 0.86, 0.52, 0.018))
-	# motes drifting in the sunlight
+
+# motes drifting in the sunlight (live)
+func _draw_motes(d: Control) -> void:
+	if _cam.is_empty():
+		return
 	for k in 16:
 		var mp: Vector3 = Vector3(lerpf(-220.0, 220.0, h01(k + 900)) + 18.0 * sin(t * 0.21 + float(k)), 18.0 + 40.0 * h01(k + 901) + 8.0 * sin(t * 0.17 + float(k) * 2.0), lerpf(40.0, -500.0, h01(k + 902)))
 		var mr: float = 0.6 * _px(mp)

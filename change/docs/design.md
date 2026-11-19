@@ -240,3 +240,7 @@ fading into the dark, shaded paper with a ruled border, "PAY EXACTLY" over $2.85
 and barely stirring. The name is drawn after the tag, so the string passes behind it. A tray with coins dropping
 into it was "too much like something that is playable" (the user); a plain cream card swinging on a white thread
 was "a bit ugly". Made up, never the board: the menu also opens mid-game.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/change_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `change_menu`): the game's music with the poster's world in front -- coins set down and counted, one spun, the till.

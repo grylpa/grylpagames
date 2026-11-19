@@ -680,18 +680,30 @@ func _launch(game_path: String, scene_path: String, game_name: String, mark_hot:
 	# Two frames: the highlight is drawn before anything heavy starts.
 	await get_tree().process_frame
 	await get_tree().process_frame
+	# THE FIRST OPENING of this game on this device: a card for it while its menu poster's shaders are compiled
+	# (prep_card.gd, shader_warmer.gd) -- that compile froze the screen 1-3.6 s on a phone
+	var card: PrepCard = null
+	if ShaderWarmer.needed_for(game_path):
+		card = PrepCard.open(self, game_path)
+		await RenderingServer.frame_post_draw
 	var scene: PackedScene = null
 	if ResourceLoader.load_threaded_request(scene_path) == OK:
 		while ResourceLoader.load_threaded_get_status(scene_path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			await get_tree().process_frame
+			if card != null:
+				card.loading_tick(get_process_delta_time())
 		scene = ResourceLoader.load_threaded_get(scene_path) as PackedScene
 	if scene == null:
 		scene = load(scene_path) as PackedScene      # the thread refused: load it the plain way
 	if mark_hot.is_valid():
 		mark_hot.call(false)          # hidden with the chooser; clean when it comes back
+	if card != null:
+		await card.warm()
 	_launching = false
 	if scene != null:
 		set_active_game(scene.instantiate(), game_name)
+	if card != null:
+		card.close_soon()
 
 func set_active_game(scene, game_name):
 	MainGlobals.digitized_swipe_mode = false

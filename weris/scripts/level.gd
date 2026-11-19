@@ -56,6 +56,8 @@ func _ready() -> void:
 	# Right / wrong made for this game (devtools/make_answer_sounds.py); they replaced an arcade coin and a swoosh.
 	game.add_sound(self, "correct", preload("res://art/sounds/weris_right.ogg"))
 	game.add_sound(self, "wrong", preload("res://art/sounds/weris_wrong.ogg"))
+	game.add_sound(self, "deal", preload("res://art/sounds/card_deal.ogg"))       # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
+	game.add_sound(self, "spread", preload("res://art/sounds/weris_spread.ogg"))
 	# Two ambients (devtools/make_ambient_sounds.py), one per phase: a few slow electric-piano notes
 	# while the face is studied, a room of people talking while it is searched for (_ambient).
 	game.add_sound(self, "amb_card", preload("res://art/sounds/weris_card_ambient.ogg"), true)
@@ -202,13 +204,19 @@ func _start_study_phase():
 	phase = Phase.STUDY
 	feedback_level_done = false
 
-	var prev_idx: int = target_idx
+	# NEVER THE PERSON OF THE TURN BEFORE (the user, 2026-11-19): compared by WHO, not by index -- a new game
+	# reshuffles which person an index is (WerisG.shuffle_people), so the index check let the last face of one game
+	# come straight back as the first of the next; WerisG.last_target outlives the game
 	var num_people: int = WerisG.get_num_people()
 	if num_people > 1:
-		while target_idx == prev_idx:
+		var tries: int = 0
+		target_idx = game.rng.randi_range(0, num_people - 1)
+		while WerisG.get_person_name(target_idx) == WerisG.last_target and tries < 50:
 			target_idx = game.rng.randi_range(0, num_people - 1)
+			tries += 1
 	else:
 		target_idx = 0
+	WerisG.last_target = WerisG.get_person_name(target_idx)
 
 	var screen_w = MainGlobals.screen_size.x
 	var screen_h = MainGlobals.screen_size.y
@@ -221,6 +229,7 @@ func _start_study_phase():
 
 	study_card = CARD_SCRIPT.new()
 	add_child(study_card)
+	game.play_sound("deal")
 	study_card.fit = CARD_SCRIPT.Fit.COVER
 	study_card.set_photo(true)
 	study_card.setup(WerisG.get_person_image(target_idx), YELLOW)
@@ -282,6 +291,7 @@ func _start_find_phase():
 
 	var grid_size = grid_cols * grid_rows
 	var people_in_grid = _build_grid_people(grid_size)
+	game.play_sound("spread")                  # the crowd's cards laid out
 
 	for i in grid_size:
 		var row = i / grid_cols

@@ -1181,8 +1181,10 @@ func _can_play() -> bool:
 
 func _process(dt: float) -> void:
 	if not _can_play():
-		# the hall plays only while a level does: not under a card, a pause or the menu
-		game.stop_sound("hall")
+		# the hall plays only while a level does: not under a card or a pause -- but under the MAIN MENU the menu plays
+		# it (GenericGameUtil.menu_ambient) and it is left alone here (stopped every frame, the menu was silent, 2026-11-19)
+		if not MainGlobals.is_screen_visible("main_menu"):
+			game.stop_sound("hall")
 		return
 	game.play_sound("hall", false)
 	_simulate(minf(dt, 0.05), game.game_time)   # clamp long frames (tab switch, GC pause)

@@ -218,3 +218,7 @@ worker thread each time, it was slow to appear on a desktop's GPU, the user); th
 tesserae inside a gold, lapis and terracotta border; the flames flickering at the candles' wicks (`screen_of`; half again as big since 2026-11-18, the user);
 a ripple of light; a glint lighting only the tiles it crosses; a few tesserae drifting out, turning and settling back.
 Made up, never the board.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/mosaic_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `mosaic_menu`): the game's music with the poster's world in front -- tiles clinking, the nipper; new action sounds (`devtools/make_game_sounds.py`): `pick` as a tile is lifted, `flip` as the pieces turn.

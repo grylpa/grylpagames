@@ -166,6 +166,7 @@ func _flip_to(up: bool) -> void:
 		_set_face(up)
 		return
 	_face_up = up
+	MovingCardsG.game.play_sound("flip")      # (one player: cards turning together sound as one flick)
 	if _flip != null and _flip.is_valid():
 		_flip.kill()
 	_flip = create_tween()

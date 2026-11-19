@@ -28,3 +28,8 @@ func load_settings():
 	var settings = game.read_settings()
 	if settings.size() > 0:
 		starting_level = settings[0]
+
+# the loop the menu plays under it (GenericGameUtil.menu_ambient looks for "ambient" by default): its music, registered as "motor" (taxi_ambient.ogg) --
+# without this the menu was silent (2026-11-19)
+func _ready() -> void:
+	game.menu_ambient_names = ["motor"]

@@ -483,3 +483,7 @@ and the balls' sink target is below the felt in the cup, so a ball drops down be
 drawn over the rail, it seemed to fall into the wood), then the next pair
 (4.2 s). Nothing is made before the screen has a size (zero-sized labels).
 Made up, never the board: the menu also opens mid-game.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/bucketmadness_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `bucketmadness_menu`): the game's music with the poster's world in front -- cue strikes, ball clacks, a pocket, a break, chalk, glasses; the GAME loop carries its world too, gentler (`GAME_WORLDS`): other tables far off, chalk, glasses; new action sounds (`devtools/make_game_sounds.py`): `roll` as a ball sets off down the felt, `drop` into the pocket's leather.

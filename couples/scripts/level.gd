@@ -67,6 +67,7 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	game.add_sound(self, "flip", preload("res://art/sounds/card_flip.ogg"))        # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
 	_build_ui()
 	set_process(true)
 
@@ -420,6 +421,7 @@ func _on_card_tapped(idx: int) -> void:
 	# ignore a too-early tap (e.g. a leftover press as the board appears)
 	if game.game_time - _show_start_ms < 150.0:
 		return
+	game.play_sound("flip")
 	if _selected < 0:
 		_selected = idx
 		_highlight(idx, true)

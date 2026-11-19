@@ -758,7 +758,7 @@ func _on_visibility_changed() -> void:
 # way to the menu has stopped it
 func _menu_sound() -> void:
 	if game != null and is_instance_valid(game):
-		game.menu_ambient(visible)
+		game.menu_ambient(visible, self)
 
 func add_entry(_id, _name, _min_val, _max_val, _is_bool):
 	var lbl = entry_label_scene.instantiate()

@@ -62,6 +62,7 @@ var _people_file_names = [
 ]
 
 var _people = []
+var last_target: String = ""            # the person the last study card showed (level.gd: never the same twice running)
 var _people_names = []
 var _people_idx = []
 

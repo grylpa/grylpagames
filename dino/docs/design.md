@@ -285,3 +285,7 @@ Made up, never the board: the menu also opens mid-game.
 
 FAST TO OPEN (2026-11-17): the photos load on threads and the cards are made three a frame (each card cost ~7 ms to
 create); each card fades in as its photo arrives. First frame ~38 ms.
+
+## Audio (2026-11-19)
+
+new action sounds (`devtools/make_game_sounds.py`): `swipe` as a card is thrown off, `deal` as the next lands.

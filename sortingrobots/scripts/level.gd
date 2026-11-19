@@ -221,6 +221,7 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	game.add_sound(self, "stamp", preload("res://art/sounds/sortingrobots_stamp.ogg"))   # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
 	# the robot arm is heard taking an item (devtools/make_action_sounds.py, "robot")
 	game.add_sound(self, "grab", preload("res://art/sounds/robot_grab.ogg"))
 	game.set_sound_volume("grab", -3.0)
@@ -1022,6 +1023,7 @@ func _resolve(b: int, entry: Dictionary, tapped: bool) -> void:
 		game.play_sound("wrong")
 		if ctrl is ParcelArt and is_instance_valid(ctrl):
 			(ctrl as ParcelArt).stamp(false)
+			game.play_sound("stamp")
 	_adapt_speed(right)
 	if rounds_done >= rounds_before_hide and not labels_hidden:
 		labels_hidden = true

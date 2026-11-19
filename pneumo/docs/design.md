@@ -577,3 +577,11 @@ the shared `main_menu.gd` keeps only a slim panel at the foot): THE PNEUMATIC PO
 Made up, never the board: the menu also opens mid-game.
 
 WHAT NEVER MOVES IS BAKED (2026-11-17): the wall, the tubes' backs and the front (glass, junction housing, receivers, gauge, valve) are still layers (`menu_still_<0..2>_<m|d>.webp`); live are only the capsules and, over everything, the dial's pointer, the gauge's needle, a receiver's lamp when it flashes, and the steam (`_draw_over`). Redrawn every frame it cost 29 ms a frame; now 16.
+
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/pneumo_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `pneumo_menu`): the game's music with the poster's world in front -- capsules whooshing and landing (often), a stamp, the desk bell.
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the over layer is three: `_over` (the dial's pointer, the wheel's spokes, the gauge's needle -- live), `_over_still` (the brass knobs, the dial's and gauge's glass, the wheel's rim -- drawn once), `_over2` (the rim's mark, the lamps' flashes, the steam -- live); `_draw_over(d, part)`.

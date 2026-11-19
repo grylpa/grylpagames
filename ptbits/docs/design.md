@@ -225,3 +225,7 @@ funnel, glass and the panel under the glass (the rods vanish into it) are live. 
 physical cabinet, not the arena.
 
 **2026-11-18:** the whole glass fits above the menu card; the paddles' brass rims on BOTH faces (the back had none); each cup stands on a wooden SHELF with a rounded lip on brass gusset brackets screwed to the wall (plain brass slabs before); brass rivets down the steel walls; the field printed with gold stars and a cream pinstripe border.
+
+## Audio (2026-11-19)
+
+the MENU has its own loop (`art/sounds/ptbits_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `ptbits_menu`): the game's music with the poster's world in front -- balls bouncing, a basket's catch.

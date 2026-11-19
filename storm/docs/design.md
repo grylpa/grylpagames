@@ -988,6 +988,11 @@ clip-art furniture in them. Now:
 
 ## The main menu's poster
 
+**Thunder (2026-11-19):** each bolt is followed 0.1-0.5 s later by a roll of thunder (`_thunder`): the game's own
+recordings (`thunder_1`, `_2`, `_4` -- not the 24-s `thunder_3`, which the next roll but one would cut off), exactly as
+loud as in the game (menu sounds are never quieter), on two players of the game's sound registry in turn (`menu_thunder`, `menu_thunder2`), never from the
+off-screen copy that prepares the poster's shaders, and stopped when the menu closes.
+
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: THE HOUSE AT NIGHT
 IN THE STORM, seen THREE-QUARTER from the front left (2026-11-18; front-on it was "completely flat"). Two stories of
 clapboard on a stone foundation under a shingled roof, white trim, windows on the front and the side wall (curtains lit
@@ -1008,3 +1013,6 @@ the window; degenerate slivers are skipped) WALKING, not gliding (2026-11-18): a
 drawn apart) swinging from the shoulder as a pendulum lagging the steps. Baked with a clear sky (`menu_house.webp`,
 `menu_house_d.webp`). Made up, never the board.
 
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): `live_title = true`: its name brightens with the lightning and the rain is drawn over it, so it is not drawn once like the other posters' titles.

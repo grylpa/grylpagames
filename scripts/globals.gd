@@ -167,7 +167,11 @@ func generic_game_hud_new_game():
 func generic_game_hud_show(_show):
 	sig_generic_game_hud_show.emit(_show)
 
+signal sig_main_menu_hidden            # a game's main menu has just closed (GrassField sows a lawn it put off then)
+
 func set_visible(screen_name, status):
+	if !status and screen_name == "main_menu" and visible_screens.has("main_menu"):
+		sig_main_menu_hidden.emit.call_deferred()
 	if !status:
 		visible_screens.erase(screen_name)
 	else:

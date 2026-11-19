@@ -25,8 +25,12 @@ const BRASS_LIGHT: Color = Color(1.0, 0.90, 0.62)
 
 var scene_bottom: float = -1.0       # where the menu's panel starts (set_scene_bottom); the scene is above it
 
-var _bg: ColorRect = null
+var _bg: DrawnOnce = null
 var _fg: Control = null
+var _cv: CanvasItem = null           # what the foreground's helpers draw on: _fg_back, _fg or _fg_title
+var _fg_back: DrawnOnce = null       # the standard weights on the counter (still)
+var _fg_title: DrawnOnce = null      # the name and its pitch (still)
+var _white: ImageTexture = null
 var _serif: Font = null
 var _crate_tex: Array = []
 var _board: Rect2 = Rect2()
@@ -50,26 +54,49 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_serif = load("res://art/fonts/NotoSerif-Bold.ttf")
-	_bg = ColorRect.new()
-	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# THE BACKDROP: its shader is still (no TIME) -- rendered ONCE (DrawnOnce), where it ran on every pixel every frame
+	# (11 ms a frame on a mid-range phone)
 	var m: ShaderMaterial = ShaderMaterial.new()
 	m.shader = BG_SHADER
-	_bg.material = m
+	var wi: Image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	wi.fill(Color.WHITE)
+	_white = ImageTexture.create_from_image(wi)
+	var bgd: DrawnOnce = DrawnOnce.make(func(d: Control) -> void:
+		d.draw_texture_rect(_white, Rect2(Vector2.ZERO, Vector2(MainGlobals.full_screen_size)), false))
+	bgd.inner_material = m
+	_bg = bgd
 	add_child(_bg)
 	# THE WALL in three layers under the balance: the papered wall (drawn once), the view through the
 	# window (moving: clouds over the moon), and the window's casing, the curtains and the pictures (once)
+	# (the still two drawn ONCE, DrawnOnce: kept as plain layers, their thousands of shapes were still rendered every frame)
 	for k in 3:
-		var layer_c: Control = Control.new()
-		layer_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		layer_c.set_anchors_preset(Control.PRESET_FULL_RECT)
 		var which: int = k
-		layer_c.draw.connect(func() -> void: _draw_wall_layer(layer_c, which))
+		var layer_c: Control = null
+		if k == 1:
+			layer_c = Control.new()
+			layer_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			layer_c.set_anchors_preset(Control.PRESET_FULL_RECT)
+			var live_c: Control = layer_c
+			layer_c.draw.connect(func() -> void: _draw_wall_layer(live_c, which))
+		else:
+			layer_c = DrawnOnce.make(func(d: Control) -> void: _draw_wall_layer(d, which))
 		add_child(layer_c)
 		_wall_layers.append(layer_c)
+	# THE FOREGROUND: the weights (once), the balance (live: it rocks), the name (once), in that order
+	_fg_back = DrawnOnce.make(func(d: Control) -> void:
+		if _cell.x > 0.0:
+			_cv = d
+			_draw_wall(Vector2(MainGlobals.full_screen_size)))
+	add_child(_fg_back)
 	_fg = Control.new()
 	_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fg.draw.connect(_draw_fg)
 	add_child(_fg)
+	_fg_title = DrawnOnce.make(func(d: Control) -> void:
+		if _cell.x > 0.0:
+			_cv = d
+			_draw_title(Vector2(MainGlobals.full_screen_size)))
+	add_child(_fg_title)
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -106,7 +133,7 @@ func _layout() -> void:
 	# the counter the balance stands on: just above the panel (it stood 70 / 34 above, an empty band the user asked to use,
 	# 2026-11-19), so the balance grows down into the room
 	_counter_y = maxf(_board.end.y + 20.0, bottom - (18.0 if mobile else 10.0))
-	var m: ShaderMaterial = _bg.material as ShaderMaterial
+	var m: ShaderMaterial = _bg.inner_material as ShaderMaterial
 	m.set_shader_parameter("size", full)
 	# the wall alone: no rack of crates behind the balance (the board is put out of sight)
 	m.set_shader_parameter("board", Vector4(0.0, -5000.0, 0.0, 0.0))
@@ -117,6 +144,8 @@ func _layout() -> void:
 	m.set_shader_parameter("lamp", Vector2(full.x * 0.5, _board.end.y))
 	_bake()
 	_fg.queue_redraw()
+	for dl in [_bg, _fg_back, _fg_title]:
+		(dl as Control).queue_redraw()
 	for l in _wall_layers:
 		(l as Control).queue_redraw()
 
@@ -193,9 +222,8 @@ func _draw_fg() -> void:
 	if _cell.x <= 0.0:
 		return
 	var full: Vector2 = _fg.size
-	_draw_wall(full)
+	_cv = _fg
 	_draw_balance(full)
-	_draw_title(full)
 
 # the house's brass standard weights on the counter (the wall itself is _draw_wall_layer's)
 func _draw_wall(full: Vector2) -> void:
@@ -207,17 +235,17 @@ func _draw_wall(full: Vector2) -> void:
 	var sizes: Array = [1.0, 0.82, 0.66, 0.52, 0.40, 0.30]
 	var unit: float = (sx1 - sx0) / 4.2
 	for k in 3:
-		_fg.draw_set_transform(Vector2((sx0 + sx1) * 0.5, sy + 2.0), 0.0, Vector2(1.0, 0.16))
-		_fg.draw_circle(Vector2.ZERO, (sx1 - sx0) * (0.55 - 0.08 * float(k)), Color(0, 0, 0, 0.12))
-	_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		_cv.draw_set_transform(Vector2((sx0 + sx1) * 0.5, sy + 2.0), 0.0, Vector2(1.0, 0.16))
+		_cv.draw_circle(Vector2.ZERO, (sx1 - sx0) * (0.55 - 0.08 * float(k)), Color(0, 0, 0, 0.12))
+	_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	for k in sizes.size():
 		var ws: float = unit * float(sizes[k])
 		var c: Vector2 = Vector2(x + ws * 0.5, sy - ws * 0.5)
-		_fg.draw_colored_polygon(PackedVector2Array([c + Vector2(-ws * 0.46, ws * 0.5), c + Vector2(ws * 0.46, ws * 0.5),
+		_cv.draw_colored_polygon(PackedVector2Array([c + Vector2(-ws * 0.46, ws * 0.5), c + Vector2(ws * 0.46, ws * 0.5),
 			c + Vector2(ws * 0.32, -ws * 0.28), c + Vector2(-ws * 0.32, -ws * 0.28)]), ART.BRASS_DARK)
-		_fg.draw_colored_polygon(PackedVector2Array([c + Vector2(-ws * 0.40, ws * 0.44), c + Vector2(-ws * 0.02, ws * 0.44),
+		_cv.draw_colored_polygon(PackedVector2Array([c + Vector2(-ws * 0.40, ws * 0.44), c + Vector2(-ws * 0.02, ws * 0.44),
 			c + Vector2(-ws * 0.06, -ws * 0.24), c + Vector2(-ws * 0.28, -ws * 0.24)]), ART.BRASS)
-		_fg.draw_arc(c + Vector2(0.0, -ws * 0.36), ws * 0.13, PI, TAU, 10, ART.BRASS_DARK, maxf(2.0, ws * 0.06))
+		_cv.draw_arc(c + Vector2(0.0, -ws * 0.36), ws * 0.13, PI, TAU, 10, ART.BRASS_DARK, maxf(2.0, ws * 0.06))
 		x += ws + 6.0
 
 # --- THE WALL (2026-11-17; the user: the window "somewhat strange and plain as are the curtains", a moon
@@ -553,22 +581,22 @@ func _draw_title(full: Vector2) -> void:
 	var tw: float = _serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs).x
 	var p: Vector2 = Vector2((full.x - tw) * 0.5, _title_y)
 	# cast brass: a shadow, a dark edge, the face, and the lamp's sheen on its upper half
-	_fg.draw_string(_serif, p + Vector2(0, 5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(0, 0, 0, 0.55))
-	_fg.draw_string_outline(_serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, 8, Color(0.22, 0.13, 0.05))
-	_fg.draw_string(_serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, ART.BRASS)
-	_fg.draw_string(_serif, p + Vector2(0, -2), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(BRASS_LIGHT, 0.35))
+	_cv.draw_string(_serif, p + Vector2(0, 5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(0, 0, 0, 0.55))
+	_cv.draw_string_outline(_serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, 8, Color(0.22, 0.13, 0.05))
+	_cv.draw_string(_serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, ART.BRASS)
+	_cv.draw_string(_serif, p + Vector2(0, -2), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(BRASS_LIGHT, 0.35))
 	# the pitch, as a line of copperplate under it, between two short rules
 	var sub: String = "Weigh the crates with nothing but balance scales"
 	var font: Font = MainGlobals.get_text_font()
 	var sw: float = font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, _pitch_fs).x
 	var sy: float = _title_y + float(_pitch_fs) * 1.9
-	_fg.draw_string(font, Vector2((full.x - sw) * 0.5, sy + 2.0), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, _pitch_fs, Color(0, 0, 0, 0.5))
-	_fg.draw_string(font, Vector2((full.x - sw) * 0.5, sy), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, _pitch_fs, Color(0.97, 0.92, 0.82))
+	_cv.draw_string(font, Vector2((full.x - sw) * 0.5, sy + 2.0), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, _pitch_fs, Color(0, 0, 0, 0.5))
+	_cv.draw_string(font, Vector2((full.x - sw) * 0.5, sy), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, _pitch_fs, Color(0.97, 0.92, 0.82))
 	var ry: float = sy - float(_pitch_fs) * 0.35
 	var rl: float = minf(60.0, (full.x - sw) * 0.5 - 24.0)
 	if rl > 10.0:
-		_fg.draw_line(Vector2((full.x - sw) * 0.5 - 14.0 - rl, ry), Vector2((full.x - sw) * 0.5 - 14.0, ry), Color(ART.BRASS, 0.7), 2.0)
-		_fg.draw_line(Vector2((full.x + sw) * 0.5 + 14.0, ry), Vector2((full.x + sw) * 0.5 + 14.0 + rl, ry), Color(ART.BRASS, 0.7), 2.0)
+		_cv.draw_line(Vector2((full.x - sw) * 0.5 - 14.0 - rl, ry), Vector2((full.x - sw) * 0.5 - 14.0, ry), Color(ART.BRASS, 0.7), 2.0)
+		_cv.draw_line(Vector2((full.x + sw) * 0.5 + 14.0, ry), Vector2((full.x + sw) * 0.5 + 14.0 + rl, ry), Color(ART.BRASS, 0.7), 2.0)
 
 # THE BALANCE: a column on a plinth, a beam on a knife-edge, two pans on chains. It rocks the way a scale
 # does when a crate has just been set down -- a slow swing that dies away, then another crate, again.
@@ -592,65 +620,65 @@ func _draw_balance(full: Vector2) -> void:
 	var a: float = _beam_angle()
 	# shadow on the counter
 	for k in 4:
-		_fg.draw_set_transform(Vector2(cx, foot + 4.0), 0.0, Vector2(1.0, 0.18))
-		_fg.draw_circle(Vector2.ZERO, 150.0 - float(k) * 22.0, Color(0, 0, 0, 0.10 + 0.04 * float(k)))
-	_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		_cv.draw_set_transform(Vector2(cx, foot + 4.0), 0.0, Vector2(1.0, 0.18))
+		_cv.draw_circle(Vector2.ZERO, 150.0 - float(k) * 22.0, Color(0, 0, 0, 0.10 + 0.04 * float(k)))
+	_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# the plinth and the column
 	# HEAVIER THAN IT WAS (the user: hard to see on a phone over the paintings and the paneling): a broader plinth,
 	# a thicker column and beam, bigger chain links -- and a dark edge round each, so it stands off the wall
 	var pw: float = 230.0 if mobile else 170.0
 	var ph: float = 36.0 if mobile else 26.0
-	_fg.draw_colored_polygon(PackedVector2Array([Vector2(cx - pw * 0.5 - 3.0, foot + 2.0), Vector2(cx + pw * 0.5 + 3.0, foot + 2.0),
+	_cv.draw_colored_polygon(PackedVector2Array([Vector2(cx - pw * 0.5 - 3.0, foot + 2.0), Vector2(cx + pw * 0.5 + 3.0, foot + 2.0),
 		Vector2(cx + pw * 0.36 + 3.0, foot - ph - 3.0), Vector2(cx - pw * 0.36 - 3.0, foot - ph - 3.0)]), EDGE)
-	_fg.draw_colored_polygon(PackedVector2Array([Vector2(cx - pw * 0.5, foot), Vector2(cx + pw * 0.5, foot),
+	_cv.draw_colored_polygon(PackedVector2Array([Vector2(cx - pw * 0.5, foot), Vector2(cx + pw * 0.5, foot),
 		Vector2(cx + pw * 0.36, foot - ph), Vector2(cx - pw * 0.36, foot - ph)]), Color(0.30, 0.17, 0.08))
-	_fg.draw_line(Vector2(cx - pw * 0.36, foot - ph), Vector2(cx + pw * 0.36, foot - ph), Color(0.55, 0.36, 0.18), 2.0)
+	_cv.draw_line(Vector2(cx - pw * 0.36, foot - ph), Vector2(cx + pw * 0.36, foot - ph), Color(0.55, 0.36, 0.18), 2.0)
 	var collar: float = 16.0 if mobile else 12.0
-	_fg.draw_rect(Rect2(cx - pw * 0.30 - 2.0, foot - ph - collar - 2.0, pw * 0.60 + 4.0, collar + 2.0), EDGE)
-	_fg.draw_rect(Rect2(cx - pw * 0.30, foot - ph - collar, pw * 0.60, collar), ART.BRASS_DARK)
-	_fg.draw_rect(Rect2(cx - pw * 0.30, foot - ph - collar, pw * 0.60, 4.0), ART.BRASS)
+	_cv.draw_rect(Rect2(cx - pw * 0.30 - 2.0, foot - ph - collar - 2.0, pw * 0.60 + 4.0, collar + 2.0), EDGE)
+	_cv.draw_rect(Rect2(cx - pw * 0.30, foot - ph - collar, pw * 0.60, collar), ART.BRASS_DARK)
+	_cv.draw_rect(Rect2(cx - pw * 0.30, foot - ph - collar, pw * 0.60, 4.0), ART.BRASS)
 	var cw: float = 32.0 if mobile else 24.0
 	var col: Rect2 = Rect2(cx - cw * 0.5, pivot.y, cw, foot - ph - collar - pivot.y)
-	_fg.draw_rect(col.grow_individual(2.5, 0.0, 2.5, 0.0), EDGE)
-	_fg.draw_rect(col, ART.BRASS_DARK)
-	_fg.draw_rect(Rect2(col.position.x + cw * 0.18, col.position.y, cw * 0.28, col.size.y), ART.BRASS)
-	_fg.draw_rect(Rect2(col.position.x + cw * 0.24, col.position.y, cw * 0.10, col.size.y), Color(BRASS_LIGHT, 0.7))
+	_cv.draw_rect(col.grow_individual(2.5, 0.0, 2.5, 0.0), EDGE)
+	_cv.draw_rect(col, ART.BRASS_DARK)
+	_cv.draw_rect(Rect2(col.position.x + cw * 0.18, col.position.y, cw * 0.28, col.size.y), ART.BRASS)
+	_cv.draw_rect(Rect2(col.position.x + cw * 0.24, col.position.y, cw * 0.10, col.size.y), Color(BRASS_LIGHT, 0.7))
 	# the dial over the pivot, and its needle, which stands up from the beam
 	var dr: float = L * 0.30
-	_fg.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS_DARK, 8.0, true)
-	_fg.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS, 3.0, true)
+	_cv.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS_DARK, 8.0, true)
+	_cv.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS, 3.0, true)
 	for k in 9:
 		var ang: float = PI * 1.25 + PI * 0.5 * float(k) / 8.0
 		var d: Vector2 = Vector2(cos(ang), sin(ang))
-		_fg.draw_line(pivot + d * (dr - 9.0), pivot + d * (dr - (16.0 if k % 4 == 0 else 12.0)), Color(0.22, 0.13, 0.05), 2.0)
+		_cv.draw_line(pivot + d * (dr - 9.0), pivot + d * (dr - (16.0 if k % 4 == 0 else 12.0)), Color(0.22, 0.13, 0.05), 2.0)
 	var nd: Vector2 = Vector2(sin(a), -cos(a))
-	_fg.draw_line(pivot, pivot + nd * (dr - 6.0), Color(0.22, 0.13, 0.05), 4.0)
-	_fg.draw_line(pivot, pivot + nd * (dr - 6.0), BRASS_LIGHT, 1.5)
+	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), Color(0.22, 0.13, 0.05), 4.0)
+	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), BRASS_LIGHT, 1.5)
 	# the pans hang from the beam's ends, upright whatever its angle
 	var ends: Array = [pivot + Vector2(-L, 0).rotated(a), pivot + Vector2(L, 0).rotated(a)]
 	var hang: float = hs * 0.50
 	for k in 2:
 		_draw_pan(ends[k], hang, k, mobile)
 	# the beam, over the chains' hooks
-	_fg.draw_set_transform(pivot, a, Vector2.ONE)
+	_cv.draw_set_transform(pivot, a, Vector2.ONE)
 	var bh: float = 22.0 if mobile else 16.0
 	var beam: PackedVector2Array = PackedVector2Array([Vector2(-L - 6.0, -bh * 0.35), Vector2(-30.0, -bh * 0.5),
 		Vector2(30.0, -bh * 0.5), Vector2(L + 6.0, -bh * 0.35), Vector2(L + 6.0, bh * 0.35), Vector2(30.0, bh * 0.5),
 		Vector2(-30.0, bh * 0.5), Vector2(-L - 6.0, bh * 0.35)])
 	var ring: PackedVector2Array = beam.duplicate()
 	ring.append(beam[0])
-	_fg.draw_polyline(ring, EDGE, 5.0, true)
-	_fg.draw_colored_polygon(beam, ART.BRASS_DARK)
-	_fg.draw_line(Vector2(-L - 4.0, -bh * 0.18), Vector2(L + 4.0, -bh * 0.18), ART.BRASS, bh * 0.30)
-	_fg.draw_line(Vector2(-L, -bh * 0.26), Vector2(L, -bh * 0.26), Color(BRASS_LIGHT, 0.6), 1.5)
+	_cv.draw_polyline(ring, EDGE, 5.0, true)
+	_cv.draw_colored_polygon(beam, ART.BRASS_DARK)
+	_cv.draw_line(Vector2(-L - 4.0, -bh * 0.18), Vector2(L + 4.0, -bh * 0.18), ART.BRASS, bh * 0.30)
+	_cv.draw_line(Vector2(-L, -bh * 0.26), Vector2(L, -bh * 0.26), Color(BRASS_LIGHT, 0.6), 1.5)
 	for e in [-L, L]:
-		_fg.draw_circle(Vector2(e, 0.0), bh * 0.55, ART.BRASS_DARK)
-		_fg.draw_circle(Vector2(e, 0.0), bh * 0.32, ART.BRASS)
-	_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		_cv.draw_circle(Vector2(e, 0.0), bh * 0.55, ART.BRASS_DARK)
+		_cv.draw_circle(Vector2(e, 0.0), bh * 0.32, ART.BRASS)
+	_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# the knife-edge's cap
-	_fg.draw_circle(pivot, bh * 0.95, ART.BRASS_DARK)
-	_fg.draw_circle(pivot, bh * 0.65, ART.BRASS)
-	_fg.draw_circle(pivot + Vector2(-bh * 0.2, -bh * 0.2), bh * 0.25, Color(BRASS_LIGHT, 0.8))
+	_cv.draw_circle(pivot, bh * 0.95, ART.BRASS_DARK)
+	_cv.draw_circle(pivot, bh * 0.65, ART.BRASS)
+	_cv.draw_circle(pivot + Vector2(-bh * 0.2, -bh * 0.2), bh * 0.25, Color(BRASS_LIGHT, 0.8))
 
 func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 	var pw: float = 186.0 if mobile else 140.0
@@ -665,37 +693,37 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 		_crate_on_pan(Rect2(rim + Vector2(-cs.x * 0.80, -cs.y + 4.0), cs), 1, 3, 0b01011, 0)
 		# and a brass weight beside it
 		var ws: float = cs.y * 0.70
-		_fg.draw_set_transform(rim + Vector2(cs.x * 0.42, -ws * 0.5 + 4.0), 0.0, Vector2.ONE)
-		_fg.draw_colored_polygon(PackedVector2Array([Vector2(-ws * 0.42, ws * 0.5), Vector2(ws * 0.42, ws * 0.5),
+		_cv.draw_set_transform(rim + Vector2(cs.x * 0.42, -ws * 0.5 + 4.0), 0.0, Vector2.ONE)
+		_cv.draw_colored_polygon(PackedVector2Array([Vector2(-ws * 0.42, ws * 0.5), Vector2(ws * 0.42, ws * 0.5),
 			Vector2(ws * 0.30, -ws * 0.30), Vector2(-ws * 0.30, -ws * 0.30)]), ART.BRASS_DARK)
-		_fg.draw_colored_polygon(PackedVector2Array([Vector2(-ws * 0.36, ws * 0.44), Vector2(ws * 0.10, ws * 0.44),
+		_cv.draw_colored_polygon(PackedVector2Array([Vector2(-ws * 0.36, ws * 0.44), Vector2(ws * 0.10, ws * 0.44),
 			Vector2(ws * 0.02, -ws * 0.26), Vector2(-ws * 0.26, -ws * 0.26)]), ART.BRASS)
-		_fg.draw_arc(Vector2(0.0, -ws * 0.38), ws * 0.14, PI, TAU, 12, ART.BRASS_DARK, 3.0)
+		_cv.draw_arc(Vector2(0.0, -ws * 0.38), ws * 0.14, PI, TAU, 12, ART.BRASS_DARK, 3.0)
 		var fs: int = int(ws * 0.46)
 		var t: String = "2"
 		var tw: float = _serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		_fg.draw_string(_serif, Vector2(-tw * 0.5, ws * 0.30), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.22, 0.13, 0.05))
-		_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		_cv.draw_string(_serif, Vector2(-tw * 0.5, ws * 0.30), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.22, 0.13, 0.05))
+		_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# three chains from the hook to the rim
 	for x in [-pw * 0.5, 0.0, pw * 0.5]:
 		var to: Vector2 = rim + Vector2(x, -2.0 if x == 0.0 else 0.0)
 		if x == 0.0:
 			to = rim + Vector2(0.0, -cs.y - 2.0)   # the middle one stops on the load
 		var link: float = 4.2 if mobile else 3.2
-		_fg.draw_line(hook, to, EDGE, link * 2.0 + 3.0, true)
+		_cv.draw_line(hook, to, EDGE, link * 2.0 + 3.0, true)
 		var n: int = int(hook.distance_to(to) / (link * 3.2))
 		var along: float = (to - hook).angle()
 		for j in n:
 			var p: Vector2 = hook.lerp(to, (float(j) + 0.5) / float(maxi(1, n)))
 			# links alternate: one seen flat (an oval ring), the next edge-on (a bar)
 			if j % 2 == 0:
-				_fg.draw_set_transform(p, along, Vector2(1.0, 0.62))
-				_fg.draw_arc(Vector2.ZERO, link, 0.0, TAU, 14, ART.BRASS, link * 0.55, true)
-				_fg.draw_arc(Vector2.ZERO, link, PI * 1.1, PI * 1.6, 6, BRASS_LIGHT, link * 0.3, true)
-				_fg.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				_cv.draw_set_transform(p, along, Vector2(1.0, 0.62))
+				_cv.draw_arc(Vector2.ZERO, link, 0.0, TAU, 14, ART.BRASS, link * 0.55, true)
+				_cv.draw_arc(Vector2.ZERO, link, PI * 1.1, PI * 1.6, 6, BRASS_LIGHT, link * 0.3, true)
+				_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			else:
 				var dv: Vector2 = Vector2.from_angle(along) * link * 1.1
-				_fg.draw_line(p - dv, p + dv, ART.BRASS_DARK, link * 0.75, true)
+				_cv.draw_line(p - dv, p + dv, ART.BRASS_DARK, link * 0.75, true)
 	# the bowl: a shallow dish, its far rim then its front
 	var pts: PackedVector2Array = PackedVector2Array()
 	for j in 17:
@@ -703,16 +731,16 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 		pts.append(rim + Vector2(-cos(u) * pw * 0.5, sin(u) * depth))
 	var pring: PackedVector2Array = pts.duplicate()
 	pring.append(pts[0])
-	_fg.draw_polyline(pring, EDGE, 4.0, true)
-	_fg.draw_colored_polygon(pts, ART.BRASS_DARK)
+	_cv.draw_polyline(pring, EDGE, 4.0, true)
+	_cv.draw_colored_polygon(pts, ART.BRASS_DARK)
 	var lit: PackedVector2Array = PackedVector2Array()
 	for j in 17:
 		var u: float = PI * float(j) / 16.0
 		lit.append(rim + Vector2(-cos(u) * pw * 0.44, sin(u) * depth * 0.55))
-	_fg.draw_polyline(lit, Color(ART.BRASS, 0.9), 3.0, true)
-	_fg.draw_line(rim + Vector2(-pw * 0.5, 0.0), rim + Vector2(pw * 0.5, 0.0), BRASS_LIGHT, 3.0)
+	_cv.draw_polyline(lit, Color(ART.BRASS, 0.9), 3.0, true)
+	_cv.draw_line(rim + Vector2(-pw * 0.5, 0.0), rim + Vector2(pw * 0.5, 0.0), BRASS_LIGHT, 3.0)
 
 func _crate_on_pan(r: Rect2, row: int, col: int, mask: int, placed: int) -> void:
 	if _crate_tex.is_empty():
 		return
-	ART.draw_crate(_fg, r, _tex(row, col), row, col, COLS, mask if placed == 0 else PUZZLE.bit(placed), 0, placed, 0, 1.0, _serif)
+	ART.draw_crate(_cv, r, _tex(row, col), row, col, COLS, mask if placed == 0 else PUZZLE.bit(placed), 0, placed, 0, 1.0, _serif)

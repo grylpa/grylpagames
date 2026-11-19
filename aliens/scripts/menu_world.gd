@@ -72,10 +72,76 @@ func _environment(env: Environment) -> void:
 	env.ambient_light_color = Color(0.45, 0.60, 0.75)
 	env.ambient_light_energy = 0.42
 
+# THE SKY IN THREE LAYERS UNDER THE SCENE (2026-11-19: painted every frame, 170 stars with their glows and flares and
+# a ringed planet cost a phone ~15 ms): the gradient drawn once, the stars one batched draw twinkling on the GPU
+# (STARS), the planet and the moons drawn once
+var _sky_grad: Control = null
+var _stars: MultiMeshInstance2D = null
+var _planet: Control = null
+var _sky_for: String = ""
+
+# each star a quad; INSTANCE_CUSTOM = (rate, phase, phase 2, the quad's half-size), COLOR = (hue, its radius / 4).
+# Its twinkle tw, its disc (radius r(0.8 + 0.4 tw), alpha 0.25 + 0.7 tw), and for a big one (r > 1) the glow of four
+# rings (glow_at: radius 6r, each 0.072 tw) and the two flare lines (half-length r(4 + 10 tw^3), 1 wide, 0.55 tw^3),
+# as _paint drew them -- all one color, so together they are 1 - (1 - a1)(1 - a2)(1 - a3)
+const STARS: String = """shader_type canvas_item;
+uniform float t = 0.0;
+varying float v_tw;
+varying float v_r;
+varying vec2 v_p;
+void vertex() {
+	v_tw = 0.5 + 0.5 * sin(t * INSTANCE_CUSTOM.x + INSTANCE_CUSTOM.y) * sin(t * INSTANCE_CUSTOM.x * 0.37 + INSTANCE_CUSTOM.z);
+	v_r = COLOR.a * 4.0;
+	COLOR.a = 1.0;
+	v_p = VERTEX * INSTANCE_CUSTOM.w;
+}
+void fragment() {
+	vec2 p = v_p;
+	float aa = max(fwidth(p.x), 1e-4);
+	float d = length(p);
+	float tw = v_tw;
+	float r = v_r;
+	float a_core = (0.25 + 0.70 * tw) * clamp((r * (0.8 + 0.4 * tw) - d) / aa + 0.5, 0.0, 1.0);
+	float keep = 1.0 - a_core;
+	if (r > 1.0) {
+		float gr = r * 6.0;
+		float n = clamp(ceil(4.0 * (1.0 - d / gr)), 0.0, 4.0);
+		keep *= pow(1.0 - 0.072 * tw, n);
+		float flare = tw * tw * tw;
+		float arm = r * (4.0 + 10.0 * flare);
+		for (int g = 0; g < 2; g++) {
+			float ang = 1.5707963 * float(g) + 0.12;
+			vec2 dv = vec2(cos(ang), sin(ang));
+			float along = abs(dot(p, dv));
+			float across = abs(dot(p, vec2(-dv.y, dv.x)));
+			float cov = clamp((0.5 - across) / aa + 0.5, 0.0, 1.0) * clamp((arm - along) / aa + 0.5, 0.0, 1.0);
+			keep *= 1.0 - 0.55 * flare * cov;
+		}
+	}
+	COLOR.a = 1.0 - keep;
+}
+"""
+
 func _setup() -> void:
 	super._setup()
 	if bake_mode:
 		return
+	_sky_grad = cached_layer(func(d: Control) -> void:
+		var keep: CanvasItem = cv
+		cv = d
+		vgrad(Rect2(Vector2.ZERO, Vector2(MainGlobals.full_screen_size)), Color(0.05, 0.03, 0.12), Color(0.06, 0.16, 0.20))
+		cv = keep)
+	_stars = MultiMeshInstance2D.new()
+	var sm: ShaderMaterial = ShaderMaterial.new()
+	var ssh: Shader = Shader.new()
+	ssh.code = STARS
+	sm.shader = ssh
+	_stars.material = sm
+	add_child(_stars)
+	_planet = cached_layer(func(d: Control) -> void: _draw_planet(d))
+	move_child(_sky_grad, 0)
+	move_child(_stars, 1)
+	move_child(_planet, 2)
 	_holo = Control.new()
 	_holo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_holo.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -524,6 +590,14 @@ func _rider_at(k: int) -> Array:
 	return [goal + Vector3(0.0, rise, 0.0), 1.0 - 0.35 * f3, 1.0 - smoothstep(0.80, 0.97, f3)]
 
 func _animate(_delta: float) -> void:
+	if _stars != null:
+		var key: String = "%s %s" % [MainGlobals.full_screen_size, screen_of(SHIP) if _cam3 != null else Vector2(-1, -1)]
+		if key != _sky_for:
+			_sky_for = key
+			_build_stars()
+			_sky_grad.queue_redraw()
+			_planet.queue_redraw()
+		(_stars.material as ShaderMaterial).set_shader_parameter("t", t)
 	if _ray != null:
 		_ray.set_shader_parameter("time", t)
 	if _saucer == null:
@@ -621,28 +695,38 @@ func _draw_holo(d: Control) -> void:
 
 # --- the sky behind (2-D) ---------------------------------------------------------------------------------------------
 
-func _paint(full: Vector2, _bottom: float) -> void:
-	if bake_mode:
-		return
-	var ship_y: float = screen_of(SHIP).y if _cam3 != null else full.y * 0.3
-	vgrad(Rect2(Vector2.ZERO, full), Color(0.05, 0.03, 0.12), Color(0.06, 0.16, 0.20))
-	# THE STARS, TWINKLING: each its own size and color, its light rising and falling at its own pace; the bright ones
-	# flare now and then with four fine glints
+func _paint(_full: Vector2, _bottom: float) -> void:
+	pass                    # the sky is in its three layers (_setup)
+
+# the stars for the STARS shader, for this layout
+func _build_stars() -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2(2.0, 2.0)
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	mm.mesh = q
+	mm.instance_count = 170
 	for k in 170:
 		var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * full.y * 0.80)
 		var big: float = pow(h01(k * 5 + 3), 3.0)
 		var rate: float = 0.8 + 2.2 * h01(k + 9)
-		var tw: float = 0.5 + 0.5 * sin(t * rate + float(k) * 1.7) * sin(t * rate * 0.37 + float(k))
 		var hue: Color = [Color(0.85, 0.92, 1.0), Color(1.0, 0.92, 0.80), Color(0.80, 1.0, 0.95), Color(1.0, 0.85, 0.95)][k % 4]
 		var r: float = 0.6 + 1.6 * big
-		cv.draw_circle(sp, r * (0.8 + 0.4 * tw), Color(hue, 0.25 + 0.70 * tw))
-		if big > 0.25:
-			glow_at(sp, r * 6.0, Color(hue, 0.18 * tw), 4)
-			var flare: float = pow(tw, 3.0)
-			var arm_l: float = r * (4.0 + 10.0 * flare)
-			for gl in 2:
-				var dv: Vector2 = Vector2.RIGHT.rotated(PI * 0.5 * float(gl) + 0.12)
-				cv.draw_line(sp - dv * arm_l, sp + dv * arm_l, Color(hue, 0.55 * flare), 1.0, true)
+		var half: float = (r * 14.0 if r > 1.0 else r * 1.2) + 1.5
+		mm.set_instance_transform_2d(k, Transform2D(0.0, Vector2(half, half), 0.0, sp))
+		mm.set_instance_color(k, Color(hue.r, hue.g, hue.b, r / 4.0))
+		mm.set_instance_custom_data(k, Color(rate, float(k) * 1.7, float(k), half))
+	_stars.multimesh = mm
+
+# the ringed planet and the two moons (still)
+func _draw_planet(d: Control) -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var keep: CanvasItem = cv
+	cv = d
+	var ship_y: float = screen_of(SHIP).y if _cam3 != null else full.y * 0.3
 	var planet: Vector2 = Vector2(full.x * 0.16, ship_y + 30.0)
 	var pr: float = full.x * 0.15
 	glow_at(planet, pr * 1.6, Color(0.95, 0.55, 0.85, 0.20))
@@ -653,6 +737,7 @@ func _paint(full: Vector2, _bottom: float) -> void:
 	_ring(planet, pr * 1.8, pr * 0.42, Color(0.95, 0.80, 0.65, 0.55), false)
 	_sphere(Vector2(full.x * 0.86, ship_y - 90.0), 20.0, Color(0.25, 0.30, 0.38), Color(0.92, 0.96, 1.0))
 	_sphere(Vector2(full.x * 0.74, ship_y - 40.0), 10.0, Color(0.15, 0.32, 0.26), Color(0.75, 1.0, 0.85))
+	cv = keep
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	# rings of light running down the beam

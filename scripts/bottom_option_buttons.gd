@@ -147,6 +147,8 @@ func _update_badge() -> void:
 	if is_instance_valid(_scores_badge):
 		_scores_badge.visible = _new_best_pending
 
+var _styled_key: String = ""
+
 func _update_theme():
 	if !is_instance_valid(buttons_node):
 		return
@@ -167,6 +169,13 @@ func _update_theme():
 		"font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color"]
 	# reversed: dark near-black content instead of the game's (usually light) text_color
 	var content_col: Color = _REV_CONTENT if reversed_theme else text_color
+	# RESTYLED ONLY WHEN THE STYLE CHANGES (2026-11-19): every theme override makes its button redo its theme and text
+	# layout, and this ran ten colors, five boxes and a size into each of the nine buttons on every call -- ~100 ms on a
+	# mid-range phone each time a game's menu opened, for the same look as before
+	var style_key: String = "%s|%s|%s" % [content_col.to_html(), str(reversed_theme), str(MainGlobals.is_mobile())]
+	if style_key == _styled_key:
+		return
+	_styled_key = style_key
 	for child in buttons_node.get_children():
 		if child is Button:
 			# child.size_flags_vertical = Control.SIZE_EXPAND

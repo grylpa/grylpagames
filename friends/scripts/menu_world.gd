@@ -62,6 +62,9 @@ var _front: Control = null               # the curtains and the glass
 const PERSON_W: float = 0.86             # a person's width in the window (a share of its width)
 const PERSON_U: Array = [0.40, 0.58, 0.62, 0.38, 0.50, 0.55]    # where across each window the person stands
 
+var _shut_fronts: DrawnOnce = null
+var _shut_key: String = ""
+
 func _baked_path() -> String:
 	return "res://friends/art/menu_houses.webp" if mobile else "res://friends/art/menu_houses_d.webp"
 
@@ -135,16 +138,20 @@ func _setup() -> void:
 	for _k in FACES.size():
 		_who.append(-1)
 		_closed.append(1.0)
-	_layer = Control.new()
+	# DRAWN ONCE (2026-11-19: all of it redrawn every frame cost a phone ~15 ms): the rooms never change, and a SHUT
+	# window never changes -- the rooms are one picture, the shut windows' fronts another (redrawn only when another
+	# window opens, about once a second); only the window that is opening or open, and its person, are drawn live
+	_layer = DrawnOnce.make(func(d: Control) -> void: _draw_rooms(d))
 	_photo_layer = Control.new()
 	_front = Control.new()
 	for ly in [_layer, _photo_layer, _front]:
 		(ly as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 		(ly as Control).set_anchors_preset(Control.PRESET_FULL_RECT)
 		add_child(ly)
-	_layer.draw.connect(_draw_rooms)
 	_photo_layer.draw.connect(_draw_people)
-	_front.draw.connect(_draw_fronts)
+	_front.draw.connect(func() -> void: _draw_fronts(_front, true))
+	_shut_fronts = DrawnOnce.make(func(d: Control) -> void: _draw_fronts(d, false))
+	_front.add_child(_shut_fronts)
 	if _top != null:
 		move_child(_top, get_child_count() - 1)
 
@@ -185,7 +192,15 @@ func _tick(delta: float) -> void:
 		# until its photo is in, a window keeps its curtains shut, and opens them when it comes
 		var want_shut: float = shut if _who[k] >= 0 and _who[k] == n else 1.0
 		_closed[k] = want_shut if absf(want_shut - float(_closed[k])) < 0.05 else move_toward(float(_closed[k]), want_shut, delta * 1.6)
-	_layer.queue_redraw()
+	# the still pictures again when the layout moved them or another window opened or shut
+	var key: String = "%s|" % [screen_of(Vector3.ZERO)]
+	for k2 in FACES.size():
+		key += "1" if float(_closed[k2]) >= 1.0 else "0"
+	if key != _shut_key:
+		if key.get_slice("|", 0) != _shut_key.get_slice("|", 0):
+			_layer.queue_redraw()
+		_shut_key = key
+		_shut_fronts.queue_redraw()
 	_photo_layer.queue_redraw()
 	_front.queue_redraw()
 
@@ -207,9 +222,9 @@ func _uv_of(p: Vector2, o: Vector2, ax: Vector2, ay: Vector2) -> Vector2:
 	var d: Vector2 = p - o
 	return Vector2((d.x * ay.y - d.y * ay.x) / det, (ax.x * d.y - ax.y * d.x) / det)
 
-func _clip_fill(poly: PackedVector2Array, vis: PackedVector2Array, col: Color) -> void:
+func _clip_fill(d: CanvasItem, poly: PackedVector2Array, vis: PackedVector2Array, col: Color) -> void:
 	for piece in Geometry2D.intersect_polygons(poly, vis):
-		_front.draw_colored_polygon(piece, col)
+		d.draw_colored_polygon(piece, col)
 
 func _win_axes(cx: float, sill: float) -> Array:
 	var o: Vector2 = _glass_pt(cx, sill, 0.0, 0.0)
@@ -217,7 +232,7 @@ func _win_axes(cx: float, sill: float) -> Array:
 
 # THE ROOMS: a warm wall lit by a lamp hanging in the room (brightest high and to the middle, falling off to the corners
 # and the floor), a framed picture on the far wall beyond the person
-func _draw_rooms() -> void:
+func _draw_rooms(d: CanvasItem) -> void:
 	if _cam3 == null:
 		return
 	for k in FACES.size():
@@ -231,23 +246,23 @@ func _draw_rooms() -> void:
 		for p in vis:
 			var uv0: Vector2 = _uv_of(p, ax[0], ax[1], ax[2])
 			room.append(wall.darkened(0.30 * uv0.y + 0.35 * absf(uv0.x - 0.5)))
-		_layer.draw_polygon(vis, room)
+		d.draw_polygon(vis, room)
 		# the picture on the far wall, on the side the person is not
 		var pu: float = 0.80 if float(PERSON_U[k]) < 0.5 else 0.20
 		var pic: PackedVector2Array = PackedVector2Array([_glass_pt(cx, sill, pu - 0.11, 0.24), _glass_pt(cx, sill, pu + 0.11, 0.24), _glass_pt(cx, sill, pu + 0.11, 0.42), _glass_pt(cx, sill, pu - 0.11, 0.42)])
 		for piece in Geometry2D.intersect_polygons(pic, vis):
-			_layer.draw_colored_polygon(piece, Color(0.30, 0.20, 0.10))
+			d.draw_colored_polygon(piece, Color(0.30, 0.20, 0.10))
 		var inner: PackedVector2Array = PackedVector2Array([_glass_pt(cx, sill, pu - 0.08, 0.26), _glass_pt(cx, sill, pu + 0.08, 0.26), _glass_pt(cx, sill, pu + 0.08, 0.40), _glass_pt(cx, sill, pu - 0.08, 0.40)])
 		for piece2 in Geometry2D.intersect_polygons(inner, vis):
 			var pc: PackedColorArray = PackedColorArray()
 			for p2 in piece2:
 				var v2: float = _uv_of(p2, ax[0], ax[1], ax[2]).y
 				pc.append(Color(0.46, 0.56, 0.62).lerp(Color(0.40, 0.46, 0.26), smoothstep(0.31, 0.36, v2)))
-			_layer.draw_polygon(piece2, pc)
+			d.draw_polygon(piece2, pc)
 		# the lamp's glow high in the room
 		var lg: Vector2 = _glass_pt(cx, sill, 0.5, 0.16)
 		for r in 10:
-			_layer.draw_circle(lg, (10.0 - float(r)) * 2.6, Color(1.0, 0.86, 0.60, 0.035))
+			d.draw_circle(lg, (10.0 - float(r)) * 2.6, Color(1.0, 0.86, 0.60, 0.035))
 
 # THE PEOPLE: the cut-out photo, standing in the room up to the sill, warmed and shaded by the room's light, so the person
 # stands in the lit room rather than a picture in a frame (filling the glass, the photos read as portraits hung there)
@@ -284,10 +299,13 @@ func _draw_people() -> void:
 			_photo_layer.draw_polygon(piece, cols, uvs, tex)
 
 # OVER THE PEOPLE: the frame's shadow under the head, the curtains, the glass's sheen and a glint of the street lamp
-func _draw_fronts() -> void:
+# `live`: only the windows not shut (drawn every frame); otherwise only the shut ones (drawn once, _shut_fronts)
+func _draw_fronts(d: CanvasItem, live: bool) -> void:
 	if _cam3 == null:
 		return
 	for k in FACES.size():
+		if (float(_closed[k]) < 1.0) != live:
+			continue
 		var f: Array = FACES[k]
 		var cx: float = f[0]
 		var sill: float = f[1]
@@ -298,17 +316,17 @@ func _draw_fronts() -> void:
 			var sc: PackedColorArray = PackedColorArray()
 			for p3 in piece:
 				sc.append(Color(0.0, 0.0, 0.0, 0.40 * (1.0 - clampf(_uv_of(p3, ax[0], ax[1], ax[2]).y / 0.12, 0.0, 1.0))))
-			_front.draw_polygon(piece, sc)
-		_draw_curtains(k, cx, sill, vis)
+			d.draw_polygon(piece, sc)
+		_draw_curtains(d, k, cx, sill, vis)
 		var sheen: PackedVector2Array = PackedVector2Array([_glass_pt(cx, sill, 0.58, 0.0), _glass_pt(cx, sill, 0.80, 0.0), _glass_pt(cx, sill, 0.42, 1.0), _glass_pt(cx, sill, 0.20, 1.0)])
-		_clip_fill(sheen, vis, Color(0.85, 0.90, 1.0, 0.07))
+		_clip_fill(d, sheen, vis, Color(0.85, 0.90, 1.0, 0.07))
 		var glint: Vector2 = _glass_pt(cx, sill, 0.82 if cx < -150.0 else 0.18, 0.22)
-		_front.draw_circle(glint, 2.2, Color(1.0, 0.86, 0.60, 0.55))
-		_front.draw_circle(glint, 5.0, Color(1.0, 0.86, 0.60, 0.12))
+		d.draw_circle(glint, 2.2, Color(1.0, 0.86, 0.60, 0.55))
+		d.draw_circle(glint, 5.0, Color(1.0, 0.86, 0.60, 0.12))
 
 # THE CURTAINS: a pair on a brass rod, each a run of folds (shaded strip by strip, lighter on their crests), drawn back
 # to the sides when open and meeting (overlapping) in the middle when shut
-func _draw_curtains(k: int, cx: float, sill: float, vis: PackedVector2Array) -> void:
+func _draw_curtains(d: CanvasItem, k: int, cx: float, sill: float, vis: PackedVector2Array) -> void:
 	var f: Array = FACES[k]
 	var base: Color = f[2]
 	var c: float = _closed[k]
@@ -329,12 +347,12 @@ func _draw_curtains(k: int, cx: float, sill: float, vis: PackedVector2Array) -> 
 			var col: Color = base.darkened(0.42 * (1.0 - crest)).lightened(0.10 * crest)
 			# the room's lamp warms the cloth from behind
 			col = col.lerp(Color(1.0, 0.82, 0.56), 0.08)
-			_clip_fill(strip, vis, col)
+			_clip_fill(d, strip, vis, col)
 	# the rod across the head, brass, its finials
 	var r0: Vector2 = _glass_pt(cx, sill, -0.02, 0.04)
 	var r1: Vector2 = _glass_pt(cx, sill, 1.02, 0.04)
-	_front.draw_line(r0, r1, Color(0.62, 0.46, 0.20), 2.2, true)
-	_front.draw_line(r0 + Vector2(0.0, -0.8), r1 + Vector2(0.0, -0.8), Color(1.0, 0.86, 0.52, 0.8), 0.8, true)
+	d.draw_line(r0, r1, Color(0.62, 0.46, 0.20), 2.2, true)
+	d.draw_line(r0 + Vector2(0.0, -0.8), r1 + Vector2(0.0, -0.8), Color(1.0, 0.86, 0.52, 0.8), 0.8, true)
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	# the lantern's halo in the damp evening air: a wide faint bloom and a tight bright one

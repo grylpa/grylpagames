@@ -99,6 +99,8 @@ func _ready() -> void:
 	game.sig_time_over.connect(_on_time_over)
 	game.add_sound(self, "correct", correct_audio)
 	game.add_sound(self, "wrong", wrong_audio)
+	game.add_sound(self, "swipe", preload("res://art/sounds/card_swipe.ogg"))      # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
+	game.add_sound(self, "deal", preload("res://art/sounds/card_deal.ogg"))
 	_build_ui()
 	set_process(true)
 
@@ -584,6 +586,7 @@ func _pick_next() -> Dictionary:
 
 func _show_next_card() -> void:
 	_clear_card()
+	game.play_sound("deal")
 	var pick: Dictionary = _pick_next()
 	if pick.is_empty():
 		return
@@ -697,6 +700,7 @@ func _animate_card_out(said_seen, timed_out: bool) -> void:
 	else:
 		var dir: float = 1.0 if bool(said_seen) else -1.0
 		var target_x: float = card_ref.position.x + dir * (float(MainGlobals.screen_size.x) * 0.9)
+		game.play_sound("swipe")
 		tw.tween_property(card_ref, "position:x", target_x, 0.28)
 		tw.tween_property(card_ref, "rotation", dir * 0.28, 0.28)
 		tw.tween_property(card_ref, "modulate:a", 0.0, 0.28)

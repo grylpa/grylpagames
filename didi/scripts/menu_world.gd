@@ -25,6 +25,13 @@ var _lookout: Node2D = null
 var _layer: Node2D = null
 var _clip: Control = null
 var _drops: Array = []
+# THE GLASS, THE FRAME AND THE NAME DRAWN ONCE (2026-11-19: redrawn every frame they cost a phone ~15 ms): every color in
+# them goes linearly with the flash, so they are drawn twice -- in the dark (_glass0) and at the flash's height
+# (_glass1) -- and the second is laid over the first by the flash's strength, which is the same picture. Children of
+# the top layer, so over its live parts (the rain outside, the street's glow, the beads that run).
+var _glass0: DrawnOnce = null
+var _glass1: DrawnOnce = null
+var _glass_for: Rect2 = Rect2()
 
 func _baked_path() -> String:
 	return "res://didi/art/menu_street.webp" if mobile else "res://didi/art/menu_street_d.webp"
@@ -339,6 +346,18 @@ func _tick(delta: float) -> void:
 	var g: Dictionary = _geom()
 	var view: Rect2 = g["view"]
 	var fl: float = _flash()
+	if _glass0 == null and _top != null:
+		_glass0 = DrawnOnce.make(func(d: Control) -> void: _glass(d, 0.0))
+		_glass1 = DrawnOnce.make(func(d: Control) -> void: _glass(d, 1.0))
+		_top.add_child(_glass0)
+		_top.add_child(_glass1)
+	if _glass0 != null:
+		if view != _glass_for:
+			_glass_for = view
+			_glass0.queue_redraw()
+			_glass1.queue_redraw()
+		_glass1.visible = fl > 0.002
+		_glass1.modulate = Color(fl, fl, fl, fl)        # (premultiplied: all four)
 	_clip.position = view.position
 	_clip.size = view.size
 	_layer.position = -view.position
@@ -416,20 +435,43 @@ func _street_fx(view: Rect2, fl: float) -> void:
 		var ln: float = 8.0 + 18.0 * near
 		cv.draw_line(Vector2(rx2, ry2), Vector2(rx2 - ln * 0.22, ry2 + ln), Color(0.70, 0.76, 0.90, (0.20 - 0.10 * near) + 0.3 * fl), 0.8 + 0.6 * near)
 
-func _paint_top(full: Vector2, _bottom: float) -> void:
+func _paint_top(_full: Vector2, _bottom: float) -> void:
 	var g: Dictionary = _geom()
 	var view: Rect2 = g["view"]
 	var fl: float = _flash()
 	_street_fx(view, fl)
-	# RAIN ON THE GLASS (2026-11-18; the user: the drops "keep falling inside our apartment" -- they fell down the view
-	# like snow): BEADS clinging to the pane, each a little lens -- darker rim at its foot, a bright point of light at
-	# its top -- most of them still; now and then one grows too heavy and RUNS, in short jerks, leaving a wet trail
+	_beads(view, fl, true)          # the beads that run (live); the still ones, the frame and the name are _glass
+
+# the still part of the glass at a flash `fl`: the beads that do not run, the flash's whitening of the street, the room
+# and the window frame, and the name -- drawn once for the dark and once for the flash (_glass0, _glass1)
+func _glass(d: Control, fl: float) -> void:
+	if bake_mode:
+		return
+	cv = d
+	var g: Dictionary = _geom()
+	var view: Rect2 = g["view"]
+	var full: Vector2 = g["full"]
+	_beads(view, fl, false)
+	# the flash: the street whitened under it, and on the glass itself
+	if fl > 0.02:
+		cv.draw_rect(view, Color(0.80, 0.86, 1.0, 0.30 * fl))
+	_frame_fx(full, view, fl)
+	title("Pinpoint", "Catch the courier and the lookout in a flash of lightning", Color(0.86, 0.92, 1.0).lerp(Color.WHITE, fl),
+		Color(0.02, 0.03, 0.06), Color(0.5, 0.6, 1.0, 0.15 + 0.4 * fl))
+
+# RAIN ON THE GLASS (2026-11-18; the user: the drops "keep falling inside our apartment" -- they fell down the view
+# like snow): BEADS clinging to the pane, each a little lens -- darker rim at its foot, a bright point of light at
+# its top -- most of them still; now and then one grows too heavy and RUNS, in short jerks, leaving a wet trail.
+# `running`: only the ones that run (live), or only the still ones (drawn once)
+func _beads(view: Rect2, fl: float, running: bool) -> void:
 	for d in _drops:
 		var r: float = 1.4 + float(d[3]) * 26.0
 		var x: float = view.position.x + float(d[0]) * view.size.x
 		var y0: float = view.position.y + float(d[1]) * view.size.y
 		var y: float = y0
 		var runs: bool = float(d[2]) > 4.9
+		if runs != running:
+			continue
 		if runs:
 			var cyc: float = 9.0 + float(d[2]) * 2.0
 			var u: float = fmod(t + float(d[0]) * 30.0, cyc) / cyc
@@ -444,12 +486,6 @@ func _paint_top(full: Vector2, _bottom: float) -> void:
 		cv.draw_circle(Vector2(x, y - r * 0.15), r * 0.82, Color(0.62, 0.70, 0.86, 0.14 + 0.25 * fl))
 		cv.draw_arc(Vector2(x, y), r * 0.92, PI * 0.15, PI * 0.85, 8, Color(0.02, 0.02, 0.04, 0.35), maxf(0.8, r * 0.25), true)
 		cv.draw_circle(Vector2(x - r * 0.3, y - r * 0.35), maxf(0.6, r * 0.22), Color(1, 1, 1, 0.55 + 0.4 * fl))
-	# the flash: the street whitened under it, and on the glass itself
-	if fl > 0.02:
-		cv.draw_rect(view, Color(0.80, 0.86, 1.0, 0.30 * fl))
-	_frame_fx(full, view, fl)
-	title("Pinpoint", "Catch the courier and the lookout in a flash of lightning", Color(0.86, 0.92, 1.0).lerp(Color.WHITE, fl),
-		Color(0.02, 0.03, 0.06), Color(0.5, 0.6, 1.0, 0.15 + 0.4 * fl))
 
 # THE ROOM AND THE WINDOW FRAME, in the dark (they were flat black bands): the wall's plaster round the opening, the
 # opening's REVEAL showing the wall's thickness (its faces lit faintly by the street, brighter in the flash), and the

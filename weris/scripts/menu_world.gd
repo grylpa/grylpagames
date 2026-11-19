@@ -203,7 +203,30 @@ func _draw_wall(d: Control, lens_c: Vector2, zoom: float, view: Rect2, in_lens: 
 
 # --- the search ---------------------------------------------------------------------------------------------------
 
+# the face searched for in cycle `cyc` -- NEVER THE PERSON OF THE CYCLE BEFORE (the user, 2026-11-19; the wall hangs
+# some people twice, so two different cells could be the same face): worked out cycle by cycle from the first, kept
+var _targets: Array = []
+var _targets_n: int = -1                 # the wall's cell count they were worked out for (it changes once the menu lays out)
+
 func _target(cyc: int) -> int:
+	if cyc < 0:
+		return _target_raw(cyc)          # (the lens glides in from "the cycle before the first")
+	if _cells_n() != _targets_n:
+		_targets_n = _cells_n()
+		_targets.clear()
+	while _targets.size() <= cyc:
+		var c: int = _targets.size()
+		var k: int = _target_raw(c)
+		if c > 0:
+			var prev: String = _who(int(_targets[c - 1]))
+			var tries: int = 0
+			while _who(k) == prev and tries < 40:
+				k = _target_raw(c * 131 + 7 + tries * 17)
+				tries += 1
+		_targets.append(k)
+	return int(_targets[cyc])
+
+func _target_raw(cyc: int) -> int:
 	# a face well inside the wall (not under the pinned card, not at the very edge)
 	var n: int = _cells_n()
 	var cols: int = _cols()
@@ -239,6 +262,9 @@ func _tick(delta: float) -> void:
 	for k in _cells_n():
 		if _photo(_who(k)) == null:
 			ready = false
+			# (asked for HERE too: the cells are counted again once the menu says where its panel is -- on a phone
+			# the wall grew rows whose photos _setup never asked for, and the lens waited for them forever)
+			_request(_who(k))
 	_lens_a = fade_in(ready, _lens_a, delta)
 	var r: float = _lens_r()
 	var c: Vector2 = _lens_at(full, bottom)

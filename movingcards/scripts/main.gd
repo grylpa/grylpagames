@@ -30,6 +30,7 @@ func _ready() -> void:
 	game.add_sound(self, "tap", preload("res://art/sounds/movingcards_tap.ogg"))
 	game.add_sound(self, "correct", preload("res://art/sounds/movingcards_right.ogg"))
 	game.add_sound(self, "wrong", preload("res://art/sounds/movingcards_wrong.ogg"))
+	game.add_sound(self, "flip", preload("res://art/sounds/card_flip.ogg"))        # (an action sound, 2026-11-19: devtools/make_game_sounds.py)
 
 	game.set_instructions("Moving Cards",
 		"Remember the cards and the order you need to click\n\n" +

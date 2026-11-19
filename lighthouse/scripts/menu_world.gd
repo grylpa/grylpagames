@@ -26,11 +26,87 @@ var _land: Control = null
 var _beam_back: Control = null
 var _beam_front: Control = null
 
+# THE STILL PARTS DRAWN ONCE (2026-11-19: the poster redrew every layer, stars, moon and rock included, every frame --
+# 14 fps on a mid-range phone): the sky's gradient and galaxy, the moon, are cached layers (menu_poster.gd
+# `cached_layer`), redrawn only when the layout changes; between them, in the same order as before, the live ones
+var _stars: Control = null
+var _star_discs: MultiMeshInstance2D = null
+var _sea_still: Control = null
+var _swell: MeshInstance2D = null
+
+# THE SWELL ON THE GPU: 22 rows, each a dark trough line and a lit crest line, as _draw_sea drew them with antialiased
+# polylines every frame -- now one mesh built for the layout (_build_swell), each vertex lifted by the same wave here.
+# UV.x = row + 0.5 for a crest line, UV.y = the signed distance from the line's center in units (for its soft edge)
+const SWELL: String = """shader_type canvas_item;
+uniform float t = 0.0;
+varying float v_d;
+varying float v_half;
+void vertex() {
+	float r = floor(UV.x);
+	bool crest = fract(UV.x) > 0.25;
+	float u = r / 21.0;
+	float amp = 0.8 + u * 8.0;
+	float wl = 0.07 - 0.055 * u;
+	float x = VERTEX.x;
+	float w = sin(x * wl + t * (0.6 + 0.35 * u) + r * 1.7) + 0.35 * sin(x * wl * 2.3 - t * 0.9 + r);
+	VERTEX.y += w * amp + UV.y;
+	v_d = UV.y;
+	v_half = crest ? (1.0 + 1.8 * u) * 0.5 : (2.0 + 5.0 * u) * 0.5;
+}
+void fragment() {
+	float aa = max(fwidth(v_d), 1e-4);
+	COLOR.a *= clamp((v_half - abs(v_d)) / aa + 0.5, 0.0, 1.0);
+}
+"""
+var _moon: Control = null
+var _clouds: MultiMeshInstance2D = null
+
+# THE CLOUD BANKS ON THE GPU: each ellipse an instance; INSTANCE_CUSTOM = (bank's start x, its speed, the wrap width,
+# the ellipse's offset from the bank's center) -- the bank's center drifts and wraps exactly as _draw_clouds had it
+const CLOUDS: String = """shader_type canvas_item;
+uniform float t = 0.0;
+void vertex() {
+	float cx = mod(INSTANCE_CUSTOM.x + t * INSTANCE_CUSTOM.y, INSTANCE_CUSTOM.z) - 230.0;
+	VERTEX.x += cx + INSTANCE_CUSTOM.w;
+}
+void fragment() {
+	float d = length(UV * 2.0 - 1.0);
+	float aa = max(fwidth(d), 1e-4);
+	COLOR.a *= clamp((1.0 - d) / aa + 0.5, 0.0, 1.0);
+}
+"""
+var _for_bottom: float = -2.0
+var _land_live: Control = null
+var _buildings: Control = null
+var _land_live2: Control = null
+
 func _setup() -> void:
-	_sky = _layer(func(d: Control) -> void: _draw_sky(d))
+	_sky = cached_layer(func(d: Control) -> void: _draw_sky(d))
+	_star_discs = sprinkle(_star_list())          # the stars: one batched draw (menu_poster.gd `sprinkle`)
+	_stars = _layer(func(d: Control) -> void: _draw_stars(d))
+	_moon = cached_layer(func(d: Control) -> void: _draw_moon(d))
+	_clouds = MultiMeshInstance2D.new()           # the clouds: one batched draw, drifting on the GPU (CLOUDS)
+	var cm: ShaderMaterial = ShaderMaterial.new()
+	var csh: Shader = Shader.new()
+	csh.code = CLOUDS
+	cm.shader = csh
+	_clouds.material = cm
+	add_child(_clouds)
+	_build_clouds()
 	_beam_back = _layer(func(d: Control) -> void: _draw_beams(d, false))
+	_sea_still = cached_layer(func(d: Control) -> void: _draw_sea_still(d))
+	_swell = MeshInstance2D.new()                  # the swell: one mesh, waved on the GPU (SWELL)
+	var sm: ShaderMaterial = ShaderMaterial.new()
+	var sh: Shader = Shader.new()
+	sh.code = SWELL
+	sm.shader = sh
+	_swell.material = sm
+	add_child(_swell)
 	_sea = _layer(func(d: Control) -> void: _draw_sea(d))
-	_land = _layer(func(d: Control) -> void: _draw_land(d))
+	_land = cached_layer(func(d: Control) -> void: _draw_land(d, 0))
+	_land_live = _layer(func(d: Control) -> void: _draw_land(d, 1))
+	_buildings = cached_layer(func(d: Control) -> void: _draw_land(d, 2))
+	_land_live2 = _layer(func(d: Control) -> void: _draw_land(d, 3))
 	_beam_front = _layer(func(d: Control) -> void: _draw_beams(d, true))
 
 func _layer(fn: Callable) -> Control:
@@ -42,8 +118,17 @@ func _layer(fn: Callable) -> Control:
 	return c
 
 func _tick(_delta: float) -> void:
-	for c in [_sky, _beam_back, _sea, _land, _beam_front]:
+	(_swell.material as ShaderMaterial).set_shader_parameter("t", t)
+	_light_clouds()
+	for c in [_stars, _beam_back, _sea, _land_live, _land_live2, _beam_front]:
 		(c as Control).queue_redraw()
+	if absf(scene_bottom - _for_bottom) > 0.5:
+		_for_bottom = scene_bottom
+		sprinkle_set(_star_discs, _star_list())
+		_build_swell()
+		_build_clouds()
+		for c2 in [_sky, _moon, _sea_still, _land, _buildings]:
+			(c2 as Control).queue_redraw()
 
 func _geom() -> Dictionary:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
@@ -71,15 +156,36 @@ func _draw_sky(d: Control) -> void:
 	for k in 30:
 		var u: float = float(k) / 29.0
 		_ell(d, Vector2(full.x * (1.1 - 1.2 * u), horizon * (0.08 + 0.55 * u)), 70.0, 22.0, Color(0.55, 0.60, 0.80, 0.025))
+
+# the stars, twinkling: [center, radius, color, speed, phase, a0, a1] for `sprinkle` -- alpha 0.20 + 0.55 * tw * h
+func _star_list() -> Array:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var horizon: float = g["horizon"]
+	var out: Array = []
 	for k in 170:
 		var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * horizon * 0.95)
-		var tw: float = 0.5 + 0.5 * sin(t * (0.3 + 0.4 * h01(k + 9)) + float(k))
+		out.append([sp, 0.5 + 1.3 * h01(k * 5 + 3), Color(0.92, 0.94, 1.0), 0.3 + 0.4 * h01(k + 9), float(k), 0.20, 0.55 * h01(k * 5 + 4)])
+	return out
+
+# the brightest stars' soft crosses (live; their discs are in `_star_discs`)
+func _draw_stars(d: Control) -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var horizon: float = g["horizon"]
+	for k in 170:
 		var big: float = h01(k * 5 + 3)
-		d.draw_circle(sp, 0.5 + 1.3 * big, Color(0.92, 0.94, 1.0, 0.20 + 0.55 * tw * h01(k * 5 + 4)))
 		if big > 0.93:
+			var sp: Vector2 = Vector2(h01(k * 5 + 1) * full.x, h01(k * 5 + 2) * horizon * 0.95)
+			var tw: float = 0.5 + 0.5 * sin(t * (0.3 + 0.4 * h01(k + 9)) + float(k))
 			d.draw_line(sp - Vector2(5, 0), sp + Vector2(5, 0), Color(0.9, 0.93, 1.0, 0.35 * tw), 1.0)
 			d.draw_line(sp - Vector2(0, 5), sp + Vector2(0, 5), Color(0.9, 0.93, 1.0, 0.35 * tw), 1.0)
-	# THE MOON: a corona, the disc darkening toward its limb, its seas, a bright rim on the lit side
+
+# THE MOON: a corona, the disc darkening toward its limb, its seas, a bright rim on the lit side (still)
+func _draw_moon(d: Control) -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var horizon: float = g["horizon"]
 	var moon: Vector2 = Vector2(full.x * 0.22, float(g["top"]) + (horizon - float(g["top"])) * 0.30)
 	var mr: float = 34.0
 	for k in 26:
@@ -99,21 +205,60 @@ func _draw_sky(d: Control) -> void:
 		d.draw_arc(cc, mr * cr.z, 0.0, TAU, 12, Color(0.55, 0.56, 0.56, 0.6), 1.5)
 		d.draw_arc(cc, mr * cr.z, PI * 1.1, PI * 1.9, 8, Color(1, 1, 1, 0.5), 1.0)
 	d.draw_arc(moon, mr - 1.0, PI * 0.75, PI * 1.6, 24, Color(1.0, 1.0, 0.96, 0.6), 2.0, true)
-	# THE CLOUDS: long flat banks (puffs read as bubble wrap) -- wide soft ellipses layered, dark-bellied,
-	# their upper edge silvered toward the moon, drifting; the beams warm them where they pass
+
+# THE CLOUDS: long flat banks (puffs read as bubble wrap) -- wide soft ellipses layered, dark-bellied,
+# their upper edge silvered toward the moon, drifting; the beams warm them where they pass. Built for the layout
+# (the GPU drifts them); each bank's silver edge takes the beams' warmth in _tick (_light_clouds)
+func _build_clouds() -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var lamp: Vector2 = g["lamp"]
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2(2.0, 2.0)
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	mm.mesh = q
+	mm.instance_count = 3 * 4 * 10
+	var i: int = 0
+	for row in 3:
+		var cy: float = lamp.y - 70.0 - float(row) * 48.0
+		for k in 4:
+			var x0: float = float(k) * 230.0 + float(row) * 90.0
+			var spd: float = 4.0 + 2.0 * float(row)
+			var bw: float = 150.0 + 60.0 * h01(k + row * 7)
+			for j in 9:
+				var f: float = float(j) / 8.0
+				var rx: float = bw * (0.55 - 0.04 * float(j))
+				var ry: float = 9.0 + 4.0 * sin(f * PI)
+				mm.set_instance_transform_2d(i, Transform2D(0.0, Vector2(rx, ry), 0.0, Vector2(0.0, cy + 4.0 * sin(f * 5.0 + float(k)))))
+				mm.set_instance_color(i, Color(0.10, 0.12, 0.20, 0.10))
+				mm.set_instance_custom_data(i, Color(x0, spd, full.x + 460.0, (f - 0.5) * bw * 0.6))
+				i += 1
+			mm.set_instance_transform_2d(i, Transform2D(0.0, Vector2(bw * 0.42, 5.0), 0.0, Vector2(0.0, cy - 6.0)))
+			mm.set_instance_color(i, Color(0.50, 0.55, 0.72, 0.10))
+			mm.set_instance_custom_data(i, Color(x0, spd, full.x + 460.0, 0.0))
+			i += 1
+	_clouds.multimesh = mm
+
+# each bank's silver edge, warmed where a beam crosses it (the bank's center as _draw_clouds placed it)
+func _light_clouds() -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
 	var lamp: Vector2 = g["lamp"]
 	var segs: Array = _beam_screen_segments(lamp)
+	var mm: MultiMesh = _clouds.multimesh
+	var i: int = 0
 	for row in 3:
 		var cy: float = lamp.y - 70.0 - float(row) * 48.0
 		for k in 4:
 			var cx: float = fmod(float(k) * 230.0 + float(row) * 90.0 + t * (4.0 + 2.0 * float(row)), full.x + 460.0) - 230.0
 			var lit: float = _beam_light_at(Vector2(cx, cy), segs)
-			var bw: float = 150.0 + 60.0 * h01(k + row * 7)
-			for j in 9:
-				var f: float = float(j) / 8.0
-				_ell(d, Vector2(cx + (f - 0.5) * bw * 0.6, cy + 4.0 * sin(f * 5.0 + float(k))), bw * (0.55 - 0.04 * float(j)), 9.0 + 4.0 * sin(f * PI),
-					Color(0.10, 0.12, 0.20, 0.10))
-			_ell(d, Vector2(cx, cy - 6.0), bw * 0.42, 5.0, Color(0.50, 0.55, 0.72, 0.10).lerp(Color(0.90, 0.84, 0.70, 0.16), lit * 0.6))
+			i += 9
+			mm.set_instance_color(i, Color(0.50, 0.55, 0.72, 0.10).lerp(Color(0.90, 0.84, 0.70, 0.16), lit * 0.6))
+			i += 1
+	(_clouds.material as ShaderMaterial).set_shader_parameter("t", t)
 
 # the two beams as screen segments (from the lamp out), for lighting the clouds and the water
 func _beam_screen_segments(lamp: Vector2) -> Array:
@@ -191,30 +336,62 @@ func _draw_beams(d: Control, front: bool) -> void:
 
 # --- the sea: perspective swell, the moon's glittering path, the beams' light on the water, the boat ----
 
+# the sea's gradient and the haze on the horizon (still)
+func _draw_sea_still(d: Control) -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var horizon: float = g["horizon"]
+	_vg(d, Rect2(0.0, horizon, full.x, full.y - horizon), Color(0.11, 0.15, 0.27), Color(0.01, 0.02, 0.05))
+	# a haze lying on the horizon
+	_vg(d, Rect2(0.0, horizon - 14.0, full.x, 28.0), Color(0.20, 0.25, 0.40, 0.0), Color(0.20, 0.25, 0.40, 0.35))
+
+# THE SWELL in perspective: each row a band -- its trough a shade darker, its crest catching the light. Built once
+# for the layout; the SWELL shader moves it (trough then crest, row by row, as they were drawn)
+func _build_swell() -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var horizon: float = g["horizon"]
+	var verts: PackedVector2Array = PackedVector2Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var cols: PackedColorArray = PackedColorArray()
+	var idx: PackedInt32Array = PackedInt32Array()
+	var rows: int = 22
+	for r in rows:
+		var u: float = float(r) / float(rows - 1)
+		var y: float = horizon + pow(u, 1.9) * (full.y - horizon)
+		for line in 2:
+			var crest: bool = line == 1
+			var half: float = ((1.0 + 1.8 * u) if crest else (2.0 + 5.0 * u)) * 0.5 + 1.0    # a unit more for the edge
+			var yc: float = y if crest else y + 3.0 + 5.0 * u
+			var col: Color = Color(0.55, 0.66, 0.90, 0.05 + 0.13 * u) if crest else Color(0.0, 0.01, 0.04, 0.20 + 0.15 * u)
+			var ux: float = float(r) + (0.5 if crest else 0.0)
+			var first: int = verts.size()
+			for k in 81:
+				var x: float = full.x * float(k) / 80.0
+				verts.append(Vector2(x, yc))
+				uvs.append(Vector2(ux, -half))
+				cols.append(col)
+				verts.append(Vector2(x, yc))
+				uvs.append(Vector2(ux, half))
+				cols.append(col)
+			for k in 80:
+				var a: int = first + k * 2
+				idx.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+	var arr: Array = []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_COLOR] = cols
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m: ArrayMesh = ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	_swell.mesh = m
+
 func _draw_sea(d: Control) -> void:
 	var g: Dictionary = _geom()
 	var full: Vector2 = g["full"]
 	var horizon: float = g["horizon"]
 	var bottom: float = g["bottom"]
-	_vg(d, Rect2(0.0, horizon, full.x, full.y - horizon), Color(0.11, 0.15, 0.27), Color(0.01, 0.02, 0.05))
-	# a haze lying on the horizon
-	_vg(d, Rect2(0.0, horizon - 14.0, full.x, 28.0), Color(0.20, 0.25, 0.40, 0.0), Color(0.20, 0.25, 0.40, 0.35))
-	# THE SWELL in perspective: each row a band -- its trough a shade darker, its crest catching the light
-	var rows: int = 22
-	for r in rows:
-		var u: float = float(r) / float(rows - 1)
-		var y: float = horizon + pow(u, 1.9) * (full.y - horizon)
-		var amp: float = 0.8 + u * 8.0
-		var wl: float = 0.07 - 0.055 * u
-		var crest: PackedVector2Array = PackedVector2Array()
-		var trough: PackedVector2Array = PackedVector2Array()
-		for k in 41:
-			var x: float = full.x * float(k) / 40.0
-			var w: float = sin(x * wl + t * (0.6 + 0.35 * u) + float(r) * 1.7) + 0.35 * sin(x * wl * 2.3 - t * 0.9 + float(r))
-			crest.append(Vector2(x, y + w * amp))
-			trough.append(Vector2(x, y + w * amp + 3.0 + 5.0 * u))
-		d.draw_polyline(trough, Color(0.0, 0.01, 0.04, 0.20 + 0.15 * u), 2.0 + 5.0 * u, true)
-		d.draw_polyline(crest, Color(0.55, 0.66, 0.90, 0.05 + 0.13 * u), 1.0 + 1.8 * u, true)
 	# flecks of foam on the nearer crests
 	for k in 40:
 		var u2: float = 0.35 + 0.65 * h01(k * 7 + 300)
@@ -316,12 +493,15 @@ func _boat(d: Control, g: Dictionary) -> void:
 
 # --- the headland and the tower -------------------------------------------------------------------------
 
-func _draw_land(d: Control) -> void:
+func _draw_land(d: Control, part: int) -> void:
 	var g: Dictionary = _geom()
 	var full: Vector2 = g["full"]
 	var horizon: float = g["horizon"]
 	var base: Vector2 = g["base"]
 	var water: float = horizon + (float(g["bottom"]) - horizon) * 0.62
+	# drawn in four parts, in this order (menu_poster.gd `cached_layer`): 0 the rock (still), 1 the grass, the stair,
+	# the boulders and the water over the rock's foot (live), 2 the cottage and the tower (still), 3 the smoke and the
+	# grass at the tower's foot (live) -- the live parts never cross a still part drawn after them
 	# THE HEADLAND in layered rock: back mass, then strata of faceted slabs, each lit on the face toward the
 	# moon and dark on the other, cracks between them; grass on top; boulders and foam at its foot, in the water
 	var rock: PackedVector2Array = PackedVector2Array([Vector2(full.x * 0.42, water), Vector2(full.x * 0.49, horizon + 44.0),
@@ -329,133 +509,138 @@ func _draw_land(d: Control) -> void:
 		Vector2(base.x + 48.0, base.y - 2.0), Vector2(full.x, base.y + 12.0), Vector2(full.x, water + 34.0),
 		Vector2(full.x * 0.90, water + 22.0), Vector2(full.x * 0.80, water + 36.0), Vector2(full.x * 0.70, water + 20.0),
 		Vector2(full.x * 0.60, water + 30.0), Vector2(full.x * 0.50, water + 12.0)])
-	d.draw_colored_polygon(rock, Color(0.07, 0.07, 0.10))
-	# THE CLIFF FACE in vertical facets, crest to waterline: each irregular, tilted toward or away from the
-	# moon so its light differs from its neighbor's, cracks between them (rows of ledges read as a tiled roof)
-	var xs: Array = []
-	var fx0: float = full.x * 0.45
-	var fk: int = 0
-	while fx0 < full.x + 30.0:
-		xs.append(fx0)
-		fx0 += 34.0 + 30.0 * h01(fk + 600)
-		fk += 1
-	for i2 in xs.size() - 1:
-		var x0: float = xs[i2]
-		var x1: float = xs[i2 + 1]
-		var t0: float = _rock_top(rock, clampf(x0, full.x * 0.42, full.x)) + 3.0
-		var t1: float = _rock_top(rock, clampf(x1, full.x * 0.42, full.x)) + 3.0
-		var lean: float = (h01(i2 + 700) - 0.5) * 18.0
-		var facet: PackedVector2Array = PackedVector2Array([Vector2(x0, t0), Vector2(x1, t1), Vector2(x1 + lean, water + 10.0), Vector2(x0 + lean * 0.6, water + 10.0)])
-		var tilt: float = h01(i2 + 710)
-		var shade: Color = Color(0.08, 0.08, 0.12).lerp(Color(0.20, 0.22, 0.32), tilt * clampf(1.2 - (x0 - full.x * 0.45) / full.x * 1.6, 0.3, 1.0))
-		d.draw_polygon(facet, PackedColorArray([shade.lightened(0.10), shade.lightened(0.06), shade.darkened(0.30), shade.darkened(0.30)]))
-		d.draw_line(Vector2(x0, t0), Vector2(x0 + lean * 0.6, water + 10.0), Color(0.02, 0.02, 0.04, 0.8), 2.0)
-		# a ledge or two across it, catching the light
-		for j2 in 2:
-			var ly: float = lerpf(maxf(t0, t1) + 20.0, water - 6.0, 0.30 + 0.40 * float(j2) + 0.1 * h01(i2 * 3 + j2))
-			d.draw_line(Vector2(x0 + 4.0, ly), Vector2(x1 - 4.0, ly + 3.0), Color(0.34, 0.37, 0.50, 0.45), 1.5)
-	# VOLUME: rough texture over the faces (moonlit flecks and dark pits), deepening shade toward the water,
-	# and the top a grassy plateau, a band following the crest
-	for k in 260:
-		var tx: float = lerpf(full.x * 0.44, full.x, h01(k * 3 + 800))
-		var ty: float = lerpf(_rock_top(rock, tx) + 10.0, water + 8.0, h01(k * 3 + 801))
-		if h01(k * 3 + 802) > 0.5:
-			d.draw_circle(Vector2(tx, ty), 1.2 + 1.5 * h01(k + 803), Color(0.40, 0.44, 0.58, 0.20))
-		else:
-			d.draw_circle(Vector2(tx, ty), 1.5 + 2.0 * h01(k + 804), Color(0.0, 0.0, 0.02, 0.35))
-	for k in 6:
-		var dy: float = float(k) / 6.0
-		var band_k: PackedVector2Array = PackedVector2Array()
-		for j in 25:
-			var bx: float = lerpf(full.x * 0.44, full.x, float(j) / 24.0)
-			band_k.append(Vector2(bx, lerpf(_rock_top(rock, bx), water + 10.0, 0.55 + 0.075 * float(k))))
-		d.draw_polyline(band_k, Color(0.0, 0.0, 0.03, 0.10 + 0.02 * dy), 26.0, true)
-	var plateau: PackedVector2Array = PackedVector2Array()
-	var plateau_b: PackedVector2Array = PackedVector2Array()
-	for j in 31:
-		var px2: float = lerpf(full.x * 0.56, full.x, float(j) / 30.0)
-		var py2: float = _rock_top(rock, px2)
-		plateau.append(Vector2(px2, py2))
-		plateau_b.append(Vector2(px2, py2 + 10.0 + 4.0 * sin(float(j) * 1.3)))
-	plateau_b.reverse()
-	d.draw_colored_polygon(plateau + plateau_b, Color(0.12, 0.17, 0.12))
-	d.draw_polyline(plateau, Color(0.30, 0.40, 0.30), 2.0, true)
-	# the moonlit crest line along the top
-	d.draw_polyline(PackedVector2Array([rock[0], rock[1], rock[2], rock[3], rock[4], rock[5], rock[6]]), Color(0.40, 0.44, 0.58), 2.5, true)
-	# grass on the top, leaning in the breeze
-	for k in 60:
-		var u2: float = float(k) / 59.0
-		var gx: float = lerpf(full.x * 0.58, full.x, u2)
-		var gy: float = _rock_top(rock, gx) + 1.0
-		var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
-		d.draw_line(Vector2(gx, gy), Vector2(gx + lean, gy - 6.0 - 5.0 * h01(k + 400)), Color(0.20, 0.30, 0.18), 1.5)
-	# the stair path up from the water to the tower, with its rail
-	for k in 9:
-		var f: float = float(k) / 8.0
-		var sp: Vector2 = Vector2(lerpf(full.x * 0.56, base.x - 30.0, f), lerpf(water - 4.0, base.y - 4.0, f))
-		d.draw_line(sp, sp + Vector2(16.0, 0.0), Color(0.42, 0.42, 0.48), 3.0)
-		d.draw_line(sp + Vector2(0, 3), sp + Vector2(16.0, 3.0), Color(0.03, 0.03, 0.05), 2.0)
-	d.draw_line(Vector2(full.x * 0.56, water - 22.0), Vector2(base.x - 30.0, base.y - 22.0), Color(0.30, 0.30, 0.34), 1.5)
-	for k in 5:
-		var f2: float = float(k) / 4.0
-		var rp: Vector2 = Vector2(lerpf(full.x * 0.56, base.x - 30.0, f2), lerpf(water - 4.0, base.y - 4.0, f2))
-		d.draw_line(rp, rp + Vector2(0.0, -18.0), Color(0.30, 0.30, 0.34), 1.5)
-	# boulders at the waterline, moonlit tops (their feet in the water, below)
-	for k in 9:
-		var bp: Vector2 = Vector2(lerpf(full.x * 0.45, full.x * 0.98, float(k) / 8.0), water + 18.0 + 14.0 * h01(k + 50))
-		var rr: float = 14.0 + 12.0 * h01(k)
-		_ell(d, bp + Vector2(4, 4), rr, rr * 0.55, Color(0, 0, 0, 0.4))
-		_ell(d, bp, rr, rr * 0.6, Color(0.09, 0.09, 0.13))
-		_ell(d, bp + Vector2(-rr * 0.2, -rr * 0.25), rr * 0.6, rr * 0.22, Color(0.30, 0.33, 0.44))
-		_ell(d, bp + Vector2(-rr * 0.3, -rr * 0.32), rr * 0.25, rr * 0.08, Color(0.60, 0.64, 0.78))
-	# THE SEA OVER THE ROCK'S FOOT: below the waterline the rock and the boulders sink into the water --
-	# a band of the sea's own color laid over them, deepening downward, its surface a wavy lit line (the
-	# rock below the waterline showed whole, so the sea read as clear and the tide pools floated)
-	var surf: float = water + 22.0
-	var band: PackedVector2Array = PackedVector2Array()
-	for k in 33:
-		var bx: float = lerpf(full.x * 0.36, full.x, float(k) / 32.0)
-		band.append(Vector2(bx, surf + 3.0 * sin(bx * 0.05 + t * 1.2)))
-	var lip: PackedVector2Array = band.duplicate()
-	band.append(Vector2(full.x, full.y))
-	band.append(Vector2(full.x * 0.36, full.y))
-	var cols: PackedColorArray = PackedColorArray()
-	for k in band.size():
-		cols.append(Color(0.06, 0.09, 0.18, 0.78) if k < 33 else Color(0.01, 0.02, 0.05, 0.96))
-	d.draw_polygon(band, cols)
-	d.draw_polyline(lip, Color(0.70, 0.78, 0.95, 0.35), 2.0, true)
-	# the swell carries on across it
-	for r in 5:
-		var wy: float = surf + 14.0 + float(r) * float(r) * 6.0
-		var wl: PackedVector2Array = PackedVector2Array()
-		for k in 25:
-			var wx: float = lerpf(full.x * 0.36, full.x, float(k) / 24.0)
-			wl.append(Vector2(wx, wy + sin(wx * (0.05 - 0.006 * float(r)) + t * 0.9 + float(r)) * (2.0 + float(r))))
-		d.draw_polyline(wl, Color(0.55, 0.66, 0.90, 0.10 + 0.03 * float(r)), 1.5 + float(r) * 0.4, true)
-	for k in 12:
-		var u4: float = fmod(t * 0.32 + float(k) / 12.0 + 0.37 * float(k % 3), 1.0)
-		var fx: float = lerpf(full.x * 0.44, full.x * 0.99, float(k) / 11.0)
-		_ell(d, Vector2(fx, surf + 2.0 + 4.0 * h01(k + 90) - u4 * 4.0), 18.0 + 22.0 * u4, 3.5 + 2.0 * u4, Color(0.88, 0.92, 1.0, 0.45 * sin(u4 * PI)))
+	if part == 0:
+		d.draw_colored_polygon(rock, Color(0.07, 0.07, 0.10))
+		# THE CLIFF FACE in vertical facets, crest to waterline: each irregular, tilted toward or away from the
+		# moon so its light differs from its neighbor's, cracks between them (rows of ledges read as a tiled roof)
+		var xs: Array = []
+		var fx0: float = full.x * 0.45
+		var fk: int = 0
+		while fx0 < full.x + 30.0:
+			xs.append(fx0)
+			fx0 += 34.0 + 30.0 * h01(fk + 600)
+			fk += 1
+		for i2 in xs.size() - 1:
+			var x0: float = xs[i2]
+			var x1: float = xs[i2 + 1]
+			var t0: float = _rock_top(rock, clampf(x0, full.x * 0.42, full.x)) + 3.0
+			var t1: float = _rock_top(rock, clampf(x1, full.x * 0.42, full.x)) + 3.0
+			var lean: float = (h01(i2 + 700) - 0.5) * 18.0
+			var facet: PackedVector2Array = PackedVector2Array([Vector2(x0, t0), Vector2(x1, t1), Vector2(x1 + lean, water + 10.0), Vector2(x0 + lean * 0.6, water + 10.0)])
+			var tilt: float = h01(i2 + 710)
+			var shade: Color = Color(0.08, 0.08, 0.12).lerp(Color(0.20, 0.22, 0.32), tilt * clampf(1.2 - (x0 - full.x * 0.45) / full.x * 1.6, 0.3, 1.0))
+			d.draw_polygon(facet, PackedColorArray([shade.lightened(0.10), shade.lightened(0.06), shade.darkened(0.30), shade.darkened(0.30)]))
+			d.draw_line(Vector2(x0, t0), Vector2(x0 + lean * 0.6, water + 10.0), Color(0.02, 0.02, 0.04, 0.8), 2.0)
+			# a ledge or two across it, catching the light
+			for j2 in 2:
+				var ly: float = lerpf(maxf(t0, t1) + 20.0, water - 6.0, 0.30 + 0.40 * float(j2) + 0.1 * h01(i2 * 3 + j2))
+				d.draw_line(Vector2(x0 + 4.0, ly), Vector2(x1 - 4.0, ly + 3.0), Color(0.34, 0.37, 0.50, 0.45), 1.5)
+		# VOLUME: rough texture over the faces (moonlit flecks and dark pits), deepening shade toward the water,
+		# and the top a grassy plateau, a band following the crest
+		for k in 260:
+			var tx: float = lerpf(full.x * 0.44, full.x, h01(k * 3 + 800))
+			var ty: float = lerpf(_rock_top(rock, tx) + 10.0, water + 8.0, h01(k * 3 + 801))
+			if h01(k * 3 + 802) > 0.5:
+				d.draw_circle(Vector2(tx, ty), 1.2 + 1.5 * h01(k + 803), Color(0.40, 0.44, 0.58, 0.20))
+			else:
+				d.draw_circle(Vector2(tx, ty), 1.5 + 2.0 * h01(k + 804), Color(0.0, 0.0, 0.02, 0.35))
+		for k in 6:
+			var dy: float = float(k) / 6.0
+			var band_k: PackedVector2Array = PackedVector2Array()
+			for j in 25:
+				var bx: float = lerpf(full.x * 0.44, full.x, float(j) / 24.0)
+				band_k.append(Vector2(bx, lerpf(_rock_top(rock, bx), water + 10.0, 0.55 + 0.075 * float(k))))
+			d.draw_polyline(band_k, Color(0.0, 0.0, 0.03, 0.10 + 0.02 * dy), 26.0, true)
+		var plateau: PackedVector2Array = PackedVector2Array()
+		var plateau_b: PackedVector2Array = PackedVector2Array()
+		for j in 31:
+			var px2: float = lerpf(full.x * 0.56, full.x, float(j) / 30.0)
+			var py2: float = _rock_top(rock, px2)
+			plateau.append(Vector2(px2, py2))
+			plateau_b.append(Vector2(px2, py2 + 10.0 + 4.0 * sin(float(j) * 1.3)))
+		plateau_b.reverse()
+		d.draw_colored_polygon(plateau + plateau_b, Color(0.12, 0.17, 0.12))
+		d.draw_polyline(plateau, Color(0.30, 0.40, 0.30), 2.0, true)
+		# the moonlit crest line along the top
+		d.draw_polyline(PackedVector2Array([rock[0], rock[1], rock[2], rock[3], rock[4], rock[5], rock[6]]), Color(0.40, 0.44, 0.58), 2.5, true)
+	if part == 1:
+		# grass on the top, leaning in the breeze
+		for k in 60:
+			var u2: float = float(k) / 59.0
+			var gx: float = lerpf(full.x * 0.58, full.x, u2)
+			var gy: float = _rock_top(rock, gx) + 1.0
+			var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
+			d.draw_line(Vector2(gx, gy), Vector2(gx + lean, gy - 6.0 - 5.0 * h01(k + 400)), Color(0.20, 0.30, 0.18), 1.5)
+		# the stair path up from the water to the tower, with its rail
+		for k in 9:
+			var f: float = float(k) / 8.0
+			var sp: Vector2 = Vector2(lerpf(full.x * 0.56, base.x - 30.0, f), lerpf(water - 4.0, base.y - 4.0, f))
+			d.draw_line(sp, sp + Vector2(16.0, 0.0), Color(0.42, 0.42, 0.48), 3.0)
+			d.draw_line(sp + Vector2(0, 3), sp + Vector2(16.0, 3.0), Color(0.03, 0.03, 0.05), 2.0)
+		d.draw_line(Vector2(full.x * 0.56, water - 22.0), Vector2(base.x - 30.0, base.y - 22.0), Color(0.30, 0.30, 0.34), 1.5)
+		for k in 5:
+			var f2: float = float(k) / 4.0
+			var rp: Vector2 = Vector2(lerpf(full.x * 0.56, base.x - 30.0, f2), lerpf(water - 4.0, base.y - 4.0, f2))
+			d.draw_line(rp, rp + Vector2(0.0, -18.0), Color(0.30, 0.30, 0.34), 1.5)
+		# boulders at the waterline, moonlit tops (their feet in the water, below)
+		for k in 9:
+			var bp: Vector2 = Vector2(lerpf(full.x * 0.45, full.x * 0.98, float(k) / 8.0), water + 18.0 + 14.0 * h01(k + 50))
+			var rr: float = 14.0 + 12.0 * h01(k)
+			_ell(d, bp + Vector2(4, 4), rr, rr * 0.55, Color(0, 0, 0, 0.4))
+			_ell(d, bp, rr, rr * 0.6, Color(0.09, 0.09, 0.13))
+			_ell(d, bp + Vector2(-rr * 0.2, -rr * 0.25), rr * 0.6, rr * 0.22, Color(0.30, 0.33, 0.44))
+			_ell(d, bp + Vector2(-rr * 0.3, -rr * 0.32), rr * 0.25, rr * 0.08, Color(0.60, 0.64, 0.78))
+		# THE SEA OVER THE ROCK'S FOOT: below the waterline the rock and the boulders sink into the water --
+		# a band of the sea's own color laid over them, deepening downward, its surface a wavy lit line (the
+		# rock below the waterline showed whole, so the sea read as clear and the tide pools floated)
+		var surf: float = water + 22.0
+		var band: PackedVector2Array = PackedVector2Array()
+		for k in 33:
+			var bx: float = lerpf(full.x * 0.36, full.x, float(k) / 32.0)
+			band.append(Vector2(bx, surf + 3.0 * sin(bx * 0.05 + t * 1.2)))
+		var lip: PackedVector2Array = band.duplicate()
+		band.append(Vector2(full.x, full.y))
+		band.append(Vector2(full.x * 0.36, full.y))
+		var cols: PackedColorArray = PackedColorArray()
+		for k in band.size():
+			cols.append(Color(0.06, 0.09, 0.18, 0.78) if k < 33 else Color(0.01, 0.02, 0.05, 0.96))
+		d.draw_polygon(band, cols)
+		d.draw_polyline(lip, Color(0.70, 0.78, 0.95, 0.35), 2.0, true)
+		# the swell carries on across it
+		for r in 5:
+			var wy: float = surf + 14.0 + float(r) * float(r) * 6.0
+			var wl: PackedVector2Array = PackedVector2Array()
+			for k in 25:
+				var wx: float = lerpf(full.x * 0.36, full.x, float(k) / 24.0)
+				wl.append(Vector2(wx, wy + sin(wx * (0.05 - 0.006 * float(r)) + t * 0.9 + float(r)) * (2.0 + float(r))))
+			d.draw_polyline(wl, Color(0.55, 0.66, 0.90, 0.10 + 0.03 * float(r)), 1.5 + float(r) * 0.4, true)
+		for k in 12:
+			var u4: float = fmod(t * 0.32 + float(k) / 12.0 + 0.37 * float(k % 3), 1.0)
+			var fx: float = lerpf(full.x * 0.44, full.x * 0.99, float(k) / 11.0)
+			_ell(d, Vector2(fx, surf + 2.0 + 4.0 * h01(k + 90) - u4 * 4.0), 18.0 + 22.0 * u4, 3.5 + 2.0 * u4, Color(0.88, 0.92, 1.0, 0.45 * sin(u4 * PI)))
 	# THE KEEPER'S COTTAGE: stone walls lit and shaded, a slate roof, a chimney with a thread of smoke, and
 	# a window that is a lit ROOM -- mullions, a curtain half drawn, a lamp's glow spilling out
 	# ON THE TOP, beside the tower (on the slope's edge it hung out over the rock), on a stone foundation
 	var cot_x: float = base.x - 112.0
 	var cot_ground: float = maxf(_rock_top(rock, cot_x), _rock_top(rock, cot_x + 64.0))
 	var cot: Rect2 = Rect2(cot_x, cot_ground - 36.0, 64.0, 34.0)
-	d.draw_rect(Rect2(cot.position.x - 4.0, cot.end.y - 2.0, cot.size.x + 8.0, cot_ground - cot.end.y + 10.0), Color(0.16, 0.16, 0.20))
-	d.draw_rect(cot, Color(0.20, 0.19, 0.22))
-	d.draw_rect(Rect2(cot.position, Vector2(cot.size.x * 0.4, cot.size.y)), Color(0.28, 0.27, 0.32))
-	for k in 4:
-		d.draw_line(Vector2(cot.position.x, cot.position.y + 8.0 * float(k + 1)), Vector2(cot.end.x, cot.position.y + 8.0 * float(k + 1)), Color(0, 0, 0, 0.2), 1.0)
-	var roof: PackedVector2Array = PackedVector2Array([cot.position + Vector2(-8, 0), Vector2(cot.end.x + 8, cot.position.y), Vector2(cot.get_center().x + 6.0, cot.position.y - 22.0), Vector2(cot.get_center().x - 6.0, cot.position.y - 22.0)])
-	d.draw_colored_polygon(roof, Color(0.12, 0.12, 0.16))
-	d.draw_line(roof[0], roof[3], Color(0.40, 0.42, 0.55), 1.5)
-	d.draw_rect(Rect2(cot.end.x - 18.0, cot.position.y - 28.0, 8.0, 14.0), Color(0.18, 0.16, 0.18))
-	for k in 5:
-		var su: float = fmod(t * 0.25 + float(k) / 5.0, 1.0)
-		d.draw_circle(Vector2(cot.end.x - 14.0 - su * 30.0, cot.position.y - 30.0 - su * 30.0), 3.0 + su * 8.0, Color(0.6, 0.62, 0.70, 0.12 * (1.0 - su)))
-	_window(d, Rect2(cot.position + Vector2(14, 10), Vector2(14, 14)))
-	_tower(d, g)
+	if part == 2:
+		d.draw_rect(Rect2(cot.position.x - 4.0, cot.end.y - 2.0, cot.size.x + 8.0, cot_ground - cot.end.y + 10.0), Color(0.16, 0.16, 0.20))
+		d.draw_rect(cot, Color(0.20, 0.19, 0.22))
+		d.draw_rect(Rect2(cot.position, Vector2(cot.size.x * 0.4, cot.size.y)), Color(0.28, 0.27, 0.32))
+		for k in 4:
+			d.draw_line(Vector2(cot.position.x, cot.position.y + 8.0 * float(k + 1)), Vector2(cot.end.x, cot.position.y + 8.0 * float(k + 1)), Color(0, 0, 0, 0.2), 1.0)
+		var roof: PackedVector2Array = PackedVector2Array([cot.position + Vector2(-8, 0), Vector2(cot.end.x + 8, cot.position.y), Vector2(cot.get_center().x + 6.0, cot.position.y - 22.0), Vector2(cot.get_center().x - 6.0, cot.position.y - 22.0)])
+		d.draw_colored_polygon(roof, Color(0.12, 0.12, 0.16))
+		d.draw_line(roof[0], roof[3], Color(0.40, 0.42, 0.55), 1.5)
+		d.draw_rect(Rect2(cot.end.x - 18.0, cot.position.y - 28.0, 8.0, 14.0), Color(0.18, 0.16, 0.18))
+		_window(d, Rect2(cot.position + Vector2(14, 10), Vector2(14, 14)))
+		_tower(d, g, false)
+	if part == 3:
+		for k in 5:
+			var su: float = fmod(t * 0.25 + float(k) / 5.0, 1.0)
+			d.draw_circle(Vector2(cot.end.x - 14.0 - su * 30.0, cot.position.y - 30.0 - su * 30.0), 3.0 + su * 8.0, Color(0.6, 0.62, 0.70, 0.12 * (1.0 - su)))
+		_tower(d, g, true)
 
 # a lit window: a warm room behind glass -- brighter low down where the lamp is, a curtain half drawn,
 # mullions, a sill, and its glow on the wall around it
@@ -512,7 +697,8 @@ func _drum(d: CanvasItem, cx: float, y0: float, r0: float, y1: float, r1: float,
 		var u: float = 1.0 - (a0 + a1) * 0.5 / PI
 		_poly(d, q, col.darkened(lerpf(lit, dark, pow(u, 1.3))))
 
-func _tower(d: Control, g: Dictionary) -> void:
+# `grass_only`: just the grass at its foot (live); otherwise everything else (still)
+func _tower(d: Control, g: Dictionary, grass_only: bool) -> void:
 	var base: Vector2 = g["base"]
 	var th: float = g["th"]
 	_hz = g["horizon"]
@@ -520,43 +706,46 @@ func _tower(d: Control, g: Dictionary) -> void:
 	var bw: float = th * 0.21
 	var tw: float = th * 0.14
 	var top_y: float = base.y - th
-	# --- THE FOOT: a mound of turf the tower stands IN (the headland's top is only a crest line, so the
-	# tower stood on a line), seen a little from above; a contact shadow on it; a stone plinth; grass round it
 	var pr: float = bw * 0.62
 	var ph: float = th * 0.045
-	var mound: PackedVector2Array = PackedVector2Array()
-	for k in 33:
-		var am: float = TAU * float(k) / 32.0
-		var rr: float = pr * (1.9 + 0.15 * sin(am * 3.0 + 1.0))
-		mound.append(Vector2(cx + cos(am) * rr, base.y + 1.0 + sin(am) * maxf(7.0, rr * 0.22)))
-	_poly(d, mound, Color(0.12, 0.17, 0.12))
-	var mound_lit: PackedVector2Array = PackedVector2Array()
-	for k in 17:
-		mound_lit.append(mound[16 + k])
-	d.draw_polyline(mound_lit, Color(0.26, 0.36, 0.26), 2.0, true)
-	_ell(d, Vector2(cx + bw * 0.25, base.y + 2.0), bw * 0.95, maxf(4.0, bw * 0.95 * _ring_k(base.y)) + 2.0, Color(0.0, 0.0, 0.02, 0.45))
-	_drum(d, cx, base.y + 2.0, pr, base.y - ph, pr, Color(0.50, 0.50, 0.54), 0.10, 0.70)
-	# its courses and blocks, following the curve
-	for row in 2:
-		var ry: float = base.y + 2.0 - (ph + 2.0) * float(row + 1) / 2.0
-		if row == 0:
-			d.draw_polyline(_ring_front(cx, ry, pr, 16), Color(0.0, 0.0, 0.0, 0.30), 1.0, true)
-		for b in 5:
-			var a: float = PI * (float(b) + 0.5 * float(row % 2) + 0.3) / 5.0
-			var p0: Vector2 = _ring_pt(cx, ry, pr, a)
-			d.draw_line(p0, p0 + Vector2(0.0, (ph + 2.0) * 0.5), Color(0.0, 0.0, 0.0, 0.25), 1.0)
-	# its top: a ring of stone seen from above (we are above it), a lit lip
-	var top_ring: PackedVector2Array = PackedVector2Array()
-	for k in 33:
-		top_ring.append(_ring_pt(cx, base.y - ph, pr, TAU * float(k) / 32.0))
-	_poly(d, top_ring, Color(0.60, 0.60, 0.64))
-	d.draw_polyline(_ring_front(cx, base.y - ph, pr, 16), Color(0.80, 0.80, 0.86), 1.5, true)
-	# grass in front of the plinth's foot, leaning in the same breeze as the headland's
-	for k in 22:
-		var ag: float = PI * (0.04 + 0.92 * float(k) / 21.0)
-		var gp: Vector2 = _ring_pt(cx, base.y + 2.0, pr * (1.02 + 0.5 * h01(k + 950)), ag) + Vector2(0.0, 1.0 + 4.0 * h01(k + 960))
-		var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
-		d.draw_line(gp, gp + Vector2(lean, -5.0 - 4.0 * h01(k + 970)), Color(0.20, 0.30, 0.18), 1.5)
+	if not grass_only:
+		# --- THE FOOT: a mound of turf the tower stands IN (the headland's top is only a crest line, so the
+		# tower stood on a line), seen a little from above; a contact shadow on it; a stone plinth; grass round it
+		var mound: PackedVector2Array = PackedVector2Array()
+		for k in 33:
+			var am: float = TAU * float(k) / 32.0
+			var rr: float = pr * (1.9 + 0.15 * sin(am * 3.0 + 1.0))
+			mound.append(Vector2(cx + cos(am) * rr, base.y + 1.0 + sin(am) * maxf(7.0, rr * 0.22)))
+		_poly(d, mound, Color(0.12, 0.17, 0.12))
+		var mound_lit: PackedVector2Array = PackedVector2Array()
+		for k in 17:
+			mound_lit.append(mound[16 + k])
+		d.draw_polyline(mound_lit, Color(0.26, 0.36, 0.26), 2.0, true)
+		_ell(d, Vector2(cx + bw * 0.25, base.y + 2.0), bw * 0.95, maxf(4.0, bw * 0.95 * _ring_k(base.y)) + 2.0, Color(0.0, 0.0, 0.02, 0.45))
+		_drum(d, cx, base.y + 2.0, pr, base.y - ph, pr, Color(0.50, 0.50, 0.54), 0.10, 0.70)
+		# its courses and blocks, following the curve
+		for row in 2:
+			var ry: float = base.y + 2.0 - (ph + 2.0) * float(row + 1) / 2.0
+			if row == 0:
+				d.draw_polyline(_ring_front(cx, ry, pr, 16), Color(0.0, 0.0, 0.0, 0.30), 1.0, true)
+			for b in 5:
+				var a: float = PI * (float(b) + 0.5 * float(row % 2) + 0.3) / 5.0
+				var p0: Vector2 = _ring_pt(cx, ry, pr, a)
+				d.draw_line(p0, p0 + Vector2(0.0, (ph + 2.0) * 0.5), Color(0.0, 0.0, 0.0, 0.25), 1.0)
+		# its top: a ring of stone seen from above (we are above it), a lit lip
+		var top_ring: PackedVector2Array = PackedVector2Array()
+		for k in 33:
+			top_ring.append(_ring_pt(cx, base.y - ph, pr, TAU * float(k) / 32.0))
+		_poly(d, top_ring, Color(0.60, 0.60, 0.64))
+		d.draw_polyline(_ring_front(cx, base.y - ph, pr, 16), Color(0.80, 0.80, 0.86), 1.5, true)
+	if grass_only:
+		# grass in front of the plinth's foot, leaning in the same breeze as the headland's
+		for k in 22:
+			var ag: float = PI * (0.04 + 0.92 * float(k) / 21.0)
+			var gp: Vector2 = _ring_pt(cx, base.y + 2.0, pr * (1.02 + 0.5 * h01(k + 950)), ag) + Vector2(0.0, 1.0 + 4.0 * h01(k + 960))
+			var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
+			d.draw_line(gp, gp + Vector2(lean, -5.0 - 4.0 * h01(k + 970)), Color(0.20, 0.30, 0.18), 1.5)
+		return
 	# --- THE GALLERY'S UNDERSIDE first (the shaft hides its far part): a disc seen from below
 	var gr: float = tw * 0.98
 	var under: PackedVector2Array = PackedVector2Array()

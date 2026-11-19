@@ -459,3 +459,6 @@ the picture, and the next comes round the bend at that moment. Depth fog in the 
 been a 2-D veil with holes cut for the beams, and the beams, glare and door badges were drawn over everything ("many
 many 3d ordering bugs"). First frame ~250 ms (the lane is built and its shaders compiled then). Made up, never the board.
 
+## Audio (2026-11-19)
+
+its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/delemfp_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `delemfp_menu`): the game's music with the poster's world in front -- an owl, a dog far off, a truck; the GAME loop carries its world too, gentler (`GAME_WORLDS`): an owl, a dog far off.
