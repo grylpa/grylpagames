@@ -17,6 +17,11 @@ extends Control
 var fn: Callable
 var picture: Callable = Callable()
 var inner_material: Material = null      # a material for the off-screen canvas `fn` draws on (a shader backdrop)
+# the part of the parent's space it covers (zero: the screen, from the origin). With `cover_view` it is whatever the
+# camera shows, kept up to date (a level's camera zooms out on a big board: Taxi's city). `fn` finds it in
+# d.get_meta("area").
+var area: Rect2 = Rect2()
+var cover_view: bool = false
 
 var _vp: SubViewport = null
 var _inner: Control = null
@@ -31,20 +36,34 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
+func _ready() -> void:
+	set_process(cover_view)        # only a layer that follows the camera looks at it each frame
+
+func _process(_delta: float) -> void:
+	if not is_visible_in_tree():
+		return
+	var view: Rect2 = get_global_transform_with_canvas().affine_inverse() * Rect2(Vector2.ZERO, get_viewport_rect().size)
+	view = Rect2(view.position.floor(), view.size.ceil()).grow(24.0)
+	if not area.encloses(view) or area.get_area() > view.get_area() * 1.6:
+		area = view.grow(40.0)
+		queue_redraw()
+
 func _draw() -> void:
-	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var r: Rect2 = area if area.has_area() else Rect2(Vector2.ZERO, Vector2(MainGlobals.full_screen_size))
 	if picture.is_valid():
 		var tex: Texture2D = picture.call()
 		if tex != null:
 			material = null
 			draw_texture(tex, Vector2.ZERO)
 			return
+	if cover_view and not area.has_area():
+		return
 	material = _premult()
-	draw_texture_rect(_render(full), Rect2(Vector2.ZERO, full), false)
+	draw_texture_rect(_render(r), r, false)
 
 # (re)render the drawing; the texture on the screen follows by itself
-func _render(full: Vector2) -> Texture2D:
-	var k: float = _px_per_unit()
+func _render(r: Rect2) -> Texture2D:
+	var k: float = clampf(_px_per_unit() * absf(get_global_transform_with_canvas().get_scale().x), 0.5, 3.0)
 	if _vp == null:
 		_vp = SubViewport.new()
 		_vp.transparent_bg = true
@@ -55,11 +74,12 @@ func _render(full: Vector2) -> Texture2D:
 		_inner.draw.connect(func() -> void: fn.call(_inner))
 		_vp.add_child(_inner)
 		add_child(_vp)
-	var want: Vector2i = Vector2i(ceili(full.x * k), ceili(full.y * k))
-	if _vp.size != want:
-		_vp.size = want
-		_vp.canvas_transform = Transform2D.IDENTITY.scaled(Vector2.ONE * k)
-		_inner.size = full
+	var want: Vector2i = Vector2i(ceili(r.size.x * k), ceili(r.size.y * k))
+	_vp.size = want
+	_vp.canvas_transform = Transform2D.IDENTITY.scaled(Vector2.ONE * k) * Transform2D(0.0, -r.position)
+	_inner.position = Vector2.ZERO
+	_inner.size = r.end
+	_inner.set_meta("area", r)
 	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_inner.queue_redraw()
 	return _vp.get_texture()

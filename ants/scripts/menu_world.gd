@@ -648,12 +648,26 @@ func _ant(d: CanvasItem, p: Vector3, fwd: Vector3, dist: float, carrying: bool, 
 # an ellipsoid along f (rf), s (rs) and u (ru): its silhouette is the hull of its three principal sections;
 # shaded dark with a sheen toward the light
 func _ellipsoid(d: CanvasItem, c: Vector3, f: Vector3, s: Vector3, u: Vector3, rf: float, rs: float, ru: float, dark: Color, sheen: Color) -> void:
+	# its three principal sections, projected (the projection written out: _proj per point cost a phone dearly)
 	var pts: PackedVector2Array = PackedVector2Array()
+	pts.resize(48)
+	var c_rel: Vector3 = c - _c_eye
+	var c_r: float = c_rel.dot(_c_r)
+	var c_u: float = c_rel.dot(_c_u)
+	var c_f: float = c_rel.dot(_c_f)
+	var fr: Vector3 = Vector3(f.dot(_c_r), f.dot(_c_u), f.dot(_c_f)) * rf     # each axis in the camera's frame, scaled
+	var sr: Vector3 = Vector3(s.dot(_c_r), s.dot(_c_u), s.dot(_c_f)) * rs
+	var ur: Vector3 = Vector3(u.dot(_c_r), u.dot(_c_u), u.dot(_c_f)) * ru
 	for k in 16:
 		var a: float = TAU * float(k) / 16.0
-		pts.append(_proj(c + f * cos(a) * rf + s * sin(a) * rs))
-		pts.append(_proj(c + f * cos(a) * rf + u * sin(a) * ru))
-		pts.append(_proj(c + s * cos(a) * rs + u * sin(a) * ru))
+		var ca: float = cos(a)
+		var sa: float = sin(a)
+		var v1: Vector3 = fr * ca + sr * sa
+		var v2: Vector3 = fr * ca + ur * sa
+		var v3: Vector3 = sr * ca + ur * sa
+		pts[k * 3] = _c_center + Vector2(c_r + v1.x, -(c_u + v1.y)) * _c_focal / maxf(c_f + v1.z, 1.0)
+		pts[k * 3 + 1] = _c_center + Vector2(c_r + v2.x, -(c_u + v2.y)) * _c_focal / maxf(c_f + v2.z, 1.0)
+		pts[k * 3 + 2] = _c_center + Vector2(c_r + v3.x, -(c_u + v3.y)) * _c_focal / maxf(c_f + v3.z, 1.0)
 	var hull: PackedVector2Array = Geometry2D.convex_hull(pts)
 	if hull.size() >= 4:
 		hull.remove_at(hull.size() - 1)
