@@ -2,22 +2,22 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://djlr0n0k6s24g"
-path="res://.godot/imported/menu_room.webp-f07b9cf604196aa7903198cb5aa46467.ctex"
+uid="uid://cl0hfn42hattx"
+path="res://.godot/imported/Marcia_Wallace.webp-17237bf437d841d03ff9927ada192804.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://friends/art/menu_room.webp"
-dest_files=["res://.godot/imported/menu_room.webp-f07b9cf604196aa7903198cb5aa46467.ctex"]
+source_file="res://friends/art/menu_women/Marcia_Wallace.webp"
+dest_files=["res://.godot/imported/Marcia_Wallace.webp-17237bf437d841d03ff9927ada192804.ctex"]
 
 [params]
 
 compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.85
+compress/lossy_quality=0.9
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

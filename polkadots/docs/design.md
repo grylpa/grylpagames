@@ -389,14 +389,16 @@ STATION AT DUSK AND ITS FLIP-DOT BOARD (2026-11-18; before it a dressmaker's ate
 user liked but worried was too feminine, and fireflies before that). Under an iron-and-glass shed -- cast-iron columns
 (`_column`), arched ribs, purlins and glass, a lattice girder -- hangs a black steel cabinet, riveted, a DEPARTURES
 header in enamel, holding a 14 x 18 grid of discs, yellow on one face and black on the other (`_disc_material`: a
-shader colors each face by the mesh's normal). The board never rests (the user: no pauses): a wave runs across it left
-to right -- each disc turning over on its axle in a fifth of a second with a small overshoot, the whole board in under
-0.75 s -- from a random CLOUD of polka dots (`_state`, a new one each time, `CLOUD_FILL` of the discs) into the next
-CHARACTER (`GLYPHS`: A, 7, K, 4, R, E, Z, rasterized onto the cells by `_raster`, with `STRAYS` stray dots, as the game
-scatters them), which stands a moment and breaks up into the next cloud (`CLOUD_S` 0.85 s, `GLYPH_S` 1.95 s). The
+shader colors each face by the mesh's normal). The board never rests (the user, twice: "no pauses. at all"): a wave runs across it left
+to right -- each disc turning over on its axle in a fifth of a second with a small overshoot -- SPREAD OVER ITS WHOLE
+PHASE, so the next wave sets off from the left as this one reaches the right, and the magnets' pulse rocks every disc it
+does not turn (a small nod as the front passes), so the sweep shows even where little changes -- from a random CLOUD of polka dots (`_state`, a new one each time, `CLOUD_FILL` of the discs) into the next
+CHARACTER (`GLYPHS`: A, 7, K, 4, R, E, Z, rasterized onto the cells by `_raster`, clean -- `STRAYS` is 0, the user
+wanted no stray dots round it), which the next wave breaks up into the next cloud (`CLOUD_S` 0.9 s, `GLYPH_S` 1.8 s). The
 SHED's roof is a glazed barrel vault (`_vault`, `_vault_mat`: panes of old glass with the dusk through them, soot and
-putty lines), iron glazing bars along the arch, a louvred lantern on the ridge. Behind: the shed's end wall with a great glazed lunette against the dusk, a green train standing at the
-platform with its windows lit, globe lamps, a station clock on a column bracket, a bench, a floor of honed stone flags.
+putty lines), iron glazing bars along the arch, a louvered lantern on the ridge. Behind: the shed's end wall with a great glazed lunette against the dusk, a green train standing at the
+platform with its windows lit, globe lamps of OPAL GLASS (`OPAL`, a shader: a hot core, cream round it, amber at the rim seen edge-on, faint molded ribs;
+brass fitter, gallery and finial; a 2-D halo round each in `_paint_top` -- they were flat white discs, 2026-11-19), a station clock on a column bracket, a bench, a floor of honed stone flags.
 The station and every disc (black side out) are baked, one picture per platform (`menu_station.webp`,
 `menu_station_d.webp`); the discs that ever turn are live, one MultiMesh. Made up, never the board.
 

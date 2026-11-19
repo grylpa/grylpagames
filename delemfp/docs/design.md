@@ -438,6 +438,8 @@ shadow on the road. **Kept thin** (a 1.5 px strip in a stone close to the surfac
 
 ## The main menu's poster
 
+**Options on show (2026-11-19):** the menu shows this game's extra options beside the level row, with no settings cog (`main_menu.show_all_options(false)` in `main.gd`); the scene STAYS where it was -- only the empty road lies under the rows.
+
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`, RENDERED LIVE
 (no picture, `_baked_path` empty): A WAREHOUSE LANE AT NIGHT at street level. A lane of wet cobbles (a ribbon along a
 Catmull-Rom path, in lengths -- a mesh takes at most 8 lights -- stone curbs, faint puddle films that catch the lights'

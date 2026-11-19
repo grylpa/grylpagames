@@ -981,6 +981,27 @@ sized to `screen_size` it stopped there and left a band of the clear color (2026
 
 ## The main menu's poster
 
+**Options on show (2026-11-19):** the menu shows this game's extra option beside the level row, with no settings cog (`main_menu.show_all_options(false)` in `main.gd`); the scene STAYS where it was -- moved up to clear the near pods, the saucer went under the title, and the user would rather see the saucer (the pads' foot may stand behind the rows); on a phone there is no switch.
+**The saucer's dome and beam (2026-11-19, "the dome and the light below it don't connect to it well"):** the DOME is glass
+with depth (a shader: the cabin lit teal from below darkening into the crown, bright where the glass is seen edge-on, two
+highlights) seated in a metal COLLAR with twelve small lights -- it was a half-see-through sphere with a flat glow, a
+pasted disc; the BEAM (`_beam`) rides the saucer's bob and starts inside the engine ring at the emitter's width, brightest
+there -- it was fixed in place, began 40 units under the saucer, narrower, faded in, so a dark gap hung between them.
+Then: the EMITTER is a metal ring round a glowing lens exactly as wide as the beam's top (`EMIT_R`; a glowing ring and
+disc, wider and edge-on, read as a strange bar of light); the riders come out of that lens (`_rider_at`: 82 under the
+saucer, riding its bob, centered in the beam, fading in) -- they started at its rest height, drifting aside, and a 2-D
+figure drawn over the hull seemed to come out of its edge; and the RIM LIGHTS breathe together -- a chase running round
+them looked like a second rotation, out of step with the hull and the collar's lights.
+**The departure shuttles (2026-11-19):** the matching aliens used to hop to their gate's pad and rise up its column into
+empty sky -- boarding nothing. Now a SHUTTLE in each gate's color hovers LOW over it, well under the saucer's line, just above the pass sign (`HOVER_Y` 265: at 400 they rivaled the saucer -- the user) (`_build_shuttle`: the saucer's hull
+metal, a colored band with window lights, a small glass canopy on the dome's shader with a `rad` uniform, and under it a
+HATCH -- a ring, a lens, an iris door), its column of light running from the pad up into the hatch (`HOVER_Y`,
+`HATCH_DROP`; the column shader is whole to the top now, it faded upward). A boarding alien rises into the hatch, which
+irises open and glows while it does (`_shuttle_state`), and fades as it passes in. Once a cycle, just after the boarding
+followed by the gate's longest quiet stretch (`_depart_at`, from the riders' `_board_window`s), the shuttle lifts off
+(`DEPART_S`) and a fresh one comes down into its place (`ARRIVE_S`).
+**The deck's hex tile is exact** (`_hex_tex`, `HEX_A` 4 hexes across, `HEX_B` 2 row pairs down, 256 x 222, its UV scale taller to keep the hexes regular): laid at n/4 pixels a unit in a square, which a hex row's period divides neither way, every repeat of the texture broke the hexes along a line (2026-11-19).
+
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: THE SPACEPORT AT
 NIGHT, AT WORK (2026-11-18; the user: "one of the most important games ... make this much more engaging"; the gate arch
 did not work). A big SAUCER (paneled hull, a band of chasing rim lights, the engine ring glowing under it, a lit dome)

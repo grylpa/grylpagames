@@ -23,6 +23,7 @@ func _ready() -> void:
 	main_menu.add_entry(1, "Level", 1, ParkemLevelConfig.LEVELS.size(), false)
 	# the theme: a list (Dungeon, Courtyard, Random)
 	main_menu.add_option_entry(2, "Theme", ParkemLevelConfig.theme_names())
+	main_menu.show_all_options(false)       # every option on show, no cog; the scene stays put (MOVE_SCENE)
 	main_menu.sig_option_changed.connect(_on_menu_option_changed)
 	refresh_menu()
 	show_main_menu()

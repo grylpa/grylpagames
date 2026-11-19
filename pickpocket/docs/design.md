@@ -410,7 +410,7 @@ tan with their stitching, one OPEN on three engraved banknotes (`_banknote`), po
 in a brass chamberstick lights it from the back left, its long shadows running toward you. No people: the pickpocket
 is only what he took -- and to say so (the user: "what does it represent?"), the haul lies on a folded newspaper, THE
 EVENING COURIER, headlined PICKPOCKET STRIKES AGAIN (`_newsprint`, Label3D; no coin falls on it), with the thief's tweed
-flat cap beside it (`_cap`). The pearls lie on a clear patch of the table (across the wallet they hovered). LIVE: the
+flat cap beside it (`_cap`). The pearls lie on a clear patch of the table (across the wallet they hovered) as a strand DROPPED there -- an open, slack loop folding over itself, the pearls touching along a silk thread, those crossing riding on the ones below, the clasp at its end -- with a soft CONTACT SHADOW baked under the strand (a plane with an alpha trace of it: the lamp's own shadow of pearls this small was lost, and a perfect ring with no shadow "seemed to be floating in the air", the user). LIVE: the
 candle's flame, ALIVE -- stretching and squatting, dancing, every few seconds bent hard over by a draft and springing
 back, always from the wick (`_flame_pivot`), a blue root, its halo and its own flickering light; and ONE WATCH HANGING
 BY ITS CHAIN from a brass WATCH STAND on the table (over the front edge it was hidden behind the level list), swinging

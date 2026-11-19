@@ -446,11 +446,20 @@ them (2026-11-18; the user could not see the pocket, the table's foot or its sid
 slate bed, rubber wedge cushions along the rails, clear-coated rails inlaid with pearl diamond sights, a deep
 mahogany apron with carved panels and a brass bead, the table at a true table's height (`TABLE_Y` 165; at 80 it sat on
 the floor on stubs, the user) on long turned legs -- a block under the apron, a collar, a bulb, a taper to a brass shoe
--- on a PALE hand-knotted rug (`_rug`, on a plane: an ivory field under a lattice with rosettes, a lobed rust medallion,
-small corner pieces, a rust border with a running vine between indigo and gold guards, the pile's mottling, abrash and
-wear, its edges and fringes in 3-D; a deep red rug and dark floor had swallowed the dark mahogany, the user), the floor and wall panels a lighter honey oak, and a low light from the front so the carving,
-the beads and the turned legs catch highlights; a leather pocket in the
-near rail under a brass-bound mouth; a long green billiard lamp on chains with three bulbs -- five spot lights pour
+-- on a hand-knotted PERSIAN RUG (`_rug` / `_rug_motif`, on a plane, 2026-11-18 round 3: the lattice before it "looked
+like floor tiles"): an IVORY field (pale, so the dark mahogany stands out -- a deep red rug and dark floor had swallowed
+it, the user) under an all-over HERATI pattern -- diamonds outlined in madder, a navy rosette with a gold eye in each,
+sky-blue lancet leaves curling round it, small palmettes at the crossings -- a lobed navy medallion, a navy border with a
+gold vine and its flowers between trefoil guards. It is drawn KNOT BY KNOT (the design sampled at each 2-texel knot's
+center, with a little wool fuzz, so edges step as a rug's do), every knot its own shade, ABRASH bands of dye lots, the
+middle worn pale with the warp showing; the PILE is a normal map (`_rug_nrm`: each knot a dome) so the light catches
+it; its edges and fringes in 3-D. The floor and wall panels a lighter honey oak, and a low light from the front so the
+carving, the beads and the turned legs catch highlights. THE POCKET is a REAL HOLE (2026-11-18, round 3: "the balls
+STILL do not fall into the pocket" -- the old mouth was a disc under solid felt and rail): the slate, the felt and the
+near rail are built as slabs with a round bite out of their edge (`_notched_slab`, its outline triangulated, its walls
+and the bite's curved wall), `HOLE_R` 1.5 ball radii centered just inside the rail (`POCKET`, `RAIL_IN_Z`); under it a
+deep open leather cup (stopping above the apron's foot -- deeper, it hung out under the table); the rail's cut edge
+bound in a brass POCKET IRON (a crescent plate and its bead); a long green billiard lamp on chains with three bulbs -- five spot lights pour
 light down the WHOLE table (unlit, its far end vanished and the balls there seemed to float); paneled walls, and
 on the far wall, lit by picture lights, a rack of cues, a bead scoreboard and a framed print; bottles of beer
 (glass, labels, caps) on the far rail; TWO CUES lying on the felt along the left cushion, one a little across the other,
@@ -469,7 +478,8 @@ losing speed but never stopping (s = p (1.55 - 0.55 p): it reaches the lip still
 it paused before the pocket -- the user), its labels turned by the distance rolled over the radius
 (`ball_art.gd` `roll_angle`, unused in the game; the first version glided) -- and dropping into the pocket
 (`sink_into`, which now starts at full speed and eases only into the hole -- also in the game; the near rail's face is
-drawn again from the baked picture OVER the balls with the mouth's near half cut out of it, `_rail_cover`, so a ball
-drops down behind the rail into the hole -- drawn over the rail, it seemed to fall into the wood), then the next pair
+drawn again from the baked picture OVER the balls, its top edge following the cut's NEAR edge round the hole, `_rail_cover`,
+and the balls' sink target is below the felt in the cup, so a ball drops down behind the rail into the dark hole --
+drawn over the rail, it seemed to fall into the wood), then the next pair
 (4.2 s). Nothing is made before the screen has a size (zero-sized labels).
 Made up, never the board: the menu also opens mid-game.
