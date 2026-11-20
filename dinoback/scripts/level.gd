@@ -720,9 +720,23 @@ func _refresh_prompt() -> void:
 			_:
 				_instruction.text = "Same %s as %d back?" % [noun, n_back]
 		_hint.text = "Swipe RIGHT = match    LEFT = no"
+	_fit_line(_instruction, 30)
+	_fit_line(_hint, 22)
 	var a: float = 0.45 if _cur_priming else 1.0
 	_btn_no.modulate.a = a
 	_btn_match.modulate.a = a
+
+# ONE LINE, NEVER WRAPPED: a label's own size (desktop units, MainGlobals.set_font_size), shrunk only as far as its
+# text needs to fit the width with a margin. Wrapped, "Same PICTURE as 1 back?" put "back?" on a second line over the
+# swipe hint under it (its box is one line tall).
+func _fit_line(lbl: Label, desktop_size: int) -> void:
+	lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var fs: int = MainGlobals.ui_font_size(desktop_size)
+	var font: Font = lbl.get_theme_font("font")
+	var room: float = float(MainGlobals.screen_size.x) - 28.0
+	while fs > 12 and font != null and font.get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room:
+		fs -= 1
+	lbl.add_theme_font_size_override("font_size", fs)
 
 func _register_answer(said_match) -> void:
 	# said_match: true (right/"Match"), false (left/"No"), or null (timed out)

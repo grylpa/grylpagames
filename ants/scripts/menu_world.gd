@@ -27,7 +27,244 @@ const PATH: Array = [Vector2(-125, -372), Vector2(-112, -270), Vector2(-80, -150
 var _ground: Control = null
 var _warm: Control = null
 var _motes: Control = null
-var _life: Control = null
+var _life: MultiMeshInstance2D = null
+
+# THE ANTS ON THE GPU (2026-11-20): every part of every ant was some 30 shapes worked out and drawn every frame -- most of
+# a phone's frame. Now each ant is ONE instance of a mesh of 31 squares, one per part in the drawing's order (its shadow,
+# six upper and six lower legs, three body parts each with its sheen and glint -- far part first --, the waist, the
+# antennae, the crumb), and this shader works each part out from the ant's place, heading and stride by the same
+# formulas and the same camera; the ants go over far to near. The instance data is HALF precision, so the ant's exact
+# screen place goes in its transform (full precision, added after this code) and the shape is worked out relative to it.
+# custom: (x, z, heading, distance walked mod STRIDE); color: (number * 2 + carrying, -, -, fade)
+const ANT: String = """shader_type canvas_item;
+uniform vec3 eye = vec3(0.0);
+uniform vec3 cf = vec3(0.0, 0.0, -1.0);
+uniform vec3 cr = vec3(1.0, 0.0, 0.0);
+uniform vec3 cu = vec3(0.0, 1.0, 0.0);
+uniform vec2 center = vec2(0.0);
+uniform float focal = 800.0;
+uniform float t = 0.0;
+uniform vec2 nest = vec2(150.0, -520.0);
+uniform vec2 sun_xz = vec2(-0.55, -0.45);
+uniform vec3 body_col = vec3(0.106, 0.070, 0.055);
+uniform vec3 sheen_col = vec3(0.310, 0.192, 0.125);
+uniform vec3 crumb_col = vec3(0.729, 0.902, 0.463);
+uniform vec3 food_dark = vec3(0.125, 0.259, 0.071);
+const float L = 10.0;
+const float STRIDE = 7.0;
+varying vec2 v_q;
+varying flat float v_line;
+varying flat float v_hw;
+varying flat vec4 v_col;
+
+float mound(float r) {
+	return r < 7.0 ? 6.0 + r * 0.4 : max(0.0, 9.0 * (1.0 - (r - 7.0) / 34.0));
+}
+float gh(vec3 p) {
+	return mound(length(p.xz - nest));
+}
+vec2 proj(vec3 p) {
+	vec3 v = p - eye;
+	float z = max(dot(v, cf), 1.0);
+	return center + vec2(dot(v, cr), -dot(v, cu)) * focal / z;
+}
+float pxs(vec3 p) {
+	return focal / max(dot(p - eye, cf), 1.0);
+}
+float depth(vec3 p) {
+	return dot(p - eye, cf);
+}
+
+void vertex() {
+	vec2 corner = VERTEX * 2.0;            // the square's corner, -1..1
+	int kind = int(UV.x + 0.5);
+	int sub = int(UV.y + 0.5);
+	vec4 c = INSTANCE_CUSTOM;
+	int code = int(COLOR.r + 0.5);
+	float idx = float(code / 2);
+	bool carrying = (code % 2) == 1;
+	float alpha = COLOR.a;
+	vec3 fwd = vec3(cos(c.z), 0.0, sin(c.z));
+	vec3 p = vec3(c.x, 0.0, c.y);
+	float dist = c.w;
+	// the ant's frame, tipped with the slope it climbs
+	float g0 = gh(p);
+	vec3 base = p + vec3(0.0, g0, 0.0);
+	float pitch = atan(gh(p + fwd * 4.0) - g0, 4.0);
+	vec3 f = normalize(fwd * cos(pitch) + vec3(0.0, 1.0, 0.0) * sin(pitch));
+	vec3 s = normalize(cross(f, vec3(0.0, 1.0, 0.0)));
+	vec3 u = normalize(cross(s, f));
+	float body_h = L * 0.22 + 0.3 * sin(dist / STRIDE * TAU * 2.0);
+	vec3 thorax = base + u * body_h;
+	vec3 head = thorax + f * L * 0.36 + u * L * 0.03;
+	vec3 abdomen = thorax - f * L * 0.48 + u * L * 0.04;
+	float px = pxs(base);
+	vec2 o = proj(base);                   // the transform puts this exactly where it belongs
+	vec4 dark = vec4(body_col, alpha);
+	// what this square draws: a disc or ellipse (center m, axes a1 a2 -- the square is m + a1 x + a2 y) or a line
+	bool line = false;
+	bool hide = false;
+	vec2 m = vec2(0.0);
+	vec2 a1 = vec2(1.0, 0.0);
+	vec2 a2 = vec2(0.0, 1.0);
+	vec2 la = vec2(0.0);
+	vec2 lb = vec2(0.0);
+	float w = 1.0;
+	vec4 col = dark;
+	if (kind == 0) {
+		// its shadow on the soil, away from the sun
+		vec3 sc = base + vec3(-sun_xz.x, 0.0, -sun_xz.y) * L * 0.25 - f * L * 0.1;
+		vec3 f2 = normalize(vec3(f.x, 0.0, f.z));
+		vec3 s2 = normalize(vec3(s.x, 0.0, s.z));
+		vec3 g = vec3(sc.x, gh(sc), sc.z);
+		m = proj(g);
+		a1 = proj(g + f2 * L * 0.62) - m;
+		a2 = proj(g + s2 * L * 0.22) - m;
+		col = vec4(0.0, 0.0, 0.0, 0.22 * alpha);
+	} else if (kind == 1 || kind == 2) {
+		// THE LEGS: three a side, tripod gait; a foot in stance is planted
+		int li = sub % 3;
+		float sd = sub < 3 ? -1.0 : 1.0;
+		float hips[3] = float[3](0.10, 0.0, -0.10);
+		float reach[3] = float[3](0.40, 0.04, -0.42);
+		float amp = STRIDE * 0.6;
+		float ph = ((li % 2 == 0) == (sd > 0.0)) ? 0.0 : 0.5;
+		float cyc = fract(dist / STRIDE + ph + idx * 0.13);
+		float rel = 0.0;
+		float lift = 0.0;
+		if (cyc < 0.6) {
+			rel = amp * (0.5 - cyc / 0.6);
+		} else {
+			float ww = (cyc - 0.6) / 0.4;
+			rel = amp * (-0.5 + smoothstep(0.0, 1.0, ww));
+			lift = sin(ww * PI) * L * 0.12;
+		}
+		vec3 hip = thorax + f * L * hips[li] + s * sd * L * 0.06;
+		vec3 foot = base + f * (L * reach[li] + rel) + s * sd * L * 0.34 + vec3(0.0, lift, 0.0);
+		foot.y = gh(foot) + lift;
+		vec3 knee = mix(hip, foot, 0.42) + vec3(0.0, L * 0.17, 0.0) + s * sd * L * 0.04;
+		float w1 = max(1.0, 0.055 * L * px);
+		line = true;
+		if (kind == 1) {
+			la = proj(hip); lb = proj(knee); w = w1;
+		} else {
+			la = proj(knee); lb = proj(foot); w = max(1.0, w1 * 0.7);
+		}
+	} else if (kind >= 3 && kind <= 5) {
+		// THE BODY: abdomen, thorax, head -- each an ellipsoid, far parts first (slot `sub` takes the sub-th farthest)
+		vec3 cs[3] = vec3[3](abdomen, thorax, head);
+		vec3 rr[3] = vec3[3](vec3(L * 0.34, L * 0.23, L * 0.21), vec3(L * 0.20, L * 0.10, L * 0.10), vec3(L * 0.17, L * 0.15, L * 0.13));
+		float dd[3] = float[3](depth(abdomen), depth(thorax), depth(head));
+		int pick = 0;
+		for (int q = 0; q < 3; q++) {
+			int rank = 0;
+			for (int q2 = 0; q2 < 3; q2++) {
+				if (dd[q2] > dd[q] || (dd[q2] == dd[q] && q2 < q)) {
+					rank++;
+				}
+			}
+			if (rank == sub) {
+				pick = q;
+			}
+		}
+		vec3 pc = cs[pick];
+		vec3 r3 = rr[pick];
+		if (kind == 3) {
+			// its outline: the ellipse whose matrix is the sum of its projected half-axes' outer products (L L^T)
+			m = proj(pc);
+			vec2 ax = proj(pc + f * r3.x) - m;
+			vec2 bx = proj(pc + s * r3.y) - m;
+			vec2 cx = proj(pc + u * r3.z) - m;
+			float m11 = ax.x * ax.x + bx.x * bx.x + cx.x * cx.x;
+			float m21 = ax.x * ax.y + bx.x * bx.y + cx.x * cx.y;
+			float m22 = ax.y * ax.y + bx.y * bx.y + cx.y * cx.y;
+			float l11 = sqrt(max(m11, 1e-6));
+			float l21 = m21 / l11;
+			float l22 = sqrt(max(m22 - l21 * l21, 1e-6));
+			a1 = vec2(l11, l21);
+			a2 = vec2(0.0, l22);
+		} else {
+			// the sheen: a soft highlight on the upper, sunward side, and its glint
+			vec3 hl = pc + u * r3.z * 0.55 - s * r3.y * 0.25 + f * r3.x * 0.15;
+			vec2 hp = proj(hl);
+			float hr = min(r3.x, r3.y) * pxs(pc) * 0.55;
+			if (kind == 4) {
+				m = hp;
+				a1 = vec2(hr, 0.0);
+				col = vec4(sheen_col, alpha * 0.55);
+			} else {
+				m = hp + vec2(-hr * 0.2, -hr * 0.25);
+				a1 = vec2(hr * 0.45, 0.0);
+				col = vec4(0.72, 0.56, 0.42, alpha * 0.55);
+			}
+			a2 = vec2(0.0, a1.x);
+		}
+	} else if (kind == 6) {
+		line = true;
+		la = proj(thorax - f * L * 0.12);
+		lb = proj(abdomen + f * L * 0.22);
+		w = max(1.0, 0.06 * L * px);
+	} else if (kind == 7 || kind == 8) {
+		// THE ANTENNAE: up from the head, elbowed, feeling forward, waving
+		float sd2 = sub == 0 ? -1.0 : 1.0;
+		float wave = sin(t * 5.0 + sd2 + idx) * 0.25;
+		vec3 root = head + f * L * 0.08 + u * L * 0.08 + s * sd2 * L * 0.04;
+		vec3 elbow = root + u * L * 0.22 + f * L * 0.06 + s * sd2 * L * 0.05;
+		vec3 tip = elbow + f * L * 0.30 + s * sd2 * L * (0.16 + wave * 0.3) - u * L * (0.06 + wave * 0.1);
+		line = true;
+		if (kind == 7) {
+			la = proj(root); lb = proj(elbow); w = max(1.0, 0.04 * L * px);
+		} else {
+			la = proj(elbow); lb = proj(tip); w = max(1.0, 0.035 * L * px);
+		}
+	} else {
+		// a green crumb held in the jaws
+		hide = !carrying;
+		vec3 cc = head + f * L * 0.22 + u * L * 0.02;
+		vec2 sp = proj(cc);
+		float pr = L * 0.16 * pxs(cc);
+		if (sub == 0) {
+			m = sp; a1 = vec2(pr, 0.0); col = vec4(food_dark, alpha);
+		} else if (sub == 1) {
+			m = sp + vec2(-pr * 0.12, -pr * 0.12); a1 = vec2(pr * 0.84, 0.0); col = vec4(crumb_col, alpha);
+		} else if (sub == 2) {
+			m = sp + vec2(-pr * 0.32, -pr * 0.34); a1 = vec2(pr * 0.42, 0.0); col = vec4(crumb_col + (vec3(1.0) - crumb_col) * 0.28, alpha);
+		} else {
+			m = sp + vec2(-pr * 0.40, -pr * 0.42); a1 = vec2(pr * 0.14, 0.0); col = vec4(1.0, 1.0, 1.0, 0.55 * alpha);
+		}
+		a2 = vec2(0.0, a1.x);
+	}
+	vec2 outp;
+	if (line) {
+		vec2 ab = lb - la;
+		float ln = max(length(ab), 1e-4);
+		vec2 n = vec2(-ab.y, ab.x) / ln;
+		float across = corner.y * (w * 0.5 + 1.5);
+		outp = la + ab * (corner.x * 0.5 + 0.5) + n * across;
+		v_q = vec2(across, 0.0);
+		v_hw = w * 0.5;
+	} else {
+		outp = m + (a1 * corner.x + a2 * corner.y) * 1.25;
+		v_q = corner * 1.25;
+		v_hw = 0.0;
+	}
+	v_line = line ? 1.0 : 0.0;
+	v_col = col;
+	VERTEX = (hide || alpha <= 0.0) ? vec2(0.0) : outp - o;
+}
+
+void fragment() {
+	float cov;
+	if (v_line > 0.5) {
+		float d = abs(v_q.x);
+		cov = clamp((v_hw - d) / max(fwidth(v_q.x), 1e-4) + 0.5, 0.0, 1.0);
+	} else {
+		float d = length(v_q);
+		cov = clamp((1.0 - d) / max(fwidth(d), 1e-4) + 0.5, 0.0, 1.0);
+	}
+	COLOR = vec4(v_col.rgb, v_col.a * cov);
+}
+"""
 var _front: Control = null
 var _cam: Dictionary = {}
 var _trail: PackedVector3Array = PackedVector3Array()
@@ -40,7 +277,27 @@ var _for_bottom: float = -2.0
 func _setup() -> void:
 	# the ground never moves: a still layer, baked (menu_poster.gd `add_still`)
 	_ground = add_still(func(d: Control) -> void: _draw_ground(d))
-	_life = _mk(func(d: Control) -> void: _draw_life(d))
+	_life = MultiMeshInstance2D.new()
+	var am: ShaderMaterial = ShaderMaterial.new()
+	var ash: Shader = Shader.new()
+	ash.code = ANT
+	am.shader = ash
+	am.set_shader_parameter("nest", Vector2(NEST.x, NEST.z))
+	am.set_shader_parameter("sun_xz", Vector2(SUN.x, SUN.z))
+	am.set_shader_parameter("body_col", Vector3(AntsArt.ANT_BODY.r, AntsArt.ANT_BODY.g, AntsArt.ANT_BODY.b))
+	am.set_shader_parameter("sheen_col", Vector3(AntsArt.ANT_SHEEN.r, AntsArt.ANT_SHEEN.g, AntsArt.ANT_SHEEN.b))
+	am.set_shader_parameter("crumb_col", Vector3(AntsArt.CRUMB.r, AntsArt.CRUMB.g, AntsArt.CRUMB.b))
+	am.set_shader_parameter("food_dark", Vector3(AntsArt.FOOD_DARK.r, AntsArt.FOOD_DARK.g, AntsArt.FOOD_DARK.b))
+	_life.material = am
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_custom_data = true
+	mm.use_colors = true
+	mm.mesh = _ant_mesh()
+	mm.instance_count = PER_WAY * 2
+	mm.custom_aabb = AABB(Vector3(-4000.0, -4000.0, -1.0), Vector3(8000.0, 8000.0, 2.0))
+	_life.multimesh = mm
+	add_child(_life)
 	# the sun's warmth over the ants, drawn once (14 discs the size of the screen: 14 full-screen passes a frame)
 	_warm = cached_layer(func(d: Control) -> void: _draw_warmth(d))
 	_motes = _mk(func(d: Control) -> void: _draw_motes(d))
@@ -116,7 +373,7 @@ func _tick(_delta: float) -> void:
 		_for_bottom = scene_bottom
 		_ground.queue_redraw()
 		_warm.queue_redraw()
-	_life.queue_redraw()
+	_place_ants()
 	_motes.queue_redraw()
 	_front.queue_redraw()
 
@@ -536,9 +793,48 @@ func _ell(d: CanvasItem, c: Vector2, rx: float, ry: float, col: Color) -> void:
 
 # --- the ants ---------------------------------------------------------------------------------------------
 
-func _draw_life(d: Control) -> void:
-	if _cam.is_empty():
+# the mesh of one ant: a square per part, in the order they are drawn (UV: which part, which one of its kind)
+func _ant_mesh() -> ArrayMesh:
+	var parts: Array = [[0, 0]]
+	for kind in [1, 2]:
+		for sub in 6:
+			parts.append([kind, sub])
+	for slot in 3:
+		for kind2 in [3, 4, 5]:
+			parts.append([kind2, slot])
+	parts.append([6, 0])
+	for kind3 in [7, 8]:
+		for sub2 in 2:
+			parts.append([kind3, sub2])
+	for sub3 in 4:
+		parts.append([9, sub3])
+	var verts: PackedVector2Array = PackedVector2Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var corners: Array = [Vector2(-0.5, -0.5), Vector2(0.5, -0.5), Vector2(0.5, 0.5), Vector2(-0.5, 0.5)]
+	for pt in parts:
+		for idx in [0, 1, 2, 0, 2, 3]:
+			verts.append(corners[idx])
+			uvs.append(Vector2(float(pt[0]), float(pt[1])))
+	var arr: Array = []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	var am: ArrayMesh = ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
+# each frame: where every ant is, far to near, handed to the shader (ANT)
+func _place_ants() -> void:
+	if _cam.is_empty() or _life == null:
 		return
+	var mat: ShaderMaterial = _life.material
+	mat.set_shader_parameter("eye", _c_eye)
+	mat.set_shader_parameter("cf", _c_f)
+	mat.set_shader_parameter("cr", _c_r)
+	mat.set_shader_parameter("cu", _c_u)
+	mat.set_shader_parameter("center", _c_center)
+	mat.set_shader_parameter("focal", _c_focal)
+	mat.set_shader_parameter("t", t)
 	var ants: Array = []
 	var spacing: float = _len / float(PER_WAY)
 	for way in 2:
@@ -560,8 +856,16 @@ func _draw_life(d: Control) -> void:
 			var a_end: float = clampf(minf(s, _len - s) / 18.0, 0.0, 1.0)
 			ants.append([_depth(p), p, dir, dist, way == 0, a_end, i])
 	ants.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
-	for an in ants:
-		_ant(d, an[1], an[2], an[3], an[4], an[5], int(an[6]))
+	var mm: MultiMesh = _life.multimesh
+	for k in ants.size():
+		var an: Array = ants[k]
+		var p2: Vector3 = an[1]
+		var d2: Vector3 = an[2]
+		# the exact screen place of the ant's base, full precision (the shape is worked out relative to it)
+		var base: Vector3 = p2 + Vector3(0.0, _ground_h(p2), 0.0)
+		mm.set_instance_transform_2d(k, Transform2D(0.0, _proj(base)))
+		mm.set_instance_custom_data(k, Color(p2.x, p2.z, atan2(d2.z, d2.x), fposmod(float(an[3]), STRIDE)))
+		mm.set_instance_color(k, Color(float(int(an[6]) * 2 + (1 if an[4] else 0)), 0.0, 0.0, float(an[5])))
 
 # the sun's warmth from the upper left, over everything below the title (still)
 func _draw_warmth(d: Control) -> void:
@@ -578,117 +882,6 @@ func _draw_motes(d: Control) -> void:
 		var mr: float = 0.6 * _px(mp)
 		d.draw_circle(_proj(mp), mr * 2.5, Color(1.0, 0.95, 0.75, 0.10))
 		d.draw_circle(_proj(mp), mr, Color(1.0, 0.97, 0.85, 0.55))
-
-# ONE ANT, a 3-D model on the ground at `p` heading `fwd`
-func _ant(d: CanvasItem, p: Vector3, fwd: Vector3, dist: float, carrying: bool, alpha: float, idx: int) -> void:
-	if alpha <= 0.0:
-		return
-	var L: float = ANT_L
-	var gh: float = _ground_h(p)
-	var base: Vector3 = p + Vector3(0.0, gh, 0.0)
-	# climbing the mound, it tips with the slope
-	var ahead_h: float = _ground_h(p + fwd * 4.0)
-	var pitch: float = atan2(ahead_h - gh, 4.0)
-	var f: Vector3 = (fwd * cos(pitch) + Vector3.UP * sin(pitch)).normalized()
-	var s: Vector3 = f.cross(Vector3.UP).normalized()
-	var u: Vector3 = s.cross(f).normalized()
-	var body_h: float = L * 0.22 + 0.3 * sin(dist / STRIDE * TAU * 2.0)     # a little bob with each step
-	var thorax: Vector3 = base + u * body_h
-	var head: Vector3 = thorax + f * L * 0.36 + u * L * 0.03
-	var abdomen: Vector3 = thorax - f * L * 0.48 + u * L * 0.04
-	var px: float = _px(base)
-	var dark: Color = Color(AntsArt.ANT_BODY, alpha)
-	var sheen: Color = Color(AntsArt.ANT_SHEEN, alpha)
-	# its shadow on the soil, away from the sun
-	var sh_off: Vector3 = Vector3(-SUN.x, 0.0, -SUN.z) * L * 0.25
-	_ell_on_ground(d, base + sh_off - f * L * 0.1, f, s, L * 0.62, L * 0.22, Color(0.0, 0.0, 0.0, 0.22 * alpha))
-	# THE LEGS: three a side, tripod gait -- front and back on one side step with the middle of the other.
-	# A foot in stance is planted: it slides back relative to the body exactly as fast as the body goes on
-	var hips: Array = [0.10, 0.0, -0.10]
-	var reach_f: Array = [0.40, 0.04, -0.42]
-	var amp: float = STRIDE * 0.6
-	for sd in [-1.0, 1.0]:
-		for li in 3:
-			var ph: float = 0.0 if (li % 2 == 0) == (sd > 0.0) else 0.5
-			var cyc: float = fposmod(dist / STRIDE + ph + float(idx) * 0.13, 1.0)
-			var rel: float = 0.0
-			var lift: float = 0.0
-			if cyc < 0.6:
-				rel = amp * (0.5 - cyc / 0.6)
-			else:
-				var w: float = (cyc - 0.6) / 0.4
-				rel = amp * (-0.5 + smoothstep(0.0, 1.0, w))
-				lift = sin(w * PI) * L * 0.12
-			var hip: Vector3 = thorax + f * L * float(hips[li]) + s * sd * L * 0.06
-			var foot: Vector3 = base + f * (L * float(reach_f[li]) + rel) + s * sd * L * 0.34 + Vector3.UP * lift
-			foot.y = _ground_h(foot) + lift
-			var knee: Vector3 = hip.lerp(foot, 0.42) + Vector3.UP * L * 0.17 + s * sd * L * 0.04
-			var w1: float = maxf(1.0, 0.055 * L * px)
-			d.draw_line(_proj(hip), _proj(knee), dark, w1, true)
-			d.draw_line(_proj(knee), _proj(foot), dark, maxf(1.0, w1 * 0.7), true)
-	# THE BODY: abdomen, waist, thorax, head -- each an ellipsoid, far parts first
-	var parts: Array = [[abdomen, L * 0.34, L * 0.23, L * 0.21], [thorax, L * 0.20, L * 0.10, L * 0.10], [head, L * 0.17, L * 0.15, L * 0.13]]
-	parts.sort_custom(func(x, y): return _depth(x[0]) > _depth(y[0]))
-	for pt in parts:
-		_ellipsoid(d, pt[0], f, s, u, pt[1], pt[2], pt[3], dark, sheen)
-	d.draw_line(_proj(thorax - f * L * 0.12), _proj(abdomen + f * L * 0.22), dark, maxf(1.0, 0.06 * L * px), true)
-	# THE ANTENNAE: up from the head, elbowed, feeling forward, waving
-	for sd2 in [-1.0, 1.0]:
-		var wave: float = sin(t * 5.0 + sd2 + float(idx)) * 0.25
-		var root: Vector3 = head + f * L * 0.08 + u * L * 0.08 + s * sd2 * L * 0.04
-		var elbow: Vector3 = root + u * L * 0.22 + f * L * 0.06 + s * sd2 * L * 0.05
-		var tip: Vector3 = elbow + f * L * 0.30 + s * sd2 * L * (0.16 + wave * 0.3) - u * L * (0.06 + wave * 0.1)
-		d.draw_line(_proj(root), _proj(elbow), dark, maxf(1.0, 0.04 * L * px), true)
-		d.draw_line(_proj(elbow), _proj(tip), dark, maxf(1.0, 0.035 * L * px), true)
-	# a green crumb held in the jaws
-	if carrying:
-		var crumb: Vector3 = head + f * L * 0.22 + u * L * 0.02
-		_sphere(d, crumb, L * 0.16, Color(AntsArt.CRUMB, alpha), Color(AntsArt.FOOD_DARK, alpha))
-
-# an ellipsoid along f (rf), s (rs) and u (ru): its silhouette is the hull of its three principal sections;
-# shaded dark with a sheen toward the light
-func _ellipsoid(d: CanvasItem, c: Vector3, f: Vector3, s: Vector3, u: Vector3, rf: float, rs: float, ru: float, dark: Color, sheen: Color) -> void:
-	# its three principal sections, projected (the projection written out: _proj per point cost a phone dearly)
-	var pts: PackedVector2Array = PackedVector2Array()
-	pts.resize(48)
-	var c_rel: Vector3 = c - _c_eye
-	var c_r: float = c_rel.dot(_c_r)
-	var c_u: float = c_rel.dot(_c_u)
-	var c_f: float = c_rel.dot(_c_f)
-	var fr: Vector3 = Vector3(f.dot(_c_r), f.dot(_c_u), f.dot(_c_f)) * rf     # each axis in the camera's frame, scaled
-	var sr: Vector3 = Vector3(s.dot(_c_r), s.dot(_c_u), s.dot(_c_f)) * rs
-	var ur: Vector3 = Vector3(u.dot(_c_r), u.dot(_c_u), u.dot(_c_f)) * ru
-	for k in 16:
-		var a: float = TAU * float(k) / 16.0
-		var ca: float = cos(a)
-		var sa: float = sin(a)
-		var v1: Vector3 = fr * ca + sr * sa
-		var v2: Vector3 = fr * ca + ur * sa
-		var v3: Vector3 = sr * ca + ur * sa
-		pts[k * 3] = _c_center + Vector2(c_r + v1.x, -(c_u + v1.y)) * _c_focal / maxf(c_f + v1.z, 1.0)
-		pts[k * 3 + 1] = _c_center + Vector2(c_r + v2.x, -(c_u + v2.y)) * _c_focal / maxf(c_f + v2.z, 1.0)
-		pts[k * 3 + 2] = _c_center + Vector2(c_r + v3.x, -(c_u + v3.y)) * _c_focal / maxf(c_f + v3.z, 1.0)
-	var hull: PackedVector2Array = Geometry2D.convex_hull(pts)
-	if hull.size() >= 4:
-		hull.remove_at(hull.size() - 1)
-		if Geometry2D.triangulate_polygon(hull).size() > 0:
-			d.draw_colored_polygon(hull, dark)
-	# the sheen: a soft highlight on the upper, sunward side
-	var hl: Vector3 = c + u * ru * 0.55 - s * rs * 0.25 + f * rf * 0.15
-	var hp: Vector2 = _proj(hl)
-	var hr: float = minf(rf, rs) * _px(c) * 0.55
-	d.draw_circle(hp, hr, Color(sheen, sheen.a * 0.55))
-	d.draw_circle(hp + Vector2(-hr * 0.2, -hr * 0.25), hr * 0.45, Color(0.72, 0.56, 0.42, sheen.a * 0.55))
-
-func _ell_on_ground(d: CanvasItem, c: Vector3, f: Vector3, s: Vector3, rf: float, rs: float, col: Color) -> void:
-	var f2: Vector3 = Vector3(f.x, 0.0, f.z).normalized()
-	var s2: Vector3 = Vector3(s.x, 0.0, s.z).normalized()
-	var pts: PackedVector2Array = PackedVector2Array()
-	for k in 16:
-		var a: float = TAU * float(k) / 16.0
-		pts.append(_proj(Vector3(c.x, _ground_h(c), c.z) + f2 * cos(a) * rf + s2 * sin(a) * rs))
-	if Geometry2D.triangulate_polygon(pts).size() > 0:
-		d.draw_colored_polygon(pts, col)
 
 # --- in front of everything: big grass blades at the near corners, out of focus, swaying -----------------
 

@@ -48,7 +48,42 @@ func _setup() -> void:
 	_build_way()
 	# the corridor never moves: a still layer, baked (menu_poster.gd `add_still`)
 	_room = add_still(func(d: Control) -> void: _draw_room(d))
-	_life = _mk(func(d: Control) -> void: _draw_life(d))
+	# THE LIVE LAYER is a stack of small layers, put in depth order each frame (_arrange_life): each torch's holder (drawn
+	# once -- the engine keeps its shapes) and its flame (live), each creature (live), the door (redrawn only while it
+	# swings), and last the far torch, the motes and the dark edges. One layer redrawn whole every frame worked out and
+	# re-sent every holder and the door at rest each frame
+	_life = Control.new()
+	_life.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_life.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_life)
+	for k in TORCHES.size():
+		_fix_nodes.append(_sub(func(d: Control) -> void: _draw_fixture(d, k)))
+		_flame_nodes.append(_sub(func(d: Control) -> void: _flame(d, k)))
+	for _c in 4:
+		_cr_nodes.append(_sub(func(d: Control) -> void:
+			var st: Dictionary = d.get_meta("st", {})
+			if not st.is_empty():
+				_creature(d, st)))
+	_door_node = _sub(func(d: Control) -> void: _door(d, _door_drawn))
+	_rest_node = _sub(func(d: Control) -> void: _draw_rest(d))
+
+var _fix_nodes: Array = []
+var _flame_nodes: Array = []
+var _cr_nodes: Array = []
+var _door_node: Control = null
+var _rest_node: Control = null
+var _door_drawn: float = -1.0
+var _door_key: Vector4 = Vector4.INF
+
+func _sub(fn: Callable) -> Control:
+	var c: Control = Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.draw.connect(func() -> void:
+		if not _cam.is_empty():         # (nothing before the camera is set)
+			fn.call(c))
+	_life.add_child(c)
+	return c
 
 func _mk(fn: Callable) -> Control:
 	var c: Control = Control.new()
@@ -113,6 +148,8 @@ void fragment() {
 }
 """
 var _gold: ColorRect = null
+var _gold_heap: Control = null
+var _heap_for: float = -2.0
 
 func _tick(_delta: float) -> void:
 	_set_cam(_camera())
@@ -126,6 +163,14 @@ func _tick(_delta: float) -> void:
 		_gold.material = gm
 		add_child(_gold)
 		move_child(_gold, _life.get_index())
+		# the chest and the heap of gold never change (the light is steady): drawn once, over the doorway's glow
+		_gold_heap = cached_layer(func(d: Control) -> void:
+			if not _cam.is_empty():
+				_coins(d))
+		move_child(_gold_heap, _life.get_index())
+	if absf(scene_bottom - _heap_for) > 0.5:
+		_heap_for = scene_bottom
+		_gold_heap.queue_redraw()
 	var gold_c: Vector2 = _proj(Vector3(W - 20.0, 30.0, (DOOR_Z0 + DOOR_Z1) * 0.5))
 	var gr: float = 170.0 * _px(Vector3(W, 0, DOOR_Z1))
 	_gold.position = gold_c - Vector2(gr, gr)
@@ -134,25 +179,29 @@ func _tick(_delta: float) -> void:
 	if absf(scene_bottom - _for_bottom) > 0.5:
 		_for_bottom = scene_bottom
 		_room.queue_redraw()
-	_life.queue_redraw()
+	_arrange_life()
 
 # --- light -------------------------------------------------------------------------------------------------
 
 func _torch_pos(tr_: Array) -> Vector3:
 	return Vector3(float(tr_[0]) * (W - 16.0), 118.0, float(tr_[1]))
 
-# the steady light at a point: warm from the torches near it, gold from the treasure room, a cold dark beyond
+# the steady light at a point: warm from the torches near it, gold from the treasure room, a cold dark beyond.
+# It runs for every corner of every live shape (a phone's most of this poster's time): the torches' places are worked
+# out once and each falloff 1 / (1 + (dd / r)^2) is taken from the squared distance -- the same sums, no pow, no sqrt
+var _tps: PackedVector3Array = PackedVector3Array()
+const GOLD_AT: Vector3 = Vector3(W + 60.0, 40.0, (DOOR_Z0 + DOOR_Z1) * 0.5)
+
 func _light(p: Vector3) -> Color:
-	var col: Color = Color(0.05, 0.05, 0.08)
-	for tr_ in TORCHES:
-		var tp: Vector3 = _torch_pos(tr_)
-		var dd: float = p.distance_to(tp)
-		var k: float = 1.0 / (1.0 + pow(dd / 150.0, 2.0))
-		col += Color(1.0, 0.62, 0.30) * k * 0.95
-	col += Color(1.0, 0.60, 0.28) * (0.8 / (1.0 + pow(p.distance_to(INNER_TORCH) / 110.0, 2.0)))
-	var gold: Vector3 = Vector3(W + 60.0, 40.0, (DOOR_Z0 + DOOR_Z1) * 0.5)
-	var gd: float = p.distance_to(gold)
-	col += Color(1.0, 0.78, 0.30) * (0.55 / (1.0 + pow(gd / 140.0, 2.0)))
+	if _tps.is_empty():
+		for tr_ in TORCHES:
+			_tps.append(_torch_pos(tr_))
+	var kt: float = 0.0
+	for tp in _tps:
+		kt += 1.0 / (1.0 + p.distance_squared_to(tp) / 22500.0)
+	var col: Color = Color(0.05, 0.05, 0.08) + Color(1.0, 0.62, 0.30) * (kt * 0.95)
+	col += Color(1.0, 0.60, 0.28) * (0.8 / (1.0 + p.distance_squared_to(INNER_TORCH) / 12100.0))
+	col += Color(1.0, 0.78, 0.30) * (0.55 / (1.0 + p.distance_squared_to(GOLD_AT) / 19600.0))
 	# the far end falls into darkness
 	var fade: float = clampf((-p.z - 900.0) / 900.0, 0.0, 1.0)
 	col = col.lerp(Color(0.02, 0.02, 0.04), fade * 0.8)
@@ -163,7 +212,7 @@ func _lit(base: Color, p: Vector3) -> Color:
 	return Color(base.r * l.r, base.g * l.g, base.b * l.b)
 
 # a quad in the world, each corner lit by the light there
-func _quad(d: CanvasItem, pts: Array, base: Color) -> void:
+func _quad(d: Object, pts: Array, base: Color) -> void:
 	var q: PackedVector2Array = PackedVector2Array()
 	var cols: PackedColorArray = PackedColorArray()
 	for p in pts:
@@ -602,51 +651,76 @@ func _door_shut() -> float:
 		best = maxf(best, smoothstep(tc - 1.1, tc, tau) * (1.0 - smoothstep(to, to + 1.1, tau)))
 	return best
 
-func _draw_life(d: Control) -> void:
-	if _cam.is_empty():
+func _arrange_life() -> void:
+	if _cam.is_empty() or _life == null:
 		return
-	var full: Vector2 = _cam["full"]
-	# the gold glow out of the doorway, as open as the door is: _gold, under this layer
 	var shut: float = _door_shut()
-	# collect what has depth -- the door, the creatures, the flames -- and draw far to near
+	# the holders follow the camera (drawn once per camera), the door its swing
+	var cam_key: Vector3 = Vector3(_c_center.x, _c_center.y, _c_focal)
+	if cam_key != _fix_key:
+		_fix_key = cam_key
+		_fix.clear()
+		for i in TORCHES.size():
+			_fix.append(_build_fixture(i))
+		for fnode in _fix_nodes:
+			(fnode as Control).queue_redraw()
+	var dkey: Vector4 = Vector4(_c_center.x, _c_center.y, _c_focal, shut)
+	if dkey != _door_key:
+		_door_key = dkey
+		_door_drawn = shut
+		_door_node.queue_redraw()
+	# what has depth -- the door, the creatures, the torches -- far to near, as the one layer drew it: a creature is
+	# under the door when on its FAR side (beyond its plane, as seen from here) and over it when on ours -- the door
+	# turns across the corridor, and a creature far down it was drawn over the door, "passing through" it; a torch
+	# beyond the door's plane is hidden by it (the door swung through them, the user)
+	var order: Array = []
 	var items: Array = []
-	# the gold lies behind the door always. A creature is drawn before the door when it is on the door's FAR
-	# side (beyond its plane, as seen from here) and after it when on our side -- the door turns across the
-	# corridor, and a creature far down it was drawn over the door, "passing through" it
-	_coins(d)
 	var plane: Array = _door_plane(shut)
 	var behind: Array = []
 	var n0: int = int(floor(t / PERIOD)) - 2
+	var used: int = 0
 	for i in range(n0, n0 + 4):
 		var st: Dictionary = _creature_state(i)
-		if st.is_empty():
+		if st.is_empty() or used >= _cr_nodes.size():
 			continue
+		var cn: Control = _cr_nodes[used]
+		used += 1
+		cn.set_meta("st", st)
+		cn.visible = true
+		cn.queue_redraw()
 		var cp: Vector3 = st["p"]
 		if (cp - Vector3(plane[0])).dot(plane[1]) < 0.0:
-			behind.append([_depth(cp), st])
+			behind.append([_depth(cp), [cn]])
 		else:
-			items.append([_depth(cp), 1, st])
+			items.append([_depth(cp), [cn]])
+	for k2 in range(used, _cr_nodes.size()):
+		(_cr_nodes[k2] as Control).visible = false
 	behind.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
 	for bh in behind:
-		_creature(d, bh[1])
-	# the torches too: one beyond the door's plane is hidden by it (the door swung through them, the user)
-	var torches_behind: Array = []
+		order.append_array(bh[1])
 	for k in TORCHES.size():
+		(_flame_nodes[k] as Control).queue_redraw()
 		var tq: Vector3 = _torch_pos(TORCHES[k])
 		if (tq - Vector3(plane[0])).dot(plane[1]) < -6.0:
-			torches_behind.append(k)
+			order.append_array([_fix_nodes[k], _flame_nodes[k]])
 		else:
-			items.append([_depth(tq), 2, k])
-	for k2 in torches_behind:
-		_torch(d, k2)
-	_door(d, shut)
+			items.append([_depth(tq), [_fix_nodes[k], _flame_nodes[k]]])
+	order.append(_door_node)
 	items.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
 	for it in items:
-		match int(it[1]):
-			1:
-				_creature(d, it[2])
-			2:
-				_torch(d, int(it[2]))
+		order.append_array(it[1])
+	order.append(_rest_node)
+	_rest_node.queue_redraw()
+	for j in order.size():
+		var nd: Control = order[j]
+		if nd.get_index() != j:
+			_life.move_child(nd, j)
+
+# last over the live things: the far torch, the dust, the dark edges
+func _draw_rest(d: Control) -> void:
+	if _cam.is_empty():
+		return
+	var full: Vector2 = _cam["full"]
 	# the torch deep in the side passage, seen only through the arch (drawn anywhere, it hung on the solid wall)
 	if Geometry2D.is_point_in_polygon(_proj(INNER_TORCH + Vector3(0, 10, 0)), _side_hole()):
 		_flame_at(d, INNER_TORCH, 9)
@@ -662,26 +736,43 @@ func _draw_life(d: Control) -> void:
 
 # A TORCH'S FLAME: nested tongues that waver in height, width and lean, quick and slow, its glow breathing
 # A TORCH IN ITS HOLDER, in 3-D: an iron plate riveted to the wall, an arm out from it, a cup the torch stands
-# in (seen from below, as the eye is), the wooden torch, and its flame on top
-func _torch(d: CanvasItem, k: int) -> void:
+# in (seen from below, as the eye is), the wooden torch, and its flame on top. The holder never moves and its light is
+# steady: its shapes (projected, each corner lit) are worked out once per camera and drawn into its own layer, which the
+# engine keeps (_fix_nodes); the flame is a live layer above it
+var _fix: Array = []
+var _fix_key: Vector3 = Vector3.INF
+
+func _draw_fixture(d: CanvasItem, k: int) -> void:
+	if k < _fix.size():
+		for c in _fix[k]:
+			d.callv(c[0], c[1])
+
+func _build_fixture(k: int) -> Array:
+	var out: Array = []
 	var tp: Vector3 = _torch_pos(TORCHES[k])
 	var sd: float = float(TORCHES[k][0])
 	var wx: float = sd * W - sd * 0.6
 	var iron: Color = Color(0.20, 0.19, 0.20)
 	# the plate on the wall, its rivets
-	_quad(d, [Vector3(wx, tp.y - 40.0, tp.z - 6.0), Vector3(wx, tp.y - 40.0, tp.z + 6.0), Vector3(wx, tp.y - 14.0, tp.z + 6.0), Vector3(wx, tp.y - 14.0, tp.z - 6.0)], iron)
+	var q: PackedVector2Array = PackedVector2Array()
+	var qc: PackedColorArray = PackedColorArray()
+	for qp in [Vector3(wx, tp.y - 40.0, tp.z - 6.0), Vector3(wx, tp.y - 40.0, tp.z + 6.0), Vector3(wx, tp.y - 14.0, tp.z + 6.0), Vector3(wx, tp.y - 14.0, tp.z - 6.0)]:
+		q.append(_proj(qp))
+		qc.append(_lit(iron, qp))
+	if Geometry2D.triangulate_polygon(q).size() > 0:
+		out.append(["draw_polygon", [q, qc]])
 	for ry in [-36.0, -18.0]:
 		var rp: Vector3 = Vector3(wx - sd * 0.5, tp.y + ry, tp.z)
-		d.draw_circle(_proj(rp), maxf(1.0, 1.4 * _px(rp)), _lit(Color(0.6, 0.6, 0.62), rp))
+		out.append(["draw_circle", [_proj(rp), maxf(1.0, 1.4 * _px(rp)), _lit(Color(0.6, 0.6, 0.62), rp)]])
 	# the arm: a round iron bar from the plate out and up to the cup, dark with a lit upper edge
 	var a0: Vector3 = Vector3(sd * W, tp.y - 30.0, tp.z)
 	var a1: Vector3 = tp + Vector3(0, -14.0, 0)
 	var w: float = maxf(1.5, 2.6 * _px(tp))
-	d.draw_line(_proj(a0), _proj(a1), _lit(iron, a1), w, true)
-	d.draw_line(_proj(a0) + Vector2(0, -w * 0.3), _proj(a1) + Vector2(0, -w * 0.3), _lit(Color(0.7, 0.62, 0.52), a1), maxf(1.0, w * 0.35), true)
+	out.append(["draw_line", [_proj(a0), _proj(a1), _lit(iron, a1), w, true]])
+	out.append(["draw_line", [_proj(a0) + Vector2(0, -w * 0.3), _proj(a1) + Vector2(0, -w * 0.3), _lit(Color(0.7, 0.62, 0.52), a1), maxf(1.0, w * 0.35), true]])
 	# the torch: a wooden handle down through the cup
 	var h0: Vector3 = tp + Vector3(0, -26.0, 0)
-	d.draw_line(_proj(h0), _proj(tp + Vector3(0, -2.0, 0)), _lit(Color(0.42, 0.26, 0.12), tp), maxf(1.5, 3.2 * _px(tp)), true)
+	out.append(["draw_line", [_proj(h0), _proj(tp + Vector3(0, -2.0, 0)), _lit(Color(0.42, 0.26, 0.12), tp), maxf(1.5, 3.2 * _px(tp)), true]])
 	# the cup: an iron cone, wider at its rim, its underside showing (we look up at it), a lit rim
 	var cup: PackedVector2Array = PackedVector2Array()
 	var rim: PackedVector2Array = PackedVector2Array()
@@ -693,20 +784,39 @@ func _torch(d: CanvasItem, k: int) -> void:
 	var hull: PackedVector2Array = Geometry2D.convex_hull(cup)
 	if hull.size() >= 4:
 		hull.remove_at(hull.size() - 1)
-		d.draw_colored_polygon(hull, _lit(iron, tp))
-	d.draw_polyline(rim + PackedVector2Array([rim[0]]), _lit(Color(0.75, 0.62, 0.45), tp), maxf(1.0, 1.0 * _px(tp)), true)
-	_flame(d, k)
+		out.append(["draw_colored_polygon", [hull, _lit(iron, tp)]])
+	out.append(["draw_polyline", [rim + PackedVector2Array([rim[0]]), _lit(Color(0.75, 0.62, 0.45), tp), maxf(1.0, 1.0 * _px(tp)), true]])
+	return out
 
 func _flame(d: CanvasItem, k: int) -> void:
 	_flame_at(d, _torch_pos(TORCHES[k]), k)
+
+# A FLAME'S GLOW, made once: it was 14 discs (radius 1 - g / 14 of the whole, each 2.2%) drawn for every flame every
+# frame -- 126 large discs a frame for the corridor's nine. Their stack, 1 - (1 - a)^n where n discs lie over a point,
+# in a small picture of the glow's color; the flicker scales its alpha (within a percent of scaling each disc's)
+static var _glow_tex: ImageTexture = null
+
+static func _flame_glow() -> ImageTexture:
+	if _glow_tex == null:
+		var n_px: int = 128
+		var img: Image = Image.create(n_px, n_px, false, Image.FORMAT_RGBA8)
+		for y in n_px:
+			for x in n_px:
+				var dd: float = Vector2(float(x) + 0.5 - n_px * 0.5, float(y) + 0.5 - n_px * 0.5).length() / (n_px * 0.5)
+				var n: float = clampf(ceilf(14.0 * (1.0 - dd)), 0.0, 14.0)
+				img.set_pixel(x, y, Color(1.0, 0.62, 0.26, 1.0 - pow(1.0 - 0.022, n)))
+		_glow_tex = ImageTexture.create_from_image(img)
+	return _glow_tex
 
 func _flame_at(d: CanvasItem, tp: Vector3, k: int) -> void:
 	var px: float = _px(tp)
 	var base: Vector2 = _proj(tp)
 	var tt: float = t + float(k) * 2.3
 	var flick: float = 0.5 * sin(tt * 11.0) + 0.3 * sin(tt * 17.3 + 1.0) + 0.2 * sin(tt * 4.1)
-	for g in 14:
-		d.draw_circle(base + Vector2(0, -8.0 * px), 90.0 * px * (1.0 - float(g) / 14.0), Color(1.0, 0.62, 0.26, 0.022 * (0.9 + 0.1 * flick)))
+	# its glow: the 14 faint discs' stack as one picture (_flame_glow), breathing with the flicker
+	var gr: float = 90.0 * px
+	d.draw_texture_rect(_flame_glow(), Rect2(base + Vector2(0, -8.0 * px) - Vector2(gr, gr), Vector2(gr, gr) * 2.0), false,
+		Color(1, 1, 1, 0.9 + 0.1 * flick))
 	var sway: float = (2.6 * sin(tt * 3.1) + 1.4 * sin(tt * 9.7)) * px
 	var hgt: float = (24.0 + 5.0 * flick + 2.0 * sin(tt * 23.0)) * px
 	for layer_i in 3:
@@ -740,7 +850,7 @@ func _door_plane(shut: float) -> Array:
 		n = -n
 	return [hinge, n]
 
-func _door(d: CanvasItem, shut: float) -> void:
+func _door(d: Object, shut: float) -> void:
 	# hinged at the doorway's FAR side: open it lies back along the corridor wall beyond the doorway, out of the
 	# way; as a creature comes it swings FORWARD through the corridor and shuts the doorway in front of the gold
 	var thick: float = 9.0
@@ -920,12 +1030,24 @@ func _creature(d: CanvasItem, st: Dictionary) -> void:
 # an ellipsoid: silhouette as the hull of its principal sections, lit by the torchlight there, a gloss of
 # light along its upper side
 func _ellipsoid(d: CanvasItem, c: Vector3, f: Vector3, s: Vector3, u: Vector3, rf: float, rs: float, ru: float, col: Color, alpha: float) -> void:
+	# its outline worked out, not gathered (as Ants' poster): a part this small is seen affinely, and an ellipsoid seen
+	# that way has for its outline the ellipse whose matrix is the sum of its projected half-axes' outer products --
+	# 4 projections (the hull of its three sections took 48 every frame), the matrix factored (L L^T), a circle through L
+	var o: Vector2 = _proj(c)
+	var ax: Vector2 = _proj(c + f * rf) - o
+	var bx: Vector2 = _proj(c + s * rs) - o
+	var cx: Vector2 = _proj(c + u * ru) - o
+	var m11: float = ax.x * ax.x + bx.x * bx.x + cx.x * cx.x
+	var m21: float = ax.x * ax.y + bx.x * bx.y + cx.x * cx.y
+	var m22: float = ax.y * ax.y + bx.y * bx.y + cx.y * cx.y
+	var l11: float = sqrt(maxf(m11, 1e-6))
+	var l21: float = m21 / l11
+	var l22: float = sqrt(maxf(m22 - l21 * l21, 1e-6))
 	var pts: PackedVector2Array = PackedVector2Array()
+	pts.resize(16)
 	for k in 16:
 		var a: float = TAU * float(k) / 16.0
-		pts.append(_proj(c + f * cos(a) * rf + s * sin(a) * rs))
-		pts.append(_proj(c + f * cos(a) * rf + u * sin(a) * ru))
-		pts.append(_proj(c + s * cos(a) * rs + u * sin(a) * ru))
+		pts[k] = o + Vector2(l11 * cos(a), l21 * cos(a) + l22 * sin(a))
 	var hull: PackedVector2Array = Geometry2D.convex_hull(pts)
 	if hull.size() < 4:
 		return

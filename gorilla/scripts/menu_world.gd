@@ -60,6 +60,7 @@ func _tick(delta: float) -> void:
 		_adult.position = Vector2(full.x * 0.50, floor_y - room * 0.40 * 0.48)     # in view from the start
 		_baby.set("body_height", room * 0.20)
 		_bananas.set("size", room * 0.11)
+		_bananas.queue_redraw()
 	var room2: float = floor_y - float(g["top"])
 	# the silverback walks across and, out of sight past the right edge, round again from the left
 	var ah: float = float(_adult.get("body_height"))
@@ -82,7 +83,7 @@ func _tick(delta: float) -> void:
 	_bananas.set("now_ms", 5000.0)        # long since arrived: fully shown (at age 0 it is transparent)
 	_bananas.set("born_ms", 0.0)
 	_bananas.set("life_ms", 1.0e12)
-	_bananas.queue_redraw()
+	# (the bananas never change: redrawn only with the layout, above)
 
 # --- the forest, back to front (once) -------------------------------------------------------------------
 
@@ -258,21 +259,43 @@ func _paint_top(full: Vector2, _bottom: float) -> void:
 	for k in fronds.size():
 		var base: Vector2 = fronds[k][0]
 		var ang: float = float(fronds[k][1]) + 0.05 * sin(t * 0.8 + float(k))
-		_frond(base, ang, full.x * 0.36, Color(0.05, 0.12, 0.05))
+		# ONE MESH per frond, turned as it nods (2026-11-19: its 42 shapes a frame each, on a phone)
+		cv.draw_set_transform(base, ang, Vector2.ONE)
+		cv.draw_mesh(_frond_mesh(full.x * 0.36, Color(0.05, 0.12, 0.05)), null)
+		cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	title("Gorilla", "Eat apples and rescue the lost baby gorillas", Color(0.98, 0.86, 0.42), Color(0.08, 0.12, 0.04),
 		Color(0.9, 0.9, 0.4, 0.22))
 
-# a palm frond: a curving rib with leaflets along both sides
-func _frond(base: Vector2, ang: float, length: float, col: Color) -> void:
-	var dir: Vector2 = Vector2.from_angle(ang)
+var _frond_meshes: Dictionary = {}
+
+# _frond's shapes as one mesh, pointing along +x from the origin (the rib's segments as the quads draw_line makes)
+func _frond_mesh(length: float, col: Color) -> ArrayMesh:
+	var key: String = "%.2f" % length
+	if _frond_meshes.has(key):
+		return _frond_meshes[key]
+	var verts: PackedVector2Array = PackedVector2Array()
+	var dir: Vector2 = Vector2.RIGHT
 	var nrm: Vector2 = Vector2(-dir.y, dir.x)
-	var prev: Vector2 = base
+	var prev: Vector2 = Vector2.ZERO
 	for j in 14:
 		var u: float = float(j + 1) / 14.0
-		var p: Vector2 = base + dir * length * u + nrm * length * 0.18 * u * u
-		cv.draw_line(prev, p, col, 4.0 * (1.0 - u) + 1.5)
+		var p: Vector2 = dir * length * u + nrm * length * 0.18 * u * u
+		var w: float = 4.0 * (1.0 - u) + 1.5
+		var across: Vector2 = (p - prev).normalized().orthogonal() * w * 0.5
+		verts.append_array(PackedVector2Array([prev + across, p + across, p - across, prev + across, p - across, prev - across]))
 		var lf: float = length * 0.28 * sin(u * PI)
 		for side in [-1.0, 1.0]:
 			var tip: Vector2 = p + (nrm * side * 0.9 + dir * 0.45).normalized() * lf
-			cv.draw_colored_polygon(PackedVector2Array([p, p + dir * 8.0, tip]), col)
+			verts.append_array(PackedVector2Array([p, p + dir * 8.0, tip]))
 		prev = p
+	var cols: PackedColorArray = PackedColorArray()
+	cols.resize(verts.size())
+	cols.fill(col)
+	var arr: Array = []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_COLOR] = cols
+	var m: ArrayMesh = ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	_frond_meshes[key] = m
+	return m

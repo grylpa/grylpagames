@@ -371,13 +371,45 @@ func _capsule(d: CanvasItem, p: Vector2, dir: Vector2, hue: Color, s: float) -> 
 		n = -n
 	var hl: float = CAP_L * 0.5
 	var hw: float = CAP_W * 0.5
+	# the body and the domed caps with their seals: ONE mesh per color, in the canister's own frame (along it, and
+	# across it toward the light), drawn moved and turned -- the same strips and shades it drew one by one every
+	# frame (~57 shapes a canister, a phone's 4 ms)
+	d.draw_set_transform_matrix(Transform2D(dir, n, p))
+	d.draw_mesh(_capsule_mesh(hue), null)
+	d.draw_set_transform_matrix(Transform2D.IDENTITY)
+	# the label band, wrapping round: it drifts across the width as the canister rolls, foreshortened toward
+	# the edges and out of sight round the back
+	var ang: float = fposmod(s * 0.004, 1.0) * TAU
+	if cos(ang) > 0.0:
+		d.draw_line(p - dir * (hl - 12.0) + n * hw * sin(ang), p + dir * (hl - 12.0) + n * hw * sin(ang), Color(hue.lightened(0.6), 0.75), maxf(6.0 * cos(ang), 0.5))
+
+var _cap_meshes: Dictionary = {}
+
+# a canister's body (a cylinder shaded across its width) and its two domed steel caps -- strips at even angles, each as
+# long as the dome is deep there -- with the dark seal ring between cap and body; x along it, y across toward the light
+func _capsule_mesh(hue: Color) -> ArrayMesh:
+	if _cap_meshes.has(hue):
+		return _cap_meshes[hue]
+	var verts: PackedVector2Array = PackedVector2Array()
+	var cols: PackedColorArray = PackedColorArray()
+	var quad: Callable = func(q: Array, c: Array) -> void:
+		for tri in [[0, 1, 2], [0, 2, 3]]:
+			for i in tri:
+				verts.append(q[i])
+				cols.append(c[i])
+	var hl: float = CAP_L * 0.5
+	var hw: float = CAP_W * 0.5
+	var lb: float = hl - 8.0
 	var steel: Color = Color(0.70, 0.73, 0.78)
-	# the body, smooth round
-	_cyl(d, p - dir * (hl - 8.0), p + dir * (hl - 8.0), hw, hue.darkened(0.6), hue, hue.lightened(0.55))
-	# the end caps: domed steel -- strips at even angles, each as long as the dome is deep there
+	var steps: int = 18
+	for k in steps:
+		var f0: float = sin(-PI * 0.5 + PI * float(k) / float(steps))
+		var f1: float = sin(-PI * 0.5 + PI * float(k + 1) / float(steps))
+		var c0: Color = _shade(f0, hue.darkened(0.6), hue, hue.lightened(0.55))
+		var c1: Color = _shade(f1, hue.darkened(0.6), hue, hue.lightened(0.55))
+		quad.call([Vector2(-lb, hw * f0), Vector2(lb, hw * f0), Vector2(lb, hw * f1), Vector2(-lb, hw * f1)], [c0, c0, c1, c1])
 	for e in [-1.0, 1.0]:
-		var base: Vector2 = p + dir * e * (hl - 8.0)
-		var steps: int = 18
+		var bx: float = e * lb
 		for k in steps:
 			var th0: float = -PI * 0.5 + PI * float(k) / float(steps)
 			var th1: float = -PI * 0.5 + PI * float(k + 1) / float(steps)
@@ -387,15 +419,17 @@ func _capsule(d: CanvasItem, p: Vector2, dir: Vector2, hue: Color, s: float) -> 
 			var l1: float = 8.0 * cos(th1)
 			var c0: Color = _shade(f0, steel.darkened(0.6), steel, Color(1, 1, 1))
 			var c1: Color = _shade(f1, steel.darkened(0.6), steel, Color(1, 1, 1))
-			d.draw_polygon(PackedVector2Array([base + n * hw * 0.9 * f0, base + dir * e * l0 + n * hw * 0.9 * f0, base + dir * e * l1 + n * hw * 0.9 * f1, base + n * hw * 0.9 * f1]),
-				PackedColorArray([c0, c0, c1, c1]))
-		# the dark seal ring between cap and body
-		d.draw_line(base + n * hw, base - n * hw, Color(0.10, 0.10, 0.12), 2.5)
-	# the label band, wrapping round: it drifts across the width as the canister rolls, foreshortened toward
-	# the edges and out of sight round the back
-	var ang: float = fposmod(s * 0.004, 1.0) * TAU
-	if cos(ang) > 0.0:
-		d.draw_line(p - dir * (hl - 12.0) + n * hw * sin(ang), p + dir * (hl - 12.0) + n * hw * sin(ang), Color(hue.lightened(0.6), 0.75), maxf(6.0 * cos(ang), 0.5))
+			quad.call([Vector2(bx, hw * 0.9 * f0), Vector2(bx + e * l0, hw * 0.9 * f0), Vector2(bx + e * l1, hw * 0.9 * f1), Vector2(bx, hw * 0.9 * f1)], [c0, c0, c1, c1])
+		var seal: Color = Color(0.10, 0.10, 0.12)
+		quad.call([Vector2(bx - 1.25, hw), Vector2(bx + 1.25, hw), Vector2(bx + 1.25, -hw), Vector2(bx - 1.25, -hw)], [seal, seal, seal, seal])
+	var arr: Array = []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_COLOR] = cols
+	var m: ArrayMesh = ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	_cap_meshes[hue] = m
+	return m
 
 # --- in front: the glass, the junction and its dial, the receivers, the feed's flange, the gauge, steam ----
 
