@@ -299,7 +299,7 @@ func _geom() -> Dictionary:
 	var bottom: float = scene_bottom if scene_bottom > 0.0 else full.y * 0.62
 	var top: float = 230.0 if mobile else 150.0
 	var horizon: float = top + (bottom - top) * 0.48
-	var base: Vector2 = Vector2(full.x * 0.76, horizon + (bottom - horizon) * 0.20)
+	var base: Vector2 = Vector2(full.x * 0.5, horizon + (bottom - horizon) * 0.34)
 	var th: float = (base.y - top) * 0.78
 	return {"full": full, "bottom": bottom, "top": top, "horizon": horizon, "base": base, "th": th,
 		"lamp": base + Vector2(0.0, -th - 21.0)}      # the lantern room's center
@@ -662,337 +662,197 @@ func _draw_sea(d: Control) -> void:
 			if px < -40.0 or px > full.x + 40.0:
 				continue
 			_ell(d, Vector2(px, horizon + 6.0 + 8.0 * u5), 40.0 * u5 + 10.0, 3.0, Color(WARM, 0.08 * strength * (1.0 - u5 * 0.6)))
-	_boat(d, g)
+	_ships(d, g)
 
-# THE BOAT: a little cutter -- a planked hull shaded from its lit side, a pale gunwale, a seamed mainsail
-# and jib lit by the moon, stays and a pennant, its lantern at the bow; a wake, and
-# the lantern's light trembling on the water
-func _boat(d: Control, g: Dictionary) -> void:
+# DISTANT SHIPS on the horizon, drifting slowly: dark hulls and superstructures against the sea's haze, their lights --
+# a white masthead light, a few lit portholes, red or green at the side
+func _ships(d: Control, g: Dictionary) -> void:
 	var full: Vector2 = g["full"]
 	var horizon: float = g["horizon"]
-	var bottom: float = g["bottom"]
-	var bc: Vector2 = Vector2(full.x * 0.30 + 12.0 * sin(t * 0.17), lerpf(horizon, bottom, 0.58) + 5.0 * sin(t * 1.05))
-	var rock: float = 0.07 * sin(t * 1.05 + 0.7)
-	for k in 6:
-		var u: float = fmod(t * 0.4 + float(k) / 6.0, 1.0)
-		_ell(d, bc + Vector2(-56.0 - u * 100.0, 16.0 + u * 5.0), 12.0 + u * 34.0, 2.5, Color(0.82, 0.88, 1.0, 0.24 * (1.0 - u)))
-	_ell(d, bc + Vector2(0.0, 22.0), 70.0, 7.0, Color(0, 0, 0, 0.35))
-	d.draw_set_transform(bc, rock, Vector2.ONE)
-	# mast, boom, stays
-	d.draw_line(Vector2(0, -8), Vector2(0, -112), Color(0.26, 0.19, 0.13), 3.5)
-	d.draw_line(Vector2(0, -18), Vector2(50, -16), Color(0.26, 0.19, 0.13), 3.0)
-	d.draw_line(Vector2(0, -110), Vector2(64, -8), Color(0.60, 0.58, 0.55, 0.7), 1.0)
-	d.draw_line(Vector2(0, -110), Vector2(-60, -6), Color(0.60, 0.58, 0.55, 0.7), 1.0)
-	# the mainsail, bellied, its seams and the moonlight on its luff
-	var main: PackedVector2Array = PackedVector2Array([Vector2(4, -106), Vector2(4, -20), Vector2(48, -18), Vector2(30, -62)])
-	d.draw_polygon(main, PackedColorArray([Color(0.98, 0.97, 0.92), Color(0.86, 0.85, 0.82), Color(0.62, 0.62, 0.64), Color(0.80, 0.80, 0.80)]))
-	for k in 4:
-		var f: float = float(k + 1) / 5.0
-		d.draw_line(Vector2(4, lerpf(-106.0, -20.0, f)), Vector2(lerpf(30.0, 48.0, f), lerpf(-62.0, -18.0, f)), Color(0.45, 0.45, 0.48, 0.35), 1.0)
-	# the jib
-	d.draw_polygon(PackedVector2Array([Vector2(-4, -100), Vector2(-4, -14), Vector2(-52, -10)]),
-		PackedColorArray([Color(0.88, 0.87, 0.82), Color(0.66, 0.66, 0.64), Color(0.55, 0.55, 0.56)]))
-	# the pennant at the masthead STREAMING in the wind: a ribbon tapering to its tip, a wave running along it, stronger
-	# toward the free end (it was a stiff triangle whose tip bobbed up and down -- "moves in a strange manner")
-	var top_e: PackedVector2Array = PackedVector2Array()
-	var bot_e: PackedVector2Array = PackedVector2Array()
-	for k in 9:
-		var u: float = float(k) / 8.0
-		var wave: float = sin(t * 7.0 - u * 5.0) * 2.6 * u + sin(t * 3.1 - u * 3.0) * 1.0 * u
-		var half: float = 3.5 * (1.0 - u * 0.85)
-		top_e.append(Vector2(u * 22.0, -108.5 + wave - half))
-		bot_e.append(Vector2(u * 22.0, -108.5 + wave + half))
-	bot_e.reverse()
-	d.draw_colored_polygon(top_e + bot_e, Color(0.80, 0.20, 0.18))
-	# the hull IN FRONT of the rig's foot: its near gunwale passes before the mast and the sails' feet (the rig was drawn
-	# over it)
-	# the hull, planked, lighter toward the moon (the left)
-	var sheer: PackedVector2Array = PackedVector2Array()
-	for k in 15:
-		var u2: float = float(k) / 14.0
-		sheer.append(Vector2(lerpf(-64.0, 66.0, u2), -6.0 - 5.0 * sin(u2 * PI) + 10.0 * pow(absf(u2 - 0.5) * 2.0, 3.0)))
-	var keel: PackedVector2Array = PackedVector2Array()
-	for k in 15:
-		var u3: float = 1.0 - float(k) / 14.0
-		keel.append(Vector2(lerpf(-48.0, 56.0, u3), 20.0 + 5.0 * sin(u3 * PI)))
-	var hull: PackedVector2Array = sheer + keel
-	var cols: PackedColorArray = PackedColorArray()
-	for p in hull:
-		cols.append(Color(0.30, 0.18, 0.11).lerp(Color(0.10, 0.06, 0.04), clampf((p.x + 64.0) / 130.0, 0.0, 1.0)))
-	d.draw_polygon(hull, cols)
-	for k in 3:
-		var pl: PackedVector2Array = PackedVector2Array()
-		for j in 15:
-			var a: Vector2 = sheer[j]
-			var b: Vector2 = keel[14 - j]
-			pl.append(a.lerp(b, 0.25 + 0.22 * float(k)))
-		d.draw_polyline(pl, Color(0, 0, 0, 0.35), 1.0, true)
-	d.draw_polyline(sheer, Color(0.82, 0.74, 0.58), 3.0, true)
-	# THE HULL IN THE WATER: its part below a moving waterline sunk into the sea's color, the waterline drawn across the
-	# hull alone (every wave lay behind the boat and it sat on the water; a band of sea laid across it read as a slab)
-	var wave_y: Callable = func(x: float) -> float:
-		return 9.0 + 1.8 * sin(x * 0.09 + t * 1.6) + 1.0 * sin(x * 0.21 - t * 2.3) - rock * x
-	var below: PackedVector2Array = PackedVector2Array()
-	for k in 17:
-		var wx: float = -70.0 + 140.0 * float(k) / 16.0
-		below.append(Vector2(wx, float(wave_y.call(wx))))
-	below.append(Vector2(70.0, 40.0))
-	below.append(Vector2(-70.0, 40.0))
-	for sunk in Geometry2D.intersect_polygons(hull, below):
-		var sp: PackedVector2Array = sunk
-		var sc: PackedColorArray = PackedColorArray()
-		for q in sp:
-			sc.append(Color(0.05, 0.08, 0.17, 0.55).lerp(Color(0.02, 0.04, 0.10, 0.92), clampf((q.y - 9.0) / 14.0, 0.0, 1.0)))
-		d.draw_polygon(sp, sc)
-		# the waterline where the sea meets the planks: its lit edge, on the hull only
-		var line: PackedVector2Array = PackedVector2Array()
-		for q2 in sp:
-			if absf(q2.y - float(wave_y.call(q2.x))) < 0.6:
-				line.append(q2)
-		if line.size() >= 2:
-			d.draw_polyline(line, Color(0.62, 0.72, 0.95, 0.55), 1.4, true)
-	# the lantern at the bow
-	var lant: Vector2 = Vector2(60, -14)
-	for k in 14:
-		d.draw_circle(lant, 40.0 * (1.0 - float(k) / 14.0), Color(1.0, 0.80, 0.45, 0.035))
-	d.draw_rect(Rect2(lant - Vector2(3, 4), Vector2(6, 8)), Color(1.0, 0.92, 0.66))
-	d.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	for k in 7:
-		var wob: float = 3.0 * sin(t * 2.2 + float(k))
-		_ell(d, bc + Vector2(58.0 + wob, 28.0 + float(k) * 7.0), 7.0 - float(k) * 0.7, 1.5, Color(1.0, 0.82, 0.48, 0.34 - 0.045 * float(k)))
-
-# --- the headland and the tower -------------------------------------------------------------------------
+	var specs: Array = [[0.12, 46.0, 2.0, 0], [0.62, 64.0, -1.6, 1], [0.86, 30.0, 1.2, 2]]
+	for sp in specs:
+		var ln: float = sp[1]
+		var span: float = full.x + ln * 2.0
+		var x: float = fposmod(float(sp[0]) * full.x + t * float(sp[2]), span) - ln
+		var y: float = horizon + 3.0 + ln * 0.03
+		var hh: float = ln * 0.10
+		var dark: Color = Color(0.04, 0.05, 0.09)
+		# the hull, its bow raked, and the superstructure toward the stern; a funnel
+		var dir: float = 1.0 if float(sp[2]) > 0.0 else -1.0
+		var hull: PackedVector2Array = PackedVector2Array([Vector2(x - ln * 0.5 * dir, y - hh), Vector2(x + ln * 0.55 * dir, y - hh * 1.3),
+			Vector2(x + ln * 0.45 * dir, y), Vector2(x - ln * 0.46 * dir, y)])
+		d.draw_colored_polygon(hull, dark)
+		var sx: float = x - ln * 0.30 * dir
+		d.draw_rect(Rect2(minf(sx, sx + ln * 0.22 * dir), y - hh * 2.4, ln * 0.22, hh * 1.4), dark)
+		d.draw_rect(Rect2(sx - ln * 0.02, y - hh * 3.4, ln * 0.04, hh), dark)
+		# its lights, twinkling a little in the haze
+		var tw: float = 0.75 + 0.25 * sin(t * 2.0 + float(sp[3]) * 2.1)
+		d.draw_circle(Vector2(x + ln * 0.10 * dir, y - hh * 3.2), 1.3, Color(1.0, 0.98, 0.90, 0.9 * tw))
+		for wk in 4:
+			d.draw_rect(Rect2(sx - ln * 0.08 + float(wk) * ln * 0.05, y - hh * 1.9, 1.4, 1.2), Color(1.0, 0.84, 0.50, 0.85 * tw))
+		d.draw_circle(Vector2(x + ln * 0.40 * dir, y - hh * 0.6), 1.1, (Color(0.3, 1.0, 0.4) if dir > 0.0 else Color(1.0, 0.25, 0.2)) * Color(1, 1, 1, 0.9 * tw))
+		# a faint reflection of the masthead light under it
+		d.draw_line(Vector2(x + ln * 0.10 * dir, y + 2.0), Vector2(x + ln * 0.10 * dir, y + 8.0), Color(1.0, 0.95, 0.85, 0.18 * tw), 1.0)
 
 func _draw_land(d: Control, part: int) -> void:
 	var g: Dictionary = _geom()
 	var full: Vector2 = g["full"]
-	var horizon: float = g["horizon"]
 	var base: Vector2 = g["base"]
-	var water: float = horizon + (float(g["bottom"]) - horizon) * 0.62
-	# drawn in four parts, in this order (menu_poster.gd `cached_layer`): 0 the rock (still), 1 the grass, the boulders
-	# and the water over the rock's foot (live), 2 the cottage, the stair and the tower (still), 3 the smoke and the
-	# grass at the tower's foot (live) -- the live parts never cross a still part drawn after them
-	# THE HEADLAND in layered rock: back mass, then strata of faceted slabs, each lit on the face toward the
-	# moon and dark on the other, cracks between them; grass on top; boulders and foam at its foot, in the water
-	var rock: PackedVector2Array = PackedVector2Array([Vector2(full.x * 0.42, water), Vector2(full.x * 0.49, horizon + 44.0),
-		Vector2(full.x * 0.57, horizon + 16.0), Vector2(full.x * 0.64, horizon + 2.0), Vector2(base.x - 42.0, base.y - 6.0),
-		Vector2(base.x + 48.0, base.y - 2.0), Vector2(full.x, base.y + 12.0), Vector2(full.x, water + 34.0),
-		Vector2(full.x * 0.90, water + 22.0), Vector2(full.x * 0.80, water + 36.0), Vector2(full.x * 0.70, water + 20.0),
-		Vector2(full.x * 0.60, water + 30.0), Vector2(full.x * 0.50, water + 12.0)])
-	_rock_pts = rock
+	var th: float = g["th"]
+	var pf: Dictionary = _platform(g)
+	var hw: float = pf["hw"]
+	var hwb: float = pf["hwb"]
+	var y_back: float = pf["y_back"]
+	var y_front: float = pf["y_front"]
+	var y_water: float = pf["y_water"]
+	var wb: float = pf["wb"]
+	var wt: float = pf["wt"]
+	var cx: float = base.x
+	# drawn in four parts, in this order (menu_poster.gd `cached_layer`): 0 the platform, its back and side railings
+	# and the walkway (still), 1 the sea lapping at them (live), 2 the tower and the platform's front railing (still),
+	# 3 the gallery's near rail (live) -- the live parts never cross a still part drawn after them.
+	# THE LIGHTHOUSE STANDS ON A CONCRETE PLATFORM out in the sea, seen from the front and a little from above, a walkway
+	# coming to it from below the picture (2026-11-20, the user: the headland, the cottage and the boat never came right
+	# -- "let's just lose the boat, the keeper cottage and the wall")
 	if part == 0:
-		d.draw_colored_polygon(rock, Color(0.07, 0.07, 0.10))
-		# THE CLIFF FACE: NATURAL ROCK broken along STRATA that dip across the headland (slabs crest to water read as a
-		# wall; square blocks in level rows read as masonry): each stratum its own thickness, broken at its own places into
-		# irregular pieces -- tops not parallel to bottoms, corners chipped -- larger high up, smaller toward the water;
-		# a piece facing the moon (left) catches its light, one facing away falls into shade; a lit edge where a piece's
-		# top turns up; dark cracks round each. Every piece clipped to the headland's outline
-		var dip: float = 0.14                                   # the strata fall toward the right
-		var sy: float = 0.0
-		var si: int = 0
-		while sy < 1.0:
-			var th3: float = 0.16 + 0.16 * h01(si * 13 + 600) + 0.10 * sy
-			var sy1: float = minf(1.0, sy + th3)
-			var px0: float = full.x * 0.38
-			var pk: int = 0
-			while px0 < full.x + 20.0:
-				var pw2: float = (70.0 - 34.0 * sy) * (0.55 + 0.9 * h01(si * 97 + pk * 7 + 610))
-				var px1: float = px0 + pw2
-				var c_top0: float = _rock_top(rock, clampf(px0, full.x * 0.42, full.x)) + 3.0
-				var c_top1: float = _rock_top(rock, clampf(px1, full.x * 0.42, full.x)) + 3.0
-				var bot2: float = water + 12.0
-				var dy0: float = (px0 - full.x * 0.4) * dip
-				var dy1: float = (px1 - full.x * 0.4) * dip
-				var a0: float = lerpf(c_top0, bot2, sy) + (dy0 if sy > 0.0 else 0.0) + 5.0 * (h01(si * 31 + pk + 620) - 0.5)
-				var a1: float = lerpf(c_top1, bot2, sy) + (dy1 if sy > 0.0 else 0.0) + 5.0 * (h01(si * 31 + pk + 621) - 0.5)
-				var b0: float = lerpf(c_top0, bot2, sy1) + dy0 + 6.0 * (h01(si * 37 + pk + 630) - 0.5)
-				var b1: float = lerpf(c_top1, bot2, sy1) + dy1 + 6.0 * (h01(si * 37 + pk + 631) - 0.5)
-				var sk0: float = (h01(si * 43 + pk + 640) - 0.5) * 14.0     # the break between pieces leans
-				var chip: float = 3.0 + 5.0 * h01(si * 47 + pk + 650)
-				var piece: PackedVector2Array = PackedVector2Array([Vector2(px0 + chip, a0), Vector2(px1 - chip * 0.5, a1 - 1.0),
-					Vector2(px1, a1 + chip), Vector2(px1 + sk0, b1), Vector2(px0 + sk0 + chip, b0 + 1.0), Vector2(px0, b0 - chip), Vector2(px0 - 1.0, a0 + chip)])
-				var face: float = h01(si * 53 + pk * 3 + 660)
-				var moonward2: float = clampf(1.3 - (px0 - full.x * 0.38) / (full.x * 0.62), 0.35, 1.0)
-				var tone: Color = Color(0.07, 0.07, 0.11).lerp(Color(0.24, 0.26, 0.36), face * moonward2).darkened(0.18 * sy)
-				for cpiece in Geometry2D.intersect_polygons(piece, rock):
-					var cp: PackedVector2Array = cpiece
-					var cc: PackedColorArray = PackedColorArray()
-					for q in cp:
-						var vy2: float = clampf((q.y - minf(a0, a1)) / maxf(1.0, maxf(b0, b1) - minf(a0, a1)), 0.0, 1.0)
-						var vx2: float = clampf((q.x - px0) / maxf(1.0, pw2), 0.0, 1.0)
-						cc.append(tone.lightened(0.10 * (1.0 - vy2) + 0.05 * (1.0 - vx2)).darkened(0.28 * vy2))
-					d.draw_polygon(cp, cc)
-					var edge: PackedVector2Array = cp.duplicate()
-					edge.append(cp[0])
-					d.draw_polyline(edge, Color(0.02, 0.02, 0.04, 0.70), 1.3, true)
-				if sy > 0.0 and face > 0.5:
-					var la2: Vector2 = Vector2(px0 + chip + 2.0, a0 + 1.5)
-					var lb2: Vector2 = Vector2(px1 - chip * 0.5 - 2.0, a1 + 0.5)
-					if Geometry2D.is_point_in_polygon(la2, rock) and Geometry2D.is_point_in_polygon(lb2, rock):
-						d.draw_line(la2, lb2, Color(0.44, 0.48, 0.62, 0.30 + 0.35 * moonward2), 1.4, true)
-				px0 = px1
-				pk += 1
-			sy = sy1
-			si += 1
-		# lichen and moss in patches high on the face, where the spray does not reach
-		for lk in 14:
-			var lx: float = lerpf(full.x * 0.47, full.x * 0.98, h01(lk * 3 + 900))
-			var ly2: float = lerpf(_rock_top(rock, lx) + 8.0, water - 30.0, pow(h01(lk * 3 + 901), 2.0))
-			var lc: Color = Color(0.24, 0.30, 0.20, 0.30) if lk % 3 != 0 else Color(0.42, 0.44, 0.38, 0.22)
-			_ell(d, Vector2(lx, ly2), 4.0 + 7.0 * h01(lk + 910), 2.0 + 3.0 * h01(lk + 920), lc)
-		# VOLUME: rough texture over the faces (moonlit flecks and dark pits), deepening shade toward the water,
-		# and the top a grassy plateau, a band following the crest
-		for k in 260:
-			var tx: float = lerpf(full.x * 0.44, full.x, h01(k * 3 + 800))
-			var ty: float = lerpf(_rock_top(rock, tx) + 10.0, water + 8.0, h01(k * 3 + 801))
-			if h01(k * 3 + 802) > 0.5:
-				d.draw_circle(Vector2(tx, ty), 1.2 + 1.5 * h01(k + 803), Color(0.40, 0.44, 0.58, 0.20))
-			else:
-				d.draw_circle(Vector2(tx, ty), 1.5 + 2.0 * h01(k + 804), Color(0.0, 0.0, 0.02, 0.35))
-		for k in 6:
-			var dy: float = float(k) / 6.0
-			var band_k: PackedVector2Array = PackedVector2Array()
-			for j in 25:
-				var bx: float = lerpf(full.x * 0.44, full.x, float(j) / 24.0)
-				band_k.append(Vector2(bx, lerpf(_rock_top(rock, bx), water + 10.0, 0.55 + 0.075 * float(k))))
-			d.draw_polyline(band_k, Color(0.0, 0.0, 0.03, 0.10 + 0.02 * dy), 26.0, true)
-		var plateau: PackedVector2Array = PackedVector2Array()
-		var plateau_b: PackedVector2Array = PackedVector2Array()
-		for j in 31:
-			var px2: float = lerpf(full.x * 0.56, full.x, float(j) / 30.0)
-			var py2: float = _rock_top(rock, px2)
-			plateau.append(Vector2(px2, py2))
-			plateau_b.append(Vector2(px2, py2 + 10.0 + 4.0 * sin(float(j) * 1.3)))
-		plateau_b.reverse()
-		d.draw_colored_polygon(plateau + plateau_b, Color(0.12, 0.17, 0.12))
-		d.draw_polyline(plateau, Color(0.30, 0.40, 0.30), 2.0, true)
-		# the moonlit crest line along the top
-		d.draw_polyline(PackedVector2Array([rock[0], rock[1], rock[2], rock[3], rock[4], rock[5], rock[6]]), Color(0.40, 0.44, 0.58), 2.5, true)
-		# THE BOULDERS AT THE WATERLINE and THE SEA OVER THE ROCK'S FOOT, still: drawn once with the rock (they were redrawn
-		# every frame -- 4 ms of a phone's frame with the band's soft left end)
-		# boulders at the waterline, moonlit tops (their feet in the water, below)
-		for k in 9:
-			var bp: Vector2 = Vector2(lerpf(full.x * 0.45, full.x * 0.98, float(k) / 8.0), water + 18.0 + 14.0 * h01(k + 50))
-			var rr: float = 14.0 + 12.0 * h01(k)
-			_ell(d, bp + Vector2(4, 4), rr, rr * 0.55, Color(0, 0, 0, 0.4))
-			_ell(d, bp, rr, rr * 0.6, Color(0.09, 0.09, 0.13))
-			_ell(d, bp + Vector2(-rr * 0.2, -rr * 0.25), rr * 0.6, rr * 0.22, Color(0.30, 0.33, 0.44))
-			_ell(d, bp + Vector2(-rr * 0.3, -rr * 0.32), rr * 0.25, rr * 0.08, Color(0.60, 0.64, 0.78))
-		# THE SEA OVER THE ROCK'S FOOT: below the waterline the rock and the boulders sink into the water --
-		# a band of the sea's own color laid over them, deepening downward, its surface a wavy lit line (the
-		# rock below the waterline showed whole, so the sea read as clear and the tide pools floated)
-		var surf: float = water + 22.0
-		# (the body, still: its lit line wavers live, part 1) its LEFT END FADES in over the open sea (it began in a hard vertical edge: a seam down the water)
-		var fx0: float = full.x * 0.36
-		var fade_w: float = full.x * 0.16
-		var lip: PackedVector2Array = PackedVector2Array()
-		var lip_c: PackedColorArray = PackedColorArray()
-		var prev: Array = []
-		for k in 33:
-			var bx: float = lerpf(fx0, full.x, float(k) / 32.0)
-			var by: float = surf + 3.0 * sin(bx * 0.05)
-			var fa: float = smoothstep(fx0, fx0 + fade_w, bx)
-			lip.append(Vector2(bx, by))
-			lip_c.append(Color(0.70, 0.78, 0.95, 0.35 * fa))
-			if not prev.is_empty():
-				var pa: float = float(prev[2])
-				d.draw_polygon(PackedVector2Array([prev[0], Vector2(bx, by), Vector2(bx, full.y), Vector2(float(prev[1]), full.y)]),
-					PackedColorArray([Color(0.06, 0.09, 0.18, 0.78 * pa), Color(0.06, 0.09, 0.18, 0.78 * fa),
-						Color(0.01, 0.02, 0.05, 0.96 * fa), Color(0.01, 0.02, 0.05, 0.96 * pa)]))
-			prev = [Vector2(bx, by), bx, fa]
+		# the deck's top: a band of concrete receding to its back edge, moonlit from the left, its joints converging
+		var top_q: PackedVector2Array = PackedVector2Array([Vector2(cx - hwb, y_back), Vector2(cx + hwb, y_back), Vector2(cx + hw, y_front), Vector2(cx - hw, y_front)])
+		d.draw_polygon(top_q, PackedColorArray([Color(0.40, 0.42, 0.50), Color(0.30, 0.31, 0.38), Color(0.34, 0.35, 0.42), Color(0.46, 0.48, 0.56)]))
+		for j in 7:
+			var u: float = float(j + 1) / 8.0
+			d.draw_line(Vector2(lerpf(cx - hwb, cx + hwb, u), y_back), Vector2(lerpf(cx - hw, cx + hw, u), y_front), Color(0.0, 0.0, 0.03, 0.22), 1.0, true)
+		d.draw_line(Vector2(cx - (hwb + hw) * 0.5, (y_back + y_front) * 0.5), Vector2(cx + (hwb + hw) * 0.5, (y_back + y_front) * 0.5), Color(0.0, 0.0, 0.03, 0.18), 1.0, true)
+		# the worn path across it, from the walkway to the tower's door
+		var door_w: float = th * 0.045
+		d.draw_polygon(PackedVector2Array([Vector2(cx - door_w, base.y), Vector2(cx + door_w, base.y), Vector2(cx + wt, y_front), Vector2(cx - wt, y_front)]),
+			PackedColorArray([Color(0.50, 0.52, 0.60, 0.5), Color(0.50, 0.52, 0.60, 0.5), Color(0.50, 0.52, 0.60, 0.35), Color(0.50, 0.52, 0.60, 0.35)]))
+		# the RAILING along its back and sides, behind the tower: posts and two rails, lit on the moon's side
+		_deck_rails(d, PackedVector2Array([Vector2(cx - hw, y_front), Vector2(cx - hwb, y_back), Vector2(cx + hwb, y_back), Vector2(cx + hw, y_front)]), th)
+		# its front face down into the sea: concrete, darker and wet toward the water, the formwork's marks, a lit lip
+		var face: PackedVector2Array = PackedVector2Array([Vector2(cx - hw, y_front), Vector2(cx + hw, y_front), Vector2(cx + hw, y_water), Vector2(cx - hw, y_water)])
+		d.draw_polygon(face, PackedColorArray([Color(0.34, 0.35, 0.42), Color(0.22, 0.23, 0.29), Color(0.07, 0.08, 0.11), Color(0.10, 0.11, 0.15)]))
+		for j2 in 9:
+			var fx: float = lerpf(cx - hw, cx + hw, float(j2 + 1) / 10.0)
+			d.draw_line(Vector2(fx, y_front + 2.0), Vector2(fx, y_water), Color(0.0, 0.0, 0.03, 0.18), 1.0)
+		var wet: float = lerpf(y_front, y_water, 0.62)
+		d.draw_polygon(PackedVector2Array([Vector2(cx - hw, wet), Vector2(cx + hw, wet), Vector2(cx + hw, y_water), Vector2(cx - hw, y_water)]),
+			PackedColorArray([Color(0.02, 0.04, 0.06, 0.0), Color(0.02, 0.04, 0.06, 0.0), Color(0.02, 0.05, 0.07, 0.55), Color(0.02, 0.05, 0.07, 0.55)]))
+		d.draw_line(Vector2(cx - hw, y_front), Vector2(cx + hw, y_front), Color(0.72, 0.74, 0.84), 2.0, true)
+		# THE WALKWAY from below the picture to the platform, narrowing with the distance: its slabs, the shade of its
+		# edges, the piles it stands on going down into the sea, a railing along each side
+		var y_bot: float = full.y + 40.0
+		var walk: PackedVector2Array = PackedVector2Array([Vector2(cx - wt, y_front), Vector2(cx + wt, y_front), Vector2(cx + wb, y_bot), Vector2(cx - wb, y_bot)])
+		# its piles first (under it): at equal steps in depth
+		for pk in 7:
+			var wa: Vector2 = _walk_at(pf, y_bot, float(pk) / 6.0)
+			var py: float = wa.x
+			var phw: float = wt * wa.y
+			var drop: float = (y_water - y_front) * (phw / wt) * 0.55
+			for sd in [-1.0, 1.0]:
+				var pw: float = maxf(2.0, phw * 0.10)
+				var px: float = cx + sd * (phw - pw * 0.6)
+				d.draw_rect(Rect2(px - pw * 0.5, py, pw, drop), Color(0.10, 0.11, 0.14))
+				d.draw_rect(Rect2(px - pw * 0.5, py, pw * 0.35, drop), Color(0.22, 0.23, 0.28))
+		d.draw_polygon(walk, PackedColorArray([Color(0.44, 0.46, 0.54), Color(0.36, 0.37, 0.44), Color(0.30, 0.31, 0.37), Color(0.40, 0.42, 0.50)]))
+		for sk in 14:
+			var wa2: Vector2 = _walk_at(pf, y_bot, float(sk + 1) / 15.0)
+			var jw: float = wt * wa2.y
+			d.draw_line(Vector2(cx - jw, wa2.x), Vector2(cx + jw, wa2.x), Color(0.0, 0.0, 0.03, 0.25), clampf(wa2.y * 0.5, 1.0, 3.0), true)
+		for sd2 in [-1.0, 1.0]:
+			# its edge's thin side face, and the lit kerb along it
+			var e_top: Vector2 = Vector2(cx + sd2 * wt, y_front)
+			var e_bot: Vector2 = Vector2(cx + sd2 * wb, y_bot)
+			var e_thk: float = 6.0
+			d.draw_polygon(PackedVector2Array([e_top, e_bot, e_bot + Vector2(0.0, e_thk * 4.0), e_top + Vector2(0.0, e_thk * 0.6)]),
+				PackedColorArray([Color(0.16, 0.17, 0.21), Color(0.16, 0.17, 0.21), Color(0.08, 0.09, 0.11), Color(0.08, 0.09, 0.11)]))
+			d.draw_line(e_top, e_bot, Color(0.62, 0.64, 0.74) if sd2 < 0.0 else Color(0.40, 0.42, 0.50), 2.0, true)
+			# the railing: posts at the piles' steps, a top and a middle rail
+			var tops: PackedVector2Array = PackedVector2Array()
+			var mids: PackedVector2Array = PackedVector2Array()
+			for pk2 in 8:
+				var wa3: Vector2 = _walk_at(pf, y_bot, float(pk2) / 7.0)
+				var pp: Vector2 = Vector2(cx + sd2 * wt * wa3.y * 0.97, wa3.x)
+				var ph: float = th * 0.07 * wa3.y
+				var pcol: Color = Color(0.58, 0.60, 0.68) if sd2 < 0.0 else Color(0.40, 0.42, 0.50)
+				d.draw_line(pp, pp + Vector2(0.0, -ph), pcol, clampf(1.2 * wa3.y * 0.5, 1.2, 4.0), true)
+				tops.append(pp + Vector2(0.0, -ph))
+				mids.append(pp + Vector2(0.0, -ph * 0.5))
+			d.draw_polyline(tops, Color(0.66, 0.68, 0.78) if sd2 < 0.0 else Color(0.46, 0.48, 0.56), 1.6, true)
+			d.draw_polyline(mids, Color(0.50, 0.52, 0.60, 0.85), 1.2, true)
 	if part == 1:
-		# grass on the top, leaning in the breeze
-		var blades: PackedVector2Array = PackedVector2Array()
-		for k in 60:
-			var u2: float = float(k) / 59.0
-			var gx: float = lerpf(full.x * 0.58, full.x, u2)
-			var gy: float = _rock_top(rock, gx) + 1.0
-			var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
-			blades.append_array([Vector2(gx, gy), Vector2(gx + lean, gy - 6.0 - 5.0 * h01(k + 400))])
-		d.draw_multiline(blades, Color(0.20, 0.30, 0.18), 1.5)      # (one batch: 60 strokes a frame)
-		# THE SEA OVER THE ROCK'S FOOT (its body, still, with the rock: part 0): here only its lit surface line, wavering
-		var surf: float = water + 22.0
-		var fx0: float = full.x * 0.36
-		var fade_w: float = full.x * 0.16
-		var lip: PackedVector2Array = PackedVector2Array()
-		var lip_c: PackedColorArray = PackedColorArray()
-		for k in 33:
-			var bx: float = lerpf(fx0, full.x, float(k) / 32.0)
-			lip.append(Vector2(bx, surf + 3.0 * sin(bx * 0.05 + t * 1.2)))
-			lip_c.append(Color(0.70, 0.78, 0.95, 0.35 * smoothstep(fx0, fx0 + fade_w, bx)))
-		d.draw_polyline_colors(lip, lip_c, 2.0, true)
-		# the swell carries on across it
-		for r in 5:
-			var wy: float = surf + 14.0 + float(r) * float(r) * 6.0
+		# THE SEA AT THE PLATFORM'S FOOT and round the piles: a wavering lit waterline, foam lapping and slipping away
+		# (either side of the walkway, which passes over it: the waterline ran across the walkway)
+		var gap: float = lerpf(wt, wb, (y_water - y_front) / (full.y + 40.0 - y_front)) + 4.0
+		for sd0 in [-1.0, 1.0]:
 			var wl: PackedVector2Array = PackedVector2Array()
-			var wc: PackedColorArray = PackedColorArray()
-			for k in 25:
-				var wx: float = lerpf(fx0, full.x, float(k) / 24.0)
-				wl.append(Vector2(wx, wy + sin(wx * (0.05 - 0.006 * float(r)) + t * 0.9 + float(r)) * (2.0 + float(r))))
-				wc.append(Color(0.55, 0.66, 0.90, (0.10 + 0.03 * float(r)) * smoothstep(fx0, fx0 + fade_w, wx)))
-			d.draw_polyline_colors(wl, wc, 1.5 + float(r) * 0.4, true)
-		for k in 12:
-			var u4: float = fmod(t * 0.32 + float(k) / 12.0 + 0.37 * float(k % 3), 1.0)
-			var fx: float = lerpf(full.x * 0.44, full.x * 0.99, float(k) / 11.0)
-			_ell(d, Vector2(fx, surf + 2.0 + 4.0 * h01(k + 90) - u4 * 4.0), 18.0 + 22.0 * u4, 3.5 + 2.0 * u4, Color(0.88, 0.92, 1.0, 0.45 * sin(u4 * PI)))
-	# THE KEEPER'S COTTAGE: stone walls lit and shaded, a slate roof, a chimney with a thread of smoke, and
-	# a window that is a lit ROOM -- mullions, a curtain half drawn, a lamp's glow spilling out
-	# ON THE TOP, beside the tower (on the slope's edge it hung out over the rock), on a stone foundation
-	var cot_x: float = base.x - 112.0
-	var cot_ground: float = maxf(_rock_top(rock, cot_x), _rock_top(rock, cot_x + 64.0))
-	var cot: Rect2 = Rect2(cot_x, cot_ground - 36.0, 64.0, 34.0)
+			for k in 13:
+				var wx: float = cx + sd0 * lerpf(gap, hw + 6.0, float(k) / 12.0)
+				wl.append(Vector2(wx, y_water + 1.5 * sin(wx * 0.07 + t * 1.4)))
+			d.draw_polyline(wl, Color(0.70, 0.78, 0.95, 0.45), 2.0, true)
+			for k2 in 5:
+				var u4: float = fmod(t * 0.30 + float(k2) / 5.0 + 0.37 * float(k2 % 3) + sd0, 1.0)
+				var fx2: float = cx + sd0 * lerpf(gap + 14.0, hw - 6.0, (float(k2) + 0.5) / 5.0)
+				_ell(d, Vector2(fx2, y_water + 2.0 - u4 * 3.0), 10.0 + 12.0 * u4, 2.2 + 1.5 * u4, Color(0.88, 0.92, 1.0, 0.40 * sin(u4 * PI)))
+		# (the walkway's piles stand under it: from here their feet, and the water round them, are hidden by its deck)
 	if part == 2:
-		d.draw_rect(Rect2(cot.position.x - 4.0, cot.end.y - 2.0, cot.size.x + 8.0, cot_ground - cot.end.y + 10.0), Color(0.16, 0.16, 0.20))
-		d.draw_rect(cot, Color(0.20, 0.19, 0.22))
-		d.draw_rect(Rect2(cot.position, Vector2(cot.size.x * 0.4, cot.size.y)), Color(0.28, 0.27, 0.32))
-		for k in 4:
-			d.draw_line(Vector2(cot.position.x, cot.position.y + 8.0 * float(k + 1)), Vector2(cot.end.x, cot.position.y + 8.0 * float(k + 1)), Color(0, 0, 0, 0.2), 1.0)
-		var roof: PackedVector2Array = PackedVector2Array([cot.position + Vector2(-8, 0), Vector2(cot.end.x + 8, cot.position.y), Vector2(cot.get_center().x + 6.0, cot.position.y - 22.0), Vector2(cot.get_center().x - 6.0, cot.position.y - 22.0)])
-		d.draw_colored_polygon(roof, Color(0.12, 0.12, 0.16))
-		d.draw_line(roof[0], roof[3], Color(0.40, 0.42, 0.55), 1.5)
-		d.draw_rect(Rect2(cot.end.x - 18.0, cot.position.y - 28.0, 8.0, 14.0), Color(0.18, 0.16, 0.18))
-		_window(d, Rect2(cot.position + Vector2(14, 10), Vector2(14, 14)))
-		# THE STAIR up the cliff's near face, after the cottage: its rail passes IN FRONT of it (the cottage was drawn over
-		# the rail -- the user, 2026-11-20)
-		# THE STAIR cut into the rock face, from the water up to the tower: a flight of treads (lit on top) and risers (in
-		# shade) over the dark cut they are hewn into, a handrail on posts set in every other tread (the steps were bare
-		# dashes and the rail stray lines)
-		var s0: Vector2 = Vector2(full.x * 0.56, water - 4.0)
-		var s1: Vector2 = Vector2(base.x - 30.0, base.y - 4.0)
-		var n_st: int = 9
-		var st_d: Vector2 = (s1 - s0) / float(n_st)
-		var saw: PackedVector2Array = PackedVector2Array([s0])
-		for k in n_st:
-			var sp: Vector2 = s0 + Vector2(st_d.x * float(k), st_d.y * float(k))
-			saw.append(sp + Vector2(st_d.x, 0.0))
-			saw.append(sp + Vector2(st_d.x, st_d.y))
-		var cut: PackedVector2Array = saw.duplicate()
-		cut.append(s1 + Vector2(0.0, 12.0))
-		cut.append(s0 + Vector2(0.0, 12.0))
-		_poly(d, cut, Color(0.05, 0.05, 0.08))
-		for k2 in n_st:
-			var tp: Vector2 = s0 + Vector2(st_d.x * float(k2), st_d.y * float(k2))
-			d.draw_line(tp, tp + Vector2(st_d.x, 0.0), Color(0.52, 0.53, 0.60), 2.0, true)
-			d.draw_line(tp + Vector2(st_d.x, 0.0), tp + Vector2(st_d.x, st_d.y), Color(0.16, 0.16, 0.20), 1.5, true)
-		var rail_top: PackedVector2Array = PackedVector2Array()
-		for k3 in range(0, n_st + 1, 2):
-			var post: Vector2 = s0 + Vector2(st_d.x * (float(k3) + 0.5), st_d.y * float(k3)) - Vector2(0.0, 1.0)
-			if k3 >= n_st:
-				post = s1 - Vector2(st_d.x * 0.5, 1.0)
-			d.draw_line(post, post + Vector2(0.0, -15.0), Color(0.46, 0.47, 0.54), 1.3, true)
-			rail_top.append(post + Vector2(0.0, -15.0))
-		d.draw_polyline(rail_top, Color(0.62, 0.63, 0.70, 0.9), 1.4, true)
 		_tower(d, g, false)
+		# the platform's front railing, either side of the walkway's opening (in front of the tower's foot)
+		for sd3 in [-1.0, 1.0]:
+			var a: Vector2 = Vector2(cx + sd3 * hw, y_front)
+			var b: Vector2 = Vector2(cx + sd3 * wt * 1.05, y_front)
+			_deck_rails(d, PackedVector2Array([a, b]), th)
 	if part == 3:
-		for k in 5:
-			var su: float = fmod(t * 0.25 + float(k) / 5.0, 1.0)
-			d.draw_circle(Vector2(cot.end.x - 14.0 - su * 30.0, cot.position.y - 30.0 - su * 30.0), 3.0 + su * 8.0, Color(0.6, 0.62, 0.70, 0.12 * (1.0 - su)))
-		_tower(d, g, true)
 		# the gallery's near rail, over the lamp (_lamp) -- the geometry of _tower
-		_hz = horizon
-		var th2: float = g["th"]
-		var top_y2: float = base.y - th2
-		_rail(d, base.x, top_y2 - 5.0, th2 * 0.14 * 0.98 * 0.96, 14.0, true)
+		_hz = g["horizon"]
+		_rail(d, base.x, base.y - th - 5.0, th * 0.14 * 0.98 * 0.96, 14.0, true)
+
+# the platform's measures for the layout: its half widths at the front and the back, its front edge, back edge and
+# waterline, and the walkway's half widths at the platform and at the picture's foot
+func _platform(g: Dictionary) -> Dictionary:
+	var full: Vector2 = g["full"]
+	var base: Vector2 = g["base"]
+	var th: float = g["th"]
+	var hz: float = g["horizon"]
+	var hw: float = minf(full.x * 0.42, th * 0.62)
+	var y_back: float = base.y - th * 0.05
+	var y_front: float = base.y + th * 0.06
+	var wt: float = hw * 0.22
+	# ONE GROUND PLANE for the platform and the walkway (they did not share one, the user, 2026-11-20): on it a width is in
+	# proportion to the distance below the horizon, so the platform's back is narrower by that ratio and the walkway's
+	# sides run to the same vanishing point on the horizon
+	return {"hw": hw, "hwb": hw * (y_back - hz) / (y_front - hz), "y_back": y_back, "y_front": y_front,
+		"y_water": y_front + th * 0.10, "wt": wt, "wb": wt * (full.y + 40.0 - hz) / (y_front - hz), "hz": hz}
+
+# a point u of the way (in distance, 0 at the platform, 1 at the picture's foot) along the walkway: its screen y (equal
+# steps in distance are closer together far off) and the scale there against the platform's front edge
+func _walk_at(pf: Dictionary, y_bot: float, u: float) -> Vector2:
+	var hz: float = pf["hz"]
+	var inv0: float = 1.0 / (float(pf["y_front"]) - hz)
+	var inv1: float = 1.0 / (y_bot - hz)
+	var y: float = hz + 1.0 / lerpf(inv0, inv1, u)
+	return Vector2(y, (y - hz) * inv0)
+
+# A RAILING along a run of deck edge points: posts at even steps, a top and a middle rail, the metal lit on the moon's side
+func _deck_rails(d: CanvasItem, pts: PackedVector2Array, th: float) -> void:
+	var rh: float = th * 0.07
+	var gg: Dictionary = _geom()
+	var hz: float = gg["horizon"]
+	var y_ref: float = _platform(gg)["y_front"]
+	var tops: PackedVector2Array = PackedVector2Array()
+	var mids: PackedVector2Array = PackedVector2Array()
+	for i in pts.size() - 1:
+		var a: Vector2 = pts[i]
+		var b: Vector2 = pts[i + 1]
+		var n: int = maxi(1, int(a.distance_to(b) / 26.0))
+		for k in n + (1 if i == pts.size() - 2 else 0):
+			var p: Vector2 = a.lerp(b, float(k) / float(n))
+			var lit: bool = p.x < float(gg["base"].x)
+			var ph2: float = rh * (p.y - hz) / (y_ref - hz)              # (shorter with the distance, on the same plane)
+			d.draw_line(p, p + Vector2(0.0, -ph2), Color(0.58, 0.60, 0.68) if lit else Color(0.38, 0.40, 0.48), 1.3, true)
+			tops.append(p + Vector2(0.0, -ph2))
+			mids.append(p + Vector2(0.0, -ph2 * 0.5))
+	d.draw_polyline(tops, Color(0.64, 0.66, 0.76), 1.5, true)
+	d.draw_polyline(mids, Color(0.48, 0.50, 0.58, 0.85), 1.1, true)
 
 # a lit window: a warm room behind glass -- brighter low down where the lamp is, a curtain half drawn,
 # mullions, a sill, and its glow on the wall around it
@@ -1005,17 +865,6 @@ func _window(d: CanvasItem, r: Rect2) -> void:
 	d.draw_line(Vector2(r.get_center().x, r.position.y), Vector2(r.get_center().x, r.end.y), Color(0.10, 0.08, 0.07), 1.2)
 	d.draw_line(Vector2(r.position.x, r.get_center().y), Vector2(r.end.x, r.get_center().y), Color(0.10, 0.08, 0.07), 1.2)
 	d.draw_line(Vector2(r.position.x - 2.0, r.end.y + 1.0), Vector2(r.end.x + 2.0, r.end.y + 1.0), Color(0.55, 0.52, 0.50), 2.0)
-
-var _rock_pts: PackedVector2Array = PackedVector2Array()      # the headland's outline, for the tower's turf (_tower)
-
-func _rock_top(rock: PackedVector2Array, x: float) -> float:
-	# the top edge runs from rock[0] through rock[6]
-	for i in 6:
-		var a: Vector2 = rock[i]
-		var b: Vector2 = rock[i + 1]
-		if x >= a.x and x <= b.x:
-			return lerpf(a.y, b.y, (x - a.x) / maxf(b.x - a.x, 0.001))
-	return rock[6].y
 
 # THE TOWER IN 3-D (the user: "the very top is flat and the very bottom is flat. it doesnt connect to the
 # surface it stands on"): a round tower is rings, and a ring is an ellipse whose depth depends on where it is
@@ -1063,39 +912,8 @@ func _tower(d: Control, g: Dictionary, grass_only: bool) -> void:
 	var pr: float = bw * 0.62
 	var ph: float = th * 0.045
 	if not grass_only:
-		# --- THE FOOT: a mound of turf the tower stands IN (the headland's top is only a crest line, so the
-		# tower stood on a line), seen a little from above; a contact shadow on it; a stone plinth; grass round it
-		# THE TURF IS THE CLIFF TOP'S OWN: its front edge IS the rock's top edge, point for point, and it recedes behind the
-		# tower and rises a little toward it -- an oval of turf stuck out past the crest wherever the crest was not level,
-		# and read as a disc floating in the air (the user, 2026-11-20). An earthy lip under its front edge, grass hanging
-		# over it
-		var span: float = pr * 2.0
-		# (only the level ground round the tower: the crest climbs steeply to the cottage's knoll on its left, and turf laid
-		# up that slope read as a green ramp; the slope has its own grass)
-		var x_left: float = maxf(cx - span, base.x - 46.0)
-		var back_e: PackedVector2Array = PackedVector2Array()
-		var front_e: PackedVector2Array = PackedVector2Array()
-		var turf_n: int = 24
-		for k in turf_n + 1:
-			var u: float = float(k) / float(turf_n)
-			var gx: float = lerpf(x_left, cx + span, u)
-			var bulge: float = sqrt(maxf(0.0, 1.0 - pow(2.0 * u - 1.0, 2.0)))
-			var crest: float = _rock_top(_rock_pts, gx) if _rock_pts.size() > 6 else base.y
-			front_e.append(Vector2(gx, crest + 1.0))
-			back_e.append(Vector2(gx, crest - 2.0 - bulge * maxf(8.0, span * 0.20)))
-		var turf: PackedVector2Array = back_e.duplicate()
-		for k2 in range(front_e.size() - 1, -1, -1):
-			turf.append(front_e[k2])
-		_poly(d, turf, Color(0.12, 0.17, 0.12))
-		d.draw_polyline(back_e, Color(0.20, 0.30, 0.20), 1.5, true)
-		var lip_band: PackedVector2Array = front_e.duplicate()
-		for k3 in range(front_e.size() - 1, -1, -1):
-			lip_band.append(front_e[k3] + Vector2(0.0, 3.0))
-		_poly(d, lip_band, Color(0.06, 0.06, 0.05))
-		for k4 in 30:
-			var fe: Vector2 = front_e[int(float(k4) / 29.0 * float(front_e.size() - 1))]
-			d.draw_line(fe + Vector2(0.0, -1.0), fe + Vector2(1.5 + 2.0 * h01(k4 + 970), 3.0 + 4.0 * h01(k4 + 980)), Color(0.16, 0.24, 0.14), 1.4, true)
-		_ell(d, Vector2(cx + bw * 0.25, base.y + 2.0), bw * 0.95, maxf(4.0, bw * 0.95 * _ring_k(base.y)) + 2.0, Color(0.0, 0.0, 0.02, 0.45))
+		# --- THE FOOT on the platform's concrete: a contact shadow, a stone plinth
+		_ell(d, Vector2(cx + bw * 0.08, base.y + 2.0), bw * 0.78, maxf(4.0, bw * 0.78 * _ring_k(base.y)) + 2.0, Color(0.0, 0.0, 0.02, 0.40))
 		_drum(d, cx, base.y + 2.0, pr, base.y - ph, pr, Color(0.50, 0.50, 0.54), 0.10, 0.70)
 		# its courses and blocks, following the curve
 		for row in 2:
@@ -1113,12 +931,6 @@ func _tower(d: Control, g: Dictionary, grass_only: bool) -> void:
 		_poly(d, top_ring, Color(0.60, 0.60, 0.64))
 		d.draw_polyline(_ring_front(cx, base.y - ph, pr, 16), Color(0.80, 0.80, 0.86), 1.5, true)
 	if grass_only:
-		# grass in front of the plinth's foot, leaning in the same breeze as the headland's
-		for k in 22:
-			var ag: float = PI * (0.04 + 0.92 * float(k) / 21.0)
-			var gp: Vector2 = _ring_pt(cx, base.y + 2.0, pr * (1.02 + 0.5 * h01(k + 950)), ag) + Vector2(0.0, 1.0 + 4.0 * h01(k + 960))
-			var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
-			d.draw_line(gp, gp + Vector2(lean, -5.0 - 4.0 * h01(k + 970)), Color(0.20, 0.30, 0.18), 1.5)
 		return
 	# SEEN FROM BELOW (the lantern is far above the horizon): the deck's top cannot be seen, and the platform hides
 	# the foot of everything standing on it -- so the far rail, the lantern room and the dome are drawn FIRST, then the
@@ -1187,7 +999,21 @@ func _tower(d: Control, g: Dictionary, grass_only: bool) -> void:
 	_half_disc(d, Vector2(cx, dy - door_h), door_w * 0.5 + 2.0, Color(0.55, 0.52, 0.50))
 	_half_disc(d, Vector2(cx, dy - door_h), door_w * 0.5, Color(0.14, 0.09, 0.06))
 	d.draw_line(Vector2(cx + door_w * 0.25, dy - door_h * 0.45), Vector2(cx + door_w * 0.25, dy - door_h * 0.40), Color(0.75, 0.62, 0.30), 2.0)
-	_ell(d, Vector2(cx, dy + 1.0), door_w * 0.8, 2.5, Color(0.48, 0.48, 0.52))
+	# STEPS down the plinth's front from the threshold to the platform, each wider than the one above, a lit tread over a
+	# riser in shade (a flat gray oval stood for the step, and the plinth ran across the doorway: "some gray strange thing
+	# on the doorstep", the user, 2026-11-20)
+	var foot: float = _ring_pt(cx, base.y + 2.0, pr, PI * 0.5).y
+	var n_steps: int = 3
+	for k in n_steps:
+		var u0: float = float(k) / float(n_steps)
+		var u1: float = float(k + 1) / float(n_steps)
+		var ya: float = lerpf(dy, foot, u0)
+		var yb: float = lerpf(dy, foot, u1)
+		var sw: float = door_w * (0.75 + 0.22 * float(k + 1))
+		var tread: float = maxf(1.5, (yb - ya) * 0.35)
+		d.draw_rect(Rect2(cx - sw, ya, sw * 2.0, yb - ya), Color(0.40, 0.40, 0.45))
+		d.draw_rect(Rect2(cx - sw, ya, sw * 2.0, tread), Color(0.64, 0.64, 0.70))
+		d.draw_rect(Rect2(cx + sw * 0.55, ya + tread, sw * 0.45, yb - ya - tread), Color(0.30, 0.30, 0.35))
 	# windows, set on the near face where the shaft is at that height
 	for k in 3:
 		var wy: float = base.y - th * (0.28 + 0.22 * float(k))

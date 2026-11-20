@@ -366,38 +366,29 @@ stand still while a caption is up).
 ## The main menu's poster
 
 `scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): night at sea, in layers (sky; the beams turned away; the sea and the boat; the headland and the tower; the beams turned toward us and the lamp's glare). THE BEAMS TURN IN 3-D: two opposite cones of light turning about the tower's axis (`TURN`), every point projected through a camera in front (`_proj`, `FOCAL`), each cone drawn as two cross-sections whose projected quads are filled through their convex hull (`_poly`; a quad pointing along the axis folds) -- long and level side-on, short and shrinking as it turns away behind the lantern room, wide with a flood of glare as it sweeps toward us (a flat sweep that faded in and out was "not a correct 3d turn", the user). Around it, richly: a sky with a faint galaxy band, stars (the brightest with a cross), a moon with a corona, a limb-darkened disc, its seas and craters and a lit rim, long flat cloud banks above the lamp silvered toward the moon and warmed where a beam passes; a sea of shaded swell in perspective (troughs dark, crests lit), flecks of foam, a horizon haze, a broad shimmering moon path, the lamp's reflection, the beams' light on the water; a cutter with a planked shaded hull, a seamed mainsail and jib, stays, a pennant, a bow lantern trembling on the water, a wake; the headland a cliff of vertical facets each lit by its tilt, cracks and ledges, grass on top, a stair with a rail, boulders with moonlit tops, and THE SEA OVER THE ROCK'S FOOT -- a band of the sea's own color laid over the rock and the boulders below the waterline, deepening downward, its surface a wavy lit line, the swell carrying on across it, foam along it (the rock below the waterline showed whole, so the sea read as clear and tide pools seemed to float); a stone cottage with a slate roof and smoke standing ON the clifftop beside the tower, on a foundation (on the slope's edge it hung out over the rock); the headland given volume -- rough moonlit flecks and dark pits over its faces, shade deepening toward the water, a grassy plateau along the crest; THE TOWER IN 3-D (`_tower`; flat band edges, a flat top and a foot that stopped on the crest line were "3d problems", the user): every ring of it -- band edges, plinth, gallery, lantern room, dome -- is an ellipse opened by its height against the horizon (`_ring_k`, `EYE_D`): below the horizon its near side curves down (seen from above), above it curves up (seen from below), so the gallery shows its UNDERSIDE and the dome rises over its rim; each stretch between rings is a drum shaded as a cylinder (`_drum`); the gallery and the lantern room's base in LIGHT IRON lit by the lantern (dark like the sky, the top looked cut off from the tower), its rail's far half behind the glowing glazed lantern room and its near half in front; the tower stands IN a mound of turf (the headland's top is only a crest line) on a stone plinth with a lit lip, grass in front of its foot, an arched door with a step; every lit window a room (gradient, a curtain, mullions, a glow).
+the shared `main_menu.gd` keeps only a slim panel at the foot): night at sea, in layers -- sky, stars, the moon, clouds; the beams turned away; the sea with its swell, glints and distant ships; the lighthouse on its concrete platform with the walkway coming to it; the beams turned toward us and the glare. (See "THE LIGHTHOUSE ON A PLATFORM" below; the headland, the keeper's cottage and the boat of the earlier versions are gone.)
 Made up, never the board: the menu also opens mid-game.
 
 ## Audio (2026-11-19)
 
 the MENU has its own loop (`art/sounds/lighthouse_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `lighthouse_menu`): the game's music with the poster's world in front -- gulls (rough, not glides: they were heard as sirens), the rigging, a foghorn far off; the GAME loop carries its world too, gentler (`GAME_WORLDS`): gulls, the rigging (no foghorn: the game's "horn").
 
-THE TOWER'S TURF, THE STAIR, THE BOAT (2026-11-20, the user): the turf under the tower is THE CLIFF TOP'S OWN -- its
-front edge is the rock's top edge point for point (`_rock_pts`, `_rock_top`), receding behind the tower and rising a
-little toward it, an earthy lip and hanging grass at the crest (an oval of turf stuck out past the crest where it was not
-level and "floats in the air"; making only its front flatter did not help); the stair and its rail are drawn after the
-keeper's cottage (part 2), so the rail passes in front of it; the boat SITS IN THE WATER -- the part of the hull below a
-moving waterline sunk into the sea's color and the waterline drawn across the hull alone (`Geometry2D.intersect_polygons`;
-a band of sea laid across the boat read as "a disconnected blue slab") --, its near gunwale over the rig's foot, and its
-pennant streams as a ribbon with a wave running to its tip (a stiff triangle whose tip bobbed).
-
-THE HEADLAND, THE STAIR, THE LIGHT (2026-11-20, a full pass at the user's request):
-- THE CLIFF is NATURAL ROCK broken along STRATA that dip toward the right, each its own thickness, broken at its own places
-  into irregular pieces (tops not parallel to bottoms, chipped corners), larger high up and smaller toward the water,
-  each shaded by whether it faces the moon, a lit edge where a piece's top turns up, a dark crack round each, every piece
-  clipped to the headland's outline (`Geometry2D.intersect_polygons`). Full-height slabs read as a wall, square blocks in
-  level rows as masonry.
-- THE STAIR is a flight cut into the face: lit treads, risers in shade, the dark cut under them, a handrail on posts in
-  every other tread (bare dashes and stray lines before). Drawn after the cottage (still, part 2).
-- THE TURF only on the level ground round the tower (the crest climbs to the cottage's knoll on its left: turf up that
-  slope read as a green ramp).
-- THE SEA AT THE ROCK'S FOOT fades in at its left end (`fade_w`): its band began in a hard vertical edge, a seam down the
-  water under the boat.
-- THE GLARE is smooth: the discs' stack counted continuously and eased to nothing at its rim (whole discs showed as rings
-  ending in a circle).
-- THE BEAMS: each slice's fade blended along it (one alpha a slice stepped down the beam) and every layer feathered across
-  its width (`v_across`; they showed as hard stripes) -- soft shafts of light in the haze.
+THE LIGHTHOUSE ON A PLATFORM (2026-11-20, the user: the headland, the keeper's cottage and the boat never came right --
+"let's just lose the boat, the keeper cottage and the wall"): the tower stands in the CENTER (`_geom`) on a CONCRETE
+PLATFORM out in the sea, seen from the front and a little from above (`_platform`: its half widths, front and back
+edges, waterline): its top receding to the back edge with converging joints and a worn path to the door, its front face
+going down into the water (darker and wet toward it, a lit lip), a RAILING along its back and sides behind the tower and
+short front sections either side of the walkway (`_deck_rails`); a WALKWAY comes from below the picture to it, narrowing
+with the distance -- slabs, shaded side faces, a railing each side, piles under it (hidden by its deck from here). Both lie on ONE GROUND PLANE (`_platform`, `_walk_at`): a width is in proportion to
+the distance below the horizon, so the platform's back is narrower by that ratio, the walkway's sides run to the same
+vanishing point, its slabs and posts come at equal steps in distance and the railings shorten with it (they did not share
+a plane: the platform's back was nearly as wide as its front, the user, 2026-11-20). Live:
+the sea lapping at the platform's face either side of the walkway. Two or three DISTANT SHIPS drift on the horizon with
+their lights (`_ships`). The moon, the stars, the clouds, the beams, the glare, the swell and the glints are as before.
+The tower is unchanged above its plinth; its foot has no turf (a contact shadow on the concrete). Three stone STEPS go down the plinth's front from the door to the platform, each wider than the one above (a flat gray
+oval stood for the step, the plinth running across the doorway: "some gray strange thing on the doorstep").
+The beams (each slice's fade blended along it, every layer feathered across its width) and the glare (the discs' stack
+counted continuously, eased to nothing at its rim) were smoothed the same day.
 
 ## Menu poster frame rate (2026-11-19)
 
