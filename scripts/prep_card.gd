@@ -168,6 +168,10 @@ func _set_progress(p: float) -> void:
 	if int(floor(_progress * float(DOTS) + 0.001)) != before:
 		_ring.queue_redraw()
 
+# ON THE WEB, the game's own pack downloading (game_packs.gd): the first part of the ring follows it
+func downloading(f: float) -> void:
+	_set_progress(LOAD_SHARE * 0.8 * clampf(f, 0.0, 1.0))
+
 # while the game's scene loads on a thread: the first part of the ring fills with time, easing toward its share
 func loading_tick(delta: float) -> void:
 	_load_t += delta
