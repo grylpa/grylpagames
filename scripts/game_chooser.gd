@@ -683,7 +683,20 @@ func _launch(game_path: String, scene_path: String, game_name: String, mark_hot:
 	# THE FIRST OPENING of this game on this device: a card for it while its menu poster's shaders are compiled
 	# (prep_card.gd, shader_warmer.gd) -- that compile froze the screen 1-3.6 s on a phone
 	var card: PrepCard = null
-	if ShaderWarmer.needed_for(game_path):
+	# ON THE WEB a game's own files come in its own pack, fetched the first time it is opened (game_packs.gd); the card
+	# shows the download
+	if GamePacks.needed(game_path):
+		card = PrepCard.open(self, game_path)
+		await RenderingServer.frame_post_draw
+		var ok: bool = await GamePacks.fetch(self, game_path, func(f: float) -> void: card.downloading(f))
+		if not ok:
+			card.close_soon()
+			if mark_hot.is_valid():
+				mark_hot.call(false)
+			_launching = false
+			$FullScreenMessage.disp("Could not load %s. Check the connection and try again." % game_name, true, 3500)
+			return
+	if card == null and ShaderWarmer.needed_for(game_path):
 		card = PrepCard.open(self, game_path)
 		await RenderingServer.frame_post_draw
 	var scene: PackedScene = null
@@ -697,7 +710,7 @@ func _launch(game_path: String, scene_path: String, game_name: String, mark_hot:
 		scene = load(scene_path) as PackedScene      # the thread refused: load it the plain way
 	if mark_hot.is_valid():
 		mark_hot.call(false)          # hidden with the chooser; clean when it comes back
-	if card != null:
+	if card != null and ShaderWarmer.needed_for(game_path):
 		await card.warm()
 	_launching = false
 	if scene != null:
