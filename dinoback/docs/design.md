@@ -363,3 +363,5 @@ Made up, never the board.
 ## Audio (2026-11-19)
 
 new action sounds (`devtools/make_game_sounds.py`): `swipe` as a card is thrown off, `deal` as the next lands.
+
+The rule line and the swipe hint are each ONE line, never wrapped (`_fit_line`): the label's own size, shrunk only as far as its text needs to fit the width. Wrapped, "Same PICTURE as 1 back?" put "back?" on a second line over the hint (its box is one line tall) -- seen in the store screenshot, 2026-11-20.

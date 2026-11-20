@@ -31,6 +31,10 @@ var _cv: CanvasItem = null           # what the foreground's helpers draw on: _f
 var _fg_back: DrawnOnce = null       # the standard weights on the counter (still)
 var _fg_title: DrawnOnce = null      # the name and its pitch (still)
 var _white: ImageTexture = null
+var _pan_hold: Array = []        # [Control, Control]: moved to the hooks each frame
+var _pan_draw: Array = []        # [DrawnOnce, DrawnOnce]: each pan drawn once, at rest
+var _pan_rest: Array = []        # the hooks at rest (the beam level)
+var _pan_hang: float = 0.0
 var _serif: Font = null
 var _crate_tex: Array = []
 var _board: Rect2 = Rect2()
@@ -86,8 +90,26 @@ func _ready() -> void:
 	_fg_back = DrawnOnce.make(func(d: Control) -> void:
 		if _cell.x > 0.0:
 			_cv = d
-			_draw_wall(Vector2(MainGlobals.full_screen_size)))
+			_draw_wall(Vector2(MainGlobals.full_screen_size))
+			_draw_balance(Vector2(MainGlobals.full_screen_size), true))
 	add_child(_fg_back)
+	# THE PANS: each hangs upright from its end of the beam, so the whole of it -- chains, bowl, crates, weight -- only
+	# MOVES as the beam rocks: drawn once at rest (DrawnOnce) and carried to its hook each frame. Drawn every frame, its
+	# ninety small chain links and the crates cost a phone several ms; carried, the picture may soften a hair as it
+	# slides between pixels (the user, 2026-11-20: simplify only what is small and unnoticed). Under the beam, which
+	# lies over the chains' hooks.
+	for k in 2:
+		var hold: Control = Control.new()
+		hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(hold)
+		var which: int = k
+		var pan_d: DrawnOnce = DrawnOnce.make(func(d: Control) -> void:
+			if _cell.x > 0.0 and _pan_rest.size() == 2:
+				_cv = d
+				_draw_pan(_pan_rest[which], _pan_hang, which, MainGlobals.is_mobile()))
+		hold.add_child(pan_d)
+		_pan_hold.append(hold)
+		_pan_draw.append(pan_d)
 	_fg = Control.new()
 	_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fg.draw.connect(_draw_fg)
@@ -105,9 +127,30 @@ func _ready() -> void:
 # they flickered), so they appear with the screen's first moments
 var _wall_layers: Array = []
 
+# the balance's frame: the pivot, the beam's half-length, the column's height
+func _balance_geom(full: Vector2) -> Array:
+	var mobile: bool = MainGlobals.is_mobile()
+	var foot: float = _counter_y + (34.0 if mobile else 22.0)
+	var top: float = _board.position.y + _board.size.y * 0.25
+	var hs: float = foot - top
+	var L: float = minf(full.x * 0.30, 210.0)
+	return [Vector2(full.x * 0.5, top + hs * 0.10), L, hs]
+
+func _place_pans() -> void:
+	if _pan_rest.size() != 2:
+		return
+	var bg: Array = _balance_geom(Vector2(MainGlobals.full_screen_size))
+	var pivot: Vector2 = bg[0]
+	var L: float = bg[1]
+	var a: float = _beam_angle()
+	var ends: Array = [pivot + Vector2(-L, 0).rotated(a), pivot + Vector2(L, 0).rotated(a)]
+	for k in 2:
+		(_pan_hold[k] as Control).position = Vector2(ends[k]) - Vector2(_pan_rest[k])
+
 func _process(delta: float) -> void:
 	if is_visible_in_tree():
 		_t += delta
+		_place_pans()
 		_fg.queue_redraw()
 		if _wall_layers.size() == 3:
 			(_wall_layers[1] as Control).queue_redraw()
@@ -143,7 +186,23 @@ func _layout() -> void:
 	m.set_shader_parameter("counter_y", _counter_y)
 	m.set_shader_parameter("lamp", Vector2(full.x * 0.5, _board.end.y))
 	_bake()
+	# the pans at rest, and the part of the screen each is drawn in (the crates stand above the bowl's rim)
+	var bg2: Array = _balance_geom(full)
+	var piv: Vector2 = bg2[0]
+	var half_l: float = bg2[1]
+	_pan_hang = float(bg2[2]) * 0.50
+	_pan_rest = [piv + Vector2(-half_l, 0.0), piv + Vector2(half_l, 0.0)]
+	var pw: float = 186.0 if mobile else 140.0
+	for k in 2:
+		(_pan_hold[k] as Control).size = full          # (a zero-sized holder's picture was never drawn)
+		var hk: Vector2 = _pan_rest[k]
+		var dd: DrawnOnce = _pan_draw[k]
+		dd.area = Rect2(hk.x - pw * 0.5 - 24.0, hk.y - 24.0, pw + 48.0, _pan_hang + 70.0)
+		dd.queue_redraw()
+	_place_pans()
 	_fg.queue_redraw()
+	for pd in _pan_draw:
+		(pd as Control).queue_redraw()
 	for dl in [_bg, _fg_back, _fg_title]:
 		(dl as Control).queue_redraw()
 	for l in _wall_layers:
@@ -187,6 +246,8 @@ func _bake() -> void:
 			crates.append(null)
 	_crate_tex = crates
 	_fg.queue_redraw()
+	for pd in _pan_draw:
+		(pd as Control).queue_redraw()
 
 func _bake_one(shader: Shader, sz: Vector2, params: Dictionary) -> Texture2D:
 	var px: Vector2i = Vector2i(maxi(4, int(sz.x * BAKE_SCALE)), maxi(4, int(sz.y * BAKE_SCALE)))
@@ -223,7 +284,7 @@ func _draw_fg() -> void:
 		return
 	var full: Vector2 = _fg.size
 	_cv = _fg
-	_draw_balance(full)
+	_draw_balance(full, false)
 
 # the house's brass standard weights on the counter (the wall itself is _draw_wall_layer's)
 func _draw_wall(full: Vector2) -> void:
@@ -609,7 +670,9 @@ func _beam_angle() -> float:
 	var side: float = 1.0 if int(_t / period) % 2 == 0 else -1.0
 	return side * rest - side * 2.0 * rest * exp(-u * 0.75) * cos(u * 2.6)
 
-func _draw_balance(full: Vector2) -> void:
+# `still`: the shadow, the plinth, the column and the dial's face (drawn once, under the live part); otherwise the
+# needle, the pans on their chains, the beam and its cap (every frame: it rocks)
+func _draw_balance(full: Vector2, still: bool) -> void:
 	var mobile: bool = MainGlobals.is_mobile()
 	var cx: float = full.x * 0.5
 	var foot: float = _counter_y + (34.0 if mobile else 22.0)
@@ -618,6 +681,10 @@ func _draw_balance(full: Vector2) -> void:
 	var L: float = minf(full.x * 0.30, 210.0)
 	var pivot: Vector2 = Vector2(cx, top + hs * 0.10)
 	var a: float = _beam_angle()
+	var dr: float = L * 0.30
+	if not still:
+		_balance_live(pivot, a, dr, L, hs, mobile)
+		return
 	# shadow on the counter
 	for k in 4:
 		_cv.draw_set_transform(Vector2(cx, foot + 4.0), 0.0, Vector2(1.0, 0.18))
@@ -643,22 +710,20 @@ func _draw_balance(full: Vector2) -> void:
 	_cv.draw_rect(col, ART.BRASS_DARK)
 	_cv.draw_rect(Rect2(col.position.x + cw * 0.18, col.position.y, cw * 0.28, col.size.y), ART.BRASS)
 	_cv.draw_rect(Rect2(col.position.x + cw * 0.24, col.position.y, cw * 0.10, col.size.y), Color(BRASS_LIGHT, 0.7))
-	# the dial over the pivot, and its needle, which stands up from the beam
-	var dr: float = L * 0.30
+	# the dial over the pivot (its needle, which stands up from the beam, is live)
 	_cv.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS_DARK, 8.0, true)
 	_cv.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS, 3.0, true)
 	for k in 9:
 		var ang: float = PI * 1.25 + PI * 0.5 * float(k) / 8.0
 		var d: Vector2 = Vector2(cos(ang), sin(ang))
 		_cv.draw_line(pivot + d * (dr - 9.0), pivot + d * (dr - (16.0 if k % 4 == 0 else 12.0)), Color(0.22, 0.13, 0.05), 2.0)
+
+func _balance_live(pivot: Vector2, a: float, dr: float, L: float, _hs: float, mobile: bool) -> void:
 	var nd: Vector2 = Vector2(sin(a), -cos(a))
 	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), Color(0.22, 0.13, 0.05), 4.0)
 	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), BRASS_LIGHT, 1.5)
 	# the pans hang from the beam's ends, upright whatever its angle
-	var ends: Array = [pivot + Vector2(-L, 0).rotated(a), pivot + Vector2(L, 0).rotated(a)]
-	var hang: float = hs * 0.50
-	for k in 2:
-		_draw_pan(ends[k], hang, k, mobile)
+	# (the pans hang from the beam's ends, upright whatever its angle: _pan_hold / _pan_draw, carried by _place_pans)
 	# the beam, over the chains' hooks
 	_cv.draw_set_transform(pivot, a, Vector2.ONE)
 	var bh: float = 22.0 if mobile else 16.0

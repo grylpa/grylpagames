@@ -32,6 +32,88 @@ var _drops: Array = []
 var _glass0: DrawnOnce = null
 var _glass1: DrawnOnce = null
 var _glass_for: Rect2 = Rect2()
+# THE RAIN OUTSIDE and the running beads, over the street's glow and under the glass: the rain one batched draw falling
+# on the GPU (RAIN: each streak's x, its start, speed and nearness, the same formula _street_fx used), the beads a small
+# live layer over it
+var _rain: MultiMeshInstance2D = null
+var _runners: MultiMeshInstance2D = null
+var _run_idx: PackedInt32Array = PackedInt32Array()     # which of _drops run (the rest are in the glass pictures)
+
+# THE BEADS THAT RUN, on the GPU (they were five shapes each, every frame): one square per bead, its place set each frame;
+# the shader lays the trail, the bead's shadow ring, its body, the dark rim below and the highlight over each other in
+# that order and those colors, as the drawing did -- only their edges a touch softer. custom: (x, y0, r, dist), the bead
+# at (x, y0 + dist), the trail from (x, y0); r 0 hides it. (The instance data is HALF precision: the moving part goes
+# over as the run's small `dist`, not as the bead's y, which would step by up to a unit)
+const BEADS: String = """shader_type canvas_item;
+uniform float fl = 0.0;
+uniform float px = 0.6;          // a screen pixel, in units
+varying vec2 v_p;
+varying vec4 v_c;
+void vertex() {
+	vec4 c = INSTANCE_CUSTOM;
+	c.w = c.y + c.w;            // the bead's y
+	float r = c.z;
+	float top = min(c.y, c.w) - r - 2.0;
+	float bot = c.w + r + 2.0;
+	vec2 lo = vec2(c.x - r - 4.0, top);
+	vec2 hi = vec2(c.x + r + 4.0, bot);
+	vec2 p = mix(lo, hi, VERTEX + 0.5);
+	VERTEX = r > 0.0 ? p : vec2(0.0);
+	v_p = p - vec2(c.x, c.w);
+	v_c = c;
+}
+vec4 over(vec4 acc, vec3 col, float a) {
+	return vec4(col * a + acc.rgb * (1.0 - a), a + acc.a * (1.0 - a));
+}
+float disc(vec2 p, vec2 c, float rad) {
+	return clamp(0.5 - (length(p - c) - rad) / px, 0.0, 1.0);
+}
+void fragment() {
+	float r = v_c.z;
+	vec2 p = v_p;
+	vec4 acc = vec4(0.0);
+	{
+		// the trail: a straight band from (0, y0 - y) to (wobble, -r), r * 0.7 wide
+		vec2 a = vec2(0.0, v_c.y - v_c.w);
+		vec2 b = vec2(sin(v_c.w * 0.05) * 1.5, -r);
+		vec2 ab = b - a;
+		float ln = length(ab);
+		vec2 dir = ab / max(ln, 1e-4);
+		float along = dot(p - a, dir);
+		float across = abs(dot(p - a, vec2(-dir.y, dir.x)));
+		float cov = clamp(0.5 - (across - r * 0.35) / px, 0.0, 1.0) * step(0.0, along) * step(along, ln);
+		acc = over(acc, vec3(0.75, 0.82, 0.95), (0.07 + 0.15 * fl) * cov);
+	}
+	acc = over(acc, vec3(0.20, 0.24, 0.32), 0.18 * disc(p, vec2(0.0), r));
+	acc = over(acc, vec3(0.62, 0.70, 0.86), (0.14 + 0.25 * fl) * disc(p, vec2(0.0, -r * 0.15), r * 0.82));
+	float ang = atan(p.y, p.x);
+	float w = max(0.8, r * 0.25);
+	float ring = clamp(0.5 - (abs(length(p) - r * 0.92) - w * 0.5) / px, 0.0, 1.0) * step(PI * 0.15, ang) * step(ang, PI * 0.85);
+	acc = over(acc, vec3(0.02, 0.02, 0.04), 0.35 * ring);
+	acc = over(acc, vec3(1.0), (0.55 + 0.4 * fl) * disc(p, vec2(-r * 0.3, -r * 0.35), max(0.6, r * 0.22)));
+	COLOR = acc.a > 0.0 ? vec4(acc.rgb / acc.a, acc.a) : vec4(0.0);
+}
+"""
+const RAIN: String = """shader_type canvas_item;
+uniform float t = 0.0;
+uniform float fl = 0.0;
+uniform float view_y = 0.0;
+uniform float view_h = 100.0;
+varying float v_a;
+void vertex() {
+	float near = INSTANCE_CUSTOM.w;
+	float ry = view_y + mod(INSTANCE_CUSTOM.y + t * INSTANCE_CUSTOM.z, view_h);
+	float ln = 8.0 + 18.0 * near;
+	vec2 p0 = vec2(INSTANCE_CUSTOM.x, ry);
+	vec2 dir = vec2(-ln * 0.22, ln);
+	vec2 across = normalize(vec2(-dir.y, dir.x)) * (0.8 + 0.6 * near);
+	VERTEX = p0 + dir * (VERTEX.y + 0.5) + across * VERTEX.x;
+	v_a = (0.20 - 0.10 * near) + 0.3 * fl;
+}
+void fragment() {
+	COLOR = vec4(0.70, 0.76, 0.90, v_a);
+}
+"""
 
 func _baked_path() -> String:
 	return "res://didi/art/menu_street.webp" if mobile else "res://didi/art/menu_street_d.webp"
@@ -349,6 +431,20 @@ func _tick(delta: float) -> void:
 	if _glass0 == null and _top != null:
 		_glass0 = DrawnOnce.make(func(d: Control) -> void: _glass(d, 0.0))
 		_glass1 = DrawnOnce.make(func(d: Control) -> void: _glass(d, 1.0))
+		_rain = MultiMeshInstance2D.new()
+		var rm: ShaderMaterial = ShaderMaterial.new()
+		var rsh: Shader = Shader.new()
+		rsh.code = RAIN
+		rm.shader = rsh
+		_rain.material = rm
+		_top.add_child(_rain)
+		_runners = MultiMeshInstance2D.new()
+		var bm: ShaderMaterial = ShaderMaterial.new()
+		var bsh: Shader = Shader.new()
+		bsh.code = BEADS
+		bm.shader = bsh
+		_runners.material = bm
+		_top.add_child(_runners)
 		_top.add_child(_glass0)
 		_top.add_child(_glass1)
 	if _glass0 != null:
@@ -356,6 +452,12 @@ func _tick(delta: float) -> void:
 			_glass_for = view
 			_glass0.queue_redraw()
 			_glass1.queue_redraw()
+			_build_rain(view)
+			_build_runners(view)
+		var rmat: ShaderMaterial = _rain.material
+		rmat.set_shader_parameter("t", t)
+		rmat.set_shader_parameter("fl", fl)
+		_place_runners(view, fl)
 		_glass1.visible = fl > 0.002
 		_glass1.modulate = Color(fl, fl, fl, fl)        # (premultiplied: all four)
 	_clip.position = view.position
@@ -415,7 +517,7 @@ func _paint(_full: Vector2, _bottom: float) -> void:
 		return
 	cv.draw_rect(Rect2(Vector2.ZERO, _full), Color(0.03, 0.03, 0.05))
 
-func _street_fx(view: Rect2, fl: float) -> void:
+func _street_fx(_view: Rect2, _fl: float) -> void:
 	if _cam3 == null:
 		return
 	var breathe: float = 0.85 + 0.15 * sin(t * 0.9)
@@ -426,21 +528,35 @@ func _street_fx(view: Rect2, fl: float) -> void:
 		ellipse(lp, 12.0, 3.0, Color(1.0, 0.85, 0.55, 0.16 - 0.018 * float(k)))
 		var sp: Vector2 = screen_of(Vector3(SIGN.x, 0.0, z + 8.0)) - Vector2(wob, 0.0)
 		ellipse(sp, 30.0, 2.5, Color(1.0, 0.30, 0.45, (0.12 - 0.014 * float(k)) * breathe))
-	# THE RAIN OUTSIDE, falling past between the window and the street: fine streaks, the near ones longer, faster and
-	# fainter (out of focus), under the beads on the glass and the frame
-	for k2 in 90:
-		var near: float = h01(k2 * 3 + 2)
-		var rx2: float = view.position.x + h01(k2 * 3) * view.size.x
-		var ry2: float = view.position.y + fmod(h01(k2 * 3 + 1) * view.size.y + t * (380.0 + 420.0 * near), view.size.y)
-		var ln: float = 8.0 + 18.0 * near
-		cv.draw_line(Vector2(rx2, ry2), Vector2(rx2 - ln * 0.22, ry2 + ln), Color(0.70, 0.76, 0.90, (0.20 - 0.10 * near) + 0.3 * fl), 0.8 + 0.6 * near)
+	# (THE RAIN OUTSIDE: _rain, over this; _build_rain)
 
 func _paint_top(_full: Vector2, _bottom: float) -> void:
 	var g: Dictionary = _geom()
 	var view: Rect2 = g["view"]
 	var fl: float = _flash()
 	_street_fx(view, fl)
-	_beads(view, fl, true)          # the beads that run (live); the still ones, the frame and the name are _glass
+	if _runners == null:
+		_beads(view, fl, true)      # (until the layers are made: the beads that run; then _runners draws them)
+
+# THE RAIN OUTSIDE, falling past between the window and the street: fine streaks, the near ones longer, faster and
+# fainter (out of focus), under the beads on the glass and the frame -- 90 of them, each a quad the RAIN shader moves
+func _build_rain(view: Rect2) -> void:
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_custom_data = true
+	mm.mesh = q
+	mm.instance_count = 90
+	for k2 in 90:
+		var near: float = h01(k2 * 3 + 2)
+		mm.set_instance_transform_2d(k2, Transform2D.IDENTITY)
+		mm.set_instance_custom_data(k2, Color(view.position.x + h01(k2 * 3) * view.size.x, h01(k2 * 3 + 1) * view.size.y, 380.0 + 420.0 * near, near))
+	mm.custom_aabb = AABB(Vector3(view.position.x - 40.0, view.position.y - 40.0, -1.0), Vector3(view.size.x + 80.0, view.size.y + 80.0, 2.0))
+	_rain.multimesh = mm
+	var rmat: ShaderMaterial = _rain.material
+	rmat.set_shader_parameter("view_y", view.position.y)
+	rmat.set_shader_parameter("view_h", view.size.y)
 
 # the still part of the glass at a flash `fl`: the beads that do not run, the flash's whitening of the street, the room
 # and the window frame, and the name -- drawn once for the dark and once for the flash (_glass0, _glass1)
@@ -463,6 +579,47 @@ func _glass(d: Control, fl: float) -> void:
 # like snow): BEADS clinging to the pane, each a little lens -- darker rim at its foot, a bright point of light at
 # its top -- most of them still; now and then one grows too heavy and RUNS, in short jerks, leaving a wet trail.
 # `running`: only the ones that run (live), or only the still ones (drawn once)
+func _build_runners(view: Rect2) -> void:
+	_run_idx.clear()
+	for i in _drops.size():
+		if float(_drops[i][2]) > 4.9:
+			_run_idx.append(i)
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_custom_data = true
+	mm.mesh = q
+	mm.instance_count = _run_idx.size()
+	for k in _run_idx.size():
+		mm.set_instance_transform_2d(k, Transform2D.IDENTITY)
+	mm.custom_aabb = AABB(Vector3(view.position.x - 40.0, view.position.y - 40.0, -1.0), Vector3(view.size.x + 80.0, view.size.y + 80.0, 2.0))
+	_runners.multimesh = mm
+	var bm: ShaderMaterial = _runners.material
+	# a screen pixel in units, for the edges (the canvas is 680 wide)
+	var w_px: float = float(get_window().size.x) if get_window() != null else 680.0
+	bm.set_shader_parameter("px", clampf(get_viewport().get_visible_rect().size.x / maxf(1.0, w_px), 0.2, 1.0))
+
+# each running bead's place this frame (as _beads works it out)
+func _place_runners(view: Rect2, fl: float) -> void:
+	var mm: MultiMesh = _runners.multimesh
+	if mm == null:
+		return
+	for k in _run_idx.size():
+		var d: Array = _drops[_run_idx[k]]
+		var r: float = 1.4 + float(d[3]) * 26.0
+		var x: float = view.position.x + float(d[0]) * view.size.x
+		var y0: float = view.position.y + float(d[1]) * view.size.y
+		var cyc: float = 9.0 + float(d[2]) * 2.0
+		var u: float = fmod(t + float(d[0]) * 30.0, cyc) / cyc
+		var dist: float = 0.0
+		for j in 6:
+			dist += smoothstep(float(j) / 6.0, float(j) / 6.0 + 0.05, u) * (18.0 + 10.0 * h01(int(d[2] * 100.0) + j))
+		var y: float = y0 + dist
+		mm.set_instance_custom_data(k, Color(x, y0, r if y <= view.end.y - r else 0.0, dist))
+	var bm: ShaderMaterial = _runners.material
+	bm.set_shader_parameter("fl", fl)
+
 func _beads(view: Rect2, fl: float, running: bool) -> void:
 	for d in _drops:
 		var r: float = 1.4 + float(d[3]) * 26.0

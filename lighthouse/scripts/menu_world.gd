@@ -22,9 +22,103 @@ const WARM: Color = Color(1.0, 0.93, 0.70)
 var _hz: float = 0.0                # the horizon, cached for the tower's rings while it is drawn
 var _sky: Control = null
 var _sea: Control = null
+var _glints: MultiMeshInstance2D = null
+
+# THE SEA'S GLINTS ON THE GPU (they were 144 lines drawn every frame): the foam on the crests (kind 0), the moon's path
+# (1) and the lamp's reflection (2), each line a square stretched between its two ends, worked out here from t by the
+# same formulas, in the same order and colors. custom: (kind, number) -- see _build_glints
+const GLINTS: String = """shader_type canvas_item;
+uniform float t = 0.0;
+uniform float full_x = 680.0;
+uniform float full_y = 1200.0;
+uniform float bottom = 800.0;
+uniform float moon_x = 150.0;
+uniform float horizon = 0.0;
+uniform vec2 lamp = vec2(0.0);
+uniform vec3 warm = vec3(1.0, 0.93, 0.70);
+varying vec4 v_col;
+// menu_poster.gd's h01, the same bits
+float h01(int i) {
+	uint x = uint(i) * 0x9E3779B1u;
+	x ^= x >> 16u;
+	x *= 0x85EBCA6Bu;
+	x ^= x >> 13u;
+	x *= 0xC2B2AE35u;
+	x ^= x >> 16u;
+	return float(x & 0xffffffu) / 16777216.0;
+}
+void vertex() {
+	int kind = int(INSTANCE_CUSTOM.x + 0.5);
+	int ki = int(INSTANCE_CUSTOM.y + 0.5);
+	float k = float(ki);
+	vec2 a;
+	vec2 b;
+	float w;
+	if (kind == 0) {
+		// flecks of foam on the nearer crests
+		float u2 = 0.35 + 0.65 * h01(ki * 7 + 300);
+		float y2 = horizon + pow(u2, 1.9) * (full_y - horizon);
+		float x2 = mod(h01(ki * 7 + 301) * full_x + t * 6.0 * u2, full_x);
+		a = vec2(x2, y2);
+		b = vec2(x2 + 6.0 + 10.0 * u2, y2 - 1.0);
+		w = 1.5;
+		float al = 0.5 + 0.5 * sin(t * 1.3 + k * 2.1);
+		v_col = vec4(0.85, 0.90, 1.0, 0.25 * al * u2);
+	} else if (kind == 1) {
+		// the moon's path: a broadening column of glints, the near ones long and bright, shimmering
+		float u3 = h01(ki * 3 + 400);
+		float y3 = horizon + 3.0 + pow(u3, 1.6) * (bottom + 30.0 - horizon);
+		float spread = 8.0 + (y3 - horizon) * 0.32;
+		float x3 = moon_x + (h01(ki * 3 + 401) - 0.5) * spread * 2.0 * (0.6 + 0.4 * sin(t * 0.7 + k));
+		float a3 = 0.35 + 0.65 * abs(sin(t * (0.8 + h01(ki)) + k * 1.3));
+		float len3 = 3.0 + u3 * 16.0;
+		a = vec2(x3 - len3, y3);
+		b = vec2(x3 + len3, y3);
+		w = 1.0 + u3 * 1.6;
+		v_col = vec4(0.92, 0.94, 1.0, 0.50 * a3 * (1.0 - u3 * 0.4));
+	} else {
+		// the lamp's reflection: a warm column broken by the swell, under the lighthouse
+		float y4 = horizon + 4.0 + k * 7.0;
+		float wob = sin(t * 2.0 + k * 1.3) * (3.0 + k);
+		a = vec2(lamp.x - 8.0 - k + wob, y4);
+		b = vec2(lamp.x + 8.0 + k + wob, y4);
+		w = 1.5;
+		v_col = vec4(warm, 0.22 * (1.0 - k / 14.0));
+	}
+	vec2 ab = b - a;
+	vec2 n = normalize(vec2(-ab.y, ab.x));
+	VERTEX = a + ab * (VERTEX.x + 0.5) + n * w * VERTEX.y;
+}
+void fragment() {
+	COLOR = v_col;
+}
+"""
 var _land: Control = null
 var _beam_back: Control = null
 var _beam_front: Control = null
+var _beam_mi: Array = []          # [back 0, back 1, front 0, front 1]: each beam's cone as one mesh, projected on the GPU
+
+# A BEAM'S CONE ON THE GPU (it was 54 quads a beam, each projected and hulled every frame): the same 18 slices of
+# three quads -- across, upright, the brighter core -- built once as a mesh in the beam's own terms (VERTEX.x the
+# fraction of the reach, VERTEX.y the signed share of the radius, UV.x which cross-section) and projected here as
+# _proj does. The triangles keep the drawing's order, so they blend as it did
+const BEAM: String = """shader_type canvas_item;
+uniform vec3 dir = vec3(1.0, 0.0, 0.0);
+uniform vec3 side = vec3(0.0, 0.0, 1.0);
+uniform vec3 up = vec3(0.0, 1.0, 0.0);
+uniform float reach = 100.0;
+uniform vec2 lamp = vec2(0.0);
+uniform float focal = 900.0;
+uniform float tan_cone = 0.075;
+void vertex() {
+	float s = VERTEX.x * reach;
+	float r = 6.0 + s * tan_cone;
+	vec3 axis = UV.x < 0.5 ? side : up;
+	vec3 p = dir * s + axis * r * VERTEX.y;
+	float k = focal / max(focal - p.z, 40.0);
+	VERTEX = lamp + vec2(p.x, -p.y) * k;
+}
+"""
 
 # THE STILL PARTS DRAWN ONCE (2026-11-19: the poster redrew every layer, stars, moon and rock included, every frame --
 # 14 fps on a mid-range phone): the sky's gradient and galaxy, the moon, are cached layers (menu_poster.gd
@@ -32,6 +126,34 @@ var _beam_front: Control = null
 var _stars: Control = null
 var _star_discs: MultiMeshInstance2D = null
 var _sea_still: Control = null
+var _glare: ColorRect = null
+var _lamp_clip: Control = null
+var _lamp: ColorRect = null
+
+const LAMP: String = """shader_type canvas_item;
+void fragment() {
+	float d = length(UV * 2.0 - 1.0);
+	// a bright core easing out into the glass's own light: no edge to be cut by the glazing
+	COLOR = vec4(1.0, 1.0, 0.97, 1.0 - smoothstep(0.30, 1.0, d));
+}
+"""
+
+# THE GLARE as a beam sweeps toward the camera, on the GPU: it was 30 discs (radius gr (1 - k / 30), each `a`), up to
+# 150 across, and a white core over them -- the stack is 1 - (1 - a)^n for the n discs over a pixel. The square is
+# 2 gr across; `core` is the core's radius over gr
+const GLARE: String = """shader_type canvas_item;
+uniform float a = 0.018;
+uniform float core = 0.2;
+uniform vec3 warm = vec3(1.0, 0.85, 0.55);
+void fragment() {
+	float d = length(UV * 2.0 - 1.0);
+	float n = clamp(ceil(30.0 * (1.0 - d)), 0.0, 30.0);
+	vec4 c = vec4(warm, 1.0 - pow(1.0 - a, n));
+	float aa = max(fwidth(d), 1e-4);
+	float k = clamp((core - d) / aa + 0.5, 0.0, 1.0);
+	COLOR = mix(c, vec4(1.0), k);
+}
+"""
 var _swell: MeshInstance2D = null
 
 # THE SWELL ON THE GPU: 22 rows, each a dark trough line and a lit crest line, as _draw_sea drew them with antialiased
@@ -93,7 +215,7 @@ func _setup() -> void:
 	_clouds.material = cm
 	add_child(_clouds)
 	_build_clouds()
-	_beam_back = _layer(func(d: Control) -> void: _draw_beams(d, false))
+	_beam_back = _beam_layer()
 	_sea_still = cached_layer(func(d: Control) -> void: _draw_sea_still(d))
 	_swell = MeshInstance2D.new()                  # the swell: one mesh, waved on the GPU (SWELL)
 	var sm: ShaderMaterial = ShaderMaterial.new()
@@ -102,12 +224,42 @@ func _setup() -> void:
 	sm.shader = sh
 	_swell.material = sm
 	add_child(_swell)
+	_glints = MultiMeshInstance2D.new()
+	var gm2: ShaderMaterial = ShaderMaterial.new()
+	var gsh2: Shader = Shader.new()
+	gsh2.code = GLINTS
+	gm2.shader = gsh2
+	_glints.material = gm2
+	add_child(_glints)
+	_build_glints()
 	_sea = _layer(func(d: Control) -> void: _draw_sea(d))
 	_land = cached_layer(func(d: Control) -> void: _draw_land(d, 0))
 	_land_live = _layer(func(d: Control) -> void: _draw_land(d, 1))
 	_buildings = cached_layer(func(d: Control) -> void: _draw_land(d, 2))
+	# THE LAMP inside the glazing: a white disc clipped to the glass, under the near rail (as part of the glare, drawn
+	# over everything, it spilled forward over the rail and the platform -- the user, 2026-11-20)
+	_lamp_clip = Control.new()
+	_lamp_clip.clip_contents = true
+	_lamp_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_lamp_clip)
+	_lamp = ColorRect.new()
+	_lamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lm: ShaderMaterial = ShaderMaterial.new()
+	var lsh: Shader = Shader.new()
+	lsh.code = LAMP
+	lm.shader = lsh
+	_lamp.material = lm
+	_lamp_clip.add_child(_lamp)
 	_land_live2 = _layer(func(d: Control) -> void: _draw_land(d, 3))
-	_beam_front = _layer(func(d: Control) -> void: _draw_beams(d, true))
+	_beam_front = _beam_layer()
+	_glare = ColorRect.new()                       # the glare: one square computing its 30 discs (GLARE)
+	_glare.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var glm: ShaderMaterial = ShaderMaterial.new()
+	var glsh: Shader = Shader.new()
+	glsh.code = GLARE
+	glm.shader = glsh
+	_glare.material = glm
+	add_child(_glare)
 
 func _layer(fn: Callable) -> Control:
 	var c: Control = Control.new()
@@ -119,13 +271,17 @@ func _layer(fn: Callable) -> Control:
 
 func _tick(_delta: float) -> void:
 	(_swell.material as ShaderMaterial).set_shader_parameter("t", t)
+	(_glints.material as ShaderMaterial).set_shader_parameter("t", t)
+	_place_glare()
 	_light_clouds()
-	for c in [_stars, _beam_back, _sea, _land_live, _land_live2, _beam_front]:
+	_place_beams()
+	for c in [_stars, _sea, _land_live, _land_live2]:
 		(c as Control).queue_redraw()
 	if absf(scene_bottom - _for_bottom) > 0.5:
 		_for_bottom = scene_bottom
 		sprinkle_set(_star_discs, _star_list())
 		_build_swell()
+		_build_glints()
 		_build_clouds()
 		for c2 in [_sky, _moon, _sea_still, _land, _buildings]:
 			(c2 as Control).queue_redraw()
@@ -290,49 +446,108 @@ func _beam_light_at(p: Vector2, segs: Array) -> float:
 # --- the beams: cones turning in 3-D, projected -------------------------------------------------------
 
 # `front`: the beams heading toward the camera (drawn over the tower); the others are drawn behind it
-func _draw_beams(d: Control, front: bool) -> void:
+func _beam_mesh() -> ArrayMesh:
+	var verts: PackedVector2Array = PackedVector2Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var cols: PackedColorArray = PackedColorArray()
+	var steps: int = 18
+	for i in steps:
+		var f0: float = float(i) / float(steps)
+		var f1: float = float(i + 1) / float(steps)
+		var fade: float = pow(1.0 - float(i) / float(steps), 1.6)
+		# across, upright, the core: each slice's quads in the drawing's order, fading out along the reach
+		for q in [[0.0, 1.0, Color(WARM, 0.22 * fade)], [1.0, 1.0, Color(WARM, 0.22 * fade)], [1.0, 0.35, Color(1, 1, 1, 0.14 * fade)]]:
+			var ax: float = float(q[0])
+			var m: float = float(q[1])
+			var corners: Array = [Vector2(f0, m), Vector2(f1, m), Vector2(f1, -m), Vector2(f0, -m)]
+			for idx in [0, 1, 2, 0, 2, 3]:
+				verts.append(corners[idx])
+				uvs.append(Vector2(ax, 0.0))
+				cols.append(q[2])
+	var arr: Array = []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_COLOR] = cols
+	var am: ArrayMesh = ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
+func _beam_layer() -> Control:
+	var c: Control = Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(c)
+	if _beam_mi.is_empty() or _beam_mi.size() == 2:
+		var sh: Shader = Shader.new()
+		sh.code = BEAM
+		var mesh: ArrayMesh = _beam_mesh() if _beam_mi.is_empty() else (_beam_mi[0] as MeshInstance2D).mesh
+		for _b in 2:
+			var mi: MeshInstance2D = MeshInstance2D.new()
+			mi.mesh = mesh
+			var mat: ShaderMaterial = ShaderMaterial.new()
+			mat.shader = sh
+			mi.material = mat
+			c.add_child(mi)
+			_beam_mi.append(mi)
+	return c
+
+# each frame: which beams point away (drawn behind the sea and the land) and which toward us, and where they point
+func _place_beams() -> void:
 	var g: Dictionary = _geom()
 	var lamp: Vector2 = g["lamp"]
 	for b in 2:
 		var a: float = t * TURN + PI * float(b)
 		var dir: Vector3 = Vector3(cos(a), -0.012, sin(a)).normalized()
-		if (dir.z > 0.0) != front:
-			continue
-		var side: Vector3 = Vector3(-dir.z, 0.0, dir.x)       # across the beam, level
-		var up: Vector3 = side.cross(dir).normalized()       # across the beam, upright
-		var reach: float = _reach_for(dir)
-		var steps: int = 18
-		for i in steps:
-			var s0: float = reach * float(i) / float(steps)
-			var s1: float = reach * float(i + 1) / float(steps)
-			var r0: float = 6.0 + s0 * tan(CONE)
-			var r1: float = 6.0 + s1 * tan(CONE)
-			var c0: Vector3 = dir * s0
-			var c1: Vector3 = dir * s1
-			var fade: float = pow(1.0 - float(i) / float(steps), 1.6)
-			var col: Color = Color(WARM, 0.22 * fade)
-			# the cone's outline in two cross-sections: across (side) and upright (up) -- together they
-			# give its projected silhouette, whichever way it points
-			for axis in [side, up]:
-				var q: PackedVector2Array = PackedVector2Array([_proj(lamp, c0 + axis * r0), _proj(lamp, c1 + axis * r1),
-					_proj(lamp, c1 - axis * r1), _proj(lamp, c0 - axis * r0)])
-				_poly(d, q, col)
-			# a brighter core
-			var qc: PackedVector2Array = PackedVector2Array([_proj(lamp, c0 + up * r0 * 0.35), _proj(lamp, c1 + up * r1 * 0.35),
-				_proj(lamp, c1 - up * r1 * 0.35), _proj(lamp, c0 - up * r0 * 0.35)])
-			_poly(d, qc, Color(1, 1, 1, 0.14 * fade))
-	if front:
-		# THE GLARE: as a beam sweeps toward the camera the lamp floods with light
-		var face: float = 0.0
-		for b in 2:
-			face = maxf(face, sin(t * TURN + PI * float(b)))
-		var glare: float = pow(maxf(face, 0.0), 6.0)
-		# compact and smooth: many faint discs, the glare widening only so far
-		var gr: float = 40.0 + 110.0 * glare
-		for k in 30:
-			var f: float = 1.0 - float(k) / 30.0
-			d.draw_circle(lamp, gr * f, Color(WARM, (0.018 + 0.030 * glare)))
-		d.draw_circle(lamp, 8.0 + 6.0 * glare, Color(1, 1, 1))
+		var side: Vector3 = Vector3(-dir.z, 0.0, dir.x)
+		var up: Vector3 = side.cross(dir).normalized()
+		var front: bool = dir.z > 0.0
+		for slot in 2:
+			var mi: MeshInstance2D = _beam_mi[slot * 2 + b]
+			mi.visible = (slot == 1) == front
+			if mi.visible:
+				var mat: ShaderMaterial = mi.material
+				mat.set_shader_parameter("dir", dir)
+				mat.set_shader_parameter("side", side)
+				mat.set_shader_parameter("up", up)
+				mat.set_shader_parameter("reach", _reach_for(dir))
+				mat.set_shader_parameter("lamp", lamp)
+				mat.set_shader_parameter("focal", FOCAL)
+				mat.set_shader_parameter("tan_cone", tan(CONE))
+
+# (the glare over the front beams: _glare, _place_glare)
+
+# THE GLARE: as a beam sweeps toward the camera the lamp floods with light -- compact and smooth, many faint discs, the
+# glare widening only so far (the GLARE shader on `_glare`, placed and sized here each frame)
+func _place_glare() -> void:
+	var lamp: Vector2 = _geom()["lamp"]
+	var face: float = 0.0
+	for b in 2:
+		face = maxf(face, sin(t * TURN + PI * float(b)))
+	var glare: float = pow(maxf(face, 0.0), 6.0)
+	var gr: float = 40.0 + 110.0 * glare
+	_glare.position = lamp - Vector2(gr, gr)
+	_glare.size = Vector2(gr, gr) * 2.0
+	var m: ShaderMaterial = _glare.material
+	m.set_shader_parameter("a", 0.018 + 0.030 * glare)
+	m.set_shader_parameter("core", 0.0)              # the lamp itself is _lamp, inside the glass
+	# the lamp: as big as it was, clipped to the lantern room's glazing (the geometry of _tower)
+	_hz = _geom()["horizon"]
+	var g2: Dictionary = _geom()
+	var base: Vector2 = g2["base"]
+	var th: float = g2["th"]
+	var lr_r: float = th * 0.14 * 0.55
+	var lr_y0: float = base.y - th - 5.0
+	var lr_y1: float = lr_y0 - 28.0
+	var k: float = _ring_k(lr_y0)
+	var top: float = lr_y1 + lr_r * _ring_k(lr_y1) + 3.0
+	var bot: float = lr_y0 - 4.0 + lr_r * k
+	_lamp_clip.position = Vector2(base.x - lr_r * 0.92, top)
+	_lamp_clip.size = Vector2(lr_r * 1.84, maxf(bot - top, 1.0))
+	var cr: float = minf((8.0 + 6.0 * glare) * 1.6, (bot - top) * 0.62)
+	_lamp.position = lamp - Vector2(cr, cr) - _lamp_clip.position
+	_lamp.size = Vector2(cr, cr) * 2.0
+	m.set_shader_parameter("warm", Vector3(WARM.r, WARM.g, WARM.b))
 
 # --- the sea: perspective swell, the moon's glittering path, the beams' light on the water, the boat ----
 
@@ -387,34 +602,42 @@ func _build_swell() -> void:
 	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	_swell.mesh = m
 
+func _build_glints() -> void:
+	var g: Dictionary = _geom()
+	var full: Vector2 = g["full"]
+	var horizon: float = g["horizon"]
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_custom_data = true
+	mm.mesh = q
+	# only each line's kind and number go over (the instance data is half precision): the shader works out the rest
+	var kinds: Array = [[0, 40], [1, 90], [2, 14]]
+	mm.instance_count = 40 + 90 + 14
+	var i: int = 0
+	for kn in kinds:
+		for k in int(kn[1]):
+			mm.set_instance_transform_2d(i, Transform2D.IDENTITY)
+			mm.set_instance_custom_data(i, Color(float(kn[0]), float(k), 0.0, 0.0))
+			i += 1
+	mm.custom_aabb = AABB(Vector3(-100.0, horizon - 100.0, -1.0), Vector3(full.x + 200.0, full.y - horizon + 200.0, 2.0))
+	_glints.multimesh = mm
+	var mat: ShaderMaterial = _glints.material
+	mat.set_shader_parameter("full_x", full.x)
+	mat.set_shader_parameter("full_y", full.y)
+	mat.set_shader_parameter("bottom", float(g["bottom"]))
+	mat.set_shader_parameter("moon_x", full.x * 0.22)
+	mat.set_shader_parameter("horizon", horizon)
+	mat.set_shader_parameter("lamp", g["lamp"])
+	mat.set_shader_parameter("warm", Vector3(WARM.r, WARM.g, WARM.b))
+
 func _draw_sea(d: Control) -> void:
 	var g: Dictionary = _geom()
 	var full: Vector2 = g["full"]
 	var horizon: float = g["horizon"]
-	var bottom: float = g["bottom"]
-	# flecks of foam on the nearer crests
-	for k in 40:
-		var u2: float = 0.35 + 0.65 * h01(k * 7 + 300)
-		var y2: float = horizon + pow(u2, 1.9) * (full.y - horizon)
-		var x2: float = fmod(h01(k * 7 + 301) * full.x + t * 6.0 * u2, full.x)
-		var a: float = 0.5 + 0.5 * sin(t * 1.3 + float(k) * 2.1)
-		d.draw_line(Vector2(x2, y2), Vector2(x2 + 6.0 + 10.0 * u2, y2 - 1.0), Color(0.85, 0.90, 1.0, 0.25 * a * u2), 1.5)
-	# THE MOON'S PATH: a broadening column of glints, the near ones long and bright, shimmering
-	var moon_x: float = full.x * 0.22
-	for k in 90:
-		var u3: float = h01(k * 3 + 400)
-		var y3: float = horizon + 3.0 + pow(u3, 1.6) * (bottom + 30.0 - horizon)
-		var spread: float = 8.0 + (y3 - horizon) * 0.32
-		var x3: float = moon_x + (h01(k * 3 + 401) - 0.5) * spread * 2.0 * (0.6 + 0.4 * sin(t * 0.7 + float(k)))
-		var a3: float = 0.35 + 0.65 * absf(sin(t * (0.8 + h01(k)) + float(k) * 1.3))
-		var len3: float = 3.0 + u3 * 16.0
-		d.draw_line(Vector2(x3 - len3, y3), Vector2(x3 + len3, y3), Color(0.92, 0.94, 1.0, 0.50 * a3 * (1.0 - u3 * 0.4)), 1.0 + u3 * 1.6)
-	# the lamp's reflection: a warm column broken by the swell, under the lighthouse
+	# (the foam, the moon's path and the lamp's reflection: _glints, under this layer)
 	var lamp: Vector2 = g["lamp"]
-	for k in 14:
-		var y4: float = horizon + 4.0 + float(k) * 7.0
-		var wob: float = sin(t * 2.0 + float(k) * 1.3) * (3.0 + float(k))
-		d.draw_line(Vector2(lamp.x - 8.0 - float(k) + wob, y4), Vector2(lamp.x + 8.0 + float(k) + wob, y4), Color(WARM, 0.22 * (1.0 - float(k) / 14.0)), 1.5)
 	# where the beams fall on the water: a long warm streak along each beam's line on the sea
 	for sg in _beam_screen_segments(lamp):
 		var p0: Vector2 = sg[0]
@@ -641,6 +864,11 @@ func _draw_land(d: Control, part: int) -> void:
 			var su: float = fmod(t * 0.25 + float(k) / 5.0, 1.0)
 			d.draw_circle(Vector2(cot.end.x - 14.0 - su * 30.0, cot.position.y - 30.0 - su * 30.0), 3.0 + su * 8.0, Color(0.6, 0.62, 0.70, 0.12 * (1.0 - su)))
 		_tower(d, g, true)
+		# the gallery's near rail, over the lamp (_lamp) -- the geometry of _tower
+		_hz = horizon
+		var th2: float = g["th"]
+		var top_y2: float = base.y - th2
+		_rail(d, base.x, top_y2 - 5.0, th2 * 0.14 * 0.98 * 0.96, 14.0, true)
 
 # a lit window: a warm room behind glass -- brighter low down where the lamp is, a curtain half drawn,
 # mullions, a sill, and its glow on the wall around it
@@ -746,8 +974,50 @@ func _tower(d: Control, g: Dictionary, grass_only: bool) -> void:
 			var lean: float = 3.0 + 2.0 * sin(t * 1.3 + float(k) * 0.4)
 			d.draw_line(gp, gp + Vector2(lean, -5.0 - 4.0 * h01(k + 970)), Color(0.20, 0.30, 0.18), 1.5)
 		return
-	# --- THE GALLERY'S UNDERSIDE first (the shaft hides its far part): a disc seen from below
+	# SEEN FROM BELOW (the lantern is far above the horizon): the deck's top cannot be seen, and the platform hides
+	# the foot of everything standing on it -- so the far rail, the lantern room and the dome are drawn FIRST, then the
+	# platform's underside over them, the shaft over the underside's far half, the platform's near edge, the near rail.
+	# (Drawn the other way round, the shaft hid the whole underside and a deck seen from above sat on top: the user,
+	# 2026-11-20.)
 	var gr: float = tw * 0.98
+	# --- THE GALLERY: the lantern's light round it; the platform's rim, a short drum of LIGHT IRON lit by the
+	# lantern (dark like the sky, the top looked cut off from the tower); posts and rail round it -- the far
+	# half before the lantern room, the near half after
+	for k in 8:
+		d.draw_circle(Vector2(cx, top_y - 20.0), tw * (1.6 - 0.12 * float(k)), Color(1.0, 0.88, 0.58, 0.035))
+	var plat_h: float = 5.0
+	var rail_h: float = 14.0
+	_rail(d, cx, top_y - plat_h, gr * 0.96, rail_h, false)
+	# --- THE LANTERN ROOM: a glazed drum glowing, its frames curving round it
+	var lr_r: float = tw * 0.55
+	var lr_y0: float = top_y - plat_h
+	var lr_y1: float = lr_y0 - 28.0
+	_drum(d, cx, lr_y0, lr_r, lr_y0 - 4.0, lr_r, Color(0.86, 0.84, 0.80), 0.0, 0.4)
+	var n_g: int = 12
+	for k in n_g:
+		var a0: float = PI * float(k) / float(n_g)
+		var a1: float = PI * float(k + 1) / float(n_g)
+		var u: float = absf(cos((a0 + a1) * 0.5))
+		var glass: Color = Color(1.0, 0.97, 0.84).lerp(Color(1.0, 0.80, 0.46), u)
+		_poly(d, PackedVector2Array([_ring_pt(cx, lr_y0 - 4.0, lr_r, a0), _ring_pt(cx, lr_y0 - 4.0, lr_r, a1), _ring_pt(cx, lr_y1, lr_r, a1), _ring_pt(cx, lr_y1, lr_r, a0)]), glass)
+	for k in 7:
+		var a2: float = PI * (float(k) + 0.5) / 7.0
+		d.draw_line(_ring_pt(cx, lr_y0 - 4.0, lr_r, a2), _ring_pt(cx, lr_y1, lr_r, a2), Color(0.20, 0.16, 0.12), 1.5)
+	d.draw_polyline(_ring_front(cx, (lr_y0 + lr_y1) * 0.5 - 2.0, lr_r, 12), Color(0.20, 0.16, 0.12), 1.0, true)
+	# --- THE DOME, seen from a little below: its rim, then the cap rising over it, shaded round, a vent ball
+	var dome_r: float = tw * 0.66
+	_drum(d, cx, lr_y1, dome_r, lr_y1 - 3.0, dome_r, Color(0.26, 0.24, 0.26), 0.0, 0.6)
+	var dome_h: float = 20.0
+	var steps: int = 6
+	for s2 in steps:
+		var e0: float = PI * 0.5 * float(s2) / float(steps)
+		var e1: float = PI * 0.5 * float(s2 + 1) / float(steps)
+		_drum(d, cx, lr_y1 - 3.0 - sin(e0) * dome_h, dome_r * cos(e0), lr_y1 - 3.0 - sin(e1) * dome_h, maxf(dome_r * cos(e1), 0.5), Color(0.22, 0.20, 0.22), 0.0, 0.55)
+	var tip: Vector2 = Vector2(cx, lr_y1 - 3.0 - dome_h)
+	d.draw_circle(tip + Vector2(0, -3), 3.5, Color(0.26, 0.24, 0.26))
+	d.draw_circle(tip + Vector2(-1, -4), 1.2, Color(0.70, 0.66, 0.60))
+	d.draw_line(tip + Vector2(0, -6), tip + Vector2(0, -16), Color(0.22, 0.20, 0.22), 1.5)
+	# --- THE GALLERY'S UNDERSIDE: a disc seen from below, its near half in front of the shaft's top
 	var under: PackedVector2Array = PackedVector2Array()
 	for k in 33:
 		under.append(_ring_pt(cx, top_y, gr, TAU * float(k) / 32.0))
@@ -783,50 +1053,9 @@ func _tower(d: Control, g: Dictionary, grass_only: bool) -> void:
 			d.draw_rect(Rect2(cx - 6.0, wfy - 8.0, 12.0, 16.0), Color(0.30, 0.28, 0.30))
 			d.draw_rect(Rect2(cx - 5.0, wfy - 7.0, 10.0, 14.0), Color(0.05, 0.05, 0.08))
 			d.draw_line(Vector2(cx - 5.0, wfy - 4.0), Vector2(cx + 2.0, wfy - 6.0), Color(0.5, 0.55, 0.7, 0.4), 1.0)
-	# --- THE GALLERY: the lantern's light round it; the platform's rim, a short drum of LIGHT IRON lit by the
-	# lantern (dark like the sky, the top looked cut off from the tower); posts and rail round it -- the far
-	# half before the lantern room, the near half after
-	for k in 8:
-		d.draw_circle(Vector2(cx, top_y - 20.0), tw * (1.6 - 0.12 * float(k)), Color(1.0, 0.88, 0.58, 0.035))
-	var plat_h: float = 5.0
+	# the platform's rim: a short drum of LIGHT IRON lit by the lantern, its near face
 	_drum(d, cx, top_y, gr, top_y - plat_h, gr, Color(0.86, 0.84, 0.80), 0.0, 0.45)
-	var deck: PackedVector2Array = PackedVector2Array()
-	for k in 33:
-		deck.append(_ring_pt(cx, top_y - plat_h, gr, TAU * float(k) / 32.0))
-	_poly(d, deck, Color(0.70, 0.68, 0.64))
-	var rail_h: float = 14.0
-	_rail(d, cx, top_y - plat_h, gr * 0.96, rail_h, false)
-	# --- THE LANTERN ROOM: a glazed drum glowing, its frames curving round it
-	var lr_r: float = tw * 0.55
-	var lr_y0: float = top_y - plat_h
-	var lr_y1: float = lr_y0 - 28.0
-	_drum(d, cx, lr_y0, lr_r, lr_y0 - 4.0, lr_r, Color(0.86, 0.84, 0.80), 0.0, 0.4)
-	var n_g: int = 12
-	for k in n_g:
-		var a0: float = PI * float(k) / float(n_g)
-		var a1: float = PI * float(k + 1) / float(n_g)
-		var u: float = absf(cos((a0 + a1) * 0.5))
-		var glass: Color = Color(1.0, 0.97, 0.84).lerp(Color(1.0, 0.80, 0.46), u)
-		_poly(d, PackedVector2Array([_ring_pt(cx, lr_y0 - 4.0, lr_r, a0), _ring_pt(cx, lr_y0 - 4.0, lr_r, a1), _ring_pt(cx, lr_y1, lr_r, a1), _ring_pt(cx, lr_y1, lr_r, a0)]), glass)
-	for k in 7:
-		var a2: float = PI * (float(k) + 0.5) / 7.0
-		d.draw_line(_ring_pt(cx, lr_y0 - 4.0, lr_r, a2), _ring_pt(cx, lr_y1, lr_r, a2), Color(0.20, 0.16, 0.12), 1.5)
-	d.draw_polyline(_ring_front(cx, (lr_y0 + lr_y1) * 0.5 - 2.0, lr_r, 12), Color(0.20, 0.16, 0.12), 1.0, true)
-	# --- THE DOME, seen from a little below: its rim, then the cap rising over it, shaded round, a vent ball
-	var dome_r: float = tw * 0.66
-	_drum(d, cx, lr_y1, dome_r, lr_y1 - 3.0, dome_r, Color(0.26, 0.24, 0.26), 0.0, 0.6)
-	var dome_h: float = 20.0
-	var steps: int = 6
-	for s2 in steps:
-		var e0: float = PI * 0.5 * float(s2) / float(steps)
-		var e1: float = PI * 0.5 * float(s2 + 1) / float(steps)
-		_drum(d, cx, lr_y1 - 3.0 - sin(e0) * dome_h, dome_r * cos(e0), lr_y1 - 3.0 - sin(e1) * dome_h, maxf(dome_r * cos(e1), 0.5), Color(0.22, 0.20, 0.22), 0.0, 0.55)
-	var tip: Vector2 = Vector2(cx, lr_y1 - 3.0 - dome_h)
-	d.draw_circle(tip + Vector2(0, -3), 3.5, Color(0.26, 0.24, 0.26))
-	d.draw_circle(tip + Vector2(-1, -4), 1.2, Color(0.70, 0.66, 0.60))
-	d.draw_line(tip + Vector2(0, -6), tip + Vector2(0, -16), Color(0.22, 0.20, 0.22), 1.5)
-	# the gallery's near rail last, in front of the lantern room
-	_rail(d, cx, top_y - plat_h, gr * 0.96, rail_h, true)
+	# (the gallery's near rail, in front of the lantern room and its lamp: live, _draw_land part 3)
 
 # the upper half of a disc: a door's arch
 func _half_disc(d: CanvasItem, c: Vector2, r: float, col: Color) -> void:

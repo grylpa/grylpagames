@@ -767,3 +767,7 @@ The forest floor is a still layer, baked (`menu_still_0_<m|d>.webp`, 2026-11-17)
 ## Audio (2026-11-19)
 
 the MENU has its own loop (`art/sounds/gorilla_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `gorilla_menu`): the game's music with the poster's world in front -- chest-beats and hoots far off, parrots, monkeys; the GAME loop carries its world too, gentler (`GAME_WORLDS`): birds and monkeys far off.
+
+## Menu poster frame rate (2026-11-19)
+
+To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): each great frond framing the corners is ONE mesh (`_frond_mesh(length, col)`: the rib and its leaflets, built once per frond) drawn with its sway as a transform (`draw_set_transform(base, ang)`), not its leaflets one shape at a time every frame; the bananas are redrawn only when the layout changes.

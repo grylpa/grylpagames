@@ -14,8 +14,12 @@ extends Node
 # omni and spot light), so a frame compiles one variant of one shader. After each step `step_done` is emitted and the
 # next waits for `proceed()`: the card lights a dot, and nothing on screen is moving while a compile holds the frame.
 #
-# Done once per game per app version and GPU (`STAMPS`); on the web, where WebGL keeps no compiled shaders between
-# visits, once per visit.
+# Done once per game per POSTER and GPU (`STAMPS`, 2026-11-20): the stamp is the engine's version, the GPU and a
+# FINGERPRINT of the game's own files (scripts, shaders, scenes under its folder) and of the shared poster files
+# (`SHARED_DEPS`) -- so an update that changes one game's poster prepares that game again, and only it; an update that
+# leaves a game alone opens it at once. (It was the app's version: every update re-prepared every game, and a poster
+# changed without a new version number was never prepared -- its first opening froze.) On the web, where WebGL keeps no
+# compiled shaders between visits, once per visit.
 
 signal step_done(step: int, steps: int)
 signal finished
@@ -24,6 +28,13 @@ const STAMPS: String = "user://shader_warm.cfg"
 const TAIL_FRAMES: int = 2               # frames the poster stays up after its last step, before it is let go
 
 static var _warmed_this_visit: Dictionary = {}
+static var _prints: Dictionary = {}       # game folder -> its fingerprint (worked out once a run)
+
+# the shared files a poster's shaders can come from (each game's own folder is taken whole)
+const SHARED_DEPS: Array = ["res://scripts/menu_poster.gd", "res://scripts/menu_poster3d.gd", "res://scripts/drawn_once.gd",
+	"res://scripts/menu_darkness.gdshader", "res://scripts/menu_light.gdshader", "res://scripts/ball_art.gd",
+	"res://scripts/monster_art.gd", "res://scripts/sleek.gd", "res://shared/scripts/card.gd"]
+const PRINT_EXTS: Array = ["gd", "gdc", "gdshader", "gdshaderinc", "tscn", "tres", "remap"]
 
 var folder: String = ""
 var _waiting: bool = false
@@ -40,8 +51,46 @@ var _settle: int = -1                    # frames the poster has had to build it
 var _arrived: Array = []                 # its meshes, hidden as they entered the tree
 var done: bool = false
 
-static func _stamp_text() -> String:
-	return "%s|%s|%s" % [MainGlobals.version, RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_api_version()]
+static func _stamp_text(game_folder: String) -> String:
+	return "%s|%s|%s|%s" % [Engine.get_version_info()["string"], RenderingServer.get_video_adapter_name(),
+		RenderingServer.get_video_adapter_api_version(), _game_print(game_folder)]
+
+# the game's fingerprint: an md5 of the md5s of its files. In an exported build a script is its tokenized .gdc (a change
+# to a comment does not count) and a scene or resource its .remap's target
+static func _game_print(game_folder: String) -> String:
+	if _prints.has(game_folder):
+		return _prints[game_folder]
+	var sums: PackedStringArray = PackedStringArray()
+	_sum_dir("res://" + game_folder, sums)
+	for f in SHARED_DEPS:
+		sums.append("%s=%s" % [f, _sum_file(f)])
+	sums.sort()
+	var pr: String = "\n".join(sums).md5_text()
+	_prints[game_folder] = pr
+	return pr
+
+static func _sum_dir(dir_path: String, sums: PackedStringArray) -> void:
+	for n in DirAccess.get_files_at(dir_path):
+		if PRINT_EXTS.has(n.get_extension()):
+			var full: String = dir_path.path_join(n)
+			sums.append("%s=%s" % [full, _sum_file(full)])
+	for sub in DirAccess.get_directories_at(dir_path):
+		if sub != "art" and not sub.begins_with("."):
+			_sum_dir(dir_path.path_join(sub), sums)
+
+static func _sum_file(path: String) -> String:
+	if path.get_extension() == "remap":
+		var cf: ConfigFile = ConfigFile.new()
+		if cf.load(path) == OK:
+			return _sum_file(str(cf.get_value("remap", "path", "")))
+		return ""
+	if FileAccess.file_exists(path):
+		return FileAccess.get_md5(path)
+	if FileAccess.file_exists(path + "c"):            # a script in an export: its tokens
+		return FileAccess.get_md5(path + "c")
+	if FileAccess.file_exists(path + ".remap"):
+		return _sum_file(path + ".remap")
+	return ""
 
 # whether this game's poster still has shaders to compile on this device
 static func needed_for(game_folder: String) -> bool:
@@ -52,7 +101,7 @@ static func needed_for(game_folder: String) -> bool:
 	var cf: ConfigFile = ConfigFile.new()
 	if cf.load(STAMPS) != OK:
 		return true
-	return str(cf.get_value("games", game_folder, "")) != _stamp_text()
+	return str(cf.get_value("games", game_folder, "")) != _stamp_text(game_folder)
 
 static func _mark(game_folder: String) -> void:
 	_warmed_this_visit[game_folder] = true
@@ -60,7 +109,7 @@ static func _mark(game_folder: String) -> void:
 		return
 	var cf: ConfigFile = ConfigFile.new()
 	cf.load(STAMPS)
-	cf.set_value("games", game_folder, _stamp_text())
+	cf.set_value("games", game_folder, _stamp_text(game_folder))
 	cf.save(STAMPS)
 
 func proceed() -> void:
