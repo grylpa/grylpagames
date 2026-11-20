@@ -49,11 +49,11 @@ func get_level(id: int) -> Dictionary:
 	return LEVELS[0]
 
 # THE LEVELS ARE RANKS IN THE WEIGH-HOUSE, from the porter who carries the crates to the weighmaster who
-# keeps the scales. Shown as "3 · Weigher" in the menu and "Level 3: Weigher" on the cards.
+# keeps the scales. Shown as "3 • Weigher" in the menu and "Level 3: Weigher" on the cards.
 func level_names() -> Array:
 	var names: Array = []
 	for lvl in LEVELS:
-		names.append("%d · %s" % [int(lvl["id"]), str(lvl["name"])])
+		names.append("%d • %s" % [int(lvl["id"]), str(lvl["name"])])
 	return names
 
 func level_title(id: int) -> String:

@@ -776,6 +776,9 @@ func _build_live() -> void:
 
 # a cart's way: along the road (heading +x), and from TURN_IN before its bay, a curve across the apron into it
 const TURN_IN: float = 90.0
+# a door rolls down while its cart goes this far on inside (~1 s at SPEED; it was 70 units, half a second)
+const DOOR_SHUT_START: float = 270.0
+const DOOR_SHUT_END: float = 420.0
 
 func _cart_pose(along: float, bay: int) -> Array:
 	var bx: float = BAYS[bay]
@@ -813,8 +816,11 @@ func _animate(_delta: float) -> void:
 		_enter_x = 0.0
 		while _enter_x > -3000.0 and screen_of(Vector3(_enter_x + 45.0, 30.0, ROAD_Z - 26.0)).x > -10.0:
 			_enter_x -= 10.0
-		# the last cart's door (bay 1, the last cart's) is down again once the head is 350 on
-		_cyc = (maxf(ex, 360.0) - _enter_x) / SPEED
+		# and not before EVERY door is down again: bay 3's, its cart the first behind the engine, is the last to close --
+		# at head = bay 3's x - TURN_IN + the closing's end + GAP (it was taken for bay 1's, and bay 3's door was still
+		# open when the next truck came: it snapped shut, the user, 2026-11-20)
+		var last_close: float = float(BAYS[2]) - TURN_IN + DOOR_SHUT_END + GAP + 10.0
+		_cyc = (maxf(ex, last_close) - _enter_x) / SPEED
 	var u: float = fmod(t, _cyc)
 	var head: float = _enter_x + SPEED * u        # the engine at the edge from the first frame, and again at once
 	_engine.position = Vector3(head, 0.0, ROAD_Z - 26.0)
@@ -831,7 +837,7 @@ func _animate(_delta: float) -> void:
 		# the door: up as the cart turns in, down again once it is inside
 		var bx: float = BAYS[bay]
 		var into: float = along - (bx - TURN_IN)
-		opened[bay] = smoothstep(-160.0, -20.0, into) * (1.0 - smoothstep(300.0, 370.0, into))
+		opened[bay] = smoothstep(-160.0, -20.0, into) * (1.0 - smoothstep(DOOR_SHUT_START, DOOR_SHUT_END, into))
 		done[bay] = smoothstep(260.0, 320.0, into)
 	for b in _doors.size():
 		var door: Node3D = _doors[b]

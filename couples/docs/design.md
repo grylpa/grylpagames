@@ -193,15 +193,25 @@ the game puts them.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A CARD TABLE IN
-A PARLOR AT NIGHT, seen across it (2026-11-18; the top-down scatter was "boring" and ran under the menu). Green baize
-in a padded leather rail and a polished rim under a lamp; chips and a card box; beyond it a paneled wall under a deep
-red, a sideboard with a decanter and glasses, a mirror in a gilt frame, brass sconces. On the baize the game's own dino
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd`: A NATURALIST'S
+WORKTABLE AT NIGHT, seen across it (2026-11-20; the top-down scatter of 2026-11-18 was "boring" and ran under the menu,
+and the card table in a parlor that followed -- green baize, chips, a card box, a decanter -- suggested gambling: the
+user's rule, for every game, is to stay as far from anything that remotely suggests gambling as possible). A long oak
+table of planks (`_planks`: boards each with its own tone, straight fibres drifting slowly, growth rings, knots, dark
+seams -- on a PlaneMesh of its own, as a box spreads its texture over six faces) under a lamp, its edge rounded; at its
+edges an ammonite (`_ammonite`: the whorls a logarithmic spiral crossed by ribs), two fossil brushes, a brass magnifier
+and a field notebook with a pencil; beyond it the study -- a paneled wall under deep green plaster, a bookcase of old
+volumes in worn leather with gilt bands, a fossil skull on a plinth and a globe in its meridian on the shelves, brass
+sconces. On the table the game's own dino
 cards (the shared card as old prints) in a 4 x 4 GRID, each lying flat in the table's perspective (`_card_xform`: an
 affine map taken from the 3-D camera at its center); among them THREE COUPLES (`PAIRS`), found one after another
-(2026-11-18, the user: more couples, and hardly a moment with none picked out): every `ROUND` 2.6 s a quick pool of
-light glances at a card (`GLANCE`) and comes to the couple's first and second, both glow, rise off the baize and stand
-up toward you side by side for most of the round, and lie back down as the next couple rises. A couple's two prints
+(2026-11-18, the user: more couples, and hardly a moment with none picked out): every `ROUND` (4.2 s) a pool of
+light SEARCHES -- it glides (`SEARCH_GLIDE` 0.45 s) and rests (`SEARCH_REST` 0.3 s) on a card it glances at
+(`GLANCE`), then on the couple's first, which lights, then on its second, which lights -- and the two rise and stand up
+toward you side by side for most of the round, and lie back down as the next search begins. The light falls ON the
+cards: the one under it is brightened (`_card_light`, through its modulate), and a found card keeps a soft gold halo
+round its edge (`_halo`). (2026-11-20: the search hopped card to card in 0.1 s and its light lay under the cards, hidden
+by them -- the user: "a brief flash ... too brief and minimal to understand".) A couple's two prints
 are scorched on opposite sides here too. Baked (`menu_table.webp`, `menu_table_d.webp`); the cards load on threads. In the game the two copies' prints
 never share a frame: each card's wear is its own random draw and their scorches go on opposite edges (`burn_side`).
 Made up, never the board.

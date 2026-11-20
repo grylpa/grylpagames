@@ -100,7 +100,9 @@ func set_cars(list: Array) -> void:
 		var dir: Vector3 = Vector3((it[1] as Vector3).x, 0.0, (it[1] as Vector3).z).normalized()
 		node.visible = true
 		node.position = p
-		node.rotation = Vector3(0.0, atan2(-dir.z, dir.x), 0.0)
+		# (a car on a slope -- the station's cab on a driveway -- is tipped by its pitch, nose up positive)
+		var pitch: float = float(it[5]) if it.size() > 5 else 0.0
+		node.rotation = Vector3(0.0, atan2(-dir.z, dir.x), pitch)
 		var taxi: bool = bool(it[2])
 		var paint: StandardMaterial3D = c[1]
 		paint.albedo_color = YELLOW if taxi else SEDANS[int(it[4]) % SEDANS.size()]

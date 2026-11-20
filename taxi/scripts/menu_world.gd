@@ -736,7 +736,7 @@ func _car_list() -> Array:
 	for cyc in [0, 1]:
 		var st: Array = _station_cab(cyc)
 		if not st.is_empty():
-			out.append([st[0], st[1], true, st[2], 0])
+			out.append([st[0], st[1], true, st[2], 0, st[3]])
 	return out
 
 # the lane-0 cars (mod 5: the station's period is five lane gaps) that would drive through the station's cab where
@@ -862,10 +862,20 @@ func _station_cab_at(tt: float, cyc: int) -> Array:
 		at = _cab_at_s(_p_out, sv)
 		if (at[0] as Vector3).z < FAR - 900.0:
 			return []
+	# ON THE GROUND: its wheels on the road, the driveway's apron or the forecourt -- the body riding at the height
+	# between its front and rear axles and tipped by them, so it climbs the apron and comes down it (it stepped 4
+	# units in one frame: the cab "fell" onto the road)
 	var p: Vector3 = at[0]
-	if p.x > ROAD:
-		p.y = 4.0
-	return [p, at[1], u > 3.0 and u < 8.5]
+	var f: Vector3 = Vector3((at[1] as Vector3).x, 0.0, (at[1] as Vector3).z).normalized()
+	var y_front: float = _ground_y(p + f * 15.0)
+	var y_rear: float = _ground_y(p - f * 15.0)
+	p.y = (y_front + y_rear) * 0.5
+	return [p, at[1], u > 3.0 and u < 8.5, atan2(y_front - y_rear, 30.0)]
+
+# the ground's height at a point the station's cab drives over: the road (0), the forecourt (4.1), and between them
+# across the sidewalk the driveways' aprons (menu_station3d.gd ramp_mesh; the cab crosses the sidewalk only there)
+func _ground_y(q: Vector3) -> float:
+	return 4.1 * clampf((q.x - ROAD) / WALK, 0.0, 1.0)
 
 # ONE CAB
 func _car(d: CanvasItem, p: Vector3, dir: Vector3, busy: bool, alpha: float) -> void:

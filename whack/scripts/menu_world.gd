@@ -730,6 +730,8 @@ func _decoy_hole(h: int) -> int:
 	return k
 
 const RAISE: float = 0.30             # how far up a button stands out of its burrow
+# the mallet's lift between strikes (degrees): its head's top then ~306, under the valance's scallops (~315)
+const LIFT_MAX: float = 22.0
 
 func _animate(_delta: float) -> void:
 	if _mallet == null:
@@ -795,13 +797,15 @@ func _animate(_delta: float) -> void:
 	var nxt: Vector3 = HOLES[_target_hole(hn + 1)]
 	var travel: float = smoothstep(0.30, HIT_EVERY - 0.30, u2)
 	var over: Vector3 = here.lerp(nxt, travel)
+	# raised no higher than LIFT_MAX: the head's top stays under the valance's scallops (at 38 degrees it rose into the
+	# fabric over the front row and passed through it -- the user, 2026-11-20)
 	var lift: float
 	if u2 < 0.30:
-		lift = smoothstep(0.04, 0.30, u2) * 38.0                     # up after the strike
+		lift = smoothstep(0.04, 0.30, u2) * LIFT_MAX                 # up after the strike
 	elif u2 > HIT_EVERY - 0.16:
-		lift = 38.0 * (1.0 - smoothstep(HIT_EVERY - 0.16, HIT_EVERY, u2) )   # the swing down onto the next
+		lift = LIFT_MAX * (1.0 - smoothstep(HIT_EVERY - 0.16, HIT_EVERY, u2) )   # the swing down onto the next
 	else:
-		lift = 38.0 + 3.0 * sin((u2 - 0.30) * 5.0)
+		lift = LIFT_MAX - 2.0 + 2.0 * sin((u2 - 0.30) * 5.0)
 	var strike_y: float = TOP_Y + 8.0 + DOME_R * 0.72 + DOME_R * RAISE + 26.0
 	var yaw: float = deg_to_rad(-28.0)
 	_mallet.position = over + Vector3(0.0, strike_y, 0.0) + Vector3(135.0, 0.0, 0.0).rotated(Vector3.UP, yaw)

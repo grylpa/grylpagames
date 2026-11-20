@@ -35,7 +35,13 @@ var _pan_hold: Array = []        # [Control, Control]: moved to the hooks each f
 var _pan_draw: Array = []        # [DrawnOnce, DrawnOnce]: each pan drawn once, at rest
 var _pan_rest: Array = []        # the hooks at rest (the beam level)
 var _pan_hang: float = 0.0
-var _serif: Font = null
+# THE BEAM: drawn once, level, and TURNED as a picture about the pivot each frame (drawn live as it rocked, its long
+# polygon edges stepped and crawled -- "severe antialiasing issues", the user, 2026-11-20; a picture turned is filtered,
+# its edges stay smooth). The knife-edge's cap, round, stays put over it
+var _beam_hold: Control = null
+var _beam_draw: DrawnOnce = null
+var _cap: DrawnOnce = null
+var _face: Font = null
 var _crate_tex: Array = []
 var _board: Rect2 = Rect2()
 var _cell: Vector2 = Vector2()
@@ -57,7 +63,7 @@ func set_scene_bottom(y: float) -> void:
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	_serif = load("res://art/fonts/NotoSerif-Bold.ttf")
+	_face = MainGlobals.get_text_font()      # the crates' and weights' letters and figures: the font for clarity
 	# THE BACKDROP: its shader is still (no TIME) -- rendered ONCE (DrawnOnce), where it ran on every pixel every frame
 	# (11 ms a frame on a mid-range phone)
 	var m: ShaderMaterial = ShaderMaterial.new()
@@ -114,6 +120,19 @@ func _ready() -> void:
 	_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fg.draw.connect(_draw_fg)
 	add_child(_fg)
+	_beam_hold = Control.new()
+	_beam_hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_beam_hold)
+	_beam_draw = DrawnOnce.make(func(d: Control) -> void:
+		if _cell.x > 0.0:
+			_cv = d
+			_draw_beam_level())
+	_beam_hold.add_child(_beam_draw)
+	_cap = DrawnOnce.make(func(d: Control) -> void:
+		if _cell.x > 0.0:
+			_cv = d
+			_draw_cap())
+	add_child(_cap)
 	_fg_title = DrawnOnce.make(func(d: Control) -> void:
 		if _cell.x > 0.0:
 			_cv = d
@@ -146,6 +165,8 @@ func _place_pans() -> void:
 	var ends: Array = [pivot + Vector2(-L, 0).rotated(a), pivot + Vector2(L, 0).rotated(a)]
 	for k in 2:
 		(_pan_hold[k] as Control).position = Vector2(ends[k]) - Vector2(_pan_rest[k])
+	_beam_hold.pivot_offset = pivot
+	_beam_hold.rotation = a
 
 func _process(delta: float) -> void:
 	if is_visible_in_tree():
@@ -199,6 +220,10 @@ func _layout() -> void:
 		var dd: DrawnOnce = _pan_draw[k]
 		dd.area = Rect2(hk.x - pw * 0.5 - 24.0, hk.y - 24.0, pw + 48.0, _pan_hang + 70.0)
 		dd.queue_redraw()
+	_beam_hold.size = full
+	_beam_draw.area = Rect2(piv.x - half_l - 40.0, piv.y - 40.0, half_l * 2.0 + 80.0, 80.0)
+	_beam_draw.queue_redraw()
+	_cap.queue_redraw()
 	_place_pans()
 	_fg.queue_redraw()
 	for pd in _pan_draw:
@@ -639,13 +664,14 @@ static func h01_local(i: int) -> float:
 
 func _draw_title(full: Vector2) -> void:
 	var t: String = "Tip the Scales"
-	var tw: float = _serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs).x
+	var title_font: Font = _display_font()        # its name in the app's display font, as every poster's
+	var tw: float = title_font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs).x
 	var p: Vector2 = Vector2((full.x - tw) * 0.5, _title_y)
 	# cast brass: a shadow, a dark edge, the face, and the lamp's sheen on its upper half
-	_cv.draw_string(_serif, p + Vector2(0, 5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(0, 0, 0, 0.55))
-	_cv.draw_string_outline(_serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, 8, Color(0.22, 0.13, 0.05))
-	_cv.draw_string(_serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, ART.BRASS)
-	_cv.draw_string(_serif, p + Vector2(0, -2), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(BRASS_LIGHT, 0.35))
+	_cv.draw_string(title_font, p + Vector2(0, 5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(0, 0, 0, 0.55))
+	_cv.draw_string_outline(title_font, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, 8, Color(0.22, 0.13, 0.05))
+	_cv.draw_string(title_font, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, ART.BRASS)
+	_cv.draw_string(title_font, p + Vector2(0, -2), t, HORIZONTAL_ALIGNMENT_LEFT, -1, _title_fs, Color(BRASS_LIGHT, 0.35))
 	# the pitch, as a line of copperplate under it, between two short rules
 	var sub: String = "Weigh the crates with nothing but balance scales"
 	var font: Font = MainGlobals.get_text_font()
@@ -683,7 +709,7 @@ func _draw_balance(full: Vector2, still: bool) -> void:
 	var a: float = _beam_angle()
 	var dr: float = L * 0.30
 	if not still:
-		_balance_live(pivot, a, dr, L, hs, mobile)
+		_balance_live(pivot, a, dr)
 		return
 	# shadow on the counter
 	for k in 4:
@@ -718,15 +744,22 @@ func _draw_balance(full: Vector2, still: bool) -> void:
 		var d: Vector2 = Vector2(cos(ang), sin(ang))
 		_cv.draw_line(pivot + d * (dr - 9.0), pivot + d * (dr - (16.0 if k % 4 == 0 else 12.0)), Color(0.22, 0.13, 0.05), 2.0)
 
-func _balance_live(pivot: Vector2, a: float, dr: float, L: float, _hs: float, mobile: bool) -> void:
+func _balance_live(pivot: Vector2, a: float, dr: float) -> void:
 	var nd: Vector2 = Vector2(sin(a), -cos(a))
-	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), Color(0.22, 0.13, 0.05), 4.0)
-	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), BRASS_LIGHT, 1.5)
-	# the pans hang from the beam's ends, upright whatever its angle
+	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), Color(0.22, 0.13, 0.05), 4.0, true)
+	_cv.draw_line(pivot, pivot + nd * (dr - 6.0), BRASS_LIGHT, 1.5, true)
 	# (the pans hang from the beam's ends, upright whatever its angle: _pan_hold / _pan_draw, carried by _place_pans)
-	# the beam, over the chains' hooks
-	_cv.draw_set_transform(pivot, a, Vector2.ONE)
-	var bh: float = 22.0 if mobile else 16.0
+	# (the beam over the chains' hooks: _beam_hold, turned to `a` by _place_pans; its cap: _cap)
+
+# THE BEAM, LEVEL (turned as a picture): a tapered bar with its dark edge, a brass face with the light along its top,
+# the bosses at its ends
+func _draw_beam_level() -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var bg: Array = _balance_geom(full)
+	var pivot: Vector2 = bg[0]
+	var L: float = bg[1]
+	var bh: float = 22.0 if MainGlobals.is_mobile() else 16.0
+	_cv.draw_set_transform(pivot, 0.0, Vector2.ONE)
 	var beam: PackedVector2Array = PackedVector2Array([Vector2(-L - 6.0, -bh * 0.35), Vector2(-30.0, -bh * 0.5),
 		Vector2(30.0, -bh * 0.5), Vector2(L + 6.0, -bh * 0.35), Vector2(L + 6.0, bh * 0.35), Vector2(30.0, bh * 0.5),
 		Vector2(-30.0, bh * 0.5), Vector2(-L - 6.0, bh * 0.35)])
@@ -734,16 +767,21 @@ func _balance_live(pivot: Vector2, a: float, dr: float, L: float, _hs: float, mo
 	ring.append(beam[0])
 	_cv.draw_polyline(ring, EDGE, 5.0, true)
 	_cv.draw_colored_polygon(beam, ART.BRASS_DARK)
-	_cv.draw_line(Vector2(-L - 4.0, -bh * 0.18), Vector2(L + 4.0, -bh * 0.18), ART.BRASS, bh * 0.30)
-	_cv.draw_line(Vector2(-L, -bh * 0.26), Vector2(L, -bh * 0.26), Color(BRASS_LIGHT, 0.6), 1.5)
+	_cv.draw_line(Vector2(-L - 4.0, -bh * 0.18), Vector2(L + 4.0, -bh * 0.18), ART.BRASS, bh * 0.30, true)
+	_cv.draw_line(Vector2(-L, -bh * 0.26), Vector2(L, -bh * 0.26), Color(BRASS_LIGHT, 0.6), 1.5, true)
 	for e in [-L, L]:
-		_cv.draw_circle(Vector2(e, 0.0), bh * 0.55, ART.BRASS_DARK)
-		_cv.draw_circle(Vector2(e, 0.0), bh * 0.32, ART.BRASS)
+		_cv.draw_circle(Vector2(e, 0.0), bh * 0.55, ART.BRASS_DARK, true, -1.0, true)
+		_cv.draw_circle(Vector2(e, 0.0), bh * 0.32, ART.BRASS, true, -1.0, true)
 	_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# the knife-edge's cap
-	_cv.draw_circle(pivot, bh * 0.95, ART.BRASS_DARK)
-	_cv.draw_circle(pivot, bh * 0.65, ART.BRASS)
-	_cv.draw_circle(pivot + Vector2(-bh * 0.2, -bh * 0.2), bh * 0.25, Color(BRASS_LIGHT, 0.8))
+
+# THE KNIFE-EDGE'S CAP over the pivot (round: it does not turn with the beam)
+func _draw_cap() -> void:
+	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
+	var pivot: Vector2 = _balance_geom(full)[0]
+	var bh: float = 22.0 if MainGlobals.is_mobile() else 16.0
+	_cv.draw_circle(pivot, bh * 0.95, ART.BRASS_DARK, true, -1.0, true)
+	_cv.draw_circle(pivot, bh * 0.65, ART.BRASS, true, -1.0, true)
+	_cv.draw_circle(pivot + Vector2(-bh * 0.2, -bh * 0.2), bh * 0.25, Color(BRASS_LIGHT, 0.8), true, -1.0, true)
 
 func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 	var pw: float = 186.0 if mobile else 140.0
@@ -766,8 +804,8 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 		_cv.draw_arc(Vector2(0.0, -ws * 0.38), ws * 0.14, PI, TAU, 12, ART.BRASS_DARK, 3.0)
 		var fs: int = int(ws * 0.46)
 		var t: String = "2"
-		var tw: float = _serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		_cv.draw_string(_serif, Vector2(-tw * 0.5, ws * 0.30), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.22, 0.13, 0.05))
+		var tw: float = _face.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		_cv.draw_string(_face, Vector2(-tw * 0.5, ws * 0.30), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.22, 0.13, 0.05))
 		_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# three chains from the hook to the rim
 	for x in [-pw * 0.5, 0.0, pw * 0.5]:
@@ -808,4 +846,10 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 func _crate_on_pan(r: Rect2, row: int, col: int, mask: int, placed: int) -> void:
 	if _crate_tex.is_empty():
 		return
-	ART.draw_crate(_cv, r, _tex(row, col), row, col, COLS, mask if placed == 0 else PUZZLE.bit(placed), 0, placed, 0, 1.0, _serif)
+	ART.draw_crate(_cv, r, _tex(row, col), row, col, COLS, mask if placed == 0 else PUZZLE.bit(placed), 0, placed, 0, 1.0, _face)
+
+# the app's DISPLAY font -- the one the player picked (MainGlobals.GAME_FONTS) -- for the poster's NAME only, as every
+# poster's (this game had a serif of its own, Noto Serif Bold: the user, 2026-11-20 -- never a font of a game's own;
+# whatever must read clearly is in the text font)
+func _display_font() -> Font:
+	return ThemeDB.get_default_theme().default_font

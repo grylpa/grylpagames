@@ -6,7 +6,7 @@ extends RefCounted
 # THE LOOK (2026-11-16, second pass: the first followed Mor's desktop screen grab and was "far from
 # amazing"): a weigh-house at lamplight.
 #   CRATES stand on the rack's shelves: painted pine, worn, iron corners (the baked texture), the letter
-#     sprayed through a stencil, and a SLATE hung on a nail with the weights it may still have CHALKED on
+#     sprayed through a stencil, and a SLATE fixed to the planks with the weights it may still have CHALKED on
 #     it -- a weight crossed out is rubbed off, leaving a smudge. A settled crate wears a BRASS PLATE with
 #     its weight stamped in.
 #   The WEIGHTS on the workbench are cast-iron bells, lit from above; the settled one is brass.
@@ -60,7 +60,7 @@ static func _vgrad(ci: CanvasItem, r: Rect2, top: Color, bottom: Color) -> void:
 # open (bit v-1); `rubbed`: weights crossed out (a smudge where the chalk was); `placed`: its weight once
 # settled. `ring`: 0 none, 1 selected (lamplight round it), 2 named by the clue in focus, 3 a hint's.
 static func draw_crate(ci: CanvasItem, r: Rect2, tex: Texture2D, row: int, col: int, n_w: int, mask: int,
-		rubbed: int, placed: int, ring: int, pop: float, serif: Font) -> void:
+		rubbed: int, placed: int, ring: int, pop: float, face: Font) -> void:
 	var c: Color = set_color(row)
 	if pop != 1.0:
 		var ctr: Vector2 = r.get_center()
@@ -76,19 +76,22 @@ static func draw_crate(ci: CanvasItem, r: Rect2, tex: Texture2D, row: int, col: 
 		ci.draw_texture_rect(tex, r, false)
 	else:
 		ci.draw_rect(r, c.darkened(0.2))
+	# A FLAT CRATE (the big boards, 2026-11-20) gives its slate most of its height and its letter more of it
+	var flat: bool = r.size.y < r.size.x * 0.70
 	# the letter, sprayed through a stencil on the left of the planks
-	var lfs: int = int(s * 0.42)
+	var lfs: int = int(s * (0.56 if flat else 0.42))
 	var lt: String = LETTERS[col]
-	var lw: float = serif.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, lfs).x
+	var lw: float = face.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, lfs).x
 	var lx: float = r.position.x + r.size.x * 0.17 - lw * 0.5
 	var ly: float = r.position.y + r.size.y * 0.5 + lfs * 0.36
 	# a dark outline under the cream: on the gold (and rose) crates the cream alone did not stand out
-	ci.draw_string_outline(serif, Vector2(lx, ly), lt, HORIZONTAL_ALIGNMENT_LEFT, -1, lfs, maxi(3, int(s * 0.06)), Color(0.10, 0.06, 0.03, 0.85))
-	ci.draw_string(serif, Vector2(lx, ly), lt, HORIZONTAL_ALIGNMENT_LEFT, -1, lfs, Color(0.99, 0.97, 0.90))
+	ci.draw_string_outline(face, Vector2(lx, ly), lt, HORIZONTAL_ALIGNMENT_LEFT, -1, lfs, maxi(3, int(s * 0.06)), Color(0.10, 0.06, 0.03, 0.85))
+	ci.draw_string(face, Vector2(lx, ly), lt, HORIZONTAL_ALIGNMENT_LEFT, -1, lfs, Color(0.99, 0.97, 0.90))
 	# the board it hangs on: the slate, or the brass plate
 	var b: Rect2 = Rect2(r.position.x + r.size.x * 0.31, r.position.y + r.size.y * 0.20,
 		r.size.x * 0.61, r.size.y * 0.66)
-	var nail: Vector2 = Vector2(b.get_center().x, r.position.y + r.size.y * 0.09)
+	if flat:
+		b = Rect2(r.position.x + r.size.x * 0.30, r.position.y + r.size.y * 0.13, r.size.x * 0.64, r.size.y * 0.76)
 	if placed > 0:
 		_soft_shadow(ci, b, Vector2(1.5, 2.5), 3.0, 0.5)
 		_vgrad(ci, b, Color(0.98, 0.84, 0.50), Color(0.66, 0.48, 0.20))
@@ -100,17 +103,15 @@ static func draw_crate(ci: CanvasItem, r: Rect2, tex: Texture2D, row: int, col: 
 		var fs: int = int(b.size.y * 0.74)
 		var txt: String = str(placed)
 		var kfs: int = maxi(8, int(fs * 0.34))
-		var w: float = serif.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var kw: float = serif.get_string_size("kg", HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
+		var w: float = face.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var kw: float = face.get_string_size("kg", HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
 		var base: Vector2 = Vector2(b.get_center().x - (w + kw + 2.0) * 0.5, b.end.y - b.size.y * 0.18)
-		ci.draw_string(serif, base + Vector2(0, 1.2), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.95, 0.75, 0.55))
-		ci.draw_string(serif, base, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.24, 0.15, 0.05))
-		ci.draw_string(serif, base + Vector2(w + 2.0, 0), "kg", HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(0.24, 0.15, 0.05, 0.8))
+		ci.draw_string(face, base + Vector2(0, 1.2), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.95, 0.75, 0.55))
+		ci.draw_string(face, base, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.24, 0.15, 0.05))
+		ci.draw_string(face, base + Vector2(w + 2.0, 0), "kg", HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(0.24, 0.15, 0.05, 0.8))
 		return
-	# the slate, on a string from a nail
-	ci.draw_line(nail, b.position + Vector2(b.size.x * 0.12, 0), Color(0.80, 0.72, 0.55, 0.9), maxf(1.0, s * 0.012))
-	ci.draw_line(nail, Vector2(b.end.x - b.size.x * 0.12, b.position.y), Color(0.80, 0.72, 0.55, 0.9), maxf(1.0, s * 0.012))
-	ci.draw_circle(nail, maxf(1.6, s * 0.022), Color(0.30, 0.30, 0.32))
+	# the slate, fixed to the planks (it hung on a string from a nail: on the flat crates the string read as a stray wire
+	# across each crate -- the user, 2026-11-20)
 	_soft_shadow(ci, b, Vector2(1.5, 2.5), 3.0, 0.5)
 	ci.draw_rect(b, Color(0.55, 0.40, 0.24))                  # its wooden frame
 	var sb: Rect2 = b.grow(-maxf(1.5, s * 0.025))
@@ -118,9 +119,9 @@ static func draw_crate(ci: CanvasItem, r: Rect2, tex: Texture2D, row: int, col: 
 	# NOTHING LEFT: every weight rubbed off -- one of them was right (level.gd counts it, once)
 	if mask == 0:
 		var qfs: int = int(sb.size.y * 0.80)
-		var qw: float = serif.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, qfs).x
+		var qw: float = face.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, qfs).x
 		ci.draw_rect(sb, Color(0.85, 0.25, 0.20), false, maxf(2.0, s * 0.03))
-		ci.draw_string(serif, Vector2(sb.get_center().x - qw * 0.5, sb.get_center().y + qfs * 0.36), "?",
+		ci.draw_string(face, Vector2(sb.get_center().x - qw * 0.5, sb.get_center().y + qfs * 0.36), "?",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, qfs, Color(1.0, 0.55, 0.45, 0.95))
 		return
 	# the chalk: the open weights, in a grid; a rubbed-out one leaves a smudge
@@ -139,15 +140,15 @@ static func draw_crate(ci: CanvasItem, r: Rect2, tex: Texture2D, row: int, col: 
 				ci.draw_circle(Vector2(cx + 2.0, cy - 1.0), minf(cw, chh) * 0.22, Color(CHALK, 0.05))
 			continue
 		var t: String = str(v)
-		var tw: float = serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2).x
+		var tw: float = face.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2).x
 		var p: Vector2 = Vector2(cx - tw * 0.5, cy + fs2 * 0.36)
-		ci.draw_string(serif, p + Vector2(0.6, 0.4), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(CHALK, 0.25))
-		ci.draw_string(serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(CHALK, 0.93))
+		ci.draw_string(face, p + Vector2(0.6, 0.4), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(CHALK, 0.25))
+		ci.draw_string(face, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(CHALK, 0.93))
 
 # --- the cast-iron weights on the workbench ---------------------------------------------------------
 
 # state: 0 open, 1 crossed out, 2 taken by another crate of the color, 3 the crate's weight
-static func draw_weight(ci: CanvasItem, r: Rect2, v: int, state: int, press: float, serif: Font) -> void:
+static func draw_weight(ci: CanvasItem, r: Rect2, v: int, state: int, press: float, face: Font) -> void:
 	var ctr: Vector2 = r.get_center()
 	var s: float = minf(r.size.x, r.size.y)
 	var a: float = 1.0 if state == 0 or state == 3 else 0.30
@@ -178,10 +179,10 @@ static func draw_weight(ci: CanvasItem, r: Rect2, v: int, state: int, press: flo
 	# the cast number, raised: a light edge above, dark below
 	var fs: int = int(s * 0.38)
 	var t: String = str(v)
-	var tw: float = serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var tw: float = face.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var p: Vector2 = Vector2(ctr.x - tw * 0.5, ctr.y + h * 0.26)
-	ci.draw_string(serif, p + Vector2(0, 1.5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.6 * a))
-	ci.draw_string(serif, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
+	ci.draw_string(face, p + Vector2(0, 1.5), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.6 * a))
+	ci.draw_string(face, p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
 		Color(0.94, 0.90, 0.80, a) if not brass else Color(0.30, 0.18, 0.05, a))
 	if state == 1:
 		# chalked out: a stroke across it
@@ -246,7 +247,7 @@ static var hl_crate: int = -1
 static func set_marked_crate(i: int) -> void:
 	hl_crate = i
 
-static func _stamp(ci: CanvasItem, ctr: Vector2, s: float, idx: int, cols: int, serif: Font, ring: bool, a: float) -> void:
+static func _stamp(ci: CanvasItem, ctr: Vector2, s: float, idx: int, cols: int, face: Font, ring: bool, a: float) -> void:
 	var c: Color = set_color(idx / cols)
 	var r: Rect2 = Rect2(ctr - Vector2(s, s * 0.84) * 0.5, Vector2(s, s * 0.84))
 	ci.draw_rect(r, Color(c.darkened(0.08), 0.92 * a))
@@ -256,9 +257,9 @@ static func _stamp(ci: CanvasItem, ctr: Vector2, s: float, idx: int, cols: int, 
 		ci.draw_rect(r.grow(s * 0.14), Color(INK, 0.8 * a), false, maxf(1.5, s * 0.06))
 	var fs: int = int(s * 0.70)
 	var t: String = LETTERS[idx % cols]
-	var tw: float = serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	ci.draw_string_outline(serif, Vector2(ctr.x - tw * 0.5, ctr.y + fs * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(s * 0.08)), Color(INK, 0.75 * a))
-	ci.draw_string(serif, Vector2(ctr.x - tw * 0.5, ctr.y + fs * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.98, 0.92, a))
+	var tw: float = face.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	ci.draw_string_outline(face, Vector2(ctr.x - tw * 0.5, ctr.y + fs * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(s * 0.08)), Color(INK, 0.75 * a))
+	ci.draw_string(face, Vector2(ctr.x - tw * 0.5, ctr.y + fs * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.98, 0.92, a))
 
 # engraver's hatching: diagonal strokes filling `r`
 static func _hatch(ci: CanvasItem, r: Rect2, col: Color, step: float) -> void:
@@ -271,7 +272,7 @@ static func _hatch(ci: CanvasItem, r: Rect2, col: Color, step: float) -> void:
 
 # The paper: the engraving (or the shelf, for BETWEEN) and the caption. state: 0 live, 1 in focus, 2 set
 # aside, 3 settled (all its crates known). `tilt_deg`: the paper lies a little askew on the counter.
-static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, state: int, serif: Font,
+static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, state: int, face: Font,
 		paper: Texture2D, aside_btn: Rect2, swing: float, tilt_deg: float, show_rule: bool) -> void:
 	var a: float = 1.0 if state <= 1 else 0.62
 	var ctr: Vector2 = r.get_center()
@@ -304,9 +305,9 @@ static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, sta
 		_hatch(ci, shelf, Color(INK, 0.45 * a), 3.0)
 		ci.draw_rect(shelf, ink, false, 1.2)
 		var xs: Array = [pic.position.x + pic.size.x * 0.28, pic.get_center().x, pic.position.x + pic.size.x * 0.72]
-		_stamp(ci, Vector2(xs[0], sy - s * 0.46), s, c[1], cols, serif, false, a)
-		_stamp(ci, Vector2(xs[2], sy - s * 0.46), s, c[2], cols, serif, false, a)
-		_stamp(ci, Vector2(xs[1], sy - s * 1.20), s, c[0], cols, serif, true, a)
+		_stamp(ci, Vector2(xs[0], sy - s * 0.46), s, c[1], cols, face, false, a)
+		_stamp(ci, Vector2(xs[2], sy - s * 0.46), s, c[2], cols, face, false, a)
+		_stamp(ci, Vector2(xs[1], sy - s * 1.20), s, c[0], cols, face, true, a)
 		ci.draw_dashed_line(Vector2(xs[1], sy - s * 0.70), Vector2(xs[1], sy), Color(INK, 0.5 * a), 1.2, 3.0)
 		# EITHER ORDER, drawn: a swap under the shelf, from one outer crate to the other and back (a row of
 		# three alone reads as a ruler, lightest on the left: the user, 2026-11-16)
@@ -369,7 +370,7 @@ static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, sta
 			ci.draw_line(pan[0], pan[pan.size() - 1], ink, 1.2)
 			var x0: float = end.x - (float(n_items) - 1.0) * s * 0.56
 			for j in items.size():
-				_stamp(ci, Vector2(x0 + float(j) * s * 1.12, py - s * 0.40), s * 0.92, items[j], cols, serif, false, a)
+				_stamp(ci, Vector2(x0 + float(j) * s * 1.12, py - s * 0.40), s * 0.92, items[j], cols, face, false, a)
 			if side == 1 and int(pn[2]) > 0:
 				# the brass weight, engraved, its kilos on it
 				var wc: Vector2 = Vector2(x0 + float(items.size()) * s * 1.12, py - s * 0.36)
@@ -383,21 +384,21 @@ static func draw_ticket(ci: CanvasItem, r: Rect2, cl: Dictionary, cols: int, sta
 				ci.draw_arc(wc + Vector2(0, -ws * 0.46), ws * 0.13, PI, TAU, 10, ink, 1.4)
 				var kt: String = str(int(pn[2]))
 				var kfs: int = int(ws * 0.66)
-				var kw: float = serif.get_string_size(kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
-				ci.draw_string(serif, wc + Vector2(-kw * 0.5, ws * 0.28), kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(INK, a))
+				var kw: float = face.get_string_size(kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
+				ci.draw_string(face, wc + Vector2(-kw * 0.5, ws * 0.28), kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(INK, a))
 	if show_rule:
-		draw_rule(ci, Rect2(lr.position.x + 8.0, pic.end.y + 2.0, lr.size.x - 16.0, rule_h), cl, cols, serif, a)
+		draw_rule(ci, Rect2(lr.position.x + 8.0, pic.end.y + 2.0, lr.size.x - 16.0, rule_h), cl, cols, face, a)
 	# WEIGHED: a rubber stamp across a clue whose crates are all known
 	if state == 3:
 		ci.draw_set_transform(ctr, deg_to_rad(tilt_deg - 12.0), Vector2.ONE)
 		var st: String = "WEIGHED"
 		var sfs: int = int(lr.size.y * 0.20)
-		var sw: float = serif.get_string_size(st, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs).x
+		var sw: float = face.get_string_size(st, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs).x
 		var sr: Rect2 = Rect2(-sw * 0.5 - 8.0, -sfs * 0.62 - 6.0, sw + 16.0, sfs + 12.0)
 		var red: Color = Color(0.68, 0.16, 0.14, 0.62)
 		ci.draw_rect(sr, red, false, 2.5)
 		ci.draw_rect(sr.grow(-4.0), Color(red, 0.4), false, 1.0)
-		ci.draw_string(serif, Vector2(-sw * 0.5, sfs * 0.36), st, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs, red)
+		ci.draw_string(face, Vector2(-sw * 0.5, sfs * 0.36), st, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs, red)
 		ci.draw_set_transform(ctr, deg_to_rad(tilt_deg), Vector2.ONE)
 	# the set-aside button, in the corner
 	if aside_btn.size.x > 0.0 and state != 3:
@@ -462,7 +463,7 @@ static func rule_tokens(cl: Dictionary) -> Array:
 			return [["box", c[0]], ["sign", "+"], ["box", c[1]], ["sign", ">"], ["box", c[2]]]
 	return []
 
-static func draw_rule(ci: CanvasItem, area: Rect2, cl: Dictionary, cols: int, serif: Font, a: float) -> void:
+static func draw_rule(ci: CanvasItem, area: Rect2, cl: Dictionary, cols: int, face: Font, a: float) -> void:
 	var toks: Array = rule_tokens(cl)
 	var b: float = area.size.y * 0.80
 	var widths: Array = []
@@ -475,9 +476,9 @@ static func draw_rule(ci: CanvasItem, area: Rect2, cl: Dictionary, cols: int, se
 		for t in toks:
 			var w: float = b
 			if t[0] == "sign":
-				w = serif.get_string_size(str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+				w = face.get_string_size(str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 			elif t[0] == "word":
-				w = serif.get_string_size(str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * 0.62)).x
+				w = face.get_string_size(str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * 0.62)).x
 			elif t[0] == "kg":
 				w = b * 0.95
 			widths.append(w)
@@ -493,11 +494,11 @@ static func draw_rule(ci: CanvasItem, area: Rect2, cl: Dictionary, cols: int, se
 		var t: Array = toks[k]
 		var w2: float = widths[k]
 		if t[0] == "box":
-			_stamp(ci, Vector2(x + w2 * 0.5, cy), b, int(t[1]), cols, serif, false, a)
+			_stamp(ci, Vector2(x + w2 * 0.5, cy), b, int(t[1]), cols, face, false, a)
 		elif t[0] == "sign":
-			ci.draw_string(serif, Vector2(x, cy + fs2 * 0.34), str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(INK, 0.95 * a))
+			ci.draw_string(face, Vector2(x, cy + fs2 * 0.34), str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(INK, 0.95 * a))
 		elif t[0] == "word":
-			ci.draw_string(serif, Vector2(x, cy + fs2 * 0.22), str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs2 * 0.62), Color(INK, 0.85 * a))
+			ci.draw_string(face, Vector2(x, cy + fs2 * 0.22), str(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs2 * 0.62), Color(INK, 0.85 * a))
 		elif t[0] == "kg":
 			var wc: Vector2 = Vector2(x + w2 * 0.5, cy)
 			var ws: float = b * 0.95
@@ -509,13 +510,13 @@ static func draw_rule(ci: CanvasItem, area: Rect2, cl: Dictionary, cols: int, se
 			ci.draw_polyline(wp, Color(INK, 0.9 * a), 1.4)
 			var kt: String = str(int(t[1]))
 			var kfs: int = int(ws * 0.66)
-			var kw: float = serif.get_string_size(kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
-			ci.draw_string(serif, wc + Vector2(-kw * 0.5, ws * 0.30), kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(INK, a))
+			var kw: float = face.get_string_size(kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs).x
+			ci.draw_string(face, wc + Vector2(-kw * 0.5, ws * 0.30), kt, HORIZONTAL_ALIGNMENT_LEFT, -1, kfs, Color(INK, a))
 		x += w2 + b * 0.22
 
 # THE CRATE ON THE WORKBENCH, as a weight: a bell in the crate's own color with its letter cast on it (the
 # full crate drawn there, and its name in words, were too much -- the user).
-static func draw_letter_weight(ci: CanvasItem, r: Rect2, row: int, letter: String, serif: Font) -> void:
+static func draw_letter_weight(ci: CanvasItem, r: Rect2, row: int, letter: String, face: Font) -> void:
 	var c: Color = set_color(row)
 	var ctr: Vector2 = r.get_center()
 	var s: float = minf(r.size.x, r.size.y)
@@ -535,7 +536,7 @@ static func draw_letter_weight(ci: CanvasItem, r: Rect2, row: int, letter: Strin
 	ci.draw_line(Vector2(ctr.x - w * 0.34, top), Vector2(ctr.x + w * 0.34, top), c.lightened(0.5), maxf(2.0, s * 0.03))
 	ci.draw_arc(Vector2(ctr.x, top - s * 0.07), s * 0.12, PI, TAU, 18, c.darkened(0.2), maxf(2.5, s * 0.05))
 	var fs: int = int(s * 0.46)
-	var tw: float = serif.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var tw: float = face.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var p: Vector2 = Vector2(ctr.x - tw * 0.5, ctr.y + h * 0.28)
-	ci.draw_string_outline(serif, p, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(3, int(s * 0.05)), Color(0.10, 0.06, 0.03, 0.85))
-	ci.draw_string(serif, p, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.99, 0.97, 0.90))
+	ci.draw_string_outline(face, p, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(3, int(s * 0.05)), Color(0.10, 0.06, 0.03, 0.85))
+	ci.draw_string(face, p, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.99, 0.97, 0.90))

@@ -183,7 +183,14 @@ func _build_still() -> void:
 	var zinc: StandardMaterial3D = mat(Color(0.42, 0.44, 0.48), 0.4, 0.6)
 	cyl(4.0, 4.0, 360.0, zinc, Vector3(0.0, 198.0, 134.0), Vector3(0.0, 0.0, 90.0))
 	cyl(3.5, 3.5, 180.0, zinc, Vector3(162.0, 108.0, 128.0))
-	cyl(3.5, 3.5, 22.0, zinc, Vector3(166.0, 16.0, 136.0), Vector3(50.0, 0.0, -30.0))
+	# the elbow: weathered galvanized steel, duller than the new zinc above (as bright metal it caught the windows' warm
+	# light and read as a brass nozzle -- with the water a "blow torch", the user, 2026-11-20), its open mouth dark
+	# -- and it slopes DOWN from the pipe's foot toward the splash block, as an elbow does (it pointed up and out)
+	var galv: StandardMaterial3D = mat(Color(0.46, 0.48, 0.50), 0.62, 0.25)
+	var e_rot: Vector3 = _elbow_rot()
+	cyl(3.5, 3.5, 22.0, galv, ELBOW_C, e_rot)
+	cyl(3.6, 3.6, 2.0, mat(Color(0.30, 0.31, 0.33), 0.6, 0.25), ELBOW_C + _elbow_dir() * 10.0, e_rot)
+	cyl(2.9, 2.9, 0.6, mat(Color(0.02, 0.02, 0.03), 1.0), ELBOW_C + _elbow_dir() * 11.2, e_rot)
 	for strap in 3:
 		box(Vector3(9.0, 2.0, 9.0), zinc, Vector3(162.0, 40.0 + float(strap) * 55.0, 128.0))
 	var concrete: StandardMaterial3D = mat(Color.WHITE, 0.8, 0.0, tex_speckle(64, Color(0.52, 0.52, 0.50), 0.10, 4), Vector3(1, 3, 1))
@@ -497,6 +504,66 @@ func _paint(full: Vector2, _bottom: float) -> void:
 	hills.append(Vector2(full.x, full.y))
 	cv.draw_colored_polygon(hills, Color(0.05, 0.07, 0.10).lerp(Color(0.35, 0.40, 0.48), fl * 0.5))
 
+# THE ELBOW at the downspout's foot: from the pipe's bottom (162, 18, 128) out and down toward the splash block; its
+# center and the way its mouth points (its cylinder's +y end)
+const ELBOW_C: Vector3 = Vector3(166.5, 13.5, 135.0)
+const ELBOW_TO: Vector3 = Vector3(0.42, -0.40, 0.81)
+
+func _elbow_dir() -> Vector3:
+	return ELBOW_TO.normalized()
+
+# the turn (degrees, as cyl() takes it) that stands a cylinder's axis along the elbow
+func _elbow_rot() -> Vector3:
+	var e: Vector3 = Basis(Quaternion(Vector3.UP, _elbow_dir())).get_euler()
+	return Vector3(rad_to_deg(e.x), rad_to_deg(e.y), rad_to_deg(e.z))
+
+# THE WATER OUT OF THE DOWNSPOUT: a stream leaving the elbow's mouth along its axis and falling under its weight onto
+# the splash block -- a translucent band widening a little as it falls, a brighter core, streaks running down it -- a
+# patch of foam where it lands, and droplets thrown out and falling back (it was seven short white streaks in a tight
+# cone off a bright elbow: "a bunsen blow torch instead of water", the user, 2026-11-20)
+func _spout_water(fl: float) -> void:
+	var dir: Vector3 = _elbow_dir()
+	var mouth: Vector3 = ELBOW_C + dir * 11.0
+	var v0: Vector3 = dir * 10.0
+	# the stream: p(u) = mouth + v0 u - (0, g u^2) until it meets the block's top (y 4)
+	var pts: Array = []
+	var land: Vector3 = mouth
+	for k in 17:
+		var u: float = float(k) / 16.0 * 1.6
+		var p: Vector3 = mouth + v0 * u - Vector3(0.0, 8.5 * u * u, 0.0)
+		if p.y <= 4.0:
+			p.y = 4.0
+			pts.append(p)
+			land = p
+			break
+		pts.append(p)
+		land = p
+	var line: PackedVector2Array = PackedVector2Array()
+	for p2 in pts:
+		line.append(screen_of(p2))
+	var sc: float = screen_of(mouth + Vector3(4.0, 0.0, 0.0)).distance_to(screen_of(mouth)) / 4.0
+	var water: Color = Color(0.62, 0.70, 0.80).lerp(Color(0.85, 0.90, 1.0), fl * 0.6)
+	if line.size() >= 2:
+		cv.draw_polyline(line, Color(water, 0.30), 5.5 * sc, true)
+		cv.draw_polyline(line, Color(water.lightened(0.25), 0.40), 2.4 * sc, true)
+		# streaks running down the stream
+		for k2 in 4:
+			var su: float = fposmod(t * 3.2 + float(k2) / 4.0, 1.0)
+			var i0: int = clampi(int(su * float(line.size() - 1)), 0, line.size() - 2)
+			var a: Vector2 = line[i0].lerp(line[i0 + 1], fposmod(su * float(line.size() - 1), 1.0))
+			var b: Vector2 = a + (line[i0 + 1] - line[i0]).normalized() * 3.0 * sc
+			cv.draw_line(a, b, Color(0.92, 0.96, 1.0, 0.55), 1.2 * sc, true)
+	# where it lands: a patch of foam on the block, breathing
+	var lp: Vector2 = screen_of(land)
+	_soft(lp, (5.0 + 0.8 * sin(t * 9.0)) * sc, Color(0.85, 0.90, 0.98, 0.35), 0.45)
+	# droplets thrown out of the landing and falling back
+	for k3 in 6:
+		var du: float = fposmod(t * 1.9 + h01(k3 + 60), 1.0)
+		var ang: float = TAU * h01(k3 + 70)
+		var out: Vector3 = Vector3(cos(ang), 0.0, sin(ang)) * (2.0 + 4.0 * h01(k3 + 80))
+		var dp: Vector3 = land + out * du + Vector3(0.0, 5.0 * du - 5.5 * du * du, 0.0)
+		cv.draw_circle(screen_of(dp), 0.7 * sc, Color(0.88, 0.94, 1.0, 0.6 * (1.0 - du)))
+
 # OVER THE SCENE: the gutter's drips, the downspout gushing, the chimney's smoke, rings in the puddles, the near rain,
 # leaves, and the flash whitening everything
 func _paint_top(full: Vector2, bottom: float) -> void:
@@ -519,10 +586,7 @@ func _paint_top(full: Vector2, bottom: float) -> void:
 			cv.draw_line(dy, dy + Vector2(0.0, 6.0), Color(0.75, 0.85, 1.0, 0.55), 1.4)
 		# the downspout pouring out of its elbow onto the splash block, the water running down it and swirling
 		# into the yard drain
-		var mouth: Vector2 = screen_of(SPOUT + Vector3(8.0, -6.0, 14.0))
-		for k3 in 7:
-			var gu: float = fposmod(t * 2.4 + float(k3) / 7.0, 1.0)
-			cv.draw_line(mouth + Vector2(4.0 * gu, 10.0 * gu * gu), mouth + Vector2(4.0 * gu + 1.5, 10.0 * gu * gu + 6.0), Color(0.80, 0.88, 1.0, 0.75 * (1.0 - gu)), 2.4)
+		_spout_water(fl)
 		var run_a: Vector3 = Vector3(172.0, 4.2, 140.0)
 		var run_b: Vector3 = DRAIN + Vector3(-14.0, 4.0, -12.0)
 		for k6 in 14:

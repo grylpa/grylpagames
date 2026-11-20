@@ -21,6 +21,29 @@ const ST_BACK: float = ROAD + WALK + 230.0
 const ISLAND_X: float = ROAD + WALK + 120.0
 const PUMP_Z: float = -230.0
 const YELLOW: Color = Color(0.99, 0.80, 0.16)
+# the driveways across the sidewalk (z from, z to): where the station's cab turns in, and where it pulls out
+const DRIVE_IN: Vector2 = Vector2(-40.0, 110.0)
+const DRIVE_OUT: Vector2 = Vector2(-545.0, -360.0)
+
+# a concrete apron across the sidewalk: its top sloping from the road (x0, height 0) up to the forecourt (x1, h), its
+# two ends closed; the texture laid by the world's x and z, as on the slabs beside it
+static func ramp_mesh(x0: float, x1: float, z0: float, z1: float, h: float) -> ArrayMesh:
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n_top: Vector3 = Vector3(-h, x1 - x0, 0.0).normalized()
+	var top: Array = [Vector3(x0, 0.0, z0), Vector3(x1, h, z0), Vector3(x1, h, z1), Vector3(x0, 0.0, z1)]
+	for idx in [0, 1, 2, 0, 2, 3]:
+		var v: Vector3 = top[idx]
+		st.set_normal(n_top)
+		st.set_uv(Vector2(v.x, v.z) / 256.0)
+		st.add_vertex(v)
+	for zz in [z0, z1]:
+		var side_n: Vector3 = Vector3(0.0, 0.0, -1.0 if zz == z0 else 1.0)
+		for v2 in [Vector3(x0, 0.0, zz), Vector3(x1, 0.0, zz), Vector3(x1, h, zz)]:
+			st.set_normal(side_n)
+			st.set_uv(Vector2(v2.x, v2.y) / 256.0)
+			st.add_vertex(v2)
+	return st.commit()
 
 static func h01(i: int) -> float:
 	var x: int = (i * 374761393 + 668265263) & 0x7fffffff
@@ -228,7 +251,20 @@ static func _lights(root: Node3D) -> void:
 static func _forecourt(root: Node3D) -> void:
 	var t: ImageTexture = tex(256, Color(0.52, 0.51, 0.49), 0.10, 11, 4, Color(0.30, 0.29, 0.28))
 	var conc: StandardMaterial3D = mat(Color.WHITE, 0.75, 0.0, t, Vector3(4.0, 10.0, 1.0))
-	block(root, Vector3(ROAD, 0.0, ST_Z1), Vector3(ST_BACK + 260.0, 4.1, ST_Z0), conc)
+	block(root, Vector3(ROAD + WALK, 0.0, ST_Z1), Vector3(ST_BACK + 260.0, 4.1, ST_Z0), conc)
+	# THE SIDEWALK IN FRONT OF IT: raised, a curb stone at the road's edge -- and at the two DRIVEWAYS, where the cab
+	# turns in and pulls out, a dropped curb and a concrete apron sloping up from the road to the forecourt (it was a
+	# 4-unit step all along: the cab "fell" onto the road, the user, 2026-11-20)
+	var curb: StandardMaterial3D = mat(Color(0.62, 0.61, 0.58), 0.7)
+	var z_edges: Array = [ST_Z1, DRIVE_OUT.x, DRIVE_OUT.y, DRIVE_IN.x, DRIVE_IN.y, ST_Z0]
+	for i in z_edges.size() - 1:
+		var za: float = z_edges[i]
+		var zb: float = z_edges[i + 1]
+		if i % 2 == 0:
+			block(root, Vector3(ROAD + 6.0, 0.0, za), Vector3(ROAD + WALK, 4.1, zb), conc)
+			block(root, Vector3(ROAD, 0.0, za), Vector3(ROAD + 6.0, 4.5, zb), curb)
+		else:
+			put(root, ramp_mesh(ROAD, ROAD + WALK, za, zb, 4.1), conc, Vector3.ZERO)
 	# oil stains where the cabs stand
 	var stain: StandardMaterial3D = mat(Color(0.12, 0.11, 0.11, 0.35), 0.4)
 	stain.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

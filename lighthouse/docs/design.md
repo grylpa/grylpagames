@@ -373,6 +373,32 @@ Made up, never the board: the menu also opens mid-game.
 
 the MENU has its own loop (`art/sounds/lighthouse_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `lighthouse_menu`): the game's music with the poster's world in front -- gulls (rough, not glides: they were heard as sirens), the rigging, a foghorn far off; the GAME loop carries its world too, gentler (`GAME_WORLDS`): gulls, the rigging (no foghorn: the game's "horn").
 
+THE TOWER'S TURF, THE STAIR, THE BOAT (2026-11-20, the user): the turf under the tower is THE CLIFF TOP'S OWN -- its
+front edge is the rock's top edge point for point (`_rock_pts`, `_rock_top`), receding behind the tower and rising a
+little toward it, an earthy lip and hanging grass at the crest (an oval of turf stuck out past the crest where it was not
+level and "floats in the air"; making only its front flatter did not help); the stair and its rail are drawn after the
+keeper's cottage (part 2), so the rail passes in front of it; the boat SITS IN THE WATER -- the part of the hull below a
+moving waterline sunk into the sea's color and the waterline drawn across the hull alone (`Geometry2D.intersect_polygons`;
+a band of sea laid across the boat read as "a disconnected blue slab") --, its near gunwale over the rig's foot, and its
+pennant streams as a ribbon with a wave running to its tip (a stiff triangle whose tip bobbed).
+
+THE HEADLAND, THE STAIR, THE LIGHT (2026-11-20, a full pass at the user's request):
+- THE CLIFF is NATURAL ROCK broken along STRATA that dip toward the right, each its own thickness, broken at its own places
+  into irregular pieces (tops not parallel to bottoms, chipped corners), larger high up and smaller toward the water,
+  each shaded by whether it faces the moon, a lit edge where a piece's top turns up, a dark crack round each, every piece
+  clipped to the headland's outline (`Geometry2D.intersect_polygons`). Full-height slabs read as a wall, square blocks in
+  level rows as masonry.
+- THE STAIR is a flight cut into the face: lit treads, risers in shade, the dark cut under them, a handrail on posts in
+  every other tread (bare dashes and stray lines before). Drawn after the cottage (still, part 2).
+- THE TURF only on the level ground round the tower (the crest climbs to the cottage's knoll on its left: turf up that
+  slope read as a green ramp).
+- THE SEA AT THE ROCK'S FOOT fades in at its left end (`fade_w`): its band began in a hard vertical edge, a seam down the
+  water under the boat.
+- THE GLARE is smooth: the discs' stack counted continuously and eased to nothing at its rim (whole discs showed as rings
+  ending in a circle).
+- THE BEAMS: each slice's fade blended along it (one alpha a slice stepped down the beam) and every layer feathered across
+  its width (`v_across`; they showed as hard stripes) -- soft shafts of light in the haze.
+
 ## Menu poster frame rate (2026-11-19)
 
 To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the sky's gradient and galaxy, the moon, the sea's gradient and haze, the rock, the cottage and the tower are drawn once (`cached_layer`); the 170 stars are one batched draw (`sprinkle`), their crosses live; the 22 rows of swell are one mesh built for the layout and waved on the GPU (`SWELL`, the same formulas); the clouds are one MultiMesh drifting on the GPU (`CLOUDS`), each bank's silver edge warmed by the beams in `_light_clouds`. THE BEAMS are one mesh each on the GPU (`BEAM`, 2026-11-20): the cone's 18 slices of three quads built once in the beam's own terms (`_beam_mesh`) and projected in the vertex shader as `_proj` does, two MeshInstance2D behind the sea and two in front, `_place_beams` showing each where its beam points. The sea's foam, the moon's path and the lamp's reflection (144 lines) are one MultiMesh (`_glints`, `GLINTS`): only each line's kind and number go over -- the instance data is half precision -- and the shader works out the rest with the same `h01`. Live on the CPU: the stars' crosses, the beams' streaks on the water, the boat, grass, water at the rock's foot, smoke.
