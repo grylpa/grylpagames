@@ -118,8 +118,10 @@ you stayed too close to the original grab"; the second builds a place:
 - The materials are shaders rendered ONCE into textures (`_bake_materials`, at twice the size, drawn
   through mipmaps), again only when the layout's sizes change: every frame only draws textures. Two
   crate variants per color, three papers.
-- Six set colors -- Red, Gold, Teal, Violet, Blue, Rose -- named on every paper ("Red C"). Numbers and
-  labels in Noto Serif Bold (`art/fonts/NotoSerif-Bold.ttf`, OFL), sentences in the text face. A solved
+- Six set colors -- Red, Gold, Teal, Violet, Blue, Rose -- named on every paper ("Red C"). Every letter,
+  number, label, hint and status line in the app's TEXT font (`MainGlobals.get_text_font()`, Open Sans) for clarity
+  (2026-11-20: it had a serif of its own, Noto Serif Bold -- "why does the tip the scales poster use its own font? and a
+  serif font!"; the display font, Orbitron by default, is only for the poster's name). A solved
   puzzle swings every scale on its pivot and settles them ("Balanced!"), then the next puzzle comes in
   `NEXT_PUZZLE_S`.
 - THE RULE IS THE PICTURE. Written-out rules are a menu SWITCH, "Show rules" (`TipscalesG.show_rules`,
@@ -250,8 +252,21 @@ tipscales/
 
 the MENU has its own loop (`art/sounds/tipscales_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `tipscales_menu`): the game's music with the poster's world in front -- the beam creaking, weights, the clock.
 
+## Layout: room for the rules (2026-11-20)
+
+On the big boards the rack took so much height that "it's almost impossible to see a single row of rules after scrolling
+without it being cut" (the user, level 7) -- worst on the short desktop canvas. Now: the CRATES ARE FLAT from five columns
+up (0.58 of their width, was 0.80: a crate is its letter and its slate, the rest was planks), and a flat crate gives its
+slate most of its height and its letter more of it (`scales_art.gd` `draw_crate`, `flat`), and every slate is fixed
+to the planks (it hung on a string from a nail, which on the flat crates read as a stray wire); the message band holds just
+its two lines and the "SCALES" header is lower; a DESKTOP shows THREE rules to a row (`_ticket_cols`), a little shorter
+(`_card_h`), and THREE WHOLE ROWS of them on every level (`tick_min`; the user: "always try to fit 3 rule rows at the
+bottom for desktop, even for level 2") -- its rack packed tighter for it (gaps 4, the message band 28, crates down
+to 30 tall; the bench stays 64: its type is sized to its height, and at 56 its second line was too small); a phone shows at least 2.2 rows. The crates give way below that. The list scrolls
+freely (snapping to rows was tried the same day and turned down: "very confusing").
+
 ## Menu poster frame rate (2026-11-19)
 
 To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the weighhouse backdrop shader (no TIME) is rendered once (a DrawnOnce with `inner_material`); the papered wall and the window dressing with the pictures are drawn once; the foreground is three layers -- the standard weights (once), the balance (live, `_cv = _fg`), the name (once). Only the view through the window and the balance are drawn every frame.
-The balance's shadow, plinth, column and dial face are drawn once with the weights (`_draw_balance(full, true)` in `_fg_back`); only the needle, beam and cap are live (`_balance_live`).
+The balance's shadow, plinth, column and dial face are drawn once with the weights (`_draw_balance(full, true)` in `_fg_back`); only the needle is live (`_balance_live`, antialiased); the BEAM is drawn once, level, and turned as a picture about the pivot (`_beam_hold` / `_beam_draw`, 2026-11-20: drawn live its long edges stepped as it rocked), the round cap a still picture over it (`_cap`).
 The pans are drawn once each AT REST (`_pan_draw`: a DrawnOnce per pan in a holder Control the size of the screen -- a zero-sized holder never shows -- with its chains, crates and weight) and carried each frame to where the beam's ends hang (`_place_pans()` from `_process`, `_pan_rest` / `_pan_hang` set in `_layout`, `_balance_geom(full)` -> pivot, half length, hang). They are redrawn on a layout change and when the crate bake completes. Up close they are a hair softer than drawn live.

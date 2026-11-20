@@ -1013,6 +1013,14 @@ the window; degenerate slivers are skipped) WALKING, not gliding (2026-11-18): a
 drawn apart) swinging from the shoulder as a pendulum lagging the steps. Baked with a clear sky (`menu_house.webp`,
 `menu_house_d.webp`). Made up, never the board.
 
+THE DOWNSPOUT'S FOOT (2026-11-20): the elbow slopes DOWN from the pipe's bottom to the concrete splash block
+(`ELBOW_C`, `ELBOW_TO`, `_elbow_rot`), in duller weathered galvanized steel with its dark open mouth; the water
+(`_spout_water`) leaves the mouth along the elbow and falls under its weight onto the block -- a translucent band with a
+brighter core and streaks running down it, foam where it lands, droplets thrown out and falling back -- then runs down
+the block into the yard drain. The elbow pointed up and out, its bright metal caught the windows' light, and the water
+was seven short white streaks in a tight cone: "a bunsen blow torch instead of water", the user. Re-baked
+(`menu_house.webp`, `menu_house_d.webp`).
+
 ## Menu poster frame rate (2026-11-19)
 
 To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): `live_title = true`: its name brightens with the lightning and the rain is drawn over it, so it is not drawn once like the other posters' titles.

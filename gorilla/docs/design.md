@@ -758,16 +758,41 @@ under it.
 
 ## The main menu's poster
 
-`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`, extending the shared `scripts/menu_poster.gd`;
-the shared `main_menu.gd` keeps only a slim panel at the foot): deep rainforest at dawn from the side, drawn once on a still layer: three layers of foliage built from clusters of pointed leaves (circles read as blobs), each nearer one darker and less hazed, trunks, undergrowth, the forest floor, a mossy log, a soft shade behind the name; over it the game's own silverback (`peripheral_gorilla.gd`, side view; its own clock stopped and its walk cycle driven here, 4.2 rad/s, moving 0.8 body heights per cycle -- its side-view hands and feet swing +-0.2, so that is the pace at which a planted one does not slide (at its game cadence, then at 1.15, it glided) -- its weight rising and settling with each step and its body tilting with the slope; walked round off-screen) on a ROLLING floor (`_ground_at`: a rise and a dip, a mossy lit lip, roots, stones, leaf litter; it was flat) and baby (`baby_gorilla.gd`) STANDING ON a ROUND log (a cylinder seen a little from above: shaded bark, furrows following the round, moss over the top, a shadow on the floor; the baby's feet a quarter of the way down its face, where its top is -- on the flat log's top edge it stood in the air) beside a bunch of bananas (`banana_art.gd`, its clock set long past arrival -- at age 0 it is transparent); on top shafts of light slanting and breathing, motes, two butterflies, vines swaying, great fronds framing the corners.
-Made up, never the board: the menu also opens mid-game.
+`scripts/menu_world.gd` (`main.gd` `menu_backdrop()`), REAL 3-D on the shared `scripts/menu_poster3d.gd` (2026-11-20; it was
+flat vector art -- star-shaped leaf clusters, the game's cartoon figures -- "looks like a one year old child's book"):
+THE RAINFOREST FLOOR AT DAWN, seen low from the side.
 
-The forest floor is a still layer, baked (`menu_still_0_<m|d>.webp`, 2026-11-17): first frame 63 -> 11 ms.
+- **The forest, baked** (`menu_forest.webp`, `menu_forest_d.webp`; `_build_still`): great trunks (`TREES`) with furrowed
+  bark (`_bark`), buttress roots (`_buttress_mesh`), moss, LEAFY CLIMBERS wound up them and leaf clusters all the way up,
+  ferns growing out of the bark; lianas hanging with leaves down them and one looped between the near trunks (`_lianas`);
+  ferns (`_fern_mesh`) and broad-leaved plants (`_leaf_mesh`, `_leaf_tex`) on the floor (`_understory`) -- never in front
+  of the walk; a midstory of young trees with leaf masses at every depth (`_midstory`); canopy clumps close round the
+  trunks (`_canopy`; scattered single leaves read as floating, bare branches as poles); a leaf-litter floor (`_litter`).
+  The low sun behind the forest (shadows baked), a cool fill, a light haze and a RICHER GRADE (saturation 1.22, contrast
+  1.12 -- the bake only: in the live view it turned the gorillas red; the trees were "empty" and the colors "washed out").
+- **The log** (`_log`): dark wet bark, irregular moss cushions over its top (a row of equal pads read as a caterpillar), a
+  cut end with growth rings and a bark rim (`_rings`); a HAND of five banana fingers fanning from their crown (laid side by
+  side they merged into "a yellow triangle flag") and two apples.
+- **The silverback, live**: a knuckle-walker's stance -- the shoulders well above the hips, the back sloping from the hump
+  to a small rump, the head small and LOW in front of the hump, a flat black face with a heavy brow; FUR by its own shader
+  (`FUR_SHADER`: strands, a rim of the sun, a fuzzy silhouette where pixels drop out by the strands' noise; `saddle`
+  grays the torso's back -- the SILVER SADDLE in its own fur). Arms and legs are two bones each solved by IK (`_ik`, fixed
+  lengths) to hands and feet PLANTED while they push (a lateral-sequence walk, `GAIT_T`, `DUTY`; the stride from the speed).
+  It walks from just out of sight at the left to just out of sight at the right and starts again AT ONCE (`_walk_span`:
+  no pause with an empty forest). Its soft shadow is a blob (`_blob`).
+- **The baby, live**, on the log on a contact shadow: breathing, legs swinging, an apple in its hand bitten every few
+  seconds, its head following the silverback when near and the butterfly otherwise.
+- **Live too**: two 3-D BUTTERFLIES (a blue morpho, an orange one; wings on pivots flapping about a raised angle so their
+  faces show from the side), leaves drifting down, hanging fronds nodding at the top corners; in 2-D the light shafts and
+  motes, and the title.
 
 ## Audio (2026-11-19)
 
 the MENU has its own loop (`art/sounds/gorilla_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `gorilla_menu`): the game's music with the poster's world in front -- chest-beats and hoots far off, parrots, monkeys; the GAME loop carries its world too, gentler (`GAME_WORLDS`): birds and monkeys far off.
 
-## Menu poster frame rate (2026-11-19)
+## Menu poster frame rate (2026-11-20)
 
-To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): each great frond framing the corners is ONE mesh (`_frond_mesh(length, col)`: the rib and its leaflets, built once per frond) drawn with its sway as a transform (`draw_set_transform(base, ang)`), not its leaflets one shape at a time every frame; the bananas are redrawn only when the layout changes.
+The forest is a baked picture; only the gorillas, butterflies, falling leaves and fronds are live 3-D. In the live view the
+sun casts NO shadow map (`shadow_enabled = bake_mode`: the forest's shadows are baked, the gorillas have blob shadows) and the
+live ellipsoids and capsules are coarser (24 x 12 and 16 x 6: a few dozen pixels across, as round). Measured on the phone
+(Motorola edge 50 neo): 60 fps before and after, the frame's draws 258 -> 158 and triangles 238k -> 54k.

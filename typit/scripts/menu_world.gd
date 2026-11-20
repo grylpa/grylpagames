@@ -11,7 +11,8 @@ extends "res://scripts/menu_poster3d.gd"
 const LINES: Array = ["The quick brown fox", "jumps over the lazy", "dog. Fast and true!"]
 const CPS: float = 9.0                    # characters a second
 const RETURN_S: float = 0.5               # the carriage's return and the line feed
-const HOLD_S: float = 0.8                 # the finished page, before it fades
+const HOLD_S: float = 0.0                 # the finished page, before it fades (none: the user, 2026-11-20, "remove the
+                                          # pause at the end" -- it fades as the carriage goes home, and the next starts)
 const FADE_S: float = 0.5
 const ROWS_KEYS: Array = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
 const KEY_PITCH: float = 31.0
@@ -318,12 +319,13 @@ func _build_live() -> void:
 		lb.shaded = true
 		lb.render_priority = 1
 		_line_labels.append(lb)
-	# the timeline: a line typed, the carriage returned; the page held, faded
-	var tt: float = 0.15
+	# the timeline: a line typed, the carriage returned (not after the last); the page faded while the carriage glides
+	# home (FADE_S + 0.3, `home` in _animate) -- and the next page starts at once
+	var tt: float = 0.0
 	for li2 in LINES.size():
 		_line_t0.append(tt)
-		tt += float(str(LINES[li2]).length()) / CPS + RETURN_S
-	_cycle = tt + HOLD_S + FADE_S + 0.1
+		tt += float(str(LINES[li2]).length()) / CPS + (RETURN_S if li2 < LINES.size() - 1 else 0.0)
+	_cycle = tt + HOLD_S + FADE_S + 0.3
 
 # the paper's point for a character `col` of line `li`, before the carriage and the feed move it (on the tilted sheet)
 func _char_pos(li: int, col: float) -> Vector3:

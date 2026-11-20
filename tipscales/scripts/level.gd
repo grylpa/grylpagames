@@ -77,7 +77,7 @@ var _bg: ColorRect = null
 var _view: Control = null
 var _tickets: Control = null
 var _font: Font = null
-var _serif: Font = null
+var _face: Font = null
 var _text_font: Font = null
 var _w: float = 680.0
 var _h: float = 788.0
@@ -130,7 +130,10 @@ func _ready() -> void:
 
 func _build() -> void:
 	_font = ThemeDB.fallback_font
-	_serif = load("res://art/fonts/NotoSerif-Bold.ttf")
+	# the font for CLARITY (the text font) for everything read here -- letters, figures, labels, hints, status (it was a
+	# serif of its own; then the display font, Orbitron by default -- the user, 2026-11-20: anything that needs clarity
+	# is in the font for such texts)
+	_face = MainGlobals.get_text_font()
 	_text_font = MainGlobals.get_text_font()
 	_bg = ColorRect.new()
 	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -206,9 +209,9 @@ func new_game(from_scratch: bool = true) -> void:
 	game.corrects = 0
 	game.mistakes = 0
 	_cfg = TipscalesLevelConfig.TUTORIAL if game.tutorial_mode else TipscalesLevelConfig.get_level(current_level_id)
-	# short in the HUD strip ("7 · Weighmaster": its box is 200 wide and "Level 7: Weighmaster" ran off
+	# short in the HUD strip ("7 • Weighmaster": its box is 200 wide and "Level 7: Weighmaster" ran off
 	# its left edge); the briefing card has the full title
-	game.level_label_changed("Tutorial" if game.tutorial_mode else "%d · %s" % [current_level_id, str(_cfg.get("name", ""))])
+	game.level_label_changed("Tutorial" if game.tutorial_mode else "%d • %s" % [current_level_id, str(_cfg.get("name", ""))])
 	puzzles_done = 0
 	clean_done = 0
 	hints_left = HINTS_PER_LEVEL
@@ -723,29 +726,35 @@ func _layout() -> void:
 	var side: float = 14.0
 	var rows: int = _rows()
 	var cols: int = _cols()
-	_gap = 8.0 if cols >= 6 else 10.0
+	# (a desktop packs the rack tighter: its short canvas keeps three rows of rules under it)
+	_gap = (8.0 if cols >= 6 else 10.0) if mobile else (4.0 if cols >= 5 else 7.0)
 	var head: float = 6.0
 	var cw: float = (_w - side * 2.0 - _gap * float(cols - 1)) / float(cols)
 	cw = minf(cw, 128.0)
-	var ch: float = cw * 0.80
-	var bench_h: float = 94.0 if mobile else 64.0
-	var msg_h: float = 70.0 if mobile else 34.0
-	# at least this much of the tickets shows; on the short desktop canvas the board comes first
-	var tick_min: float = (2.2 if mobile else 1.0) * (_card_h() + 10.0) + 20.0
+	# THE CRATES ARE FLAT on the big boards: a crate is its letter and its slate of weights, and at 0.80 of its width it
+	# was mostly planks -- room the rules below needed (the user, 2026-11-20: "a lot you can gain from the crates")
+	var ch: float = cw * (0.58 if cols >= 5 else 0.80)
+	var bench_h: float = 94.0 if mobile else 64.0       # (its type is sized to it: never smaller)
+	var msg_h: float = 62.0 if mobile else 28.0             # the message's type, no more (two lines on a phone)
+	var head_h: float = 34.0 if mobile else 28.0
+	# at least this much of the rules shows: two rows and a little of a third on a phone, THREE WHOLE ROWS on a desktop, on
+	# every level (the user, 2026-11-20)
+	var tick_min: float = (2.2 * (_card_h() + 10.0) + 20.0) if mobile else (3.0 * (_card_h() + 10.0) + 4.0)
 	var foot: float = float(MainGlobals.full_screen_size.y) - (92.0 if mobile else 50.0)
-	var board_max: float = foot - top - head - 12.0 - bench_h - 4.0 - msg_h - 28.0 - tick_min
-	var need: float = head + float(rows) * ch + float(rows - 1) * _gap
+	var board_max: float = foot - top - head - 12.0 - bench_h - 4.0 - msg_h - head_h - 2.0 - tick_min
+	var need: float = float(rows) * ch + float(rows - 1) * _gap
 	if need > board_max:
-		ch = maxf(36.0, (board_max - head - float(rows - 1) * _gap) / float(rows))
+		ch = maxf(36.0 if mobile else 30.0, (board_max - float(rows - 1) * _gap) / float(rows))
 	_cell = Vector2(cw, ch)
+	var rack_h: float = float(rows) * ch + float(rows - 1) * _gap
 	var bw: float = float(cols) * cw + float(cols - 1) * _gap
-	_board_rect = Rect2((_w - bw) * 0.5, top + head, bw, float(rows) * ch + float(rows - 1) * _gap)
+	_board_rect = Rect2((_w - bw) * 0.5, top + head, bw, rack_h)
 	var y: float = _board_rect.end.y + 12.0
 	_bench_rect = Rect2(side, y, _w - side * 2.0, bench_h)
 	y = _bench_rect.end.y + 4.0
 	_msg_rect = Rect2(side, y, _w - side * 2.0, msg_h)
 	y = _msg_rect.end.y
-	_head_rect = Rect2(side, y, _w - side * 2.0, 40.0 if mobile else 30.0)
+	_head_rect = Rect2(side, y, _w - side * 2.0, head_h)
 	y = _head_rect.end.y + 2.0
 	# the tickets stop above the app's button bar (it sits over the screen's foot)
 	_tick_rect = Rect2(0.0, y, _w, foot - y)
@@ -766,8 +775,8 @@ func _layout() -> void:
 # the user preferred the grid with bigger letters.)
 func _card_h() -> float:
 	if TipscalesG.show_rules:
-		return 196.0 if MainGlobals.is_mobile() else 128.0
-	return 168.0 if MainGlobals.is_mobile() else 112.0
+		return 196.0 if MainGlobals.is_mobile() else 106.0
+	return 168.0 if MainGlobals.is_mobile() else 90.0
 
 func _paper_tex(ci: int) -> Texture2D:
 	var rel: bool = selected >= 0 and not _solved and (puzzle.clues[ci]["c"] as Array).has(selected)
@@ -775,7 +784,9 @@ func _paper_tex(ci: int) -> Texture2D:
 	return set_[ci % set_.size()] if not set_.is_empty() else null
 
 func _ticket_cols() -> int:
-	return 2
+	# THREE to a row on a desktop (2026-11-20): its canvas is short (788), and with two to a row the big boards left room
+	# for barely one row of rules ("surely the problem is with desktop", the user)
+	return 2 if MainGlobals.is_mobile() else 3
 
 func crate_rect(i: int) -> Rect2:
 	var r: int = i / _cols()
@@ -935,6 +946,7 @@ func _process(delta: float) -> void:
 		_scroll = clampf(_scroll + _scroll_v * delta, 0.0, _max_scroll())
 		_scroll_v *= pow(0.04, delta)
 		_tickets.queue_redraw()
+
 	var anim: bool = false
 	for i in _pops.keys():
 		if now - float(_pops[i]) < 350.0:
@@ -989,7 +1001,7 @@ func _draw_view() -> void:
 				pop = 1.0 + 0.12 * sin(u * PI)
 		pop *= float(_lift.get(i, 1.0))
 		ART.draw_crate(_view, crate_rect(i), _crate_tex(i), i / cols, i % cols, cols, open_mask(i), crossed[i],
-			placed[i], ring, pop, _serif)
+			placed[i], ring, pop, _face)
 	_draw_bench()
 	_draw_message()
 	_draw_tickets_head()
@@ -1031,8 +1043,8 @@ func _draw_waiting() -> void:
 		_view.draw_arc(Vector2(end.x, py - 4.0), 22.0, 0.15, PI - 0.15, 12, ink, 3.0)
 	var fs: int = 30 if mob else 24
 	var title: String = "Stacking the crates" + ".".repeat(1 + int(t * 2.0) % 3)
-	var tw: float = _serif.get_string_size("Stacking the crates...", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	_view.draw_string(_serif, Vector2(ctr.x - tw * 0.5, r.position.y + ch * 0.76), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
+	var tw: float = _face.get_string_size("Stacking the crates...", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	_view.draw_string(_face, Vector2(ctr.x - tw * 0.5, r.position.y + ch * 0.76), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
 	var sub: String = "Puzzle %d of %d" % [puzzles_done + 1, int(_cfg.get("puzzles", 3))]
 	var sfs: int = 20 if mob else 16
 	var sw: float = _text_font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs).x
@@ -1060,31 +1072,31 @@ func _draw_bench() -> void:
 		# the shorter desktop bench
 		var inner: Rect2 = r.grow(-(BENCH_RULE + 5.0))
 		var fs1: int = int(clampf(inner.size.y * 0.42, 14.0, 27.0))
-		var fs2: int = int(round(fs1 * (0.85 if MainGlobals.is_mobile() else 0.72)))
+		var fs2: int = int(round(fs1 * 0.85))
 		var gap: float = fs1 * 0.30
 		var block: float = fs1 * 0.80 + gap + fs2 * 0.95
 		var y0: float = inner.position.y + (inner.size.y - block) * 0.5
 		var x0: float = inner.position.x + 6.0
-		_view.draw_string(_serif, Vector2(x0, y0 + fs1 * 0.80), t1, HORIZONTAL_ALIGNMENT_LEFT, -1, fs1, Color(1.0, 0.94, 0.78))
+		_view.draw_string(_face, Vector2(x0, y0 + fs1 * 0.80), t1, HORIZONTAL_ALIGNMENT_LEFT, -1, fs1, Color(1.0, 0.94, 0.78))
 		_view.draw_string(_text_font, Vector2(x0, y0 + fs1 * 0.80 + gap + fs2 * 0.95), t2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(0.98, 0.94, 0.84, 0.92))
 		if not _solved:
 			var hr: Rect2 = _hint_rect()
-			# the hints left on the button ("Hint · 2"); spent, it greys (the tutorial's are unlimited)
+			# the hints left on the button ("Hint • 2"); spent, it greys (the tutorial's are unlimited)
 			var out_of: bool = not game.tutorial_mode and hints_left <= 0
 			_view.draw_rect(Rect2(hr.position + Vector2(0, 3), hr.size), Color(0, 0, 0, 0.4))
 			_view.draw_rect(hr, ART.BRASS if not out_of else Color(0.42, 0.38, 0.32))
 			_view.draw_rect(hr.grow(-3.0), Color(0.95, 0.80, 0.45) if not out_of else Color(0.58, 0.54, 0.47))
-			var ht: String = "Hint" if game.tutorial_mode else "Hint · %d" % hints_left
+			var ht: String = "Hint" if game.tutorial_mode else "Hint • %d" % hints_left
 			var hfs: int = 29 if MainGlobals.is_mobile() else 22
-			var hw: float = _serif.get_string_size(ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
-			_view.draw_string(_serif, Vector2(hr.get_center().x - hw * 0.5, hr.get_center().y + hfs * 0.36), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, ART.INK if not out_of else Color(ART.INK, 0.55))
+			var hw: float = _face.get_string_size(ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
+			_view.draw_string(_face, Vector2(hr.get_center().x - hw * 0.5, hr.get_center().y + hfs * 0.36), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, ART.INK if not out_of else Color(ART.INK, 0.55))
 		return
 	# the crate being worked on, and its weights
 	# the crate being worked on: its letter on a weight in its color (no picture of the crate, no name)
 	var cols: int = _cols()
 	var ls: float = r.size.y - 12.0
 	ART.draw_letter_weight(_view, Rect2(r.position.x + BENCH_RULE + 4.0, r.position.y + 6.0, ls, ls),
-		selected / cols, ART.LETTERS[selected % cols], _serif)
+		selected / cols, ART.LETTERS[selected % cols], _face)
 	var taken: int = _taken(selected)
 	for v in range(1, cols + 1):
 		var st: int = 0
@@ -1099,7 +1111,7 @@ func _draw_bench() -> void:
 		if _press_on == "weight" and _press_v == v and not _press_fired:
 			press = clampf((Time.get_ticks_msec() - _press_t) / LONG_PRESS_MS, 0.0, 1.0)
 		var wr: Rect2 = _bench_weight_rect(v)
-		ART.draw_weight(_view, wr, v, st, press, _serif)
+		ART.draw_weight(_view, wr, v, st, press, _face)
 		# THE LONG PRESS'S RING only once the finger is clearly HOLDING (RING_AFTER_MS), then filling over
 		# the rest: from the first moment, every plain tap flashed a quarter of it ("what is that?")
 		var held: float = press * LONG_PRESS_MS
@@ -1125,17 +1137,17 @@ func _draw_tickets_head() -> void:
 	var n: int = ticket_order().size()
 	var sub: String = "%d" % n
 	if selected >= 0:
-		sub += " · %d RELEVANT" % _marked_count()
+		sub += " • %d RELEVANT" % _marked_count()
 	elif not aside.is_empty():
-		sub += " · %d SET ASIDE" % aside.size()
+		sub += " • %d SET ASIDE" % aside.size()
 	var mob: bool = MainGlobals.is_mobile()
 	var fs: int = 27 if mob else 18
 	var base_y: float = _head_rect.size.y - 8.0
 	# one color for the whole header, the word's gold (the user: the numbers were a paler cream)
 	var head_col: Color = Color(1.0, 0.88, 0.60)
-	_view.draw_string(_serif, _head_rect.position + Vector2(4.0, base_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, head_col)
-	var tw: float = _serif.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	_view.draw_string(_serif, _head_rect.position + Vector2(tw + 14.0, base_y), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, head_col)
+	_view.draw_string(_face, _head_rect.position + Vector2(4.0, base_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, head_col)
+	var tw: float = _face.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	_view.draw_string(_face, _head_rect.position + Vector2(tw + 14.0, base_y), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, head_col)
 	_view.draw_line(_head_rect.position + Vector2(4.0, base_y + 6.0), Vector2(_head_rect.end.x, _head_rect.position.y + base_y + 6.0), Color(0.85, 0.62, 0.32, 0.45), 1.0)
 
 func _marked_count() -> int:
@@ -1175,7 +1187,7 @@ func _draw_tickets() -> void:
 			st = 1
 		# askew on the counter; a full-width paper less (the same angle moves its ends twice as far)
 		var tilt_deg: float = float((ci * 37 + 11) % 7 - 3) * 0.45 * minf(1.0, 320.0 / _card.x)
-		ART.draw_ticket(_tickets, cr, puzzle.clues[ci], _cols(), st, _serif,
+		ART.draw_ticket(_tickets, cr, puzzle.clues[ci], _cols(), st, _face,
 			_paper_tex(ci), _aside_rect(cr), swing, tilt_deg,
 			TipscalesG.show_rules)
 	# the scroll bar, while there is more
@@ -1308,3 +1320,4 @@ func _tap_ticket(p: Vector2) -> void:
 		_scroll = clampf(_scroll, 0.0, _max_scroll())
 		_redraw()
 		return
+

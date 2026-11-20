@@ -200,8 +200,9 @@ counting up ten a hit (2026-11-18; the striped panels read as an empty basket, t
 rect with a yellow line", the user). The game's own DOMED BUTTONS (their plastic glowing a little in its color, a low key light on the table: they read
 dark) pop out of the burrows throwing clods of soil -- the real
 ones red with the white center dot, the decoys blue without it -- and a big wooden MALLET (brass-banded head, dark
-grip) swings down on each real one (a burst of stars, the button knocked down), lifts and travels to the next,
-never touching a decoy, which sinks back on its own (`HIT_EVERY` 1.35 s).
+grip) swings down on each real one (a burst of stars, the button knocked down), lifts and travels to the next --
+raised no higher than `LIFT_MAX` (22 degrees), its head kept under the valance's scallops: at 38 it rose into the
+fabric over the front row and passed through it (2026-11-20) -- never touching a decoy, which sinks back on its own (`HIT_EVERY` 1.35 s).
 
 THE FAIR BEHIND fills the sky over the stall (2026-11-18; it was an empty black band): a night sky (deep blue to a
 warm violet glow over the rides) with its stars as real points (stars in the stretched sky texture swam as smears),

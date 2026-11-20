@@ -413,6 +413,11 @@ big numbers below them correctly when colored"):
   a hazy band of trees and roofs beyond (`_distance`), and DEPTH FOG in the picture only (in the live view it made every
   live material compile again on the first frame).
 
+THE DOORS (2026-11-20): a door rolls down while its cart goes 150 on inside (`DOOR_SHUT_START` / `DOOR_SHUT_END`, about a
+second; it was 70, half a second), and the truck's cycle lasts until EVERY door is down -- bay 3's is the last to close (its
+cart is the first behind the engine); the cycle was taken from bay 1's, so bay 3's door was still open when the next truck
+came and snapped shut ("shutter 3 closes abruptly", the user).
+
 ## Audio (2026-11-19)
 
 its menu was SILENT -- the loop is registered as "motor", which `globals.gd` now names in `menu_ambient_names`; the MENU has its own loop (`art/sounds/deliverem_menu_ambient.ogg`, `devtools/make_ambient_sounds.py` `deliverem_menu`): the game's music with the poster's world in front -- a forklift reversing, a roller door, pallets, a truck; the GAME loop carries its world too, gentler (`GAME_WORLDS`): a forklift far off, pallets far off (no doors).
