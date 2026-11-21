@@ -110,7 +110,7 @@ func _input(event):
 	elif event.is_action_pressed("zoom"):
 		update_score_time.emit(-2, -10)
 		zoom_unzoom()
-	elif event.is_action_pressed("mainmenu"):
+	elif event.is_action_pressed("mainmenu") and not MainGlobals.is_screen_visible("main_menu"):
 		game.stop_sound("motor")		
 	elif !DelemfpG.freeze:
 		if event.is_action_pressed("right") or event.is_action_pressed("ui_right"):

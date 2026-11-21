@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 # After every WEB export -- from the editor or `--export-release "Web"` -- the exported pack is cut into a base and one
-# pack per game by devtools/split_web_pack.py (see CLAUDE.md, "The web build"). Without it the web build is one pack of
+# pack per game by splitter.gd (see CLAUDE.md, "The web build"). Without it the web build is one pack of
 # ~50 MB, every game's files downloaded before the chooser comes up.
 
 var _exporter: EditorExportPlugin = null
