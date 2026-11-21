@@ -117,7 +117,7 @@ func _start_round() -> void:
 func _input(event: InputEvent) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return
-	if event.is_action_pressed("mainmenu"):
+	if event.is_action_pressed("mainmenu") and not MainGlobals.is_screen_visible("main_menu"):
 		game.stop_sound("ambient")
 	elif event.is_action_pressed("clue"):
 		show_clue()

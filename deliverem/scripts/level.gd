@@ -114,7 +114,7 @@ func _input(event) -> void:
 		return
 	if event.is_action_pressed("reminder") or event.is_action_pressed("clue"):
 		display_reminder()
-	elif event.is_action_pressed("mainmenu"):
+	elif event.is_action_pressed("mainmenu") and not MainGlobals.is_screen_visible("main_menu"):
 		game.stop_sound("motor")
 	
 func add_pipe(p):

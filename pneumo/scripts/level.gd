@@ -121,7 +121,7 @@ func new_game(from_scratch=true):
 func _input(event) -> void:
 	if MainGlobals.ignore_keyboard_actions:
 		return
-	if event.is_action_pressed("mainmenu"):
+	if event.is_action_pressed("mainmenu") and not MainGlobals.is_screen_visible("main_menu"):
 		game.stop_sound("motor")
 
 func _process(_delta: float) -> void:

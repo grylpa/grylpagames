@@ -1967,8 +1967,12 @@ func show_yesno_dlg(parent, title, text, ok_text, cancel_text, ok_func, cancel_f
 # 	if callable != null and callable is Callable:
 # 		callable.call()
 
+# "M" while the main menu is up does nothing: the player is already there (it asked "lose your progress?" and then
+# showed the same menu again). The key is still taken, so nothing further down the game's chain reads it.
 func handle_main_menu(parent, event, callback):
 	if event.is_action_pressed("mainmenu"):
+		if MainGlobals.is_screen_visible("main_menu"):
+			return true
 		show_yesno_dlg(parent, "End game", 
 			"Are you sure you want to lose your progress ?", "Yes", "Oops, No", 
 			Callable(self,"_on_confirmed_dialog").bind(callback), Callable(self, "_on_cancelled_dialog"))

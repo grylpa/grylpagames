@@ -1,7 +1,7 @@
 class_name GamePacks
 extends RefCounted
 # A GAME'S OWN PACK, FETCHED THE FIRST TIME IT IS OPENED -- on the web only (2026-11-20). The web build's one pack was
-# 60 MB and every visitor downloaded all of it; most play two or three games. devtools/split_web_pack.py cuts the
+# 60 MB and every visitor downloaded all of it; most play two or three games. The export (addons/web_pack_split) cuts the
 # exported pack into a base (the app, everything shared, every game's autoloads and chooser tile) and one pack per game
 # (packs/<folder>.pck beside the page). The chooser (`_launch`) asks `needed()` and, if so, `fetch()`es it -- the game's
 # "Getting it ready" card (prep_card.gd) shows the download -- before loading the game's scene. A pack is kept in the
@@ -62,7 +62,7 @@ static func fetch(host: Node, folder: String, progress: Callable) -> bool:
 
 # where the page was loaded from: the packs sit beside it
 static func _base_url() -> String:
-	# (a test of a split build in the desktop engine names the server: devtools/split_web_pack.py's header)
+	# (a test of a split build in the desktop engine names the server: CLAUDE.md, "The web build")
 	if OS.has_environment("NOMIZO_PACKS_URL"):
 		return OS.get_environment("NOMIZO_PACKS_URL")
 	var href: String = str(JavaScriptBridge.eval("window.location.href.split('#')[0].split('?')[0]", true))
