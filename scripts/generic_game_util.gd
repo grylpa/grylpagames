@@ -1584,8 +1584,8 @@ func show_instructions(parent, automatic: bool = true):
 	# `automatic` = the first-run popup a game fires from its _ready. Pressing I or using the help
 	# menu passes false and always gets the text.
 	#
-	# A game that HAS a tutorial never shows this automatically — not on the first run (the
-	# tutorial runs instead) and not on any run after (the tutorial already taught it, and a wall
+	# A game that HAS a tutorial never shows this automatically — not on the first run (its menu
+	# calls for the tutorial instead) and not on any run after (the tutorial already taught it, and a wall
 	# of text afterwards is just a repeat). For those games the text is reachable on demand only.
 	# `file_names_prefix` is the game's folder name for every game — it is what names its save
 	# files — which is what MainCfg.tutorials is keyed by.

@@ -299,24 +299,32 @@ func _build() -> void:
 	_skip_btn.name = "SkipTutorial"
 	_skip_btn.text = "Skip tutorial"
 	# 18, not 15: this is the one control on the coach's screen a player hunts for, and at the app's
-	# mobile scale a 15 came out at 24 against captions of 30 and 35.
-	MainGlobals.set_font_size(_skip_btn, 18)
-	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		_skip_btn.add_theme_color_override(state, Color(1, 1, 1, 0.92))
+	# mobile scale a 15 came out at 24 against captions of 30 and 35. 21 and in the app's GOLD since 2026-11-22 (the
+	# user: more noticeable; it was white on a faint gray rim): gold words and rim on a dark backing, filled gold under
+	# the pointer or a press.
+	MainGlobals.set_font_size(_skip_btn, 21)
+	var gold: Color = ScreenBackdrop.ACCENT
+	var ink: Color = Color(0.153, 0.118, 0.043)
+	for state: String in ["font_color", "font_focus_color"]:
+		_skip_btn.add_theme_color_override(state, gold)
+	for state: String in ["font_hover_color", "font_pressed_color"]:
+		_skip_btn.add_theme_color_override(state, ink)
 	_skip_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	_skip_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_skip_btn.focus_mode = Control.FOCUS_NONE
 	var sb_skip: StyleBoxFlat = StyleBoxFlat.new()
-	sb_skip.bg_color = Color(0, 0, 0, 0.55)
-	sb_skip.set_corner_radius_all(14)
-	sb_skip.set_border_width_all(2)
-	sb_skip.border_color = Color(1, 1, 1, 0.45)
-	sb_skip.content_margin_left = 14.0
-	sb_skip.content_margin_right = 14.0
-	sb_skip.content_margin_top = 6.0
-	sb_skip.content_margin_bottom = 6.0
+	sb_skip.bg_color = Color(0.04, 0.03, 0.02, 0.82)
+	sb_skip.set_corner_radius_all(16)
+	sb_skip.set_border_width_all(3)
+	sb_skip.border_color = Color(gold.r, gold.g, gold.b, 0.95)
+	sb_skip.shadow_color = Color(0, 0, 0, 0.45)
+	sb_skip.shadow_size = 6
+	sb_skip.content_margin_left = 18.0
+	sb_skip.content_margin_right = 18.0
+	sb_skip.content_margin_top = 8.0
+	sb_skip.content_margin_bottom = 8.0
 	var sb_skip_hi: StyleBoxFlat = sb_skip.duplicate() as StyleBoxFlat
-	sb_skip_hi.bg_color = Color(0.25, 0.25, 0.25, 0.8)
+	sb_skip_hi.bg_color = gold
 	_skip_btn.add_theme_stylebox_override("normal", sb_skip)
 	_skip_btn.add_theme_stylebox_override("hover", sb_skip_hi)
 	_skip_btn.add_theme_stylebox_override("pressed", sb_skip_hi)

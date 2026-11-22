@@ -351,7 +351,7 @@ narrow pill that stands between them. (Result lines stay one line at 30.)
 
 ## Tutorial
 
-`pickpocket/scripts/tutorial.gd` (in `MainCfg.tutorials`; first run and "How to play"). One real
+`pickpocket/scripts/tutorial.gd` (in `MainCfg.tutorials`; the menu's "How to play", which glows until it is answered). One real
 round, slowed down (`level._tutorial_setup`: 3 cups, 4 swaps of 950 ms, a 1.5 s theft with the
 bright wallet and the victim's start, always in the NEAR lane, never a pickpocket question or an
 empty round; rounds never end the level):

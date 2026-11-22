@@ -53,9 +53,8 @@ func _ready() -> void:
 	game.progress_time_pos = 7
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
-	# chooser's "How to play", OR when this is their first ever run of this game.
-	if MainGlobals.take_pending_tutorial("mmm") \
-			or MainGlobals.take_auto_tutorial("mmm", game.shown_instructions):
+	# chooser's "How to play", never on its own (2026-11-22).
+	if MainGlobals.take_pending_tutorial("mmm"):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_level: int = -1

@@ -62,10 +62,9 @@ func _on_game_sig_level_is_done(_didwin: bool) -> void:
 	game.save_score(get_game_score(_didwin, false))
 
 # Teach instead of showing the menu when the player asked for the tutorial from the
-# chooser's "How to play", OR when this is their first ever run of this game.
+# chooser's "How to play", never on its own (2026-11-22).
 func _maybe_start_tutorial() -> void:
-	if MainGlobals.take_pending_tutorial("ddooo") \
-			or MainGlobals.take_auto_tutorial("ddooo", game.shown_instructions):
+	if MainGlobals.take_pending_tutorial("ddooo"):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_level: int = -1

@@ -79,9 +79,8 @@ func _ready() -> void:
 	$Level.sig_show_main_menu.connect(_on_level_show_main_menu)
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
-	# chooser's "How to play", OR when this is their first ever run of this game.
-	if MainGlobals.take_pending_tutorial("udbr") \
-			or MainGlobals.take_auto_tutorial("udbr", game.shown_instructions):
+	# chooser's "How to play", never on its own (2026-11-22).
+	if MainGlobals.take_pending_tutorial("udbr"):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_mode: int = -1

@@ -65,9 +65,8 @@ func _ready() -> void:
 	game.sig_level_is_done.connect(_on_game_sig_level_is_done)
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
-	# chooser's "How to play", OR when this is their first ever run of this game.
-	if MainGlobals.take_pending_tutorial("pickpocket") \
-			or MainGlobals.take_auto_tutorial("pickpocket", game.shown_instructions):
+	# chooser's "How to play", never on its own (2026-11-22).
+	if MainGlobals.take_pending_tutorial("pickpocket"):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_level: int = -1

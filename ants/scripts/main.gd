@@ -97,11 +97,10 @@ func _ready() -> void:
 	main_menu.show_continue_and_start_new(false)
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the chooser's
-	# "How to play", OR when this is their first ever run. MUST stay at the end of _ready, after
+	# "How to play", never on its own (2026-11-22). MUST stay at the end of _ready, after
 	# show_instructions above: that call's suppression guard asks whether a tutorial is pending, so
 	# consuming the flag earlier lets the text wall through.
-	if MainGlobals.take_pending_tutorial("ants") \
-			or MainGlobals.take_auto_tutorial("ants", game.shown_instructions):
+	if MainGlobals.take_pending_tutorial("ants"):
 		call_deferred("start_tutorial")
 
 var _tutorial_saved_level: int = -1

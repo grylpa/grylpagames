@@ -485,6 +485,7 @@ func _sync_poster_links() -> void:
 		return
 	if _bar_howto != null:
 		_bar_howto.visible = _howto_added
+	_beckon()
 	if _cog != null:
 		_cog.visible = _settings_btn != null and _settings_btn.visible
 		_cog.get_parent().visible = _cog.visible
@@ -663,6 +664,7 @@ func _ensure_full_width() -> void:
 # gains a tutorial later stops offering the text and starts offering the tutorial, for free, and a
 # game that has neither shows no button rather than one that opens nothing.
 var _howto_added: bool = false
+var _card_howto: Button = null
 
 func _maybe_add_tutorial_button() -> void:
 	if _howto_added or _links == null:
@@ -678,6 +680,7 @@ func _maybe_add_tutorial_button() -> void:
 	# card's row of links, first
 	var btn: Button = _link_button("How to play")
 	btn.pressed.connect(_on_tutorial_button_pressed)
+	_card_howto = btn
 	_links.add_child(btn)
 	_links.move_child(btn, 0)
 	_howto_added = true
@@ -752,6 +755,7 @@ func _on_visibility_changed() -> void:
 	# the tutorial ends a frame later.
 	if visible and game != null:
 		game.call_deferred("abort_tutorial")
+		_beckon.call_deferred()
 	_menu_sound.call_deferred()
 
 # the game's ambient, softly, while its menu is up (GenericGameUtil.menu_ambient); a frame late, after the game's own
@@ -945,7 +949,84 @@ func hide_frame():
 	_sync_poster_links()
 
 func _on_start_new_game_button_pressed() -> void:
+	# PLAY on a game whose tutorial is still new: ask first. "Show me how" (the filled, safe button) starts it,
+	# "Just play" plays and stops asking (and calling) for good
+	if _tutorial_unseen():
+		_ask_first_time()
+		return
 	sig_start_game.emit(true)
+
+# the question, in the briefing's blue (a friendly question, not the red "you will lose something" confirmation)
+var _first_time_q: CanvasLayer = null
+
+func _ask_first_time() -> void:
+	if _first_time_q != null and is_instance_valid(_first_time_q):
+		return
+	var q: CanvasLayer = CanvasLayer.new()
+	q.layer = 100
+	add_child(q)
+	_first_time_q = q
+	MainGlobals.set_visible("gpa_conf_dlg", true)
+	var close: Callable = func() -> void:
+		if is_instance_valid(q):
+			MainGlobals.set_visible("gpa_conf_dlg", false)
+			q.queue_free()
+	var parts: Dictionary = ResultCard.build_choice(q, ResultCard.BRIEF, "Show me how", "Just play",
+		func() -> void:
+			close.call()
+			_on_tutorial_button_pressed(),
+		func() -> void:
+			close.call()
+			_play_without_tutorial(),
+		close)
+	parts["title"].text = "First time?"
+	ResultCard.set_body(parts, "Watch a short guided round of %s first?" % game.name,
+		ResultCard.BRIEF)
+
+func _play_without_tutorial() -> void:
+	if game != null:
+		MainGlobals.mark_tutorial_offered(game.file_names_prefix)
+	_beckon()
+	sig_start_game.emit(true)
+
+# THE TUTORIAL IS NOT RUN ON A FIRST VISIT ANY MORE (2026-11-22, the user: with the posters this nice, a new player
+# never saw them -- the tutorial came up instead). While the game's tutorial is new to the player
+# (`MainGlobals.tutorial_unseen`) its "How to play" CALLS WITH LIGHT (`GameButton.beckon`) and PLAY asks
+# first; PLAY's own soft pulse rests meanwhile, so only one thing calls. It ends when the player starts the tutorial
+# or chooses to play without it (`mark_tutorial_offered`), or once they have played the game.
+func _tutorial_unseen() -> bool:
+	if game == null or not _howto_added:
+		return false
+	var host: Node = get_parent()
+	if host == null or not host.has_method("start_tutorial"):
+		return false
+	return MainGlobals.tutorial_unseen(game.file_names_prefix, game.shown_instructions)
+
+func _beckon() -> void:
+	var on: bool = _tutorial_unseen()
+	for b in [_bar_howto, _card_howto]:
+		if b == null or not is_instance_valid(b):
+			continue
+		if on:
+			# its words larger while it calls (the user, 2026-11-22): the bar link's 26 / 18 -> 34 / 24
+			GameButton.beckon(b as Button, ACCENT, INK, 34 if MainGlobals.is_mobile() else 24)
+		else:
+			GameButton.stop_beckon(b as Button)
+	var play: Button = %StartNewGameButton
+	if on:
+		if _pulse != null and _pulse.is_valid():
+			_pulse.kill()
+		_pulse = null
+		play.set_meta("gb_glow", 0.0)
+		var glow: CanvasItem = play.get_node_or_null("GameButtonGlow") as CanvasItem
+		if glow != null:
+			glow.visible = false
+	else:
+		var glow2: CanvasItem = play.get_node_or_null("GameButtonGlow") as CanvasItem
+		if glow2 != null:
+			glow2.visible = true
+		if _pulse == null or not _pulse.is_valid():
+			_pulse = GameButton.pulse(play, ACCENT)
 
 func show_continue_and_start_new(_visible:bool):
 	%StartNewGameButton.text = "NEW GAME" if _visible else "PLAY"

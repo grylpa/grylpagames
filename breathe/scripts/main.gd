@@ -32,11 +32,10 @@ func _ready() -> void:
 		"When the session ends you'll see\n" +
 		"your consistency stats.",
 		36 if MainGlobals.is_mobile() else 22)
-	# Teach instead of showing the instructions wall when the tutorial was asked for, or on a
-	# first run. Consumed before the `shown_instructions` check, which would otherwise put a page
+	# Teach instead of showing the instructions wall when the tutorial was asked for (never on
+	# its own, 2026-11-22). Consumed before the `shown_instructions` check, which would otherwise put a page
 	# of text in front of the lesson that replaces it.
-	var _teaching: bool = MainGlobals.take_pending_tutorial("breathe") \
-		or MainGlobals.take_auto_tutorial("breathe", game.shown_instructions)
+	var _teaching: bool = MainGlobals.take_pending_tutorial("breathe")
 	if _teaching:
 		call_deferred("start_tutorial")
 	elif not game.shown_instructions:

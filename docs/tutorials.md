@@ -537,9 +537,12 @@ holds it still while the coach talks about it.
 
 ## Entry points
 
-- **First run of a game that has one** — it teaches instead of showing the menu, via
-  `take_auto_tutorial()` in that game's `_ready`. This is the entry point that matters: a new
-  player never has to go looking.
+- **A first run no longer starts it** (2026-11-22: the player never saw the game's poster). While a
+  game's tutorial is new to the player (`MainGlobals.tutorial_unseen`: it has one, they have never
+  played the game, and they have neither started it nor chosen to play without it) the menu's "How to
+  play" CALLS WITH LIGHT (`GameButton.beckon`: a glow, a sweeping shine, sparkles; never motion) and PLAY asks "First time?" first
+  (`main_menu.gd` `_ask_first_time`: "Show me how" / "Just play"). Either answer ends it for good
+  (`mark_tutorial_offered`, kept in `tutorials_auto_shown`, the name from the old auto-start).
 - **"How to play" on the game's own main menu** (`main_menu.gd::_maybe_add_tutorial_button`).
 - **"Interactive tutorial" on the instructions screen** (`instructions_popup.gd::offer_tutorial`), under the
   game's own text — where a player goes when they have forgotten how something works.
@@ -553,7 +556,7 @@ About, and `main.gd::_offer_tutorials_when_idle`). It existed so a player could 
 which games would teach them without entering each one — worth a screen when a handful of games had
 tutorials, worth nothing at 26 of 34, where the answer is "almost all of them". It was also a
 second copy of the chooser's game list, kept in visual sync by hand, and a new player never reached
-it because the first run of a game starts its tutorial anyway. `MainGlobals.pending_tutorial` and
+it because each game's own menu calls for its tutorial. `MainGlobals.pending_tutorial` and
 `take_pending_tutorial()` remain as the way to request a tutorial when ENTERING a game from
 outside; nothing sets the flag today, and every game still consumes it harmlessly.
 `MainGlobals.shown_tutorial_offer` is likewise vestigial — settings are a positional array, so slot
@@ -1051,7 +1054,7 @@ never engages.
 
 **A game that has a tutorial never shows its instruction text automatically.** The tutorial IS
 the instructions, delivered one beat at a time — so the wall of text is suppressed on the first run
-(where the tutorial runs instead) and on every run after (where it would just be a repeat of what
+(where the menu calls for the tutorial instead) and on every run after (where it would just be a repeat of what
 the tutorial already taught). It stays reachable on demand: pressing I, or the help menu, calls
 `show_instructions(parent, false)` and always gets the text. Games with no tutorial are unchanged —
 the wall shows once, on first run, as it always did.

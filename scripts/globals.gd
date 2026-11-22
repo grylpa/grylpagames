@@ -29,7 +29,7 @@ var last_played_order: Array = []  # game folders in most-recently-played-first 
 var pending_tutorial: String = ""
 # Whether the player has been offered a tutorial at least once (app-level, persisted in slot 14).
 # Vestigial: the app used to open a "How to play" picker on the first run after install. That
-# picker is gone — a game with a tutorial now runs it automatically the first time it is opened.
+# picker is gone — a game with a tutorial now calls for its "How to play" until it is answered.
 # The flag stays because settings are a POSITIONAL array and slot 14 cannot be reused or dropped
 # without shifting everything after it.
 var shown_tutorial_offer: bool = false
@@ -37,9 +37,11 @@ var shown_tutorial_offer: bool = false
 # "How to play" list uses this to sort the OPPOSITE way to the game chooser: a tutorial you have
 # already done drops to the bottom, because the point of that list is what you have yet to learn.
 var tutorials_done: Array = []
-# Games whose tutorial has been auto-started on the player's first run. Recorded on the ATTEMPT,
-# not on completion — mark_tutorial_done() only records a finished run, so tracking completion
-# alone would relaunch the tutorial every session for anyone who skipped it.
+# Games whose tutorial the player has been OFFERED and has answered: started it (from the menu's
+# "How to play", or from the "play without it?" question) or chosen to play without it. Recorded on
+# the ATTEMPT, not on completion. Until then the game's menu calls for "How to play" and PLAY asks
+# first (main_menu.gd `_beckon`). (Persisted in slot 16; the name is from when a first run STARTED
+# the tutorial on its own -- it no longer does, 2026-11-22: the player never saw the game's poster.)
 var tutorials_auto_shown: Array = []
 # The folder whose tutorial is running right now, so the runner can record completion without
 # every game having to pass its own name.
@@ -401,38 +403,37 @@ func take_pending_tutorial(folder: String) -> bool:
 		return false
 	pending_tutorial = ""
 	_running_tutorial = folder
+	mark_tutorial_offered(folder)
 	return true
 
-# A game that HAS a tutorial teaches on the player's first run, instead of throwing the wall of
-# instruction text at them. Both halves of that decision have to agree — generic_game_util's
-# show_instructions() asks first (peek), then the game's main.gd claims it (take) — so this is
-# split in two rather than being one call with a side effect.
+# Whether this game's tutorial is still NEW to the player (2026-11-22): it has one, they have never
+# played the game, and they have neither started the tutorial nor said they would play without it.
+# The game's menu then makes "How to play" call for attention and PLAY asks first (main_menu.gd).
+# A first run used to START the tutorial on its own, so the player never saw the game's poster.
 #
 # `has_played_before` is the game util's `shown_instructions`, which read_settings() also sets
-# true whenever a scores file exists: someone who has already played is not shown a tutorial they
-# never asked for.
-func will_auto_tutorial(folder: String, has_played_before: bool) -> bool:
+# true whenever a scores file exists: someone who has already played is not pressed to learn it.
+func tutorial_unseen(folder: String, has_played_before: bool) -> bool:
 	if has_played_before or folder.is_empty():
 		return false
 	if not MainCfg.has_tutorial(folder):
 		return false
 	return not (folder in tutorials_auto_shown) and not (folder in tutorials_done)
 
-# One-shot: claims the auto-tutorial for this game, forever. Skipping it still counts as shown,
-# so it does not reappear on the next launch.
-func take_auto_tutorial(folder: String, has_played_before: bool) -> bool:
-	if not will_auto_tutorial(folder, has_played_before):
-		return false
+# The player has answered the offer of this game's tutorial (started it, or chose to play without
+# it): the menu stops calling for it, for good.
+func mark_tutorial_offered(folder: String) -> void:
+	if folder.is_empty() or folder in tutorials_auto_shown:
+		return
 	tutorials_auto_shown.append(folder)
-	_running_tutorial = folder
 	if _settings_loaded:
 		save_settings()
-	return true
 
 # For a tutorial started from inside the game (its own menu) rather than from the chooser, so
 # completion is recorded the same way either route is taken.
 func note_tutorial_started(folder: String) -> void:
 	_running_tutorial = folder
+	mark_tutorial_offered(folder)
 
 # Called by TutorialRunner when a tutorial is played through to the end (not when it is abandoned).
 func mark_tutorial_done(completed: bool) -> void:

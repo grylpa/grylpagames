@@ -82,9 +82,8 @@ func _ready() -> void:
 	game.show_summary_tab = false
 
 	# Teach instead of showing the menu when the player asked for the tutorial from the
-	# chooser's "How to play", OR when this is their first ever run of this game.
-	if MainGlobals.take_pending_tutorial("storm") \
-			or MainGlobals.take_auto_tutorial("storm", game.shown_instructions):
+	# chooser's "How to play", never on its own (2026-11-22).
+	if MainGlobals.take_pending_tutorial("storm"):
 		call_deferred("start_tutorial")
 	MainGlobals.path_tile_size = game.tile_size                                                                                                                                                                                                                                                 
 	MainGlobals.path_screen_offset = game.screen_offset                                                                                                                                                                                                                                         

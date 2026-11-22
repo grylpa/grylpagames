@@ -403,8 +403,8 @@ func _min_w(b: Button) -> float:
 # works. Named for what it is rather than for what it does for you: it sits directly under a wall of
 # instructions, and the useful distinction to draw there is that this one is played, not read. This
 # is the app's only tutorial entry besides the game's own main menu, since the chooser's "How to
-# play" picker is gone: a game with a tutorial teaches itself on the first run, and after that the
-# offer belongs next to the text it replaces.
+# play" picker is gone: on a first visit the menu's "How to play" glows for it (main_menu.gd `_beckon`), and after
+# that the offer belongs next to the text it replaces.
 #
 # `host` is meant to be the game's main scene. Whether it HAS a tutorial is read off the scene — if
 # its main.gd defines start_tutorial(), it has one — the same test main_menu.gd uses, so no game

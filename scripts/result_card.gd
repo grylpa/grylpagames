@@ -121,6 +121,25 @@ static func build_confirm(host: CanvasLayer, ok_text: String, cancel_text: Strin
 	row.add_child(danger)
 	return parts
 
+# A friendly QUESTION, nothing lost either way (the menu's "First time?", 2026-11-22): the card over a see-through
+# scrim (it is asked from a menu, nothing is in play), the suggested answer filled and the other a ghost of the same
+# color, and a tap outside only closes it (`on_close`).
+static func build_choice(host: CanvasLayer, accent: Color, suggested_text: String, other_text: String,
+		on_suggested: Callable, on_other: Callable, on_close: Callable) -> Dictionary:
+	var parts: Dictionary = _shell(host, accent, false, on_close)
+	var mob: bool = bool(parts["mobile"])
+	var row: HBoxContainer = HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	parts["foot"].add_child(row)
+	var sug: Button = _button(suggested_text, accent, mob, on_suggested)
+	sug.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sug)
+	var oth: Button = _button(other_text, accent, mob, on_other, true)
+	oth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(oth)
+	return parts
+
 static func _shell(host: CanvasLayer, accent: Color, badge: bool, on_close: Callable,
 		opaque: bool = false) -> Dictionary:
 	var mob: bool = MainGlobals.is_mobile()
