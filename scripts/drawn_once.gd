@@ -22,6 +22,10 @@ var inner_material: Material = null      # a material for the off-screen canvas 
 # d.get_meta("area").
 var area: Rect2 = Rect2()
 var cover_view: bool = false
+# the scale to render at, in place of the one it is shown at (0: as shown). A layer that is SCALED while it plays (Tip
+# the Scales' weights grow and shrink, by a Node2D around them) renders at this scale instead of at whatever size it
+# had when it was drawn
+var render_scale: float = 0.0
 
 var _vp: SubViewport = null
 var _inner: Control = null
@@ -63,7 +67,10 @@ func _draw() -> void:
 
 # (re)render the drawing; the texture on the screen follows by itself
 func _render(r: Rect2) -> Texture2D:
-	var k: float = clampf(_px_per_unit() * absf(get_global_transform_with_canvas().get_scale().x), 0.5, 3.0)
+	var shown: float = absf(get_global_transform_with_canvas().get_scale().x)
+	if render_scale > 0.0:
+		shown = render_scale
+	var k: float = clampf(_px_per_unit() * shown, 0.5, 3.0)
 	if _vp == null:
 		_vp = SubViewport.new()
 		_vp.transparent_bg = true

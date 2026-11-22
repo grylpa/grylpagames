@@ -4,20 +4,25 @@ extends Control
 # foot -- level, PLAY, the links -- and leaves the rest of the screen to it). The user, 2026-11-17: the
 # first screen "needs to create interest and elicit the player to continue and play the game. it needs to
 # be beautiful, with something that is personal for each game". So: the game's name in brass type at the
-# top, its one-line pitch under it, and THE BALANCE -- a big brass weigh-house scale on the counter, crates
-# on both pans, rocking slowly as if someone had just set the last crate down, its needle swinging over a
-# dial -- against the weigh-house wall: a tall arched window with the night outside, and a shelf of the
+# top, its one-line pitch under it, and THE BALANCE -- a big brass weigh-house scale on the counter, ONE colorful
+# cast weight with a single letter on each pan (2026-11-22, the user: like the chooser tile), never at rest: it tips to
+# the heavier side, and as it settles the two weights MORPH into another pair, heavier on the other side, and it swings
+# over -- no pause anywhere in the loop (_beam_angle, _morph) -- its needle swinging over a dial -- against the weigh-house wall: a tall arched window with the night outside, and a shelf of the
 # house's brass standard weights, largest to smallest. (It stood in front of the game's rack of crates
 # first; the user: no game scene behind a poster -- "put some interesting and relevant background".)
 #
 # MADE UP, NEVER THE BOARD: the menu also opens mid-game, so nothing here comes from the puzzle in play.
 # Drawn with the game's own art (scales_art.gd, the shaders level.gd uses), its textures baked once.
 
-const PUZZLE = preload("res://tipscales/scripts/puzzle.gd")
 const ART = preload("res://tipscales/scripts/scales_art.gd")
 const BG_SHADER: Shader = preload("res://tipscales/scripts/weighhouse.gdshader")
-const CRATE_SHADER: Shader = preload("res://tipscales/scripts/crate.gdshader")
-const BAKE_SCALE: float = 2.0
+# THE PAIRS the pans hold in turn: [left set row, left letter, right set row, right letter]. The heavier weight is the
+# larger, and it alternates: an even pair is heavier on the RIGHT (the beam's angle positive), an odd one on the left.
+# (No gold set: it was lost against the brass.)
+const PAIRS: Array = [[0, "A", 2, "B"], [3, "C", 4, "D"], [5, "E", 0, "A"], [2, "B", 3, "C"]]
+const CYCLE: float = 4.0          # one pair's time: the morph, the swing over, the settling -- then the next pair
+const MORPH: float = 0.9          # the weights change over the cycle's first MORPH seconds, as the beam starts over
+const LIGHT_SCALE: float = 0.76   # the lighter weight, against the heavier
 
 const ROWS: int = 2          # the balance's geometry is laid out from a rack's size (no rack is drawn)
 const COLS: int = 5
@@ -31,8 +36,13 @@ var _cv: CanvasItem = null           # what the foreground's helpers draw on: _f
 var _fg_back: DrawnOnce = null       # the standard weights on the counter (still)
 var _fg_title: DrawnOnce = null      # the name and its pitch (still)
 var _white: ImageTexture = null
-var _pan_hold: Array = []        # [Control, Control]: moved to the hooks each frame
-var _pan_draw: Array = []        # [DrawnOnce, DrawnOnce]: each pan drawn once, at rest
+# [Node2D, Node2D]: moved to the hooks each frame. NODE2Ds, NOT Controls: an unturned Control is snapped to whole pixels
+# (gui/common/snap_controls_to_pixels), so near the end of a swing, moving under a pixel a frame, the pans stepped a pixel
+# at a time against the smoothly turning beam -- "not smooth when it reaches the end of the tip" (the user, 2026-11-22)
+var _pan_hold: Array = []
+var _pan_draw: Array = []        # [DrawnOnce, DrawnOnce]: each pan's chains drawn once, at rest (behind its weight)
+var _pan_front: Array = []       # [DrawnOnce, DrawnOnce]: each pan's bowl, over its weight's foot
+var _weights: Array = []         # per pan, one DrawnOnce per pair: the weight it holds then, drawn once, faded / scaled
 var _pan_rest: Array = []        # the hooks at rest (the beam level)
 var _pan_hang: float = 0.0
 # THE BEAM: drawn once, level, and TURNED as a picture about the pivot each frame (drawn live as it rocked, its long
@@ -42,7 +52,6 @@ var _beam_hold: Control = null
 var _beam_draw: DrawnOnce = null
 var _cap: DrawnOnce = null
 var _face: Font = null
-var _crate_tex: Array = []
 var _board: Rect2 = Rect2()
 var _cell: Vector2 = Vector2()
 var _gap: float = 10.0
@@ -88,6 +97,13 @@ func _ready() -> void:
 			layer_c.set_anchors_preset(Control.PRESET_FULL_RECT)
 			var live_c: Control = layer_c
 			layer_c.draw.connect(func() -> void: _draw_wall_layer(live_c, which))
+			# the clouds, CLIPPED to the sky in the glass (unclipped they drifted out over the wallpaper, and the lowest
+			# crossed the roofs like smoke -- the user, 2026-11-22)
+			_clouds = Control.new()
+			_clouds.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_clouds.clip_contents = true
+			_clouds.draw.connect(_draw_clouds)
+			layer_c.add_child(_clouds)
 		else:
 			layer_c = DrawnOnce.make(func(d: Control) -> void: _draw_wall_layer(d, which))
 		add_child(layer_c)
@@ -105,17 +121,38 @@ func _ready() -> void:
 	# slides between pixels (the user, 2026-11-20: simplify only what is small and unnoticed). Under the beam, which
 	# lies over the chains' hooks.
 	for k in 2:
-		var hold: Control = Control.new()
-		hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var hold: Node2D = Node2D.new()
 		add_child(hold)
 		var which: int = k
 		var pan_d: DrawnOnce = DrawnOnce.make(func(d: Control) -> void:
 			if _cell.x > 0.0 and _pan_rest.size() == 2:
 				_cv = d
-				_draw_pan(_pan_rest[which], _pan_hang, which, MainGlobals.is_mobile()))
+				_draw_pan(_pan_rest[which], _pan_hang, MainGlobals.is_mobile(), false))
 		hold.add_child(pan_d)
+		var ws: Array = []
+		for i in PAIRS.size():
+			var pair_i: int = i
+			var wd: DrawnOnce = DrawnOnce.make(func(d: Control) -> void:
+				if _cell.x > 0.0 and _pan_rest.size() == 2:
+					_cv = d
+					var pr: Array = PAIRS[pair_i]
+					_draw_letter_weight(_weight_rect(which), int(pr[which * 2]), str(pr[which * 2 + 1])))
+			wd.render_scale = 1.0
+			wd.modulate = Color(0, 0, 0, 0)
+			# scaled about its foot by a Node2D around it (a Control's scaling is snapped too)
+			var grow_n: Node2D = Node2D.new()
+			hold.add_child(grow_n)
+			grow_n.add_child(wd)
+			ws.append(wd)
+		var front_d: DrawnOnce = DrawnOnce.make(func(d: Control) -> void:
+			if _cell.x > 0.0 and _pan_rest.size() == 2:
+				_cv = d
+				_draw_pan(_pan_rest[which], _pan_hang, MainGlobals.is_mobile(), true))
+		hold.add_child(front_d)
 		_pan_hold.append(hold)
 		_pan_draw.append(pan_d)
+		_pan_front.append(front_d)
+		_weights.append(ws)
 	_fg = Control.new()
 	_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fg.draw.connect(_draw_fg)
@@ -141,10 +178,8 @@ func _ready() -> void:
 	resized.connect(_layout)
 	_layout.call_deferred()
 
-# ON SCREEN AT ONCE (the user: no menu may hold up before it shows): the crates' painted pictures render
-# a frame or two in; until then the crates on the pans are simply not drawn (drawn flat and then swapped,
-# they flickered), so they appear with the screen's first moments
 var _wall_layers: Array = []
+var _clouds: Control = null
 
 # the balance's frame: the pivot, the beam's half-length, the column's height
 func _balance_geom(full: Vector2) -> Array:
@@ -164,9 +199,47 @@ func _place_pans() -> void:
 	var a: float = _beam_angle()
 	var ends: Array = [pivot + Vector2(-L, 0).rotated(a), pivot + Vector2(L, 0).rotated(a)]
 	for k in 2:
-		(_pan_hold[k] as Control).position = Vector2(ends[k]) - Vector2(_pan_rest[k])
+		(_pan_hold[k] as Node2D).position = Vector2(ends[k]) - Vector2(_pan_rest[k])
 	_beam_hold.pivot_offset = pivot
 	_beam_hold.rotation = a
+	_morph()
+
+# THE WEIGHTS CHANGE: the last pair's weight stays drawn under the new one, which comes up over it -- both at the size
+# between theirs, scaled about the foot -- so the weight is whole at every moment and only its color, its letter and its
+# size change (a picture's modulate is premultiplied here: all four channels carry the fade)
+func _morph() -> void:
+	var n: int = int(floor(_t / CYCLE))
+	var u: float = _t - float(n) * CYCLE
+	var f: float = smoothstep(0.0, MORPH, u)
+	var cur: int = posmod(n, PAIRS.size())
+	var prev: int = posmod(n - 1, PAIRS.size())
+	for k in 2:
+		var sc: float = lerpf(_weight_scale(prev, k), _weight_scale(cur, k), f)
+		var foot: Vector2 = _weight_foot(k)
+		var ws: Array = _weights[k]
+		# EVERY weight stays visible (one not in use is fully transparent): shown again, a picture is drawn again, and
+		# re-rendered for a frame it flickered -- the jitter the user saw as each cycle ended
+		for i in ws.size():
+			var wd: DrawnOnce = ws[i]
+			var a: float = 0.0
+			if i == cur:
+				a = f
+			elif i == prev:
+				a = 1.0
+			wd.modulate = Color(a, a, a, a)
+			var grow_n: Node2D = wd.get_parent()
+			grow_n.position = foot
+			grow_n.scale = Vector2(sc, sc)
+			wd.position = -foot
+		# the new one over the old (moved only when the pair changes)
+		var top_w: Node = (ws[cur] as Node).get_parent()
+		if top_w.get_index() != (_pan_front[k] as Control).get_index() - 1:
+			top_w.get_parent().move_child(top_w, (_pan_front[k] as Control).get_index() - 1)
+
+# pair i's weight on pan k: the heavier at full size
+func _weight_scale(i: int, k: int) -> float:
+	var right_heavy: bool = i % 2 == 0
+	return 1.0 if (k == 1) == right_heavy else LIGHT_SCALE
 
 func _process(delta: float) -> void:
 	if is_visible_in_tree():
@@ -175,6 +248,7 @@ func _process(delta: float) -> void:
 		_fg.queue_redraw()
 		if _wall_layers.size() == 3:
 			(_wall_layers[1] as Control).queue_redraw()
+			_clouds.queue_redraw()
 
 func _layout() -> void:
 	var full: Vector2 = Vector2(MainGlobals.full_screen_size)
@@ -206,7 +280,6 @@ func _layout() -> void:
 	m.set_shader_parameter("cell_h", _cell.y)
 	m.set_shader_parameter("counter_y", _counter_y)
 	m.set_shader_parameter("lamp", Vector2(full.x * 0.5, _board.end.y))
-	_bake()
 	# the pans at rest, and the part of the screen each is drawn in (the crates stand above the bowl's rim)
 	var bg2: Array = _balance_geom(full)
 	var piv: Vector2 = bg2[0]
@@ -215,92 +288,36 @@ func _layout() -> void:
 	_pan_rest = [piv + Vector2(-half_l, 0.0), piv + Vector2(half_l, 0.0)]
 	var pw: float = 186.0 if mobile else 140.0
 	for k in 2:
-		(_pan_hold[k] as Control).size = full          # (a zero-sized holder's picture was never drawn)
 		var hk: Vector2 = _pan_rest[k]
 		var dd: DrawnOnce = _pan_draw[k]
 		dd.area = Rect2(hk.x - pw * 0.5 - 24.0, hk.y - 24.0, pw + 48.0, _pan_hang + 70.0)
 		dd.queue_redraw()
+		var fd: DrawnOnce = _pan_front[k]
+		fd.area = dd.area
+		fd.queue_redraw()
+		# (under a Node2D a Control's anchors give it no size, and a zero-sized picture is never drawn: sized here)
+		dd.size = full
+		fd.size = full
+		for wd in _weights[k]:
+			(wd as Control).size = full
+			(wd as DrawnOnce).area = _weight_rect(k).grow(_weight_rect(k).size.x * 0.25)
+			(wd as Control).queue_redraw()
 	_beam_hold.size = full
 	_beam_draw.area = Rect2(piv.x - half_l - 40.0, piv.y - 40.0, half_l * 2.0 + 80.0, 80.0)
 	_beam_draw.queue_redraw()
 	_cap.queue_redraw()
 	_place_pans()
 	_fg.queue_redraw()
-	for pd in _pan_draw:
-		(pd as Control).queue_redraw()
 	for dl in [_bg, _fg_back, _fg_title]:
 		(dl as Control).queue_redraw()
 	for l in _wall_layers:
 		(l as Control).queue_redraw()
-
-var _baked_for: Vector2 = Vector2.ZERO
-
-func _bake() -> void:
-	if _baked_for == _cell or not is_inside_tree():
-		return
-	_baked_for = _cell
-	# ALL SIX AT ONCE, in one frame (one after another, a frame each, the crates appeared late)
-	var vps: Array = []
-	var px: Vector2i = Vector2i(maxi(4, int(_cell.x * BAKE_SCALE)), maxi(4, int(_cell.y * BAKE_SCALE)))
-	for r in 3:
-		for variant in 2:
-			var vp: SubViewport = SubViewport.new()
-			vp.size = px
-			vp.transparent_bg = true
-			vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-			var cr: ColorRect = ColorRect.new()
-			cr.size = Vector2(px)
-			var mat: ShaderMaterial = ShaderMaterial.new()
-			mat.shader = CRATE_SHADER
-			mat.set_shader_parameter("size", _cell)
-			mat.set_shader_parameter("paint", ART.set_color(r))
-			mat.set_shader_parameter("seed", float(r * 7 + variant * 3 + 1))
-			cr.material = mat
-			vp.add_child(cr)
-			add_child(vp)
-			vps.append(vp)
-	await RenderingServer.frame_post_draw
-	var crates: Array = []
-	for vp in vps:
-		var img: Image = (vp as SubViewport).get_texture().get_image()
-		(vp as SubViewport).queue_free()
-		if img != null:
-			img.generate_mipmaps()
-			crates.append(ImageTexture.create_from_image(img))
-		else:
-			crates.append(null)
-	_crate_tex = crates
-	_fg.queue_redraw()
-	for pd in _pan_draw:
-		(pd as Control).queue_redraw()
-
-func _bake_one(shader: Shader, sz: Vector2, params: Dictionary) -> Texture2D:
-	var px: Vector2i = Vector2i(maxi(4, int(sz.x * BAKE_SCALE)), maxi(4, int(sz.y * BAKE_SCALE)))
-	var vp: SubViewport = SubViewport.new()
-	vp.size = px
-	vp.transparent_bg = true
-	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	var cr: ColorRect = ColorRect.new()
-	cr.size = Vector2(px)
-	var mat: ShaderMaterial = ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("size", sz)
-	for k in params.keys():
-		mat.set_shader_parameter(k, params[k])
-	cr.material = mat
-	vp.add_child(cr)
-	add_child(vp)
-	await RenderingServer.frame_post_draw
-	var img: Image = vp.get_texture().get_image()
-	vp.queue_free()
-	if img == null:
-		return null
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
-
-func _tex(row: int, col: int) -> Texture2D:
-	var k: int = row * 2 + (col % 2)
-	return _crate_tex[k] if k < _crate_tex.size() else null
+	# the clouds' sky: the glass under the arch's spring, down to well above the roofs and the spire
+	var g: Dictionary = _wall_geom()
+	var wr: Rect2 = g["wr"]
+	var gw: float = g["ww"]
+	_clouds.position = Vector2(wr.position.x + 10.0, wr.position.y + gw * 0.45)
+	_clouds.size = Vector2(wr.size.x - 20.0, gw * 0.75)
 
 # --- drawing --------------------------------------------------------------------------------------------
 
@@ -455,15 +472,6 @@ func _view(d: Control, g: Dictionary) -> void:
 		d.draw_circle(moon + Vector2(-mr, -mr) * 0.18 * f, mr * (1.0 - 0.35 * f), Color(0.86, 0.85, 0.76).lerp(Color(1.0, 0.99, 0.92), f))
 	for cr in [Vector3(0.30, -0.20, 0.22), Vector3(-0.25, 0.25, 0.16), Vector3(0.05, 0.40, 0.12), Vector3(-0.35, -0.30, 0.10)]:
 		d.draw_circle(moon + Vector2(cr.x, cr.y) * mr, mr * cr.z, Color(0.70, 0.70, 0.66, 0.55))
-	# clouds drifting slowly across, soft
-	for k in 3:
-		var span: float = inner.size.x + 160.0
-		var cx: float = inner.position.x - 80.0 + fmod(float(k) * 97.0 + _t * (5.0 + 2.0 * float(k)), span)
-		var cy: float = inner.position.y + ww * (0.45 + 0.35 * float(k))
-		for j in 4:
-			for gg in 3:
-				d.draw_circle(Vector2(cx + float(j) * 22.0 - 33.0, cy + 6.0 * sin(float(j + k))), (16.0 + 4.0 * float(j % 2)) * (1.2 - 0.2 * float(gg)),
-					Color(0.40, 0.45, 0.60, 0.10))
 	# the town's roofline at the bottom of the view, a spire, a few lit windows
 	var base_y: float = wr.end.y - 10.0
 	var roofs: PackedVector2Array = PackedVector2Array([Vector2(inner.position.x, base_y)])
@@ -484,6 +492,33 @@ func _view(d: Control, g: Dictionary) -> void:
 	for k in 6:
 		var lp: Vector2 = Vector2(inner.position.x + h01_local(k * 11 + 3) * inner.size.x, base_y - 8.0 - 18.0 * h01_local(k * 11 + 4))
 		d.draw_rect(Rect2(lp, Vector2(3.0, 4.0)), Color(1.0, 0.82, 0.45, 0.85))
+
+# CLOUDS over the moon: two long soft wisps drifting slowly across, each a few flattened puffs, lit on their tops by the
+# moon and darker beneath; they enter and leave the glass at its sides (the layer is clipped to it)
+func _draw_clouds() -> void:
+	if _cell.x <= 0.0:
+		return
+	var sz: Vector2 = _clouds.size
+	var g: Dictionary = _wall_geom()
+	var wr: Rect2 = g["wr"]
+	var gw: float = g["ww"]
+	var moon: Vector2 = Vector2(wr.position.x + gw * 0.30, wr.position.y + gw * 0.62) - _clouds.position
+	for k in 2:
+		var cw: float = sz.x * (0.75 - 0.15 * float(k))
+		var span: float = sz.x + cw
+		var cx: float = -cw * 0.5 + fmod(float(k) * span * 0.55 + _t * (4.0 + 2.5 * float(k)), span)
+		var cy: float = sz.y * (0.22 + 0.42 * float(k))
+		for j in 5:
+			var fx: float = (float(j) - 2.0) / 2.0
+			var pc: Vector2 = Vector2(cx + fx * cw * 0.36, cy + 3.0 * sin(float(j * 3 + k)) - (1.0 - fx * fx) * 5.0)
+			var r: float = cw * (0.20 - 0.05 * absf(fx))
+			var lit: float = clampf(1.0 - pc.distance_to(moon) / (gw * 0.9), 0.0, 1.0)
+			for ly in 3:
+				var rr: float = r * (1.0 - 0.22 * float(ly))
+				_clouds.draw_set_transform(pc + Vector2(0.0, -r * 0.08 * float(ly)), 0.0, Vector2(1.0, 0.36))
+				var base: Color = Color(0.22, 0.27, 0.40).lerp(Color(0.62, 0.66, 0.78), lit * (0.4 + 0.3 * float(ly)))
+				_clouds.draw_circle(Vector2.ZERO, rr, Color(base, 0.10 + 0.04 * float(ly)), true, -1.0, true)
+	_clouds.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 # THE WINDOW: a moulded casing with a keystone, a deep reveal, glazing bars (a fanlight in the arch, small
 # panes below), faint reflections on the glass, a sill; THE CURTAINS: velvet in lit and shaded folds, a
@@ -688,13 +723,27 @@ func _draw_title(full: Vector2) -> void:
 # THE BALANCE: a column on a plinth, a beam on a knife-edge, two pans on chains. It rocks the way a scale
 # does when a crate has just been set down -- a slow swing that dies away, then another crate, again.
 func _beam_angle() -> float:
-	# NO JUMP between cycles (the user saw "some sudden jump"): each cycle starts exactly where the last
-	# came to rest (-side * REST) and swings, damped, to its own rest (+side * REST)
-	var period: float = 7.0
-	var rest: float = 0.07
-	var u: float = fmod(_t, period)
-	var side: float = 1.0 if int(_t / period) % 2 == 0 else -1.0
-	return side * rest - side * 2.0 * rest * exp(-u * 0.75) * cos(u * 2.6)
+	# NEVER AT REST, NEVER A JUMP: each cycle starts the beam over towards its new side as a damped spring that sets off
+	# with no jerk (zero speed at its start) -- added to what the cycles before it are still doing, so the motion runs on
+	# continuously from one pair to the next
+	var rest: float = 0.13
+	var n: int = int(floor(_t / CYCLE))
+	var a: float = _side(n - 3) * rest
+	for k in range(n - 2, n + 1):
+		a += (_side(k) - _side(k - 1)) * rest * _spring(_t - float(k) * CYCLE)
+	return a
+
+func _side(k: int) -> float:
+	return 1.0 if posmod(k, 2) == 0 else -1.0
+
+# a damped spring's step from 0 to 1, starting at rest
+func _spring(x: float) -> float:
+	if x <= 0.0:
+		return 0.0
+	var z: float = 0.95
+	var w: float = 2.5
+	# eased in over its first 0.6 s, so it sets off with no kick (the spring alone starts at full acceleration)
+	return (1.0 - exp(-z * x) * (cos(w * x) + (z / w) * sin(w * x))) * smoothstep(0.0, 0.6, x)
 
 # `still`: the shadow, the plinth, the column and the dial's face (drawn once, under the live part); otherwise the
 # needle, the pans on their chains, the beam and its cap (every frame: it rocks)
@@ -736,13 +785,55 @@ func _draw_balance(full: Vector2, still: bool) -> void:
 	_cv.draw_rect(col, ART.BRASS_DARK)
 	_cv.draw_rect(Rect2(col.position.x + cw * 0.18, col.position.y, cw * 0.28, col.size.y), ART.BRASS)
 	_cv.draw_rect(Rect2(col.position.x + cw * 0.24, col.position.y, cw * 0.10, col.size.y), Color(BRASS_LIGHT, 0.7))
-	# the dial over the pivot (its needle, which stands up from the beam, is live)
-	_cv.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS_DARK, 8.0, true)
-	_cv.draw_arc(pivot, dr, PI * 1.25, PI * 1.75, 32, ART.BRASS, 3.0, true)
+	# THE DIAL, part of the stand (2026-11-22, the user: a bare arc over the needle read as nothing): a cream enamel scale
+	# plate in a brass rim, held over the pivot on two brass arms; the needle (live, on the beam) sweeps its ticks
+	var ri: float = dr * 0.60
+	var ro: float = dr + 6.0
+	var half_a: float = 0.50                       # the plate's half-angle (the beam swings ~0.2 at most)
+	var a0: float = -PI * 0.5 - half_a
+	var a1: float = -PI * 0.5 + half_a
+	# the arms, from the pivot block out to the plate's lower corners (behind the beam and its cap)
+	for sgn in [-1.0, 1.0]:
+		var ang: float = a0 if sgn < 0.0 else a1
+		var from: Vector2 = pivot + Vector2(sgn * 10.0, -6.0)
+		var to: Vector2 = pivot + Vector2.from_angle(ang) * (ri + 4.0)
+		_cv.draw_line(from, to, EDGE, 8.0, true)
+		_cv.draw_line(from, to, ART.BRASS_DARK, 5.0, true)
+		_cv.draw_line(from + Vector2(-1.0, -1.0), to + Vector2(-1.0, -1.0), Color(BRASS_LIGHT, 0.7), 1.5, true)
+	# the plate: an annular sector, its enamel paler at the top, in a brass bezel
+	var n: int = 24
+	var outer: PackedVector2Array = PackedVector2Array()
+	var inner: PackedVector2Array = PackedVector2Array()
+	for j in n + 1:
+		var ang: float = lerpf(a0, a1, float(j) / float(n))
+		outer.append(pivot + Vector2.from_angle(ang) * ro)
+		inner.append(pivot + Vector2.from_angle(ang) * ri)
+	var plate: PackedVector2Array = outer.duplicate()
+	for j in range(n, -1, -1):
+		plate.append(inner[j])
+	var ring: PackedVector2Array = plate.duplicate()
+	ring.append(plate[0])
+	_cv.draw_polyline(ring, EDGE, 8.0, true)
+	var pc: PackedColorArray = PackedColorArray()
+	for j in plate.size():
+		pc.append(Color(0.95, 0.91, 0.80) if j <= n else Color(0.78, 0.71, 0.56))
+	_cv.draw_polygon(plate, pc)
+	_cv.draw_polyline(ring, ART.BRASS_DARK, 4.0, true)
+	_cv.draw_polyline(outer, ART.BRASS, 2.0, true)
+	_cv.draw_polyline(outer, Color(BRASS_LIGHT, 0.8), 1.0, true)
+	# the ticks: nine, the center one long and red (balance)
 	for k in 9:
-		var ang: float = PI * 1.25 + PI * 0.5 * float(k) / 8.0
-		var d: Vector2 = Vector2(cos(ang), sin(ang))
-		_cv.draw_line(pivot + d * (dr - 9.0), pivot + d * (dr - (16.0 if k % 4 == 0 else 12.0)), Color(0.22, 0.13, 0.05), 2.0)
+		var ang: float = lerpf(a0 + 0.08, a1 - 0.08, float(k) / 8.0)
+		var d: Vector2 = Vector2.from_angle(ang)
+		var long: bool = k == 4
+		var tl: float = (ro - ri) * (0.62 if long else (0.42 if k % 2 == 0 else 0.28))
+		_cv.draw_line(pivot + d * (ro - 4.0), pivot + d * (ro - 4.0 - tl), Color(0.62, 0.10, 0.08) if long else Color(0.22, 0.13, 0.05),
+			2.6 if long else 1.8, true)
+	# a small brass finial at the plate's crown
+	var crown: Vector2 = pivot + Vector2(0.0, -ro - 3.0)
+	_cv.draw_circle(crown, 5.5, EDGE, true, -1.0, true)
+	_cv.draw_circle(crown, 4.2, ART.BRASS, true, -1.0, true)
+	_cv.draw_circle(crown + Vector2(-1.2, -1.2), 1.6, BRASS_LIGHT, true, -1.0, true)
 
 func _balance_live(pivot: Vector2, a: float, dr: float) -> void:
 	var nd: Vector2 = Vector2(sin(a), -cos(a))
@@ -783,35 +874,15 @@ func _draw_cap() -> void:
 	_cv.draw_circle(pivot, bh * 0.65, ART.BRASS, true, -1.0, true)
 	_cv.draw_circle(pivot + Vector2(-bh * 0.2, -bh * 0.2), bh * 0.25, Color(BRASS_LIGHT, 0.8), true, -1.0, true)
 
-func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
+# a pan in two parts around its weight: `front` false, the middle chain, which goes down behind the weight; true, the
+# two outer chains in front of it and the bowl -- a shallow dish, its far rim then its front -- over the weight's foot
+func _draw_pan(hook: Vector2, hang: float, mobile: bool, front: bool) -> void:
 	var pw: float = 186.0 if mobile else 140.0
 	var depth: float = 26.0 if mobile else 19.0
 	var rim: Vector2 = hook + Vector2(0.0, hang)
-	# the crates on it, first: the pan's front lip is drawn over their feet
-	var cs: Vector2 = Vector2(_cell.x * 0.80, _cell.y * 0.80)
-	if k == 0:
-		_crate_on_pan(Rect2(rim + Vector2(-cs.x - 2.0, -cs.y + 4.0), cs), 0, 2, 0b10110, 0)
-		_crate_on_pan(Rect2(rim + Vector2(2.0, -cs.y + 4.0), cs), 2, 0, 0, 4)
-	else:
-		_crate_on_pan(Rect2(rim + Vector2(-cs.x * 0.80, -cs.y + 4.0), cs), 1, 3, 0b01011, 0)
-		# and a brass weight beside it
-		var ws: float = cs.y * 0.70
-		_cv.draw_set_transform(rim + Vector2(cs.x * 0.42, -ws * 0.5 + 4.0), 0.0, Vector2.ONE)
-		_cv.draw_colored_polygon(PackedVector2Array([Vector2(-ws * 0.42, ws * 0.5), Vector2(ws * 0.42, ws * 0.5),
-			Vector2(ws * 0.30, -ws * 0.30), Vector2(-ws * 0.30, -ws * 0.30)]), ART.BRASS_DARK)
-		_cv.draw_colored_polygon(PackedVector2Array([Vector2(-ws * 0.36, ws * 0.44), Vector2(ws * 0.10, ws * 0.44),
-			Vector2(ws * 0.02, -ws * 0.26), Vector2(-ws * 0.26, -ws * 0.26)]), ART.BRASS)
-		_cv.draw_arc(Vector2(0.0, -ws * 0.38), ws * 0.14, PI, TAU, 12, ART.BRASS_DARK, 3.0)
-		var fs: int = int(ws * 0.46)
-		var t: String = "2"
-		var tw: float = _face.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		_cv.draw_string(_face, Vector2(-tw * 0.5, ws * 0.30), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.22, 0.13, 0.05))
-		_cv.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# three chains from the hook to the rim
-	for x in [-pw * 0.5, 0.0, pw * 0.5]:
+	# the middle chain hangs behind the weight; the two outer ones in front of it, with the bowl
+	for x in ([0.0] if not front else [-pw * 0.5, pw * 0.5]):
 		var to: Vector2 = rim + Vector2(x, -2.0 if x == 0.0 else 0.0)
-		if x == 0.0:
-			to = rim + Vector2(0.0, -cs.y - 2.0)   # the middle one stops on the load
 		var link: float = 4.2 if mobile else 3.2
 		_cv.draw_line(hook, to, EDGE, link * 2.0 + 3.0, true)
 		var n: int = int(hook.distance_to(to) / (link * 3.2))
@@ -827,7 +898,8 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 			else:
 				var dv: Vector2 = Vector2.from_angle(along) * link * 1.1
 				_cv.draw_line(p - dv, p + dv, ART.BRASS_DARK, link * 0.75, true)
-	# the bowl: a shallow dish, its far rim then its front
+	if not front:
+		return
 	var pts: PackedVector2Array = PackedVector2Array()
 	for j in 17:
 		var u: float = PI * float(j) / 16.0
@@ -842,11 +914,71 @@ func _draw_pan(hook: Vector2, hang: float, k: int, mobile: bool) -> void:
 		lit.append(rim + Vector2(-cos(u) * pw * 0.44, sin(u) * depth * 0.55))
 	_cv.draw_polyline(lit, Color(ART.BRASS, 0.9), 3.0, true)
 	_cv.draw_line(rim + Vector2(-pw * 0.5, 0.0), rim + Vector2(pw * 0.5, 0.0), BRASS_LIGHT, 3.0)
+	_glint(rim + Vector2(-pw * 0.18, depth * 0.45), pw * 0.07)
 
-func _crate_on_pan(r: Rect2, row: int, col: int, mask: int, placed: int) -> void:
-	if _crate_tex.is_empty():
-		return
-	ART.draw_crate(_cv, r, _tex(row, col), row, col, COLS, mask if placed == 0 else PUZZLE.bit(placed), 0, placed, 0, 1.0, _face)
+# where pan k's weight stands, at rest and full size: its foot a little inside the bowl, under the front lip
+func _weight_foot(k: int) -> Vector2:
+	return Vector2(_pan_rest[k]) + Vector2(0.0, _pan_hang + 4.0)
+
+func _weight_rect(k: int) -> Rect2:
+	var ws: float = (186.0 if MainGlobals.is_mobile() else 140.0) * 0.74
+	var foot: Vector2 = _weight_foot(k)
+	return Rect2(foot.x - ws * 0.5, foot.y - ws, ws, ws)
+
+# a cast weight in a crate set's color (as the chooser tile, devtools/make_tipscales_tile.gd): a bell lit down its left
+# third, a dark cast foot, a brass ring handle, a faint casting texture, its letter cast large on its face
+func _draw_letter_weight(r: Rect2, row: int, letter: String) -> void:
+	var c: Color = ART.set_color(row)
+	var ctr: Vector2 = r.get_center()
+	var w: float = r.size.x
+	var u1: float = w / 150.0                 # the tile's units (its weights were 150 wide)
+	var top: float = r.position.y + r.size.y * 0.18
+	var bot: float = r.end.y
+	var hc: Vector2 = Vector2(ctr.x, top - 7.0 * u1)
+	_cv.draw_arc(hc, w * 0.15, PI, TAU, 24, EDGE, 18.0 * u1, true)
+	_cv.draw_arc(hc, w * 0.15, PI, TAU, 24, ART.BRASS_DARK, 10.0 * u1, true)
+	_cv.draw_arc(hc, w * 0.15, PI * 1.1, PI * 1.5, 10, BRASS_LIGHT, 3.6 * u1, true)
+	var poly: PackedVector2Array = PackedVector2Array([Vector2(ctr.x - w * 0.33, top), Vector2(ctr.x + w * 0.33, top),
+		Vector2(ctr.x + w * 0.5, bot), Vector2(ctr.x - w * 0.5, bot)])
+	var ring: PackedVector2Array = poly.duplicate()
+	ring.append(poly[0])
+	_cv.draw_polyline(ring, EDGE, 7.0 * u1, true)
+	var n: int = 12
+	for k in n:
+		var a0: float = float(k) / float(n)
+		var a1: float = float(k + 1) / float(n)
+		var lum: float = clampf(1.0 - absf((a0 + a1) * 0.5 - 0.30) * 2.4, 0.0, 1.0)
+		var hi: Color = Color.from_hsv(c.h, c.s * 0.92, minf(1.0, c.v * 1.45))
+		var tone: Color = Color.from_hsv(c.h, minf(1.0, c.s * 1.1), c.v * 0.45).lerp(hi, lum)
+		var q: PackedVector2Array = PackedVector2Array([
+			Vector2(lerpf(ctr.x - w * 0.33, ctr.x + w * 0.33, a0), top), Vector2(lerpf(ctr.x - w * 0.33, ctr.x + w * 0.33, a1), top),
+			Vector2(lerpf(ctr.x - w * 0.5, ctr.x + w * 0.5, a1), bot), Vector2(lerpf(ctr.x - w * 0.5, ctr.x + w * 0.5, a0), bot)])
+		_cv.draw_polygon(q, PackedColorArray([tone.lightened(0.15), tone.lightened(0.15), tone.darkened(0.25), tone.darkened(0.25)]))
+	_cv.draw_rect(Rect2(ctr.x - w * 0.51, bot - 13.0 * u1, w * 1.02, 13.0 * u1), c.darkened(0.6))
+	_cv.draw_line(Vector2(ctr.x - w * 0.50, bot - 13.0 * u1), Vector2(ctr.x + w * 0.50, bot - 13.0 * u1), Color(c.lightened(0.4), 0.6), 2.4 * u1)
+	_cv.draw_line(Vector2(ctr.x - w * 0.33, top), Vector2(ctr.x + w * 0.33, top), c.lightened(0.6), 4.2 * u1)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = row * 31 + 5
+	for _i in 60:
+		var v: float = rng.randf()
+		var y: float = lerpf(top + 6.0 * u1, bot - 18.0 * u1, v)
+		var hw: float = lerpf(w * 0.33, w * 0.5, v) - 6.0 * u1
+		var p: Vector2 = Vector2(ctr.x + rng.randf_range(-hw, hw), y)
+		_cv.draw_circle(p, rng.randf_range(0.4, 1.0) * u1 * 1.6, Color(0, 0, 0, 0.18) if rng.randf() < 0.6 else Color(1, 1, 1, 0.10))
+	var fs: int = int(w * 0.56)
+	var tw: float = _face.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var lp: Vector2 = Vector2(ctr.x - tw * 0.5, (top + bot) * 0.5 + float(fs) * 0.37)
+	_cv.draw_string_outline(_face, lp, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(2, int(11.0 * u1)), Color(0.08, 0.04, 0.02, 0.9))
+	_cv.draw_string(_face, lp + Vector2(0, -2.0 * u1), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.5))
+	_cv.draw_string(_face, lp, letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.99, 0.96, 0.88))
+	_glint(Vector2(ctr.x - w * 0.22, top + 12.0 * u1), 24.0 * u1)
+
+# a star of light on polished brass or paint
+func _glint(p: Vector2, r: float) -> void:
+	for k in 4:
+		_cv.draw_circle(p, r * (0.35 - 0.07 * float(k)), Color(1.0, 0.95, 0.80, 0.10 + 0.08 * float(k)))
+	_cv.draw_line(p - Vector2(r, 0), p + Vector2(r, 0), Color(1.0, 0.97, 0.88, 0.75), r * 0.07, true)
+	_cv.draw_line(p - Vector2(0, r * 0.7), p + Vector2(0, r * 0.7), Color(1.0, 0.97, 0.88, 0.65), r * 0.06, true)
 
 # the app's DISPLAY font -- the one the player picked (MainGlobals.GAME_FONTS) -- for the poster's NAME only, as every
 # poster's (this game had a serif of its own, Noto Serif Bold: the user, 2026-11-20 -- never a font of a game's own;

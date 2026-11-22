@@ -187,17 +187,22 @@ tipscales` drives it through (`_act_tipscales`).
 The shared menu (`main_menu.gd`, "THE POSTER") gives the screen to `scripts/menu_world.gd` (`main.gd`
 `menu_backdrop()`), with only a slim panel at the foot: "Tip the Scales" in cast brass at the top, the pitch
 between two short rules, and THE BALANCE -- a big brass weigh-house scale on the counter (plinth, column,
-a dial whose needle stands up from the beam, pans on chains), two crates on one pan and a crate and a "2"
-weight on the other, rocking as if a crate had just been set down (drawn HEAVY -- a broad plinth, a thick column and
+a DIAL -- a cream enamel scale plate in a brass bezel, nine ticks with a red center one, held over the pivot on two brass arms (2026-11-22: a bare arc there read as nothing) -- whose needle stands up from the beam and sweeps its ticks, pans on chains) with ONE colorful cast weight on each pan, a single
+letter on it (2026-11-22, as the chooser tile; there were crates and a "2" weight), never at rest (drawn HEAVY -- a broad plinth, a thick column and
 beam, big alternating chain links, each part edged in dark (`EDGE`): thinner, it was lost on a phone against
-the engravings and the paneling): a damped swing to one side, then to the
-other (`_beam_angle`, 7 s; each swing starts exactly where the last came to rest -- it jumped at first).
+the engravings and the paneling). THE LOOP, with no pause anywhere (`CYCLE` 4 s per pair, `PAIRS`): the beam tips to
+the heavier weight -- the larger one, `LIGHT_SCALE` 0.76 for the other, heavier on the right and the left in turn -- and
+as each cycle starts the two weights MORPH into the next pair (`_morph`, over `MORPH` 0.9 s: the new weight's picture
+fades in over the old, both at the size between theirs, scaled about the foot, so the weight is whole at every moment)
+while the beam swings over (`_beam_angle`: each cycle adds a damped spring step that sets off at zero speed to what the
+earlier cycles are still doing, eased in over its first 0.6 s so it sets off without a kick -- no jump, no jerk, never
+still; 0.13 rad each way).
 Behind it THE WALL, in three layers under the balance (`_draw_wall_layer`; the papered wall and the
 dressing drawn once, the view every frame): olive-striped wallpaper with a small gilt motif, aged toward
 the corners, a picture rail, an oak chair rail and raised wainscot panels; a tall arched window centered
 behind the balance -- a moulded casing with a keystone, a deep reveal, a fanlight and small panes, faint
 reflections on the glass, a sill -- looking out on a night sky over a town's roofline (a spire, a few lit
-windows), soft clouds drifting across a moon with a halo, a lit limb and its seas; velvet curtains in lit and
+windows), two soft moonlit wisps of cloud drifting across a moon (`_draw_clouds`, a layer CLIPPED to the sky in the glass, 2026-11-22: unclipped blobs drifted out over the wallpaper and the lowest crossed the roofs like smoke) with a halo, a lit limb and its seas; velvet curtains in lit and
 shaded folds under a scalloped pelmet on a brass rod with finials, held back by gold cords with tassels;
 two engravings (a steelyard, a pair of scales: hatched sky, horizon, the subject in ink) in moulded gilt
 frames with a cream mat, hung a touch askew by a cord on two screw eyes from hooks on the picture rail,
@@ -226,6 +231,13 @@ In the games document (`docs/the-nomizo-games.md`, Brain twisters) and on the si
 (built), the category shelf in `games/index.html`, the thumbnail columns in `index.html`, `thumbs.js`
 `NAMES`, and `thumbnails/tipscales.png` (the chooser tile).
 
+The chooser tile is drawn by `devtools/make_tipscales_tile.gd` into `devtools/thumb_preview/tipscales.png` for
+review, then installed with `install_thumbs.py tipscales`; after that, copy it to the site's `thumbnails/` and rebuild
+the games document. A redraw (2026-11-22: the chains did not show, the letters were too small, it was dull) waits there
+for approval: a big brass balance under a lamp, tipped hard -- on each pan ONE colorful cast weight with a single letter
+(red A down, teal B up), heavy chain links with a dark edge -- against a navy damask wall, a walnut wainscot and the oak
+counter: big, colorful shapes that read at 200 px.
+
 ## Files
 
 ```
@@ -237,7 +249,7 @@ tipscales/
     ├── globals.gd          (TipscalesG: starting level; no session clock)
     ├── level_config.gd     (TipscalesLevelConfig: sizes, clue mixes, spare clues, puzzles, pass)
     ├── main.gd             (menu, instructions, scores)
-    ├── menu_world.gd       (the main menu's poster: the name in brass, a rocking balance)
+    ├── menu_world.gd       (the main menu's poster: the name in brass, a balance tipping between pairs of weights)
     ├── level.gd            (the screen, the rules of play, hints, the puzzle flow)
     ├── puzzle.gd           (generator, solver, depth, hint steps; pure logic, thread-safe)
     ├── scales_art.gd       (crates and slates, iron weights, the clue engravings)
@@ -269,4 +281,11 @@ freely (snapping to rows was tried the same day and turned down: "very confusing
 
 To hold 60 fps on a mid-range phone (see CLAUDE.md, "Menu frame rate"): the weighhouse backdrop shader (no TIME) is rendered once (a DrawnOnce with `inner_material`); the papered wall and the window dressing with the pictures are drawn once; the foreground is three layers -- the standard weights (once), the balance (live, `_cv = _fg`), the name (once). Only the view through the window and the balance are drawn every frame.
 The balance's shadow, plinth, column and dial face are drawn once with the weights (`_draw_balance(full, true)` in `_fg_back`); only the needle is live (`_balance_live`, antialiased); the BEAM is drawn once, level, and turned as a picture about the pivot (`_beam_hold` / `_beam_draw`, 2026-11-20: drawn live its long edges stepped as it rocked), the round cap a still picture over it (`_cap`).
-The pans are drawn once each AT REST (`_pan_draw`: a DrawnOnce per pan in a holder Control the size of the screen -- a zero-sized holder never shows -- with its chains, crates and weight) and carried each frame to where the beam's ends hang (`_place_pans()` from `_process`, `_pan_rest` / `_pan_hang` set in `_layout`, `_balance_geom(full)` -> pivot, half length, hang). They are redrawn on a layout change and when the crate bake completes. Up close they are a hair softer than drawn live.
+The pans are drawn once each AT REST (`_pan_draw`: a DrawnOnce per pan in a holder NODE2D -- a Control holder is
+snapped to whole pixels while unturned, so at the slow end of a swing the pans stepped a pixel at a time against the
+smoothly turning beam (2026-11-22); under a Node2D a Control's anchors give it no size, so `_layout` sizes each picture
+to the screen (a zero-sized picture never shows) -- in two parts round its weights: the middle chain behind (`_pan_draw`), the two outer chains and the bowl in front, over
+the weight (`_pan_front`); each pair's weight is its own DrawnOnce (`_weights`, `render_scale` 1), faded by `_morph` and
+scaled about its foot by a Node2D around it (a Control's scaling is snapped too) -- ALWAYS visible, a weight not in use fully transparent: hidden and shown again, a picture is drawn again, and
+re-rendered at its scaled size it flickered for a frame at each change of pair, the "jitter" the user saw) and carried
+each frame to where the beam's ends hang (`_place_pans()` from `_process`, `_pan_rest` / `_pan_hang` set in `_layout`, `_balance_geom(full)` -> pivot, half length, hang). They are redrawn on a layout change (no crate pictures are baked for the poster any more). Up close they are a hair softer than drawn live.
