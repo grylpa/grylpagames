@@ -28,6 +28,10 @@ static func fetch(host: Node, folder: String, progress: Callable) -> bool:
 				DirAccess.remove_absolute("user://packs/" + f)
 		# (the body comes back in memory and is written here: on the web `download_file` wrote nothing; a pack is a few MB)
 		var req: HTTPRequest = HTTPRequest.new()
+		# GitHub Pages sends a .pck GZIPPED (Content-Encoding: gzip). On the web the BROWSER already unzips it, and an
+		# HTTPRequest that accepts gzip unzipped it a second time and failed (stream_peer_gzip.cpp: every game failed to
+		# open on grylpa.com, 2026-11-22, while a plain local server worked). Elsewhere the server is told not to zip.
+		req.accept_gzip = false
 		host.add_child(req)
 		# (the lambda writes into the array: a captured local would be a copy)
 		var state: Array = [false, 0, 0, PackedByteArray()]
