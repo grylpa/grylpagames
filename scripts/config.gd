@@ -109,6 +109,29 @@ func runs_on_this_platform(g) -> bool:
 		return false
 	return supports_mobile(g) if MainGlobals.is_mobile() else supports_desktop(g)
 
+# A LINK TO ONE GAME (2026-11-23): grylpa.com/games/nomizo/?game=tip-the-scales opens that game's menu. The name in the
+# link is the display name in lowercase with every run of other characters a "-" ("Dino N-Back" -> "dino-n-back");
+# devtools/make_game_links.py makes the site's per-game pages with the same rule -- change both together.
+func link_slug(display_name: String) -> String:
+	var out: String = ""
+	for ch in display_name.to_lower():
+		var letter_or_digit: bool = (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9")
+		if letter_or_digit:
+			out += ch
+		elif not out.is_empty() and not out.ends_with("-"):
+			out += "-"
+	return out.trim_suffix("-")
+
+# the folder of the game a link names (by its link name or its folder), or "" when none here can be played
+func folder_for_link(link: String) -> String:
+	var wanted: String = link.strip_edges().to_lower()
+	if wanted.is_empty():
+		return ""
+	for g in games:
+		if (wanted == str(g[0]) or wanted == link_slug(str(g[1]))) and runs_on_this_platform(g):
+			return str(g[0])
+	return ""
+
 # set to value of game folder if a single game
 var single_game = ""
 # var single_game = "mmm"

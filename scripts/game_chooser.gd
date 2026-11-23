@@ -718,6 +718,13 @@ func _launch(game_path: String, scene_path: String, game_name: String, mark_hot:
 	if card != null:
 		card.close_soon()
 
+# A LINK TO ONE GAME opens it as a tap on its tile would (main.gd `_linked_game`)
+func open_game(folder: String) -> void:
+	for g in MainCfg.games:
+		if str(g[0]) == folder:
+			_launch(folder, "res://%s/scenes/main.tscn" % folder, str(g[1]), Callable())
+			return
+
 func set_active_game(scene, game_name):
 	MainGlobals.digitized_swipe_mode = false
 	MainGlobals.draw_path_mode = false

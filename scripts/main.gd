@@ -74,8 +74,26 @@ func _ready() -> void:
 		# After the chooser exists, so the notice has something to sit on.
 		call_deferred("_show_stats_migration_notice")
 
+	# A LINK TO ONE GAME opens its menu -- its poster -- at once; a first visitor who came by one is asked for a name
+	# when they press PLAY (main_menu.gd), not before they have seen the game
+	var linked: String = _linked_game()
 	if _should_force_guest_name() and not MainGlobals.has_named_guest():
-		$LoginScreen.show_guest_name_only()
+		if linked.is_empty():
+			$LoginScreen.show_guest_name_only()
+		else:
+			MainGlobals.name_on_play = true
+	if not linked.is_empty():
+		$GameChooser.open_game.call_deferred(linked)
+
+# the game a link to one game names (?game=tip-the-scales, made by devtools/make_game_links.py), or ""; on the web only
+# (NOMIZO_GAME names one when a test runs the desktop engine)
+func _linked_game() -> String:
+	if OS.has_environment("NOMIZO_GAME"):
+		return MainCfg.folder_for_link(OS.get_environment("NOMIZO_GAME"))
+	if not OS.has_feature("web"):
+		return ""
+	var got: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('game') || ''", true)
+	return MainCfg.folder_for_link(str(got)) if got != null else ""
 
 
 func _should_force_guest_name() -> bool:
@@ -129,6 +147,10 @@ func _on_game_chooser_stop_active_game() -> void:
 		MainGlobals.active_game.queue_free()
 		MainGlobals.active_game = null
 	show_game_chooser()
+	# came by a link to one game and left it without playing: the name is asked for now, as on any first visit
+	if MainGlobals.name_on_play and not MainGlobals.has_named_guest():
+		MainGlobals.name_on_play = false
+		$LoginScreen.show_guest_name_only()
 
 func show_game_chooser():
 	$GameChooser.show()

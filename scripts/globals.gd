@@ -27,6 +27,9 @@ var last_played_order: Array = []  # game folders in most-recently-played-first 
 # parameter, because the chooser instantiates the game scene generically and has nowhere to pass
 # arguments. Lives here rather than in the per-game settings file, which tutorial mode cannot write.
 var pending_tutorial: String = ""
+# A first visitor who came by a link to one game (main.gd `_linked_game`) saw its poster before naming themselves: PLAY
+# asks for the name first (main_menu.gd `_ask_name_then_play`), so nothing is saved under no name
+var name_on_play: bool = false
 # Whether the player has been offered a tutorial at least once (app-level, persisted in slot 14).
 # Vestigial: the app used to open a "How to play" picker on the first run after install. That
 # picker is gone — a game with a tutorial now calls for its "How to play" until it is answered.

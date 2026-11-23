@@ -949,12 +949,30 @@ func hide_frame():
 	_sync_poster_links()
 
 func _on_start_new_game_button_pressed() -> void:
+	if MainGlobals.name_on_play and not MainGlobals.has_named_guest():
+		_ask_name_then_play()
+		return
 	# PLAY on a game whose tutorial is still new: ask first. "Show me how" (the filled, safe button) starts it,
 	# "Just play" plays and stops asking (and calling) for good
 	if _tutorial_unseen():
 		_ask_first_time()
 		return
 	sig_start_game.emit(true)
+
+# a first visitor who came by a link to this game names themselves before the first round (the name screen that a
+# visit by the chooser shows at once); it cannot be dismissed unnamed, so PLAY goes on when it closes
+func _ask_name_then_play() -> void:
+	var login: CanvasLayer = get_tree().root.get_node_or_null("Main/LoginScreen") as CanvasLayer
+	if login == null:
+		MainGlobals.name_on_play = false
+		_on_start_new_game_button_pressed()
+		return
+	login.call("show_guest_name_only")
+	while login.visible:
+		await get_tree().process_frame
+	MainGlobals.name_on_play = false
+	if MainGlobals.has_named_guest() and visible:
+		_on_start_new_game_button_pressed()
 
 # the question, in the briefing's blue (a friendly question, not the red "you will lose something" confirmation)
 var _first_time_q: CanvasLayer = null
