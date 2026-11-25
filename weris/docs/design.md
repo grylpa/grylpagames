@@ -214,7 +214,7 @@ Grid sizing:
 
 **Last-level loop (level 6):** At max difficulty, completing the required finds saves the score silently via `game.sig_level_is_done` and immediately restarts at level 6 — no popup, no difficulty increase. `times_to_answer` is only cleared on a full new game (`from_scratch=true`), so the rolling average persists across loops.
 
-The scores button in the bottom bar shows a small orange dot badge whenever a new score is saved (any game). The badge disappears when the player opens the scores table. This is handled by `scripts/bottom_option_buttons.gd` via `MainGlobals.sig_new_best_score` / `sig_scores_viewed` signals, and persists across sessions via a flag file `user://new_best_v1_weris.gpa`.
+The scores button in the bottom bar shows a small orange dot badge whenever a new score is saved (any game). The badge disappears when the player opens the scores table. This is handled by `scripts/bottom_option_buttons.gd` via `MainGlobals.sig_new_best_score` / `sig_scores_viewed` signals, and persists across sessions via a flag file `user://new_best_v1_weris.gry`.
 
 ---
 

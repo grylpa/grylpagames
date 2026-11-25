@@ -53,7 +53,7 @@ func init_globals() -> void:
 # v5: also stores actual offset-from-center sums (a*) so the stats graphic can show
 # where you really tap, while dx/dy numbers stay spine-relative. Older data ignored.
 func get_key_data_path() -> String:
-	return "user://keydata_v5_" + MainGlobals.user_file_key + "_typit.gpa"
+	return "user://keydata_v5_" + MainGlobals.user_file_key + "_typit.gry"
 
 func save_settings() -> void:
 	game.save_settings([selected_level, int(show_instructions)])

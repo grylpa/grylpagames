@@ -340,7 +340,7 @@ func load_settings():
 			dir.list_dir_begin()
 			var fname: String = dir.get_next()
 			while fname != "" and settings.is_empty():
-				if fname.begins_with("settings_v5_") and fname.ends_with("_main.gpa") and fname != "settings_v5_guest_main.gpa":
+				if fname.begins_with("settings_v5_") and fname.ends_with("_main.gry") and fname != "settings_v5_guest_main.gry":
 					var key: String = fname.substr(12, fname.length() - 12 - 9)
 					user_file_key = key
 					settings = game.read_settings()

@@ -112,8 +112,8 @@ The games are intended for entertainment and personal challenge only. They are n
 
 The code is MIT; see [LICENSE](LICENSE).
 
-Not all the assets are the project's own to license: some sounds were bought, the fonts keep their own licenses
-(SIL OFL and others), and the cardboard texture is CC0. Ask (info@grylpa.com) before reusing any art, photo or
+Not all the assets are the project's own to license: some sound recordings are by others (Wolves' animals are from
+Pixabay), the fonts keep their own licenses (SIL OFL and others), and the cardboard texture is CC0. Ask (info@grylpa.com) before reusing any art, photo or
 sound outside this project.
 
 ## Attribution

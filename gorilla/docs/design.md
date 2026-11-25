@@ -338,9 +338,9 @@ Retuned 2026-11-11 (`level_config.gd`):
 ## Save Files
 
 Uses standard `GenericGameUtil` file system with prefix `gorilla`:
-- `settings_v5_gorilla.gpa`
-- `scores_v5_gorilla.gpa`
-- `ongoing_score_v5_gorilla.gpa`
+- `settings_v5_gorilla.gry`
+- `scores_v5_gorilla.gry`
+- `ongoing_score_v5_gorilla.gry`
 
 ## Camera, Zoom and the Background
 

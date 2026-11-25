@@ -36,7 +36,7 @@ const SCHEMA_VERSION: int = 7
 # Step 6 is the changeover to the v6 session record.
 #
 # Step 7 is that changeover's own leftovers. Typit keeps its per-key tap history in
-# `keydata_v5_{key}_typit.gpa` — session history like any other, but under a name step 6 did not
+# `keydata_v5_{key}_typit.gry` — session history like any other, but under a name step 6 did not
 # list, so it survived. The result was a Keys tab showing a full table of taps for sessions the
 # score list no longer had, on a device that had just been told its history could not be carried
 # over. Only step 6 says anything to the player; step 7 is cleanup after a message already sent.

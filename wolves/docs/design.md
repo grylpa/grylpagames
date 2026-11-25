@@ -283,9 +283,9 @@ Two camera modes switchable via `zoom_camera(zoom_in)`:
 ## Save Files
 
 Uses standard `GenericGameUtil` file system with prefix `wolves`:
-- `settings_v5_wolves.gpa`
-- `scores_v5_wolves.gpa`
-- `ongoing_score_v5_wolves.gpa`
+- `settings_v5_wolves.gry`
+- `scores_v5_wolves.gry`
+- `ongoing_score_v5_wolves.gry`
 
 ## Scene / Script Structure
 

@@ -476,9 +476,9 @@ Drain tiles are special pipes (`is_drain = true`). When a filled tool is placed 
 ## Save Files
 
 Uses standard `GenericGameUtil` with prefix `storm`:
-- `settings_v5_{key}_storm.gpa` — `[starting_level]`
-- `scores_v5_{key}_storm.gpa` — score rows: `[unixtime, score, time_left_sec, times_run, didwin, wasaborted, level]`
-- `ongoing_score_v5_{key}_storm.gpa`
+- `settings_v5_{key}_storm.gry` — `[starting_level]`
+- `scores_v5_{key}_storm.gry` — score rows: `[unixtime, score, time_left_sec, times_run, didwin, wasaborted, level]`
+- `ongoing_score_v5_{key}_storm.gry`
 
 ## Scene / Script Structure
 

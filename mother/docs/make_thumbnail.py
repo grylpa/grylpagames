@@ -1,3 +1,4 @@
+import os
 """Mother Snake chooser thumbnail — mirrors mother/scripts/level.gd.
 
 !!! OUT OF DATE !!!  The scene was rebuilt as a genuine top-down view: the three horizontal dune
@@ -266,6 +267,6 @@ for i in range(VIGNETTE_STEPS):
     d.rectangle([W - o - stepv, 0, W - o, W], fill=(0, 0, 0, a))
 
 img = img.resize((S, S), Image.LANCZOS).filter(ImageFilter.SHARPEN)
-out = "/home/user/dev/grylpa/braingames/main/mother/art/game_screen_200.png"
+out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "art", "game_screen_200.png")
 img.save(out)
 print("wrote", out, img.size)

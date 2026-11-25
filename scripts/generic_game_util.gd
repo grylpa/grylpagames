@@ -297,7 +297,7 @@ func add_life():
 	
 func get_settings_fname():
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://settings_v" + str(file_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://settings_v" + str(file_ver) + "_" + key + "_" + file_names_prefix + ".gry"
 
 # SCORES are versioned separately from settings on purpose.
 #
@@ -310,15 +310,15 @@ var scores_ver: int = 6
 
 func get_scores_fname():
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://scores_v" + str(scores_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://scores_v" + str(scores_ver) + "_" + key + "_" + file_names_prefix + ".gry"
 
 func get_ongoing_score_fname():
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://ongoing_score_v" + str(scores_ver) + "_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://ongoing_score_v" + str(scores_ver) + "_" + key + "_" + file_names_prefix + ".gry"
 
 func get_uploaded_scores_fname() -> String:
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://uploaded_v5_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://uploaded_v5_" + key + "_" + file_names_prefix + ".gry"
 
 func read_uploaded_scores() -> Dictionary:
 	var path: String = get_uploaded_scores_fname()
@@ -344,11 +344,11 @@ func mark_scores_uploaded(ts_list: Array) -> void:
 		file.close()
 
 func get_game_data_fname():
-	return "user://game_data_v" + str(file_ver) + "_" + file_names_prefix + ".gpa"
+	return "user://game_data_v" + str(file_ver) + "_" + file_names_prefix + ".gry"
 
 func _new_best_flag_path() -> String:
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://new_best_v1_" + key + "_" + file_names_prefix + ".gpa"
+	return "user://new_best_v1_" + key + "_" + file_names_prefix + ".gry"
 
 func reset_local_scores() -> void:
 	stored_ongoing_score = null
@@ -1010,7 +1010,7 @@ var _trials: Array = []
 
 func get_trials_fname() -> String:
 	var key: String = MainGlobals.user_file_key if MainGlobals != null else "guest"
-	return "user://trials_v%d_%s_%s.gpa" % [TRIALS_VER, key, file_names_prefix]
+	return "user://trials_v%d_%s_%s.gry" % [TRIALS_VER, key, file_names_prefix]
 
 # One trial. Games pass whatever that trial means for them — {"lag": 7, "right": true} in Dino,
 # {"crowd": 12, "ms": 2400} in Weris.
