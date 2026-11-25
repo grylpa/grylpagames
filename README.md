@@ -1,71 +1,102 @@
 # Nomizo
 
-A collection of mini-games built with Godot 4.6, targeting Android, desktop, and web. Portrait orientation (680×788). No accounts required — plays fully as a guest.
+More than thirty short brain teasers: puzzles, memory and reflexes, each game its own little illustrated world.
+Built with Godot 4.7 for Android, desktop (Windows, Linux) and the web. Portrait (680x788). No accounts, no ads,
+nothing collected: it plays fully offline as a guest.
+
+## Play it
+
+- Web: https://grylpa.com/games/nomizo/ (each game also has its own link there)
+- Android: https://play.google.com/store/apps/details?id=com.grylpa.nomizo
+- itch.io: https://grylpa.itch.io/nomizo
 
 ## Games
 
-**Serenity / Breathing**
-- **Breathe** — tap to breathe along a visual guide; tracks your rhythm on a graph
-- **Crack the Safe** — follow a breathing pattern (inhale / hold / exhale) to open a vault
-- **Mother** — draw a shape that matches a breathing-pace curve; a child shape mirrors you
-- **UDBR** — up / down / breathe / rest; four-quadrant guided breathing drill
+**Brain twisters**
+- **Aliens** — work the gates of an alien spaceport and let the right travelers board
+- **Sorting Robots** — sort parcels on a depot belt by hidden rules
+- **Pockets** — send each rolling ball into the right pocket of a billiard table
+- **Change** — pay the exact amount from a pile of coins
+- **Tip the Scales** — weigh the crates with nothing but balance scales
 
-**Attention / Reflexes**
-- **Sorting Robots** — two conveyor belts, two hidden rules; swipe to keep or discard each item
-- **Whack** — classic timing and reaction game
-- **Weris** — color-word Stroop variant; pick the ink color, not the word
-- **OOO** — one of these things is not like the others
-- **Pop** — tap the right bubbles before they drift off screen
+**Attention & speed**
+- **Gorilla** — eat apples and rescue the lost baby gorillas
+- **Pickpocket** — follow the ball under the cups, and catch the pickpocket
+- **Wolves** — guard your flock from the wolves
+- **Pinpoint** — catch the courier and the lookout in a flash of lightning
 
-**Memory / Matching**
-- **Match WS** — vocabulary pair matching; supports multiple languages
-- **Moving Cards** — memory card-flip game with moving cards
-- **Mosaic** — remember a picture, then rebuild it from its shuffled pieces
-- **Lighthouse** — sail through a dark sea, seeing the rocks only in the lighthouse's beam
-- **Polkadots** — remember the dot pattern, then reproduce it
-- **Faces** — match face pairs; expressions and identities change between glimpse and recall
+**Memory & speed**
+- **Dino** — say whether you have seen the card before
+- **Dino N-Back** — does this card match the one N cards back?
+- **Moving Cards** — remember cards that move
+- **Mosaic** — rebuild the picture, faster every round
+- **Lighthouse** — the beam shows the rocks for a moment; remember them and sail through the dark
 
-**Planning / Reasoning**
-- **DIDI** — shape-selection puzzle with a fixed number of correct picks
-- **DDOOO** — extended shape variant of DIDI
-- **Wolves** — logic deduction over a grid of hidden wolves and sheep
-- **Lights Out** — classic toggle-neighbor lights puzzle
-- **Gorilla** — brick-clearing physics puzzle with a gorilla and coins
+**Planning**
+- **Taxi** — run a taxi station: fetch the customers, watch the fuel, keep the business alive
+- **Storm** — save your house from the storm
+- **Valet** — switch the junctions to get every car to its spot
+- **Pneumo** — manage the pneumatic tube deliveries
+- **Detour** — keep the monsters from reaching their goals
+- **Ants** — keep the colony from carrying the food home
 
-**Other**
-- **Storm** — manage leaks with the right tools before the boat sinks
-- **Valet** — get every car to its parking spot by switching the junctions it drives through
-- **Taxi** — route a taxi to pick up and drop off passengers
-- **Ants** — keep a colony from carrying its food home, blocking the trails it lays
-- **Apprentice** — watch a robot sort, then name its hidden rule
-- **MMM** — timed multi-modal memory task
+**Reflexes**
+- **Whack** — tap quickly and accurately, and avoid the decoys
+- **Nudge** — nudge every ball into its own basket
+- **Typit** — how fast and accurately can you type?
 
-## Tech Stack
+**Recognition**
+- **Couples** — find the two identical cards
+- **Friends** — recognize your friends on an evening stroll
+- **Weris** — find people in a crowd
+- **Polka Dots** — identify the scatter of dots
 
-- **Engine**: Godot 4.6 (GDScript)
-- **Platforms**: Android, Linux/Windows desktop, Web (HTML5)
-- **Save format**: versioned binary files under `user://` (`.gpa` extension)
-- **Backend**: optional Supabase score sync; defaults to guest-only mode (`use_BE = false`)
+**Memory & navigation**
+- **Mind Palace** — open the vault in every room of a castle, then remember where each treasure was
+- **Lights Out** — remember your path, goal and obstacles in the dark
+- **Dispatch** — remember the delivery order
+- **Headlights** — deliver the packets in order while zoomed in
 
-## Project Structure
+Some older games are still in the source but hidden (`HIDDEN_GAMES` in `scripts/config.gd`). The list of games
+and their categories is `MainCfg.games` in the same file.
+
+## Tech
+
+- **Engine**: Godot 4.7, GDScript, Compatibility renderer
+- **Platforms**: Android, Windows and Linux desktop, Web (HTML5)
+- **Saves**: versioned binary files under `user://` (`.gry`)
+- **Backend**: optional Supabase score sync, off by default (`use_BE = false`): nothing leaves the device
+- **Web build**: a base pack plus one pack per game, fetched the first time that game is opened. The editor plugin
+  `addons/web_pack_split` splits every Web export by itself (a `nomizo.pck` of ~50 MB means it did not run).
+
+## Project structure
 
 ```
-braingames/
-├── main/               # Godot project root (open this in the editor)
-│   ├── project.godot
-│   ├── scripts/        # Shared autoloads (MainGlobals, BE, SaveManager, …)
-│   ├── art/            # Shared art and sounds (all sounds live here)
-│   ├── scenes/         # Shared scenes (GameChooser, menus, overlays)
-│   ├── {game}/         # One folder per game
-│   │   ├── scripts/
-│   │   ├── scenes/
-│   │   ├── art/        # Game-specific graphics only
-│   │   └── docs/
-│   │       └── design.md
-│   └── addons/
-│       └── ver_tools/  # Version-bump plugin
-└── export/             # Built export artifacts (git-ignored)
+main/                   Godot project root (open project.godot in the editor)
+├── scripts/            shared code and autoloads (MainGlobals, MainCfg, SaveManager, GenericGameUtil, ...)
+├── scenes/             shared scenes (game chooser, menus, overlays)
+├── art/                shared graphics and ALL sounds
+├── shared/             shared game pieces (the card, ...)
+├── {game}/             one folder per game: scripts/, scenes/, art/ (graphics only), docs/design.md
+├── addons/
+│   ├── ver_tools/      version bump
+│   └── web_pack_split/ splits the Web export into per-game packs
+├── docs/               cross-game docs (tutorials.md, ...)
+└── export/             zip.sh (packages every platform's export) and itch.sh (the itch.io upload)
 ```
+
+Each game's `docs/design.md` describes how it works. `how_to_add_a_new_game.txt` is the checklist for a new one.
+
+## Building
+
+Export from the editor (Project > Export), then in `export/`:
+
+```sh
+./zip.sh     # zips each platform's export; makes web/index.html
+./itch.sh    # the web build as an itch.io upload (after zip.sh)
+```
+
+The export presets are not in this repository; set them up in the editor's Export dialog.
 
 ## Disclaimer
 
@@ -79,7 +110,11 @@ The games are intended for entertainment and personal challenge only. They are n
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+The code is MIT; see [LICENSE](LICENSE).
+
+Not all the assets are the project's own to license: some sounds were bought, the fonts keep their own licenses
+(SIL OFL and others), and the cardboard texture is CC0. Ask (info@grylpa.com) before reusing any art, photo or
+sound outside this project.
 
 ## Attribution
 
